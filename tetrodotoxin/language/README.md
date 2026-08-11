@@ -34,11 +34,19 @@ grammar reference for authored language shape and parse order. These references
 describe valid input. The toolchain does not generate or run its parsers from
 them. A custom Dialect owns its grammar but does not have to express it in G4.
 
-The shared grammar also defines the shape of a TTX Attribute as one key with at
-most one scalar value. That syntax does not create a universal annotation
-vocabulary. A concrete Dialect admits Attributes only where it defines their
-meaning, accepted values, and consumers. An unknown Attribute is not an opaque
-escape hatch that a later backend may reinterpret.
+The shared grammar defines `Definition` as greedily retained Documentation,
+Attributes, modifiers, and a name followed by `:`. The next Token is its
+qualifier and remains for the concrete language to dispatch. Definition is a
+source value, not an Abstract, common AST node, declaration hierarchy, or
+semantic category and is attached by the parent parser to the actual dispatched
+parser type.
+
+An Attribute is one ordered key with at most one scalar value. Every Definition
+can retain arbitrary Attributes (any number with duplicates being valid). The
+concrete consumer decides which keys it interprets, whether repeated keys are
+meaningful, and which local combinations are invalid. The shared parser never
+rejects an Attribute because of the qualifier that follows it and it does not
+validate its contents if it has any.
 
 ## Dialect
 
@@ -101,12 +109,15 @@ The Monograph remains queryable for the lifetime of its Workspace. It retains
 semantic facts rather than parser positions or source traversal state.
 
 The concrete Dialect constructs its Types, Addressables, Callables, lifecycle
-facts, or package members directly. The concrete Monograph exposes that result
-directly. Environment retains it without wrapping the objects in declaration
-nodes or copying them into a shared member inventory.
+facts, or package members directly. As an example, a semantic object should
+retain the exact Definition that introduced it but it's up to the Dialect's
+concrete parsers to define what are actual durable semantics. The concrete
+Monograph exposes that result directly. Environment does not wrap those objects
+in generic declaration identities or copy them into a shared member inventory.
 
 Shared grammar rules return the complete semantic result requested by the
-concrete Dialect. They never introduce an intermediate declaration model.
+concrete Dialect. Definition preserves only its common authored prefix and is
+retained directly instead of becoming an intermediate declaration model.
 
 ## Resource and Error
 

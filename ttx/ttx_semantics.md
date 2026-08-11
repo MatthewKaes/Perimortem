@@ -103,8 +103,8 @@ The closed identity categories are:
 * `Addressable` provides a named address whose edge reaches one Type.
 * `Callable` provides complete parameter and result Layouts.
 
-`Documentation`, `Layout`, `Reference`, and `Attribute` are supporting contracts
-and values that carry no semantic identity.
+`Documentation`, `Layout`, and `Reference` are supporting contracts and values
+that carry no semantic identity.
 
 These categories are an interchange vocabulary rather than a complete type
 system. Concrete languages define their Type inventory, access policy,
@@ -252,12 +252,6 @@ The graph owner guarantees that the borrowed identity outlives the Reference.
 A process address may identify that object while the owner keeps it stable, but
 the address is not a durable semantic name. A Reference cannot be serialized or
 carried across a Terminal boundary.
-
-## Attribute
-
-Attribute carries no semantic identity. It provides a key with an optional
-scalar value. Values are borrowed `Bytes`, `Unsigned_64`, `Signed_64`,
-`Real_64`, and `Bool`. The owner that exposes an Attribute defines its meaning.
 
 ## Consumers and Terminal products
 

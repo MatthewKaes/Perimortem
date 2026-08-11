@@ -11,38 +11,40 @@ using namespace Tetrodotoxin::Library::Language;
 
 Types::Object::Object(
     Allocator::Arena& domain,
-    View::Bytes name,
-    const Documentation& documentation,
-    Visibility visibility,
+    Tetrodotoxin::Language::Definition& definition,
     Monograph& source,
     Materializations& materializations,
-    const Structure& enclosing_scope,
-    Anchor anchor,
-    Anchor name_anchor)
-    : Structure(
-          domain,
-          name,
-          documentation,
-          visibility,
-          source,
-          materializations,
-          Ttx::Concept::Reference<const Ttx::Model::Type>(enclosing_scope),
-          anchor,
-          name_anchor) {}
+    const Composite& enclosing_scope)
+    : Structure(domain, definition, source, materializations, enclosing_scope) {
+}
 
-auto Types::Object::create_authored(
+auto Types::Object::interpret(
     Allocator::Arena& domain,
-    View::Bytes name,
-    const Documentation& documentation,
-    Visibility visibility,
+    Cursor& cursor,
+    Tetrodotoxin::Language::Definition& definition,
     Monograph& source,
     Materializations& materializations,
-    const Structure& enclosing_scope,
-    Anchor anchor,
-    Anchor name_anchor) -> Object& {
-  return domain.construct_from<Object>([&]() -> Object {
+    const Composite& enclosing_scope) -> Option<Object&> {
+  auto transaction = cursor.branch();
+  BAIL_IF(!validate_definition(transaction, definition));
+
+  Token kind_token = transaction.require(
+      Code::Type::Addressable,
+      "Library Object definitions require the `object` qualifier."_view);
+  BAIL_IF(!kind_token);
+  View::Bytes kind = kind_token.caculate_text(transaction.get_source_text());
+  if (kind != "object"_view) {
+    transaction.create_token_error(
+        kind_token,
+        "Library Object definitions require the `object` qualifier."_view);
+    return {};
+  }
+
+  Object& object = domain.construct_from<Object>([&]() -> Object {
     return Object(
-        domain, name, documentation, visibility, source, materializations,
-        enclosing_scope, anchor, name_anchor);
+        domain, definition, source, materializations, enclosing_scope);
   });
+  BAIL_IF(!object.interpret_body(transaction, definition, kind_token));
+  cursor.join(transaction);
+  return object;
 }

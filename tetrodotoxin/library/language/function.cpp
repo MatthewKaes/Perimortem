@@ -4,9 +4,9 @@
 #include "tetrodotoxin/library/language/function.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
-#include "tetrodotoxin/library/language/parser/declaration.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
-#include "tetrodotoxin/library/language/types/structure.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/visibility.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
@@ -19,6 +19,126 @@ using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
 static const Layouts::Fluid incomplete_layout;
+
+static auto get_native_attribute_anchor(
+    View::Vector<Tetrodotoxin::Language::Attribute> attributes)
+    -> Option<Anchor> {
+  for (Count i = 0; i < attributes.get_size(); i++) {
+    const auto& attribute = attributes.get_data()[i];
+    if (attribute.get_key() == "abi"_view ||
+        attribute.get_key() == "symbol"_view) {
+      return attribute.get_anchor();
+    }
+  }
+
+  return {};
+}
+
+static auto validate_attributes(
+    Cursor& cursor,
+    Language::Visibility visibility,
+    View::Vector<Tetrodotoxin::Language::Attribute> attributes) -> Bool {
+  // Function validates only its local authored requests. Target carriers and
+  // the complete symbol set remain facts for later compilation owners.
+  Bool abi = False;
+  Option<Anchor> symbol_anchor;
+  for (Count i = 0; i < attributes.get_size(); i++) {
+    const Tetrodotoxin::Language::Attribute& attribute =
+        attributes.get_data()[i];
+    const View::Bytes* value = attribute.get_value().find<View::Bytes>();
+    if (attribute.get_key() == "abi"_view) {
+      if (abi) {
+        cursor.create_expression_error(
+            attribute.get_anchor(),
+            "A Function cannot repeat its `abi` request."_view);
+        return False;
+      }
+      if (!value || *value != "C"_view) {
+        cursor.create_expression_error(
+            attribute.get_anchor(),
+            "Function `abi` requires the exact supported string `C`."_view);
+        return False;
+      }
+      abi = True;
+      continue;
+    }
+
+    if (attribute.get_key() == "symbol"_view) {
+      if (symbol_anchor) {
+        cursor.create_expression_error(
+            attribute.get_anchor(),
+            "A Function cannot repeat its `symbol` request."_view);
+        return False;
+      }
+      if (!value || value->is_empty()) {
+        cursor.create_expression_error(
+            attribute.get_anchor(),
+            "Function `symbol` requires one nonempty string."_view);
+        return False;
+      }
+      symbol_anchor = attribute.get_anchor();
+      continue;
+    }
+  }
+
+  auto native_anchor = get_native_attribute_anchor(attributes);
+  if (native_anchor && visibility != Language::Visibility::Public) {
+    cursor.create_expression_error(
+        *native_anchor,
+        "Native publication Attributes require a public Function."_view);
+    return False;
+  }
+  if (symbol_anchor && !abi) {
+    cursor.create_expression_error(
+        *symbol_anchor,
+        "Function `symbol` requires an accompanying `abi` request."_view);
+    return False;
+  }
+
+  return True;
+}
+
+static auto validate_definition(
+    Cursor& cursor,
+    const Tetrodotoxin::Language::Definition& definition,
+    Language::Visibility& visibility) -> Bool {
+  if (definition.get_name_token().get_code() != Code::Type::Addressable) {
+    cursor.create_token_error(
+        definition.get_name_token(),
+        "Library Functions require an authored addressable name."_view);
+    return False;
+  }
+
+  Count publications = 0;
+  auto modifiers = definition.get_modifiers();
+  for (Count i = 0; i < modifiers.get_size(); i++) {
+    Token modifier = modifiers.get_data()[i];
+    if (modifier.get_code() == Code::Type::Public) {
+      visibility = Language::Visibility::Public;
+      publications++;
+      continue;
+    }
+    if (modifier.get_code() == Code::Type::Private) {
+      visibility = Language::Visibility::Private;
+      publications++;
+      continue;
+    }
+
+    cursor.create_token_error(
+        modifier,
+        "Library Functions accept only `public` or `private` modifiers."_view);
+    return False;
+  }
+
+  if (publications != 1) {
+    cursor.create_token_error(
+        definition.get_name_token(),
+        "Library Functions require one visibility modifier."_view);
+    return False;
+  }
+
+  return validate_attributes(cursor, visibility, definition.get_attributes());
+}
 
 static auto parse_body(
     Allocator::Arena& domain,
@@ -98,31 +218,23 @@ static auto parse_body(
 auto Language::Function::reserve(
     Allocator::Arena& domain,
     Cursor& cursor,
-    const Documentation& documentation,
+    Tetrodotoxin::Language::Definition& definition,
     Tetrodotoxin::Language::Monograph& source,
     const Type& host,
     Materializations& materializations) -> Option<Function&> {
   auto transaction = cursor.branch();
-  Token opening = transaction.current();
-  auto visibility =
-      Language::Parser::Declaration::parse_visibility(transaction);
-  BAIL_IF(!visibility);
+  Visibility visibility = Visibility::Private;
+  BAIL_IF(!validate_definition(transaction, definition, visibility));
 
-  Token token = transaction.require(
+  BAIL_IF(!transaction.require(
       Code::Type::Func,
-      "Library Function visibility must be followed by `func`."_view);
-  BAIL_IF(!token);
+      "Library Function definitions require the `func` qualifier."_view));
+  BAIL_IF(!transaction.require(
+      Code::Type::Assign,
+      "Library Function qualifiers require `=` before their signature."_view));
 
-  Token name_token = transaction.require(
-      Code::Type::Addressable,
-      "Library Functions require an authored addressable name."_view);
-  BAIL_IF(!name_token);
-
-  View::Bytes name = name_token.caculate_text(transaction.get_source_text());
   Function& function = domain.construct_from<Function>([&]() -> Function {
-    return Function(
-        domain, name, documentation, *visibility, source, host,
-        materializations, opening, token, name_token);
+    return Function(domain, definition, source, host, materializations);
   });
   cursor.join(transaction);
   return function;
@@ -130,25 +242,15 @@ auto Language::Function::reserve(
 
 Language::Function::Function(
     Allocator::Arena& domain,
-    View::Bytes name,
-    const Documentation& documentation,
-    Visibility visibility,
+    Tetrodotoxin::Language::Definition& definition,
     Tetrodotoxin::Language::Monograph& source,
     const Type& host,
-    Materializations& materializations,
-    Token opening,
-    Token token,
-    Token name_token)
+    Materializations& materializations)
     : domain(domain),
-      name(name),
-      documentation(documentation),
-      visibility(visibility),
+      definition(definition),
       source(source),
       host(host),
       materializations(materializations),
-      opening(opening),
-      token(token),
-      name_token(name_token),
       expressions(domain),
       expression_observations(domain) {}
 
@@ -163,6 +265,17 @@ auto Language::Function::complete(Cursor& cursor) -> Bool {
   Managed::Vector<Reference<Expression>> parsed_expressions(domain);
   auto parsed_signature = Signature::interpret(domain, transaction);
   BAIL_IF(!parsed_signature);
+
+  // Receiver role is already the signature shape. An exported Function must
+  // therefore have no reserved self parameter rather than another role flag.
+  auto native_anchor = get_native_attribute_anchor(definition.get_attributes());
+  if (native_anchor && parsed_signature->get_parameter_size() > 0 &&
+      parsed_signature->get_parameter_name(0) == "self"_view) {
+    transaction.create_expression_error(
+        *native_anchor,
+        "Native publication Attributes require a Static Function."_view);
+    return False;
+  }
 
   Token parsed_return_token;
   Span parsed_return_span;
@@ -182,7 +295,7 @@ auto Language::Function::complete(Cursor& cursor) -> Bool {
     expression_observations.insert(parsed_expressions[i].get());
   }
 
-  span = Span(opening, closing);
+  span = Span(definition.get_anchor().get_span().get_start(), closing);
   return_token = parsed_return_token;
   return_span = parsed_return_span;
   return_expression = parsed_return_expression;
@@ -198,7 +311,8 @@ auto Language::Function::link_signature() -> Bool {
 
   if (!completed || !signature) {
     source.report(
-        Anchor::create(token, Span(opening, name_token)),
+        Anchor::create(
+            definition.get_qualifier(), definition.get_anchor().get_span()),
         "An incomplete Function cannot enter semantic linking."_view,
         "Complete its signature and body grammar before linking."_view);
     return False;
@@ -263,9 +377,9 @@ auto Language::Function::resolve_context(View::Bytes route) const
     }
   }
 
-  return host.visit<Language::Types::Structure>(
-      [&](const Language::Types::Structure& structure) -> const Abstract& {
-        return structure.resolve_context(route, *this);
+  return host.visit<Language::Types::Composite>(
+      [&](const Language::Types::Composite& composite) -> const Abstract& {
+        return composite.resolve_context(route, *this);
       },
       [&](const Abstract&) -> const Abstract& {
         return host.resolve_context(route);

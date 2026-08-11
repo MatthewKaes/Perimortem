@@ -7,35 +7,28 @@
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Object is the managed nonnull reference specialization of Structure. Its
-// category carries Library lifetime semantics while Structure owns every
-// member, lookup, Layout, and completion rule.
+// Object is the managed nonnull reference specialization of Structure. It
+// retains the mandatory authored Definition through Structure while Composite
+// owns every member, lookup, Layout, and completion rule.
 class Object : public Structure {
  private:
   Object(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Bytes name,
-      const Ttx::Concept::Documentation& documentation,
-      Visibility visibility,
+      Tetrodotoxin::Language::Definition& definition,
       Monograph& source,
       Materializations& materializations,
-      const Structure& enclosing_scope,
-      Ttx::Lexical::Anchor anchor,
-      Ttx::Lexical::Anchor name_anchor);
+      const Composite& enclosing_scope);
 
  public:
   TTX_CONTRACT(Object, Structure, 0xed4871dfefaa4aee, 0xa13f79099ea383ab);
 
-  static auto create_authored(
+  static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Bytes name,
-      const Ttx::Concept::Documentation& documentation,
-      Visibility visibility,
+      Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Language::Definition& definition,
       Monograph& source,
       Materializations& materializations,
-      const Structure& enclosing_scope,
-      Ttx::Lexical::Anchor anchor,
-      Ttx::Lexical::Anchor name_anchor) -> Object&;
+      const Composite& enclosing_scope) -> Perimortem::Core::Option<Object&>;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Types

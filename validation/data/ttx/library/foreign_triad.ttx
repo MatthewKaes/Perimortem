@@ -10,7 +10,7 @@ foreign "C" {
   ] -> Unsigned_64;
 }
 
-public func consume_imports[] -> Unsigned_64 {
+public consume_imports : func = [] -> Unsigned_64 {
   foreign.imported_state = foreign.imported_constant;
   return foreign -> imported_function(
     foreign.imported_state,

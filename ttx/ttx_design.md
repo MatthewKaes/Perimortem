@@ -125,7 +125,7 @@ Abstract
 └── Callable
 ```
 
-`Documentation`, `Layout`, `Reference`, and `Attribute` are supporting values.
+`Documentation`, `Layout`, and `Reference` are supporting values.
 They describe or connect identities without acquiring another semantic
 identity.
 
@@ -222,7 +222,7 @@ interval. `Composite` preserves two complete child Layouts.
 
 Successful fitting returns the original source edge that supplies a target
 position. Layout retains order and applicability without copying field names,
-Types, Documentation, Attributes, defaults, or storage facts into a generic
+Types, Documentation, defaults, or storage facts into a generic
 member record.
 
 Keeping Layout semantic lets the same graph feed a CPU compiler, GPU compiler,

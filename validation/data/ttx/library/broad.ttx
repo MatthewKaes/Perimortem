@@ -9,17 +9,17 @@ public Packet : struct {
   public height : Unsigned_64 = 0;
   public ready : Bool = false;
 
-  public func identity[.value : Unsigned_64] -> Unsigned_64 {
+  public identity : func = [.value : Unsigned_64] -> Unsigned_64 {
     return value;
   }
 
-  public func identity[self] -> Unsigned_64 {
+  public identity : func = [self] -> Unsigned_64 {
     return Packet -> finish(self.width + self.height);
   }
 
   private checksum : Unsigned_64 = 0;
 
-  private func finish[.value : Unsigned_64] -> Unsigned_64 {
+  private finish : func = [.value : Unsigned_64] -> Unsigned_64 {
     return value;
   }
 }
@@ -33,14 +33,14 @@ public Mode : enum[Unsigned_8] {
 public Session : object {
   expose state progress : Unsigned_64 = 0;
 
-  public func advance[self, .amount : Unsigned_64] -> Unsigned_64 {
+  public advance : func = [self, .amount : Unsigned_64] -> Unsigned_64 {
     self.progress += amount;
     return self.progress;
   }
 
   private state token : Unsigned_64 = 7;
 
-  private func token_value[self] -> Unsigned_64 {
+  private token_value : func = [self] -> Unsigned_64 {
     return self.token;
   }
 }
@@ -55,7 +55,7 @@ public default_packet : PacketAlias = (
 );
 public dense_defaults : Fixed[Unsigned_64, 4] = (1, 2, 3, 4);
 
-public func broad_entry[
+public broad_entry : func = [
   .limit : Unsigned_64,
   .ready : Bool,
 ] -> Unsigned_64 {
@@ -113,16 +113,16 @@ public func broad_entry[
   return observed_total;
 }
 
-public func reset[] -> Void {
+public reset : func = [] -> Void {
   observed_total = 0;
   return;
 }
 
-public func unnamed_layout[Unsigned_64, Bool] -> [Unsigned_64, Bool] {
+public unnamed_layout : func = [Unsigned_64, Bool] -> [Unsigned_64, Bool] {
   return (0, false);
 }
 
-public func classify[.value : Unsigned_64] -> [
+public classify : func = [.value : Unsigned_64] -> [
   .accepted : Bool,
   .adjusted : Unsigned_64,
 ] {
@@ -134,7 +134,7 @@ foreign "C" {
 }
 
 private PrivateOps : struct {
-  public func combine[
+  public combine : func = [
     .left : Unsigned_64,
     .right : Unsigned_64,
   ] -> Unsigned_64 {

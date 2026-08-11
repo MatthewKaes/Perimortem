@@ -17,7 +17,7 @@ Canonical grammar reference: [Library.g4](grammar/Library.g4).
 // A reusable Library source.
 dialect : Library;
 
-public func twice[.value : Unsigned_64] -> Unsigned_64 {
+public twice : func = [.value : Unsigned_64] -> Unsigned_64 {
   return value * 2;
 }
 ```
@@ -98,9 +98,9 @@ declaration, Function, or Type. Library reuses TTX Layouts directly.
 Function parameters and results may be positional or named:
 
 ```ttx
-public func pair[Unsigned_64, Bool] -> [Unsigned_64, Bool]
+public pair : func = [Unsigned_64, Bool] -> [Unsigned_64, Bool]
 
-public func classify[.value : Unsigned_64] -> [
+public classify : func = [.value : Unsigned_64] -> [
   .accepted : Bool,
   .adjusted : Unsigned_64,
 ] {
@@ -207,35 +207,43 @@ A Range is lazy value flow rather than contiguous storage. It does not become a
 endpoints or use a general iterable registry. A `for` statement fits its one
 entry binding Layout against the exact `T` carried by the Range.
 
-## Source Structure
+## Source and Composite Types
 
-Each Library Monograph owns one synthetic source Structure with an empty
-instance Layout. Top level declarations enter its Static surface. Instance
-Fields cannot. The exact `source` route returns that Structure, while
-ordinary Monograph lookup forwards only its externally visible Static entries.
+Each Library Monograph owns one synthetic Source Type with an empty instance
+Layout. Top level declarations enter its Static surface. Instance Fields
+cannot. The exact `source` route returns that Source, while ordinary Monograph
+lookup forwards only its externally visible Static entries.
 
-Top level Field declarations are Static Addressables owned by that source
-Structure. They retain the ordinary Field exposure, writability, Type, and
-initializer contracts, but never enter the source instance Layout. Root
-Functions may resolve those exact identities as bare source names. Private
-Fields remain limited to their owning source context.
+Source, Structure, and Object share the Composite Type owner for member
+inventories, category lookup, Layout completion, and lifecycle barriers.
+Composite is not another declaration model. Each authored Structure retains
+its exact Definition, and Object retains that same required Definition through
+Structure. Source has no authored Definition: it supplies the fixed `source`
+name, opening Documentation, empty instance Layout, and root publication
+semantics directly.
+
+Top level Field declarations are Static Addressables owned by that Source. They
+retain the ordinary Field exposure, writability, Type, and initializer
+contracts, but never enter the source instance Layout. Root Functions may
+resolve those exact identities as bare source names. Private Fields remain
+limited to their owning source context.
 
 Type aliases use the exact declaration
-`public|private TypeName : alias = TypeRoute;` in the synthetic source or an
-authored Structure. The receiving Structure retains one exact TTX Alias in its
+`public|private TypeName : alias = TypeRoute;` in the synthetic Source or an
+authored Structure. The receiving Composite retains one exact TTX Alias in its
 Type category and authored order. Its target is the Type selected through that
-Structure's private local and enclosing source context, so an Alias may
+Composite's private local and enclosing source context, so an Alias may
 name a private Type without making that target independently public. Public
 Type lookup exposes the same Alias identity while private aliases remain local
-to their containing Structure.
+to their containing Composite.
 
 Authored alias documentation leads the target documentation. An alias without
 local prose borrows the target documentation directly, avoiding an empty
 wrapper while preserving the visible documentation chain.
 
-Source and authored Structure bodies use the same declaration language. Each
+Source, Structure, and Object bodies use the same declaration language. Each
 Field, Function, Struct, Object, Enumeration, or Alias becomes its exact
-semantic identity, and the receiving Structure routes that identity by its TTX
+semantic identity, and the receiving Composite routes that identity by its TTX
 category. The Monograph reaches those declarations only through the Source, so
 there is no parallel declaration tree.
 
@@ -247,20 +255,44 @@ and signatures settle before Function bodies.
 
 Library owns the grammar that applies to a complete source. `using` selects
 Package members through the Monograph and installs Aliases owned by the
-importer in the source Structure without adding another declaration model.
+importer in the Source without adding another declaration model.
 
-The source Structure retains the exact Documentation that opens the Library
-source.
+The Source retains the exact Documentation that opens the Library source.
 A Package member Alias can therefore route through `source` to one documented
 root Type without copying the prose or becoming a Type itself.
 
-A root Function is hosted by the source Structure but still retains its
-Monograph as the source of diagnostics and imports. Hosting and source identity
-are separate edges.
+A root Function is hosted by the Source but still retains its Monograph as the
+source of diagnostics and imports. Hosting and source identity are separate
+edges.
+
+## Definitions
+
+Every ordinary Library member begins with one shared Definition:
+
+```ttx
+@tooling("entry") public twice : func = [
+  .value : Unsigned_64,
+] -> Unsigned_64 {
+  return value * 2;
+}
+```
+
+The Definition greedily retains Documentation, every Attribute, all modifiers,
+the name, and the qualifier after `:`. The containing Composite then dispatches
+that qualifier. A Type route or `=` begins a Field, `alias`, `enum`, `struct`,
+and `object` begin their Type forms, and `func` begins a Callable. Each concrete
+Field, Structure, Object, Enumeration, or Function retains that same Definition
+while owning the grammar and validation of the remaining form.
+
+Attributes do not choose the definition category and are never rejected merely
+because of that category. A consumer may interpret selected keys and leave all
+others as authored facts. Repetition is likewise consumer policy rather than a
+shared parser error.
 
 ## Fields
 
-A Field is a TTX Addressable owned by one Struct or Object. Its exposure and
+A Field is a TTX Addressable owned by one Composite. Structure and Object Fields
+enter the instance Layout, while Source Fields remain Static. Exposure and
 writability are independent.
 
 ```ttx
@@ -293,8 +325,8 @@ exact Expression supplying one value rather than a general value Flow.
 
 A declaration written as `name := expression` has no declared Type to fit. The
 Field retains the exact completed Type of that initializer without widening or
-retagging it. `new` cannot be used here because Object construction requires an
-exact receiving Object Type before the construction transaction begins.
+retagging it. `new` cannot be used here because Object initialization requires
+an exact receiving Object Type before the initialization transaction begins.
 
 ## Structs
 
@@ -306,7 +338,7 @@ public Packet : struct {
   public height : Unsigned_64 = 0;
   private checksum : Unsigned_64 = 0;
 
-  public func area[self] -> Unsigned_64 {
+  public area : func = [self] -> Unsigned_64 {
     return self.width * self.height;
   }
 }
@@ -330,7 +362,7 @@ public Session : object {
   expose state progress : Unsigned_64 = 0;
   private state token : Unsigned_64 = 7;
 
-  public func advance[self, .amount : Unsigned_64] -> Unsigned_64 {
+  public advance : func = [self, .amount : Unsigned_64] -> Unsigned_64 {
     self.progress = self.progress + amount;
     return self.progress;
   }
@@ -347,10 +379,10 @@ collector policy, and reclamation timing belong to the compiler and runtime.
 Object exposes no finalizer, weak reference, explicit release, or observable
 reclamation order.
 
-### Construction
+### Object initialization
 
 Inline Struct values use positional or named value flow and are fitted by the
-typed declaration that receives them. Object construction uses `new` only as
+typed declaration that receives them. Object initialization uses `new` only as
 the initializer of a declaration that already names one exact Object Type:
 
 ```ttx
@@ -358,18 +390,18 @@ state session : Session = new;
 state configured : Session = new(.progress = 4);
 ```
 
-The receiving declaration owns the transaction. It constructs one unpublished
-Object, applies initialization writes in authored order, and publishes the
+The receiving declaration owns the transaction. It initializes one unpublished
+Object, applies Field writes in authored order, and publishes the
 nonnull identity only after every initializer succeeds. `state session := new;`
-is invalid because inference cannot supply the Type that construction needs.
-Calls and returns may carry an already constructed Object while preserving its
+is invalid because inference cannot supply the Type that initialization needs.
+Calls and returns may carry an already initialized Object while preserving its
 identity, but they do not infer an Object Type for a new transaction.
 
 Named arguments fit the receiving Object Type's initialization Layout. An
-external construction can name its public and exposed Fields. Code hosted by
+external initializer can name its public and exposed Fields. Code hosted by
 the Object Type can also name private Fields. An unknown, duplicate, or
 inaccessible name fails the transaction. Every Field without an authored
-initializer is required unless the construction supplies it.
+initializer is required unless `new` supplies it.
 
 Supplied expressions evaluate in source order. The Object then initializes
 each Field exactly once in the Type's authored order, using the supplied fitted
@@ -377,8 +409,8 @@ value when present and otherwise the Field's own initializer. A missing required
 Field or failed expression leaves no published Object identity.
 
 A chain of required Object initializers must terminate. Library rejects a
-mandatory construction cycle during completion rather than recursing while a
-runtime Object is being created.
+mandatory initialization cycle during completion rather than recursing while a
+runtime Object is being initialized.
 
 ## Enumerations
 
@@ -401,7 +433,7 @@ same integer value without becoming the same semantic identity.
 A Function declares parameter and result Layouts followed by a body:
 
 ```ttx
-public func add[
+public add : func = [
   .left : Unsigned_64,
   .right : Unsigned_64,
 ] -> Unsigned_64 {
@@ -531,17 +563,17 @@ native ABI surface is required:
 ```ttx
 @abi("C")
 @symbol("library_native")
-public func library_native[] -> Unsigned_64 {
+public library_native : func = [] -> Unsigned_64 {
   return 42;
 }
 ```
 
 `@abi("C")` is legal only on a public Static Function. `@symbol` supplies its
 exact requested external spelling and is legal only with `@abi`. Function
-retains those authored requests and rejects unknown Attributes, duplicate local
-Attributes, unsupported ABI names, and Attributes attached to another
-declaration kind. It does not decide whether another Function requests the same
-global name.
+interprets those two keys, rejects repeated or malformed requests for either,
+and retains every other Attribute without assigning it native meaning. The same
+key on another definition is that definition consumer's concern. Function does
+not decide whether another Function requests the same global name.
 
 Library lowering proves that every parameter and result Type has a complete C
 carrier for the selected target. Linker validates global symbol uniqueness over

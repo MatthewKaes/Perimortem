@@ -7,6 +7,7 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
@@ -18,7 +19,7 @@
 
 namespace Tetrodotoxin::Library::Language {
 
-// Field is the exact Addressable member retained by a Library Structure. Its
+// Field is the exact Addressable binding retained by a Library Composite. Its
 // exposure decides readable lookup while Writability records who may mutate the
 // reached value without widening the shared TTX Addressable contract.
 class Field : public Ttx::Model::Addressable {
@@ -35,91 +36,19 @@ class Field : public Ttx::Model::Addressable {
     Exposed,
   };
 
-  // Source is the subordinate authored record retained until the containing
-  // Structure can resolve one exact Type and construct the real Field edge.
-  class Source {
-   public:
-    constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
-      return name;
-    }
-
-    auto get_type_access() const
-        -> Perimortem::Core::Option<const Access::Type&> {
-      return type_access.visit(
-          []() -> Perimortem::Core::Option<const Access::Type&> { return {}; },
-          [](const Access::Type& selected)
-              -> Perimortem::Core::Option<const Access::Type&> {
-            return selected;
-          });
-    }
-
-    constexpr auto get_documentation() const
-        -> const Ttx::Concept::Documentation& {
-      return documentation;
-    }
-
-    constexpr auto get_exposure() const -> Exposure { return exposure; }
-
-    constexpr auto get_writability() const -> Writability {
-      return writability;
-    }
-
-    constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
-
-    auto get_type_anchor() const
-        -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
-      return type_access.visit(
-          []() -> Perimortem::Core::Option<Ttx::Lexical::Anchor> { return {}; },
-          [](const Access::Type& selected)
-              -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
-            return selected.get_anchor();
-          });
-    }
-
-    constexpr auto has_initializer() const -> Bool { return Bool(initializer); }
-
-    constexpr auto is_inferred() const -> Bool { return !type_access; }
-
-    auto get_initializer() const -> Perimortem::Core::Option<const Expression&>;
-
-    auto get_initializer() -> Perimortem::Core::Option<Expression&>;
-
-    constexpr Source(
-        Perimortem::Core::View::Bytes name,
-        Perimortem::Core::Option<Access::Type> type_access,
-        const Ttx::Concept::Documentation& documentation,
-        Exposure exposure,
-        Writability writability,
-        Ttx::Lexical::Anchor anchor,
-        Perimortem::Core::Option<Expression&> initializer)
-        : name(name),
-          type_access(type_access),
-          documentation(documentation),
-          exposure(exposure),
-          writability(writability),
-          anchor(anchor),
-          initializer(initializer) {}
-
-   private:
-    Perimortem::Core::View::Bytes name;
-    Perimortem::Core::Option<Access::Type> type_access;
-    const Ttx::Concept::Documentation& documentation;
-    Exposure exposure;
-    Writability writability;
-    Ttx::Lexical::Anchor anchor;
-    Perimortem::Core::Option<Expression&> initializer;
-  };
-
  private:
   constexpr Field(
-      Source& source,
-      Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
-          type,
+      Tetrodotoxin::Language::Definition& definition,
+      Perimortem::Core::Option<Access::Type> type_access,
+      Ttx::Lexical::Anchor anchor,
+      Perimortem::Core::Option<Expression&> initializer,
       const Ttx::Model::Type& host)
-      : source(source),
-        type(type),
+      : definition(definition),
+        type_access(type_access),
+        anchor(anchor),
+        initializer(initializer),
         host(host),
-        initializer_linked(!source.has_initializer()) {}
+        initializer_linked(!initializer) {}
 
  public:
   TTX_CONTRACT(
@@ -132,24 +61,12 @@ class Field : public Ttx::Model::Addressable {
       Perimortem::Memory::Allocator::Arena& domain,
       Materializations& materializations,
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Documentation& documentation,
-      const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Core::Option<Source>;
+      Tetrodotoxin::Language::Definition& definition,
+      const Ttx::Model::Type& host) -> Perimortem::Core::Option<Field&>;
 
-  static auto link(
-      Perimortem::Memory::Allocator::Arena& domain,
+  auto link_type(
       Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Model::Type& host,
-      Source& field,
-      const Ttx::Concept::Abstract& selected)
-      -> Perimortem::Core::Option<Field&>;
-
-  static auto link_inferred(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Tetrodotoxin::Language::Monograph& source,
-      Materializations& materializations,
-      const Ttx::Model::Type& host,
-      Source& field) -> Perimortem::Core::Option<Field&>;
+      const Ttx::Concept::Abstract& selected) -> Bool;
 
   Field(const Field&) = delete;
   Field(Field&&) = delete;
@@ -160,9 +77,11 @@ class Field : public Ttx::Model::Addressable {
       Tetrodotoxin::Language::Monograph& source,
       Materializations& materializations) -> Bool;
 
-  TTX_NAME(source.get_name());
+  TTX_NAME(definition.get_name());
 
-  TTX_DOCUMENTATION(source.get_documentation());
+  TTX_DOCUMENTATION(definition.get_documentation());
+
+  auto resolve() const -> const Ttx::Concept::Abstract& override;
 
   constexpr auto get_type() const -> const Ttx::Model::Type& override {
     return type->get();
@@ -173,25 +92,38 @@ class Field : public Ttx::Model::Addressable {
 
   auto get_type_access() const
       -> Perimortem::Core::Option<const Access::Type&> {
-    return source.get_type_access();
+    return type_access.visit(
+        []() -> Perimortem::Core::Option<const Access::Type&> { return {}; },
+        [](const Access::Type& selected)
+            -> Perimortem::Core::Option<const Access::Type&> {
+          return selected;
+        });
   }
 
-  constexpr auto get_exposure() const -> Exposure {
-    return source.get_exposure();
+  auto get_exposure() const -> Exposure;
+
+  auto get_writability() const -> Writability;
+
+  constexpr auto get_definition() const
+      -> const Tetrodotoxin::Language::Definition& {
+    return definition;
   }
 
-  constexpr auto get_writability() const -> Writability {
-    return source.get_writability();
-  }
-
-  constexpr auto get_anchor() const -> Ttx::Lexical::Anchor {
-    return source.get_anchor();
-  }
+  constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
 
   auto get_type_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
-    return source.get_type_anchor();
+    return type_access.visit(
+        []() -> Perimortem::Core::Option<Ttx::Lexical::Anchor> { return {}; },
+        [](const Access::Type& selected)
+            -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
+          return selected.get_anchor();
+        });
   }
+
+  constexpr auto has_initializer() const -> Bool { return Bool(initializer); }
+
+  constexpr auto is_inferred() const -> Bool { return !type_access; }
 
   constexpr auto is_readable_externally() const -> Bool {
     return get_exposure() != Exposure::Private;
@@ -201,10 +133,15 @@ class Field : public Ttx::Model::Addressable {
 
   auto get_initializer() const -> Perimortem::Core::Option<const Expression&>;
 
-  constexpr auto is_linked() const -> Bool { return initializer_linked; }
+  constexpr auto is_linked() const -> Bool {
+    return Bool(type) && initializer_linked;
+  }
 
  private:
-  Source& source;
+  Tetrodotoxin::Language::Definition& definition;
+  Perimortem::Core::Option<Access::Type> type_access;
+  Ttx::Lexical::Anchor anchor;
+  Perimortem::Core::Option<Expression&> initializer;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       type;
   const Ttx::Model::Type& host;

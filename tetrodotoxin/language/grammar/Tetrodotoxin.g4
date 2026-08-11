@@ -29,6 +29,23 @@ attributeValue
     | SUBTRACT (NUMERIC | HEX | FLOAT)
     ;
 
+definition
+    : documentation? attribute* definitionModifier* definitionName DEFINE
+    ;
+
+definitionModifier
+    : PUBLIC
+    | PRIVATE
+    | EXPOSE
+    | STATE
+    | CONST
+    ;
+
+definitionName
+    : addressableName
+    | typeName
+    ;
+
 visibility
     : PUBLIC
     | PRIVATE

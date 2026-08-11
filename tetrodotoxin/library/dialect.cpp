@@ -90,8 +90,7 @@ auto Library::Dialect::interpret(
     return {};
   }
 
-  Bool parsed =
-      source->parse(domain, *shared_materializations, cursor, monograph);
+  Bool parsed = source->parse(cursor);
   if (!parsed) {
     return {};
   }

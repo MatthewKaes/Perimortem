@@ -4,7 +4,7 @@
 #include "tetrodotoxin/library/language/access/address.hpp"
 
 #include "tetrodotoxin/library/language/field.hpp"
-#include "tetrodotoxin/library/language/types/structure.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/type.hpp"
 
@@ -41,9 +41,9 @@ static auto is_readable(const Addressable& selected, const Abstract& requester)
     -> Bool {
   return selected.visit<Language::Field>(
       [&](const Language::Field& field) {
-        return field.get_host().visit<Language::Types::Structure>(
-            [&](const Language::Types::Structure& structure) {
-              return structure.is_readable(field, requester);
+        return field.get_host().visit<Language::Types::Composite>(
+            [&](const Language::Types::Composite& composite) {
+              return composite.is_readable(field, requester);
             },
             [](const Abstract&) { return False; });
       },

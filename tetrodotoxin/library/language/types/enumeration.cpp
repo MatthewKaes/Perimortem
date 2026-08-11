@@ -9,8 +9,7 @@
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
-#include "tetrodotoxin/library/language/parser/declaration.hpp"
-#include "tetrodotoxin/library/language/types/structure.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/types/signed.hpp"
@@ -39,6 +38,42 @@ struct ParsedValue {
   Signed_64 signed_value;
   Unsigned_64 unsigned_value;
 };
+
+static auto validate_definition(
+    Cursor& cursor,
+    const Tetrodotoxin::Language::Definition& definition) -> Bool {
+  if (definition.get_name_token().get_code() != Code::Type::Type) {
+    cursor.create_token_error(
+        definition.get_name_token(),
+        "Library Enumerations require an authored Type shaped name."_view);
+    return False;
+  }
+
+  Count publications = 0;
+  auto modifiers = definition.get_modifiers();
+  for (Count i = 0; i < modifiers.get_size(); i++) {
+    Token modifier = modifiers.get_data()[i];
+    if (modifier.get_code() == Code::Type::Public ||
+        modifier.get_code() == Code::Type::Private) {
+      publications++;
+      continue;
+    }
+
+    cursor.create_token_error(
+        modifier,
+        "Library Enumerations accept only visibility modifiers."_view);
+    return False;
+  }
+
+  if (publications != 1) {
+    cursor.create_token_error(
+        definition.get_name_token(),
+        "Library Enumerations require one visibility modifier."_view);
+    return False;
+  }
+
+  return True;
+}
 
 static auto parse_case(Cursor& cursor, const Documentation& documentation)
     -> Option<ParsedCase> {
@@ -146,47 +181,31 @@ static auto read_signed(
 
 Tetrodotoxin::Library::Language::Types::Enumeration::Enumeration(
     Allocator::Arena& domain,
-    View::Bytes name,
+    Tetrodotoxin::Language::Definition& definition,
     Access::Type storage_access,
-    const Documentation& documentation,
-    Visibility visibility,
     Monograph& parent,
-    const Structure& host,
-    Anchor anchor,
-    Anchor name_anchor)
+    const Composite& host,
+    Anchor anchor)
     : domain(domain),
-      name(name),
+      definition(definition),
       storage_access(storage_access),
-      documentation(documentation),
-      visibility(visibility),
       parent(parent),
       host(host),
       anchor(anchor),
-      name_anchor(name_anchor),
       source_cases(domain),
       cases(domain) {}
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
     Allocator::Arena& domain,
     Cursor& cursor,
-    const Documentation& documentation,
+    Tetrodotoxin::Language::Definition& definition,
     Monograph& parent,
-    const Structure& host) -> Option<Enumeration&> {
+    const Composite& host) -> Option<Enumeration&> {
   // The branch owns every spelling and delimiter until the closing brace.
   // A rejected body leaves the caller at the declaration and publishes no
   // partial case inventory.
   auto transaction = cursor.branch();
-  Token opening = transaction.current();
-  auto visibility = Parser::Declaration::parse_visibility(transaction);
-  BAIL_IF(!visibility);
-
-  Token name_token = transaction.require(
-      Code::Type::Type,
-      "Library Enumerations require an authored Type shaped name."_view);
-  BAIL_IF(!name_token);
-  BAIL_IF(!transaction.require(
-      Code::Type::Define,
-      "Library Enumeration names require `:` before `enum`."_view));
+  BAIL_IF(!validate_definition(transaction, definition));
 
   Token enumeration_token = transaction.require(
       Code::Type::Addressable,
@@ -239,9 +258,9 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
   }
 
   Token closing = transaction.consume();
-  View::Bytes name = name_token.caculate_text(transaction.get_source_text());
-  Anchor enumeration_anchor =
-      Anchor::create(enumeration_token, Span(opening, closing));
+  Anchor enumeration_anchor = Anchor::create(
+      enumeration_token,
+      Span(definition.get_anchor().get_span().get_start(), closing));
 
   // The complete grammar begins one nonmoving Type and then copies only its
   // compact source slots. Constants and Aliases wait for the storage Type so
@@ -249,8 +268,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
   Enumeration& enumeration =
       domain.construct_from<Enumeration>([&]() -> Enumeration {
         return Enumeration(
-            domain, name, *storage, documentation, *visibility, parent, host,
-            enumeration_anchor, Anchor::create(Span(name_token)));
+            domain, definition, *storage, parent, host, enumeration_anchor);
       });
   enumeration.source_cases.reset(parsed_cases.get_size());
   for (Count i = 0; i < parsed_cases.get_size(); i++) {

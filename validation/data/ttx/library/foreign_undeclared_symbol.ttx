@@ -5,7 +5,7 @@ foreign "C" {
   public func known[] -> Void;
 }
 
-public func consume[] -> Void {
+public consume : func = [] -> Void {
   foreign -> missing();
   return;
 }

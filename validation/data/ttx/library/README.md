@@ -8,6 +8,7 @@ file defines the exact production behavior it observes.
 
 | File | Purpose |
 | --- | --- |
+| [`source_acceptance.ttx`](source_acceptance.ttx) | focused production Workspace acceptance for completed Definition identities and native Function requests |
 | [`broad.ttx`](broad.ttx) | broad Library source corpus covering declarations, Layouts, access chains, expressions, control flow, Foreign, Struct, Object, and Enumeration syntax |
 | [`foreign_triad.ttx`](foreign_triad.ttx) | one external const Addressable, state Addressable, and Callable under the C ABI |
 | [`native.ttx`](native.ttx) | compact unsigned-integer and Foreign source paired with `native_harness.c` |
@@ -48,7 +49,7 @@ Parameters, results, value packs, Fields, safe indexed values, and swizzles use
 real TTX Layouts:
 
 ```ttx
-public func classify[.value : Unsigned_64] -> [
+public classify : func = [.value : Unsigned_64] -> [
   .accepted : Bool,
   .adjusted : Unsigned_64,
 ]

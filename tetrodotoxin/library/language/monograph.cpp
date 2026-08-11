@@ -108,8 +108,8 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     return False;
   }
 
-  auto source_structure = get_source().select<Types::Source>();
-  BAIL_IF(!source_structure);
+  auto source_type = get_source().select<Types::Source>();
+  BAIL_IF(!source_type);
 
   Managed::Vector<ImportCandidate> candidates(domain);
   Managed::Vector<Reference<Monograph>> providers(domain);
@@ -118,7 +118,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
   Bool failed = False;
 
   // Package order leads member order and each provider source order. Staging
-  // the complete sequence keeps the importing Structure unchanged until every
+  // the complete sequence keeps the importing Source unchanged until every
   // contextual source and collision has been observed.
   for (Count import_index = 0; import_index < imports.get_size();
        import_index++) {
@@ -156,7 +156,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
 
     // A Package member Alias only selects its target. Prove the resolved
     // Library Monograph before consulting that owner's source so an unrelated
-    // Monograph cannot borrow a Library Structure to enter expansion.
+    // Monograph cannot borrow a Library Source to enter expansion.
     for (Count member_index = 0; member_index < members.get_size();
          member_index++) {
       const Alias& member = members.get_data()[member_index].get();
@@ -204,21 +204,22 @@ auto Library::Language::Monograph::link_imports() -> Bool {
       }
 
       if (!provider->is_linked()) {
-        // Exact provider Fields do not exist during closure discovery. Their
-        // owner facts still prove the complete name set before either source
-        // publishes an Addressable, keeping a later collision transactional.
-        auto provider_fields = provider->get_field_sources();
-        auto local_fields = source_structure->get_field_sources();
+        // Provider Fields already have their final identities during closure
+        // discovery even though their Types remain incomplete. Those retained
+        // objects prove the complete name set before either source publishes an
+        // Addressable, keeping a later collision transactional.
+        auto provider_fields = provider->get_fields();
+        auto local_fields = source_type->get_fields();
         for (Count field_index = 0; field_index < provider_fields.get_size();
              field_index++) {
-          const Field::Source& field = provider_fields.get_data()[field_index];
+          const Field& field = provider_fields.get_data()[field_index].get();
           if (field.get_exposure() == Field::Exposure::Private) {
             continue;
           }
 
           Bool collision =
-              local_fields.contains([&](const Field::Source& local) {
-                return local.get_name() == field.get_name();
+              local_fields.contains([&](const Reference<const Field>& local) {
+                return local.get().get_name() == field.get_name();
               }) ||
               candidates.get_view().contains(
                   [&](const ImportCandidate& candidate) {
@@ -229,11 +230,11 @@ auto Library::Language::Monograph::link_imports() -> Bool {
                   }) ||
               pending_field_providers.get_view().contains(
                   [&](const Reference<const Types::Source>& earlier_provider) {
-                    return earlier_provider.get().get_field_sources().contains(
-                        [&](const Field::Source& earlier) {
-                          return earlier.get_exposure() !=
+                    return earlier_provider.get().get_fields().contains(
+                        [&](const Reference<const Field>& earlier) {
+                          return earlier.get().get_exposure() !=
                                      Field::Exposure::Private &&
-                                 earlier.get_name() == field.get_name();
+                                 earlier.get().get_name() == field.get_name();
                         });
                   });
 
@@ -254,7 +255,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
       for (Count binding_index = 0; binding_index < bindings.get_size();
            binding_index++) {
         const Abstract& binding = bindings.get_data()[binding_index].get();
-        if (source_structure->get_static_bindings().contains(
+        if (source_type->get_static_bindings().contains(
                 [&](const Reference<const Abstract>& existing) {
                   return existing.get().visit<Alias>(
                       [&](const Alias& alias) {
@@ -270,11 +271,10 @@ auto Library::Language::Monograph::link_imports() -> Bool {
           for (Count pending = 0; pending < pending_field_providers.get_size();
                pending++) {
             auto pending_fields =
-                pending_field_providers[pending].get().get_field_sources();
+                pending_field_providers[pending].get().get_fields();
             for (Count field_index = 0; field_index < pending_fields.get_size();
                  field_index++) {
-              const Field::Source& field =
-                  pending_fields.get_data()[field_index];
+              const Field& field = pending_fields.get_data()[field_index].get();
               if (field.get_exposure() == Field::Exposure::Private ||
                   field.get_name() != target.get_name()) {
                 continue;
@@ -327,7 +327,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     const Abstract& binding = candidate.binding.get();
     const Alias& alias = aliases[candidate_index].get();
     View::Bytes name = binding.get_name();
-    if (!source_structure->can_bind_static(alias)) {
+    if (!source_type->can_bind_static(alias)) {
       report(
           Ttx::Lexical::Anchor::create(candidate.import_span),
           "Imported Static binding collides with an occupied source name."_view,
@@ -355,8 +355,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
   // Monograph transaction, so no candidate becomes visible beside a later
   // rejection.
   for (Count i = 0; i < aliases.get_size(); i++) {
-    BAIL_IF(
-        !source_structure->bind_static(aliases[i].get(), Visibility::Private));
+    BAIL_IF(!source_type->bind_static(aliases[i].get(), Visibility::Private));
   }
 
   for (Count i = 0; i < providers.get_size(); i++) {

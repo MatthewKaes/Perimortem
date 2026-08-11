@@ -6,7 +6,6 @@
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/import.hpp"
-#include "tetrodotoxin/library/language/parser/declaration.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/alias.hpp"
@@ -49,16 +48,8 @@ Types::Source::Source(
     const Documentation& documentation,
     Monograph& source,
     Materializations& materializations)
-    : Structure(
-          domain,
-          "source"_view,
-          documentation,
-          Visibility::Public,
-          source,
-          materializations,
-          {},
-          {},
-          {}),
+    : Composite(domain, source, materializations),
+      documentation(documentation),
       instance_layout(domain.construct<Ttx::Model::Layouts::Named>()) {}
 
 auto Types::Source::create_synthetic(
@@ -74,11 +65,8 @@ auto Types::Source::create_synthetic(
   });
 }
 
-auto Types::Source::parse(
-    Allocator::Arena& domain,
-    Materializations& materializations,
-    Cursor& cursor,
-    Monograph& monograph) -> Bool {
+auto Types::Source::parse(Cursor& cursor) -> Bool {
+  Monograph& monograph = get_source_monograph();
   while (!cursor.matches(Code::Type::Terminal)) {
     auto extension = cursor.branch();
     Tetrodotoxin::Language::Parser::Comment::parse(extension);
@@ -98,9 +86,10 @@ auto Types::Source::parse(
       continue;
     }
 
-    Bool parsed = Parser::Declaration::parse(
-        domain, materializations, cursor, monograph, *this);
-    BAIL_IF(!parsed);
+    auto transaction = cursor.branch();
+    auto definition = Tetrodotoxin::Language::Definition::parse(transaction);
+    BAIL_IF(!definition || !interpret_definition(transaction, *definition));
+    cursor.join(transaction);
   }
 
   return True;
@@ -111,13 +100,13 @@ auto Types::Source::can_bind_static(const Abstract& binding) const -> Bool {
   // Import replay similarly adds provider Fields after every local Field is
   // exact. Source owns both late Static cases without reopening an incomplete
   // declaration or changing its empty instance Layout.
-  BAIL_IF(is_finalized() || !can_bind_declaration(binding));
+  BAIL_IF(is_finalized() || !can_bind_definition(binding));
 
   const Abstract& target = get_binding_target(binding);
   Bool complete_type =
       target.is<Type>() && &target.resolve() != &Invalid::get_invalid();
   Bool imported_addressable = is_linked() && target.is<Addressable>();
-  BAIL_IF(!can_accept_declaration() && !complete_type && !imported_addressable);
+  BAIL_IF(!can_accept_definition() && !complete_type && !imported_addressable);
   if (!target.is<Type>()) {
     return True;
   }
@@ -133,6 +122,10 @@ auto Types::Source::can_bind_static(const Abstract& binding) const -> Bool {
       &intrinsic == &Invalid::get_invalid());
 }
 
+auto Types::Source::can_retain_binding(const Abstract& binding) const -> Bool {
+  return can_bind_static(binding);
+}
+
 auto Types::Source::bind_static(
     Abstract& binding,
     Visibility binding_visibility) -> Bool {
@@ -142,10 +135,10 @@ auto Types::Source::bind_static(
   return True;
 }
 
-auto Types::Source::retain_static_field(Field::Source field) -> Bool {
-  BAIL_IF(!can_accept_declaration());
-
-  return retain_declaration_field(field);
+auto Types::Source::retain_binding(
+    Abstract& binding,
+    Visibility binding_visibility) -> Bool {
+  return get_source_monograph().bind_static(binding, binding_visibility);
 }
 
 auto Types::Source::publish_linked_field(Field& field) -> void {
@@ -167,7 +160,7 @@ auto Types::Source::validate_linked_callable(const Callable& callable) -> Bool {
 
   auto callable_anchor = callable.visit<Function>(
       [](const Function& function) -> Option<Anchor> {
-        Token name = function.get_name_token();
+        Token name = function.get_definition().get_name_token();
         return name ? Option<Anchor>(Anchor::create(Span(name)))
                     : Option<Anchor>();
       },
@@ -232,7 +225,7 @@ auto Types::Source::resolve_context(
 
 auto Types::Source::grants_complete_access(const Abstract& requester) const
     -> Bool {
-  if (Structure::grants_complete_access(requester)) {
+  if (Composite::grants_complete_access(requester)) {
     return True;
   }
 

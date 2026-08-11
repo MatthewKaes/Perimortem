@@ -143,12 +143,12 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, stable_authored_graph) {
   ASSERT(bindings.get_data()[0].get().is<Language::Types::Enumeration>());
   const auto& mode = static_cast<const Language::Types::Enumeration&>(
       bindings.get_data()[0].get());
-  const auto& source_structure =
-      static_cast<const Language::Types::Structure&>(monograph->get_source());
-  auto exposed = source_structure.get_external_static_bindings();
+  const auto& source_type =
+      static_cast<const Language::Types::Source&>(monograph->get_source());
+  auto exposed = source_type.get_external_static_bindings();
   ASSERT_EQ(exposed.get_size(), Count(1));
   EXPECT(&exposed.get_data()[0].get() == &mode);
-  EXPECT(&monograph->resolve_context("source"_view) == &source_structure);
+  EXPECT(&monograph->resolve_context("source"_view) == &source_type);
   EXPECT(&monograph->resolve_context("Mode"_view) == &mode);
   EXPECT(&mode.resolve() == &Invalid::get_invalid());
   EXPECT_NOT(mode.get_storage_type());
@@ -165,7 +165,8 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, stable_authored_graph) {
       "}"_view);
   EXPECT_TEXT(mode.get_anchor().get_token().caculate_text(source), "enum"_view);
   EXPECT_TEXT(
-      mode.get_name_anchor().get_span().caculate_text(source), "Mode"_view);
+      mode.get_definition().get_name_anchor().get_span().caculate_text(source),
+      "Mode"_view);
   EXPECT_TEXT(
       mode.get_storage_anchor().get_span().caculate_text(source),
       "Unsigned_8"_view);
@@ -366,9 +367,9 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, visibility_and_authored_order) {
   EXPECT_TEXT(bindings.get_data()[0].get().get_name(), "Hidden"_view);
   EXPECT_TEXT(bindings.get_data()[1].get().get_name(), "First"_view);
   EXPECT_TEXT(bindings.get_data()[2].get().get_name(), "Second"_view);
-  const auto& source_structure =
-      static_cast<const Language::Types::Structure&>(monograph->get_source());
-  auto exposed = source_structure.get_external_static_bindings();
+  const auto& source_type =
+      static_cast<const Language::Types::Source&>(monograph->get_source());
+  auto exposed = source_type.get_external_static_bindings();
   ASSERT_EQ(exposed.get_size(), Count(2));
   EXPECT(&exposed.get_data()[0].get() == &bindings.get_data()[1].get());
   EXPECT(&exposed.get_data()[1].get() == &bindings.get_data()[2].get());
@@ -381,9 +382,9 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, consumer_declaration_reorder) {
     "// Enumeration test.\ndialect : Library;\n"
     "public Mode : enum[Unsigned_8] { ready = 1; }\n"
     "public Packet : struct { public mode : Mode; }\n"
-    "public func select[Mode] -> Mode {}"_view,
+    "public select : func = [Mode] -> Mode {}"_view,
     "// Enumeration test.\ndialect : Library;\n"
-    "public func select[Mode] -> Mode {}\n"
+    "public select : func = [Mode] -> Mode {}\n"
     "public Packet : struct { public mode : Mode; }\n"
     "public Mode : enum[Unsigned_8] { ready = 1; }"_view,
   }};
@@ -398,10 +399,9 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, consumer_declaration_reorder) {
 
     const Abstract& mode = monograph->resolve_context("Mode"_view);
     const Abstract& packet = monograph->resolve_context("Packet"_view);
-    const auto& source_structure =
-        static_cast<const Language::Types::Structure&>(monograph->get_source());
-    auto callable_candidates =
-        source_structure.get_callable_bindings(*monograph);
+    const auto& source_type =
+        static_cast<const Language::Types::Source&>(monograph->get_source());
+    auto callable_candidates = source_type.get_callable_bindings(*monograph);
     ASSERT_EQ(callable_candidates.get_size(), Count(1));
     const Abstract& function = callable_candidates.get_data()[0].get();
     ASSERT(mode.is<Language::Types::Enumeration>());
@@ -514,8 +514,12 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, cursor_atomicity) {
       arena, malformed, "malformed-enumeration.ttx"_view);
   Cursor malformed_cursor(malformed_tokenizer, malformed_errors);
   Token opening = malformed_cursor.current();
+  auto malformed_transaction = malformed_cursor.branch();
+  auto malformed_definition =
+      Tetrodotoxin::Language::Definition::parse(malformed_transaction);
+  ASSERT(malformed_definition);
   auto rejected = Language::Types::Enumeration::interpret(
-      arena, malformed_cursor, Documentation::get_empty(), monograph, source);
+      arena, malformed_transaction, *malformed_definition, monograph, source);
   EXPECT_NOT(rejected);
   EXPECT_EQ(malformed_cursor.current().get_offset(), opening.get_offset());
   EXPECT(malformed_cursor.current().get_code() == opening.get_code());
@@ -525,9 +529,14 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, cursor_atomicity) {
   Tokenizer complete_tokenizer(
       arena, complete, "complete-enumeration.ttx"_view);
   Cursor complete_cursor(complete_tokenizer, complete_errors);
+  auto complete_transaction = complete_cursor.branch();
+  auto complete_definition =
+      Tetrodotoxin::Language::Definition::parse(complete_transaction);
+  ASSERT(complete_definition);
   auto parsed = Language::Types::Enumeration::interpret(
-      arena, complete_cursor, Documentation::get_empty(), monograph, source);
+      arena, complete_transaction, *complete_definition, monograph, source);
   ASSERT(parsed);
+  complete_cursor.join(complete_transaction);
   EXPECT(complete_cursor.matches(Code::Type::Terminal));
   EXPECT(complete_errors.is_empty());
 }

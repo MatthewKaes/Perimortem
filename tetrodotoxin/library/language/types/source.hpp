@@ -3,14 +3,14 @@
 
 #pragma once
 
-#include "tetrodotoxin/library/language/types/structure.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Source is the synthetic root Structure for one Library Monograph. It owns
-// source extension grammar and Static publication while Structure keeps the
-// shared declaration inventories, lookup categories, and lifecycle.
-class Source : public Structure {
+// Source is the synthetic root Composite for one Library Monograph. It owns
+// fixed root presentation, source extension grammar, and Static publication
+// while Composite keeps the shared inventories, lookup, and lifecycle.
+class Source : public Composite {
  private:
   Source(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -18,9 +18,17 @@ class Source : public Structure {
       Monograph& source,
       Materializations& materializations);
 
+  const Ttx::Concept::Documentation& documentation;
   const Ttx::Model::Layouts::Named& instance_layout;
 
  protected:
+  auto can_retain_binding(const Ttx::Concept::Abstract& binding) const
+      -> Bool override;
+
+  auto retain_binding(
+      Ttx::Concept::Abstract& binding,
+      Visibility binding_visibility) -> Bool override;
+
   auto publish_linked_field(Field& field) -> void override;
 
   auto complete_field_layout() -> void override;
@@ -41,7 +49,7 @@ class Source : public Structure {
       -> const Ttx::Concept::Abstract& override;
 
  public:
-  TTX_CONTRACT(Source, Structure, 0xa972070bd27746e0, 0x959dd29d7924aed4);
+  TTX_CONTRACT(Source, Composite, 0xa972070bd27746e0, 0x959dd29d7924aed4);
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -54,14 +62,10 @@ class Source : public Structure {
   auto operator=(const Source&) -> Source& = delete;
   auto operator=(Source&&) -> Source& = delete;
 
-  // Source consumes its extension forms and delegates every ordinary member to
-  // the shared declaration parser. The root is therefore the only place that
-  // can admit using without teaching Structure about source grammar.
-  auto parse(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Ttx::Lexical::Cursor& cursor,
-      Monograph& monograph) -> Bool;
+  // Source consumes its extension forms and delegates every ordinary Definition
+  // to Composite. The root is therefore the only place that can admit using
+  // without teaching Composite about source grammar.
+  auto parse(Ttx::Lexical::Cursor& cursor) -> Bool;
 
   auto bind_static(
       Ttx::Concept::Abstract& binding,
@@ -69,7 +73,14 @@ class Source : public Structure {
 
   auto can_bind_static(const Ttx::Concept::Abstract& binding) const -> Bool;
 
-  auto retain_static_field(Field::Source field) -> Bool;
+  TTX_NAME("source"_view);
+
+  TTX_DOCUMENTATION(documentation);
+
+  constexpr auto get_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
+    return {};
+  }
 
   constexpr auto resolve() const -> const Ttx::Concept::Abstract& override {
     return *this;

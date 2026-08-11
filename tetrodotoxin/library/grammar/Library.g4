@@ -1,9 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 //
-// Canonical Library source shape. Source adds import and Foreign declarations
-// around the same recursive declaration grammar used by every authored
-// Structure. Alias declarations are Types and never Fields.
+// Canonical Library source shape. Every ordinary member begins with the shared
+// Definition prefix, then Composite dispatches the remaining qualifier form.
+// Source alone adds import and Foreign declarations around that same grammar.
 
 parser grammar Library;
 
@@ -19,12 +19,8 @@ librarySource
     ;
 
 documentedSourceDeclaration
-    : documentation? attribute* librarySourceDeclaration
-    ;
-
-librarySourceDeclaration
-    : usingDeclaration
-    | libraryDeclaration
+    : definition libraryDefinition
+    | documentation? usingDeclaration
     | foreignBlock
     ;
 
@@ -32,34 +28,10 @@ usingDeclaration
     : USING typeRoute END_STATEMENT
     ;
 
-documentedLibraryDeclaration
-    : documentation? attribute* libraryDeclaration
-    ;
-
-libraryDeclaration
-    : PUBLIC publicDeclaration
-    | PRIVATE privateDeclaration
-    | EXPOSE exposedFieldDeclaration
-    ;
-
-publicDeclaration
-    : typeDeclaration
-    | functionDeclaration
-    | CONST? fieldDefinition
-    ;
-
-privateDeclaration
-    : typeDeclaration
-    | functionDeclaration
-    | fieldWritability? fieldDefinition
-    ;
-
-exposedFieldDeclaration
-    : STATE fieldDefinition
-    ;
-
-typeDeclaration
-    : typeName DEFINE typeDefinition
+libraryDefinition
+    : fieldDefinition
+    | typeDefinition
+    | functionDefinition
     ;
 
 typeDefinition
@@ -75,27 +47,26 @@ enumerationCase
     ;
 
 structureBody
-    : SCOPE_START documentedLibraryDeclaration* SCOPE_END
+    : SCOPE_START (definition libraryDefinition)* SCOPE_END
     ;
 
 fieldDefinition
-    : addressableName DEFINE
-      (typeReference (ASSIGN declarationInitializer)?
+    : (typeReference (ASSIGN declarationInitializer)?
       | ASSIGN declarationInitializer)
       END_STATEMENT
     ;
 
 declarationInitializer
     : expression
-    | objectConstruction
+    | objectInitializer
     ;
 
-objectConstruction
+objectInitializer
     : NEW argumentPack?
     ;
 
-functionDeclaration
-    : FUNC addressableName functionSignature block
+functionDefinition
+    : FUNC ASSIGN functionSignature block
     ;
 
 block

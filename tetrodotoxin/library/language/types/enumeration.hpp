@@ -8,10 +8,10 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/types/structure.hpp"
-#include "tetrodotoxin/library/language/visibility.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -36,14 +36,11 @@ class Enumeration : public Ttx::Model::Type {
 
   Enumeration(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Bytes name,
+      Tetrodotoxin::Language::Definition& definition,
       Access::Type storage_access,
-      const Ttx::Concept::Documentation& documentation,
-      Visibility visibility,
       Monograph& parent,
-      const Structure& host,
-      Ttx::Lexical::Anchor anchor,
-      Ttx::Lexical::Anchor name_anchor);
+      const Composite& host,
+      Ttx::Lexical::Anchor anchor);
 
  public:
   TTX_CONTRACT(
@@ -55,9 +52,9 @@ class Enumeration : public Ttx::Model::Type {
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Documentation& documentation,
+      Tetrodotoxin::Language::Definition& definition,
       Monograph& parent,
-      const Structure& host) -> Perimortem::Core::Option<Enumeration&>;
+      const Composite& host) -> Perimortem::Core::Option<Enumeration&>;
 
   Enumeration(const Enumeration&) = delete;
   Enumeration(Enumeration&&) = delete;
@@ -67,9 +64,9 @@ class Enumeration : public Ttx::Model::Type {
   auto link_storage() -> Bool;
   auto finalize() -> Bool;
 
-  TTX_NAME(name);
+  TTX_NAME(definition.get_name());
 
-  TTX_DOCUMENTATION(documentation);
+  TTX_DOCUMENTATION(definition.get_documentation());
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
@@ -78,13 +75,12 @@ class Enumeration : public Ttx::Model::Type {
 
   auto get_layout() const -> const Ttx::Concept::Layout& override;
 
-  constexpr auto get_visibility() const -> Visibility { return visibility; }
+  constexpr auto get_definition() const
+      -> const Tetrodotoxin::Language::Definition& {
+    return definition;
+  }
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
-
-  constexpr auto get_name_anchor() const -> Ttx::Lexical::Anchor {
-    return name_anchor;
-  }
 
   constexpr auto get_storage_anchor() const -> Ttx::Lexical::Anchor {
     return storage_access.get_anchor();
@@ -129,14 +125,11 @@ class Enumeration : public Ttx::Model::Type {
   };
 
   Perimortem::Memory::Allocator::Arena& domain;
-  Perimortem::Core::View::Bytes name;
+  Tetrodotoxin::Language::Definition& definition;
   Access::Type storage_access;
-  const Ttx::Concept::Documentation& documentation;
-  Visibility visibility;
   Monograph& parent;
-  const Structure& host;
+  const Composite& host;
   Ttx::Lexical::Anchor anchor;
-  Ttx::Lexical::Anchor name_anchor;
   Perimortem::Memory::Managed::Vector<SourceCase> source_cases;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       storage_type;

@@ -87,6 +87,13 @@ The selected Dialect therefore constructs the semantic objects defined by its
 source directly. No temporary source representation survives as a second
 declaration graph.
 
+The shared `Definition` value is the narrow exception that preserves a common
+authored prefix: Documentation, ordered Attributes, modifiers, name, and the
+qualifier that selects the remaining form. It is retained by the concrete
+semantic object rather than translated into or synchronized with a generic
+declaration identity. The receiving language dispatches the qualifier and owns
+every legality rule beyond that source shape.
+
 Those concrete objects collectively form the shared semantic IR. The common
 part is TTX identity, category, resolution, and Layout rather than a universal
 node model. Each Dialect keeps the richer facts needed by its own language and
@@ -96,7 +103,9 @@ This removes a translation layer and gives a compiler or editor one stable
 subject to query. Library lowering consumes the exact Library Function. Package
 retains the Alias that names another source. Shader lowering consumes the exact
 Stage body. None of those consumers has to synchronize a generic declaration
-node with the object that carries the language behavior.
+node with the object that carries the language behavior. When a concrete object
+retains a Definition, that value is part of the same authored object rather
+than a second graph node.
 
 The common view is consequently modest. A generic TTX tool can follow identity,
 prove a shared category, inspect a Layout, and ask contextual questions. Source

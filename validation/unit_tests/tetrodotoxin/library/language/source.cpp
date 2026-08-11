@@ -105,6 +105,11 @@ static Harness SourceTests = {
   .name = "Tetrodotoxin::Library::Language::Source"_view,
 };
 
+static_assert(
+    __is_base_of(Language::Types::Composite, Language::Types::Source));
+static_assert(
+    !__is_base_of(Language::Types::Structure, Language::Types::Source));
+
 PERIMORTEM_UNIT_TEST(SourceTests, literal_anchors) {
   static constexpr View::Bytes source = "true -5 \"xy\""_view;
   Allocator::Arena arena;
@@ -246,7 +251,7 @@ PERIMORTEM_UNIT_TEST(SourceTests, import_extent) {
 PERIMORTEM_UNIT_TEST(SourceTests, authored_declaration_order) {
   static constexpr View::Bytes source =
       "using First;\n"
-      "public func body[] -> Void { true; }\n"
+      "public body : func = [] -> Void { true; }\n"
       "using Second;"_view;
   Allocator::Arena arena;
   SourceContext context(Invalid::get_invalid());
@@ -280,7 +285,7 @@ PERIMORTEM_UNIT_TEST(SourceTests, authored_declaration_order) {
   EXPECT_TEXT(function.get_name(), "body"_view);
   EXPECT_TEXT(
       function.get_span().caculate_text(source),
-      "public func body[] -> Void { true; }"_view);
+      "public body : func = [] -> Void { true; }"_view);
   ASSERT_EQ(function.get_expressions().get_size(), Count(1));
   const Language::Expression& expression =
       function.get_expressions().get_data()[0].get();
@@ -288,11 +293,17 @@ PERIMORTEM_UNIT_TEST(SourceTests, authored_declaration_order) {
   EXPECT_TEXT(
       expression.get_anchor()->get_span().caculate_text(source), "true"_view);
   ASSERT(monograph.get_source().is<Language::Types::Source>());
-  const auto& source_structure =
+  const auto& source_type =
       static_cast<const Language::Types::Source&>(monograph.get_source());
-  EXPECT(&monograph.resolve_context("source"_view) == &source_structure);
+  EXPECT(source_type.is<Language::Types::Composite>());
+  EXPECT_NOT(source_type.is<Language::Types::Structure>());
+  EXPECT_TEXT(source_type.get_name(), "source"_view);
+  EXPECT(&source_type.get_documentation() == &monograph.get_documentation());
+  EXPECT_NOT(source_type.get_anchor());
+  EXPECT(source_type.get_layout().is_empty());
+  EXPECT(&monograph.resolve_context("source"_view) == &source_type);
   EXPECT(&function.get_source() == &monograph);
-  EXPECT(&function.get_host() == &source_structure);
+  EXPECT(&function.get_host() == &source_type);
   EXPECT(cursor.matches(Code::Type::Terminal));
   EXPECT(errors.is_empty());
 }

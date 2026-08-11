@@ -126,12 +126,12 @@ PERIMORTEM_UNIT_TEST(AddressTests, structure_member_selection) {
       "public Packet : struct {\n"
       "  public visible : Bool;\n"
       "  private secret : Bool;\n"
-      "  public func observe[] -> [] {}\n"
-      "  private func inspect[] -> [] {}\n"
+      "  public observe : func = [] -> [] {}\n"
+      "  private inspect : func = [] -> [] {}\n"
       "}\n"
       "public Session : object { expose state progress : Bool = false; }\n"
-      "public Other : struct { private func foreign[] -> [] {} }\n"
-      "private func root[] -> [] {}"_view;
+      "public Other : struct { private foreign : func = [] -> [] {} }\n"
+      "private root : func = [] -> [] {}"_view;
   Environment::Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);

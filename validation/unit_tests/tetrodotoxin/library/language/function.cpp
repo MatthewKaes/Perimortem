@@ -19,7 +19,6 @@
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/alias.hpp"
-#include "ttx/model/documentations/comment.hpp"
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
@@ -145,14 +144,24 @@ class FunctionParent : public Tetrodotoxin::Language::Monograph {
   const Abstract& types;
 };
 
-static constexpr Documentations::Comment function_documentation{
-  "Retains authored Function documentation."_view,
-};
-
 static auto matches_token(const Cursor& cursor, Token expected) -> Bool {
   Token current = cursor.current();
   return current.get_offset() == expected.get_offset() &&
          current.get_code() == expected.get_code();
+}
+
+static auto reserve_function(
+    Allocator::Arena& arena,
+    Cursor& cursor,
+    Tetrodotoxin::Language::Monograph& parent,
+    const Type& host,
+    Language::Materializations& materializations)
+    -> Option<Language::Function&> {
+  auto definition = Tetrodotoxin::Language::Definition::parse(cursor);
+  BAIL_IF(!definition);
+
+  return Language::Function::reserve(
+      arena, cursor, *definition, parent, host, materializations);
 }
 
 static auto get_parameter(const Layout& layout, Count index)
@@ -221,8 +230,8 @@ static auto rejects_completion(View::Bytes source, const SignatureTypes& types)
   Errors errors;
   Tokenizer tokenizer(arena, source, "rejected-function.ttx"_view);
   Cursor cursor(tokenizer, errors);
-  auto reserved = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, types, materializations);
+  auto reserved =
+      reserve_function(arena, cursor, parent, types, materializations);
   if (!reserved) {
     return False;
   }
@@ -240,9 +249,11 @@ static Harness FunctionTests = {
 
 PERIMORTEM_UNIT_TEST(FunctionTests, stable_authored_graph) {
   static constexpr View::Bytes source =
-      "public func ready[.value : Bool] -> Unsigned_64 { value; return value; "
+      "// Retains authored Function documentation.\n"
+      "public ready : func = [.value : Bool] -> Unsigned_64 { value; return "
+      "value; "
       "} "
-      "private func next[] -> Bool {}"_view;
+      "private next : func = [] -> Bool {}"_view;
   Allocator::Arena arena;
   Language::Materializations materializations(arena);
   Errors errors;
@@ -254,20 +265,30 @@ PERIMORTEM_UNIT_TEST(FunctionTests, stable_authored_graph) {
   // Reservation publishes only identity and the defining lexical anchors.
   // Completion enriches that same object with signature and body facts while
   // the caller remains positioned at the next declaration.
-  auto reserved = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, types, materializations);
+  auto reserved =
+      reserve_function(arena, cursor, parent, types, materializations);
   ASSERT(reserved);
   Language::Function& function = *reserved;
   const Language::Function* identity = &function;
 
   EXPECT(&function.resolve() == &Invalid::get_invalid());
   EXPECT_TEXT(function.get_name(), "ready"_view);
-  EXPECT(&function.get_documentation() == &function_documentation);
-  EXPECT(function.get_visibility() == Language::Visibility::Public);
+  ASSERT_EQ(function.get_documentation().line_count(), Count(1));
+  EXPECT_TEXT(
+      function.get_documentation().get_line(0),
+      "Retains authored Function documentation."_view);
+  auto modifiers = function.get_definition().get_modifiers();
+  ASSERT_EQ(modifiers.get_size(), Count(1));
+  EXPECT(modifiers.get_data()[0].get_code() == Code::Type::Public);
   EXPECT(&function.get_source() == &parent);
   EXPECT(&function.get_host() == &types);
-  EXPECT_TEXT(function.get_token().caculate_text(source), "func"_view);
-  EXPECT_TEXT(function.get_name_token().caculate_text(source), "ready"_view);
+  EXPECT(function.get_definition().get_attributes().is_empty());
+  EXPECT_TEXT(
+      function.get_definition().get_qualifier().caculate_text(source),
+      "func"_view);
+  EXPECT_TEXT(
+      function.get_definition().get_name_token().caculate_text(source),
+      "ready"_view);
   EXPECT_NOT(function.get_span());
   EXPECT(cursor.matches(Code::Type::BracketStart));
 
@@ -307,7 +328,7 @@ PERIMORTEM_UNIT_TEST(FunctionTests, stable_authored_graph) {
   EXPECT(function.is<Callable>());
   EXPECT_TEXT(
       function.get_span().caculate_text(source),
-      "public func ready[.value : Bool] -> Unsigned_64 { value; return value; }"_view);
+      "public ready : func = [.value : Bool] -> Unsigned_64 { value; return value; }"_view);
   EXPECT(cursor.matches(Code::Type::Private));
   EXPECT(errors.is_empty());
 
@@ -360,9 +381,57 @@ PERIMORTEM_UNIT_TEST(FunctionTests, stable_authored_graph) {
   EXPECT(&*return_expression == &expressions.get_data()[1].get());
 }
 
+PERIMORTEM_UNIT_TEST(FunctionTests, native_attributes_retained) {
+  static constexpr View::Bytes source =
+      "@symbol(\"library_native\") @abi(\"C\") "
+      "public exported : func = [] -> Bool { return true; }"_view;
+  Allocator::Arena arena;
+  Language::Materializations materializations(arena);
+  Errors errors;
+  Tokenizer tokenizer(arena, source, "native-function.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  SignatureTypes types;
+  FunctionParent parent(arena, types);
+  auto function =
+      reserve_function(arena, cursor, parent, types, materializations);
+  ASSERT(function);
+  ASSERT(function->complete(cursor));
+  auto retained = function->get_definition().get_attributes();
+  ASSERT_EQ(retained.get_size(), Count(2));
+  EXPECT_TEXT(retained.get_data()[0].get_key(), "symbol"_view);
+  EXPECT_TEXT(retained.get_data()[1].get_key(), "abi"_view);
+  EXPECT_TEXT(
+      retained.get_data()[0].get_anchor().get_span().caculate_text(source),
+      "symbol(\"library_native\")"_view);
+  EXPECT_TEXT(
+      retained.get_data()[1].get_anchor().get_span().caculate_text(source),
+      "abi(\"C\")"_view);
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(FunctionTests, native_self_rejected) {
+  static constexpr View::Bytes source =
+      "@abi(\"C\") public exported : func = [self] -> Bool { return true; }"_view;
+  Allocator::Arena arena;
+  Language::Materializations materializations(arena);
+  Errors errors;
+  Tokenizer tokenizer(arena, source, "native-self-function.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  SignatureTypes types;
+  FunctionParent parent(arena, types);
+  auto function =
+      reserve_function(arena, cursor, parent, types, materializations);
+  ASSERT(function);
+  Token signature_start = cursor.current();
+  EXPECT_NOT(function->complete(cursor));
+  EXPECT(matches_token(cursor, signature_start));
+  EXPECT_NOT(function->is_complete());
+  EXPECT_NOT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(FunctionTests, self_is_exact_host_parameter) {
   static constexpr View::Bytes source =
-      "public func inspect[self, .value : Bool] -> Bool { return value; }"_view;
+      "public inspect : func = [self, .value : Bool] -> Bool { return value; }"_view;
   Allocator::Arena arena;
   Language::Materializations materializations(arena);
   Errors errors;
@@ -370,8 +439,8 @@ PERIMORTEM_UNIT_TEST(FunctionTests, self_is_exact_host_parameter) {
   Cursor cursor(tokenizer, errors);
   SignatureTypes types;
   FunctionParent parent(arena, types);
-  auto function = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, types, materializations);
+  auto function =
+      reserve_function(arena, cursor, parent, types, materializations);
   ASSERT(function);
   ASSERT(function->complete(cursor));
 
@@ -471,17 +540,17 @@ PERIMORTEM_UNIT_TEST(FunctionTests, parameter_requires_linked_signature) {
 PERIMORTEM_UNIT_TEST(FunctionTests, rejected_completion_is_atomic) {
   SignatureTypes types;
   static constexpr Static::Vector<View::Bytes, 11> rejected = {{
-    "private func bad[.value : Bool, .value : Bool] -> [] {}"_view,
-    "private func bad[Bool, .value : Bool] -> [] {}"_view,
-    "private func bad[.Bool : Bool] -> [] {}"_view,
-    "private func bad[] -> Bool;"_view,
-    "private func bad[] -> Bool { { } }"_view,
-    "private func bad[Bool Bool] -> [] {}"_view,
-    "private func bad[] -> Bool { return true; false; }"_view,
-    "private func bad[] -> Bool { return; return; }"_view,
-    "private func bad[.value : Bool, self] -> [] {}"_view,
-    "private func bad[self, Bool] -> [] {}"_view,
-    "private func bad[] -> [self] {}"_view,
+    "private bad : func = [.value : Bool, .value : Bool] -> [] {}"_view,
+    "private bad : func = [Bool, .value : Bool] -> [] {}"_view,
+    "private bad : func = [.Bool : Bool] -> [] {}"_view,
+    "private bad : func = [] -> Bool;"_view,
+    "private bad : func = [] -> Bool { { } }"_view,
+    "private bad : func = [Bool Bool] -> [] {}"_view,
+    "private bad : func = [] -> Bool { return true; false; }"_view,
+    "private bad : func = [] -> Bool { return; return; }"_view,
+    "private bad : func = [.value : Bool, self] -> [] {}"_view,
+    "private bad : func = [self, Bool] -> [] {}"_view,
+    "private bad : func = [] -> [self] {}"_view,
   }};
 
   // Each rejected transaction allocates independently and leaves its Function
@@ -494,7 +563,8 @@ PERIMORTEM_UNIT_TEST(FunctionTests, rejected_completion_is_atomic) {
 PERIMORTEM_UNIT_TEST(
     FunctionTests,
     incomplete_link_retains_reservation_anchor) {
-  static constexpr View::Bytes source = "private func reserved[] -> [] {}"_view;
+  static constexpr View::Bytes source =
+      "private reserved : func = [] -> [] {}"_view;
   Allocator::Arena arena;
   Language::Materializations materializations(arena);
   Errors errors;
@@ -502,8 +572,8 @@ PERIMORTEM_UNIT_TEST(
   Cursor cursor(tokenizer, errors);
   SignatureTypes types;
   FunctionParent parent(arena, types);
-  auto function = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, types, materializations);
+  auto function =
+      reserve_function(arena, cursor, parent, types, materializations);
   ASSERT(function);
 
   EXPECT_NOT(function->link());
@@ -513,13 +583,13 @@ PERIMORTEM_UNIT_TEST(
   const Anchor& anchor = *diagnostics.get_data()[0].get_anchor();
   EXPECT_TEXT(anchor.get_token().caculate_text(source), "func"_view);
   EXPECT_TEXT(
-      anchor.get_span().caculate_text(source), "private func reserved"_view);
+      anchor.get_span().caculate_text(source), "private reserved : func"_view);
   EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(FunctionTests, unresolved_type_waits_for_link) {
   static constexpr View::Bytes source =
-      "private func late[.value : Missing] -> [] { value; }"_view;
+      "private late : func = [.value : Missing] -> [] { value; }"_view;
   Allocator::Arena arena;
   Language::Materializations materializations(arena);
   Errors errors;
@@ -527,8 +597,8 @@ PERIMORTEM_UNIT_TEST(FunctionTests, unresolved_type_waits_for_link) {
   Cursor cursor(tokenizer, errors);
   SignatureTypes types;
   FunctionParent parent(arena, types);
-  auto function = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, types, materializations);
+  auto function =
+      reserve_function(arena, cursor, parent, types, materializations);
   ASSERT(function);
   ASSERT(function->complete(cursor));
   EXPECT(errors.is_empty());
@@ -549,7 +619,7 @@ PERIMORTEM_UNIT_TEST(FunctionTests, unresolved_type_waits_for_link) {
 
 PERIMORTEM_UNIT_TEST(FunctionTests, late_type_enriches_authored_identities) {
   static constexpr View::Bytes source =
-      "private func late[.value : Late] -> [] { value; }"_view;
+      "private late : func = [.value : Late] -> [] { value; }"_view;
   Allocator::Arena arena;
   Language::Materializations materializations(arena);
   Errors errors;
@@ -557,8 +627,8 @@ PERIMORTEM_UNIT_TEST(FunctionTests, late_type_enriches_authored_identities) {
   Cursor cursor(tokenizer, errors);
   LateSignatureTypes types;
   FunctionParent parent(arena, types);
-  auto function = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, types, materializations);
+  auto function =
+      reserve_function(arena, cursor, parent, types, materializations);
   ASSERT(function);
   ASSERT(function->complete(cursor));
   const Language::Function* function_identity = &*function;
@@ -598,7 +668,8 @@ PERIMORTEM_UNIT_TEST(FunctionTests, late_type_enriches_authored_identities) {
 }
 
 PERIMORTEM_UNIT_TEST(FunctionTests, completion_occurs_once) {
-  static constexpr View::Bytes source = "private func once[] -> Bool {}"_view;
+  static constexpr View::Bytes source =
+      "private once : func = [] -> Bool {}"_view;
   Allocator::Arena arena;
   Language::Materializations materializations(arena);
   Errors errors;
@@ -606,8 +677,8 @@ PERIMORTEM_UNIT_TEST(FunctionTests, completion_occurs_once) {
   Cursor cursor(tokenizer, errors);
   SignatureTypes types;
   FunctionParent parent(arena, types);
-  auto reserved = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, types, materializations);
+  auto reserved =
+      reserve_function(arena, cursor, parent, types, materializations);
   ASSERT(reserved);
   ASSERT(reserved->complete(cursor));
   ASSERT(reserved->link());
@@ -637,7 +708,7 @@ PERIMORTEM_UNIT_TEST(
     FunctionTests,
     finalize_caches_authored_roots_without_diagnostics) {
   static constexpr View::Bytes source =
-      "private func folded[] -> Unsigned_64 { 1 / 0; 6 / 2; }"_view;
+      "private folded : func = [] -> Unsigned_64 { 1 / 0; 6 / 2; }"_view;
   Allocator::Arena arena;
   Language::Materializations materializations(arena);
   Errors errors;
@@ -645,8 +716,8 @@ PERIMORTEM_UNIT_TEST(
   Cursor cursor(tokenizer, errors);
   SignatureTypes types;
   FunctionParent parent(arena, types);
-  auto function = Language::Function::reserve(
-      arena, cursor, function_documentation, parent, types, materializations);
+  auto function =
+      reserve_function(arena, cursor, parent, types, materializations);
 
   ASSERT(function);
   ASSERT(function->complete(cursor));

@@ -74,8 +74,8 @@ Abstract
 └── Callable
 ```
 
-`Layout`, `Documentation`, `Reference`, and `Attribute` support those identities
-without becoming identities themselves.
+`Layout`, `Documentation`, and `Reference` support those identities without
+becoming identities themselves.
 
 A `Type` exposes one complete Layout. An `Addressable` names typed data. A
 `Callable` exposes parameter and result Layouts. An `Alias` keeps its own local

@@ -1,7 +1,7 @@
 //
 dialect : Library;
 
-public func reveal[] -> Hidden {
+public reveal : func = [] -> Hidden {
   return (.value = 0);
 }
 

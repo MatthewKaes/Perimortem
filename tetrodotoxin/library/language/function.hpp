@@ -9,11 +9,11 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/signature.hpp"
-#include "tetrodotoxin/library/language/visibility.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/span.hpp"
@@ -31,15 +31,10 @@ class Function : public Ttx::Model::Callable {
  private:
   Function(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Bytes name,
-      const Ttx::Concept::Documentation& documentation,
-      Visibility visibility,
+      Tetrodotoxin::Language::Definition& definition,
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Model::Type& host,
-      Materializations& materializations,
-      Ttx::Lexical::Token opening,
-      Ttx::Lexical::Token token,
-      Ttx::Lexical::Token name_token);
+      Materializations& materializations);
 
  public:
   TTX_CONTRACT(
@@ -51,7 +46,7 @@ class Function : public Ttx::Model::Callable {
   static auto reserve(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Documentation& documentation,
+      Tetrodotoxin::Language::Definition& definition,
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Model::Type& host,
       Materializations& materializations)
@@ -72,9 +67,9 @@ class Function : public Ttx::Model::Callable {
 
   auto finalize() -> Bool;
 
-  TTX_NAME(name);
+  TTX_NAME(definition.get_name());
 
-  TTX_DOCUMENTATION(documentation);
+  TTX_DOCUMENTATION(definition.get_documentation());
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
@@ -85,7 +80,10 @@ class Function : public Ttx::Model::Callable {
 
   auto get_results() const -> const Ttx::Concept::Layout& override;
 
-  constexpr auto get_visibility() const -> Visibility { return visibility; }
+  constexpr auto get_definition() const
+      -> const Tetrodotoxin::Language::Definition& {
+    return definition;
+  }
 
   constexpr auto get_source() const
       -> const Tetrodotoxin::Language::Monograph& {
@@ -93,12 +91,6 @@ class Function : public Ttx::Model::Callable {
   }
 
   constexpr auto get_host() const -> const Ttx::Model::Type& { return host; }
-
-  constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
-
-  constexpr auto get_name_token() const -> Ttx::Lexical::Token {
-    return name_token;
-  }
 
   constexpr auto get_span() const -> Ttx::Lexical::Span { return span; }
 
@@ -129,15 +121,10 @@ class Function : public Ttx::Model::Callable {
 
  private:
   Perimortem::Memory::Allocator::Arena& domain;
-  Perimortem::Core::View::Bytes name;
-  const Ttx::Concept::Documentation& documentation;
-  Visibility visibility;
+  Tetrodotoxin::Language::Definition& definition;
   Tetrodotoxin::Language::Monograph& source;
   const Ttx::Model::Type& host;
   Materializations& materializations;
-  Ttx::Lexical::Token opening;
-  Ttx::Lexical::Token token;
-  Ttx::Lexical::Token name_token;
   Ttx::Lexical::Span span;
   Perimortem::Core::Option<Signature&> signature;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Expression>>
