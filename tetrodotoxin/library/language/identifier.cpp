@@ -14,9 +14,10 @@ static const Layouts::Fluid identifier_inputs;
 
 auto Language::Identifier::link(
     Tetrodotoxin::Language::Monograph& source,
-    const Abstract& context,
-    Materializations&) -> Bool {
-  const Abstract& selected = context.resolve_context(route).resolve();
+    const Abstract& lexical_context,
+    Materializations&,
+    Core::Option<const Type&>) -> Bool {
+  const Abstract& selected = lexical_context.resolve_context(route).resolve();
   auto source_anchor = get_anchor();
 
   // A later context may fill an unresolved route, but a successful edge

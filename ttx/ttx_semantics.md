@@ -103,8 +103,8 @@ The closed identity categories are:
 * `Addressable` provides a named address whose edge reaches one Type.
 * `Callable` provides complete parameter and result Layouts.
 
-`Documentation`, `Layout`, and `Reference` are supporting contracts and values
-that carry no semantic identity.
+`Authorship`, `Documentation`, `Layout`, and `Reference` are supporting
+contracts and values that carry no semantic identity.
 
 These categories are an interchange vocabulary rather than a complete type
 system. Concrete languages define their Type inventory, access policy,
@@ -132,7 +132,15 @@ replace an identity that was already returned successfully.
 Category proof establishes the semantic contract of the original object. A proof
 never creates a wrapper, clone, or substitute identity. The consumer states the
 category it needs and either receives that same object under the proven
-contract or retains the original Abstract.
+contract or retains the original Abstract. Category proof follows one public
+C++ inheritance chain.
+
+An Abstract may separately borrow one identity-free Authorship source fact.
+Authorship preserves the exact authored Documentation and Anchor while its
+concrete language decides whether the authored object is published. It does
+not expose or invent a shared visibility model. Absence means that the semantic
+identity has no authored source fact; it does not manufacture a second
+category, wrapper, or declaration identity.
 
 ## Invalid
 
@@ -189,11 +197,14 @@ policy rather than part of the shared Addressable contract.
 ## Callable
 
 Callable is an Abstract that supplies one complete signature as a parameter
-Layout and a result Layout.
+Layout and a result Layout. A Callable is type-bound when parameter entry zero
+is an Addressable named `self`; that Addressable supplies the exact receiver
+Type. This role is derived from the Layout and creates no second Callable
+category or retained marker.
 
 TTX does not prescribe how a Callable is selected or invoked. A concrete
-language may fit its parameter and result Layouts while adding receiver,
-executable body, calling convention, machine address, or target ABI policy.
+language may fit its parameter and result Layouts while adding executable body,
+calling convention, machine address, or target ABI policy.
 
 ## Layout
 

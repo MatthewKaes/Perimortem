@@ -728,14 +728,14 @@ PERIMORTEM_UNIT_TEST(PackageDialect, source_statement_shape) {
       "// Missing from\n"
       "dialect : Package;\n"
       "source Main \"main.ttx\";\n"_view,
-      "Source statements require exact `from` spelling."_view));
+      "Source statements require `from`."_view));
 
   EXPECT(rejects_package(
       "wrong_relation.ttx"_view,
       "// Wrong relation\n"
       "dialect : Package;\n"
       "source Main via \"main.ttx\";\n"_view,
-      "Source statements require exact `from` spelling."_view));
+      "Source statements require `from`."_view));
 }
 
 PERIMORTEM_UNIT_TEST(PackageDialect, quoted_payload_failures) {

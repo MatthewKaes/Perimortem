@@ -16,85 +16,64 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-static auto parse_policy(
+static auto parse_writability(
     const Tetrodotoxin::Language::Definition& definition,
-    Cursor& cursor,
-    Language::Field::Exposure& exposure,
-    Language::Field::Writability& writability) -> Bool {
-  Count publication_count = 0;
-  Count evaluation_count = 0;
+    Cursor& cursor) -> Option<Language::Field::Writability> {
   auto modifiers = definition.get_modifiers();
-  for (Count i = 0; i < modifiers.get_size(); i++) {
-    Token modifier = modifiers.get_data()[i];
-    switch (modifier.get_code().get_type()) {
-    case Code::Type::Public:
-      exposure = Language::Field::Exposure::Public;
-      publication_count++;
-      break;
-    case Code::Type::Private:
-      exposure = Language::Field::Exposure::Private;
-      publication_count++;
-      break;
-    case Code::Type::Expose:
-      exposure = Language::Field::Exposure::Exposed;
-      publication_count++;
-      break;
+  if (modifiers.get_size() > 1) {
+    cursor.create_token_error(
+        modifiers.get_data()[1],
+        "Library Fields accept at most one evaluation modifier."_view);
+    return {};
+  }
+
+  Language::Field::Writability writability = Language::Field::Writability::Full;
+  if (!modifiers.is_empty()) {
+    switch (modifiers.get_data()[0].get_code().get_type()) {
     case Code::Type::State:
       writability = Language::Field::Writability::Internal;
-      evaluation_count++;
       break;
     case Code::Type::Const:
       writability = Language::Field::Writability::Init;
-      evaluation_count++;
       break;
     default:
-      break;
+      cursor.create_token_error(
+          modifiers.get_data()[0],
+          "Library Fields accept only `state` or `const` evaluation."_view);
+      return {};
     }
   }
 
-  if (publication_count != 1) {
-    cursor.create_token_error(
-        definition.get_name_token(),
-        "Library Fields require `public`, `private`, or `expose` "
-        "publication."_view);
-    return False;
-  }
-  if (evaluation_count > 1) {
-    cursor.create_token_error(
-        definition.get_name_token(),
-        "Library Fields accept at most one evaluation modifier."_view);
-    return False;
-  }
-
-  if (exposure == Language::Field::Exposure::Exposed &&
+  Tetrodotoxin::Language::Visibility visibility = definition.get_visibility();
+  if (visibility == Tetrodotoxin::Language::Visibility::Exposed &&
       writability != Language::Field::Writability::Internal) {
     cursor.create_token_error(
+        definition.get_visibility_token(),
         "Library `expose` Fields require the `state` evaluation policy."_view);
-    return False;
+    return {};
   }
-  if (exposure == Language::Field::Exposure::Public &&
+  if (visibility == Tetrodotoxin::Language::Visibility::Public &&
       writability == Language::Field::Writability::Internal) {
     cursor.create_token_error(
+        modifiers.get_data()[0],
         "Library state Fields require `private` or explicit `expose` "
         "publication."_view);
-    return False;
+    return {};
   }
 
-  return True;
+  return writability;
 }
 
 auto Language::Field::interpret(
     Allocator::Arena& domain,
     Materializations& materializations,
     Cursor& cursor,
-    Tetrodotoxin::Language::Definition& definition,
-    const Type& host) -> Option<Field&> {
+    Tetrodotoxin::Language::Definition& definition) -> Option<Field&> {
   auto transaction = cursor.branch();
-  Exposure exposure = Exposure::Private;
-  Writability writability = Writability::Full;
-  Bool parsed_policy =
-      parse_policy(definition, transaction, exposure, writability);
-  BAIL_IF(!parsed_policy);
+  auto host = definition.get_host().select<Language::Types::Composite>();
+  BAIL_IF(!host);
+  auto writability = parse_writability(definition, transaction);
+  BAIL_IF(!writability);
 
   if (definition.get_name_token().get_code() != Code::Type::Addressable) {
     transaction.create_token_error(
@@ -115,7 +94,7 @@ auto Language::Field::interpret(
     }
 
     initializer =
-        Parser::Expression::parse(domain, materializations, transaction, host);
+        Parser::Expression::parse(domain, materializations, transaction, *host);
     BAIL_IF(!initializer);
   } else {
     auto authored_type = Access::Type::parse(transaction);
@@ -126,15 +105,15 @@ auto Language::Field::interpret(
       transaction.consume();
       if (Initializer::is_next(transaction)) {
         auto object_initializer =
-            Initializer::parse(domain, materializations, transaction, host);
+            Initializer::parse(domain, materializations, transaction, *host);
         BAIL_IF(!object_initializer);
         initializer = *object_initializer;
       } else {
         initializer = Parser::Expression::parse(
-            domain, materializations, transaction, host);
+            domain, materializations, transaction, *host);
       }
       BAIL_IF(!initializer);
-    } else if (writability != Writability::Full) {
+    } else if (*writability != Writability::Full) {
       transaction.create_token_error(
           "Library state and const Fields require an initializer."_view);
       return {};
@@ -146,59 +125,26 @@ auto Language::Field::interpret(
       "Library Fields require one terminating `;`."_view);
   BAIL_IF(!terminator);
 
-  Anchor anchor = Anchor::create(
-      definition.get_name_token(),
-      Span(definition.get_anchor().get_span().get_start(), terminator));
+  BAIL_IF(!definition.complete(definition.get_name_token(), terminator));
   Field& field = domain.construct_from<Field>([&]() -> Field {
-    return Field(definition, type, anchor, initializer, host);
+    return Field(definition, *writability, type, initializer);
   });
   cursor.join(transaction);
   return field;
 }
 
-auto Language::Field::get_exposure() const -> Exposure {
-  auto modifiers = definition.get_modifiers();
-  for (Count i = 0; i < modifiers.get_size(); i++) {
-    switch (modifiers.get_data()[i].get_code().get_type()) {
-    case Code::Type::Public:
-      return Exposure::Public;
-    case Code::Type::Expose:
-      return Exposure::Exposed;
-    default:
-      break;
-    }
-  }
-
-  return Exposure::Private;
-}
-
-auto Language::Field::get_writability() const -> Writability {
-  auto modifiers = definition.get_modifiers();
-  for (Count i = 0; i < modifiers.get_size(); i++) {
-    switch (modifiers.get_data()[i].get_code().get_type()) {
-    case Code::Type::State:
-      return Writability::Internal;
-    case Code::Type::Const:
-      return Writability::Init;
-    default:
-      break;
-    }
-  }
-
-  return Writability::Full;
-}
-
-auto Language::Field::link_type(
-    Tetrodotoxin::Language::Monograph& source,
-    const Abstract& selected) -> Bool {
-  if (!host.is<Language::Types::Composite>() || is_inferred()) {
+auto Language::Field::link_type(Tetrodotoxin::Language::Monograph& source)
+    -> Bool {
+  auto composite = get_host().select<Language::Types::Composite>();
+  if (!composite || !type_access) {
     source.report(
-        anchor,
+        get_anchor(),
         "Explicit Field linking requires one Composite host and Type route."_view,
         "Use the authored Field provenance with its exact completion path."_view);
     return False;
   }
 
+  const Abstract& selected = composite->resolve_type(*type_access);
   const Abstract& resolved =
       selected.is<Type>() ? selected : selected.resolve();
   auto selected_type = resolved.select<Type>();
@@ -238,7 +184,7 @@ auto Language::Field::link_initializer(
       [](Expression& selected) -> Option<Expression&> { return selected; });
   if (!selected_initializer) {
     monograph.report(
-        anchor, "Field initializer state is incomplete."_view,
+        get_anchor(), "Field initializer state is incomplete."_view,
         "Retain one initializer before linking restricted Field access."_view);
     return False;
   }
@@ -246,7 +192,11 @@ auto Language::Field::link_initializer(
   // Composite retained this exact Field before linking and exposes only the
   // completed prefix inside its private transaction. That path authenticates
   // the real host without inventing another initializer context.
-  Bool linked = selected_initializer->link(monograph, *this, materializations);
+  // The Field remains the lexical owner of bare names. Its host Type travels
+  // separately as access authority so nested expressions never have to infer
+  // scope from the concrete declaration category.
+  Bool linked = selected_initializer->link(
+      monograph, *this, materializations, get_host());
   BAIL_IF(!linked);
 
   if (!type) {
@@ -279,6 +229,38 @@ auto Language::Field::link_initializer(
   return True;
 }
 
+auto Language::Field::validate_publication(
+    Tetrodotoxin::Language::Monograph& source) const -> Bool {
+  if (!get_definition().is_published()) {
+    return True;
+  }
+
+  auto composite = get_host().select<Language::Types::Composite>();
+  if (!composite) {
+    source.report(
+        get_anchor(), "A published Field has no Composite host."_view,
+        "Retain the Field on the Composite that owns its declaration."_view);
+    return False;
+  }
+
+  Bool reachable = type_access.visit(
+      [&]() { return composite->is_externally_reachable(get_type()); },
+      [&](const Access::Type& access) {
+        return Bool(&composite->resolve_exported_type(access) == &get_type());
+      });
+  if (reachable) {
+    return True;
+  }
+
+  source.report(
+      get_type_anchor().visit(
+          [&]() -> Option<Anchor> { return get_anchor(); },
+          [](Anchor selected) -> Option<Anchor> { return selected; }),
+      "Externally readable Field publishes an unreachable Type."_view,
+      "Keep the Field private or publish its exact Type."_view);
+  return False;
+}
+
 auto Language::Field::resolve() const -> const Abstract& {
   if (!type) {
     return Invalid::get_invalid();
@@ -289,9 +271,19 @@ auto Language::Field::resolve() const -> const Abstract& {
 
 auto Language::Field::resolve_context(View::Bytes route) const
     -> const Abstract& {
+  const Type& host = get_host();
   return host.visit<Language::Types::Composite>(
       [&](const Language::Types::Composite& composite) -> const Abstract& {
-        return composite.resolve_context(route, *this);
+        // Field initializers may name another local Addressable without an
+        // explicit receiver. This is lexical declaration lookup, distinct from
+        // `.` selection over a value's Layout.
+        const Abstract& addressable =
+            composite.resolve_lexical_addressable(route, host);
+        if (&addressable != &Invalid::get_invalid()) {
+          return addressable;
+        }
+
+        return composite.resolve_type_root(route, host);
       },
       [&](const Abstract&) -> const Abstract& {
         return host.resolve_context(route);

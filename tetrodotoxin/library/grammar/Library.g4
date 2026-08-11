@@ -2,7 +2,8 @@
 // Copyright © Matt Kaes
 //
 // Canonical Library source shape. Every ordinary member begins with the shared
-// Definition prefix, then Composite dispatches the remaining qualifier form.
+// Definition prefix, then the stateless Member parser selects the concrete
+// owner for the remaining qualifier form.
 // Source alone adds import and Foreign declarations around that same grammar.
 
 parser grammar Library;

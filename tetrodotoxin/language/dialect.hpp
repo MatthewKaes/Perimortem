@@ -13,6 +13,7 @@
 #include "tetrodotoxin/language/monograph.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
+#include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Language {
@@ -27,13 +28,14 @@ class Dialect {
 
   // The caller chooses the Arena that defines the returned graph lifetime.
   // Interpret borrows Cursor input under that same lifetime contract and
-  // receives the exact owner supplied context separately. Each concrete
-  // Dialect decides what that context means rather than inheriting one
-  // universal source scope.
+  // receives the retained Documentation, source-envelope Anchor, and exact
+  // owner supplied context separately. Each concrete Dialect decides what
+  // that context means rather than inheriting one universal source scope.
   virtual auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& doc,
+      const Ttx::Lexical::Anchor& source_anchor,
       Ttx::Concept::Abstract& interpretation_context)
       -> Perimortem::Core::Option<Monograph&> = 0;
 

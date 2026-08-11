@@ -11,6 +11,7 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
+#include "tetrodotoxin/library/language/authored.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/signature.hpp"
@@ -23,33 +24,25 @@
 namespace Tetrodotoxin::Library::Language {
 
 // Function is one Library defined Callable. Reservation fixes its graph
-// identity, source owner, and exact host Type before completion installs the
-// signature and authored Expression roots from one complete definition. A
-// reserved self Addressable at parameter entry zero records receiver
-// invocation and has that exact host Type.
-class Function : public Ttx::Model::Callable {
+// identity while Definition supplies its exact host Type. Completion installs
+// the signature and authored Expression roots. A reserved self Addressable at
+// parameter entry zero records receiver invocation and has that exact host
+// Type.
+class Function : public Authored<Ttx::Model::Callable> {
+  using Base = Authored<Ttx::Model::Callable>;
+
  private:
   Function(
       Perimortem::Memory::Allocator::Arena& domain,
-      Tetrodotoxin::Language::Definition& definition,
-      Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Model::Type& host,
-      Materializations& materializations);
+      Tetrodotoxin::Language::Definition& definition);
 
  public:
-  TTX_CONTRACT(
-      Function,
-      Ttx::Model::Callable,
-      0x6c76a9165a2640bf,
-      0xbbebc5e45cc6bd0f);
+  TTX_CONTRACT(Function, Base, 0x6c76a9165a2640bf, 0xbbebc5e45cc6bd0f);
 
   static auto reserve(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition,
-      Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Model::Type& host,
-      Materializations& materializations)
+      Tetrodotoxin::Language::Definition& definition)
       -> Perimortem::Core::Option<Function&>;
 
   Function(const Function&) = delete;
@@ -57,19 +50,19 @@ class Function : public Ttx::Model::Callable {
   auto operator=(const Function&) -> Function& = delete;
   auto operator=(Function&&) -> Function& = delete;
 
-  auto complete(Ttx::Lexical::Cursor& cursor) -> Bool;
+  auto complete(
+      Ttx::Lexical::Cursor& cursor,
+      Materializations& materializations) -> Bool;
 
-  auto link_signature() -> Bool;
+  auto link_signature(Tetrodotoxin::Language::Monograph& source) -> Bool;
 
-  auto link_body() -> Bool;
+  auto link_body(
+      Tetrodotoxin::Language::Monograph& source,
+      Materializations& materializations) -> Bool;
 
-  auto link() -> Bool;
+  auto finalize(Tetrodotoxin::Language::Monograph& source) -> Bool;
 
-  auto finalize() -> Bool;
-
-  TTX_NAME(definition.get_name());
-
-  TTX_DOCUMENTATION(definition.get_documentation());
+  TTX_DOCUMENTATION(get_definition().get_documentation());
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
@@ -80,52 +73,24 @@ class Function : public Ttx::Model::Callable {
 
   auto get_results() const -> const Ttx::Concept::Layout& override;
 
-  constexpr auto get_definition() const
-      -> const Tetrodotoxin::Language::Definition& {
-    return definition;
+  constexpr auto get_host() const -> const Ttx::Model::Type& {
+    return static_cast<const Ttx::Model::Type&>(get_definition().get_host());
   }
-
-  constexpr auto get_source() const
-      -> const Tetrodotoxin::Language::Monograph& {
-    return source;
-  }
-
-  constexpr auto get_host() const -> const Ttx::Model::Type& { return host; }
-
-  constexpr auto get_span() const -> Ttx::Lexical::Span { return span; }
 
   auto get_signature() const -> Perimortem::Core::Option<const Signature&>;
 
-  auto get_expressions()
-      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Expression>>;
-
   auto get_expressions() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<const Expression>>;
-
-  constexpr auto get_return_token() const -> Ttx::Lexical::Token {
-    return return_token;
-  }
-
-  constexpr auto get_return_span() const -> Ttx::Lexical::Span {
-    return return_span;
-  }
 
   auto get_return_expression() const
       -> Perimortem::Core::Option<const Expression&>;
 
   constexpr auto is_complete() const -> Bool { return completed; }
 
+ private:
   auto is_signature_linked() const -> Bool;
 
-  constexpr auto is_linked() const -> Bool { return linked; }
-
- private:
   Perimortem::Memory::Allocator::Arena& domain;
-  Tetrodotoxin::Language::Definition& definition;
-  Tetrodotoxin::Language::Monograph& source;
-  const Ttx::Model::Type& host;
-  Materializations& materializations;
-  Ttx::Lexical::Span span;
   Perimortem::Core::Option<Signature&> signature;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Expression>>
       expressions;

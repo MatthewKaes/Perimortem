@@ -10,16 +10,8 @@ using namespace Tetrodotoxin;
 
 auto Library::Language::Import::parse(Cursor& cursor) -> Option<Import> {
   Token opening = cursor.require(
-      Code::Type::Addressable,
-      "Library Imports require exact `using` spelling."_view);
+      Code::Type::Using, "Library Imports require `using`."_view);
   if (!opening) {
-    cursor.recover_to_statement();
-    return {};
-  }
-
-  if (opening.caculate_text(cursor.get_source_text()) != "using"_view) {
-    cursor.create_token_error(
-        opening, "Library Imports require exact `using` spelling."_view);
     cursor.recover_to_statement();
     return {};
   }

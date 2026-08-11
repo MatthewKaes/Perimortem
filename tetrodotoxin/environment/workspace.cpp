@@ -181,6 +181,8 @@ auto Environment::Workspace::interpret_retained_source(
   Token dialect_declaration = cursor.current();
   View::Bytes dialect_name = Language::Parser::Dialect::parse(cursor);
   BAIL_IF(dialect_name.is_empty());
+  Anchor source_anchor = Anchor::create(
+      dialect_declaration, Span(source_opening, cursor.peek(-1)));
 
   Option<Language::Dialect&> dialect = dialects.find(dialect_name);
   if (!dialect) {
@@ -212,8 +214,8 @@ auto Environment::Workspace::interpret_retained_source(
   // Package members and direct sources can expose different contextual roots.
   // Pass that exact owner into this interpretation instead of making every
   // installed Dialect retain one universal source scope.
-  Option<Language::Monograph&> interpreted =
-      dialect->interpret(arena, cursor, documentation, interpretation_context);
+  Option<Language::Monograph&> interpreted = dialect->interpret(
+      arena, cursor, documentation, source_anchor, interpretation_context);
   BAIL_IF(!interpreted);
 
   // Retention owns lifetime and exact authored provenance. Package local

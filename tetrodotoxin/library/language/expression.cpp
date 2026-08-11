@@ -13,7 +13,8 @@ using namespace Tetrodotoxin::Library;
 auto Language::Expression::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract&,
-    Materializations&) -> Bool {
+    Materializations&,
+    Option<const Type&>) -> Bool {
   auto source_anchor = get_anchor();
 
   if (get_type().resolve().is<Type>()) {

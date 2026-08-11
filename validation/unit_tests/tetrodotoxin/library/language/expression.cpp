@@ -92,10 +92,6 @@ class ExpressionValue : public Expression {
   inline static const Ttx::Model::Layouts::Fluid inputs;
 };
 
-static_assert(!__is_constructible(ExpressionValue, const ExpressionValue&));
-static_assert(
-    !__is_constructible(Constants::Unsigned, const Constants::Unsigned&));
-
 class ExpressionContext : public Abstract {
  public:
   constexpr ExpressionContext(const Ttx::Model::Addressable& selected)

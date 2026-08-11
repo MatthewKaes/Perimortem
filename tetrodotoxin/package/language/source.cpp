@@ -56,16 +56,8 @@ auto Package::Language::Source::parse(
   }
 
   Token relation = cursor.require(
-      Code::Type::Addressable,
-      "Source statements require exact `from` spelling."_view);
+      Code::Type::From, "Source statements require `from`."_view);
   if (!relation) {
-    cursor.recover_to_statement();
-    return {};
-  }
-
-  if (relation.caculate_text(cursor.get_source_text()) != "from"_view) {
-    cursor.create_token_error(
-        relation, "Source statements require exact `from` spelling."_view);
     cursor.recover_to_statement();
     return {};
   }

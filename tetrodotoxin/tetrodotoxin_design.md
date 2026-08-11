@@ -87,12 +87,29 @@ The selected Dialect therefore constructs the semantic objects defined by its
 source directly. No temporary source representation survives as a second
 declaration graph.
 
-The shared `Definition` value is the narrow exception that preserves a common
-authored prefix: Documentation, ordered Attributes, modifiers, name, and the
-qualifier that selects the remaining form. It is retained by the concrete
-semantic object rather than translated into or synchronized with a generic
-declaration identity. The receiving language dispatches the qualifier and owns
-every legality rule beyond that source shape.
+The shared `Definition` value preserves the common declaration facts:
+Documentation, ordered Attributes, one Visibility, evaluation modifiers, name,
+qualifier, and the exact host that admits it. It remains part of the concrete
+semantic object rather than a generic declaration identity. The host supplies
+mutable transaction and access authority, not universal graph parentage or a
+canonical route. The concrete grammar owns legality and completes an authored
+Anchor; a synthetic Definition may carry a truthful owner-supplied Anchor
+without fabricating Tokens.
+
+A concrete language may expose a completed authored Definition as
+identity-free Authorship. Library's non-template `Types::Defined` is a real Type
+and Abstract refinement requiring one Definition. Composite and Enumeration
+derive from it; Source, Structure, and Object inherit it through Composite.
+Field, Function, and authored Alias instead use `Authored<Base>` over their
+Addressable, Callable, and Alias categories, preserving ordinary C++ category
+casts without multiple semantic inheritance.
+
+Every Library Monograph creates one Source Definition with reserved,
+non-emittable name `<source>`, opening Documentation, and Environment's exact
+source-envelope Anchor. It invents no Tokens and Source exposes no Authorship.
+Its host is the Monograph; ordinary members use their containing Composite.
+Import-created forwarding aliases remain synthetic TTX identities without
+Definitions.
 
 Those concrete objects collectively form the shared semantic IR. The common
 part is TTX identity, category, resolution, and Layout rather than a universal

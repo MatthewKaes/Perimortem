@@ -57,9 +57,12 @@ compiler may realize it as a stack location, an offset from an inline Struct,
 an offset from an Object reference, or a folded value. Those choices do not
 change the source level selection.
 
-Hosting grants access authority, not an implicit receiver. A hosted Function
-still writes `self.field` or selects the Field through another explicit value.
-A Static Function cannot read a host Field as a bare identifier.
+The caller has private authority for every Composite in its Definition host
+chain. That chain authorizes candidates selected from an explicit receiver; it
+does not supply an implicit receiver or create another lookup path. A hosted
+Function still writes `self.field` or selects the Field through another
+explicit value. A Static Function cannot read a host Field as a bare
+identifier.
 
 ### Type access
 
@@ -74,7 +77,9 @@ Scene::Flow
 Alias, Package, Monograph, Library source, and Type objects may all serve as
 intermediate contexts. Only the result used in a Type position must prove Type.
 The chain does not manufacture Type valued Expressions for its intermediate
-steps.
+steps. Qualification retains the original caller authority across every
+segment. Following an Alias redirects represented identity but does not add its
+target to the caller's host chain or transfer the target's private authority.
 
 ### Callable access
 
@@ -214,16 +219,20 @@ Layout. Top level declarations enter its Static surface. Instance Fields
 cannot. The exact `source` route returns that Source, while ordinary Monograph
 lookup forwards only its externally visible Static entries.
 
-Source, Structure, and Object share the Composite Type owner for member
-inventories, category lookup, Layout completion, and lifecycle barriers.
-Composite is not another declaration model. Each authored Structure retains
-its exact Definition, and Object retains that same required Definition through
-Structure. Source has no authored Definition: it supplies the fixed `source`
-name, opening Documentation, empty instance Layout, and root publication
-semantics directly.
+`Types::Defined` is a real non-template Type and Abstract contract requiring one
+Definition. Composite and Enumeration derive from it; Source, Structure, and
+Object inherit it through Composite. Composite owns their member inventories,
+category lookup, Layout completion, and lifecycle barriers without becoming
+another declaration model.
+
+Each Monograph creates and retains its Source with one synthetic Definition.
+That Definition uses the reserved, non-emittable name `<source>`, exact opening
+Documentation, and truthful source-envelope Anchor supplied by Environment. It
+fabricates no authored Tokens, and Source exposes no authored Authorship. Its
+host is the owning Monograph and its Visibility is public.
 
 Top level Field declarations are Static Addressables owned by that Source. They
-retain the ordinary Field exposure, writability, Type, and initializer
+retain the ordinary Field visibility, writability, Type, and initializer
 contracts, but never enter the source instance Layout. Root Functions may
 resolve those exact identities as bare source names. Private Fields remain
 limited to their owning source context.
@@ -261,9 +270,11 @@ The Source retains the exact Documentation that opens the Library source.
 A Package member Alias can therefore route through `source` to one documented
 root Type without copying the prose or becoming a Type itself.
 
-A root Function is hosted by the Source but still retains its Monograph as the
-source of diagnostics and imports. Hosting and source identity are separate
-edges.
+The Library Monograph returns the exact Type through `get_source()` and its
+installed Library Dialect through `get_dialect()`, with no category scan or
+shadow source edge. A root Function's Definition host is the Source, which
+already reaches the Monograph that owns diagnostics, imports, and completion;
+Function retains no duplicate source, host, or parent edge.
 
 ## Definitions
 
@@ -277,12 +288,31 @@ Every ordinary Library member begins with one shared Definition:
 }
 ```
 
-The Definition greedily retains Documentation, every Attribute, all modifiers,
-the name, and the qualifier after `:`. The containing Composite then dispatches
-that qualifier. A Type route or `=` begins a Field, `alias`, `enum`, `struct`,
-and `object` begin their Type forms, and `func` begins a Callable. Each concrete
-Field, Structure, Object, Enumeration, or Function retains that same Definition
-while owning the grammar and validation of the remaining form.
+The Definition greedily retains Documentation, every Attribute, one exact
+Visibility, ordered evaluation modifiers, the name, and the qualifier after
+`:`. The stateless Library Member parser dispatches that qualifier to the
+concrete owner, and the containing Composite retains the returned identity. A
+Type route or `=` begins a Field, `alias`, `enum`, `struct`, and `object` begin
+their Type forms, and `func` begins a Callable. Each concrete Field, Structure,
+Object, Enumeration, or Function retains that same Definition while owning the
+grammar and validation of the remaining form.
+
+Definition retains the exact host that admits the declaration: the containing
+Composite for ordinary members and the Monograph for Source. This supplies
+transaction provenance and hosted access authority, not universal semantic
+parentage or a required TTX graph path. Walking only those Composite hosts
+grants a caller private authority over each containing Type while leaving the
+selected receiver and semantic graph unchanged.
+
+Defined Types keep their Definition on the Type chain. Field, Function, and
+authored Alias use `Authored<Base>` over Addressable, Callable, and Alias,
+preserving their single TTX category and C++ cast rules. Once its grammar is
+complete, an authored identity exposes the Definition's Documentation, complete
+Anchor, and publication decision as identity-free Authorship.
+
+Definition alone owns Library Visibility and authored lexical Tokens. Source's
+required synthetic Definition does not become Authorship. Import-created
+forwarding Aliases remain synthetic TTX Alias identities with no Definition.
 
 Attributes do not choose the definition category and are never rejected merely
 because of that category. A consumer may interpret selected keys and leave all
@@ -292,7 +322,7 @@ shared parser error.
 ## Fields
 
 A Field is a TTX Addressable owned by one Composite. Structure and Object Fields
-enter the instance Layout, while Source Fields remain Static. Exposure and
+enter the instance Layout, while Source Fields remain Static. Visibility and
 writability are independent.
 
 ```ttx
@@ -303,9 +333,10 @@ private state updates : Unsigned_64 = 0;
 expose state progress : Unsigned_64 = 0;
 ```
 
-Exposure controls selection:
+Visibility controls selection:
 
-* `private` is visible only to code hosted by the containing Type.
+* `private` is visible only when the caller's Definition host chain contains the
+  declaring Type.
 * `public` is visible outside the containing Type.
 * `expose state` makes state readable externally while retaining internal write
   authority.
@@ -313,10 +344,11 @@ Exposure controls selection:
 Writability has three states:
 
 * an ordinary Field is fully writable by callers that can select it
-* `state` is writable only by code hosted by the containing Type
+* `state` is writable only when the caller's Definition host chain contains the
+  declaring Type
 * `const` is writable only during initialization
 
-Every view exposes the same Field identity. Exposure does not create a public
+Every view exposes the same Field identity. Visibility does not create a public
 copy, and writability does not change the underlying TTX Addressable.
 
 A present initializer links through the Field in its containing Type's private
@@ -372,7 +404,7 @@ public Session : object {
 An Object value is a nonnull managed reference identity. Assignment, parameter
 passing, and return preserve that identity, so aliases observe the same
 mutations. Object reuses the Structure model's Fields, Functions, Layout,
-Exposure, and Writability rather than defining a parallel member model.
+Visibility, and Writability rather than defining a parallel member model.
 
 Library owns the lifetime semantics. Allocation strategy, pointer shape,
 collector policy, and reclamation timing belong to the compiler and runtime.
@@ -448,9 +480,11 @@ value. Source still selects it through a Type or source context:
 Math -> add(2, 3)
 ```
 
-A Function whose parameter entry zero is the reserved `self` Addressable is
-Self. That entry has the selected receiver's exact Type, and every following
-parameter is named. The Function is selected through an addressable value:
+A Callable derives type binding from its parameter Layout: it is type bound
+exactly when entry zero is the reserved `self` Addressable. A Function with
+that shape is Self. That entry has the selected receiver's exact Type, and every
+following parameter is named. The Function is selected through an addressable
+value:
 
 ```ttx
 packet -> area()

@@ -27,6 +27,7 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
+      const Ttx::Lexical::Anchor& source_anchor,
       Ttx::Concept::Abstract& interpretation_context)
       -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
 

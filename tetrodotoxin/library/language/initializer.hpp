@@ -17,9 +17,9 @@
 
 namespace Tetrodotoxin::Library::Language {
 
-// Initializer is the authored `new` signal for one already typed Object Field.
-// It retains supplied values in source order while the Object and its Fields
-// remain the only initialization shape.
+// Initializer is the authored `new` signal for one declaration that already
+// supplies an Object Type. It retains supplied values in source order while
+// the Object and its Fields remain the only initialization shape.
 class Initializer : public Expression {
  public:
   TTX_CONTRACT(Initializer, Expression, 0x921ccce2e4934c8d, 0x9d19d3434e18f49a);
@@ -62,8 +62,10 @@ class Initializer : public Expression {
 
   auto link(
       Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Concept::Abstract& context,
-      Materializations& materializations) -> Bool override;
+      const Ttx::Concept::Abstract& lexical_context,
+      Materializations& materializations,
+      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      -> Bool override;
 
  private:
   class InputLayout : public Ttx::Concept::Layout {
@@ -113,12 +115,12 @@ class Initializer : public Expression {
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 
   auto supplies(
-      const Field& receiver,
+      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope,
       const Types::Object& target,
       const Field& field) const -> Bool;
 
   auto has_mandatory_cycle(
-      const Field& receiver,
+      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope,
       const Types::Object& target,
       Perimortem::Core::View::Vector<
           Ttx::Concept::Reference<const Types::Object>> path) const -> Bool;

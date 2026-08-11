@@ -6,7 +6,7 @@
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
-#include "tetrodotoxin/library/language/visibility.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
@@ -17,6 +17,8 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
+
+using Tetrodotoxin::Language::Visibility;
 
 static const Layouts::Fluid incomplete_layout;
 
@@ -36,7 +38,7 @@ static auto get_native_attribute_anchor(
 
 static auto validate_attributes(
     Cursor& cursor,
-    Language::Visibility visibility,
+    Visibility visibility,
     View::Vector<Tetrodotoxin::Language::Attribute> attributes) -> Bool {
   // Function validates only its local authored requests. Target carriers and
   // the complete symbol set remain facts for later compilation owners.
@@ -82,7 +84,7 @@ static auto validate_attributes(
   }
 
   auto native_anchor = get_native_attribute_anchor(attributes);
-  if (native_anchor && visibility != Language::Visibility::Public) {
+  if (native_anchor && visibility != Visibility::Public) {
     cursor.create_expression_error(
         *native_anchor,
         "Native publication Attributes require a public Function."_view);
@@ -98,10 +100,9 @@ static auto validate_attributes(
   return True;
 }
 
-static auto validate_definition(
+static auto validate_authored_function(
     Cursor& cursor,
-    const Tetrodotoxin::Language::Definition& definition,
-    Language::Visibility& visibility) -> Bool {
+    const Tetrodotoxin::Language::Definition& definition) -> Bool {
   if (definition.get_name_token().get_code() != Code::Type::Addressable) {
     cursor.create_token_error(
         definition.get_name_token(),
@@ -109,35 +110,57 @@ static auto validate_definition(
     return False;
   }
 
-  Count publications = 0;
-  auto modifiers = definition.get_modifiers();
-  for (Count i = 0; i < modifiers.get_size(); i++) {
-    Token modifier = modifiers.get_data()[i];
-    if (modifier.get_code() == Code::Type::Public) {
-      visibility = Language::Visibility::Public;
-      publications++;
-      continue;
-    }
-    if (modifier.get_code() == Code::Type::Private) {
-      visibility = Language::Visibility::Private;
-      publications++;
-      continue;
-    }
-
+  if (definition.get_visibility() == Visibility::Exposed) {
     cursor.create_token_error(
-        modifier,
-        "Library Functions accept only `public` or `private` modifiers."_view);
+        definition.get_visibility_token(),
+        "Library Functions accept only `public` or `private` visibility."_view);
+    return False;
+  }
+  if (!definition.get_modifiers().is_empty()) {
+    cursor.create_token_error(
+        definition.get_modifiers().get_data()[0],
+        "Library Functions do not accept evaluation modifiers."_view);
     return False;
   }
 
-  if (publications != 1) {
-    cursor.create_token_error(
-        definition.get_name_token(),
-        "Library Functions require one visibility modifier."_view);
-    return False;
+  return validate_attributes(
+      cursor, definition.get_visibility(), definition.get_attributes());
+}
+
+static auto get_unreachable_publication(const Language::Function& function)
+    -> Option<Anchor> {
+  if (!function.get_definition().is_published()) {
+    return {};
   }
 
-  return validate_attributes(cursor, visibility, definition.get_attributes());
+  auto host = function.get_host().select<Language::Types::Composite>();
+  auto signature = function.get_signature();
+  if (!host || !signature) {
+    Token name = function.get_definition().get_name_token();
+    return name ? Option<Anchor>(Anchor::create(Span(name))) : Option<Anchor>();
+  }
+
+  Bool receives_self = function.is_type_bound(function.get_host());
+  for (Count i = 0; i < signature->get_parameter_size(); i++) {
+    if (i == 0 && receives_self) {
+      continue;
+    }
+
+    auto type = signature->get_parameter_type(i);
+    auto access = signature->get_parameter_type_access(i);
+    if (!type || !access || &host->resolve_exported_type(*access) != &*type) {
+      return signature->get_parameter_type_anchor(i);
+    }
+  }
+  for (Count i = 0; i < signature->get_result_size(); i++) {
+    auto type = signature->get_result_type(i);
+    auto access = signature->get_result_type_access(i);
+    if (!type || !access || &host->resolve_exported_type(*access) != &*type) {
+      return signature->get_result_type_anchor(i);
+    }
+  }
+
+  return {};
 }
 
 static auto parse_body(
@@ -218,13 +241,10 @@ static auto parse_body(
 auto Language::Function::reserve(
     Allocator::Arena& domain,
     Cursor& cursor,
-    Tetrodotoxin::Language::Definition& definition,
-    Tetrodotoxin::Language::Monograph& source,
-    const Type& host,
-    Materializations& materializations) -> Option<Function&> {
+    Tetrodotoxin::Language::Definition& definition) -> Option<Function&> {
   auto transaction = cursor.branch();
-  Visibility visibility = Visibility::Private;
-  BAIL_IF(!validate_definition(transaction, definition, visibility));
+  BAIL_IF(!validate_authored_function(transaction, definition));
+  BAIL_IF(!definition.get_host().is<Language::Types::Composite>());
 
   BAIL_IF(!transaction.require(
       Code::Type::Func,
@@ -233,28 +253,23 @@ auto Language::Function::reserve(
       Code::Type::Assign,
       "Library Function qualifiers require `=` before their signature."_view));
 
-  Function& function = domain.construct_from<Function>([&]() -> Function {
-    return Function(domain, definition, source, host, materializations);
-  });
+  Function& function = domain.construct_from<Function>(
+      [&]() -> Function { return Function(domain, definition); });
   cursor.join(transaction);
   return function;
 }
 
 Language::Function::Function(
     Allocator::Arena& domain,
-    Tetrodotoxin::Language::Definition& definition,
-    Tetrodotoxin::Language::Monograph& source,
-    const Type& host,
-    Materializations& materializations)
-    : domain(domain),
-      definition(definition),
-      source(source),
-      host(host),
-      materializations(materializations),
+    Tetrodotoxin::Language::Definition& definition)
+    : Base(definition),
+      domain(domain),
       expressions(domain),
       expression_observations(domain) {}
 
-auto Language::Function::complete(Cursor& cursor) -> Bool {
+auto Language::Function::complete(
+    Cursor& cursor,
+    Materializations& materializations) -> Bool {
   if (is_complete()) {
     cursor.create_token_error(
         "A Library Function can be completed only once."_view);
@@ -268,6 +283,7 @@ auto Language::Function::complete(Cursor& cursor) -> Bool {
 
   // Receiver role is already the signature shape. An exported Function must
   // therefore have no reserved self parameter rather than another role flag.
+  const auto& definition = get_definition();
   auto native_anchor = get_native_attribute_anchor(definition.get_attributes());
   if (native_anchor && parsed_signature->get_parameter_size() > 0 &&
       parsed_signature->get_parameter_name(0) == "self"_view) {
@@ -286,6 +302,7 @@ auto Language::Function::complete(Cursor& cursor) -> Bool {
       parsed_return_token, parsed_return_span, parsed_return_expression,
       closing);
   BAIL_IF(!body_complete);
+  BAIL_IF(!complete_definition(definition.get_qualifier(), closing));
 
   // Only complete grammar publishes Signature and Expression roots. Failed
   // Arena values remain unreachable from the reserved Function.
@@ -295,7 +312,6 @@ auto Language::Function::complete(Cursor& cursor) -> Bool {
     expression_observations.insert(parsed_expressions[i].get());
   }
 
-  span = Span(definition.get_anchor().get_span().get_start(), closing);
   return_token = parsed_return_token;
   return_span = parsed_return_span;
   return_expression = parsed_return_expression;
@@ -304,7 +320,8 @@ auto Language::Function::complete(Cursor& cursor) -> Bool {
   return True;
 }
 
-auto Language::Function::link_signature() -> Bool {
+auto Language::Function::link_signature(
+    Tetrodotoxin::Language::Monograph& source) -> Bool {
   if (is_signature_linked()) {
     return True;
   }
@@ -312,16 +329,22 @@ auto Language::Function::link_signature() -> Bool {
   if (!completed || !signature) {
     source.report(
         Anchor::create(
-            definition.get_qualifier(), definition.get_anchor().get_span()),
+            get_definition().get_qualifier(),
+            get_definition().get_anchor().get_span()),
         "An incomplete Function cannot enter semantic linking."_view,
         "Complete its signature and body grammar before linking."_view);
     return False;
   }
 
-  return signature->link(source, *this, host);
+  // Signature routes receive the host Type directly. They therefore use the
+  // same access authority as the body without making an incomplete Function
+  // double as a Type-resolution mode switch.
+  return signature->link(source, get_host());
 }
 
-auto Language::Function::link_body() -> Bool {
+auto Language::Function::link_body(
+    Tetrodotoxin::Language::Monograph& source,
+    Materializations& materializations) -> Bool {
   if (linked) {
     return True;
   }
@@ -332,22 +355,30 @@ auto Language::Function::link_body() -> Bool {
   Bool failed = False;
   View::Vector<Reference<Expression>> body = expressions;
   for (Count i = 0; i < body.get_size(); i++) {
-    failed |= !body.get_data()[i].get().link(source, *this, materializations);
+    // Lexical context and access authority are independent facts. Function
+    // owns parameter and bare-name lookup, while its exact host Type grants
+    // private access only to explicit member receivers in this body.
+    failed |= !body.get_data()[i].get().link(
+        source, *this, materializations, get_host());
   }
 
   linked = !failed;
   return linked;
 }
 
-auto Language::Function::link() -> Bool {
-  Bool signature_linked = link_signature();
-  BAIL_IF(!signature_linked);
-
-  return link_body();
-}
-
-auto Language::Function::finalize() -> Bool {
+auto Language::Function::finalize(Tetrodotoxin::Language::Monograph& source)
+    -> Bool {
   BAIL_IF(!linked);
+
+  Bool valid = True;
+  auto unreachable = get_unreachable_publication(*this);
+  if (unreachable) {
+    source.report(
+        unreachable,
+        "Externally readable Function publishes an unreachable Type route."_view,
+        "Keep the Function private or publish its authored Type route."_view);
+    valid = False;
+  }
 
   // Optional folding records a cached Constant for later consumers. A dynamic
   // result or failure remains queryable but cannot turn an otherwise complete
@@ -357,7 +388,7 @@ auto Language::Function::finalize() -> Bool {
     body.get_data()[i].get().fold();
   }
 
-  return True;
+  return valid;
 }
 
 auto Language::Function::resolve() const -> const Abstract& {
@@ -377,9 +408,28 @@ auto Language::Function::resolve_context(View::Bytes route) const
     }
   }
 
+  const Type& host = get_host();
   return host.visit<Language::Types::Composite>(
       [&](const Language::Types::Composite& composite) -> const Abstract& {
-        return composite.resolve_context(route, *this);
+        // Only a Function hosted directly by Source receives bare Static
+        // Addressables. A nested Composite grants access authority, but it
+        // never supplies an implicit receiver or leaks Source statics through
+        // the Definition-host chain.
+        // Signature linking uses the explicit Type resolver and never enters
+        // this lexical surface. Source Addressables therefore need no lifecycle
+        // switch: this owner is always describing body name lookup.
+        const Abstract& addressable = composite.visit<Language::Types::Source>(
+            [&](const Language::Types::Source& source) -> const Abstract& {
+              return source.resolve_lexical_addressable(route, host);
+            },
+            [](const Abstract&) -> const Abstract& {
+              return Invalid::get_invalid();
+            });
+        if (&addressable != &Invalid::get_invalid()) {
+          return addressable;
+        }
+
+        return composite.resolve_type_root(route, host);
       },
       [&](const Abstract&) -> const Abstract& {
         return host.resolve_context(route);
@@ -408,11 +458,6 @@ auto Language::Function::get_signature() const -> Option<const Signature&> {
       [](const Signature& selected) -> Option<const Signature&> {
         return selected;
       });
-}
-
-auto Language::Function::get_expressions()
-    -> View::Vector<Reference<Expression>> {
-  return expressions;
 }
 
 auto Language::Function::get_expressions() const

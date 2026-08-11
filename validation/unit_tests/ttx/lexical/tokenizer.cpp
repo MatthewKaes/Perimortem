@@ -76,27 +76,36 @@ PERIMORTEM_UNIT_TEST(TtxLexical, divide_before_greater) {
   EXPECT(token_data[13].get_code() == Code::Type::Terminal);
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, modifiers) {
+PERIMORTEM_UNIT_TEST(TtxLexical, reserved_keywords) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
-      arena, "public private expose state const @package_name @public"_view,
+      arena,
+      "public private expose state const enum struct object using new from "
+      "@package_name @public"_view,
       "Test.Package"_view);
 
   View::Vector<Token> tokens = tokenizer.get_tokens();
   View::Bytes source = tokenizer.get_source_text();
   const auto* token_data = tokens.get_data();
-  ASSERT_EQ(tokens.get_size(), Count(8));
+  static constexpr Code::Type expected[] = {
+    Code::Type::Public, Code::Type::Private, Code::Type::Expose,
+    Code::Type::State,  Code::Type::Const,   Code::Type::Enum,
+    Code::Type::Struct, Code::Type::Object,  Code::Type::Using,
+    Code::Type::New,    Code::Type::From,
+  };
+  static constexpr Count expected_size = sizeof(expected) / sizeof(*expected);
+  ASSERT_EQ(tokens.get_size(), expected_size + 3);
+  for (Count i = 0; i < expected_size; i++) {
+    EXPECT(token_data[i].get_code() == expected[i]);
+  }
 
-  EXPECT(token_data[0].get_code() == Code::Type::Public);
-  EXPECT(token_data[1].get_code() == Code::Type::Private);
-  EXPECT(token_data[2].get_code() == Code::Type::Expose);
-  EXPECT(token_data[3].get_code() == Code::Type::State);
-  EXPECT(token_data[4].get_code() == Code::Type::Const);
-  EXPECT(token_data[5].get_code() == Code::Type::Attribute);
-  EXPECT_TEXT(token_data[5].caculate_text(source), "package_name"_view);
-  EXPECT(token_data[6].get_code() == Code::Type::Attribute);
-  EXPECT_TEXT(token_data[6].caculate_text(source), "public"_view);
-  EXPECT(token_data[7].get_code() == Code::Type::Terminal);
+  EXPECT(token_data[expected_size].get_code() == Code::Type::Attribute);
+  EXPECT_TEXT(
+      token_data[expected_size].caculate_text(source), "package_name"_view);
+  EXPECT(token_data[expected_size + 1].get_code() == Code::Type::Attribute);
+  EXPECT_TEXT(
+      token_data[expected_size + 1].caculate_text(source), "public"_view);
+  EXPECT(token_data[expected_size + 2].get_code() == Code::Type::Terminal);
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {

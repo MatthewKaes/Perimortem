@@ -39,42 +39,6 @@ struct ParsedValue {
   Unsigned_64 unsigned_value;
 };
 
-static auto validate_definition(
-    Cursor& cursor,
-    const Tetrodotoxin::Language::Definition& definition) -> Bool {
-  if (definition.get_name_token().get_code() != Code::Type::Type) {
-    cursor.create_token_error(
-        definition.get_name_token(),
-        "Library Enumerations require an authored Type shaped name."_view);
-    return False;
-  }
-
-  Count publications = 0;
-  auto modifiers = definition.get_modifiers();
-  for (Count i = 0; i < modifiers.get_size(); i++) {
-    Token modifier = modifiers.get_data()[i];
-    if (modifier.get_code() == Code::Type::Public ||
-        modifier.get_code() == Code::Type::Private) {
-      publications++;
-      continue;
-    }
-
-    cursor.create_token_error(
-        modifier,
-        "Library Enumerations accept only visibility modifiers."_view);
-    return False;
-  }
-
-  if (publications != 1) {
-    cursor.create_token_error(
-        definition.get_name_token(),
-        "Library Enumerations require one visibility modifier."_view);
-    return False;
-  }
-
-  return True;
-}
-
 static auto parse_case(Cursor& cursor, const Documentation& documentation)
     -> Option<ParsedCase> {
   Token name_token = cursor.require(
@@ -182,43 +146,46 @@ static auto read_signed(
 Tetrodotoxin::Library::Language::Types::Enumeration::Enumeration(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition,
-    Access::Type storage_access,
-    Monograph& parent,
-    const Composite& host,
-    Anchor anchor)
-    : domain(domain),
-      definition(definition),
+    Access::Type storage_access)
+    : Defined(definition),
+      domain(domain),
       storage_access(storage_access),
-      parent(parent),
-      host(host),
-      anchor(anchor),
       source_cases(domain),
       cases(domain) {}
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
     Allocator::Arena& domain,
     Cursor& cursor,
-    Tetrodotoxin::Language::Definition& definition,
-    Monograph& parent,
-    const Composite& host) -> Option<Enumeration&> {
+    Tetrodotoxin::Language::Definition& definition) -> Option<Enumeration&> {
   // The branch owns every spelling and delimiter until the closing brace.
   // A rejected body leaves the caller at the declaration and publishes no
   // partial case inventory.
   auto transaction = cursor.branch();
-  BAIL_IF(!validate_definition(transaction, definition));
-
-  Token enumeration_token = transaction.require(
-      Code::Type::Addressable,
-      "Library Enumeration declarations require `enum`."_view);
-  if (!enumeration_token || enumeration_token.caculate_text(
-                                transaction.get_source_text()) != "enum"_view) {
-    if (enumeration_token) {
-      transaction.create_token_error(
-          enumeration_token,
-          "Library Enumeration declarations require `enum`."_view);
-    }
+  BAIL_IF(!definition.get_host().is<Composite>());
+  if (definition.get_name_token().get_code() != Code::Type::Type) {
+    transaction.create_token_error(
+        definition.get_name_token(),
+        "Library Enumerations require an authored Type shaped name."_view);
     return {};
   }
+  if (definition.get_visibility() ==
+      Tetrodotoxin::Language::Visibility::Exposed) {
+    transaction.create_token_error(
+        definition.get_visibility_token(),
+        "Library Enumerations accept only `public` or `private` visibility."_view);
+    return {};
+  }
+  if (!definition.get_modifiers().is_empty()) {
+    transaction.create_token_error(
+        definition.get_modifiers().get_data()[0],
+        "Library Enumerations do not accept evaluation modifiers."_view);
+    return {};
+  }
+
+  Token enumeration_token = transaction.require(
+      Code::Type::Enum,
+      "Library Enumeration declarations require `enum`."_view);
+  BAIL_IF(!enumeration_token);
   BAIL_IF(!transaction.require(
       Code::Type::BracketStart,
       "Library Enumeration storage requires an opening `[`."_view));
@@ -258,17 +225,14 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
   }
 
   Token closing = transaction.consume();
-  Anchor enumeration_anchor = Anchor::create(
-      enumeration_token,
-      Span(definition.get_anchor().get_span().get_start(), closing));
+  BAIL_IF(!definition.complete(enumeration_token, closing));
 
   // The complete grammar begins one nonmoving Type and then copies only its
   // compact source slots. Constants and Aliases wait for the storage Type so
   // no provisional value graph survives interpretation.
   Enumeration& enumeration =
       domain.construct_from<Enumeration>([&]() -> Enumeration {
-        return Enumeration(
-            domain, definition, *storage, parent, host, enumeration_anchor);
+        return Enumeration(domain, definition, *storage);
       });
   enumeration.source_cases.reset(parsed_cases.get_size());
   for (Count i = 0; i < parsed_cases.get_size(); i++) {
@@ -288,19 +252,20 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
   return enumeration;
 }
 
-auto Tetrodotoxin::Library::Language::Types::Enumeration::link_storage()
-    -> Bool {
+auto Tetrodotoxin::Library::Language::Types::Enumeration::link_storage(
+    Tetrodotoxin::Language::Monograph& source) -> Bool {
   if (stage >= Stage::StorageLinked) {
     return True;
   }
 
+  const auto& host = static_cast<const Composite&>(get_host());
   const Abstract& selected = host.resolve_type(storage_access);
   const Abstract& resolved =
       selected.is<Type>() ? selected : selected.resolve();
   Bool integer = resolved.is<Ttx::Model::Types::Signed>() ||
                  resolved.is<Ttx::Model::Types::Unsigned>();
   if (!integer) {
-    parent.report(
+    source.report(
         storage_access.get_anchor(),
         "Enumeration storage did not resolve to an exact integer Type."_view,
         "Select one concrete Library Signed or Unsigned Type."_view);
@@ -312,13 +277,15 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::link_storage()
   return True;
 }
 
-auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize() -> Bool {
+auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize(
+    Tetrodotoxin::Language::Monograph& source) -> Bool {
   if (stage == Stage::Finalized) {
     return True;
   }
   if (stage != Stage::StorageLinked || !storage_type) {
-    parent.report(
-        anchor, "An incomplete Enumeration cannot enter finalization."_view,
+    source.report(
+        get_anchor(),
+        "An incomplete Enumeration cannot enter finalization."_view,
         "Link its exact integer storage Type before finalizing cases."_view);
     return False;
   }
@@ -344,14 +311,14 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize() -> Bool {
       const SourceCase& source_case = source_cases[i];
       Signed_64 value = 0;
       Bool parsed = read_signed(
-          source_case.value, source_case.value_anchor, parent, value);
+          source_case.value, source_case.value_anchor, source, value);
       if (!parsed) {
         failed = True;
         continue;
       }
 
       if (!Math::is_representable(value, storage_size)) {
-        parent.report(
+        source.report(
             source_case.value_anchor,
             "Enumeration case does not fit its signed storage Type."_view,
             "Choose a value inside the selected byte width."_view);
@@ -369,7 +336,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize() -> Bool {
     for (Count i = 0; i < source_cases.get_size(); i++) {
       const SourceCase& source_case = source_cases[i];
       if (source_case.value[0] == '-') {
-        parent.report(
+        source.report(
             source_case.value_anchor,
             "Unsigned Enumeration storage cannot represent a negative "
             "case."_view,
@@ -380,14 +347,14 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize() -> Bool {
 
       Unsigned_64 value = 0;
       Bool parsed = read_unsigned(
-          source_case.value, source_case.value_anchor, parent, value);
+          source_case.value, source_case.value_anchor, source, value);
       if (!parsed) {
         failed = True;
         continue;
       }
 
       if (!Math::is_representable(value, storage_size)) {
-        parent.report(
+        source.report(
             source_case.value_anchor,
             "Enumeration case does not fit its unsigned storage Type."_view,
             "Choose a value inside the selected byte width."_view);
@@ -478,25 +445,4 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::get_storage_type()
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_cases() const
     -> View::Vector<Reference<const Alias>> {
   return cases;
-}
-
-auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_anchor(
-    Count index) const -> Option<Anchor> {
-  BAIL_IF(index >= source_cases.get_size());
-
-  return source_cases.get_view().get_data()[index].anchor;
-}
-
-auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_name_anchor(
-    Count index) const -> Option<Anchor> {
-  BAIL_IF(index >= source_cases.get_size());
-
-  return source_cases.get_view().get_data()[index].name_anchor;
-}
-
-auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_value_anchor(
-    Count index) const -> Option<Anchor> {
-  BAIL_IF(index >= source_cases.get_size());
-
-  return source_cases.get_view().get_data()[index].value_anchor;
 }

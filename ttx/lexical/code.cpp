@@ -23,8 +23,20 @@ auto Ttx::Lexical::Code::get_semantics() const
   // Definition keywords
   case Type::Alias:
     return "Alias definition"_view;
+  case Type::Enum:
+    return "Enumeration definition"_view;
+  case Type::Struct:
+    return "Structure definition"_view;
+  case Type::Object:
+    return "Object definition"_view;
 
   // Statement and import keywords
+  case Type::Using:
+    return "source import"_view;
+  case Type::New:
+    return "Object initializer"_view;
+  case Type::From:
+    return "source origin relation"_view;
   case Type::If:
     return "conditional branch"_view;
   case Type::In:

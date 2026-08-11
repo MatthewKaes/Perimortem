@@ -51,6 +51,8 @@ struct WorkspaceTrace {
   View::Bytes expected_documentation[4]{};
   View::Bytes interpreted_facts[16]{};
   View::Bytes interpreted_paths[16]{};
+  Token interpretation_anchor_tokens[16]{};
+  Span interpretation_anchor_spans[16]{};
   View::Bytes restored_facts[16]{};
   View::Bytes link_facts[32]{};
   View::Bytes finalize_facts[32]{};
@@ -99,6 +101,7 @@ class WorkspaceDialect : public Language::Dialect {
       Allocator::Arena& domain,
       Cursor& cursor,
       const Documentation& documentation,
+      const Anchor& source_anchor,
       Abstract& interpretation_context)
       -> Option<Language::Monograph&> override;
 
@@ -123,13 +126,14 @@ class TracedPackageDialect : public Package::Dialect {
       Allocator::Arena& domain,
       Cursor& cursor,
       const Documentation& documentation,
+      const Anchor& source_anchor,
       Abstract& interpretation_context)
       -> Option<Language::Monograph&> override {
     trace.package_interpretation_contexts[trace.package_interpretation_count] =
         &interpretation_context;
     trace.package_interpretation_count++;
     return Package::Dialect::interpret(
-        domain, cursor, documentation, interpretation_context);
+        domain, cursor, documentation, source_anchor, interpretation_context);
   }
 
  private:
@@ -174,6 +178,7 @@ class ResourceDialect : public Language::Dialect {
       Allocator::Arena& domain,
       Cursor& cursor,
       const Documentation& documentation,
+      const Anchor&,
       Abstract& interpretation_context)
       -> Option<Language::Monograph&> override {
     if (!interpretation_context.is<Package::Language::Monograph>()) {
@@ -310,6 +315,7 @@ auto WorkspaceDialect::interpret(
     Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation,
+    const Anchor& source_anchor,
     Abstract& interpretation_context) -> Option<Language::Monograph&> {
   View::Bytes fact = cursor.get_text();
   Token fact_token = cursor.current();
@@ -319,6 +325,10 @@ auto WorkspaceDialect::interpret(
       &interpretation_context;
   trace.interpreted_facts[trace.interpretation_count] = fact;
   trace.interpreted_paths[trace.interpretation_count] = diagnostic_path;
+  trace.interpretation_anchor_tokens[trace.interpretation_count] =
+      source_anchor.get_token();
+  trace.interpretation_anchor_spans[trace.interpretation_count] =
+      source_anchor.get_span();
   trace.interpretation_count++;
 
   if (fact == "reject"_view) {
@@ -771,6 +781,12 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, owned_direct_import) {
       errors, semantic_name, diagnostic_path, contents);
   ASSERT(imported_result);
   EXPECT(trace.interpretation_contexts[0] == &workspace);
+  EXPECT_TEXT(
+      trace.interpretation_anchor_tokens[0].caculate_text(contents),
+      "dialect"_view);
+  EXPECT_TEXT(
+      trace.interpretation_anchor_spans[0].caculate_text(contents),
+      "// Main documentation\ndialect : Alpha;"_view);
 
   semantic_name.set('x');
   diagnostic_path.set('x');

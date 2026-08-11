@@ -77,11 +77,17 @@ class Expression : public Ttx::Concept::Abstract {
   // Linking enriches this exact source node after every declaration identity
   // is available. Constants already carry complete Types, while Identifier
   // and Operation owners attach their existing graph edges without replacing
-  // the authored Expression.
+  // the authored Expression. Lexical context owns name and shadowing order;
+  // access scope carries only the host Type authority used by explicit member
+  // and construction access. Keeping those facts separate prevents hosting
+  // from becoming an implicit receiver. An absent scope represents an unhosted
+  // query and grants no private access.
   virtual auto link(
       Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Concept::Abstract& context,
-      Materializations& materializations) -> Bool;
+      const Ttx::Concept::Abstract& lexical_context,
+      Materializations& materializations,
+      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      -> Bool;
 
   // Folding is a cached result of this exact Expression. The source node
   // and every authored edge remain available regardless of the selected

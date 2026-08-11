@@ -8,6 +8,7 @@
 
 #include "perimortem/system/uuid.hpp"
 
+#include "ttx/concept/authorship.hpp"
 #include "ttx/concept/documentation.hpp"
 
 namespace Ttx::Concept {
@@ -114,6 +115,15 @@ class Abstract {
     }
 
     return mismatch_visitor(*this);
+  }
+
+  // Returns the exact identity-free source fact retained by this Abstract.
+  // Synthetic identities have no authorship and return absence. The authored
+  // source owner supplies provenance and decides whether it is published;
+  // Abstract assigns no visibility model to that decision.
+  virtual constexpr auto get_authorship() const
+      -> Perimortem::Core::Option<const Authorship&> {
+    return {};
   }
 
   // Gets the name of this Abstract.

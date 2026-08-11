@@ -9,6 +9,7 @@
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
 
@@ -36,6 +37,14 @@ class Type {
       -> const Ttx::Concept::Abstract&;
 
   auto resolve_from(const Ttx::Concept::Abstract& root) const
+      -> const Ttx::Concept::Abstract&;
+
+  // Qualification preserves the original caller scope. Alias redirection may
+  // change the selected identity, but it never changes which hosted Type owns
+  // private authority over a later segment.
+  auto resolve_from(
+      const Ttx::Concept::Abstract& root,
+      const Ttx::Model::Type& caller_scope) const
       -> const Ttx::Concept::Abstract&;
 
  private:

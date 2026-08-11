@@ -8,78 +8,38 @@ using namespace Perimortem::Memory;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
 
-auto Types::Structure::validate_definition(
-    Cursor& cursor,
-    const Tetrodotoxin::Language::Definition& definition) -> Bool {
-  if (definition.get_name_token().get_code() != Code::Type::Type) {
-    cursor.create_token_error(
-        definition.get_name_token(),
-        "Library Type definitions require a Type shaped name."_view);
-    return False;
-  }
-
-  Count publications = 0;
-  auto modifiers = definition.get_modifiers();
-  for (Count i = 0; i < modifiers.get_size(); i++) {
-    Token modifier = modifiers.get_data()[i];
-    if (modifier.get_code() == Code::Type::Public ||
-        modifier.get_code() == Code::Type::Private) {
-      publications++;
-      continue;
-    }
-
-    cursor.create_token_error(
-        modifier,
-        "Library Type definitions accept only visibility modifiers."_view);
-    return False;
-  }
-
-  if (publications != 1) {
-    cursor.create_token_error(
-        definition.get_name_token(),
-        "Library Type definitions require one visibility modifier."_view);
-    return False;
-  }
-
-  return True;
-}
-
-Types::Structure::Structure(
-    Allocator::Arena& domain,
-    Tetrodotoxin::Language::Definition& definition,
-    Monograph& source,
-    Materializations& materializations,
-    const Composite& enclosing_scope)
-    : Composite(domain, source, materializations, enclosing_scope),
-      definition(definition),
-      anchor(definition.get_anchor()) {}
-
 auto Types::Structure::interpret(
     Allocator::Arena& domain,
     Cursor& cursor,
-    Tetrodotoxin::Language::Definition& definition,
-    Monograph& source,
-    Materializations& materializations,
-    const Composite& enclosing_scope) -> Option<Structure&> {
+    Tetrodotoxin::Language::Definition& definition) -> Option<Structure&> {
   auto transaction = cursor.branch();
-  BAIL_IF(!validate_definition(transaction, definition));
-
-  Token kind_token = transaction.require(
-      Code::Type::Addressable,
-      "Library Structure definitions require the `struct` qualifier."_view);
-  BAIL_IF(!kind_token);
-  View::Bytes kind = kind_token.caculate_text(transaction.get_source_text());
-  if (kind != "struct"_view) {
+  if (definition.get_name_token().get_code() != Code::Type::Type) {
     transaction.create_token_error(
-        kind_token,
-        "Library Structure definitions require the `struct` qualifier."_view);
+        definition.get_name_token(),
+        "Library Structure definitions require a Type shaped name."_view);
+    return {};
+  }
+  if (definition.get_visibility() ==
+      Tetrodotoxin::Language::Visibility::Exposed) {
+    transaction.create_token_error(
+        definition.get_visibility_token(),
+        "Library Structures accept only `public` or `private` visibility."_view);
+    return {};
+  }
+  if (!definition.get_modifiers().is_empty()) {
+    transaction.create_token_error(
+        definition.get_modifiers().get_data()[0],
+        "Library Structures do not accept evaluation modifiers."_view);
     return {};
   }
 
-  Structure& structure = domain.construct_from<Structure>([&]() -> Structure {
-    return Structure(
-        domain, definition, source, materializations, enclosing_scope);
-  });
+  Token kind_token = transaction.require(
+      Code::Type::Struct,
+      "Library Structure definitions require the `struct` qualifier."_view);
+  BAIL_IF(!kind_token);
+
+  Structure& structure = domain.construct_from<Structure>(
+      [&]() -> Structure { return Structure(domain, definition); });
   BAIL_IF(!structure.interpret_body(transaction, definition, kind_token));
   cursor.join(transaction);
   return structure;
@@ -103,18 +63,10 @@ auto Types::Structure::interpret_body(
       return False;
     }
 
-    auto nested = Tetrodotoxin::Language::Definition::parse(cursor);
+    auto nested = Tetrodotoxin::Language::Definition::parse(cursor, *this);
     BAIL_IF(!nested || !interpret_definition(cursor, *nested));
   }
 
   Token closing = cursor.consume();
-  complete_definition(
-      Anchor::create(
-          kind_token,
-          Span(definition.get_anchor().get_span().get_start(), closing)));
-  return True;
-}
-
-auto Types::Structure::complete_definition(Anchor complete_anchor) -> void {
-  anchor = complete_anchor;
+  return definition.complete(kind_token, closing);
 }

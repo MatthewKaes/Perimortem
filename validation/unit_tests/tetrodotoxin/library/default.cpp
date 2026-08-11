@@ -21,6 +21,7 @@
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -145,11 +146,10 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, unsupported_domains_are_absent) {
   ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto monograph = import_types(workspace, errors);
   ASSERT(monograph);
-  auto bindings = monograph->get_authored_bindings();
-  ASSERT_EQ(bindings.get_size(), Count(3));
-  const Abstract& structure = bindings.get_data()[0].get();
-  const Abstract& object = bindings.get_data()[1].get();
-  const Abstract& enumeration = bindings.get_data()[2].get();
+  const auto& source_type = monograph->get_source();
+  const Abstract& structure = source_type.resolve_context("Packet"_view);
+  const Abstract& object = source_type.resolve_context("Session"_view);
+  const Abstract& enumeration = source_type.resolve_context("Mode"_view);
   ASSERT(structure.is<Types::Structure>());
   ASSERT(object.is<Types::Object>());
   ASSERT(enumeration.is<Types::Enumeration>());

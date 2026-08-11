@@ -97,8 +97,9 @@ auto Language::Operation::get_type() const -> const Ttx::Concept::Abstract& {
 
 auto Language::Operation::link(
     Tetrodotoxin::Language::Monograph& source,
-    const Ttx::Concept::Abstract& context,
-    Materializations& materializations) -> Bool {
+    const Ttx::Concept::Abstract& lexical_context,
+    Materializations& materializations,
+    Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
   Bool failed = False;
   auto source_anchor = get_anchor();
 
@@ -123,7 +124,10 @@ auto Language::Operation::link(
       continue;
     }
 
-    failed |= !input->link(source, context, materializations);
+    // Operations preserve their caller's two contexts unchanged. Operand
+    // nesting changes evaluation order, not lexical shadowing or host access.
+    failed |=
+        !input->link(source, lexical_context, materializations, access_scope);
   }
 
   BAIL_IF(failed);

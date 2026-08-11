@@ -9,9 +9,9 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/access/type.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/defined.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -23,7 +23,7 @@ namespace Tetrodotoxin::Library::Language::Types {
 // Enumeration is one authored Library Type whose cases are named immutable
 // values. It keeps source facts private until one exact integer storage Type
 // and every Alias backed Constant are complete.
-class Enumeration : public Ttx::Model::Type {
+class Enumeration : public Defined {
  private:
   struct SourceCase {
     Perimortem::Core::View::Bytes name;
@@ -37,36 +37,24 @@ class Enumeration : public Ttx::Model::Type {
   Enumeration(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition,
-      Access::Type storage_access,
-      Monograph& parent,
-      const Composite& host,
-      Ttx::Lexical::Anchor anchor);
+      Access::Type storage_access);
 
  public:
-  TTX_CONTRACT(
-      Enumeration,
-      Ttx::Model::Type,
-      0x1fa6d62be44749db,
-      0xa9e71e448fbf3c53);
+  TTX_CONTRACT(Enumeration, Defined, 0x1fa6d62be44749db, 0xa9e71e448fbf3c53);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition,
-      Monograph& parent,
-      const Composite& host) -> Perimortem::Core::Option<Enumeration&>;
+      Tetrodotoxin::Language::Definition& definition)
+      -> Perimortem::Core::Option<Enumeration&>;
 
   Enumeration(const Enumeration&) = delete;
   Enumeration(Enumeration&&) = delete;
   auto operator=(const Enumeration&) -> Enumeration& = delete;
   auto operator=(Enumeration&&) -> Enumeration& = delete;
 
-  auto link_storage() -> Bool;
-  auto finalize() -> Bool;
-
-  TTX_NAME(definition.get_name());
-
-  TTX_DOCUMENTATION(definition.get_documentation());
+  auto link_storage(Tetrodotoxin::Language::Monograph& source) -> Bool;
+  auto finalize(Tetrodotoxin::Language::Monograph& source) -> Bool;
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
@@ -75,47 +63,11 @@ class Enumeration : public Ttx::Model::Type {
 
   auto get_layout() const -> const Ttx::Concept::Layout& override;
 
-  constexpr auto get_definition() const
-      -> const Tetrodotoxin::Language::Definition& {
-    return definition;
-  }
-
-  constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
-
-  constexpr auto get_storage_anchor() const -> Ttx::Lexical::Anchor {
-    return storage_access.get_anchor();
-  }
-
-  constexpr auto get_storage_type_access() const -> const Access::Type& {
-    return storage_access;
-  }
-
   auto get_storage_type() const
       -> Perimortem::Core::Option<const Ttx::Model::Type&>;
 
   auto get_cases() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<const Ttx::Model::Alias>>;
-
-  constexpr auto get_case_count() const -> Count {
-    return source_cases.get_size();
-  }
-
-  auto get_case_anchor(Count index) const
-      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
-
-  auto get_case_name_anchor(Count index) const
-      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
-
-  auto get_case_value_anchor(Count index) const
-      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
-
-  constexpr auto is_linked() const -> Bool {
-    return stage >= Stage::StorageLinked;
-  }
-
-  constexpr auto is_finalized() const -> Bool {
-    return stage == Stage::Finalized;
-  }
 
  private:
   enum class Stage : ::Unsigned_8 {
@@ -125,11 +77,7 @@ class Enumeration : public Ttx::Model::Type {
   };
 
   Perimortem::Memory::Allocator::Arena& domain;
-  Tetrodotoxin::Language::Definition& definition;
   Access::Type storage_access;
-  Monograph& parent;
-  const Composite& host;
-  Ttx::Lexical::Anchor anchor;
   Perimortem::Memory::Managed::Vector<SourceCase> source_cases;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       storage_type;

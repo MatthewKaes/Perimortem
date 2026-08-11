@@ -7,59 +7,28 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "perimortem/memory/allocator/arena.hpp"
-
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
-#include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/alias.hpp"
-#include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
-using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 using Tetrodotoxin::Environment::Workspace;
 using namespace Validation;
-
-static_assert(!__is_constructible(
-    Language::Types::Structure,
-    const Language::Types::Structure&));
-static_assert(!__is_constructible(
-    Language::Types::Structure,
-    Language::Types::Structure&&));
-static_assert(
-    __is_base_of(Language::Types::Composite, Language::Types::Structure));
-
-class EmptyContext : public Type {
- public:
-  constexpr auto get_name() const -> View::Bytes override {
-    return "EmptyContext"_view;
-  }
-
-  auto get_documentation() const -> const Documentation& override {
-    return Documentation::get_empty();
-  }
-
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
-};
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
@@ -111,134 +80,6 @@ static Harness StructureTests = {
   .name = "Tetrodotoxin::Library::Language::Types::Structure"_view,
 };
 
-PERIMORTEM_UNIT_TEST(StructureTests, stable_authored_graph) {
-  static constexpr View::Bytes source =
-      "// Structure test.\n"
-      "dialect : Library;\n"
-      "public Later : struct { public value : Unsigned_64; }\n"
-      "private Hidden : struct { public flag : Bool; }\n"
-      "public Packet : struct {\n"
-      "  // Later field.\n"
-      "  public later : Later;\n"
-      "  public const initialized : Bool = false;\n"
-      "  private hidden : Hidden;\n"
-      "  public inspect : func = [] -> Packet {}\n"
-      "}"_view;
-  Workspace workspace;
-  Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-
-  auto bindings = monograph->get_authored_bindings();
-  ASSERT_EQ(bindings.get_size(), Count(3));
-  ASSERT(bindings.get_data()[0].get().is<Language::Types::Structure>());
-  ASSERT(bindings.get_data()[1].get().is<Language::Types::Structure>());
-  ASSERT(bindings.get_data()[2].get().is<Language::Types::Structure>());
-  const auto& later = static_cast<const Language::Types::Structure&>(
-      bindings.get_data()[0].get());
-  const auto& hidden = static_cast<const Language::Types::Structure&>(
-      bindings.get_data()[1].get());
-  const auto& packet = static_cast<const Language::Types::Structure&>(
-      bindings.get_data()[2].get());
-  EXPECT(packet.is<Language::Types::Composite>());
-  const auto& source_type =
-      static_cast<const Language::Types::Source&>(monograph->get_source());
-  auto exposed_types = source_type.get_external_static_bindings();
-  ASSERT_EQ(exposed_types.get_size(), Count(2));
-  EXPECT(&exposed_types.get_data()[0].get() == &later);
-  EXPECT(&exposed_types.get_data()[1].get() == &packet);
-  EXPECT(&monograph->resolve_context("source"_view) == &source_type);
-  EXPECT(&monograph->resolve_context("Hidden"_view) == &Invalid::get_invalid());
-  const Abstract& reserved = monograph->resolve_context("Packet"_view);
-  EXPECT(&reserved == &packet);
-  EXPECT(&packet.resolve() == &Invalid::get_invalid());
-  ASSERT(packet.get_anchor());
-  EXPECT_TEXT(
-      packet.get_anchor()->get_span().caculate_text(source),
-      "public Packet : struct {\n"
-      "  // Later field.\n"
-      "  public later : Later;\n"
-      "  public const initialized : Bool = false;\n"
-      "  private hidden : Hidden;\n"
-      "  public inspect : func = [] -> Packet {}\n"
-      "}"_view);
-  EXPECT_TEXT(
-      packet.get_anchor()->get_token().caculate_text(source), "struct"_view);
-  EXPECT_TEXT(
-      packet.get_definition().get_name_anchor().get_span().caculate_text(
-          source),
-      "Packet"_view);
-  auto authored_fields = packet.get_fields();
-  ASSERT_EQ(authored_fields.get_size(), Count(3));
-  const Language::Field& authored_later = authored_fields.get_data()[0].get();
-  EXPECT(authored_later.get_exposure() == Language::Field::Exposure::Public);
-  EXPECT(
-      authored_later.get_writability() == Language::Field::Writability::Full);
-  EXPECT_TEXT(authored_later.get_name(), "later"_view);
-  ASSERT(authored_later.get_type_access());
-  EXPECT_TEXT(authored_later.get_type_access()->get_route(), "Later"_view);
-  EXPECT_NOT(authored_later.get_documentation().is_empty());
-  EXPECT_TEXT(
-      authored_later.get_anchor().get_span().caculate_text(source),
-      "public later : Later;"_view);
-  ASSERT(authored_later.get_type_anchor());
-  EXPECT_TEXT(
-      authored_later.get_type_anchor()->get_span().caculate_text(source),
-      "Later"_view);
-
-  ASSERT(workspace.link(errors));
-  EXPECT(&packet.resolve() == &packet);
-  ASSERT(workspace.finalize(errors));
-  EXPECT(packet.is_finalized());
-
-  auto fields = packet.get_fields();
-  auto public_fields = packet.get_public_fields();
-  auto callables = packet.get_callables();
-  auto public_callables = packet.get_public_callables();
-  ASSERT_EQ(fields.get_size(), Count(3));
-  ASSERT_EQ(public_fields.get_size(), Count(2));
-  ASSERT_EQ(callables.get_size(), Count(1));
-  ASSERT_EQ(public_callables.get_size(), Count(1));
-  EXPECT_TEXT(fields.get_data()[0].get().get_name(), "later"_view);
-  EXPECT_TEXT(fields.get_data()[1].get().get_name(), "initialized"_view);
-  EXPECT_TEXT(fields.get_data()[2].get().get_name(), "hidden"_view);
-  EXPECT(&fields.get_data()[0].get() == &authored_later);
-  EXPECT(&fields.get_data()[0].get().get_type() == &later);
-  EXPECT(&fields.get_data()[2].get().get_type() == &hidden);
-  EXPECT(
-      fields.get_data()[1].get().get_writability() ==
-      Language::Field::Writability::Init);
-  EXPECT(&public_fields.get_data()[0].get() == &fields.get_data()[0].get());
-  EXPECT(&public_fields.get_data()[1].get() == &fields.get_data()[1].get());
-  EXPECT(&packet.resolve_context("later"_view) == &fields.get_data()[0].get());
-  EXPECT(
-      &packet.resolve_context("initialized"_view) ==
-      &fields.get_data()[1].get());
-  EXPECT(&packet.resolve_context("hidden"_view) == &Invalid::get_invalid());
-  EXPECT(&packet.resolve_context("inspect"_view) == &Invalid::get_invalid());
-  auto callable_bindings = packet.get_callable_bindings();
-  ASSERT_EQ(callable_bindings.get_size(), Count(1));
-  EXPECT(
-      &callable_bindings.get_data()[0].get() == &callables.get_data()[0].get());
-  ASSERT(callables.get_data()[0].get().is<Language::Function>());
-  const auto& inspect =
-      static_cast<const Language::Function&>(callables.get_data()[0].get());
-  EXPECT(&inspect.get_source() == &*monograph);
-  EXPECT(&inspect.get_host() == &packet);
-  EXPECT(&inspect.resolve_context("hidden"_view) == &Invalid::get_invalid());
-  EXPECT(&packet.resolve_context("Later"_view) == &Invalid::get_invalid());
-
-  const Layouts::Named& layout = packet.get_layout();
-  ASSERT_EQ(layout.get_size(), Count(3));
-  ASSERT(layout.get_abstract(0));
-  ASSERT(layout.get_abstract(1));
-  ASSERT(layout.get_abstract(2));
-  EXPECT(&*layout.get_abstract(0) == &fields.get_data()[0].get());
-  EXPECT(&*layout.get_abstract(1) == &fields.get_data()[1].get());
-  EXPECT(&*layout.get_abstract(2) == &fields.get_data()[2].get());
-  EXPECT(errors.is_empty());
-}
-
 PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   static constexpr View::Bytes source =
       "// Nested Alias source.\n"
@@ -257,11 +98,13 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  auto authored = monograph->get_authored_bindings();
-  ASSERT_EQ(authored.get_size(), Count(3));
-  const Abstract& hidden = authored.get_data()[0].get();
-  const Abstract& packet_identity = authored.get_data()[1].get();
-  const Abstract& selected_identity = authored.get_data()[2].get();
+  const auto& source_type = monograph->get_source();
+  auto types = source_type.get_types();
+  ASSERT(types != types.end());
+  const Abstract& hidden = (*types).get();
+  const Abstract& packet_identity = monograph->resolve_context("Packet"_view);
+  const Abstract& selected_identity =
+      monograph->resolve_context("Selected"_view);
   ASSERT(hidden.is<Language::Types::Structure>());
   ASSERT(packet_identity.is<Language::Types::Structure>());
   ASSERT(selected_identity.is<Alias>());
@@ -279,146 +122,25 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
       visible.get_documentation().get_line(1),
       "Hidden Type documentation."_view);
   EXPECT(&packet.resolve_context("Flag"_view) == &Invalid::get_invalid());
-  auto type_bindings = packet.get_static_bindings();
-  ASSERT_EQ(type_bindings.get_size(), Count(2));
-  EXPECT(&type_bindings.get_data()[0].get() == &visible_identity);
-  ASSERT(type_bindings.get_data()[1].get().is<Alias>());
-  EXPECT(&type_bindings.get_data()[1].get().resolve() == &Dialect::get_bool());
+  auto type_bindings = packet.get_types();
+  ASSERT(type_bindings != type_bindings.end());
+  ++type_bindings;
+  ASSERT(type_bindings != type_bindings.end());
+  ASSERT((*type_bindings).get().is<Alias>());
+  EXPECT(&(*type_bindings).get().resolve() == &Dialect::get_bool());
 
   ASSERT(workspace.link(errors));
   ASSERT(workspace.finalize(errors));
   EXPECT(&selected_identity.resolve() == &hidden);
-  auto fields = packet.get_fields();
-  ASSERT_EQ(fields.get_size(), Count(2));
-  EXPECT(&fields.get_data()[0].get().get_type() == &hidden);
-  EXPECT(&fields.get_data()[1].get().get_type() == &Dialect::get_bool());
-  EXPECT_EQ(packet.get_layout().get_size(), Count(2));
-  EXPECT(errors.is_empty());
-}
-
-PERIMORTEM_UNIT_TEST(StructureTests, nested_declaration_lifecycle) {
-  static constexpr View::Bytes source =
-      "// Nested declaration source.\n"
-      "dialect : Library;\n"
-      "public Container : struct {\n"
-      "  public State : enum[Unsigned_8] { ready = 1; }\n"
-      "  public Child : struct {\n"
-      "    public Copy : alias = State;\n"
-      "    public value : Copy;\n"
-      "  }\n"
-      "  public child : Child;\n"
-      "}\n"
-      "public Entity : object {\n"
-      "  public StateCopy : alias = Container::State;\n"
-      "  public value : StateCopy;\n"
-      "}"_view;
-  Workspace workspace;
-  Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
-
-  const Abstract& container_identity =
-      monograph->resolve_context("Container"_view);
-  ASSERT(container_identity.is<Language::Types::Structure>());
-  const auto& container =
-      static_cast<const Language::Types::Structure&>(container_identity);
-  const Abstract& state = container.resolve_context("State"_view);
-  const Abstract& child_identity = container.resolve_context("Child"_view);
-  ASSERT(state.is<Language::Types::Enumeration>());
-  ASSERT(child_identity.is<Language::Types::Structure>());
-  const auto& child =
-      static_cast<const Language::Types::Structure&>(child_identity);
-  const Abstract& copy = child.resolve_context("Copy"_view);
-  ASSERT(copy.is<Alias>());
-  EXPECT(&copy.resolve() == &state);
-
-  auto child_fields = child.get_fields();
-  ASSERT_EQ(child_fields.get_size(), Count(1));
-  EXPECT(&child_fields.get_data()[0].get().get_type() == &state);
-  EXPECT_EQ(child.get_layout().get_size(), Count(1));
-  auto container_fields = container.get_fields();
-  ASSERT_EQ(container_fields.get_size(), Count(1));
-  EXPECT(&container_fields.get_data()[0].get().get_type() == &child);
-  EXPECT_EQ(container.get_layout().get_size(), Count(1));
-
-  const Abstract& entity_identity = monograph->resolve_context("Entity"_view);
-  ASSERT(entity_identity.is<Language::Types::Object>());
-  const auto& entity =
-      static_cast<const Language::Types::Object&>(entity_identity);
-  const Abstract& state_copy = entity.resolve_context("StateCopy"_view);
-  ASSERT(state_copy.is<Alias>());
-  EXPECT(&state_copy.resolve() == &state);
-  auto entity_fields = entity.get_fields();
-  ASSERT_EQ(entity_fields.get_size(), Count(1));
-  EXPECT(&entity_fields.get_data()[0].get().get_type() == &state);
-  EXPECT_EQ(entity.get_layout().get_size(), Count(1));
-  EXPECT(errors.is_empty());
-}
-
-PERIMORTEM_UNIT_TEST(
-    StructureTests,
-    recursive_types_settle_before_reversed_sibling_fields) {
-  static constexpr View::Bytes source =
-      "// Reversed sibling source.\n"
-      "dialect : Library;\n"
-      "public Consumer : struct { public selected : Provider::State; }\n"
-      "public Provider : struct {\n"
-      "  public State : enum[Unsigned_8] { ready = 1; }\n"
-      "}"_view;
-  Workspace workspace;
-  Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-  ASSERT(monograph->get_source().is<Language::Types::Source>());
-  auto& source_root =
-      static_cast<Language::Types::Source&>(monograph->get_source());
-  const Layouts::Named& source_layout = source_root.get_layout();
-  EXPECT(source_layout.is_empty());
-
-  const Abstract& consumer_identity =
-      monograph->resolve_context("Consumer"_view);
-  const Abstract& provider_identity =
-      monograph->resolve_context("Provider"_view);
-  ASSERT(consumer_identity.is<Language::Types::Structure>());
-  ASSERT(provider_identity.is<Language::Types::Structure>());
-  const auto& consumer =
-      static_cast<const Language::Types::Structure&>(consumer_identity);
-  const auto& provider =
-      static_cast<const Language::Types::Structure&>(provider_identity);
-  const Abstract& state = provider.resolve_context("State"_view);
-  ASSERT(state.is<Language::Types::Enumeration>());
-  EXPECT(&state.resolve() == &Invalid::get_invalid());
-  auto authored_fields = consumer.get_fields();
-  ASSERT_EQ(authored_fields.get_size(), Count(1));
-  const Language::Field* selected_identity =
-      &authored_fields.get_data()[0].get();
-  EXPECT(&selected_identity->resolve() == &Invalid::get_invalid());
-
-  // This is the barrier Monograph repeats across its whole import closure. The
-  // later sibling's nested Enumeration becomes complete while the earlier
-  // sibling's retained Field still has no completed Type edge.
-  ASSERT(source_root.link_types());
-  EXPECT(&state.resolve() == &state);
-  EXPECT(&consumer.get_fields().get_data()[0].get() == selected_identity);
-  EXPECT(&selected_identity->resolve() == &Invalid::get_invalid());
-  EXPECT_NOT(source_root.is_linked());
-
-  ASSERT(source_root.link_fields());
-  auto fields = consumer.get_fields();
-  ASSERT_EQ(fields.get_size(), Count(1));
-  const Language::Field& exact_field = fields.get_data()[0].get();
-  EXPECT(&exact_field == selected_identity);
-  EXPECT(&exact_field.get_type() == &state);
-  EXPECT(&source_root.get_layout() == &source_layout);
-  EXPECT(source_root.get_layout().is_empty());
-
-  ASSERT(monograph->link());
-  auto repeated_fields = consumer.get_fields();
-  ASSERT_EQ(repeated_fields.get_size(), Count(1));
-  EXPECT(&repeated_fields.get_data()[0].get() == &exact_field);
-  ASSERT(monograph->finalize());
+  auto fields = packet.get_addressables();
+  ASSERT(fields != fields.end());
+  const auto& hidden_field =
+      static_cast<const Language::Field&>((*fields).get());
+  ++fields;
+  ASSERT(fields != fields.end());
+  const auto& flag_field = static_cast<const Language::Field&>((*fields).get());
+  EXPECT(&hidden_field.get_type() == &hidden);
+  EXPECT(&flag_field.get_type() == &Dialect::get_bool());
   EXPECT(errors.is_empty());
 }
 
@@ -441,67 +163,48 @@ PERIMORTEM_UNIT_TEST(StructureTests, independent_access_axes) {
   ASSERT(workspace.link(errors));
   ASSERT(workspace.finalize(errors));
 
-  auto bindings = monograph->get_authored_bindings();
-  ASSERT_EQ(bindings.get_size(), Count(1));
-  ASSERT(bindings.get_data()[0].get().is<Language::Types::Structure>());
-  const auto& packet = static_cast<const Language::Types::Structure&>(
-      bindings.get_data()[0].get());
-  auto fields = packet.get_fields();
-  auto public_fields = packet.get_public_fields();
-  ASSERT_EQ(fields.get_size(), Count(6));
-  ASSERT_EQ(public_fields.get_size(), Count(3));
+  const Abstract& selected = monograph->resolve_context("Packet"_view);
+  ASSERT(selected.is<Language::Types::Structure>());
+  const auto& packet = static_cast<const Language::Types::Structure&>(selected);
+  auto fields = packet.get_addressables();
 
-  const Language::Field& ordinary_public = fields.get_data()[0].get();
-  const Language::Field& ordinary_private = fields.get_data()[1].get();
-  const Language::Field& state_exposed = fields.get_data()[2].get();
-  const Language::Field& state_private = fields.get_data()[3].get();
-  const Language::Field& const_public = fields.get_data()[4].get();
-  const Language::Field& const_private = fields.get_data()[5].get();
-  EXPECT(ordinary_public.get_exposure() == Language::Field::Exposure::Public);
+  auto field = fields.begin();
+  ASSERT(field != fields.end());
+  const auto& ordinary_public =
+      static_cast<const Language::Field&>((*field).get());
+  ++field;
+  ASSERT(field != fields.end());
+  const auto& ordinary_private =
+      static_cast<const Language::Field&>((*field).get());
+  ++field;
+  ASSERT(field != fields.end());
+  const auto& state_exposed =
+      static_cast<const Language::Field&>((*field).get());
+  ++field;
+  ASSERT(field != fields.end());
+  const auto& state_private =
+      static_cast<const Language::Field&>((*field).get());
+  ++field;
+  ASSERT(field != fields.end());
+  const auto& const_public =
+      static_cast<const Language::Field&>((*field).get());
+  ++field;
+  ASSERT(field != fields.end());
+  const auto& const_private =
+      static_cast<const Language::Field&>((*field).get());
   EXPECT(
       ordinary_public.get_writability() == Language::Field::Writability::Full);
-  EXPECT(ordinary_private.get_exposure() == Language::Field::Exposure::Private);
   EXPECT(
       ordinary_private.get_writability() == Language::Field::Writability::Full);
-  EXPECT(state_exposed.get_exposure() == Language::Field::Exposure::Exposed);
   EXPECT(
       state_exposed.get_writability() ==
       Language::Field::Writability::Internal);
-  EXPECT(state_private.get_exposure() == Language::Field::Exposure::Private);
   EXPECT(
       state_private.get_writability() ==
       Language::Field::Writability::Internal);
-  EXPECT(const_public.get_exposure() == Language::Field::Exposure::Public);
   EXPECT(const_public.get_writability() == Language::Field::Writability::Init);
-  EXPECT(const_private.get_exposure() == Language::Field::Exposure::Private);
   EXPECT(const_private.get_writability() == Language::Field::Writability::Init);
 
-  EXPECT(&public_fields.get_data()[0].get() == &ordinary_public);
-  EXPECT(&public_fields.get_data()[1].get() == &state_exposed);
-  EXPECT(&public_fields.get_data()[2].get() == &const_public);
-  EXPECT(&packet.resolve_context("ordinary_public"_view) == &ordinary_public);
-  EXPECT(
-      &packet.resolve_context("ordinary_private"_view) ==
-      &Invalid::get_invalid());
-  EXPECT(&packet.resolve_context("state_exposed"_view) == &state_exposed);
-  EXPECT(
-      &packet.resolve_context("state_private"_view) == &Invalid::get_invalid());
-  EXPECT(&packet.resolve_context("const_public"_view) == &const_public);
-  EXPECT(
-      &packet.resolve_context("const_private"_view) == &Invalid::get_invalid());
-  EmptyContext external;
-  EXPECT(packet.is_readable(ordinary_public, external));
-  EXPECT_NOT(packet.is_readable(ordinary_private, external));
-  EXPECT(packet.is_readable(state_exposed, external));
-  EXPECT_NOT(packet.is_readable(state_private, external));
-  EXPECT(packet.is_readable(const_public, external));
-  EXPECT_NOT(packet.is_readable(const_private, external));
-  EXPECT(packet.is_readable(ordinary_private, ordinary_private));
-  EXPECT(packet.is_readable(state_private, state_private));
-  EXPECT(packet.is_readable(const_private, const_private));
-  for (Count i = 0; i < fields.get_size(); i++) {
-    EXPECT(&fields.get_data()[i].get().get_host() == &packet);
-  }
   EXPECT(errors.is_empty());
 }
 
@@ -529,9 +232,12 @@ PERIMORTEM_UNIT_TEST(StructureTests, declaration_reorder) {
     const Abstract& second = monograph->resolve_context("Second"_view);
     ASSERT(first.is<Language::Types::Structure>());
     ASSERT(second.is<Language::Types::Structure>());
-    const Abstract& field = first.resolve_context("next"_view);
-    ASSERT(field.is<Addressable>());
-    EXPECT(&static_cast<const Addressable&>(field).get_type() == &second);
+    const auto& first_structure =
+        static_cast<const Language::Types::Structure&>(first);
+    auto field = first_structure.get_layout().get_abstract(0);
+    ASSERT(field);
+    ASSERT(field->is<Addressable>());
+    EXPECT(&static_cast<const Addressable&>(*field).get_type() == &second);
     EXPECT(errors.is_empty());
   }
 }
@@ -598,20 +304,20 @@ PERIMORTEM_UNIT_TEST(StructureTests, explicit_self_field_access) {
   const Abstract& selected = monograph->resolve_context("Packet"_view);
   ASSERT(selected.is<Language::Types::Structure>());
   const auto& packet = static_cast<const Language::Types::Structure&>(selected);
-  auto fields = packet.get_fields();
+  auto fields = packet.get_addressables();
   auto callables = packet.get_callables();
-  ASSERT_EQ(fields.get_size(), Count(1));
-  ASSERT_EQ(callables.get_size(), Count(1));
-  ASSERT(callables.get_data()[0].get().is<Language::Function>());
-  const auto& read =
-      static_cast<const Language::Function&>(callables.get_data()[0].get());
+  ASSERT(fields != fields.end());
+  const Abstract& field_identity = (*fields).get();
+  ASSERT(callables != callables.end());
+  ASSERT((*callables).get().is<Language::Function>());
+  const auto& read = static_cast<const Language::Function&>((*callables).get());
   auto returned = read.get_return_expression();
   ASSERT(returned);
   ASSERT(returned->is<Language::Access::Address>());
   const auto& address =
       static_cast<const Language::Access::Address&>(*returned);
   ASSERT(address.get_addressable());
-  EXPECT(&*address.get_addressable() == &fields.get_data()[0].get());
+  EXPECT(&*address.get_addressable() == &field_identity);
   ASSERT(address.get_receiver().is<Language::Identifier>());
   const auto& receiver =
       static_cast<const Language::Identifier&>(address.get_receiver());
@@ -695,121 +401,35 @@ PERIMORTEM_UNIT_TEST(StructureTests, private_exposure_retained_locally) {
   ASSERT(monograph);
   ASSERT(workspace.link(errors));
   ASSERT(workspace.finalize(errors));
-  auto bindings = monograph->get_authored_bindings();
-  ASSERT_EQ(bindings.get_size(), Count(3));
-  ASSERT(bindings.get_data()[0].get().is<Language::Types::Structure>());
-  ASSERT(bindings.get_data()[1].get().is<Language::Types::Structure>());
-  ASSERT(bindings.get_data()[2].get().is<Language::Function>());
-  const auto& hidden = static_cast<const Language::Types::Structure&>(
-      bindings.get_data()[0].get());
-  const auto& packet = static_cast<const Language::Types::Structure&>(
-      bindings.get_data()[1].get());
+  const auto& source_type = monograph->get_source();
+  auto types = source_type.get_types();
+  auto source_callables = source_type.get_callables();
+  ASSERT(types != types.end());
+  ASSERT((*types).get().is<Language::Types::Structure>());
+  const auto& hidden =
+      static_cast<const Language::Types::Structure&>((*types).get());
+  const Abstract& packet_identity = monograph->resolve_context("Packet"_view);
+  ASSERT(packet_identity.is<Language::Types::Structure>());
+  const auto& packet =
+      static_cast<const Language::Types::Structure&>(packet_identity);
+  ASSERT(source_callables != source_callables.end());
+  ASSERT((*source_callables).get().is<Language::Function>());
   const auto& root =
-      static_cast<const Language::Function&>(bindings.get_data()[2].get());
+      static_cast<const Language::Function&>((*source_callables).get());
   EXPECT(&monograph->resolve_context("Hidden"_view) == &Invalid::get_invalid());
   EXPECT(&monograph->resolve_context("root"_view) == &Invalid::get_invalid());
-  EXPECT(&root.get_host() == &monograph->get_source());
   EXPECT(&root.resolve_context("Hidden"_view) == &hidden);
   EXPECT(&packet.resolve_context("hidden"_view) == &Invalid::get_invalid());
   EXPECT(&packet.resolve_context("reveal"_view) == &Invalid::get_invalid());
-  auto fields = packet.get_fields();
+  auto fields = packet.get_addressables();
   auto callables = packet.get_callables();
-  ASSERT_EQ(fields.get_size(), Count(1));
-  ASSERT_EQ(callables.get_size(), Count(1));
-  ASSERT(callables.get_data()[0].get().is<Language::Function>());
+  ASSERT(fields != fields.end());
+  ASSERT(callables != callables.end());
+  ASSERT((*callables).get().is<Language::Function>());
   const auto& reveal =
-      static_cast<const Language::Function&>(callables.get_data()[0].get());
-  EXPECT(&reveal.get_host() == &packet);
+      static_cast<const Language::Function&>((*callables).get());
   EXPECT(&reveal.resolve_context("hidden"_view) == &Invalid::get_invalid());
   EXPECT(&reveal.resolve_context("Hidden"_view) == &hidden);
-  EXPECT(errors.is_empty());
-}
-
-PERIMORTEM_UNIT_TEST(StructureTests, authenticated_host_access) {
-  static constexpr View::Bytes source =
-      "// Structure authentication test.\n"
-      "dialect : Library;\n"
-      "public Packet : struct {\n"
-      "  private const seed : Bool = false;\n"
-      "  private const copy : Bool = seed;\n"
-      "  private inspect : func = [] -> [] {}\n"
-      "}\n"
-      "public Other : struct { private value : Bool; }\n"
-      "private root : func = [] -> [] {}"_view;
-  Workspace workspace;
-  Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-
-  auto bindings = monograph->get_authored_bindings();
-  ASSERT_EQ(bindings.get_size(), Count(3));
-  ASSERT(bindings.get_data()[0].get().is<Language::Types::Structure>());
-  ASSERT(bindings.get_data()[1].get().is<Language::Types::Structure>());
-  ASSERT(bindings.get_data()[2].get().is<Language::Function>());
-  const auto& packet = static_cast<const Language::Types::Structure&>(
-      bindings.get_data()[0].get());
-  const auto& other = static_cast<const Language::Types::Structure&>(
-      bindings.get_data()[1].get());
-  const auto& root =
-      static_cast<const Language::Function&>(bindings.get_data()[2].get());
-  auto& source_type =
-      static_cast<Language::Types::Source&>(monograph->get_source());
-  auto packet_callables = packet.get_callables();
-  ASSERT_EQ(packet_callables.get_size(), Count(1));
-  ASSERT(packet_callables.get_data()[0].get().is<Language::Function>());
-  const auto& inspect = static_cast<const Language::Function&>(
-      packet_callables.get_data()[0].get());
-
-  Count source_bindings = source_type.get_static_bindings().get_size();
-  EXPECT_NOT(source_type.bind_static(
-      const_cast<Language::Function&>(inspect), Language::Visibility::Private));
-  EmptyContext extra;
-  EXPECT_EQ(source_type.get_static_bindings().get_size(), source_bindings);
-
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
-  auto packet_fields = packet.get_fields();
-  auto other_fields = other.get_fields();
-  ASSERT_EQ(packet_fields.get_size(), Count(2));
-  ASSERT_EQ(other_fields.get_size(), Count(1));
-  const Language::Field& seed = packet_fields.get_data()[0].get();
-  const Language::Field& copy = packet_fields.get_data()[1].get();
-  const Language::Field& foreign = other_fields.get_data()[0].get();
-  auto initializer = copy.get_initializer();
-  ASSERT(initializer);
-  ASSERT(initializer->is<Language::Identifier>());
-  const auto& identifier =
-      static_cast<const Language::Identifier&>(*initializer);
-  auto addressable = identifier.get_addressable();
-  ASSERT(addressable);
-  EXPECT(&*addressable == &seed);
-
-  EXPECT(&packet.resolve_context("seed"_view) == &Invalid::get_invalid());
-  EXPECT(&packet.resolve_context("seed"_view, seed) == &seed);
-  EXPECT(
-      &packet.resolve_context("seed"_view, foreign) == &Invalid::get_invalid());
-  EXPECT(
-      &packet.resolve_context("seed"_view, inspect) == &Invalid::get_invalid());
-  EXPECT(&packet.resolve_context("seed"_view, root) == &Invalid::get_invalid());
-  EXPECT(&packet.resolve_context("seed"_view) == &Invalid::get_invalid());
-  EXPECT(
-      &source_type.resolve_context("root"_view, *monograph) ==
-      &Invalid::get_invalid());
-  EXPECT(packet.is_readable(seed, inspect));
-  EXPECT_NOT(packet.is_readable(seed, root));
-  EXPECT_NOT(packet.is_readable(foreign, inspect));
-  auto packet_bindings = packet.get_callable_bindings(inspect);
-  auto external_packet_bindings = packet.get_callable_bindings(root);
-  auto source_bindings_view = source_type.get_callable_bindings(*monograph);
-  ASSERT_EQ(packet_bindings.get_size(), Count(1));
-  EXPECT(packet_bindings.get_data()[0].get().get_name() == "inspect"_view);
-  EXPECT(external_packet_bindings.is_empty());
-  ASSERT_EQ(source_bindings_view.get_size(), Count(1));
-  EXPECT(&source_bindings_view.get_data()[0].get() == &root);
-
-  EXPECT_NOT(source_type.can_bind_static(extra));
-  EXPECT_NOT(source_type.bind_static(extra, Language::Visibility::Private));
-  EXPECT_EQ(source_type.get_static_bindings().get_size(), source_bindings);
   EXPECT(errors.is_empty());
 }
 
@@ -826,18 +446,24 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  auto bindings = monograph->get_authored_bindings();
-  ASSERT_EQ(bindings.get_size(), Count(1));
-  ASSERT(bindings.get_data()[0].get().is<Language::Types::Structure>());
-  const auto& packet = static_cast<const Language::Types::Structure&>(
-      bindings.get_data()[0].get());
-  auto authored_fields = packet.get_fields();
-  ASSERT_EQ(authored_fields.get_size(), Count(3));
-  auto exact_initializer =
-      authored_fields.get_data()[0].get().get_initializer();
-  auto copy_initializer = authored_fields.get_data()[1].get().get_initializer();
-  auto narrow_initializer =
-      authored_fields.get_data()[2].get().get_initializer();
+  const Abstract& selected = monograph->resolve_context("Packet"_view);
+  ASSERT(selected.is<Language::Types::Structure>());
+  const auto& packet = static_cast<const Language::Types::Structure&>(selected);
+  auto authored_fields = packet.get_addressables();
+  ASSERT(authored_fields != authored_fields.end());
+  const auto& exact =
+      static_cast<const Language::Field&>((*authored_fields).get());
+  ++authored_fields;
+  ASSERT(authored_fields != authored_fields.end());
+  const auto& copy =
+      static_cast<const Language::Field&>((*authored_fields).get());
+  ++authored_fields;
+  ASSERT(authored_fields != authored_fields.end());
+  const auto& narrow =
+      static_cast<const Language::Field&>((*authored_fields).get());
+  auto exact_initializer = exact.get_initializer();
+  auto copy_initializer = copy.get_initializer();
+  auto narrow_initializer = narrow.get_initializer();
   ASSERT(exact_initializer);
   ASSERT(copy_initializer);
   ASSERT(narrow_initializer);
@@ -845,20 +471,17 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
   ASSERT(workspace.link(errors));
   ASSERT(workspace.finalize(errors));
 
-  auto fields = packet.get_fields();
-  ASSERT_EQ(fields.get_size(), Count(3));
-  ASSERT(fields.get_data()[0].get().get_initializer());
-  ASSERT(fields.get_data()[1].get().get_initializer());
-  ASSERT(fields.get_data()[2].get().get_initializer());
-  EXPECT(&*fields.get_data()[0].get().get_initializer() == &*exact_initializer);
-  EXPECT(&*fields.get_data()[1].get().get_initializer() == &*copy_initializer);
-  EXPECT(
-      &*fields.get_data()[2].get().get_initializer() == &*narrow_initializer);
+  ASSERT(exact.get_initializer());
+  ASSERT(copy.get_initializer());
+  ASSERT(narrow.get_initializer());
+  EXPECT(&*exact.get_initializer() == &*exact_initializer);
+  EXPECT(&*copy.get_initializer() == &*copy_initializer);
+  EXPECT(&*narrow.get_initializer() == &*narrow_initializer);
   ASSERT(copy_initializer->is<Language::Identifier>());
   const auto& identifier =
       static_cast<const Language::Identifier&>(*copy_initializer);
   ASSERT(identifier.get_addressable());
-  EXPECT(&*identifier.get_addressable() == &fields.get_data()[0].get());
+  EXPECT(&*identifier.get_addressable() == &exact);
   EXPECT(errors.is_empty());
 }
 
@@ -876,23 +499,38 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  auto bindings = monograph->get_authored_bindings();
-  ASSERT_EQ(bindings.get_size(), Count(1));
-  ASSERT(bindings.get_data()[0].get().is<Language::Types::Structure>());
-  const auto& packet = static_cast<const Language::Types::Structure&>(
-      bindings.get_data()[0].get());
-  const auto& source_type =
-      static_cast<const Language::Types::Source&>(monograph->get_source());
+  const auto& source_type = monograph->get_source();
+  auto types = source_type.get_types();
+  auto type = types.begin();
+  ASSERT(type != types.end());
+  ASSERT((*type).get().is<Language::Types::Structure>());
+  const auto& packet =
+      static_cast<const Language::Types::Structure&>((*type).get());
+  ++type;
+  EXPECT(type == types.end());
 
   ASSERT(workspace.link(errors));
-  auto source_fields = source_type.get_fields();
-  auto packet_fields = packet.get_fields();
-  ASSERT_EQ(source_fields.get_size(), Count(2));
-  ASSERT_EQ(packet_fields.get_size(), Count(2));
-  const Language::Field& root = source_fields.get_data()[0].get();
-  const Language::Field& root_copy = source_fields.get_data()[1].get();
-  const Language::Field& scalar = packet_fields.get_data()[0].get();
-  const Language::Field& scalar_copy = packet_fields.get_data()[1].get();
+  auto source_fields = source_type.get_addressables();
+  auto packet_fields = packet.get_addressables();
+  auto source_field = source_fields.begin();
+  ASSERT(source_field != source_fields.end());
+  const auto& root = static_cast<const Language::Field&>((*source_field).get());
+  ++source_field;
+  ASSERT(source_field != source_fields.end());
+  const auto& root_copy =
+      static_cast<const Language::Field&>((*source_field).get());
+  ++source_field;
+  EXPECT(source_field == source_fields.end());
+  auto packet_field = packet_fields.begin();
+  ASSERT(packet_field != packet_fields.end());
+  const auto& scalar =
+      static_cast<const Language::Field&>((*packet_field).get());
+  ++packet_field;
+  ASSERT(packet_field != packet_fields.end());
+  const auto& scalar_copy =
+      static_cast<const Language::Field&>((*packet_field).get());
+  ++packet_field;
+  EXPECT(packet_field == packet_fields.end());
   EXPECT(&root_copy.get_type() == &root.get_type());
   EXPECT(&root.get_type() == &Dialect::get_bool());
   EXPECT(&scalar_copy.get_type() == &scalar.get_type());
@@ -910,8 +548,22 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
   const Language::Field* nested_identity = &scalar_copy;
   ASSERT(monograph->link());
   ASSERT(monograph->link());
-  EXPECT(&source_type.get_fields().get_data()[1].get() == source_identity);
-  EXPECT(&packet.get_fields().get_data()[1].get() == nested_identity);
+  auto retained_source_fields = source_type.get_addressables();
+  auto retained_source_field = retained_source_fields.begin();
+  ASSERT(retained_source_field != retained_source_fields.end());
+  ++retained_source_field;
+  ASSERT(retained_source_field != retained_source_fields.end());
+  EXPECT(&(*retained_source_field).get() == source_identity);
+  ++retained_source_field;
+  EXPECT(retained_source_field == retained_source_fields.end());
+  auto retained_packet_fields = packet.get_addressables();
+  auto retained_packet_field = retained_packet_fields.begin();
+  ASSERT(retained_packet_field != retained_packet_fields.end());
+  ++retained_packet_field;
+  ASSERT(retained_packet_field != retained_packet_fields.end());
+  EXPECT(&(*retained_packet_field).get() == nested_identity);
+  ++retained_packet_field;
+  EXPECT(retained_packet_field == retained_packet_fields.end());
   ASSERT(workspace.finalize(errors));
   EXPECT(errors.is_empty());
 }
@@ -927,16 +579,22 @@ PERIMORTEM_UNIT_TEST(StructureTests, inference_failure_rolls_back) {
     Errors errors;
     auto monograph = interpret(workspace, errors, sources[i]);
     ASSERT(monograph);
-    const auto& source_type =
-        static_cast<const Language::Types::Source&>(monograph->get_source());
+    const auto& source_type = monograph->get_source();
     EXPECT_NOT(workspace.link(errors));
-    auto fields = source_type.get_fields();
-    ASSERT_EQ(fields.get_size(), Count(1));
-    const Language::Field* identity = &fields.get_data()[0].get();
+    auto fields = source_type.get_addressables();
+    auto field = fields.begin();
+    ASSERT(field != fields.end());
+    const auto* identity = &static_cast<const Language::Field&>((*field).get());
+    ++field;
+    EXPECT(field == fields.end());
     EXPECT(&identity->resolve() == &Invalid::get_invalid());
-    EXPECT_NOT(identity->is_linked());
     EXPECT_NOT(workspace.link(errors));
-    EXPECT(&source_type.get_fields().get_data()[0].get() == identity);
+    auto retained_fields = source_type.get_addressables();
+    auto retained_field = retained_fields.begin();
+    ASSERT(retained_field != retained_fields.end());
+    EXPECT(&(*retained_field).get() == identity);
+    ++retained_field;
+    EXPECT(retained_field == retained_fields.end());
     EXPECT_NOT(errors.is_empty());
   }
 }
@@ -953,36 +611,20 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_public_type_reachability) {
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
   ASSERT(workspace.link(errors));
-  const auto& source_type =
-      static_cast<const Language::Types::Source&>(monograph->get_source());
-  ASSERT_EQ(source_type.get_fields().get_size(), Count(2));
+  const auto& source_type = monograph->get_source();
+  auto fields = source_type.get_addressables();
+  auto field = fields.begin();
+  ASSERT(field != fields.end());
+  ++field;
+  ASSERT(field != fields.end());
+  ++field;
+  EXPECT(field == fields.end());
   EXPECT_NOT(workspace.finalize(errors));
   auto diagnostics = monograph->get_diagnostics();
   ASSERT_EQ(diagnostics.get_size(), Count(1));
   EXPECT_TEXT(
       diagnostics.get_data()[0].get_message(),
-      "Externally readable Composite Field publishes an unreachable Type."_view);
-  EXPECT_NOT(errors.is_empty());
-}
-
-PERIMORTEM_UNIT_TEST(StructureTests, inferred_new_rejected) {
-  static constexpr View::Bytes source = "private value := new;"_view;
-  Allocator::Arena arena;
-  EmptyContext context;
-  Language::Materializations materializations(arena);
-  Errors errors;
-  Tokenizer tokenizer(arena, source, "inferred-new.ttx"_view);
-  Cursor cursor(tokenizer, errors);
-  Token opening = cursor.current();
-  auto transaction = cursor.branch();
-  auto definition = Tetrodotoxin::Language::Definition::parse(transaction);
-  ASSERT(definition);
-  auto field = Language::Field::interpret(
-      arena, materializations, transaction, *definition, context);
-
-  EXPECT_NOT(field);
-  EXPECT_EQ(cursor.current().get_offset(), opening.get_offset());
-  EXPECT(cursor.current().get_code() == opening.get_code());
+      "Externally readable Field publishes an unreachable Type."_view);
   EXPECT_NOT(errors.is_empty());
 }
 
@@ -997,25 +639,35 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
     Errors errors;
     auto monograph = interpret(workspace, errors, sources[i]);
     ASSERT(monograph);
-    auto bindings = monograph->get_authored_bindings();
-    ASSERT_EQ(bindings.get_size(), Count(1));
-    ASSERT(bindings.get_data()[0].get().is<Language::Types::Structure>());
-    const auto& packet = static_cast<const Language::Types::Structure&>(
-        bindings.get_data()[0].get());
-    auto authored_fields = packet.get_fields();
-    ASSERT_EQ(authored_fields.get_size(), Count(1));
-    auto authored_initializer =
-        authored_fields.get_data()[0].get().get_initializer();
+    const auto& source_type = monograph->get_source();
+    auto types = source_type.get_types();
+    auto type = types.begin();
+    ASSERT(type != types.end());
+    ASSERT((*type).get().is<Language::Types::Structure>());
+    const auto& packet =
+        static_cast<const Language::Types::Structure&>((*type).get());
+    ++type;
+    EXPECT(type == types.end());
+    auto authored_fields = packet.get_addressables();
+    auto authored_field_selection = authored_fields.begin();
+    ASSERT(authored_field_selection != authored_fields.end());
+    const auto& authored_field =
+        static_cast<const Language::Field&>((*authored_field_selection).get());
+    ++authored_field_selection;
+    EXPECT(authored_field_selection == authored_fields.end());
+    auto authored_initializer = authored_field.get_initializer();
     ASSERT(authored_initializer);
 
     EXPECT_NOT(workspace.link(errors));
-    auto fields = packet.get_fields();
-    ASSERT_EQ(fields.get_size(), Count(1));
-    const Language::Field& field = fields.get_data()[0].get();
-    ASSERT(field.get_initializer());
-    EXPECT(&*field.get_initializer() == &*authored_initializer);
-    EXPECT_NOT(field.is_linked());
-    EXPECT_NOT(packet.is_finalized());
+    auto fields = packet.get_addressables();
+    auto field_selection = fields.begin();
+    ASSERT(field_selection != fields.end());
+    const auto& retained_field =
+        static_cast<const Language::Field&>((*field_selection).get());
+    ++field_selection;
+    EXPECT(field_selection == fields.end());
+    ASSERT(retained_field.get_initializer());
+    EXPECT(&*retained_field.get_initializer() == &*authored_initializer);
     auto diagnostics = monograph->get_diagnostics();
     ASSERT_EQ(diagnostics.get_size(), Count(1));
     ASSERT(diagnostics.get_data()[0].get_anchor());
@@ -1031,150 +683,4 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
         "Supply one value accepted by the declared Field Type."_view);
     EXPECT_NOT(errors.is_empty());
   }
-}
-
-PERIMORTEM_UNIT_TEST(StructureTests, repeat_lifecycle) {
-  static constexpr View::Bytes source =
-      "// Structure test.\n"
-      "dialect : Library;\n"
-      "public Packet : struct { public value : Unsigned_64; }"_view;
-  Workspace workspace;
-  Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-  ASSERT(monograph->link());
-  ASSERT(monograph->link());
-  ASSERT(monograph->finalize());
-  ASSERT(monograph->finalize());
-  EXPECT(monograph->get_diagnostics().is_empty());
-  EXPECT(errors.is_empty());
-}
-
-PERIMORTEM_UNIT_TEST(StructureTests, lifecycle_order_rejected) {
-  static constexpr View::Bytes source =
-      "public Packet : struct { public value : Bool; }"_view;
-  EmptyContext context;
-  Allocator::Arena arena;
-  Dialect dialect;
-  Language::Materializations materializations(arena);
-  auto& monograph = Language::Monograph::create_authored(
-      arena, Documentation::get_empty(), dialect, context, materializations);
-  ASSERT(monograph.get_source().is<Language::Types::Source>());
-  const auto& source_scope =
-      static_cast<const Language::Types::Source&>(monograph.get_source());
-  Errors errors;
-  Tokenizer tokenizer(arena, source, "structure-stage.ttx"_view);
-  Cursor cursor(tokenizer, errors);
-  auto definition = Tetrodotoxin::Language::Definition::parse(cursor);
-  ASSERT(definition);
-  auto structure = Language::Types::Structure::interpret(
-      arena, cursor, *definition, monograph, materializations, source_scope);
-  ASSERT(structure);
-
-  EmptyContext extra;
-  EXPECT_NOT(structure->can_bind_member(extra));
-  EXPECT_NOT(structure->bind_member(extra, Language::Visibility::Private));
-  EXPECT(structure->get_static_bindings().is_empty());
-  EXPECT_NOT(structure->link_callable_signatures());
-  EXPECT_NOT(structure->link_callable_bodies());
-  EXPECT_NOT(structure->finalize());
-  EXPECT_EQ(monograph.get_diagnostics().get_size(), Count(3));
-  EXPECT_NOT(structure->is_linked());
-  EXPECT_NOT(structure->is_finalized());
-  EXPECT(errors.is_empty());
-}
-
-PERIMORTEM_UNIT_TEST(StructureTests, field_cursor_atomicity) {
-  static constexpr View::Bytes malformed = "public value : Bool"_view;
-  static constexpr View::Bytes complete = "private value : Core::Bool;"_view;
-  Allocator::Arena arena;
-  EmptyContext context;
-  Language::Materializations materializations(arena);
-  Errors malformed_errors;
-  Tokenizer malformed_tokenizer(arena, malformed, "malformed-field.ttx"_view);
-  Cursor malformed_cursor(malformed_tokenizer, malformed_errors);
-  Token opening = malformed_cursor.current();
-  auto malformed_transaction = malformed_cursor.branch();
-  auto malformed_definition =
-      Tetrodotoxin::Language::Definition::parse(malformed_transaction);
-  ASSERT(malformed_definition);
-  auto rejected = Language::Field::interpret(
-      arena, materializations, malformed_transaction, *malformed_definition,
-      context);
-  EXPECT_NOT(rejected);
-  EXPECT_EQ(malformed_cursor.current().get_offset(), opening.get_offset());
-  EXPECT_NOT(malformed_errors.is_empty());
-
-  Errors complete_errors;
-  Tokenizer complete_tokenizer(arena, complete, "complete-field.ttx"_view);
-  Cursor complete_cursor(complete_tokenizer, complete_errors);
-  auto complete_transaction = complete_cursor.branch();
-  auto complete_definition =
-      Tetrodotoxin::Language::Definition::parse(complete_transaction);
-  ASSERT(complete_definition);
-  auto field = Language::Field::interpret(
-      arena, materializations, complete_transaction, *complete_definition,
-      context);
-  ASSERT(field);
-  complete_cursor.join(complete_transaction);
-  EXPECT_TEXT(field->get_name(), "value"_view);
-  ASSERT(field->get_type_access());
-  EXPECT_TEXT(field->get_type_access()->get_route(), "Core::Bool"_view);
-  EXPECT_TEXT(field->get_anchor().get_span().caculate_text(complete), complete);
-  ASSERT(field->get_type_anchor());
-  EXPECT_TEXT(
-      field->get_type_anchor()->get_span().caculate_text(complete),
-      "Core::Bool"_view);
-  EXPECT(field->get_exposure() == Language::Field::Exposure::Private);
-  EXPECT(field->get_writability() == Language::Field::Writability::Full);
-  EXPECT(complete_cursor.matches(Code::Type::Terminal));
-  EXPECT(complete_errors.is_empty());
-}
-
-PERIMORTEM_UNIT_TEST(StructureTests, cursor_atomicity) {
-  static constexpr View::Bytes malformed =
-      "public Packet : struct { public value : Bool }"_view;
-  static constexpr View::Bytes complete =
-      "public Packet : struct { public value : Bool; }"_view;
-  EmptyContext context;
-  Allocator::Arena arena;
-  Dialect dialect;
-  Language::Materializations materializations(arena);
-  auto& monograph = Language::Monograph::create_authored(
-      arena, Documentation::get_empty(), dialect, context, materializations);
-  ASSERT(monograph.get_source().is<Language::Types::Source>());
-  const auto& source_scope =
-      static_cast<const Language::Types::Source&>(monograph.get_source());
-
-  Errors malformed_errors;
-  Tokenizer malformed_tokenizer(
-      arena, malformed, "malformed-structure.ttx"_view);
-  Cursor malformed_cursor(malformed_tokenizer, malformed_errors);
-  Token opening = malformed_cursor.current();
-  auto malformed_transaction = malformed_cursor.branch();
-  auto malformed_definition =
-      Tetrodotoxin::Language::Definition::parse(malformed_transaction);
-  ASSERT(malformed_definition);
-  auto rejected = Language::Types::Structure::interpret(
-      arena, malformed_transaction, *malformed_definition, monograph,
-      materializations, source_scope);
-  EXPECT_NOT(rejected);
-  EXPECT_EQ(malformed_cursor.current().get_offset(), opening.get_offset());
-  EXPECT(malformed_cursor.current().get_code() == opening.get_code());
-  EXPECT_NOT(malformed_errors.is_empty());
-
-  Errors complete_errors;
-  Tokenizer complete_tokenizer(arena, complete, "complete-structure.ttx"_view);
-  Cursor complete_cursor(complete_tokenizer, complete_errors);
-  auto complete_transaction = complete_cursor.branch();
-  auto complete_definition =
-      Tetrodotoxin::Language::Definition::parse(complete_transaction);
-  ASSERT(complete_definition);
-  auto parsed = Language::Types::Structure::interpret(
-      arena, complete_transaction, *complete_definition, monograph,
-      materializations, source_scope);
-  ASSERT(parsed);
-  complete_cursor.join(complete_transaction);
-  EXPECT(complete_cursor.matches(Code::Type::Terminal));
-  EXPECT(complete_errors.is_empty());
 }

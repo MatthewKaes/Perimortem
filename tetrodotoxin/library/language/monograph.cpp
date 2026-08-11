@@ -4,7 +4,6 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 
 #include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
@@ -18,23 +17,17 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin;
 
+using Tetrodotoxin::Language::Visibility;
+
 struct ImportCandidate {
   Ttx::Lexical::Span import_span;
   Reference<const Abstract> binding;
 };
 
-static auto get_binding_target(const Abstract& binding) -> const Abstract& {
-  return binding.visit<Alias>(
-      [](const Alias& alias) -> const Abstract& {
-        return get_binding_target(alias.get_target());
-      },
-      [](const Abstract& direct) -> const Abstract& { return direct; });
-}
-
 static auto bindings_collide(const Abstract& first, const Abstract& second)
     -> Bool {
-  const Abstract& first_target = get_binding_target(first);
-  const Abstract& second_target = get_binding_target(second);
+  const Abstract& first_target = Alias::get_represented(first);
+  const Abstract& second_target = Alias::get_represented(second);
   return Bool(
       (first_target.is<Type>() && second_target.is<Type>()) ||
       (first_target.is<Addressable>() && second_target.is<Addressable>()));
@@ -43,43 +36,35 @@ static auto bindings_collide(const Abstract& first, const Abstract& second)
 Library::Language::Monograph::Monograph(
     Allocator::Arena& domain,
     const Documentation& documentation,
-    Library::Dialect& host,
+    const Anchor& source_anchor,
+    Library::Dialect& dialect,
     const Abstract& interpretation_context,
     Materializations& materializations)
     : Tetrodotoxin::Language::Monograph(domain, documentation),
-      library_host(host),
+      dialect(dialect),
       interpretation_context(interpretation_context),
       materializations(materializations),
       imports(domain),
       imported_providers(domain),
-      authored_bindings(domain),
-      authored_binding_observations(domain) {}
+      source(
+          Types::Source::create_synthetic(
+              domain,
+              documentation,
+              *this,
+              source_anchor)) {}
 
 auto Library::Language::Monograph::create_authored(
     Allocator::Arena& domain,
     const Documentation& documentation,
-    Library::Dialect& host,
+    const Anchor& source_anchor,
+    Library::Dialect& dialect,
     const Abstract& interpretation_context,
     Materializations& materializations) -> Monograph& {
-  Monograph& monograph = domain.construct_from<Monograph>([&]() -> Monograph {
+  return domain.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
-        domain, documentation, host, interpretation_context, materializations);
+        domain, documentation, source_anchor, dialect, interpretation_context,
+        materializations);
   });
-  auto& source = Library::Language::Types::Source::create_synthetic(
-      domain, documentation, monograph, materializations);
-  monograph.source_type = Reference<Type>(source);
-  return monograph;
-}
-
-auto Library::Language::Monograph::bind_static(
-    Abstract& binding,
-    Visibility visibility) -> Bool {
-  auto source = get_source().select<Types::Source>();
-  BAIL_IF(!source || !source->bind_static(binding, visibility));
-
-  authored_bindings.insert(binding);
-  authored_binding_observations.insert(binding);
-  return True;
 }
 
 auto Library::Language::Monograph::retain_import(const Import& import) -> Bool {
@@ -108,8 +93,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     return False;
   }
 
-  auto source_type = get_source().select<Types::Source>();
-  BAIL_IF(!source_type);
+  Types::Source& source = get_source();
 
   Managed::Vector<ImportCandidate> candidates(domain);
   Managed::Vector<Reference<Monograph>> providers(domain);
@@ -191,52 +175,59 @@ auto Library::Language::Monograph::link_imports() -> Bool {
         providers.insert(mutable_provider);
       }
 
-      const Type& provider_source = provider_monograph->get_source();
-      auto provider = provider_source.select<Types::Source>();
-      if (!provider) {
-        report(
-            Ttx::Lexical::Anchor::create(import.get_span()),
-            "Library Package member has no exact Source Type."_view,
-            "Complete the provider Monograph before importing its Static "
-            "bindings."_view);
-        failed = True;
-        continue;
-      }
+      const Types::Source& provider = provider_monograph->get_source();
 
-      if (!provider->is_linked()) {
+      if (!provider.is_linked()) {
         // Provider Fields already have their final identities during closure
         // discovery even though their Types remain incomplete. Those retained
         // objects prove the complete name set before either source publishes an
         // Addressable, keeping a later collision transactional.
-        auto provider_fields = provider->get_fields();
-        auto local_fields = source_type->get_fields();
-        for (Count field_index = 0; field_index < provider_fields.get_size();
-             field_index++) {
-          const Field& field = provider_fields.get_data()[field_index].get();
-          if (field.get_exposure() == Field::Exposure::Private) {
+        auto provider_addressables = provider.get_addressables();
+        auto local_addressables = source.get_addressables();
+        for (const Reference<Abstract>& selected : provider_addressables) {
+          auto selected_field = selected.get().select<Field>();
+          if (!selected_field) {
+            continue;
+          }
+          const Field& field = *selected_field;
+          if (!field.get_definition().is_published()) {
             continue;
           }
 
-          Bool collision =
-              local_fields.contains([&](const Reference<const Field>& local) {
-                return local.get().get_name() == field.get_name();
-              }) ||
-              candidates.get_view().contains(
-                  [&](const ImportCandidate& candidate) {
-                    const Abstract& earlier =
-                        get_binding_target(candidate.binding.get());
-                    return earlier.is<Addressable>() &&
-                           earlier.get_name() == field.get_name();
-                  }) ||
-              pending_field_providers.get_view().contains(
-                  [&](const Reference<const Types::Source>& earlier_provider) {
-                    return earlier_provider.get().get_fields().contains(
-                        [&](const Reference<const Field>& earlier) {
-                          return earlier.get().get_exposure() !=
-                                     Field::Exposure::Private &&
-                                 earlier.get().get_name() == field.get_name();
-                        });
-                  });
+          Bool collision = False;
+          for (const Reference<Abstract>& local : local_addressables) {
+            if (local.get().get_name() == field.get_name()) {
+              collision = True;
+              break;
+            }
+          }
+          if (!collision) {
+            collision = candidates.get_view().contains(
+                [&](const ImportCandidate& candidate) {
+                  const Abstract& earlier =
+                      Alias::get_represented(candidate.binding.get());
+                  return earlier.is<Addressable>() &&
+                         earlier.get_name() == field.get_name();
+                });
+          }
+          if (!collision) {
+            for (const Reference<const Types::Source>& earlier_provider :
+                 pending_field_providers.get_view()) {
+              for (const Reference<Abstract>& earlier :
+                   earlier_provider.get().get_addressables()) {
+                auto earlier_field = earlier.get().select<Field>();
+                if (earlier_field &&
+                    earlier_field->get_definition().is_published() &&
+                    earlier_field->get_name() == field.get_name()) {
+                  collision = True;
+                  break;
+                }
+              }
+              if (collision) {
+                break;
+              }
+            }
+          }
 
           if (collision) {
             report(
@@ -248,66 +239,76 @@ auto Library::Language::Monograph::link_imports() -> Bool {
           }
         }
 
-        pending_field_providers.insert(*provider);
+        pending_field_providers.insert(provider);
       }
 
-      auto bindings = provider->get_external_static_bindings();
-      for (Count binding_index = 0; binding_index < bindings.get_size();
-           binding_index++) {
-        const Abstract& binding = bindings.get_data()[binding_index].get();
-        if (source_type->get_static_bindings().contains(
-                [&](const Reference<const Abstract>& existing) {
-                  return existing.get().visit<Alias>(
+      auto retain_candidates = [&](const auto& bindings) {
+        for (const Reference<Abstract>& selected : bindings) {
+          const Abstract& binding = selected.get();
+          auto already_imported = [&](const auto& existing_bindings) {
+            for (const Reference<Abstract>& existing : existing_bindings) {
+              if (existing.get().visit<Alias>(
                       [&](const Alias& alias) {
                         return Bool(&alias.get_target() == &binding);
                       },
-                      [](const Abstract&) { return False; });
-                })) {
-          continue;
-        }
-
-        const Abstract& target = get_binding_target(binding);
-        if (target.is<Addressable>()) {
-          for (Count pending = 0; pending < pending_field_providers.get_size();
-               pending++) {
-            auto pending_fields =
-                pending_field_providers[pending].get().get_fields();
-            for (Count field_index = 0; field_index < pending_fields.get_size();
-                 field_index++) {
-              const Field& field = pending_fields.get_data()[field_index].get();
-              if (field.get_exposure() == Field::Exposure::Private ||
-                  field.get_name() != target.get_name()) {
-                continue;
+                      [](const Abstract&) { return False; })) {
+                return True;
               }
+            }
+            return False;
+          };
+          if (already_imported(source.get_addressables()) ||
+              already_imported(source.get_callables()) ||
+              already_imported(source.get_types())) {
+            continue;
+          }
 
-              report(
-                  Ttx::Lexical::Anchor::create(import.get_span()),
-                  "Imported source Field collides with another imported "
-                  "Addressable name."_view,
-                  "Select dependencies with distinct public Fields."_view);
-              failed = True;
+          const Abstract& target = Alias::get_represented(binding);
+          if (target.is<Addressable>()) {
+            for (Count pending = 0;
+                 pending < pending_field_providers.get_size(); pending++) {
+              auto pending_addressables =
+                  pending_field_providers[pending].get().get_addressables();
+              for (const Reference<Abstract>& pending_binding :
+                   pending_addressables) {
+                auto field = pending_binding.get().select<Field>();
+                if (!field || !field->get_definition().is_published() ||
+                    field->get_name() != target.get_name()) {
+                  continue;
+                }
+
+                report(
+                    Ttx::Lexical::Anchor::create(import.get_span()),
+                    "Imported source Field collides with another imported "
+                    "Addressable name."_view,
+                    "Select dependencies with distinct public Fields."_view);
+                failed = True;
+              }
             }
           }
-        }
 
-        Bool incomplete = binding.visit<Function>(
-            [](const Function& function) { return !function.is_complete(); },
-            [](const Abstract&) { return False; });
-        if (incomplete) {
-          report(
-              Ttx::Lexical::Anchor::create(import.get_span()),
-              "Library Import exposes an incomplete Static binding."_view,
-              "Complete provider grammar before linking imports."_view);
-          failed = True;
-          continue;
-        }
+          Bool incomplete = binding.visit<Function>(
+              [](const Function& function) { return !function.is_complete(); },
+              [](const Abstract&) { return False; });
+          if (incomplete) {
+            report(
+                Ttx::Lexical::Anchor::create(import.get_span()),
+                "Library Import exposes an incomplete Static binding."_view,
+                "Complete provider grammar before linking imports."_view);
+            failed = True;
+            continue;
+          }
 
-        candidates.insert(
-            ImportCandidate{
-              .import_span = import.get_span(),
-              .binding = binding,
-            });
-      }
+          candidates.insert(
+              ImportCandidate{
+                .import_span = import.get_span(),
+                .binding = binding,
+              });
+        }
+      };
+      retain_candidates(provider.get_addressables(Visibility::Public));
+      retain_candidates(provider.get_callables(Visibility::Public));
+      retain_candidates(provider.get_types(Visibility::Public));
     }
   }
 
@@ -327,7 +328,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     const Abstract& binding = candidate.binding.get();
     const Alias& alias = aliases[candidate_index].get();
     View::Bytes name = binding.get_name();
-    if (!source_type->can_bind_static(alias)) {
+    if (!source.can_bind_static(alias)) {
       report(
           Ttx::Lexical::Anchor::create(candidate.import_span),
           "Imported Static binding collides with an occupied source name."_view,
@@ -355,7 +356,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
   // Monograph transaction, so no candidate becomes visible beside a later
   // rejection.
   for (Count i = 0; i < aliases.get_size(); i++) {
-    BAIL_IF(!source_type->bind_static(aliases[i].get(), Visibility::Private));
+    BAIL_IF(!source.bind_static(aliases[i].get()));
   }
 
   for (Count i = 0; i < providers.get_size(); i++) {
@@ -373,33 +374,23 @@ auto Library::Language::Monograph::link_imports() -> Bool {
 }
 
 auto Library::Language::Monograph::link_declaration_types() -> Bool {
-  return get_source().visit<Types::Source>(
-      [](Types::Source& source) { return source.link_types(); },
-      [](Abstract&) { return False; });
+  return get_source().link_types();
 }
 
 auto Library::Language::Monograph::link_fields() -> Bool {
-  return get_source().visit<Types::Source>(
-      [](Types::Source& source) { return source.link_fields(); },
-      [](Abstract&) { return False; });
+  return get_source().link_fields();
 }
 
 auto Library::Language::Monograph::link_initializers() -> Bool {
-  return get_source().visit<Types::Source>(
-      [](Types::Source& source) { return source.link_initializers(); },
-      [](Abstract&) { return False; });
+  return get_source().link_initializers();
 }
 
 auto Library::Language::Monograph::link_callable_signatures() -> Bool {
-  return get_source().visit<Types::Source>(
-      [](Types::Source& source) { return source.link_callable_signatures(); },
-      [](Abstract&) { return False; });
+  return get_source().link_callable_signatures();
 }
 
 auto Library::Language::Monograph::link_callable_bodies() -> Bool {
-  return get_source().visit<Types::Source>(
-      [](Types::Source& source) { return source.link_callable_bodies(); },
-      [](Abstract&) { return False; });
+  return get_source().link_callable_bodies();
 }
 
 auto Library::Language::Monograph::link() -> Bool {
@@ -472,9 +463,7 @@ auto Library::Language::Monograph::finalize() -> Bool {
   // Source is the one root of the declaration tree, so its recursive
   // finalization reaches the same identities that linking prepared without a
   // second Monograph inventory walk.
-  return get_source().visit<Types::Source>(
-      [](Types::Source& source) { return source.finalize(); },
-      [](Abstract&) { return False; });
+  return get_source().finalize();
 }
 
 auto Library::Language::Monograph::get_name() const -> View::Bytes {
@@ -483,33 +472,10 @@ auto Library::Language::Monograph::get_name() const -> View::Bytes {
 
 auto Library::Language::Monograph::resolve_context(View::Bytes route) const
     -> const Abstract& {
-  const Type& source = get_source();
+  const Types::Source& source = get_source();
   if (route == "source"_view) {
     return source;
   }
 
-  return source.visit<Types::Source>(
-      [&](const Types::Source& source_root) -> const Abstract& {
-        return source_root.resolve_context(route);
-      },
-      [](const Abstract&) -> const Abstract& {
-        return Invalid::get_invalid();
-      });
-}
-
-auto Library::Language::Monograph::get_source() -> Type& {
-  return source_type->get();
-}
-
-auto Library::Language::Monograph::get_source() const -> const Type& {
-  return source_type->get();
-}
-
-auto Library::Language::Monograph::get_authored_bindings() const
-    -> View::Vector<Reference<const Abstract>> {
-  return authored_binding_observations;
-}
-
-auto Library::Language::Monograph::get_imports() const -> View::Vector<Import> {
-  return imports;
+  return source.resolve_context(route);
 }

@@ -125,9 +125,11 @@ Abstract
 └── Callable
 ```
 
-`Documentation`, `Layout`, and `Reference` are supporting values.
+`Authorship`, `Documentation`, `Layout`, and `Reference` are supporting values.
 They describe or connect identities without acquiring another semantic
-identity.
+identity. An optional Authorship edge preserves the exact authored
+Documentation and Anchor plus the concrete language's publication outcome. It
+does not impose a shared visibility model.
 
 The graph is not a tree of declarations. One Type may be reached through a
 Package Alias, a source Alias, a Generic materialization, and a direct local
@@ -142,6 +144,11 @@ its own identity while its parameters and results expose Layouts.
 This gives tools and lowerers the original semantic fact. It also means they
 must use the contracts exposed by its owner. TTX offers no synchronized member
 record or cloned Type graph for a consumer that wants a different shape.
+
+Category selection follows the identity's single public C++ inheritance chain.
+Cross-category source authorship remains an identity-free observation of the
+exact retained source fact rather than another selectable semantic contract.
+It allocates no wrapper, adds no identity, and consults no RTTI or registry.
 
 ## Reference and graph lifetime
 

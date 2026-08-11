@@ -37,13 +37,25 @@ static auto select_addressable(const Layout& layout, Core::View::Bytes route)
   return resolved.select<Addressable>();
 }
 
-static auto is_readable(const Addressable& selected, const Abstract& requester)
-    -> Bool {
-  return selected.visit<Language::Field>(
+auto Language::Access::Address::is_accessible(
+    const Addressable& candidate,
+    Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
+  return candidate.visit<Language::Field>(
       [&](const Language::Field& field) {
         return field.get_host().visit<Language::Types::Composite>(
             [&](const Language::Types::Composite& composite) {
-              return composite.is_readable(field, requester);
+              if (field.get_definition().is_published()) {
+                return True;
+              }
+
+              // The receiver Layout supplies the selected identity. Caller
+              // scope contributes only access authority, so it cannot invent
+              // a receiver or make an unrelated private Field readable.
+              return access_scope.visit(
+                  []() { return False; },
+                  [&](const Ttx::Model::Type& caller_scope) {
+                    return composite.grants_private_access(caller_scope);
+                  });
             },
             [](const Abstract&) { return False; });
       },
@@ -102,16 +114,18 @@ auto Language::Access::Address::create_synthetic(
 
 auto Language::Access::Address::link(
     Tetrodotoxin::Language::Monograph& source,
-    const Abstract& context,
-    Materializations& materializations) -> Bool {
-  BAIL_IF(!receiver.link(source, context, materializations));
+    const Abstract& lexical_context,
+    Materializations& materializations,
+    Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
+  BAIL_IF(
+      !receiver.link(source, lexical_context, materializations, access_scope));
 
   auto source_anchor = get_anchor();
   const Abstract& receiver_type = receiver.get_type().resolve();
   return receiver_type.visit<Ttx::Model::Type>(
       [&](const Ttx::Model::Type& type) {
         auto selected = select_addressable(type.get_layout(), route);
-        if (!selected || !is_readable(*selected, context)) {
+        if (!selected || !is_accessible(*selected, access_scope)) {
           source.report(
               source_anchor,
               "Address did not find one readable Addressable in the receiver "
@@ -129,7 +143,8 @@ auto Language::Access::Address::link(
         }
 
         addressable = Reference<const Addressable>(*selected);
-        return Expression::link(source, context, materializations);
+        return Expression::link(
+            source, lexical_context, materializations, access_scope);
       },
       [&](const Abstract&) {
         source.report(

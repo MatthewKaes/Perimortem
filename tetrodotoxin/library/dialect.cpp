@@ -21,7 +21,6 @@
 #include "tetrodotoxin/library/language/types/signed_32.hpp"
 #include "tetrodotoxin/library/language/types/signed_64.hpp"
 #include "tetrodotoxin/library/language/types/signed_8.hpp"
-#include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_16.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_32.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_64.hpp"
@@ -72,6 +71,7 @@ auto Library::Dialect::interpret(
     Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation,
+    const Anchor& source_anchor,
     Abstract& interpretation_context)
     -> Option<Tetrodotoxin::Language::Monograph&> {
   auto shared_materializations = materializations_for(domain, cursor);
@@ -80,17 +80,9 @@ auto Library::Dialect::interpret(
   }
 
   auto& monograph = Library::Language::Monograph::create_authored(
-      domain, documentation, *this, interpretation_context,
+      domain, documentation, source_anchor, *this, interpretation_context,
       *shared_materializations);
-  auto source =
-      monograph.get_source().select<Library::Language::Types::Source>();
-  if (!source) {
-    cursor.create_token_error(
-        "Library sources require one exact synthetic Source Type."_view);
-    return {};
-  }
-
-  Bool parsed = source->parse(cursor);
+  Bool parsed = monograph.get_source().parse(cursor);
   if (!parsed) {
     return {};
   }

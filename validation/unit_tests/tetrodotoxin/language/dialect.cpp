@@ -20,8 +20,12 @@ class DefaultDialect : public Language::Dialect {
  public:
   DefaultDialect() = default;
 
-  auto interpret(Allocator::Arena&, Cursor&, const Documentation&, Abstract&)
-      -> Option<Language::Monograph&> override {
+  auto interpret(
+      Allocator::Arena&,
+      Cursor&,
+      const Documentation&,
+      const Anchor&,
+      Abstract&) -> Option<Language::Monograph&> override {
     return {};
   }
 };

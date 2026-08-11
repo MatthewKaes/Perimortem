@@ -41,10 +41,20 @@ class Address : public Expression {
       Expression& receiver,
       const Ttx::Model::Addressable& addressable) -> Address&;
 
+  // The receiver Layout is already the complete candidate range for `.`.
+  // Semantic linking and completion tooling apply this predicate to each
+  // Addressable rather than copying Layout entries into a member registry.
+  static auto is_accessible(
+      const Ttx::Model::Addressable& candidate,
+      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      -> Bool;
+
   auto link(
       Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Concept::Abstract& context,
-      Materializations& materializations) -> Bool override;
+      const Ttx::Concept::Abstract& lexical_context,
+      Materializations& materializations,
+      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      -> Bool override;
 
   TTX_NAME(route);
 

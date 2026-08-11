@@ -30,14 +30,12 @@ attributeValue
     ;
 
 definition
-    : documentation? attribute* definitionModifier* definitionName DEFINE
+    : documentation? attribute* visibility definitionModifier* definitionName
+      DEFINE
     ;
 
 definitionModifier
-    : PUBLIC
-    | PRIVATE
-    | EXPOSE
-    | STATE
+    : STATE
     | CONST
     ;
 
@@ -47,11 +45,6 @@ definitionName
     ;
 
 visibility
-    : PUBLIC
-    | PRIVATE
-    ;
-
-fieldPublication
     : PUBLIC
     | PRIVATE
     | EXPOSE
@@ -95,12 +88,7 @@ typeName
 
 addressableName
     : ADDRESSABLE
-    | USING
-    | ENUM
-    | STRUCT
-    | OBJECT
     | FOREIGN
-    | FROM
     | RUNTIME
     | LIFECYCLE
     | START

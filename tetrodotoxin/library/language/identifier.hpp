@@ -33,8 +33,10 @@ class Identifier : public Expression {
 
   auto link(
       Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Concept::Abstract& context,
-      Materializations& materializations) -> Bool override;
+      const Ttx::Concept::Abstract& lexical_context,
+      Materializations& materializations,
+      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      -> Bool override;
 
   TTX_NAME(route);
 

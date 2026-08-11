@@ -36,8 +36,7 @@ class Signature {
 
   auto link(
       Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Concept::Abstract& context,
-      Perimortem::Core::Option<const Ttx::Model::Type&> self_type = {}) -> Bool;
+      const Ttx::Model::Type& host) -> Bool;
 
   auto get_parameters() const -> const Ttx::Concept::Layout&;
   auto get_results() const -> const Ttx::Concept::Layout&;

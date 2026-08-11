@@ -14,10 +14,7 @@ class Object : public Structure {
  private:
   Object(
       Perimortem::Memory::Allocator::Arena& domain,
-      Tetrodotoxin::Language::Definition& definition,
-      Monograph& source,
-      Materializations& materializations,
-      const Composite& enclosing_scope);
+      Tetrodotoxin::Language::Definition& definition);
 
  public:
   TTX_CONTRACT(Object, Structure, 0xed4871dfefaa4aee, 0xa13f79099ea383ab);
@@ -25,10 +22,8 @@ class Object : public Structure {
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition,
-      Monograph& source,
-      Materializations& materializations,
-      const Composite& enclosing_scope) -> Perimortem::Core::Option<Object&>;
+      Tetrodotoxin::Language::Definition& definition)
+      -> Perimortem::Core::Option<Object&>;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Types

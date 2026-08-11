@@ -2,8 +2,8 @@
 // Copyright © Matt Kaes
 //
 // Canonical token reference for the Tetrodotoxin G4 language descriptions.
-// Concrete parsers are not generated from this file, so contextual words do
-// not have to become distinct runtime Token codes.
+// Words promoted by the runtime Lexicon are reserved from generic Addressable
+// dispatch. Other contextual grammar words need not have distinct runtime Codes.
 
 lexer grammar TTXLexer;
 

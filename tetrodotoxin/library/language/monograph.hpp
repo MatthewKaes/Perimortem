@@ -3,16 +3,13 @@
 
 #pragma once
 
-#include "perimortem/core/option.hpp"
-
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/import.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
-#include "tetrodotoxin/library/language/visibility.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/reference.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
@@ -24,7 +21,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   Monograph(
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Documentation& documentation,
-      Tetrodotoxin::Library::Dialect& host,
+      const Ttx::Lexical::Anchor& source_anchor,
+      Tetrodotoxin::Library::Dialect& dialect,
       const Ttx::Concept::Abstract& interpretation_context,
       Materializations& materializations);
 
@@ -38,14 +36,10 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Documentation& documentation,
-      Tetrodotoxin::Library::Dialect& host,
+      const Ttx::Lexical::Anchor& source_anchor,
+      Tetrodotoxin::Library::Dialect& dialect,
       const Ttx::Concept::Abstract& interpretation_context,
       Materializations& materializations) -> Monograph&;
-
-  // Every authored declaration enters the synthetic Source before its later
-  // semantic barriers run. Duplicate names leave both owners intact.
-  auto bind_static(Ttx::Concept::Abstract& binding, Visibility visibility)
-      -> Bool;
 
   // Imports remain in authored order until linking can inspect each selected
   // Package member through its own contextual source route.
@@ -60,21 +54,16 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_source() -> Ttx::Model::Type&;
+  constexpr auto get_source() -> Types::Source& { return source; }
 
-  auto get_source() const -> const Ttx::Model::Type&;
+  constexpr auto get_source() const -> const Types::Source& { return source; }
 
-  auto get_authored_bindings() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>;
-
-  auto get_imports() const -> Perimortem::Core::View::Vector<Import>;
-
-  constexpr auto get_materializations() const -> const Materializations& {
+  constexpr auto get_materializations() -> Materializations& {
     return materializations;
   }
 
-  constexpr auto get_library_host() const -> Tetrodotoxin::Library::Dialect& {
-    return library_host;
+  constexpr auto get_dialect() const -> const Tetrodotoxin::Library::Dialect& {
+    return dialect;
   }
 
   constexpr auto get_interpretation_context() const
@@ -90,20 +79,13 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto link_callable_signatures() -> Bool;
   auto link_callable_bodies() -> Bool;
 
-  Tetrodotoxin::Library::Dialect& library_host;
+  Tetrodotoxin::Library::Dialect& dialect;
   const Ttx::Concept::Abstract& interpretation_context;
   Materializations& materializations;
   Perimortem::Memory::Managed::Vector<Import> imports;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Monograph>>
       imported_providers;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      authored_bindings;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-      authored_binding_observations;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Ttx::Model::Type>>
-      source_type;
+  Types::Source& source;
   Bool imports_linked = False;
 };
 

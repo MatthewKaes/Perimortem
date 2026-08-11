@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/signature.hpp"
 
 #include "tetrodotoxin/library/language/parameter.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/alias.hpp"
@@ -196,10 +197,18 @@ auto Language::Signature::interpret(Allocator::Arena& domain, Cursor& cursor)
 
 auto Language::Signature::link(
     Tetrodotoxin::Language::Monograph& source,
-    const Abstract& context,
-    Option<const Type&> self_type) -> Bool {
+    const Type& host) -> Bool {
   if (linked) {
     return True;
+  }
+
+  auto context = host.select<Language::Types::Composite>();
+  if (!context) {
+    source.report(
+        anchor,
+        "Function Signature requires one exact Composite host Type."_view,
+        "Retain the Function on the Composite that owns its Definition."_view);
+    return False;
   }
 
   Bool failed = False;
@@ -208,11 +217,14 @@ auto Language::Signature::link(
       Slot& slot = slots[i];
       Bool type_linked = slot.type_access.visit(
           [&]() {
-            if (!parameters || i != 0 || !self_type) {
+            if (!parameters || i != 0) {
               return False;
             }
 
-            const Type& type = *self_type;
+            // The only parameter without an authored Type route is reserved
+            // `self`. Its Type is necessarily the Function's exact host, so
+            // accepting another edge would represent an impossible signature.
+            const Type& type = host;
             if (slot.type) {
               return Bool(&slot.type->get() == &type);
             }
@@ -221,7 +233,10 @@ auto Language::Signature::link(
             return True;
           },
           [&](const Access::Type& type_access) {
-            const Abstract& selected = type_access.resolve(context);
+            // Signature Types use Definition hosting directly. Function
+            // completion state cannot widen or narrow the declaration scope,
+            // and qualified traversal retains this exact host as its caller.
+            const Abstract& selected = context->resolve_type(type_access);
             return selected.visit<Type>(
                 [&](const Type& type) {
                   if (slot.type) {

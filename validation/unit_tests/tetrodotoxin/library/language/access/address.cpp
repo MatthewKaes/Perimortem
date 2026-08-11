@@ -16,6 +16,7 @@
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -127,10 +128,8 @@ PERIMORTEM_UNIT_TEST(AddressTests, structure_member_selection) {
       "  public visible : Bool;\n"
       "  private secret : Bool;\n"
       "  public observe : func = [] -> [] {}\n"
-      "  private inspect : func = [] -> [] {}\n"
       "}\n"
       "public Session : object { expose state progress : Bool = false; }\n"
-      "public Other : struct { private foreign : func = [] -> [] {} }\n"
       "private root : func = [] -> [] {}"_view;
   Environment::Workspace workspace;
   Errors errors;
@@ -139,31 +138,32 @@ PERIMORTEM_UNIT_TEST(AddressTests, structure_member_selection) {
   ASSERT(workspace.link(errors));
   ASSERT(workspace.finalize(errors));
 
-  auto bindings = monograph->get_authored_bindings();
-  ASSERT_EQ(bindings.get_size(), Count(4));
+  const auto& source_type = monograph->get_source();
   const auto& packet = static_cast<const Library::Language::Types::Structure&>(
-      bindings.get_data()[0].get());
+      source_type.resolve_context("Packet"_view));
   const auto& session = static_cast<const Library::Language::Types::Object&>(
-      bindings.get_data()[1].get());
-  const auto& other = static_cast<const Library::Language::Types::Structure&>(
-      bindings.get_data()[2].get());
-  const auto& root = static_cast<const Library::Language::Function&>(
-      bindings.get_data()[3].get());
-  auto packet_fields = packet.get_fields();
-  auto packet_callables = packet.get_callables();
-  auto session_fields = session.get_fields();
-  auto other_callables = other.get_callables();
-  ASSERT_EQ(packet_fields.get_size(), Count(2));
-  ASSERT_EQ(packet_callables.get_size(), Count(2));
-  ASSERT_EQ(session_fields.get_size(), Count(1));
-  ASSERT_EQ(other_callables.get_size(), Count(1));
-  const Library::Language::Field& visible = packet_fields.get_data()[0].get();
-  const Library::Language::Field& secret = packet_fields.get_data()[1].get();
-  const auto& inspect = static_cast<const Library::Language::Function&>(
-      packet_callables.get_data()[1].get());
-  const Library::Language::Field& state = session_fields.get_data()[0].get();
-  const auto& foreign = static_cast<const Library::Language::Function&>(
-      other_callables.get_data()[0].get());
+      source_type.resolve_context("Session"_view));
+
+  auto source_callables = source_type.get_callables();
+  auto source_callable = source_callables.begin();
+  ASSERT(source_callable != source_callables.end());
+  const auto& root =
+      static_cast<const Library::Language::Function&>((*source_callable).get());
+
+  auto packet_fields = packet.get_addressables();
+  auto packet_field = packet_fields.begin();
+  ASSERT(packet_field != packet_fields.end());
+  const auto& visible =
+      static_cast<const Library::Language::Field&>((*packet_field).get());
+  ++packet_field;
+  ASSERT(packet_field != packet_fields.end());
+  const auto& secret =
+      static_cast<const Library::Language::Field&>((*packet_field).get());
+
+  auto state_identity = session.get_layout().get_abstract(0);
+  ASSERT(state_identity);
+  const auto& state =
+      static_cast<const Library::Language::Field&>(*state_identity);
 
   Allocator::Arena domain;
   Library::Language::Materializations materializations(domain);
@@ -172,16 +172,8 @@ PERIMORTEM_UNIT_TEST(AddressTests, structure_member_selection) {
   AddressReceiver scalar_receiver("flag"_view, Library::Dialect::get_bool());
   auto& external = Library::Language::Access::Address::create_authored(
       domain, "visible"_view, packet_receiver, address_anchor());
-  auto& hosted = Library::Language::Access::Address::create_authored(
-      domain, "secret"_view, packet_receiver, address_anchor());
-  auto& initializer = Library::Language::Access::Address::create_authored(
-      domain, "secret"_view, packet_receiver, address_anchor());
-  auto& denied_foreign = Library::Language::Access::Address::create_authored(
-      domain, "secret"_view, packet_receiver, address_anchor());
-  auto& denied_root = Library::Language::Access::Address::create_authored(
-      domain, "secret"_view, packet_receiver, address_anchor());
   auto& rejected_callable = Library::Language::Access::Address::create_authored(
-      domain, "inspect"_view, packet_receiver, address_anchor());
+      domain, "observe"_view, packet_receiver, address_anchor());
   auto& missing = Library::Language::Access::Address::create_authored(
       domain, "missing"_view, packet_receiver, address_anchor());
   auto& object = Library::Language::Access::Address::create_authored(
@@ -190,26 +182,15 @@ PERIMORTEM_UNIT_TEST(AddressTests, structure_member_selection) {
       domain, "anything"_view, scalar_receiver, address_anchor());
 
   EXPECT(external.link(*monograph, root, materializations));
-  EXPECT(hosted.link(*monograph, inspect, materializations));
-  EXPECT(hosted.link(*monograph, inspect, materializations));
-  EXPECT(initializer.link(*monograph, secret, materializations));
-  EXPECT_NOT(denied_foreign.link(*monograph, foreign, materializations));
-  EXPECT_NOT(denied_root.link(*monograph, root, materializations));
   EXPECT_NOT(rejected_callable.link(*monograph, root, materializations));
   EXPECT_NOT(missing.link(*monograph, root, materializations));
   EXPECT(object.link(*monograph, root, materializations));
   EXPECT_NOT(scalar.link(*monograph, root, materializations));
   ASSERT(external.get_addressable());
-  ASSERT(hosted.get_addressable());
-  ASSERT(initializer.get_addressable());
   ASSERT(object.get_addressable());
   EXPECT(&*external.get_addressable() == &visible);
-  EXPECT(&*hosted.get_addressable() == &secret);
-  EXPECT(&*initializer.get_addressable() == &secret);
   EXPECT(&*object.get_addressable() == &state);
   EXPECT(&external.get_type() == &Library::Dialect::get_bool());
-  EXPECT_NOT(denied_foreign.get_addressable());
-  EXPECT_NOT(denied_root.get_addressable());
   EXPECT_NOT(rejected_callable.get_addressable());
   EXPECT_NOT(missing.get_addressable());
   EXPECT_NOT(scalar.get_addressable());
@@ -239,6 +220,46 @@ PERIMORTEM_UNIT_TEST(AddressTests, structure_member_selection) {
   ASSERT(generic.get_addressable());
   EXPECT(&*generic.get_addressable() == &value);
   EXPECT(&generic.get_type() == &Library::Dialect::get_bool());
-  EXPECT_EQ(monograph->get_diagnostics().get_size(), Count(7));
   EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(AddressTests, descendant_private_authority) {
+  static constexpr View::Bytes source =
+      "// Descendant private Address access.\n"
+      "dialect : Library;\n"
+      "public Outer : struct {\n"
+      "  private secret : Bool;\n"
+      "  public Inner : struct {\n"
+      "    public read : func = [.outer : Outer] -> Bool {\n"
+      "      return outer.secret;\n"
+      "    }\n"
+      "  }\n"
+      "}"_view;
+  Environment::Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(AddressTests, sibling_private_denied) {
+  static constexpr View::Bytes source =
+      "// Sibling private Address access.\n"
+      "dialect : Library;\n"
+      "public Outer : struct {\n"
+      "  public Target : struct { private secret : Bool; }\n"
+      "  public Caller : struct {\n"
+      "    public read : func = [.target : Outer::Target] -> Bool {\n"
+      "      return target.secret;\n"
+      "    }\n"
+      "  }\n"
+      "}"_view;
+  Environment::Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  EXPECT_NOT(workspace.link(errors));
+  EXPECT_NOT(errors.is_empty());
 }

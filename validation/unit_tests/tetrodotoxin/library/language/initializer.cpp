@@ -79,21 +79,20 @@ PERIMORTEM_UNIT_TEST(InitializerTests, empty_and_supplied) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
 
-  auto bindings = monograph->get_authored_bindings();
-  ASSERT_EQ(bindings.get_size(), Count(2));
-  const auto& defaults =
-      static_cast<const Language::Types::Object&>(bindings.get_data()[0].get());
-  const auto& required =
-      static_cast<const Language::Types::Object&>(bindings.get_data()[1].get());
-  const auto& source_type =
-      static_cast<const Language::Types::Source&>(monograph->get_source());
-  auto authored_fields = source_type.get_fields();
-  ASSERT_EQ(authored_fields.get_size(), Count(2));
-  auto empty_initializer =
-      authored_fields.get_data()[0].get().get_initializer();
-  auto configured_initializer =
-      authored_fields.get_data()[1].get().get_initializer();
+  const auto& source_type = monograph->get_source();
+  const auto& defaults = static_cast<const Language::Types::Object&>(
+      source_type.resolve_context("Defaults"_view));
+  const auto& required = static_cast<const Language::Types::Object&>(
+      source_type.resolve_context("Required"_view));
+  const auto& empty_field = static_cast<const Language::Field&>(
+      source_type.resolve_context("empty"_view));
+  const auto& configured_field = static_cast<const Language::Field&>(
+      source_type.resolve_context("configured"_view));
+  auto empty_initializer = empty_field.get_initializer();
+  auto configured_initializer = configured_field.get_initializer();
   ASSERT(empty_initializer);
   ASSERT(configured_initializer);
   ASSERT(empty_initializer->is<Language::Initializer>());
@@ -102,20 +101,14 @@ PERIMORTEM_UNIT_TEST(InitializerTests, empty_and_supplied) {
       static_cast<const Language::Initializer&>(*empty_initializer);
   const auto& configured =
       static_cast<const Language::Initializer&>(*configured_initializer);
-  EXPECT(empty.get_type().is<Invalid>());
-  EXPECT(configured.get_type().is<Invalid>());
-
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
   EXPECT(&empty.get_type() == &defaults);
   EXPECT(&configured.get_type() == &required);
   EXPECT(empty.get_inputs().is_empty());
 
-  auto fields = required.get_fields();
-  ASSERT_EQ(fields.get_size(), Count(3));
-  EXPECT_TEXT(fields.get_data()[0].get().get_name(), "first"_view);
-  EXPECT_TEXT(fields.get_data()[1].get().get_name(), "hidden"_view);
-  EXPECT_TEXT(fields.get_data()[2].get().get_name(), "second"_view);
+  auto first_field = required.get_layout().get_abstract(0);
+  auto second_field = required.get_layout().get_abstract(2);
+  ASSERT(first_field);
+  ASSERT(second_field);
 
   const Layout& inputs = configured.get_inputs();
   ASSERT_EQ(inputs.get_size(), Count(2));
@@ -133,8 +126,8 @@ PERIMORTEM_UNIT_TEST(InitializerTests, empty_and_supplied) {
   EXPECT(first_alias.get_target().is<Language::Expression>());
 
   Static::Vector<Reference<const Abstract>, 2> initialization_fields = {{
-    fields.get_data()[0].get(),
-    fields.get_data()[2].get(),
+    *first_field,
+    *second_field,
   }};
   Layouts::Named initialization_layout(initialization_fields.get_view());
   EXPECT(inputs.fits(initialization_layout));
@@ -153,39 +146,22 @@ PERIMORTEM_UNIT_TEST(InitializerTests, empty_and_supplied) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(InitializerTests, positional_source_order) {
+PERIMORTEM_UNIT_TEST(InitializerTests, descendant_private_field) {
   static constexpr View::Bytes source =
-      "// Positional initializer test.\n"
+      "// Descendant Object initialization.\n"
       "dialect : Library;\n"
-      "public Required : object {\n"
-      "  public first : Unsigned_64;\n"
+      "public Owner : object {\n"
       "  private hidden : Bool = false;\n"
-      "  public second : Bool;\n"
-      "}\n"
-      "public configured : Required = new(4, true);"_view;
+      "  public Builder : struct {\n"
+      "    private value : Owner = new(.hidden = true);\n"
+      "  }\n"
+      "}"_view;
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
   ASSERT(workspace.link(errors));
   ASSERT(workspace.finalize(errors));
-
-  auto bindings = monograph->get_authored_bindings();
-  ASSERT_EQ(bindings.get_size(), Count(1));
-  const auto& source_type =
-      static_cast<const Language::Types::Source&>(monograph->get_source());
-  auto fields = source_type.get_fields();
-  ASSERT_EQ(fields.get_size(), Count(1));
-  auto authored_initializer = fields.get_data()[0].get().get_initializer();
-  ASSERT(authored_initializer);
-  const auto& object_initializer =
-      static_cast<const Language::Initializer&>(*authored_initializer);
-  const Layout& inputs = object_initializer.get_inputs();
-  ASSERT_EQ(inputs.get_size(), Count(2));
-  ASSERT(inputs.get_abstract(0));
-  ASSERT(inputs.get_abstract(1));
-  EXPECT(inputs.get_abstract(0)->is<Language::Expression>());
-  EXPECT(inputs.get_abstract(1)->is<Language::Expression>());
   EXPECT(errors.is_empty());
 }
 

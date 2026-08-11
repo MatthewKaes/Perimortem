@@ -35,11 +35,20 @@ describe valid input. The toolchain does not generate or run its parsers from
 them. A custom Dialect owns its grammar but does not have to express it in G4.
 
 The shared grammar defines `Definition` as greedily retained Documentation,
-Attributes, modifiers, and a name followed by `:`. The next Token is its
-qualifier and remains for the concrete language to dispatch. Definition is a
-source value, not an Abstract, common AST node, declaration hierarchy, or
-semantic category and is attached by the parent parser to the actual dispatched
-parser type.
+Attributes, one exact Visibility, ordered evaluation modifiers, and a name
+followed by `:`. The next Token is its qualifier and remains for the concrete
+language to dispatch. Definition is a source value, not an Abstract, common AST
+node, declaration hierarchy, or semantic category. The selected concrete
+semantic object retains that exact value. A concrete language decides whether
+its Visibility and evaluation modifiers are legal for the object it constructs.
+
+Every Definition also retains its exact host: the mutable semantic owner whose
+transaction and access authority admit that definition. Host is provenance,
+not universal graph parentage or a canonical route to the identity. Authored
+Definitions complete their Anchor only after the selected concrete grammar
+succeeds. A concrete owner may instead create a synthetic Definition with an
+explicit truthful Anchor; doing so fabricates neither authored Tokens nor an
+Authorship observation on the resulting semantic identity.
 
 An Attribute is one ordered key with at most one scalar value. Every Definition
 can retain arbitrary Attributes (any number with duplicates being valid). The

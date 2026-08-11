@@ -18,7 +18,11 @@ auto Package::Dialect::interpret(
     Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation,
+    const Anchor& source_anchor,
     Abstract&) -> Option<Tetrodotoxin::Language::Monograph&> {
+  // Package produces a Monograph rather than a synthetic source Type, so it
+  // has no semantic owner for the source-envelope Anchor.
+  (void)source_anchor;
   Managed::Vector<Language::Dependency> dependencies(domain);
   Managed::Vector<Span> dependency_spans(domain);
   Managed::Vector<Language::Source> sources(domain);

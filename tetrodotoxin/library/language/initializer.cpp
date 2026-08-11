@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/initializer.hpp"
 
+#include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
@@ -30,10 +31,24 @@ static auto expression_fits(
       [](const Abstract&) { return False; });
 }
 
+static auto select_accessible_field(
+    const Abstract& candidate,
+    Core::Option<const Type&> access_scope)
+    -> Core::Option<const Language::Field&> {
+  auto field = candidate.select<Language::Field>();
+  BAIL_IF(
+      !field ||
+      !Language::Access::Address::is_accessible(*field, access_scope));
+
+  // Object construction consumes the target's real authored Field order, but
+  // shares Address's one publication and host-authority decision. It never
+  // reconstructs Visibility or retains another constructor member view.
+  return *field;
+}
+
 auto Language::Initializer::is_next(const Ttx::Lexical::Cursor& cursor)
     -> Bool {
-  return cursor.matches(Ttx::Lexical::Code::Type::Addressable) &&
-         cursor.current().caculate_text(cursor.get_source_text()) == "new"_view;
+  return cursor.matches(Ttx::Lexical::Code::Type::New);
 }
 
 auto Language::Initializer::parse(
@@ -243,7 +258,7 @@ auto Language::Initializer::get_type() const -> const Abstract& {
 }
 
 auto Language::Initializer::supplies(
-    const Field& receiver,
+    Core::Option<const Type&> access_scope,
     const Types::Object& target,
     const Field& field) const -> Bool {
   if (named) {
@@ -255,19 +270,27 @@ auto Language::Initializer::supplies(
     return False;
   }
 
-  auto accessible = &receiver.get_host() == &target
-                        ? target.get_fields()
-                        : target.get_public_fields();
-  for (Count i = 0; i < inputs.get_size() && i < accessible.get_size(); i++) {
-    if (&accessible.get_data()[i].get() == &field) {
+  Count input = 0;
+  for (const Reference<Abstract>& selected : target.get_addressables()) {
+    auto selected_field = select_accessible_field(selected.get(), access_scope);
+    if (!selected_field) {
+      continue;
+    }
+
+    if (input >= inputs.get_size()) {
+      break;
+    }
+
+    if (&*selected_field == &field) {
       return True;
     }
+    input++;
   }
   return False;
 }
 
 auto Language::Initializer::has_mandatory_cycle(
-    const Field& receiver,
+    Core::Option<const Type&> access_scope,
     const Types::Object& target,
     Core::View::Vector<Reference<const Types::Object>> path) const -> Bool {
   for (Count i = 0; i < path.get_size(); i++) {
@@ -285,11 +308,15 @@ auto Language::Initializer::has_mandatory_cycle(
 
   // Only an omitted Field uses its authored initializer. Following those
   // exact Initializer edges distinguishes a mandatory cycle from one broken
-  // by a supplied value.
-  auto fields = target.get_fields();
-  for (Count i = 0; i < fields.get_size(); i++) {
-    const Field& field = fields.get_data()[i].get();
-    if (supplies(receiver, target, field)) {
+  // by a supplied value. Each nested declaration contributes its own host
+  // scope, so an outer constructor never lends authority to another Object.
+  for (const Reference<Abstract>& selected : target.get_addressables()) {
+    auto selected_field = selected.get().select<Field>();
+    if (!selected_field) {
+      continue;
+    }
+    const Field& field = *selected_field;
+    if (supplies(access_scope, target, field)) {
       continue;
     }
 
@@ -302,7 +329,7 @@ auto Language::Initializer::has_mandatory_cycle(
     auto nested_target = field.get_type().resolve().select<Types::Object>();
     if (nested_initializer && nested_target &&
         nested_initializer->has_mandatory_cycle(
-            field, *nested_target, next_path.get_view())) {
+            field.get_host(), *nested_target, next_path.get_view())) {
       return True;
     }
   }
@@ -312,13 +339,14 @@ auto Language::Initializer::has_mandatory_cycle(
 
 auto Language::Initializer::link(
     Tetrodotoxin::Language::Monograph& source,
-    const Abstract& context,
-    Materializations& materializations) -> Bool {
-  auto receiver = context.select<Field>();
+    const Abstract& lexical_context,
+    Materializations& materializations,
+    Core::Option<const Type&> access_scope) -> Bool {
+  auto receiver = lexical_context.select<Addressable>();
   if (!receiver || &materializations != &this->materializations) {
     source.report(
         get_anchor(),
-        "Object initializer requires its receiving Field transaction."_view,
+        "Object initializer requires its receiving Addressable transaction."_view,
         "Retain `new` only on one typed Library declaration."_view);
     return False;
   }
@@ -348,13 +376,11 @@ auto Language::Initializer::link(
   // Object edge.
   Bool failed = False;
   for (Count i = 0; i < inputs.get_size(); i++) {
-    failed |= !inputs[i].get().link(source, context, materializations);
+    failed |= !inputs[i].get().link(
+        source, lexical_context, materializations, access_scope);
   }
   BAIL_IF(failed);
 
-  auto accessible = &receiver->get_host() == &*target
-                        ? target->get_fields()
-                        : target->get_public_fields();
   Memory::Managed::Vector<Reference<const Abstract>> fitted_fields(domain);
   fitted_fields.reset(inputs.get_size());
 
@@ -362,9 +388,13 @@ auto Language::Initializer::link(
   // preserve their source order while the fitted target follows authored Field
   // order. Positional inputs select the same accessible range directly.
   if (named) {
-    for (Count field_index = 0; field_index < accessible.get_size();
-         field_index++) {
-      const Field& field = accessible.get_data()[field_index].get();
+    for (const Reference<Abstract>& selected : target->get_addressables()) {
+      auto selected_field =
+          select_accessible_field(selected.get(), access_scope);
+      if (!selected_field) {
+        continue;
+      }
+      const Field& field = *selected_field;
       for (Count input_index = 0; input_index < observations.get_size();
            input_index++) {
         if (observations[input_index].get().get_name() == field.get_name()) {
@@ -373,8 +403,18 @@ auto Language::Initializer::link(
       }
     }
   } else {
-    for (Count i = 0; i < inputs.get_size() && i < accessible.get_size(); i++) {
-      fitted_fields.insert(accessible.get_data()[i].get());
+    Count input = 0;
+    for (const Reference<Abstract>& selected : target->get_addressables()) {
+      auto selected_field =
+          select_accessible_field(selected.get(), access_scope);
+      if (!selected_field) {
+        continue;
+      }
+      if (input >= inputs.get_size()) {
+        break;
+      }
+      fitted_fields.insert(*selected_field);
+      input++;
     }
   }
 
@@ -394,12 +434,15 @@ auto Language::Initializer::link(
     return False;
   }
 
-  auto fields = target->get_fields();
   // Every omitted Field must contribute its own authored initializer. The
   // transaction checks the complete Object before retaining its expected Type.
-  for (Count i = 0; i < fields.get_size(); i++) {
-    const Field& field = fields.get_data()[i].get();
-    if (!supplies(*receiver, *target, field) && !field.get_initializer()) {
+  for (const Reference<Abstract>& selected : target->get_addressables()) {
+    auto selected_field = selected.get().select<Field>();
+    if (!selected_field) {
+      continue;
+    }
+    const Field& field = *selected_field;
+    if (!supplies(access_scope, *target, field) && !field.get_initializer()) {
       source.report(
           get_anchor(), "Object initializer omits one required Field."_view,
           "Supply every Field that has no authored initializer."_view);
@@ -408,7 +451,7 @@ auto Language::Initializer::link(
   }
   BAIL_IF(failed);
 
-  if (has_mandatory_cycle(*receiver, *target, {})) {
+  if (has_mandatory_cycle(access_scope, *target, {})) {
     source.report(
         get_anchor(),
         "Object initializer contains a mandatory initialization cycle."_view,

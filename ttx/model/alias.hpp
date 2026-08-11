@@ -39,6 +39,20 @@ class Alias : public Concept::Abstract {
       const Concept::Documentation& documentation)
       : name(name), target(target), documentation(documentation) {}
 
+  // Follows only Alias edges and returns the first directly represented
+  // semantic object. Unlike resolve(), this does not ask that object for its
+  // completed represented identity.
+  static constexpr auto get_represented(const Concept::Abstract& binding)
+      -> const Concept::Abstract& {
+    return binding.visit<Alias>(
+        [](const Alias& alias) -> const Concept::Abstract& {
+          return get_represented(alias.get_target());
+        },
+        [](const Concept::Abstract& direct) -> const Concept::Abstract& {
+          return direct;
+        });
+  }
+
   TTX_NAME(name);
 
   // Local prose leads the target's visible documentation. Because the target
