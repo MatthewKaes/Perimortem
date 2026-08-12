@@ -10,7 +10,7 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
-#include "tetrodotoxin/library/language/access/type.hpp"
+#include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/types/defined.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -37,7 +37,7 @@ class Enumeration : public Defined {
   Enumeration(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition,
-      Access::Type storage_access);
+      TypeReference storage_reference);
 
  public:
   TTX_CONTRACT(Enumeration, Defined, 0x1fa6d62be44749db, 0xa9e71e448fbf3c53);
@@ -77,7 +77,7 @@ class Enumeration : public Defined {
   };
 
   Perimortem::Memory::Allocator::Arena& domain;
-  Access::Type storage_access;
+  TypeReference storage_reference;
   Perimortem::Memory::Managed::Vector<SourceCase> source_cases;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       storage_type;

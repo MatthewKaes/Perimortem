@@ -132,10 +132,9 @@ PERIMORTEM_UNIT_TEST(ObjectTests, field_writability) {
 }
 
 PERIMORTEM_UNIT_TEST(ObjectTests, exact_collision_domain) {
-  static constexpr Static::Vector<View::Bytes, 3> accepted = {{
+  static constexpr Static::Vector<View::Bytes, 2> accepted = {{
     "// Object test.\ndialect : Library; public Session : object { public value : func = [] -> [] {} private state value : Bool = false; }"_view,
     "// Object test.\ndialect : Library; public Session : object { private state value : Bool = false; public value : func = [] -> [] {} }"_view,
-    "// Object test.\ndialect : Library; public Session : object { public value : func = [] -> [] {} private value : func = [] -> [] {} }"_view,
   }};
   for (Count i = 0; i < accepted.get_size(); i++) {
     Workspace workspace;
@@ -147,8 +146,9 @@ PERIMORTEM_UNIT_TEST(ObjectTests, exact_collision_domain) {
     EXPECT(errors.is_empty());
   }
 
-  static constexpr Static::Vector<View::Bytes, 5> rejected = {{
+  static constexpr Static::Vector<View::Bytes, 6> rejected = {{
     "// Object test.\ndialect : Library; public Session : object { expose state value : Bool = false; private state value : Bool = false; }"_view,
+    "// Object test.\ndialect : Library; public Session : object { public value : func = [] -> [] {} private value : func = [] -> [] {} }"_view,
     "// Object test.\ndialect : Library; public Same : object {} private Same : object {}"_view,
     "// Object test.\ndialect : Library; public Same : object {} private Same : struct {}"_view,
     "// Object test.\ndialect : Library; public Same : object {} private Same : enum[Unsigned_8] {}"_view,
@@ -161,13 +161,12 @@ PERIMORTEM_UNIT_TEST(ObjectTests, exact_collision_domain) {
 }
 
 PERIMORTEM_UNIT_TEST(ObjectTests, malformed_grammar) {
-  static constexpr Static::Vector<View::Bytes, 10> sources = {{
+  static constexpr Static::Vector<View::Bytes, 9> sources = {{
     "// Object test.\ndialect : Library; public Session object {}"_view,
     "// Object test.\ndialect : Library; public Session : managed {}"_view,
     "// Object test.\ndialect : Library; public Session : object { state value : Bool = false; }"_view,
     "// Object test.\ndialect : Library; public Session : object { expose value : Bool = false; }"_view,
     "// Object test.\ndialect : Library; public Session : object { public state value : Bool = false; }"_view,
-    "// Object test.\ndialect : Library; public Session : object { public const value : Bool; }"_view,
     "// Object test.\ndialect : Library; public Session : object { expose state value : Bool; }"_view,
     "// Object test.\ndialect : Library; public Session : object { expose state value : Bool = false }"_view,
     "// Object test.\ndialect : Library; public Session : object { expose state Value : Bool = false; }"_view,
@@ -327,12 +326,10 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inferred_object_identity) {
   const auto& copy_field = static_cast<const Language::Field&>((*fields).get());
   EXPECT(&child_field.get_type() == &child);
   EXPECT(&copy_field.get_type() == &child);
-  EXPECT_NOT(copy_field.get_type_access());
   ASSERT(copy_field.get_initializer());
   ASSERT(copy_field.get_initializer()->is<Language::Identifier>());
   const auto& identifier =
       static_cast<const Language::Identifier&>(*copy_field.get_initializer());
-  ASSERT(identifier.get_addressable());
-  EXPECT(&*identifier.get_addressable() == &child_field);
+  EXPECT(&identifier.get_result() == &child_field);
   EXPECT(errors.is_empty());
 }

@@ -8,8 +8,6 @@
 #include "tetrodotoxin/library/language/import.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -18,10 +16,6 @@ using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
 
 using Tetrodotoxin::Language::Visibility;
-using Ttx::Model::Addressable;
-using Ttx::Model::Alias;
-using Ttx::Model::Callable;
-using Ttx::Model::Type;
 
 auto Types::Source::create_synthetic(
     Allocator::Arena& domain,
@@ -68,19 +62,14 @@ auto Types::Source::parse(Cursor& cursor) -> Bool {
   return True;
 }
 
-auto Types::Source::can_bind_static(const Abstract& binding) const -> Bool {
-  // A complete Type can repair a failed route without repeating Type linking.
-  // Import replay similarly adds provider Fields after every local Field is
-  // exact. Source owns both late Static cases without reopening an incomplete
-  // declaration or changing its empty instance Layout.
-  BAIL_IF(is_finalized() || !can_bind_definition(binding));
+auto Types::Source::can_bind_static(const Abstract& binding, Category category)
+    const -> Bool {
+  // This query proves namespace and publication collisions independently from
+  // lifecycle. Import discovery can therefore preflight future Addressables
+  // before publishing any Type or Callable from the same transaction.
+  BAIL_IF(is_finalized() || !can_bind_definition(binding, category, False));
 
-  const Abstract& target = Alias::get_represented(binding);
-  Bool complete_type =
-      target.is<Type>() && &target.resolve() != &Invalid::get_invalid();
-  Bool imported_addressable = is_linked() && target.is<Addressable>();
-  BAIL_IF(!can_accept_definition() && !complete_type && !imported_addressable);
-  if (!target.is<Type>()) {
+  if (category != Category::Type) {
     return True;
   }
 
@@ -94,41 +83,41 @@ auto Types::Source::can_bind_static(const Abstract& binding) const -> Bool {
       &intrinsic == &Invalid::get_invalid());
 }
 
-auto Types::Source::bind_static(Abstract& binding) -> Bool {
-  BAIL_IF(!can_bind_static(binding));
+auto Types::Source::bind_static(Abstract& binding, Category category) -> Bool {
+  // Types and Callables enter only while the source declaration is open.
+  // Addressables also have one deliberate late phase after every provider
+  // Field has settled, but before any initializer consumes source lookup.
+  Bool addressable_phase = category == Category::Addressable && is_linked();
+  BAIL_IF(
+      (!can_accept_definition() && !addressable_phase) ||
+      !can_bind_static(binding, category));
 
-  publish_binding(binding);
+  publish_binding(binding, category);
   return True;
 }
 
-auto Types::Source::retain_binding(Abstract& binding) -> Bool {
-  return bind_static(binding);
+auto Types::Source::retain_binding(Abstract& binding, Category category)
+    -> Bool {
+  BAIL_IF(!can_accept_definition());
+
+  if (category == Category::Callable) {
+    auto function = binding.select<Function>();
+    BAIL_IF(!function || &function->get_host() != this);
+    auto signature = function->get_signature();
+    if (signature && signature->declares_self()) {
+      Token name = function->get_definition().get_name_token();
+      get_monograph().report(
+          name ? Option<Anchor>(Anchor::create(Span(name))) : Option<Anchor>(),
+          "A top level Library Function cannot receive `self`."_view,
+          "Remove `self` from the top level Function signature."_view);
+      return False;
+    }
+  }
+
+  return bind_static(binding, category);
 }
 
 auto Types::Source::complete_field_layout() -> void {}
-
-auto Types::Source::get_layout() const -> const Ttx::Model::Layouts::Named& {
-  return instance_layout;
-}
-
-auto Types::Source::validate_linked_callable(const Callable& callable) -> Bool {
-  if (!callable.is_type_bound(*this)) {
-    return True;
-  }
-
-  auto callable_anchor = callable.visit<Function>(
-      [](const Function& function) -> Option<Anchor> {
-        Token name = function.get_definition().get_name_token();
-        return name ? Option<Anchor>(Anchor::create(Span(name)))
-                    : Option<Anchor>();
-      },
-      [](const Abstract&) -> Option<Anchor> { return {}; });
-  get_monograph().report(
-      callable_anchor,
-      "A top level Library Function cannot receive `self`."_view,
-      "Remove `self` from the top level Function signature."_view);
-  return False;
-}
 
 auto Types::Source::resolve_context(View::Bytes route) const
     -> const Abstract& {

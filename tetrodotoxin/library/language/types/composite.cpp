@@ -3,14 +3,15 @@
 
 #include "tetrodotoxin/library/language/types/composite.hpp"
 
-#include "tetrodotoxin/library/language/access/type.hpp"
+#include "tetrodotoxin/library/language/alias.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/parser/member.hpp"
+#include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
-#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -20,7 +21,6 @@ using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
 
 using Tetrodotoxin::Language::Visibility;
-using Ttx::Model::Callable;
 using Ttx::Model::Type;
 
 static constexpr Ttx::Model::Layouts::Named incomplete_layout;
@@ -36,35 +36,44 @@ static auto find_monograph(abstract_type& host)
   return *current->template select<Monograph>();
 }
 
-template <typename selected_type>
-static auto select_bindings(View::Vector<Reference<Abstract>> bindings) {
-  return View::Selection(
-      bindings, [](const Reference<Abstract>& binding) -> Bool {
-        return binding.get().is<selected_type>();
-      });
-}
-
 template <typename selected_type, typename visitor_type>
 static auto visit_each(
     View::Vector<Reference<Abstract>> bindings,
     visitor_type visitor) -> Bool {
   Bool failed = False;
-  for (const Reference<Abstract>& binding :
-       select_bindings<selected_type>(bindings)) {
-    failed |= !binding.get().visit<selected_type>(
-        [&](selected_type& selected) { return visitor(selected); },
-        [](Abstract&) { return False; });
+  for (const Reference<Abstract>& binding : bindings) {
+    auto selected = binding.get().select<selected_type>();
+    if (selected) {
+      failed |= !visitor(*selected);
+    }
   }
 
   return !failed;
 }
 
-static auto callable_has_host(
-    const Callable& callable,
-    const Type& expected_host) -> Bool {
-  return callable.visit<Function>(
-      [&](const Function& function) {
-        return Bool(&function.get_host() == &expected_host);
+static auto definition_category(Token qualifier)
+    -> Option<Types::Composite::Category> {
+  switch (qualifier.get_code().get_type()) {
+  case Code::Type::Type:
+  case Code::Type::Assign:
+    return Types::Composite::Category::Addressable;
+  case Code::Type::Func:
+    return Types::Composite::Category::Callable;
+  case Code::Type::Alias:
+  case Code::Type::Enum:
+  case Code::Type::Struct:
+  case Code::Type::Object:
+    return Types::Composite::Category::Type;
+  default:
+    return {};
+  }
+}
+
+static auto function_declares_self(const Abstract& binding) -> Bool {
+  return binding.visit<Function>(
+      [](const Function& function) -> Bool {
+        auto signature = function.get_signature();
+        return Bool(signature && signature->declares_self());
       },
       [](const Abstract&) { return False; });
 }
@@ -107,10 +116,6 @@ auto Types::Composite::get_monograph() const
   return find_monograph(get_host());
 }
 
-auto Types::Composite::get_enclosing_scope() const -> Option<const Composite&> {
-  return get_host().select<Composite>();
-}
-
 auto Types::Composite::grants_private_access(const Type& caller_scope) const
     -> Bool {
   const Abstract* current = &caller_scope;
@@ -131,12 +136,21 @@ auto Types::Composite::grants_private_access(const Type& caller_scope) const
 auto Types::Composite::interpret_definition(
     Cursor& cursor,
     Tetrodotoxin::Language::Definition& definition) -> Bool {
+  auto category = definition_category(definition.get_qualifier());
+  if (!category) {
+    cursor.create_token_error(
+        definition.get_qualifier(),
+        "Library members require a Type, `alias`, `enum`, `struct`, "
+        "`object`, `func`, or inferred initializer qualifier."_view);
+    return False;
+  }
+
   Materializations& materializations =
       static_cast<Monograph&>(get_monograph()).get_materializations();
   auto member =
       Parser::Member::parse(domain, materializations, cursor, definition);
   BAIL_IF(!member);
-  if (!retain_binding(*member)) {
+  if (!retain_binding(*member, *category)) {
     cursor.create_expression_error(
         definition.get_name_anchor(),
         "Library member collides with an occupied Composite category."_view);
@@ -149,32 +163,24 @@ auto Types::Composite::interpret_definition(
 template <typename bindings_type>
 static auto find_binding(const bindings_type& bindings, View::Bytes name)
     -> const Abstract& {
-  const Abstract* selected = nullptr;
   for (const auto& binding : bindings) {
     const Abstract& candidate = binding.get();
-    if (candidate.get_name() != name) {
-      continue;
+    if (candidate.get_name() == name) {
+      return candidate;
     }
-    if (selected) {
-      return Invalid::get_invalid();
-    }
-
-    selected = &candidate;
   }
 
-  if (!selected) {
-    return Invalid::get_invalid();
-  }
-
-  return *selected;
+  return Invalid::get_invalid();
 }
 
 auto Types::Composite::can_accept_definition() const -> Bool {
   return stage == Stage::Authored;
 }
 
-auto Types::Composite::can_bind_definition(const Abstract& binding) const
-    -> Bool {
+auto Types::Composite::can_bind_definition(
+    const Abstract& binding,
+    Category category,
+    Bool callable_declares_self) const -> Bool {
   View::Bytes candidate = binding.get_name();
   auto retains_identity = [&](const auto& category) {
     return category.get_view().contains(
@@ -187,81 +193,93 @@ auto Types::Composite::can_bind_definition(const Abstract& binding) const
     return False;
   }
 
-  const Abstract& target = Ttx::Model::Alias::get_represented(binding);
-  return target.visit<Callable>(
-      [&](const Callable& callable) {
-        if (&target == &binding && !callable_has_host(callable, *this)) {
-          return False;
-        }
+  switch (category) {
+  case Category::Addressable:
+    return !addressables.get_view().contains(
+        [&](const Reference<Abstract>& existing) {
+          return existing.get().get_name() == candidate;
+        });
+  case Category::Type:
+    return !types.get_view().contains([&](const Reference<Abstract>& existing) {
+      return existing.get().get_name() == candidate;
+    });
+  case Category::Callable:
+    // Signature entry zero already separates Self from Static, and the left
+    // Expression result selects that role before Call performs name lookup. A
+    // future overload contract could additionally discriminate complete
+    // argument Layouts, but their Types bind later and fitting can overlap.
+    // Registration therefore rejects one spelling only within the same role so
+    // it avoids a staged overload registry while guaranteeing one Call target.
+    return !callables.get_view().contains(
+        [&](const Reference<Abstract>& existing) {
+          return existing.get().get_name() == candidate &&
+                 function_declares_self(existing.get()) ==
+                     callable_declares_self;
+        });
+  }
 
-        return True;
-      },
-      [&](const Abstract& possible_type_or_addressable) {
-        return possible_type_or_addressable.visit<Type>(
-            [&](const Type&) -> Bool {
-              return !types.get_view().contains(
-                  [&](const Reference<Abstract>& existing) {
-                    return existing.get().get_name() == candidate;
-                  });
-            },
-            [&](const Abstract& possible_addressable) {
-              return possible_addressable.visit<Ttx::Model::Addressable>(
-                  [&](const Ttx::Model::Addressable&) {
-                    return !addressables.get_view().contains(
-                        [&](const Reference<Abstract>& existing) {
-                          return existing.get().get_name() == candidate;
-                        });
-                  },
-                  [](const Abstract&) { return False; });
-            });
-      });
+  return False;
 }
 
-auto Types::Composite::retain_binding(Abstract& binding) -> Bool {
-  BAIL_IF(!can_accept_definition() || !can_bind_definition(binding));
+auto Types::Composite::retain_binding(Abstract& binding, Category category)
+    -> Bool {
+  // Only authored retention proves the Function's Definition host. Import
+  // preflight deliberately observes the provider Function before constructing
+  // the local opaque Alias, so category collision checks cannot impose this
+  // ownership rule.
+  if (category == Category::Callable) {
+    auto function = binding.select<Function>();
+    BAIL_IF(!function || &function->get_host() != this);
+  }
 
-  publish_binding(binding);
+  Bool callable_declares_self =
+      category == Category::Callable && function_declares_self(binding);
+  BAIL_IF(
+      !can_accept_definition() ||
+      !can_bind_definition(binding, category, callable_declares_self));
+
+  publish_binding(binding, category);
   return True;
 }
 
-auto Types::Composite::publish_binding(Abstract& binding) -> void {
-  const Abstract& target = Ttx::Model::Alias::get_represented(binding);
-  Bool callable = target.is<Callable>();
-  Bool type = target.is<Type>();
-  Bool addressable = target.is<Ttx::Model::Addressable>();
-  if (!callable && !type && !addressable) {
+auto Types::Composite::publish_binding(Abstract& binding, Category category)
+    -> void {
+  // The parser or importing provider supplies the category before publication.
+  // Alias resolution is deliberately absent here: delayed graph completion
+  // cannot change which namespace owns the local name.
+  switch (category) {
+  case Category::Addressable:
+    addressables.insert(binding);
+    return;
+  case Category::Callable:
+    callables.insert(binding);
+    return;
+  case Category::Type:
+    types.insert(binding);
     return;
   }
-
-  if (callable) {
-    callables.insert(binding);
-  } else if (type) {
-    types.insert(binding);
-  } else {
-    addressables.insert(binding);
-  }
 }
 
-auto Types::Composite::resolve_type(const Access::Type& access) const
+auto Types::Composite::resolve_type(const TypeReference& reference) const
     -> const Abstract& {
-  const Abstract& root = resolve_type_root(access.get_root(), *this);
-  return access.resolve_from(root, *this);
+  const Abstract& root = resolve_type_root(reference.get_root(), *this);
+  return reference.resolve_from(root, *this);
 }
 
-auto Types::Composite::resolve_exported_type(const Access::Type& access) const
-    -> const Abstract& {
-  const Abstract& root = resolve_exported_type_root(access.get_root());
+auto Types::Composite::resolve_exported_type(
+    const TypeReference& reference) const -> const Abstract& {
+  const Abstract& root = resolve_exported_type_root(reference.get_root());
   if (&root != &Invalid::get_invalid()) {
     // A published root owns the whole qualified route. A missing suffix must
     // not retry an intrinsic with the same spelling and bypass lexical
     // shadowing established by that root.
-    return access.resolve_from(root);
+    return reference.resolve_from(root);
   }
 
   const auto& source = static_cast<const Monograph&>(get_monograph());
   const Abstract& intrinsic =
-      source.get_dialect().resolve_intrinsic(access.get_root());
-  return access.resolve_from(intrinsic);
+      source.get_dialect().resolve_intrinsic(reference.get_root());
+  return reference.resolve_from(intrinsic);
 }
 
 auto Types::Composite::link_types() -> Bool {
@@ -278,7 +296,10 @@ auto Types::Composite::link_types() -> Bool {
   }
 
   auto& source = get_monograph();
-  Bool failed =
+  Bool failed = !visit_each<Alias>(types.get_view(), [&](Alias& alias) {
+    return alias.link_target(source);
+  });
+  failed |=
       !visit_each<Enumeration>(types.get_view(), [&](Enumeration& enumeration) {
         return enumeration.link_storage(source);
       });
@@ -296,11 +317,12 @@ auto Types::Composite::link_fields() -> Bool {
   if (stage >= Stage::FieldsLinked) {
     return True;
   }
-  if (stage != Stage::TypesLinked) {
+  if (stage != Stage::CallableSignaturesLinked) {
     auto& source = get_monograph();
     source.report(
-        get_anchor(), "Composite Fields require linked declaration Types."_view,
-        "Settle every nested Type before completing Field Type edges."_view);
+        get_anchor(),
+        "Composite Fields require linked Callable signatures."_view,
+        "Settle every signature before a Field Expression can invoke it."_view);
     return False;
   }
 
@@ -343,9 +365,10 @@ auto Types::Composite::link_fields() -> Bool {
 auto Types::Composite::complete_field_layout() -> void {
   Managed::Vector<Reference<const Abstract>> fields(domain);
   fields.reset(addressables.get_size());
-  for (const Reference<Abstract>& binding :
-       select_bindings<Field>(addressables.get_view())) {
-    fields.insert(binding.get());
+  for (const Reference<Abstract>& binding : addressables.get_view()) {
+    if (binding.get().is<Field>()) {
+      fields.insert(binding.get());
+    }
   }
   layout = domain.construct<Ttx::Model::Layouts::Named>(fields.get_view());
 }
@@ -382,12 +405,12 @@ auto Types::Composite::link_callable_signatures() -> Bool {
   if (stage >= Stage::CallableSignaturesLinked) {
     return True;
   }
-  if (stage != Stage::InitializersLinked) {
+  if (stage != Stage::TypesLinked) {
     auto& source = get_monograph();
     source.report(
         get_anchor(),
-        "Composite Callable signatures require linked initializers."_view,
-        "Complete every retained Field Expression before Callables."_view);
+        "Composite Callable signatures require linked declaration Types."_view,
+        "Settle every nested Type before completing Callable signatures."_view);
     return False;
   }
 
@@ -396,15 +419,9 @@ auto Types::Composite::link_callable_signatures() -> Bool {
       !visit_each<Composite>(types.get_view(), [](Composite& composite) {
         return composite.link_callable_signatures();
       });
-  failed |=
-      !visit_each<Function>(callables.get_view(), [&](Function& function) {
-        Bool linked = function.link_signature(source);
-        if (!linked) {
-          return False;
-        }
-
-        return validate_linked_callable(function);
-      });
+  failed |= !visit_each<Function>(
+      callables.get_view(),
+      [&](Function& function) { return function.link_signature(source); });
 
   BAIL_IF(failed);
 
@@ -412,20 +429,16 @@ auto Types::Composite::link_callable_signatures() -> Bool {
   return True;
 }
 
-auto Types::Composite::validate_linked_callable(const Callable&) -> Bool {
-  return True;
-}
-
 auto Types::Composite::link_callable_bodies() -> Bool {
   if (stage >= Stage::CallablesLinked) {
     return True;
   }
-  if (stage != Stage::CallableSignaturesLinked) {
+  if (stage != Stage::InitializersLinked) {
     auto& source = get_monograph();
     source.report(
         get_anchor(),
-        "Composite Callable bodies require linked signatures."_view,
-        "Complete every nested signature before linking its body."_view);
+        "Composite Callable bodies require linked initializers."_view,
+        "Complete every Field Expression before linking Callable bodies."_view);
     return False;
   }
 
@@ -497,14 +510,13 @@ auto Types::Composite::resolve_context(View::Bytes route) const
 
 auto Types::Composite::is_externally_reachable(const Type& type) const -> Bool {
   for (const Reference<Abstract>& binding : get_types(Visibility::Public)) {
-    const Abstract& target =
-        Ttx::Model::Alias::get_represented(binding.get()).resolve();
+    const Abstract& target = binding.get().resolve();
     if (&target == &type) {
       return True;
     }
   }
 
-  auto enclosing_scope = get_enclosing_scope();
+  auto enclosing_scope = get_host().select<Composite>();
   if (enclosing_scope) {
     if (enclosing_scope->is_externally_reachable(type)) {
       return True;
@@ -543,7 +555,7 @@ auto Types::Composite::resolve_type_root(
     return type;
   }
 
-  auto enclosing_scope = get_enclosing_scope();
+  auto enclosing_scope = get_host().select<Composite>();
   if (enclosing_scope) {
     return enclosing_scope->resolve_type_root(route, caller_scope);
   }
@@ -573,7 +585,7 @@ auto Types::Composite::resolve_exported_type_root(View::Bytes route) const
     return local;
   }
 
-  return get_enclosing_scope().visit(
+  return get_host().select<Composite>().visit(
       [&]() -> const Abstract& { return Invalid::get_invalid(); },
       [&](const Composite& selected) -> const Abstract& {
         return selected.resolve_exported_type_root(route);

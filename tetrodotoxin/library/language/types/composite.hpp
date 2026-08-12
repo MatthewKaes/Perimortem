@@ -12,11 +12,11 @@
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/types/defined.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/callable.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/type.hpp"
 
@@ -26,6 +26,17 @@ namespace Tetrodotoxin::Library::Language::Types {
 // completion lifecycle shared by Source, Structure, and Object. Each concrete
 // Type supplies its own presentation and authored semantics.
 class Composite : public Defined {
+ public:
+  // Category names the three independent declaration spaces owned by a
+  // Composite. It is transaction input, not a property recovered from an
+  // Alias. Forward parsing or an imported provider already proves the space,
+  // so an opaque name can enter it before its target graph completes.
+  enum class Category : Unsigned_8 {
+    Addressable,
+    Callable,
+    Type,
+  };
+
  protected:
   Composite(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -37,16 +48,19 @@ class Composite : public Defined {
 
   auto can_accept_definition() const -> Bool;
 
-  auto can_bind_definition(const Ttx::Concept::Abstract& binding) const -> Bool;
+  auto can_bind_definition(
+      const Ttx::Concept::Abstract& binding,
+      Category category,
+      Bool callable_declares_self) const -> Bool;
 
-  auto publish_binding(Ttx::Concept::Abstract& binding) -> void;
+  auto publish_binding(Ttx::Concept::Abstract& binding, Category category)
+      -> void;
 
-  virtual auto retain_binding(Ttx::Concept::Abstract& binding) -> Bool;
+  virtual auto retain_binding(
+      Ttx::Concept::Abstract& binding,
+      Category category) -> Bool;
 
   virtual auto complete_field_layout() -> void;
-
-  virtual auto validate_linked_callable(const Ttx::Model::Callable& callable)
-      -> Bool;
 
   // Hosting is provenance and access authority rather than universal semantic
   // parentage. Following only the required Definition host chain reaches the
@@ -95,12 +109,12 @@ class Composite : public Defined {
 
   // Authored Type access starts in this declaration scope and preserves that
   // exact caller authority through every qualified segment.
-  auto resolve_type(const Access::Type& access) const
+  auto resolve_type(const TypeReference& reference) const
       -> const Ttx::Concept::Abstract&;
 
   // Publication checks begin with this Composite's exported Types and then
   // walk its enclosing exported Type chain before consulting intrinsics.
-  auto resolve_exported_type(const Access::Type& access) const
+  auto resolve_exported_type(const TypeReference& reference) const
       -> const Ttx::Concept::Abstract&;
 
   auto is_externally_reachable(const Ttx::Model::Type& type) const -> Bool;
@@ -163,9 +177,9 @@ class Composite : public Defined {
   enum class Stage : Unsigned_8 {
     Authored,
     TypesLinked,
+    CallableSignaturesLinked,
     FieldsLinked,
     InitializersLinked,
-    CallableSignaturesLinked,
     CallablesLinked,
     Finalized,
   };
@@ -173,9 +187,6 @@ class Composite : public Defined {
   auto is_visible(
       const Ttx::Concept::Abstract& binding,
       Tetrodotoxin::Language::Visibility visibility) const -> Bool;
-
-  auto get_enclosing_scope() const
-      -> Perimortem::Core::Option<const Composite&>;
 
   auto resolve_exported_type_root(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract&;

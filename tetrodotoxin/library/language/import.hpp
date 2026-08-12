@@ -6,7 +6,7 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/option.hpp"
 
-#include "tetrodotoxin/library/language/access/type.hpp"
+#include "tetrodotoxin/library/language/type_reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language {
@@ -15,31 +15,25 @@ namespace Tetrodotoxin::Library::Language {
 // contexts expose each segment while Library owns declaration expansion.
 class Import {
  public:
-  constexpr Import(
-      Access::Type type_access,
-      Ttx::Lexical::Token token,
-      Ttx::Lexical::Span span)
-      : type_access(type_access), token(token), span(span) {}
+  constexpr Import(TypeReference type_reference, Ttx::Lexical::Span span)
+      : type_reference(type_reference), span(span) {}
 
   // Consumes one complete using statement and retains its route and extent.
   static auto parse(Ttx::Lexical::Cursor& cursor)
       -> Perimortem::Core::Option<Import>;
 
-  constexpr auto get_route() const -> Perimortem::Core::View::Bytes {
-    return type_access.get_route();
+  constexpr auto matches(const Import& other) const -> Bool {
+    return type_reference.matches(other.type_reference);
   }
 
-  constexpr auto get_type_access() const -> const Access::Type& {
-    return type_access;
+  constexpr auto get_type_reference() const -> const TypeReference& {
+    return type_reference;
   }
-
-  constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
 
   constexpr auto get_span() const -> Ttx::Lexical::Span { return span; }
 
  private:
-  Access::Type type_access;
-  Ttx::Lexical::Token token;
+  TypeReference type_reference;
   Ttx::Lexical::Span span;
 };
 

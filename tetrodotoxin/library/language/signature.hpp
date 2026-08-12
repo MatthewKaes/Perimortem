@@ -10,7 +10,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "tetrodotoxin/library/language/access/type.hpp"
+#include "tetrodotoxin/library/language/type_reference.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -58,10 +58,12 @@ class Signature {
   auto get_parameter_name(Count index) const -> Perimortem::Core::View::Bytes;
   auto get_result_name(Count index) const -> Perimortem::Core::View::Bytes;
 
-  auto get_parameter_type_access(Count index) const
-      -> Perimortem::Core::Option<const Access::Type&>;
-  auto get_result_type_access(Count index) const
-      -> Perimortem::Core::Option<const Access::Type&>;
+  auto get_parameter_type_reference(Count index) const
+      -> Perimortem::Core::Option<const TypeReference&>;
+  auto get_result_type_reference(Count index) const
+      -> Perimortem::Core::Option<const TypeReference&>;
+
+  auto declares_self() const -> Bool;
 
   auto get_parameter_anchor(Count index) const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
@@ -84,18 +86,18 @@ class Signature {
   class Slot {
    public:
     constexpr Slot(
-        Perimortem::Core::Option<Access::Type> type_access,
+        Perimortem::Core::Option<TypeReference> type_reference,
         Ttx::Lexical::Anchor anchor,
         Perimortem::Core::View::Bytes name,
         Perimortem::Core::Option<Ttx::Lexical::Anchor> name_anchor)
-        : type_access(type_access),
+        : type_reference(type_reference),
           anchor(anchor),
           name(name),
           name_anchor(name_anchor) {}
 
     constexpr auto is_named() const -> Bool { return Bool(name_anchor); }
 
-    Perimortem::Core::Option<Access::Type> type_access;
+    Perimortem::Core::Option<TypeReference> type_reference;
     Ttx::Lexical::Anchor anchor;
     Perimortem::Core::View::Bytes name;
     Perimortem::Core::Option<Ttx::Lexical::Anchor> name_anchor;

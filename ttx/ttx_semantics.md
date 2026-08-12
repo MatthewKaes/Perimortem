@@ -122,8 +122,8 @@ identity through `resolve()`, and owner directed contextual identity through
 
 `resolve()` returns the represented identity. `resolve_context(route)` gives a
 borrowed route to the receiving identity, which interprets it according to its
-own domain. For an unchanged valid graph, resolution is idempotent and every
-chain terminates.
+own domain. For an unchanged completed graph, resolution is idempotent and
+every chain terminates.
 
 An unanswered semantic query returns `Invalid`, never a null graph edge. Later
 construction may answer a query that formerly returned Invalid, but it does not
@@ -155,15 +155,20 @@ concrete owners rather than Invalid identities.
 
 ## Alias
 
-Alias retains a local name, local Documentation, and one borrowed target. It
-exposes that exact immediate edge without following another Alias or asking
-whether the target is complete.
-`resolve()` returns the target's represented identity.
-`resolve_context(route)` forwards the complete route through that represented
-identity.
+Alias retains a local name, local Documentation, and one borrowed target. The
+immediate target is opaque: consumers cannot inspect or bypass an Alias edge.
+`resolve()` is the sole traversal operation. It follows only Alias edges and
+returns the first non-Alias target identity without invoking that target's own
+`resolve()` operation. Every other operation, including
+`resolve_context(route)`, returns Invalid. A consumer that needs context first
+resolves the Alias, proves the returned owner, and invokes that owner's
+operation explicitly.
 
-The graph owner preserves target lifetime and prevents Alias cycles from
-becoming queryable.
+A concrete graph owner may reserve an Alias identity before its target is
+known. An unbound Alias resolves to Invalid, and its target may be bound only
+once; repeating the same binding is harmless while changing it fails. The
+owner preserves target lifetime and prevents Alias cycles before publishing
+the completed graph.
 
 ## Type and Value
 

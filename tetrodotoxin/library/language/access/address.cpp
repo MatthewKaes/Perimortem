@@ -14,7 +14,7 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-static auto select_addressable(const Layout& layout, Core::View::Bytes route)
+static auto select_addressable(const Layout& layout, Core::View::Bytes name)
     -> Core::Option<const Addressable&> {
   Core::Option<const Abstract&> selected;
 
@@ -22,7 +22,7 @@ static auto select_addressable(const Layout& layout, Core::View::Bytes route)
   // matching entries is ambiguous even when only one resolves to Addressable.
   for (Count i = 0; i < layout.get_size(); i++) {
     auto entry = layout.get_abstract(i);
-    if (!entry || entry->get_name() != route) {
+    if (!entry || entry->get_name() != name) {
       continue;
     }
 
@@ -31,7 +31,7 @@ static auto select_addressable(const Layout& layout, Core::View::Bytes route)
     selected = *entry;
   }
 
-  BAIL_IF(!selected || route.is_empty());
+  BAIL_IF(!selected || name.is_empty());
 
   const Abstract& resolved = selected->resolve();
   return resolved.select<Addressable>();
@@ -82,20 +82,15 @@ auto Language::Access::Address::parse(
     return {};
   }
 
-  Core::View::Bytes route = addressable.caculate_text(cursor.get_source_text());
+  // Token is the authored selection fact. The Arena-stable spelling exists
+  // only because lookup happens after this Cursor transaction has completed.
+  Core::View::Bytes name =
+      domain.proxy(addressable.caculate_text(cursor.get_source_text()));
   Anchor anchor = Anchor::create(
       addressable, receiver_anchor->get_span(), Span(addressable));
-  return create_authored(domain, route, receiver, anchor);
-}
-
-auto Language::Access::Address::create_authored(
-    Memory::Allocator::Arena& domain,
-    Core::View::Bytes route,
-    Expression& receiver,
-    Anchor anchor) -> Address& {
   return Expression::create_authored<Address>(
       domain, anchor, [&](auto source) -> Address {
-        return Address(route, receiver, {}, source);
+        return Address(receiver, addressable, name, {}, source);
       });
 }
 
@@ -108,7 +103,7 @@ auto Language::Access::Address::create_synthetic(
   };
   return Expression::create_synthetic<Address>(
       domain, [&](auto source) -> Address {
-        return Address(selected.get_name(), receiver, addressable, source);
+        return Address(receiver, {}, selected.get_name(), addressable, source);
       });
 }
 
@@ -121,10 +116,21 @@ auto Language::Access::Address::link(
       !receiver.link(source, lexical_context, materializations, access_scope));
 
   auto source_anchor = get_anchor();
-  const Abstract& receiver_type = receiver.get_type().resolve();
-  return receiver_type.visit<Ttx::Model::Type>(
+  const Abstract& output_type = receiver.get_type();
+  auto receiver_type = output_type.select<Ttx::Model::Type>();
+  if (!receiver_type) {
+    receiver_type = output_type.resolve().select<Ttx::Model::Type>();
+  }
+
+  return receiver_type.visit(
+      [&]() {
+        source.report(
+            source_anchor, "Address receiver did not produce one Type."_view,
+            "Use address access only on a value with a named Layout."_view);
+        return False;
+      },
       [&](const Ttx::Model::Type& type) {
-        auto selected = select_addressable(type.get_layout(), route);
+        auto selected = select_addressable(type.get_layout(), name);
         if (!selected || !is_accessible(*selected, access_scope)) {
           source.report(
               source_anchor,
@@ -138,19 +144,13 @@ auto Language::Access::Address::link(
           source.report(
               source_anchor,
               "Address cannot change its selected Addressable."_view,
-              "Keep one exact Addressable bound to this authored route."_view);
+              "Keep one exact Addressable bound to this authored Token."_view);
           return False;
         }
 
         addressable = Reference<const Addressable>(*selected);
         return Expression::link(
             source, lexical_context, materializations, access_scope);
-      },
-      [&](const Abstract&) {
-        source.report(
-            source_anchor, "Address receiver did not resolve to one Type."_view,
-            "Use address access only on a receiver with a named Layout."_view);
-        return False;
       });
 }
 
@@ -167,18 +167,18 @@ auto Language::Access::Address::get_type() const -> const Abstract& {
   return addressable.visit(
       []() -> const Abstract& { return Invalid::get_invalid(); },
       [](const Reference<const Addressable>& selected) -> const Abstract& {
-        return selected.get().get_type().resolve();
+        return selected.get().get_type();
+      });
+}
+
+auto Language::Access::Address::get_result() const -> const Abstract& {
+  return addressable.visit(
+      []() -> const Abstract& { return Invalid::get_invalid(); },
+      [](const Reference<const Addressable>& selected) -> const Abstract& {
+        return selected.get();
       });
 }
 
 auto Language::Access::Address::get_inputs() const -> const Layout& {
   return inputs;
-}
-
-auto Language::Access::Address::get_addressable() const
-    -> Core::Option<const Addressable&> {
-  return addressable.visit(
-      []() -> Core::Option<const Addressable&> { return {}; },
-      [](const Reference<const Addressable>& selected)
-          -> Core::Option<const Addressable&> { return selected.get(); });
 }

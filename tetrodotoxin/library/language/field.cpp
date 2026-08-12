@@ -82,7 +82,7 @@ auto Language::Field::interpret(
     return {};
   }
 
-  Option<Access::Type> type;
+  Option<TypeReference> type;
   Option<Expression&> initializer;
   if (transaction.matches(Code::Type::Assign)) {
     transaction.consume();
@@ -97,7 +97,7 @@ auto Language::Field::interpret(
         Parser::Expression::parse(domain, materializations, transaction, *host);
     BAIL_IF(!initializer);
   } else {
-    auto authored_type = Access::Type::parse(transaction);
+    auto authored_type = TypeReference::parse(transaction);
     BAIL_IF(!authored_type);
     type = *authored_type;
 
@@ -136,7 +136,7 @@ auto Language::Field::interpret(
 auto Language::Field::link_type(Tetrodotoxin::Language::Monograph& source)
     -> Bool {
   auto composite = get_host().select<Language::Types::Composite>();
-  if (!composite || !type_access) {
+  if (!composite || !type_reference) {
     source.report(
         get_anchor(),
         "Explicit Field linking requires one Composite host and Type route."_view,
@@ -144,7 +144,7 @@ auto Language::Field::link_type(Tetrodotoxin::Language::Monograph& source)
     return False;
   }
 
-  const Abstract& selected = composite->resolve_type(*type_access);
+  const Abstract& selected = composite->resolve_type(*type_reference);
   const Abstract& resolved =
       selected.is<Type>() ? selected : selected.resolve();
   auto selected_type = resolved.select<Type>();
@@ -200,7 +200,12 @@ auto Language::Field::link_initializer(
   BAIL_IF(!linked);
 
   if (!type) {
-    const Abstract& resolved_type = selected_initializer->get_type().resolve();
+    const Abstract& result_type = selected_initializer->get_type();
+    // An Expression can expose one exact Composite Type before that Type
+    // finishes its instance Layout. Inference retains that real identity
+    // directly rather than resolving it to the incomplete sentinel.
+    const Abstract& resolved_type =
+        result_type.is<Type>() ? result_type : result_type.resolve();
     auto initializer_type = resolved_type.select<Type>();
     if (!initializer_type) {
       monograph.report(
@@ -243,10 +248,11 @@ auto Language::Field::validate_publication(
     return False;
   }
 
-  Bool reachable = type_access.visit(
+  Bool reachable = type_reference.visit(
       [&]() { return composite->is_externally_reachable(get_type()); },
-      [&](const Access::Type& access) {
-        return Bool(&composite->resolve_exported_type(access) == &get_type());
+      [&](const TypeReference& reference) {
+        return Bool(
+            &composite->resolve_exported_type(reference) == &get_type());
       });
   if (reachable) {
     return True;

@@ -3,8 +3,9 @@
 
 #include "tetrodotoxin/library/language/alias.hpp"
 
-#include "tetrodotoxin/library/language/access/type.hpp"
+#include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
+#include "ttx/concept/invalid.hpp"
 #include "ttx/model/documentations/merged.hpp"
 #include "ttx/model/type.hpp"
 
@@ -51,32 +52,132 @@ auto Tetrodotoxin::Library::Language::Alias::interpret(
       Code::Type::Assign,
       "Library Alias qualifiers require `=` before their Type route."_view));
 
-  auto route = Access::Type::parse(transaction);
-  BAIL_IF(!route);
+  auto target_reference = TypeReference::parse(transaction);
+  BAIL_IF(!target_reference);
   Token terminator = transaction.require(
       Code::Type::EndStatement,
       "Library Alias definitions require one terminating `;`."_view);
   BAIL_IF(!terminator);
 
-  const Abstract& resolved = host->resolve_type(*route);
-  auto target = resolved.select<Type>();
-  if (!target) {
-    transaction.create_expression_error(
-        route->get_anchor(),
-        "Library Alias Type route did not resolve to one stable Type."_view);
-    return {};
-  }
-
-  const Documentation* documentation = &target->get_documentation();
-  if (!definition.get_documentation().is_empty()) {
-    documentation = &domain.construct<Ttx::Model::Documentations::Merged>(
-        definition.get_documentation(), target->get_documentation());
-  }
-
   BAIL_IF(!definition.complete(alias_token, terminator));
 
   Alias& alias = domain.construct_from<Alias>(
-      [&]() -> Alias { return Alias(definition, *target, *documentation); });
+      [&]() -> Alias { return Alias(domain, definition, *target_reference); });
   cursor.join(transaction);
   return alias;
+}
+
+static auto complete_alias(
+    const Abstract& binding,
+    Tetrodotoxin::Language::Monograph& source) -> Option<const Abstract&> {
+  return binding.visit<Alias>(
+      [&](const Alias& selected) -> Option<const Abstract&> {
+        // Composite lookup is observationally const, while this ordered link
+        // pass owns mutation of the exact retained Alias it selected.
+        Alias& mutable_alias = const_cast<Alias&>(selected);
+        BAIL_IF(!mutable_alias.link_target(source));
+        return selected.resolve();
+      },
+      [](const Abstract& direct) -> Option<const Abstract&> {
+        return direct.visit<Ttx::Model::Alias>(
+            [](const Ttx::Model::Alias& alias) -> Option<const Abstract&> {
+              const Abstract& resolved = alias.resolve();
+              BAIL_IF(resolved.is<Invalid>());
+              return resolved;
+            },
+            [](const Abstract& semantic) -> Option<const Abstract&> {
+              return semantic;
+            });
+      });
+}
+
+static auto select_alias_target(
+    const TypeReference& reference,
+    const Types::Composite& host,
+    Tetrodotoxin::Language::Monograph& source) -> Option<const Abstract&> {
+  const Abstract* selected =
+      &host.resolve_type_root(reference.get_root(), host);
+
+  for (Count i = 1; i < reference.get_size(); i++) {
+    auto context = complete_alias(*selected, source);
+    BAIL_IF(!context);
+
+    selected = &context->visit<Types::Composite>(
+        [&](const Types::Composite& composite) -> const Abstract& {
+          return composite.resolve_type(reference.get_name(i), host);
+        },
+        [&](const Abstract& semantic) -> const Abstract& {
+          return semantic.resolve_context(reference.get_name(i));
+        });
+  }
+
+  auto terminal = complete_alias(*selected, source);
+  BAIL_IF(!terminal || !terminal->is<Type>());
+
+  // Binding the raw final Type-space object preserves the authored Alias
+  // chain. The terminal proof above uses only Alias::resolve() and therefore
+  // never asks a staged direct Type to resolve away its reserved identity.
+  return *selected;
+}
+
+auto Alias::link_target(Tetrodotoxin::Language::Monograph& source) -> Bool {
+  if (stage == Stage::Linked) {
+    return True;
+  }
+  if (stage == Stage::Linking) {
+    source.report(
+        target_reference.get_anchor(),
+        "Library Alias Type references contain a cycle."_view,
+        "Redirect every Alias chain to one concrete Type identity."_view);
+    return False;
+  }
+
+  auto host = get_definition().get_host().select<Types::Composite>();
+  if (!host) {
+    source.report(
+        get_anchor(), "Library Alias has no Composite Type scope."_view,
+        "Retain the Alias on the Composite that owns its Definition."_view);
+    return False;
+  }
+
+  stage = Stage::Linking;
+  auto target = select_alias_target(target_reference, *host, source);
+  if (!target) {
+    stage = Stage::Unlinked;
+    source.report(
+        target_reference.get_anchor(),
+        "Library Alias Type reference did not resolve to one Type."_view,
+        "Publish the selected Type before linking this Alias."_view);
+    return False;
+  }
+
+  if (!bind_target(*target)) {
+    stage = Stage::Unlinked;
+    source.report(
+        target_reference.get_anchor(),
+        "Library Alias cannot change its linked target."_view,
+        "Keep one exact Type-space edge for this authored Alias."_view);
+    return False;
+  }
+
+  const Documentation& local = get_definition().get_documentation();
+  if (local.is_empty()) {
+    documentation = target->get_documentation();
+  } else {
+    documentation = domain.construct<Ttx::Model::Documentations::Merged>(
+        local, target->get_documentation());
+  }
+
+  stage = Stage::Linked;
+  return True;
+}
+
+auto Alias::get_documentation() const -> const Documentation& {
+  return documentation.visit(
+      [&]() -> const Documentation& {
+        return get_definition().get_documentation();
+      },
+      [](const Documentation& selected) -> const Documentation& {
+        return selected;
+      });
 }

@@ -8,6 +8,7 @@
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/types/descriptor.hpp"
 #include "ttx/model/type.hpp"
 #include "ttx/model/types/flag.hpp"
 #include "ttx/model/types/real.hpp"
@@ -53,6 +54,7 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
   static auto get_real_32() -> const Ttx::Model::Types::Real&;
   static auto get_real_64() -> const Ttx::Model::Types::Real&;
   static auto get_void() -> const Ttx::Model::Type&;
+  static auto get_descriptor() -> const Language::Types::Descriptor&;
 
  private:
   auto materializations_for(

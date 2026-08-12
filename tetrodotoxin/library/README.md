@@ -24,12 +24,19 @@ public twice : func = [.value : Unsigned_64] -> Unsigned_64 {
 
 ## Names and access
 
+Every Library access evaluates the one Expression on its left. An Expression
+exposes its exact semantic result separately from its output Type. Ordinary
+value operations use the output Type, while an Expression whose result is a
+semantic Type has the singleton `Descriptor` output Type. `Descriptor` does
+not wrap or copy the selected Type; the Expression result retains that exact
+identity for the next access.
+
 Library uses punctuation to select separate semantic domains:
 
 | Syntax                               | Meaning                                                       |
 | ------------------------------------ | ------------------------------------------------------------- |
-| `value.name`                         | select one Addressable from an applicable named Layout        |
-| `context::Type`                      | traverse an Abstract context to one Type                      |
+| `expression.name`                    | select one Addressable from the output Type's named Layout     |
+| `expression::Type`                   | produce one exact Type result with `Descriptor` output         |
 | `receiver -> callable(arguments...)` | select and invoke one Callable                                |
 | `value.[names...]`                   | select and reorder named Layout entries                       |
 | `access[index]`                      | try indexed reference access and return an optional reference |
@@ -40,11 +47,18 @@ These domains never fall through to one another. A Field, Callable, and nested
 Type may share a spelling because the operator already states which category is
 being requested.
 
+A declaration that requires a Type retains an identity-free `TypeReference`,
+not an access Expression. Its authored segments resolve during linking after
+the surrounding Type inventory exists. This keeps forward declaration routes
+delayed without manufacturing a runtime value or conflating declaration
+qualification with postfix access.
+
 ### Address access
 
-`.` selects one exact TTX Addressable from any applicable named Layout. It is
-not limited to Struct or Object declarations. A named value flow may expose the
-same kind of entry.
+`.` evaluates its receiver and asks the receiver's output Type for an
+applicable named Layout. It selects one exact TTX Addressable from that Layout
+and is not limited to Struct or Object declarations. A named value flow may
+expose the same kind of entry.
 
 ```ttx
 packet.width
@@ -58,7 +72,7 @@ an offset from an Object reference, or a folded value. Those choices do not
 change the source level selection.
 
 The caller has private authority for every Composite in its Definition host
-chain. That chain authorizes candidates selected from an explicit receiver; it
+chain. That chain authorizes members selected from an explicit receiver; it
 does not supply an implicit receiver or create another lookup path. A hosted
 Function still writes `self.field` or selects the Field through another
 explicit value. A Static Function cannot read a host Field as a bare
@@ -66,7 +80,7 @@ identifier.
 
 ### Type access
 
-`::` follows contextual Type resolution:
+Postfix `::` is a Type access Expression:
 
 ```ttx
 Graphics::Image
@@ -74,12 +88,19 @@ System::Terminal
 Scene::Flow
 ```
 
-Alias, Package, Monograph, Library source, and Type objects may all serve as
-intermediate contexts. Only the result used in a Type position must prove Type.
-The chain does not manufacture Type valued Expressions for its intermediate
-steps. Qualification retains the original caller authority across every
-segment. Following an Alias redirects represented identity but does not add its
-target to the caller's host chain or transfer the target's private authority.
+It evaluates its receiver, requires that receiver's exact semantic result to be
+a Type, and selects one Type from that context. The access result is the exact
+selected Type and its output Type is `Descriptor`, so another `::` or a Static
+invocation can use the result without treating the selected Type as one of its
+own values. An ordinary value cannot use `::`, and `Descriptor` supplies no
+instance Layout for `.`.
+
+Contextual declaration routes through Alias, Package, Monograph, Library
+source, and Type objects remain `TypeReference` values rather than Expressions.
+Qualification preserves the original caller authority across every segment.
+An Alias is opaque to access and declaration operations: they may only ask it
+to resolve. Resolution may reveal another identity, but it does not add that
+identity to the caller's host chain or transfer its private authority.
 
 ### Callable access
 
@@ -91,9 +112,31 @@ packet -> resize(width, height)
 System::Terminal -> write_line(message)
 ```
 
-A Callable is not an Addressable and never appears in a value Layout. Argument
-and result compatibility are established through their parameter and result
-Layouts.
+A Call owns the complete invocation and evaluates one receiver Expression. An
+exact Type result selects the Static Callable registered on that Composite. A
+typed value receiver uses its output Type to select the registered Self
+Callable. The caller's Definition host chain remains unchanged while making
+that selection: it admits the receiver's private surface only when that exact
+Composite is already in the chain. Resolving an Alias never transfers private
+authority.
+
+Static and Self are properties of each Callable's parameter Layout. A Callable
+is Self exactly when parameter entry zero is the reserved `self` Addressable
+with the receiver's exact Type; otherwise it is Static. A Composite admits at
+most one Callable for each spelling and receiver role, rejecting a duplicate
+during registration. Static and Self Callables may share a spelling. The Call
+therefore selects one registered Callable and only then fits its authored
+arguments against the remaining parameter entries; it never constructs an
+overload set or reports call-time ambiguity.
+
+A Callable is not an Addressable and never appears in a value Layout. Callable,
+Addressable, and Type registration are independent spaces, so sharing a
+spelling across those categories creates no collision or fallback. The Call
+retains the selected Callable's complete result Layout, including an empty or
+multi-entry Layout. A scalar consumer can use that invocation only when the
+Layout proves one exact result Type. `->` introduces neither an implicit
+receiver nor a universal member resolver: `.`, `::`, and `->` continue to ask
+their distinct semantic questions.
 
 ## Layouts and value flow
 
@@ -256,11 +299,12 @@ semantic identity, and the receiving Composite routes that identity by its TTX
 category. The Monograph reaches those declarations only through the Source, so
 there is no parallel declaration tree.
 
-Completion follows the relationships in that tree. Enumeration storage and
-explicit declaration Types settle first. An inferred Field then adopts the
-exact completed Type of its initializer. Explicit Fields fit their initializers
-against their declared Types. Every Field settles before Callable signatures,
-and signatures settle before Function bodies.
+Completion follows the relationships in that tree. Every reachable declaration
+Type, including Enumeration storage, settles first. Every reachable Callable
+signature then settles before any Field or initializer expression. An inferred
+Field adopts the exact completed Type of its initializer, while an explicit
+Field fits its initializer against its declared Type. All Fields and
+initializers settle before Function bodies.
 
 Library owns the grammar that applies to a complete source. `using` selects
 Package members through the Monograph and installs Aliases owned by the
@@ -480,25 +524,31 @@ value. Source still selects it through a Type or source context:
 Math -> add(2, 3)
 ```
 
-A Callable derives type binding from its parameter Layout: it is type bound
-exactly when entry zero is the reserved `self` Addressable. A Function with
-that shape is Self. That entry has the selected receiver's exact Type, and every
-following parameter is named. The Function is selected through an addressable
-value:
+A Callable derives type binding from its signature's parameter Layout: it is
+type bound exactly when entry zero is the reserved `self` Addressable. A
+Function with that shape is Self. That entry has the selected receiver's exact
+Type, and every following parameter is named. The Function is selected through
+an addressable value:
 
 ```ttx
 packet -> area()
 ```
 
-Static and Self Callables may share a name because their receiver roles and
-signatures distinguish the invocation. Both remain Callables reached only
-through `->`. The parameter Layout carries the role without a second
-Callable category.
+Static and Self Callables may share a name because their receiver roles
+distinguish the invocation. A Composite rejects a second Callable with the same
+name and role during registration, before any Call can observe the name. Both
+remain Callables reached only through `->`; the parameter Layout carries the
+role without a second Callable category.
 
 ## Expressions and Constants
 
-Library expressions retain authored value dependencies and resolve one result
-Type. Constants cover Bytes, Bool, signed integers, unsigned integers, and real
+Library expressions retain authored value dependencies and expose both their
+exact semantic result and output Type. The result preserves the identity
+selected by an access; the output Type states which value operations apply.
+Type-valued results use `Descriptor` as that output without replacing the
+selected Type. Scalar expression consumers require one exact output Type,
+while a Call preserves its selected Callable's complete result Layout.
+Constants cover Bytes, Bool, signed integers, unsigned integers, and real
 values.
 
 Arithmetic and comparison operate on exact compatible scalar Types. `and` and
@@ -581,11 +631,11 @@ path confinement and acquisition policy. Library never opens Package storage
 directly.
 
 A Library Monograph completes the exact closure of Library providers reached
-through its admitted imports. Every reachable declaration Type settles
-before any Field is constructed, every Field and initializer settles before
-Callable signatures, and every signature settles before any Function body in
-that closure begins. Source discovery order therefore cannot change the
-completed graph.
+through its admitted imports. Every reachable declaration Type settles before
+every reachable Callable signature. Those signatures settle before any Field
+or initializer expression, and all Fields and initializers settle before any
+Function body in that closure begins. Source discovery order therefore cannot
+change the completed graph.
 
 ## Native publication
 

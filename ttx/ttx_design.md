@@ -156,8 +156,9 @@ A Reference is a nonnull borrowed edge to one exact semantic object. It remains
 valid for the lifetime established by the graph owner and carries no absent
 state.
 
-A Reference preserves the exact object it receives. Following an Alias,
-proving a Type, or reaching the Type of an Addressable remains an explicit
+A Reference preserves the exact object it receives. Alias hides its immediate
+Reference and `resolve()` is the only operation that follows Alias edges.
+Proving a Type or reaching the Type of an Addressable remains an explicit
 operation performed by the consumer whose contract requires it.
 
 The graph owner guarantees the lifetime of every borrowed identity. A process
@@ -178,9 +179,10 @@ addresses.
 
 `resolve()` follows represented identity. `resolve_context(route)` asks the
 receiving Abstract to interpret a borrowed route in its own domain. A result
-may answer another contextual query, so a route can cross Alias, Package,
-Monograph, source, and Type contexts without converting those contexts into one
-common category.
+may answer another contextual query, so a route can cross Package, Monograph,
+source, and Type contexts without converting those contexts into one common
+category. Alias remains opaque to contextual lookup: the caller resolves it
+before asking the selected identity to interpret another route.
 
 The caller owns the expected contract and proves the returned identity against
 the semantic category it needs. Route spelling does not infer a Type,
@@ -198,8 +200,10 @@ an ambiguous ownership path.
 ## Progressive construction
 
 A graph owner may reserve a stable identity before all of its edges are ready.
-An incomplete total query returns the shared `Invalid` object. Completion may
-make that unanswered query valid, while every successful identity remains
+An Alias reserved this way binds its borrowed target once after the defining
+pass; the immediate edge remains opaque and only Alias resolution traverses
+it. An incomplete total query returns the shared `Invalid` object. Completion
+may make that unanswered query valid, while every successful identity remains
 stable.
 
 This supports recursive declarations and source groups without adding an

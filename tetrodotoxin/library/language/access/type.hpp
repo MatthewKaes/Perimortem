@@ -3,60 +3,71 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/option.hpp"
 
-#include "ttx/concept/abstract.hpp"
-#include "ttx/lexical/anchor.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
+
+#include "tetrodotoxin/library/language/expression.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
 
-// Type retains one authored Type route without acquiring semantic identity.
-// Each segment is resolved through the preceding Abstract so qualification
-// remains useful for any owner that exposes a Type shaped context. Alias edges
-// redirect through their exact targets, while the terminal object is returned
-// without asking an incomplete Type to resolve away its reserved identity.
-class Type {
+// Type is one postfix `:: Name` Expression. It retains the receiver and exact
+// authored Token without binding during parsing. Linking evaluates the
+// receiver result, requires a semantic Type, and selects the next Type through
+// that owner's context. Its value Type is Descriptor while get_result()
+// preserves the selected semantic Type for another access operation.
+class Type : public Expression {
  public:
-  static auto parse(Ttx::Lexical::Cursor& cursor)
-      -> Perimortem::Core::Option<Type>;
+  TTX_CONTRACT(Type, Expression, 0x39c8cead0d1e4e63, 0xa25250161e7a57cc);
 
-  constexpr auto get_route() const -> Perimortem::Core::View::Bytes {
-    return route;
-  }
+  static auto parse(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Materializations& materializations,
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& source_context,
+      Expression& receiver) -> Perimortem::Core::Option<Expression&>;
 
-  constexpr auto get_root() const -> Perimortem::Core::View::Bytes {
-    return route.slice(0, root_size);
-  }
+  auto link(
+      Tetrodotoxin::Language::Monograph& source,
+      const Ttx::Concept::Abstract& lexical_context,
+      Materializations& materializations,
+      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      -> Bool override;
 
-  constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
+  TTX_NAME(name);
 
-  auto resolve(const Ttx::Concept::Abstract& context) const
-      -> const Ttx::Concept::Abstract&;
+  auto get_documentation() const -> const Ttx::Concept::Documentation& override;
+  auto get_type() const -> const Ttx::Concept::Abstract& override;
+  auto get_result() const -> const Ttx::Concept::Abstract& override;
+  auto get_inputs() const -> const Ttx::Concept::Layout& override;
 
-  auto resolve_from(const Ttx::Concept::Abstract& root) const
-      -> const Ttx::Concept::Abstract&;
-
-  // Qualification preserves the original caller scope. Alias redirection may
-  // change the selected identity, but it never changes which hosted Type owns
-  // private authority over a later segment.
-  auto resolve_from(
-      const Ttx::Concept::Abstract& root,
-      const Ttx::Model::Type& caller_scope) const
-      -> const Ttx::Concept::Abstract&;
+  constexpr auto get_receiver() const -> const Expression& { return receiver; }
+  constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
 
  private:
   constexpr Type(
-      Perimortem::Core::View::Bytes route,
-      Count root_size,
-      Ttx::Lexical::Anchor anchor)
-      : route(route), root_size(root_size), anchor(anchor) {}
+      Expression& receiver,
+      Ttx::Lexical::Token token,
+      Perimortem::Core::View::Bytes name,
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
+      : Expression(anchor),
+        receiver(receiver),
+        token(token),
+        name(name),
+        input(receiver),
+        inputs({&this->input, 1}) {}
 
-  Perimortem::Core::View::Bytes route;
-  Count root_size;
-  Ttx::Lexical::Anchor anchor;
+  Expression& receiver;
+  Ttx::Lexical::Token token;
+  Perimortem::Core::View::Bytes name;
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+      selected;
+  Ttx::Concept::Reference<const Ttx::Concept::Abstract> input;
+  Ttx::Model::Layouts::Fluid inputs;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

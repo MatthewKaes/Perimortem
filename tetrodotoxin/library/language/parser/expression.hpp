@@ -10,6 +10,7 @@
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "ttx/concept/abstract.hpp"
+#include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Parser {

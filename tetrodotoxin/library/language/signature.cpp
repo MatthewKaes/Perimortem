@@ -22,7 +22,7 @@ using namespace Tetrodotoxin::Library;
 static const Layouts::Fluid incomplete_layout;
 
 struct ParsedSlot {
-  Option<Language::Access::Type> type_access;
+  Option<Language::TypeReference> type_reference;
   Anchor anchor;
   View::Bytes name;
   Option<Anchor> name_anchor;
@@ -33,12 +33,12 @@ static auto parse_shape(
     Managed::Vector<ParsedSlot>& slots,
     Bool admits_self) -> Bool {
   if (!cursor.matches(Code::Type::BracketStart)) {
-    auto type = Language::Access::Type::parse(cursor);
+    auto type = Language::TypeReference::parse(cursor);
     BAIL_IF(!type);
 
     slots.insert(
         ParsedSlot{
-          .type_access = *type,
+          .type_reference = *type,
           .anchor = type->get_anchor(),
         });
     return True;
@@ -78,7 +78,7 @@ static auto parse_shape(
         Anchor self_anchor = Anchor::create(Span(self));
         slots.insert(
             ParsedSlot{
-              .type_access = {},
+              .type_reference = {},
               .anchor = self_anchor,
               .name = "self"_view,
               .name_anchor = self_anchor,
@@ -127,7 +127,7 @@ static auto parse_shape(
       return False;
     }
 
-    auto type = Language::Access::Type::parse(cursor);
+    auto type = Language::TypeReference::parse(cursor);
     BAIL_IF(!type);
 
     Anchor slot_anchor = type->get_anchor();
@@ -137,7 +137,7 @@ static auto parse_shape(
     }
     slots.insert(
         ParsedSlot{
-          .type_access = *type,
+          .type_reference = *type,
           .anchor = slot_anchor,
           .name = name,
           .name_anchor = name_anchor,
@@ -182,12 +182,12 @@ auto Language::Signature::interpret(Allocator::Arena& domain, Cursor& cursor)
   for (Count i = 0; i < parsed_parameters.get_size(); i++) {
     const ParsedSlot& slot = parsed_parameters[i];
     signature.parameters.insert(
-        Slot(slot.type_access, slot.anchor, slot.name, slot.name_anchor));
+        Slot(slot.type_reference, slot.anchor, slot.name, slot.name_anchor));
   }
   for (Count i = 0; i < parsed_results.get_size(); i++) {
     const ParsedSlot& slot = parsed_results[i];
     signature.results.insert(
-        Slot(slot.type_access, slot.anchor, slot.name, slot.name_anchor));
+        Slot(slot.type_reference, slot.anchor, slot.name, slot.name_anchor));
   }
 
   signature.anchor = Anchor::create(arrow, Span(opening, transaction.peek(-1)));
@@ -215,7 +215,7 @@ auto Language::Signature::link(
   auto link_slots = [&](Managed::Vector<Slot>& slots, Bool parameters) {
     for (Count i = 0; i < slots.get_size(); i++) {
       Slot& slot = slots[i];
-      Bool type_linked = slot.type_access.visit(
+      Bool type_linked = slot.type_reference.visit(
           [&]() {
             if (!parameters || i != 0) {
               return False;
@@ -232,11 +232,11 @@ auto Language::Signature::link(
             slot.type = Reference<const Type>(type);
             return True;
           },
-          [&](const Access::Type& type_access) {
+          [&](const TypeReference& type_reference) {
             // Signature Types use Definition hosting directly. Function
             // completion state cannot widen or narrow the declaration scope,
             // and qualified traversal retains this exact host as its caller.
-            const Abstract& selected = context->resolve_type(type_access);
+            const Abstract& selected = context->resolve_type(type_reference);
             return selected.visit<Type>(
                 [&](const Type& type) {
                   if (slot.type) {
@@ -249,10 +249,10 @@ auto Language::Signature::link(
                 [](const Abstract&) { return False; });
           });
       if (!type_linked) {
-        Anchor type_anchor = slot.type_access.visit(
+        Anchor type_anchor = slot.type_reference.visit(
             [&]() { return slot.anchor; },
-            [](const Access::Type& type_access) {
-              return type_access.get_anchor();
+            [](const TypeReference& type_reference) {
+              return type_reference.get_anchor();
             });
         source.report(
             type_anchor,
@@ -359,26 +359,35 @@ auto Language::Signature::get_result_name(Count index) const -> View::Bytes {
   return index < results.get_size() ? results.at(index).name : View::Bytes();
 }
 
-auto Language::Signature::get_parameter_type_access(Count index) const
-    -> Option<const Access::Type&> {
+auto Language::Signature::get_parameter_type_reference(Count index) const
+    -> Option<const TypeReference&> {
   BAIL_IF(index >= parameters.get_size());
 
-  return parameters.at(index).type_access.visit(
-      []() -> Option<const Access::Type&> { return {}; },
-      [](const Access::Type& access) -> Option<const Access::Type&> {
-        return access;
+  return parameters.at(index).type_reference.visit(
+      []() -> Option<const TypeReference&> { return {}; },
+      [](const TypeReference& reference) -> Option<const TypeReference&> {
+        return reference;
       });
 }
 
-auto Language::Signature::get_result_type_access(Count index) const
-    -> Option<const Access::Type&> {
+auto Language::Signature::get_result_type_reference(Count index) const
+    -> Option<const TypeReference&> {
   BAIL_IF(index >= results.get_size());
 
-  return results.at(index).type_access.visit(
-      []() -> Option<const Access::Type&> { return {}; },
-      [](const Access::Type& access) -> Option<const Access::Type&> {
-        return access;
+  return results.at(index).type_reference.visit(
+      []() -> Option<const TypeReference&> { return {}; },
+      [](const TypeReference& reference) -> Option<const TypeReference&> {
+        return reference;
       });
+}
+
+auto Language::Signature::declares_self() const -> Bool {
+  if (parameters.is_empty()) {
+    return False;
+  }
+
+  const Slot& first = parameters.at(0);
+  return Bool(!first.type_reference && first.name == "self"_view);
 }
 
 auto Language::Signature::get_parameter_anchor(Count index) const
@@ -399,10 +408,10 @@ auto Language::Signature::get_parameter_type_anchor(Count index) const
   BAIL_IF(index >= parameters.get_size());
 
   const Slot& slot = parameters.at(index);
-  return slot.type_access.visit(
+  return slot.type_reference.visit(
       [&]() -> Option<Anchor> { return slot.anchor; },
-      [](const Access::Type& access) -> Option<Anchor> {
-        return access.get_anchor();
+      [](const TypeReference& reference) -> Option<Anchor> {
+        return reference.get_anchor();
       });
 }
 
@@ -411,10 +420,10 @@ auto Language::Signature::get_result_type_anchor(Count index) const
   BAIL_IF(index >= results.get_size());
 
   const Slot& slot = results.at(index);
-  return slot.type_access.visit(
+  return slot.type_reference.visit(
       [&]() -> Option<Anchor> { return slot.anchor; },
-      [](const Access::Type& access) -> Option<Anchor> {
-        return access.get_anchor();
+      [](const TypeReference& reference) -> Option<Anchor> {
+        return reference.get_anchor();
       });
 }
 

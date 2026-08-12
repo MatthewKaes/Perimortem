@@ -48,6 +48,7 @@ static constexpr Library::Language::Types::Signed_64 signed_64;
 static constexpr Library::Language::Types::Real_32 real_32;
 static constexpr Library::Language::Types::Real_64 real_64;
 static constexpr Library::Language::Types::Void void_type;
+static constexpr Library::Language::Types::Descriptor descriptor;
 
 static constexpr Static::Vector<Pair<View::Bytes, const Abstract*>, 12>
     intrinsic_source = {{
@@ -200,4 +201,8 @@ auto Library::Dialect::get_real_64() -> const Ttx::Model::Types::Real& {
 
 auto Library::Dialect::get_void() -> const Ttx::Model::Type& {
   return void_type;
+}
+
+auto Library::Dialect::get_descriptor() -> const Language::Types::Descriptor& {
+  return descriptor;
 }

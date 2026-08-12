@@ -73,11 +73,6 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
  private:
   auto link_imports() -> Bool;
-  auto link_declaration_types() -> Bool;
-  auto link_fields() -> Bool;
-  auto link_initializers() -> Bool;
-  auto link_callable_signatures() -> Bool;
-  auto link_callable_bodies() -> Bool;
 
   Tetrodotoxin::Library::Dialect& dialect;
   const Ttx::Concept::Abstract& interpretation_context;
@@ -86,7 +81,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Monograph>>
       imported_providers;
   Types::Source& source;
-  Bool imports_linked = False;
+  Bool declarations_imported = False;
+  Bool addressables_imported = False;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

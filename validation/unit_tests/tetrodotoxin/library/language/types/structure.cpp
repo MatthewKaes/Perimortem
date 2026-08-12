@@ -113,7 +113,10 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   const Abstract& visible_identity = packet.resolve_context("Visible"_view);
   ASSERT(visible_identity.is<Alias>());
   const auto& visible = static_cast<const Alias&>(visible_identity);
-  EXPECT(&visible.get_target() == &hidden);
+
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+  EXPECT(&visible.resolve() == &hidden);
   EXPECT_EQ(visible.get_documentation().line_count(), Count(2));
   EXPECT_TEXT(
       visible.get_documentation().get_line(0),
@@ -129,8 +132,6 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   ASSERT((*type_bindings).get().is<Alias>());
   EXPECT(&(*type_bindings).get().resolve() == &Dialect::get_bool());
 
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
   EXPECT(&selected_identity.resolve() == &hidden);
   auto fields = packet.get_addressables();
   ASSERT(fields != fields.end());
@@ -316,26 +317,25 @@ PERIMORTEM_UNIT_TEST(StructureTests, explicit_self_field_access) {
   ASSERT(returned->is<Language::Access::Address>());
   const auto& address =
       static_cast<const Language::Access::Address&>(*returned);
-  ASSERT(address.get_addressable());
-  EXPECT(&*address.get_addressable() == &field_identity);
+  EXPECT(&address.get_result() == &field_identity);
   ASSERT(address.get_receiver().is<Language::Identifier>());
   const auto& receiver =
       static_cast<const Language::Identifier&>(address.get_receiver());
-  ASSERT(receiver.get_addressable());
-  EXPECT_TEXT(receiver.get_addressable()->get_name(), "self"_view);
-  EXPECT(&receiver.get_addressable()->get_type() == &packet);
+  auto receiver_result = receiver.get_result().select<Addressable>();
+  ASSERT(receiver_result);
+  EXPECT_TEXT(receiver_result->get_name(), "self"_view);
+  EXPECT(&receiver_result->get_type() == &packet);
   EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(StructureTests, malformed_grammar) {
-  static constexpr Static::Vector<View::Bytes, 11> sources = {{
+  static constexpr Static::Vector<View::Bytes, 10> sources = {{
     "// Structure test.\ndialect : Library; public Packet struct {}"_view,
     "// Structure test.\ndialect : Library; public Packet : wrong {}"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { value : Bool; }"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { public Value : Bool; }"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { public value Bool; }"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { public value : Bool }"_view,
-    "// Structure test.\ndialect : Library; public Packet : struct { public const value : Bool; }"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { public value : Core ::Bool; }"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { public value : Core:: Bool; }"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { public state value : Bool = false; }"_view,
@@ -480,8 +480,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
   ASSERT(copy_initializer->is<Language::Identifier>());
   const auto& identifier =
       static_cast<const Language::Identifier&>(*copy_initializer);
-  ASSERT(identifier.get_addressable());
-  EXPECT(&*identifier.get_addressable() == &exact);
+  EXPECT(&identifier.get_result() == &exact);
   EXPECT(errors.is_empty());
 }
 
@@ -535,14 +534,11 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
   EXPECT(&root.get_type() == &Dialect::get_bool());
   EXPECT(&scalar_copy.get_type() == &scalar.get_type());
   EXPECT(&scalar.get_type() == &Dialect::get_unsigned_64());
-  EXPECT_NOT(root_copy.get_type_access());
-  EXPECT_NOT(scalar.get_type_access());
   ASSERT(root_copy.get_initializer());
   ASSERT(root_copy.get_initializer()->is<Language::Identifier>());
   const auto& root_identifier =
       static_cast<const Language::Identifier&>(*root_copy.get_initializer());
-  ASSERT(root_identifier.get_addressable());
-  EXPECT(&*root_identifier.get_addressable() == &root);
+  EXPECT(&root_identifier.get_result() == &root);
 
   const Language::Field* source_identity = &root_copy;
   const Language::Field* nested_identity = &scalar_copy;

@@ -179,39 +179,6 @@ static Harness DialectTests = {
   .name = "Tetrodotoxin::Library::Dialect"_view,
 };
 
-PERIMORTEM_UNIT_TEST(DialectTests, callable_candidates_preserve_order) {
-  static constexpr View::Bytes source =
-      "// Overloaded Library source.\n"
-      "dialect : Library;\n"
-      "public repeated : func = [] -> Void {}\n"
-      "public repeated : func = [Bool] -> Void {}"_view;
-  Workspace workspace;
-  Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
-  auto monograph = import_library(workspace, errors, "Overloaded"_view, source);
-  ASSERT(monograph);
-  const auto& source_type = monograph->get_source();
-  auto candidates =
-      source_type.get_callables(Tetrodotoxin::Language::Visibility::Public);
-  auto candidate = candidates.begin();
-  ASSERT(candidate != candidates.end());
-  ASSERT((*candidate).get().is<Language::Function>());
-  const auto& first =
-      static_cast<const Language::Function&>((*candidate).get());
-  ++candidate;
-  ASSERT(candidate != candidates.end());
-  ASSERT((*candidate).get().is<Language::Function>());
-  const auto& second =
-      static_cast<const Language::Function&>((*candidate).get());
-  ++candidate;
-  EXPECT(candidate == candidates.end());
-  EXPECT_EQ(first.get_parameters().get_size(), Count(0));
-  EXPECT_EQ(second.get_parameters().get_size(), Count(1));
-  EXPECT(
-      &monograph->resolve_context("repeated"_view) == &Invalid::get_invalid());
-  EXPECT(errors.is_empty());
-}
-
 PERIMORTEM_UNIT_TEST(DialectTests, nested_missing_type_reports_authored_route) {
   static constexpr View::Bytes source =
       "public Packet : struct { public missing : Missing; }\n"
@@ -268,50 +235,11 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_field_failures_are_reported) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, top_level_self_fails_signature_linking) {
-  static constexpr View::Bytes source =
-      "public invalid : func = [self] -> Void {}"_view;
-  Allocator::Arena arena;
-  EmptyRegistry registry;
-  Dialect dialect;
-  Errors errors;
-  Tokenizer tokenizer(arena, source, "top-level-self.ttx"_view);
-  Cursor cursor(tokenizer, errors);
-  auto interpreted = dialect.interpret(
-      arena, cursor, Documentation::get_empty(), Anchor::create(Span()),
-      registry);
-  ASSERT(interpreted && interpreted->is<Language::Monograph>());
-  auto& monograph = static_cast<Language::Monograph&>(*interpreted);
-  const auto& source_type = monograph.get_source();
-  auto callables = source_type.get_callables();
-  auto callable = callables.begin();
-  ASSERT(callable != callables.end());
-  ASSERT((*callable).get().is<Language::Function>());
-  const auto& function =
-      static_cast<const Language::Function&>((*callable).get());
-  ++callable;
-  EXPECT(callable == callables.end());
-  EXPECT(errors.is_empty());
-
-  ASSERT_NOT(monograph.link());
-  auto receiver = function.get_parameters().get_abstract(0);
-  ASSERT(receiver);
-  EXPECT(receiver->visit<Addressable>(
-      [&](const Addressable& parameter) {
-        return Bool(
-            parameter.get_name() == "self"_view &&
-            &parameter.get_type() == &monograph.get_source());
-      },
-      [](const Abstract&) { return False; }));
-  ASSERT_EQ(monograph.get_diagnostics().get_size(), Count(1));
-  ASSERT(monograph.get_diagnostics().get_data()[0].get_anchor());
-  EXPECT_TEXT(
-      monograph.get_diagnostics()
-          .get_data()[0]
-          .get_anchor()
-          ->get_span()
-          .caculate_text(source),
-      "invalid"_view);
+PERIMORTEM_UNIT_TEST(DialectTests, top_level_self_is_rejected_at_registration) {
+  EXPECT(rejects_library_source(
+      "// Top level Self registration.\n"
+      "dialect : Library;\n"
+      "public invalid : func = [self] -> Void {}"_view));
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, source_alias_identity_and_visibility) {
@@ -350,8 +278,11 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_alias_identity_and_visibility) {
   ASSERT(private_identity.is<Alias>());
   const auto& public_alias = static_cast<const Alias&>(public_identity);
   const auto& private_alias = static_cast<const Alias&>(private_identity);
-  EXPECT(&public_alias.get_target() == &hidden);
-  EXPECT(&private_alias.get_target() == &hidden);
+
+  ASSERT(monograph.link());
+  ASSERT(monograph.finalize());
+  EXPECT(&public_alias.resolve() == &hidden);
+  EXPECT(&private_alias.resolve() == &hidden);
   EXPECT_EQ(public_alias.get_documentation().line_count(), Count(2));
   EXPECT_TEXT(
       public_alias.get_documentation().get_line(0),
@@ -359,29 +290,20 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_alias_identity_and_visibility) {
   EXPECT_TEXT(
       public_alias.get_documentation().get_line(1),
       "Hidden documentation."_view);
-  EXPECT(&private_alias.get_documentation() == &hidden.get_documentation());
   EXPECT(&monograph.resolve_context("PublicAlias"_view) == &public_identity);
   EXPECT(
       &monograph.resolve_context("PrivateAlias"_view) ==
       &Invalid::get_invalid());
-
-  ASSERT(monograph.link());
-  ASSERT(monograph.finalize());
-  EXPECT(&public_alias.resolve() == &hidden);
-  EXPECT(&private_alias.resolve() == &hidden);
   EXPECT(&monograph.resolve_context("PublicAlias"_view) == &public_identity);
   EXPECT(errors.is_empty());
   EXPECT(cursor.matches(Code::Type::Terminal));
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, rejected_source_alias_is_atomic) {
-  static constexpr Static::Vector<View::Bytes, 8> rejected = {{
+  static constexpr Static::Vector<View::Bytes, 5> rejected = {{
     "// Rejected documentation.\npublic Broken : alias Bool;"_view,
-    "public Broken : alias = Missing;"_view,
-    "public Broken : alias = Fact;"_view,
     "public Bool : alias = Unsigned_8;"_view,
     "public Outer : alias = Unsigned_8;"_view,
-    "public Self : alias = Self;"_view,
     "public Broken : alias = Bool"_view,
     "public First : alias = Bool; public First : alias = Unsigned_8;"_view,
   }};
@@ -397,8 +319,32 @@ PERIMORTEM_UNIT_TEST(DialectTests, rejected_source_alias_is_atomic) {
         arena, cursor, Documentation::get_empty(), Anchor::create(Span()),
         registry);
     EXPECT_NOT(interpreted);
-    EXPECT(cursor.matches(i == 0 ? Code::Type::Comment : Code::Type::Public));
     EXPECT_NOT(errors.is_empty());
+  }
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, source_alias_binding_is_delayed) {
+  static constexpr Static::Vector<View::Bytes, 3> rejected = {{
+    "public Broken : alias = Missing;"_view,
+    "public Broken : alias = Fact;"_view,
+    "public Self : alias = Self;"_view,
+  }};
+
+  for (Count i = 0; i < rejected.get_size(); i++) {
+    Allocator::Arena arena;
+    AliasContext registry;
+    Dialect dialect;
+    Errors errors;
+    Tokenizer tokenizer(arena, rejected[i], "delayed-source-alias.ttx"_view);
+    Cursor cursor(tokenizer, errors);
+    auto interpreted = dialect.interpret(
+        arena, cursor, Documentation::get_empty(), Anchor::create(Span()),
+        registry);
+    ASSERT(interpreted && interpreted->is<Language::Monograph>());
+    auto& monograph = static_cast<Language::Monograph&>(*interpreted);
+    EXPECT(errors.is_empty());
+    EXPECT_NOT(monograph.link());
+    EXPECT_NOT(monograph.get_diagnostics().is_empty());
   }
 }
 
@@ -448,11 +394,11 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
 
     auto interpreted = workspace.interpret_source(
         errors, "Rejected"_view, rejection.path, *source);
+    Bool completed =
+        interpreted && workspace.link(errors) && workspace.finalize(errors);
 
-    EXPECT_NOT(interpreted);
+    EXPECT_NOT(completed);
     EXPECT_EQ(errors.get_size(), Count(1));
-    EXPECT(
-        &workspace.resolve_context("Rejected"_view) == &Invalid::get_invalid());
 
     Allocator::Arena rendered_domain;
     View::Bytes rendered = errors.render_message(rendered_domain, 0);

@@ -190,17 +190,13 @@ unaryExpression
     ;
 
 postfixExpression
-    : staticInvocation postfixSuffix*
-    | primaryExpression postfixSuffix*
-    ;
-
-staticInvocation
-    : typeReference CALL addressableName argumentPack
+    : primaryExpression postfixSuffix*
     ;
 
 postfixSuffix
     : ADDRESS addressableName
     | CALL addressableName argumentPack
+    | TYPE_ACCESS typeName
     | BRACKET_START expression BRACKET_END
     | SWIZZLE swizzleSelection? BRACKET_END
     | VALUE_ACCESS expression (PACK expression)? BRACKET_END
@@ -212,6 +208,7 @@ swizzleSelection
 
 primaryExpression
     : literal
+    | typeName
     | addressableName
     | SELF
     | argumentPack

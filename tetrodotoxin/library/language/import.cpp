@@ -16,14 +16,14 @@ auto Library::Language::Import::parse(Cursor& cursor) -> Option<Import> {
     return {};
   }
 
-  auto type_access = Access::Type::parse(cursor);
-  if (!type_access) {
+  auto type_reference = TypeReference::parse(cursor);
+  if (!type_reference) {
     cursor.recover_to_statement();
     return {};
   }
 
-  // The route stays borrowed from the retained source. Waiting for the
-  // terminator keeps malformed trailing syntax out of durable Import state.
+  // The exact Tokens and stable segment spellings survive the parser. Waiting
+  // for the terminator keeps malformed trailing syntax out of durable state.
   Token terminator = cursor.require(
       Code::Type::EndStatement,
       "Library Imports require one terminating `;`."_view);
@@ -32,5 +32,5 @@ auto Library::Language::Import::parse(Cursor& cursor) -> Option<Import> {
     return {};
   }
 
-  return Import(*type_access, opening, Span(opening, terminator));
+  return Import(*type_reference, Span(opening, terminator));
 }

@@ -58,22 +58,6 @@ class ImportRegistry : public Abstract {
   }
 };
 
-class SourceSpoofMonograph : public Tetrodotoxin::Language::Monograph {
- public:
-  SourceSpoofMonograph(Allocator::Arena& arena, const Abstract& claimed_source)
-      : Monograph(arena, Documentation::get_empty()),
-        claimed_source(claimed_source) {}
-
-  auto get_name() const -> View::Bytes override { return "SourceSpoof"_view; }
-
-  auto resolve_context(View::Bytes route) const -> const Abstract& override {
-    return route == "source"_view ? claimed_source : Invalid::get_invalid();
-  }
-
- private:
-  const Abstract& claimed_source;
-};
-
 static auto interpret_library(
     Allocator::Arena& arena,
     Library::Dialect& dialect,
@@ -155,9 +139,9 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_statement_grammar) {
     "using Core;"_view,
     "using Runtime::Core;"_view,
   }};
-  static constexpr Static::Vector<View::Bytes, 2> routes = {{
+  static constexpr Static::Vector<View::Bytes, 2> roots = {{
     "Core"_view,
-    "Runtime::Core"_view,
+    "Runtime"_view,
   }};
 
   // Reaching Terminal proves Import consumed the complete statement rather
@@ -169,7 +153,10 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_statement_grammar) {
     Cursor cursor(tokenizer, errors);
     auto import = Library::Language::Import::parse(cursor);
     ASSERT(import);
-    EXPECT_TEXT(import->get_route(), routes[i]);
+    const auto& reference = import->get_type_reference();
+    EXPECT_EQ(reference.get_size(), i + 1);
+    EXPECT_TEXT(reference.get_root(), roots[i]);
+    EXPECT_TEXT(reference.get_name(reference.get_size() - 1), "Core"_view);
     EXPECT(cursor.matches(Code::Type::Terminal));
     EXPECT(errors.is_empty());
   }
@@ -437,7 +424,6 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_field_keeps_provider_identity) {
 
   // Importer keeps its private Alias but resolution still reaches the exact
   // provider Field rather than a copied declaration or value.
-  EXPECT(&alias.get_target() == &provided);
   EXPECT(&alias.resolve() == &provided);
   EXPECT(
       &importer->resolve_context("provided"_view) == &Invalid::get_invalid());
@@ -456,7 +442,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_field_keeps_provider_identity) {
   ASSERT(expressions.get_data()[0].get().is<Library::Language::Identifier>());
   auto selected = static_cast<const Library::Language::Identifier&>(
                       expressions.get_data()[0].get())
-                      .get_addressable();
+                      .get_result()
+                      .select<Ttx::Model::Addressable>();
   ASSERT(selected);
   EXPECT(&*selected == &provided);
   EXPECT(&consumer.resolve_context("hidden"_view) == &Invalid::get_invalid());
@@ -514,8 +501,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_field_collision_is_transactional) {
       "using Core;\npublic repeated : Bool;\n"
       "public later : func = [] -> Void {}"_view,
       "using Core;"_view,
-      "Imported source Field collides with an occupied source Addressable "
-      "name."_view));
+      "Imported Static binding collides with its source category."_view));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
@@ -667,7 +653,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, category_collisions_are_atomic) {
     EXPECT(diagnostic_matches(
         *importer, 0, "using Core;\npublic Clash : struct {}"_view,
         "using Core;"_view,
-        "Imported Static binding collides with an occupied source name."_view));
+        "Imported Static binding collides with its source category."_view));
   }
 
   {
@@ -686,8 +672,9 @@ PERIMORTEM_UNIT_TEST(LibraryImports, category_collisions_are_atomic) {
     ASSERT(first->link());
     ASSERT(second->link());
 
-    // Both providers contribute exact Alias identities. A repeated Callable
-    // name remains an ordered candidate set for the future invocation owner.
+    // Callable uniqueness is proven before any imported Alias becomes visible.
+    // The earlier unique candidate therefore remains absent beside the later
+    // same-role collision.
     Package::Language::Monograph& target =
         create_package(arena, package_dialect);
     Bool first_member_bound = target.bind_member("FirstProvider"_view, *first);
@@ -703,50 +690,16 @@ PERIMORTEM_UNIT_TEST(LibraryImports, category_collisions_are_atomic) {
         interpret_library(arena, library_dialect, context, "using Core;"_view);
     ASSERT(importer);
     Bool completed = importer->link();
-    ASSERT(completed);
+    ASSERT_NOT(completed);
     EXPECT(
         &importer->resolve_context("unique"_view) == &Invalid::get_invalid());
     EXPECT(
         &importer->resolve_context("repeated"_view) == &Invalid::get_invalid());
     const auto& importer_source = importer->get_source();
-    auto candidates = importer_source.get_callables(
+    auto retained = importer_source.get_callables(
         Tetrodotoxin::Language::Visibility::Private);
-    auto candidate_iterator = candidates.begin();
-    ASSERT(candidate_iterator != candidates.end());
-    const Abstract& unique_alias = (*candidate_iterator).get();
-    ++candidate_iterator;
-    ASSERT(candidate_iterator != candidates.end());
-    const Abstract& first_repeated_alias = (*candidate_iterator).get();
-    ++candidate_iterator;
-    ASSERT(candidate_iterator != candidates.end());
-    const Abstract& second_repeated_alias = (*candidate_iterator).get();
-    ++candidate_iterator;
-    ASSERT(candidate_iterator == candidates.end());
-    ASSERT(unique_alias.is<Ttx::Model::Alias>());
-    ASSERT(first_repeated_alias.is<Ttx::Model::Alias>());
-    ASSERT(second_repeated_alias.is<Ttx::Model::Alias>());
-    EXPECT_TEXT(unique_alias.get_name(), "unique"_view);
-    EXPECT_TEXT(first_repeated_alias.get_name(), "repeated"_view);
-    EXPECT_TEXT(second_repeated_alias.get_name(), "repeated"_view);
-    const auto& first_source = first->get_source();
-    const auto& second_source = second->get_source();
-    auto first_callables =
-        first_source.get_callables(Tetrodotoxin::Language::Visibility::Private);
-    auto first_iterator = first_callables.begin();
-    ASSERT(first_iterator != first_callables.end());
-    const Abstract& unique_identity = (*first_iterator).get();
-    ++first_iterator;
-    ASSERT(first_iterator != first_callables.end());
-    const Abstract& first_repeated_identity = (*first_iterator).get();
-    auto second_callables = second_source.get_callables(
-        Tetrodotoxin::Language::Visibility::Private);
-    auto second_iterator = second_callables.begin();
-    ASSERT(second_iterator != second_callables.end());
-    const Abstract& second_repeated_identity = (*second_iterator).get();
-    EXPECT(&unique_alias.resolve() == &unique_identity);
-    EXPECT(&first_repeated_alias.resolve() == &first_repeated_identity);
-    EXPECT(&second_repeated_alias.resolve() == &second_repeated_identity);
-    EXPECT(importer->get_diagnostics().is_empty());
+    EXPECT(retained.begin() == retained.end());
+    EXPECT_NOT(importer->get_diagnostics().is_empty());
   }
 
   {
@@ -816,7 +769,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, category_collisions_are_atomic) {
     ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
     EXPECT(diagnostic_matches(
         *importer, 0, "using Core;"_view, "using Core;"_view,
-        "Imported Static binding collides with an occupied source name."_view));
+        "Imported Static binding collides with its source category."_view));
   }
 }
 
@@ -921,46 +874,6 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
         *importer, 0, "using Core;\nusing Direct;"_view, "using Direct;"_view,
         "Library Import route did not resolve to a Package Monograph."_view));
   }
-}
-
-PERIMORTEM_UNIT_TEST(LibraryImports, source_spoof_is_rejected) {
-  static constexpr View::Bytes source =
-      "using Core;\npublic local : func = [] -> Void {}"_view;
-  Allocator::Arena arena;
-  ImportRegistry registry;
-  Library::Dialect library_dialect;
-  Package::Dialect package_dialect;
-  auto library = interpret_library(
-      arena, library_dialect, registry,
-      "public provider : func = [] -> Void {}"_view);
-  ASSERT(library);
-  SourceSpoofMonograph spoof(arena, library->get_source());
-
-  Package::Language::Monograph& target = create_package(arena, package_dialect);
-  ASSERT(target.bind_member("Spoof"_view, spoof));
-  Package::Language::Monograph& context =
-      create_package_with_dependency(arena, package_dialect, "Core"_view);
-  ASSERT(bind_only_dependency(context, target));
-  auto importer = interpret_library(arena, library_dialect, context, source);
-  ASSERT(importer);
-  const auto& importer_source = importer->get_source();
-  auto authored = importer_source.get_callables();
-  auto authored_iterator = authored.begin();
-  ASSERT(authored_iterator != authored.end());
-  const Abstract& local = (*authored_iterator).get();
-  ASSERT_NOT(importer->link());
-  EXPECT(&importer->resolve_context("local"_view) == &Invalid::get_invalid());
-  auto candidates = importer_source.get_callables(
-      Tetrodotoxin::Language::Visibility::Private);
-  auto candidate_iterator = candidates.begin();
-  ASSERT(candidate_iterator != candidates.end());
-  EXPECT(&(*candidate_iterator).get() == &local);
-  ++candidate_iterator;
-  ASSERT(candidate_iterator == candidates.end());
-  ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
-  EXPECT(diagnostic_matches(
-      *importer, 0, source, "using Core;"_view,
-      "Non Library Package member claimed a Library Source Type."_view));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryImports, retry_preserves_local_alias) {
@@ -1089,14 +1002,13 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_alias_identity_is_retained) {
   auto provider =
       interpret_library(arena, library_dialect, registry, provider_source);
   ASSERT(provider);
-  ASSERT(provider->link());
   const auto& provider_source_type = provider->get_source();
   const Abstract& shared = provider_source_type.resolve_context("Shared"_view);
   const Abstract& exported =
       provider_source_type.resolve_context("Exported"_view);
   ASSERT(shared.is<Library::Language::Types::Structure>());
   ASSERT(exported.is<Ttx::Model::Alias>());
-  EXPECT(&exported.resolve() == &shared);
+  EXPECT(&exported.resolve() == &Invalid::get_invalid());
   EXPECT(
       &provider_source_type.resolve_context("Hidden"_view) ==
       &Invalid::get_invalid());
@@ -1106,24 +1018,34 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_alias_identity_is_retained) {
   Package::Language::Monograph& context =
       create_package_with_dependency(arena, package_dialect, "Core"_view);
   ASSERT(bind_only_dependency(context, target));
-  auto importer =
-      interpret_library(arena, library_dialect, context, "using Core;"_view);
+  auto importer = interpret_library(
+      arena, library_dialect, context,
+      "using Core;\npublic Local : alias = Exported;"_view);
   ASSERT(importer);
+
+  // The importing transaction orders the real provider graph before resolving
+  // either imported or authored Alias edges. No consumer may inspect an
+  // Alias target to manufacture that ordering.
   ASSERT(importer->link());
+  EXPECT(&exported.resolve() == &shared);
   const auto& importer_source = importer->get_source();
   auto imported_types = importer_source.get_types();
   Option<const Abstract&> imported;
+  Option<const Abstract&> local;
   for (const Reference<Abstract>& binding : imported_types) {
     if (binding.get().get_name() == "Exported"_view) {
       imported = binding.get();
     }
+    if (binding.get().get_name() == "Local"_view) {
+      local = binding.get();
+    }
     EXPECT(binding.get().get_name() != "Hidden"_view);
   }
   ASSERT(imported);
+  ASSERT(local);
   ASSERT(imported->is<Ttx::Model::Alias>());
-  const auto& imported_alias = static_cast<const Ttx::Model::Alias&>(*imported);
-  EXPECT(&imported_alias.get_target() == &exported);
-  EXPECT(&imported_alias.resolve() == &shared);
+  EXPECT(&imported->resolve() == &shared);
+  EXPECT(&local->resolve() == &shared);
   EXPECT(
       &importer->resolve_context("Exported"_view) == &Invalid::get_invalid());
   const Abstract& imported_identity = *imported;

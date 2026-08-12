@@ -125,9 +125,11 @@ retains a Definition, that value is part of the same authored object rather
 than a second graph node.
 
 The common view is consequently modest. A generic TTX tool can follow identity,
-prove a shared category, inspect a Layout, and ask contextual questions. Source
-rewriting, language specific completion, overload policy, and rich declaration
-inspection belong to the concrete Dialect.
+prove a shared category, inspect a Layout, and ask contextual questions. An
+Alias is opaque: a consumer may resolve it but cannot inspect or operate on a
+separate target edge. Source rewriting, language specific completion,
+callable registration policy, and rich declaration inspection belong to the
+concrete Dialect.
 
 ## Dialects and Monographs
 
@@ -204,25 +206,43 @@ Tetrodotoxin syntax identifies the semantic question being asked:
 
 | Syntax | Semantic result |
 | --- | --- |
-| `value.name` | One Addressable selected from an applicable named Layout |
-| `context::Name` | One route whose segments use Type spelling and contextual resolution |
-| `receiver -> name(arguments)` | One Callable invocation with argument fitting |
+| `expression.name` | One Addressable selected from the output Type's applicable named Layout |
+| `expression::Name` | One exact Type result whose Library output Type is `Descriptor` |
+| `receiver -> name(arguments)` | One registered Callable invocation with argument fitting |
 
-An intermediate `::` context may be an Alias, Package, Monograph, source root,
-Type, or another Abstract. The consuming grammar proves the final category it
-requires. A Type position requires a Type, while a package route or `using`
-declaration can cross other contexts without pretending those contexts are
-Types.
+Every Library access evaluates the one Expression on its left. An Expression's
+exact semantic result is distinct from its output Type: the result preserves a
+selected Type or Addressable identity, while the output Type states which value
+operations apply. A Type-valued result uses the singleton `Descriptor` output
+Type without copying or wrapping the selected Type.
+
+Postfix `::` is consequently a Library access Expression. Its receiver must
+produce an exact Type result, and the access produces the selected Type as its
+own result. Declaration positions instead retain an identity-free
+`TypeReference`. Such a route can cross Alias, Package, Monograph, source root,
+Type, or another Abstract context and resolves only during linking, after the
+relevant Type inventory exists. A declaration route never becomes an
+Expression or pretends its intermediate contexts are Types.
 
 A Structure may expose a Field, Callable, and nested Type with the same
 spelling because the authored operator already identifies the query domain.
-The concrete language retains control over visibility, overload selection, and
-mutation rules inside that domain.
+Those Addressable, Callable, and Type spaces remain independent. A Composite
+rejects duplicate Callable spelling within one receiver role during
+registration, while admitting the same spelling once for Static and once for
+Self. Invocation therefore selects one registered Callable by name and role;
+it never constructs an overload set or defers ambiguity to call time.
 
-Address access identifies one semantic Addressable and its Type. A backend may
-materialize or eliminate its physical address without changing that semantic
-identity. Likewise, a Function host grants access authority while an explicit
-receiver supplies the value used for Field selection.
+Address access asks the evaluated receiver's output Type for a named Layout and
+identifies one semantic Addressable and its Type. Callable access chooses
+Static when the evaluated receiver result is an exact Type and Self when the
+receiver is a typed value. A backend may materialize or eliminate a physical
+address without changing the Addressable identity. Likewise, a Function host
+grants access authority while an explicit receiver supplies the value used for
+Field selection.
+
+No access operator inspects an Alias target. Alias resolution may reveal the
+identity used by the requested category, but it does not transfer private
+authority or create a second lookup path.
 
 The benefit is that unrelated contexts can compose without one universal
 member record. The cost is that a tool must know which semantic question it

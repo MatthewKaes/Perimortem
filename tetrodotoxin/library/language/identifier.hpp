@@ -9,26 +9,31 @@
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/lexical/token.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// Identifier is one authored use of an Addressable route. Every use remains a
-// distinct Expression even when several uses link to the same exact
-// Addressable. A missing route keeps its authored identity and may link after
-// the surrounding graph has completed.
+// Identifier is one authored root name Expression. It retains the exact Token
+// and an Arena-stable spelling, then delays binding until the Type-defining
+// pass is complete. A Type result is a Descriptor value; an Addressable result
+// keeps its ordinary value Type. Both remain opaque until link selects them.
 class Identifier : public Expression {
  public:
   TTX_CONTRACT(Identifier, Expression, 0xd747288c3703480b, 0x9cd07fbc8a1a7a84);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Bytes route,
+      Ttx::Lexical::Token token,
+      Perimortem::Core::View::Bytes source,
       Ttx::Lexical::Anchor anchor) -> Identifier& {
+    Perimortem::Core::View::Bytes name =
+        domain.proxy(token.caculate_text(source));
     return Expression::create_authored<Identifier>(
-        domain, anchor,
-        [&](auto source) -> Identifier { return Identifier(route, source); });
+        domain, anchor, [&](auto authored) -> Identifier {
+          return Identifier(token, name, authored);
+        });
   }
 
   auto link(
@@ -38,27 +43,30 @@ class Identifier : public Expression {
       Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
       -> Bool override;
 
-  TTX_NAME(route);
+  TTX_NAME(name);
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
 
+  auto get_result() const -> const Ttx::Concept::Abstract& override;
+
   auto get_inputs() const -> const Ttx::Concept::Layout& override;
 
-  auto get_addressable() const
-      -> Perimortem::Core::Option<const Ttx::Model::Addressable&>;
+  constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
 
  private:
   constexpr Identifier(
-      Perimortem::Core::View::Bytes route,
+      Ttx::Lexical::Token token,
+      Perimortem::Core::View::Bytes name,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Expression(anchor), route(route) {}
+      : Expression(anchor), token(token), name(name) {}
 
-  Perimortem::Core::View::Bytes route;
+  Ttx::Lexical::Token token;
+  Perimortem::Core::View::Bytes name;
   Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Ttx::Model::Addressable>>
-      addressable;
+      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
+      result;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

@@ -4,6 +4,8 @@
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 
 #include "tetrodotoxin/library/language/access/address.hpp"
+#include "tetrodotoxin/library/language/access/call.hpp"
+#include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/access/value.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
@@ -51,6 +53,10 @@ static auto find_postfix(Code::Type code) -> Option<ReceiverParser> {
   switch (code) {
   case Code::Type::AddressOp:
     return &Library::Language::Access::Address::parse;
+  case Code::Type::CallOp:
+    return &Library::Language::Access::Call::parse;
+  case Code::Type::TypeAccessOp:
+    return &Library::Language::Access::Type::parse;
   case Code::Type::ValueAccessOp:
     return &Library::Language::Access::Value::parse;
   default:
@@ -104,18 +110,12 @@ static auto parse_primary(
     Library::Language::Materializations& materializations,
     Cursor& cursor,
     const Abstract& source_context) -> Option<Library::Language::Expression&> {
-  if (cursor.matches(Code::Type::Addressable) ||
+  if (cursor.matches(Code::Type::Type) ||
+      cursor.matches(Code::Type::Addressable) ||
       cursor.matches(Code::Type::Self)) {
     Token token = cursor.consume();
-    Span span(token);
-    Anchor anchor = Anchor::create(token, span);
-
-    Perimortem::Core::View::Bytes route =
-        token.caculate_text(cursor.get_source_text());
-    auto& identifier =
-        Library::Language::Identifier::create_authored(domain, route, anchor);
-
-    return identifier;
+    return Library::Language::Identifier::create_authored(
+        domain, token, cursor.get_source_text(), Anchor::create(Span(token)));
   }
 
   if (cursor.matches(Code::Type::NotOp)) {

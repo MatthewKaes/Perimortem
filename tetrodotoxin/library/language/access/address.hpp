@@ -30,12 +30,6 @@ class Address : public Expression {
       const Ttx::Concept::Abstract& source_context,
       Expression& receiver) -> Perimortem::Core::Option<Expression&>;
 
-  static auto create_authored(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Bytes route,
-      Expression& receiver,
-      Ttx::Lexical::Anchor anchor) -> Address&;
-
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
       Expression& receiver,
@@ -56,33 +50,38 @@ class Address : public Expression {
       Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
       -> Bool override;
 
-  TTX_NAME(route);
+  TTX_NAME(name);
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
+  auto get_result() const -> const Ttx::Concept::Abstract& override;
   auto get_inputs() const -> const Ttx::Concept::Layout& override;
 
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
 
-  auto get_addressable() const
-      -> Perimortem::Core::Option<const Ttx::Model::Addressable&>;
+  constexpr auto get_name_token() const -> Ttx::Lexical::Token {
+    return name_token;
+  }
 
  private:
   constexpr Address(
-      Perimortem::Core::View::Bytes route,
       Expression& receiver,
+      Ttx::Lexical::Token name_token,
+      Perimortem::Core::View::Bytes name,
       Perimortem::Core::Option<
           Ttx::Concept::Reference<const Ttx::Model::Addressable>> addressable,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor),
-        route(route),
         receiver(receiver),
+        name_token(name_token),
+        name(name),
         addressable(addressable),
         input(receiver),
         inputs({&this->input, 1}) {}
 
-  Perimortem::Core::View::Bytes route;
   Expression& receiver;
+  Ttx::Lexical::Token name_token;
+  Perimortem::Core::View::Bytes name;
   Perimortem::Core::Option<
       Ttx::Concept::Reference<const Ttx::Model::Addressable>>
       addressable;

@@ -147,14 +147,14 @@ static auto get_unreachable_publication(const Language::Function& function)
     }
 
     auto type = signature->get_parameter_type(i);
-    auto access = signature->get_parameter_type_access(i);
+    auto access = signature->get_parameter_type_reference(i);
     if (!type || !access || &host->resolve_exported_type(*access) != &*type) {
       return signature->get_parameter_type_anchor(i);
     }
   }
   for (Count i = 0; i < signature->get_result_size(); i++) {
     auto type = signature->get_result_type(i);
-    auto access = signature->get_result_type_access(i);
+    auto access = signature->get_result_type_reference(i);
     if (!type || !access || &host->resolve_exported_type(*access) != &*type) {
       return signature->get_result_type_anchor(i);
     }

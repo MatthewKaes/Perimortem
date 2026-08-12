@@ -3,129 +3,126 @@
 
 #include "tetrodotoxin/library/language/access/type.hpp"
 
+#include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/model/alias.hpp"
 
-using namespace Perimortem::Core;
-using namespace Perimortem::Utility;
+using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library;
 
-static auto resolve_type_route(
-    const Language::Access::Type& access,
-    const Abstract& root,
-    Option<const Ttx::Model::Type&> caller_scope) -> const Abstract& {
-  Reference<const Abstract> selected(Ttx::Model::Alias::get_represented(root));
-  View::Bytes route = access.get_route();
-  Count segment_start = access.get_root().get_size();
-
-  // Alias contributes only its local name, so traversal follows that exact
-  // edge without asking a terminal Type whether its owner has completed it.
-  // The original caller remains unchanged across that redirection: reachability
-  // through an Alias never transfers the target owner's private authority.
-  while (segment_start < route.get_size()) {
-    segment_start += 2;
-    Count segment_end = segment_start;
-    while (segment_end < route.get_size() &&
-           !(segment_end + 1 < route.get_size() && route[segment_end] == ':' &&
-             route[segment_end + 1] == ':')) {
-      segment_end++;
-    }
-
-    View::Bytes segment =
-        route.slice(segment_start, segment_end - segment_start);
-    const Abstract& next = selected.get().visit<Language::Types::Composite>(
-        [&](const Language::Types::Composite& composite) -> const Abstract& {
-          return caller_scope.visit(
-              [&]() -> const Abstract& {
-                return composite.resolve_context(segment);
-              },
-              [&](const Ttx::Model::Type& caller) -> const Abstract& {
-                // An explicit segment remains local to the selected Composite.
-                // Caller scope filters visibility but cannot turn a miss into
-                // lookup through the selected Type's enclosing host.
-                return composite.resolve_type(segment, caller);
-              });
-        },
-        [&](const Abstract& context) -> const Abstract& {
-          return context.resolve_context(segment);
-        });
-    selected =
-        Reference<const Abstract>(Ttx::Model::Alias::get_represented(next));
-    if (selected.get().is<Invalid>()) {
-      return selected.get();
-    }
-
-    segment_start = segment_end;
-  }
-
-  return selected.get();
+static auto resolve_alias(const Abstract& binding) -> const Abstract& {
+  return binding.visit<Ttx::Model::Alias>(
+      [](const Ttx::Model::Alias& alias) -> const Abstract& {
+        return alias.resolve();
+      },
+      [](const Abstract& direct) -> const Abstract& { return direct; });
 }
 
-auto Language::Access::Type::parse(Cursor& cursor) -> Option<Type> {
-  Token first = cursor.require(
-      Code::Type::Type, "Library Type access requires one Type name."_view);
-  if (!first) {
+auto Language::Access::Type::parse(
+    Memory::Allocator::Arena& domain,
+    Materializations&,
+    Cursor& cursor,
+    const Abstract&,
+    Expression& receiver) -> Core::Option<Expression&> {
+  Token operation = cursor.consume();
+  Token type = cursor.require(
+      Code::Type::Type, "Type access requires one Type name after `::`."_view);
+  BAIL_IF(!type);
+
+  auto receiver_anchor = receiver.get_anchor();
+  if (!receiver_anchor) {
+    cursor.create_expression_error(
+        Anchor::create(type, Span(operation, type)),
+        "Type access requires an authored receiver Anchor."_view);
     return {};
   }
 
-  // The spelling remains one borrowed source range, while the parser proves
-  // every boundary so traversal can split it without retaining token state.
-  Token last = first;
-  while (cursor.matches(Code::Type::TypeAccessOp)) {
-    Token separator = cursor.current();
-    Count previous_end = Count(last.get_offset()) + Count(last.get_size());
-    if (separator.get_offset() != previous_end) {
-      cursor.create_expression_error(
-          Span(first, separator),
-          "Library Type access cannot contain whitespace around `::`."_view);
-      return {};
-    }
+  Core::View::Bytes name =
+      domain.proxy(type.caculate_text(cursor.get_source_text()));
+  Anchor anchor = Anchor::create(type, receiver_anchor->get_span(), Span(type));
+  Type& access = Expression::create_authored<Type>(
+      domain, anchor, [&](Core::Option<Anchor> source) -> Type {
+        return Type(receiver, type, name, source);
+      });
+  return access;
+}
 
-    cursor.consume();
-    Token segment = cursor.require(
-        Code::Type::Type,
-        "Library Type access requires a Type after `::`."_view);
-    if (!segment) {
-      return {};
-    }
+auto Language::Access::Type::link(
+    Tetrodotoxin::Language::Monograph& source,
+    const Abstract& lexical_context,
+    Materializations& materializations,
+    Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
+  BAIL_IF(
+      !receiver.link(source, lexical_context, materializations, access_scope));
 
-    Count separator_end =
-        Count(separator.get_offset()) + Count(separator.get_size());
-    if (segment.get_offset() != separator_end) {
-      cursor.create_expression_error(
-          Span(first, segment),
-          "Library Type access cannot contain whitespace around `::`."_view);
-      return {};
-    }
-
-    last = segment;
+  const Abstract& receiver_result = receiver.get_result();
+  auto receiver_type = receiver_result.select<Ttx::Model::Type>();
+  if (!receiver_type) {
+    source.report(
+        get_anchor(), "Type access receiver did not produce a Type."_view,
+        "Use `::` only after an Expression whose result is a semantic Type."_view);
+    return False;
   }
 
-  Count route_start = first.get_offset();
-  Count route_end = Count(last.get_offset()) + Count(last.get_size());
-  View::Bytes route =
-      cursor.get_source_text().slice(route_start, route_end - route_start);
-  return Type(
-      route, first.get_size(), Anchor::create(first, Span(first, last)));
+  const Abstract& candidate = receiver_type->visit<Language::Types::Composite>(
+      [&](const Language::Types::Composite& composite) -> const Abstract& {
+        return access_scope.visit(
+            [&]() -> const Abstract& {
+              return composite.resolve_context(name);
+            },
+            [&](const Ttx::Model::Type& caller) -> const Abstract& {
+              return composite.resolve_type(name, caller);
+            });
+      },
+      [&](const Abstract& type) -> const Abstract& {
+        return type.resolve_context(name);
+      });
+  const Abstract& resolved = resolve_alias(candidate);
+  auto result = resolved.select<Ttx::Model::Type>();
+  if (!result) {
+    source.report(
+        get_anchor(), "Type access did not select one semantic Type."_view,
+        "Publish the named Type on the receiver before linking this access."_view);
+    return False;
+  }
+
+  if (selected && &selected->get() != &*result) {
+    source.report(
+        get_anchor(), "Type access cannot change its selected result."_view,
+        "Keep one exact Type bound to this authored Token."_view);
+    return False;
+  }
+
+  selected = Reference<const Ttx::Model::Type>(*result);
+  return True;
 }
 
-auto Language::Access::Type::resolve(const Abstract& context) const
-    -> const Abstract& {
-  const Abstract& exact_context = Ttx::Model::Alias::get_represented(context);
-  return resolve_from(exact_context.resolve_context(get_root()));
+auto Language::Access::Type::get_documentation() const -> const Documentation& {
+  return selected.visit(
+      []() -> const Documentation& { return Documentation::get_empty(); },
+      [](const Reference<const Ttx::Model::Type>& type)
+          -> const Documentation& { return type.get().get_documentation(); });
 }
 
-auto Language::Access::Type::resolve_from(const Abstract& root) const
-    -> const Abstract& {
-  return resolve_type_route(*this, root, {});
+auto Language::Access::Type::get_type() const -> const Abstract& {
+  return selected.visit(
+      []() -> const Abstract& { return Invalid::get_invalid(); },
+      [](const Reference<const Ttx::Model::Type>&) -> const Abstract& {
+        return Dialect::get_descriptor();
+      });
 }
 
-auto Language::Access::Type::resolve_from(
-    const Abstract& root,
-    const Ttx::Model::Type& caller_scope) const -> const Abstract& {
-  return resolve_type_route(*this, root, caller_scope);
+auto Language::Access::Type::get_result() const -> const Abstract& {
+  return selected.visit(
+      []() -> const Abstract& { return Invalid::get_invalid(); },
+      [](const Reference<const Ttx::Model::Type>& type) -> const Abstract& {
+        return type.get();
+      });
+}
+
+auto Language::Access::Type::get_inputs() const -> const Layout& {
+  return inputs;
 }

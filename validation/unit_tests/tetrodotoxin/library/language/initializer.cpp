@@ -15,7 +15,6 @@
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
-#include "ttx/model/alias.hpp"
 #include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
@@ -74,6 +73,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, empty_and_supplied) {
       "  expose state second : Bool = false;\n"
       "}\n"
       "public empty : Defaults = new;\n"
+      "public parenthesized : Defaults = new();\n"
       "public configured : Required = new(.second = true, .first = 4);"_view;
   Workspace workspace;
   Errors errors;
@@ -89,21 +89,30 @@ PERIMORTEM_UNIT_TEST(InitializerTests, empty_and_supplied) {
       source_type.resolve_context("Required"_view));
   const auto& empty_field = static_cast<const Language::Field&>(
       source_type.resolve_context("empty"_view));
+  const auto& parenthesized_field = static_cast<const Language::Field&>(
+      source_type.resolve_context("parenthesized"_view));
   const auto& configured_field = static_cast<const Language::Field&>(
       source_type.resolve_context("configured"_view));
   auto empty_initializer = empty_field.get_initializer();
+  auto parenthesized_initializer = parenthesized_field.get_initializer();
   auto configured_initializer = configured_field.get_initializer();
   ASSERT(empty_initializer);
+  ASSERT(parenthesized_initializer);
   ASSERT(configured_initializer);
   ASSERT(empty_initializer->is<Language::Initializer>());
+  ASSERT(parenthesized_initializer->is<Language::Initializer>());
   ASSERT(configured_initializer->is<Language::Initializer>());
   const auto& empty =
       static_cast<const Language::Initializer&>(*empty_initializer);
+  const auto& parenthesized =
+      static_cast<const Language::Initializer&>(*parenthesized_initializer);
   const auto& configured =
       static_cast<const Language::Initializer&>(*configured_initializer);
   EXPECT(&empty.get_type() == &defaults);
+  EXPECT(&parenthesized.get_type() == &defaults);
   EXPECT(&configured.get_type() == &required);
   EXPECT(empty.get_inputs().is_empty());
+  EXPECT(parenthesized.get_inputs().is_empty());
 
   auto first_field = required.get_layout().get_abstract(0);
   auto second_field = required.get_layout().get_abstract(2);
@@ -116,14 +125,8 @@ PERIMORTEM_UNIT_TEST(InitializerTests, empty_and_supplied) {
   auto first = inputs.get_abstract(1);
   ASSERT(second);
   ASSERT(first);
-  ASSERT(second->is<Alias>());
-  ASSERT(first->is<Alias>());
-  EXPECT_TEXT(second->get_name(), "second"_view);
-  EXPECT_TEXT(first->get_name(), "first"_view);
-  const auto& second_alias = static_cast<const Alias&>(*second);
-  const auto& first_alias = static_cast<const Alias&>(*first);
-  EXPECT(second_alias.get_target().is<Language::Expression>());
-  EXPECT(first_alias.get_target().is<Language::Expression>());
+  EXPECT(second->is<Language::Expression>());
+  EXPECT(first->is<Language::Expression>());
 
   Static::Vector<Reference<const Abstract>, 2> initialization_fields = {{
     *first_field,

@@ -146,10 +146,10 @@ static auto read_signed(
 Tetrodotoxin::Library::Language::Types::Enumeration::Enumeration(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition,
-    Access::Type storage_access)
+    TypeReference storage_reference)
     : Defined(definition),
       domain(domain),
-      storage_access(storage_access),
+      storage_reference(storage_reference),
       source_cases(domain),
       cases(domain) {}
 
@@ -190,7 +190,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
       Code::Type::BracketStart,
       "Library Enumeration storage requires an opening `[`."_view));
 
-  auto storage = Access::Type::parse(transaction);
+  auto storage = TypeReference::parse(transaction);
   BAIL_IF(!storage);
   BAIL_IF(!transaction.require(
       Code::Type::BracketEnd,
@@ -259,14 +259,14 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::link_storage(
   }
 
   const auto& host = static_cast<const Composite&>(get_host());
-  const Abstract& selected = host.resolve_type(storage_access);
+  const Abstract& selected = host.resolve_type(storage_reference);
   const Abstract& resolved =
       selected.is<Type>() ? selected : selected.resolve();
   Bool integer = resolved.is<Ttx::Model::Types::Signed>() ||
                  resolved.is<Ttx::Model::Types::Unsigned>();
   if (!integer) {
     source.report(
-        storage_access.get_anchor(),
+        storage_reference.get_anchor(),
         "Enumeration storage did not resolve to an exact integer Type."_view,
         "Select one concrete Library Signed or Unsigned Type."_view);
     return False;

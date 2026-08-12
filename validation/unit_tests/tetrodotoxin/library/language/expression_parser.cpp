@@ -459,8 +459,6 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, address_chain_and_anchor) {
   EXPECT(matches_anchor(*outer, source, "tail"_view, source));
   EXPECT(matches_anchor(*inner, source, "member"_view, "receiver.member"_view));
   EXPECT(inner->get_receiver().is<Library::Language::Identifier>());
-  EXPECT_NOT(outer->get_addressable());
-  EXPECT_NOT(inner->get_addressable());
   EXPECT(errors.is_empty());
 }
 

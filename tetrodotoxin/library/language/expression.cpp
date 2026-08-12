@@ -17,7 +17,11 @@ auto Language::Expression::link(
     Option<const Type&>) -> Bool {
   auto source_anchor = get_anchor();
 
-  if (get_type().resolve().is<Type>()) {
+  // A declaration pass may already expose one exact Composite Type while that
+  // Type still resolves Invalid until its own Layout is complete. Expression
+  // linking retains that real output edge; it does not make unrelated Type
+  // completion a prerequisite for selecting the value's domain.
+  if (get_type().is<Type>() || get_type().resolve().is<Type>()) {
     return True;
   }
 

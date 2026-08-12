@@ -162,8 +162,7 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, address_identity) {
   EXPECT_TEXT(address.get_name(), "value"_view);
   EXPECT(&address.get_type() == &scalar);
   EXPECT(&address.get_receiver() == &receiver);
-  ASSERT(address.get_addressable());
-  EXPECT(&*address.get_addressable() == &field);
+  EXPECT(&address.get_result() == &field);
   EXPECT(selects(address.get_inputs().get_abstract(0), receiver));
   EXPECT(is_none(address.get_inputs().get_abstract(1)));
   EXPECT(address.fits(scalar));
@@ -180,18 +179,18 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, address_links_retained_input) {
   ExpressionField receiver("receiver"_view, container);
   ExpressionContext context(receiver);
   ExpressionMonograph graph(arena);
-  Token address_token(0, 1, 1, 5, Code::Type::Addressable);
-  auto address_anchor = Anchor::create(address_token, Span(address_token));
-  auto& address_input =
-      Identifier::create_authored(arena, "receiver"_view, address_anchor);
+  Token receiver_token(0, 1, 1, 8, Code::Type::Addressable);
+  auto receiver_anchor = Anchor::create(receiver_token, Span(receiver_token));
+  auto& address_input = Identifier::create_authored(
+      arena, receiver_token, "receiver"_view, receiver_anchor);
   auto& address =
       Tetrodotoxin::Library::Language::Access::Address::create_synthetic(
           arena, address_input, member);
 
-  EXPECT_NOT(address_input.get_addressable());
+  EXPECT(address_input.get_result().is<Invalid>());
   ASSERT(address.link(graph, context, materializations));
-  EXPECT(&*address_input.get_addressable() == &receiver);
-  EXPECT(&*address.get_addressable() == &member);
+  EXPECT(&address_input.get_result() == &receiver);
+  EXPECT(&address.get_result() == &member);
   EXPECT(graph.get_diagnostics().is_empty());
 }
 

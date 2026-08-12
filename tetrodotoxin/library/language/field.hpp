@@ -9,10 +9,10 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
-#include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/authored.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/type_reference.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -38,11 +38,11 @@ class Field : public Authored<Ttx::Model::Addressable> {
   constexpr Field(
       Tetrodotoxin::Language::Definition& definition,
       Writability writability,
-      Perimortem::Core::Option<Access::Type> type_access,
+      Perimortem::Core::Option<TypeReference> type_reference,
       Perimortem::Core::Option<Expression&> initializer)
       : Base(definition),
         writability(writability),
-        type_access(type_access),
+        type_reference(type_reference),
         initializer(initializer),
         initializer_linked(!initializer) {}
 
@@ -81,12 +81,12 @@ class Field : public Authored<Ttx::Model::Addressable> {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_type_access() const
-      -> Perimortem::Core::Option<const Access::Type&> {
-    return type_access.visit(
-        []() -> Perimortem::Core::Option<const Access::Type&> { return {}; },
-        [](const Access::Type& selected)
-            -> Perimortem::Core::Option<const Access::Type&> {
+  auto get_type_reference() const
+      -> Perimortem::Core::Option<const TypeReference&> {
+    return type_reference.visit(
+        []() -> Perimortem::Core::Option<const TypeReference&> { return {}; },
+        [](const TypeReference& selected)
+            -> Perimortem::Core::Option<const TypeReference&> {
           return selected;
         });
   }
@@ -95,15 +95,15 @@ class Field : public Authored<Ttx::Model::Addressable> {
 
   auto get_type_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
-    return type_access.visit(
+    return type_reference.visit(
         []() -> Perimortem::Core::Option<Ttx::Lexical::Anchor> { return {}; },
-        [](const Access::Type& selected)
+        [](const TypeReference& selected)
             -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
           return selected.get_anchor();
         });
   }
 
-  constexpr auto is_inferred() const -> Bool { return !type_access; }
+  constexpr auto is_inferred() const -> Bool { return !type_reference; }
 
   constexpr auto get_host() const -> const Ttx::Model::Type& {
     return static_cast<const Ttx::Model::Type&>(get_definition().get_host());
@@ -117,7 +117,7 @@ class Field : public Authored<Ttx::Model::Addressable> {
 
  private:
   Writability writability;
-  Perimortem::Core::Option<Access::Type> type_access;
+  Perimortem::Core::Option<TypeReference> type_reference;
   Perimortem::Core::Option<Expression&> initializer;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       type;
