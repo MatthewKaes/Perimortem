@@ -35,8 +35,8 @@ Library uses punctuation to select separate semantic domains:
 
 | Syntax                               | Meaning                                                       |
 | ------------------------------------ | ------------------------------------------------------------- |
-| `expression.name`                    | select one Addressable from the output Type's named Layout     |
-| `expression::Type`                   | produce one exact Type result with `Descriptor` output         |
+| `expression.name`                    | select one Addressable from the output Type's named Layout    |
+| `expression::Type`                   | produce one exact Type result with `Descriptor` output        |
 | `receiver -> callable(arguments...)` | select and invoke one Callable                                |
 | `value.[names...]`                   | select and reorder named Layout entries                       |
 | `access[index]`                      | try indexed reference access and return an optional reference |
@@ -262,11 +262,13 @@ Layout. Top level declarations enter its Static surface. Instance Fields
 cannot. The exact `source` route returns that Source, while ordinary Monograph
 lookup forwards only its externally visible Static entries.
 
-`Types::Defined` is a real non-template Type and Abstract contract requiring one
-Definition. Composite and Enumeration derive from it; Source, Structure, and
-Object inherit it through Composite. Composite owns their member inventories,
-category lookup, Layout completion, and lifecycle barriers without becoming
-another declaration model.
+Every Composite and Enumeration is a defined Type and retains exactly one
+Definition. Source, Structure, and Object follow that same rule, while Fields,
+Functions, and authored Aliases retain Definitions without changing their TTX
+categories. A Definition contributes authorship and host authority to the real
+semantic identity and never becomes a competing declaration identity or graph.
+Composite owns member categories, Layout completion, and lifecycle barriers
+without becoming another declaration model.
 
 Each Monograph creates and retains its Source with one synthetic Definition.
 That Definition uses the reserved, non-emittable name `<source>`, exact opening
@@ -314,11 +316,11 @@ The Source retains the exact Documentation that opens the Library source.
 A Package member Alias can therefore route through `source` to one documented
 root Type without copying the prose or becoming a Type itself.
 
-The Library Monograph returns the exact Type through `get_source()` and its
-installed Library Dialect through `get_dialect()`, with no category scan or
-shadow source edge. A root Function's Definition host is the Source, which
-already reaches the Monograph that owns diagnostics, imports, and completion;
-Function retains no duplicate source, host, or parent edge.
+The Library Monograph exposes its exact Source and installed Library Dialect
+directly, with no category scan or shadow source edge. A root Function's
+Definition host is the Source, which already reaches the Monograph that owns
+diagnostics, imports, and completion; the Function retains no duplicate source,
+host, or parent edge.
 
 ## Definitions
 
@@ -334,12 +336,12 @@ Every ordinary Library member begins with one shared Definition:
 
 The Definition greedily retains Documentation, every Attribute, one exact
 Visibility, ordered evaluation modifiers, the name, and the qualifier after
-`:`. The stateless Library Member parser dispatches that qualifier to the
-concrete owner, and the containing Composite retains the returned identity. A
-Type route or `=` begins a Field, `alias`, `enum`, `struct`, and `object` begin
-their Type forms, and `func` begins a Callable. Each concrete Field, Structure,
-Object, Enumeration, or Function retains that same Definition while owning the
-grammar and validation of the remaining form.
+`:`. That qualifier selects the declaration category, and the containing
+Composite retains the resulting identity. A Type route or `=` begins a Field.
+`alias`, `enum`, `struct`, and `object` begin their Type forms, while `func` begins
+a Callable. Each resulting Field, Structure, Object, Enumeration, or Function
+retains that same Definition while its concrete language form owns the
+remaining grammar and validation.
 
 Definition retains the exact host that admits the declaration: the containing
 Composite for ordinary members and the Monograph for Source. This supplies
@@ -348,11 +350,11 @@ parentage or a required TTX graph path. Walking only those Composite hosts
 grants a caller private authority over each containing Type while leaving the
 selected receiver and semantic graph unchanged.
 
-Defined Types keep their Definition on the Type chain. Field, Function, and
-authored Alias use `Authored<Base>` over Addressable, Callable, and Alias,
-preserving their single TTX category and C++ cast rules. Once its grammar is
-complete, an authored identity exposes the Definition's Documentation, complete
-Anchor, and publication decision as identity-free Authorship.
+Defined Types retain their Definition as part of the Type identity. Fields,
+Functions, and authored Aliases retain the same declaration facts while
+remaining solely Addressable, Callable, and Alias identities. Once its grammar
+is complete, an authored identity exposes the Definition's Documentation,
+complete Anchor, and publication decision as identity-free Authorship.
 
 Definition alone owns Library Visibility and authored lexical Tokens. Source's
 required synthetic Definition does not become Authorship. Import-created

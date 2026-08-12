@@ -62,14 +62,14 @@ The detailed comparison with LLVM IR is in
 None of these choices is universally better than the familiar alternative.
 They move complexity to the component that has enough information to own it.
 
-| Design choice | What it makes possible | What the project must provide |
-| --- | --- | --- |
-| Concrete semantic objects instead of one shared AST | A Dialect preserves the distinctions its language and tools actually use | Rich tooling must use that Dialect because the common TTX view is deliberately smaller |
-| Workspace local borrowed identity | Languages and consumers share one unambiguous object without copying or merging it | References end with their Workspace and cannot become persistent handles |
-| Interpretation, linking, and finalization barriers | Forward references and recursive groups retain stable identity while they become complete | Consumers must respect publication and treat unanswered queries observed during construction as provisional |
-| Semantic Layout | One language shape can feed CPU, GPU, interpreter, editor, and archive consumers | Every backend must derive and validate its own physical layout |
-| Typed Terminal products | Each output preserves the facts and validation contract its next consumer needs | There is no generic product registry or common output object |
-| Dialect owned Archive payloads | Source independent restoration can reconstruct equivalent observable language meaning | A persistent Dialect must maintain and validate its reconstruction schema, while a Dialect used only from source needs no Archive payload |
+| Design choice                                       | What it makes possible                                                                    | What the project must provide                                                                                                             |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Concrete semantic objects instead of one shared AST | A Dialect preserves the distinctions its language and tools actually use                  | Rich tooling must use that Dialect because the common TTX view is deliberately smaller                                                    |
+| Workspace local borrowed identity                   | Languages and consumers share one unambiguous object without copying or merging it        | References end with their Workspace and cannot become persistent handles                                                                  |
+| Interpretation, linking, and finalization barriers  | Forward references and recursive groups retain stable identity while they become complete | Consumers must respect publication and treat unanswered queries observed during construction as provisional                               |
+| Semantic Layout                                     | One language shape can feed CPU, GPU, interpreter, editor, and archive consumers          | Every backend must derive and validate its own physical layout                                                                            |
+| Typed Terminal products                             | Each output preserves the facts and validation contract its next consumer needs           | There is no generic product registry or common output object                                                                              |
+| Dialect owned Archive payloads                      | Source independent restoration can reconstruct equivalent observable language meaning     | A persistent Dialect must maintain and validate its reconstruction schema, while a Dialect used only from source needs no Archive payload |
 
 The architecture earns its complexity when several domains would otherwise
 maintain shadow graphs or repeatedly import semantic facts between models. A
@@ -97,12 +97,11 @@ Anchor; a synthetic Definition may carry a truthful owner-supplied Anchor
 without fabricating Tokens.
 
 A concrete language may expose a completed authored Definition as
-identity-free Authorship. Library's non-template `Types::Defined` is a real Type
-and Abstract refinement requiring one Definition. Composite and Enumeration
-derive from it; Source, Structure, and Object inherit it through Composite.
-Field, Function, and authored Alias instead use `Authored<Base>` over their
-Addressable, Callable, and Alias categories, preserving ordinary C++ category
-casts without multiple semantic inheritance.
+identity-free Authorship. Library requires every Composite and Enumeration Type
+to retain one Definition. Source, Structure, and Object follow that Type rule,
+while Field, Function, and authored Alias retain a Definition without changing
+their Addressable, Callable, or Alias categories. Definition contributes no
+second semantic identity or inheritance path.
 
 Every Library Monograph creates one Source Definition with reserved,
 non-emittable name `<source>`, opening Documentation, and Environment's exact
@@ -151,8 +150,8 @@ keeps authored prose attached to the semantic source it describes.
 
 A Monograph is an Abstract context rather than a universal Type or scope. One
 Dialect may expose no Types, another may expose a source root Type, and another
-may expose package members or lifecycle facts. Its `resolve_context()` behavior
-is part of the concrete language contract.
+may expose package members or lifecycle facts. Its contextual resolution
+behavior is part of the concrete language contract.
 
 The common Monograph surface provides stable identity, Documentation,
 Diagnostics, and the link and finalize hooks required by Environment. That is
@@ -204,11 +203,11 @@ and lifecycle in more detail.
 
 Tetrodotoxin syntax identifies the semantic question being asked:
 
-| Syntax | Semantic result |
-| --- | --- |
-| `expression.name` | One Addressable selected from the output Type's applicable named Layout |
-| `expression::Name` | One exact Type result whose Library output Type is `Descriptor` |
-| `receiver -> name(arguments)` | One registered Callable invocation with argument fitting |
+| Syntax                        | Semantic result                                                         |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| `expression.name`             | One Addressable selected from the output Type's applicable named Layout |
+| `expression::Name`            | One exact Type result whose Library output Type is `Descriptor`         |
+| `receiver -> name(arguments)` | One registered Callable invocation with argument fitting                |
 
 Every Library access evaluates the one Expression on its left. An Expression's
 exact semantic result is distinct from its output Type: the result preserves a
