@@ -5,6 +5,8 @@
 
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
+#include "tetrodotoxin/library/language/access/index.hpp"
+#include "tetrodotoxin/library/language/access/swizzle.hpp"
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/access/value.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
@@ -55,6 +57,10 @@ static auto find_postfix(Code::Type code) -> Option<ReceiverParser> {
     return &Library::Language::Access::Address::parse;
   case Code::Type::CallOp:
     return &Library::Language::Access::Call::parse;
+  case Code::Type::BracketStart:
+    return &Library::Language::Access::Index::parse;
+  case Code::Type::SwizzleOp:
+    return &Library::Language::Access::Swizzle::parse;
   case Code::Type::TypeAccessOp:
     return &Library::Language::Access::Type::parse;
   case Code::Type::ValueAccessOp:

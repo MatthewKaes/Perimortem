@@ -1,0 +1,53 @@
+// Library value acceptance.
+dialect : Library;
+
+public Packet : struct {
+  public width : Unsigned_64 = 2;
+  public height : Unsigned_64 = 3;
+
+  public total : func = [self] -> Unsigned_64 {
+    return self.width + self.height;
+  }
+}
+
+public Pair : struct {
+  public first : Unsigned_64;
+  public second : Unsigned_64;
+}
+
+public Empty : struct {}
+
+public Factory : struct {
+  public identity : func = [.value : Packet] -> Packet {
+    return value;
+  }
+
+  public add : func = [
+    .left : Unsigned_64,
+    .right : Unsigned_64,
+  ] -> Unsigned_64 {
+    return left + right;
+  }
+}
+
+private folded_add : func = [] -> Unsigned_64 {
+  return 2 + 3;
+}
+
+private default_byte : func = [] -> Unsigned_8 {
+  return 0x[10 20 30]:[99];
+}
+
+private packet : Packet;
+private sum := 2 + 3;
+private sequence := 1...4;
+private selected_byte := 0x[10 20 30]:[1];
+private missing_byte := 0x[10 20 30]:[99];
+private selected_slice := 0x[10 20 30]:[1, 2];
+private missing_slice := 0x[10 20 30]:[99, 2];
+private called := Factory -> add(2, 3);
+private addressed := Factory -> identity(packet).width;
+private self_called := packet -> total();
+private empty : Empty = packet.[];
+private single : Unsigned_64 = packet.[width];
+private reordered : Pair = packet.[height, width];

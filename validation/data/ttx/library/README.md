@@ -9,6 +9,7 @@ file defines the exact production behavior it observes.
 | File | Purpose |
 | --- | --- |
 | [`source_acceptance.ttx`](source_acceptance.ttx) | focused production Workspace acceptance for completed Definition identities and native Function requests |
+| [`value_acceptance.ttx`](value_acceptance.ttx) | focused production Workspace acceptance for defaults, scalar operations, value access, invocation, Address chaining, and Swizzle fitting |
 | [`broad.ttx`](broad.ttx) | broad Library source corpus covering declarations, Layouts, access chains, expressions, control flow, Foreign, Struct, Object, and Enumeration syntax |
 | [`foreign_triad.ttx`](foreign_triad.ttx) | one external const Addressable, state Addressable, and Callable under the C ABI |
 | [`native.ttx`](native.ttx) | compact unsigned-integer and Foreign source paired with `native_harness.c` |

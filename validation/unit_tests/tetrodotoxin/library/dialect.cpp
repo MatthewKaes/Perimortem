@@ -13,14 +13,24 @@
 #include "perimortem/system/file.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
+#include "tetrodotoxin/library/language/access/address.hpp"
+#include "tetrodotoxin/library/language/access/call.hpp"
+#include "tetrodotoxin/library/language/access/swizzle.hpp"
+#include "tetrodotoxin/library/language/access/value.hpp"
+#include "tetrodotoxin/library/language/constants/bytes.hpp"
+#include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/initializer.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/operations/add.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
+#include "tetrodotoxin/library/language/types/range.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
+#include "tetrodotoxin/library/language/types/view.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -178,6 +188,35 @@ static auto rejects_library_source(View::Bytes source) -> Bool {
 static Harness DialectTests = {
   .name = "Tetrodotoxin::Library::Dialect"_view,
 };
+
+static auto find_field(
+    const Language::Types::Composite& composite,
+    View::Bytes name) -> Option<const Language::Field&> {
+  auto fields = composite.get_addressables();
+  for (auto field = fields.begin(); field != fields.end(); ++field) {
+    const Abstract& candidate = (*field).get();
+    if (candidate.get_name() == name && candidate.is<Language::Field>()) {
+      return static_cast<const Language::Field&>(candidate);
+    }
+  }
+
+  return {};
+}
+
+static auto find_function(
+    const Language::Types::Composite& composite,
+    View::Bytes name) -> Option<const Language::Function&> {
+  auto functions = composite.get_callables();
+  for (auto function = functions.begin(); function != functions.end();
+       ++function) {
+    const Abstract& candidate = (*function).get();
+    if (candidate.get_name() == name && candidate.is<Language::Function>()) {
+      return static_cast<const Language::Function&>(candidate);
+    }
+  }
+
+  return {};
+}
 
 PERIMORTEM_UNIT_TEST(DialectTests, nested_missing_type_reports_authored_route) {
   static constexpr View::Bytes source =
@@ -641,6 +680,118 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   EXPECT_TEXT(*symbol, "source_acceptance"_view);
   EXPECT_TEXT(attributes.get_data()[2].get_key(), "tooling"_view);
   EXPECT_TEXT(attributes.get_data()[3].get_key(), "tooling"_view);
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, value_acceptance) {
+  static constexpr View::Bytes path =
+      "validation/data/ttx/library/value_acceptance.ttx"_view;
+  auto source = File::read(path);
+  ASSERT(source);
+
+  Workspace workspace;
+  Errors errors;
+  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
+  auto interpreted =
+      workspace.interpret_source(errors, "ValueAcceptance"_view, path, *source);
+  ASSERT(interpreted && interpreted->is<Language::Monograph>());
+  auto& monograph = static_cast<Language::Monograph&>(*interpreted);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+  EXPECT(&workspace.resolve_context("ValueAcceptance"_view) == &monograph);
+
+  const auto& source_type = monograph.get_source();
+  const Abstract& packet_identity = source_type.resolve_context("Packet"_view);
+  const Abstract& pair_identity = source_type.resolve_context("Pair"_view);
+  ASSERT(packet_identity.is<Language::Types::Structure>());
+  ASSERT(pair_identity.is<Language::Types::Structure>());
+  const auto& packet =
+      static_cast<const Language::Types::Structure&>(packet_identity);
+  const auto& pair =
+      static_cast<const Language::Types::Structure&>(pair_identity);
+  auto width = find_field(packet, "width"_view);
+  auto height = find_field(packet, "height"_view);
+  ASSERT(width);
+  ASSERT(height);
+
+  auto folded_add = find_function(source_type, "folded_add"_view);
+  auto default_byte = find_function(source_type, "default_byte"_view);
+  ASSERT(folded_add && folded_add->get_return_expression());
+  ASSERT(default_byte && default_byte->get_return_expression());
+  ASSERT(folded_add->get_return_expression()->is<Language::Operations::Add>());
+  ASSERT(default_byte->get_return_expression()->is<Language::Access::Value>());
+  auto folded_sum = folded_add->get_return_expression()->get_folded();
+  auto folded_default = default_byte->get_return_expression()->get_folded();
+  ASSERT(folded_sum && folded_sum->is<Language::Constants::Unsigned>());
+  ASSERT(folded_default && folded_default->is<Language::Constants::Unsigned>());
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*folded_sum)
+          .get_value(),
+      Unsigned_64(5));
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*folded_default)
+          .get_value(),
+      Unsigned_64(0));
+
+  auto sequence = find_field(source_type, "sequence"_view);
+  auto selected_byte = find_field(source_type, "selected_byte"_view);
+  auto missing_byte = find_field(source_type, "missing_byte"_view);
+  auto selected_slice = find_field(source_type, "selected_slice"_view);
+  auto missing_slice = find_field(source_type, "missing_slice"_view);
+  ASSERT(sequence);
+  ASSERT(selected_byte);
+  ASSERT(missing_byte);
+  ASSERT(selected_slice);
+  ASSERT(missing_slice);
+  ASSERT(sequence->get_type().is<Language::Types::Range>());
+  const auto& range =
+      static_cast<const Language::Types::Range&>(sequence->get_type());
+  EXPECT(&range.get_element_type() == &Dialect::get_unsigned_64());
+  EXPECT(&selected_byte->get_type() == &Dialect::get_unsigned_8());
+  EXPECT(&missing_byte->get_type() == &Dialect::get_unsigned_8());
+  ASSERT(selected_slice->get_type().is<Language::Types::View>());
+  EXPECT(&selected_slice->get_type() == &missing_slice->get_type());
+
+  auto called = find_field(source_type, "called"_view);
+  auto addressed = find_field(source_type, "addressed"_view);
+  auto self_called = find_field(source_type, "self_called"_view);
+  ASSERT(called && called->get_initializer());
+  ASSERT(addressed && addressed->get_initializer());
+  ASSERT(self_called && self_called->get_initializer());
+  ASSERT(called->get_initializer()->is<Language::Access::Call>());
+  ASSERT(addressed->get_initializer()->is<Language::Access::Address>());
+  ASSERT(self_called->get_initializer()->is<Language::Access::Call>());
+  const auto& address = static_cast<const Language::Access::Address&>(
+      *addressed->get_initializer());
+  const auto& self_call = static_cast<const Language::Access::Call&>(
+      *self_called->get_initializer());
+  EXPECT(address.get_receiver().is<Language::Access::Call>());
+  EXPECT(&address.get_result() == &*width);
+  ASSERT(self_call.get_callable());
+  EXPECT(self_call.get_callable()->is_type_bound(packet));
+
+  auto empty = find_field(source_type, "empty"_view);
+  auto single = find_field(source_type, "single"_view);
+  auto reordered = find_field(source_type, "reordered"_view);
+  ASSERT(empty && empty->get_initializer());
+  ASSERT(single && single->get_initializer());
+  ASSERT(reordered && reordered->get_initializer());
+  ASSERT(empty->get_initializer()->is<Language::Access::Swizzle>());
+  ASSERT(single->get_initializer()->is<Language::Access::Swizzle>());
+  ASSERT(reordered->get_initializer()->is<Language::Access::Swizzle>());
+  const auto& empty_swizzle =
+      static_cast<const Language::Access::Swizzle&>(*empty->get_initializer());
+  const auto& single_swizzle =
+      static_cast<const Language::Access::Swizzle&>(*single->get_initializer());
+  const auto& reordered_swizzle = static_cast<const Language::Access::Swizzle&>(
+      *reordered->get_initializer());
+  EXPECT(empty_swizzle.get_results().is_empty());
+  ASSERT_EQ(single_swizzle.get_results().get_size(), Count(1));
+  EXPECT(&*single_swizzle.get_results().get_abstract(0) == &*width);
+  ASSERT_EQ(reordered_swizzle.get_results().get_size(), Count(2));
+  EXPECT(&*reordered_swizzle.get_results().get_abstract(0) == &*height);
+  EXPECT(&*reordered_swizzle.get_results().get_abstract(1) == &*width);
+  EXPECT(reordered_swizzle.fits(pair));
   EXPECT(errors.is_empty());
 }
 
