@@ -22,8 +22,8 @@ auto Generics::Fixed::create(
   const auto* argument_data = arguments.get_data();
   const Ttx::Model::Type* element =
       argument_data[0].find<const Ttx::Model::Type&>();
-  const ::Signed_64* extent = argument_data[1].find<::Signed_64>();
-  if (element == nullptr || extent == nullptr || *extent < 0) {
+  const ::Unsigned_64* extent = argument_data[1].find<::Unsigned_64>();
+  if (element == nullptr || extent == nullptr) {
     return {};
   }
 

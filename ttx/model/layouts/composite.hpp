@@ -7,12 +7,12 @@
 
 namespace Ttx::Model::Layouts {
 
-// Composite is positional composition without copied Abstract edges. It
-// borrows two complete Layouts and presents their entries as one ordered shape.
-// Indexing selects the owning child while fitting delegates each target segment
-// to that child's concrete fitting rules. Composite can therefore retain a
-// compact Ranged prefix beside a Fluid suffix and can recursively compose more
-// than two Layouts without flattening them.
+// Composite describes positional composition without copying Abstract edges.
+// It borrows two complete Layouts and presents their entries as one ordered
+// shape. Indexing selects the owning child while fitting delegates each target
+// segment to that child's concrete fitting rules. Composite can therefore keep
+// a compact Ranged prefix beside a Fluid suffix and recursively compose more
+// than two Layouts without becoming the Pack or Type that exposes it.
 class Composite : public Concept::Layout {
  public:
   constexpr Composite(
@@ -36,6 +36,24 @@ class Composite : public Concept::Layout {
 
     return second.get_abstract(index - first.get_size());
   }
+
+  constexpr auto get_name(Count index) const
+      -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> override {
+    if (index < first.get_size()) {
+      return first.get_name(index);
+    }
+
+    if (index >= get_size()) {
+      return {};
+    }
+
+    return second.get_name(index - first.get_size());
+  }
+
+  auto fits_entry(
+      const Concept::Layout& target,
+      Count source_index,
+      Count target_index) const -> Bool override;
 
   auto fits_at(const Concept::Layout& target, Count target_offset) const
       -> Bool override;

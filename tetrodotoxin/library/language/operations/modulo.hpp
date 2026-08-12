@@ -19,23 +19,22 @@ class Modulo : public Operation {
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
+      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& source_context,
-      Expression& left) -> Perimortem::Core::Option<Expression&>;
+      Model::Pack& left,
+      Ttx::Lexical::Span left_span) -> Perimortem::Core::Option<Expression&>;
 
  protected:
-  auto evaluate_constants(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations) -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Constant&>, Expression::Error> override;
-  auto select_type(Materializations& materializations) const
+  auto evaluate_constants(Perimortem::Memory::Allocator::Arena& domain)
+      -> Perimortem::Utility::Result<
+          Perimortem::Core::Option<Constant&>,
+          Expression::Error> override;
+  auto select_type(Tetrodotoxin::Language::Monograph& source) const
       -> Perimortem::Core::Option<const Ttx::Model::Type&> override;
 
  private:
   Modulo(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
       Expression& left,
       Expression& right,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);

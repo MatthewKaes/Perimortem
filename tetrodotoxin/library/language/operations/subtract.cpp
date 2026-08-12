@@ -65,13 +65,12 @@ TTX_DIRECT_BINARY_PARSE(
     Subtract,
     SubOp,
     "Subtract has a malformed right operand."_view,
-    "Use a complete scalar Expression after binary `-`."_view,
-    "Subtract requires authored operand Anchors."_view);
+    "Use a complete scalar Expression after binary `-`."_view);
 
 TTX_BINARY_OP(Subtract);
 
-auto Language::Operations::Subtract::select_type(Materializations&) const
-    -> Core::Option<const Type&> {
+auto Language::Operations::Subtract::select_type(
+    Tetrodotoxin::Language::Monograph&) const -> Core::Option<const Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right) {
@@ -82,8 +81,7 @@ auto Language::Operations::Subtract::select_type(Materializations&) const
 }
 
 auto Language::Operations::Subtract::evaluate_constants(
-    Memory::Allocator::Arena& domain,
-    Materializations&)
+    Memory::Allocator::Arena& domain)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   const Abstract& selected = get_type().resolve();
   auto authored_left = get_input(0);

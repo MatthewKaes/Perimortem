@@ -118,7 +118,10 @@ public reset : func = [] -> Void {
   return;
 }
 
-public unnamed_layout : func = [Unsigned_64, Bool] -> [Unsigned_64, Bool] {
+public positional_result : func = [
+  .value : Unsigned_64,
+  .flag : Bool,
+] -> [Unsigned_64, Bool] {
   return (0, false);
 }
 

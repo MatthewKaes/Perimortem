@@ -9,8 +9,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/language/monograph.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -36,7 +35,7 @@ class Block : public Ttx::Concept::Abstract {
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
+      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
       Ttx::Model::Callable& lexical_context,
       const Ttx::Model::Type& access_scope) -> Perimortem::Core::Option<Block&>;
@@ -46,9 +45,7 @@ class Block : public Ttx::Concept::Abstract {
   auto operator=(const Block&) -> Block& = delete;
   auto operator=(Block&&) -> Block& = delete;
 
-  auto link(
-      Tetrodotoxin::Language::Monograph& source,
-      Materializations& materializations) -> Bool;
+  auto link(Tetrodotoxin::Language::Monograph& source) -> Bool;
 
   auto finalize() -> void;
 
@@ -79,6 +76,7 @@ class Block : public Ttx::Concept::Abstract {
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       statements;
+  Count visible_statement_count = 0;
   Ttx::Lexical::Anchor anchor = Ttx::Lexical::Anchor::create({});
   Bool linked = False;
 };

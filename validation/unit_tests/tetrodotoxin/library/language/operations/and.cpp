@@ -17,7 +17,6 @@
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -48,9 +47,8 @@ class AndMonograph : public Tetrodotoxin::Language::Monograph {
 
 static auto link_operation(
     Operation& operation,
-    AndMonograph& source,
-    Materializations& materializations) -> Bool {
-  return operation.link(source, Invalid::get_invalid(), materializations);
+    Tetrodotoxin::Language::Monograph& source) -> Bool {
+  return operation.link(source, Invalid::get_invalid());
 }
 
 class AndExpression : public Expression {
@@ -63,25 +61,21 @@ class AndExpression : public Expression {
     return Documentation::get_empty();
   }
   auto get_type() const -> const Abstract& override { return type; }
-  auto get_inputs() const -> const Layout& override { return inputs; }
 
  private:
   View::Bytes name;
   const Abstract& type;
-  Ttx::Model::Layouts::Fluid inputs;
 };
 
 class AndFoldInput : public Operation {
  public:
   AndFoldInput(
       Allocator::Arena& domain,
-      Materializations& materializations,
       Expression& input,
       Constant& result,
       Bool fails = False)
       : Operation(
             domain,
-            materializations,
             Static::Vector<Reference<Expression>, 1>{{input}},
             {}),
         result(result),
@@ -94,7 +88,7 @@ class AndFoldInput : public Operation {
   auto get_evaluations() const -> Count { return evaluations; }
 
  protected:
-  auto evaluate_constants(Allocator::Arena&, Materializations&)
+  auto evaluate_constants(Allocator::Arena&)
       -> Result<Option<Constant&>, Expression::Error> override {
     evaluations++;
     if (fails) {
@@ -104,7 +98,7 @@ class AndFoldInput : public Operation {
     return result;
   }
 
-  auto select_type(Materializations&) const
+  auto select_type(Tetrodotoxin::Language::Monograph&) const
       -> Option<const Ttx::Model::Type&> override {
     return Tetrodotoxin::Library::Dialect::get_bool();
   }
@@ -150,17 +144,6 @@ static auto is_dynamic(
       [](const Expression::Error&) { return False; });
 }
 
-static auto input_is(
-    const Operations::And& operation,
-    Count index,
-    const Expression& expected) -> Bool {
-  return operation.get_inputs().get_abstract(index).visit(
-      []() { return False; },
-      [&](const Abstract& expression) {
-        return &expression == &expected ? True : False;
-      });
-}
-
 static auto matches_anchor(
     const Expression& expression,
     View::Bytes source,
@@ -179,7 +162,6 @@ static auto matches_anchor(
 PERIMORTEM_UNIT_TEST(LibraryAnd, exact_type_and_edges) {
   Allocator::Arena domain;
   AndMonograph source(domain);
-  Materializations materializations(domain);
   Types::Boolean distinct_bool;
   Types::Signed_8 signed_8;
   AndExpression canonical_left(
@@ -190,28 +172,25 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, exact_type_and_edges) {
   AndExpression signed_value("signed"_view, signed_8);
   AndExpression invalid("invalid"_view, Invalid::get_invalid());
   auto& canonical = Operations::And::create_synthetic(
-      domain, materializations, canonical_left, canonical_right);
-  auto& distinct_left = Operations::And::create_synthetic(
-      domain, materializations, distinct, canonical_right);
-  auto& distinct_right = Operations::And::create_synthetic(
-      domain, materializations, canonical_left, distinct);
-  auto& signed_operation = Operations::And::create_synthetic(
-      domain, materializations, canonical_left, signed_value);
-  auto& invalid_operation = Operations::And::create_synthetic(
-      domain, materializations, invalid, canonical_right);
+      domain, canonical_left, canonical_right);
+  auto& distinct_left =
+      Operations::And::create_synthetic(domain, distinct, canonical_right);
+  auto& distinct_right =
+      Operations::And::create_synthetic(domain, canonical_left, distinct);
+  auto& signed_operation =
+      Operations::And::create_synthetic(domain, canonical_left, signed_value);
+  auto& invalid_operation =
+      Operations::And::create_synthetic(domain, invalid, canonical_right);
 
   EXPECT(canonical.get_type().resolve().is<Invalid>());
   EXPECT_NOT(canonical.get_anchor());
-  EXPECT(link_operation(canonical, source, materializations));
-  EXPECT_NOT(link_operation(distinct_left, source, materializations));
-  EXPECT_NOT(link_operation(distinct_right, source, materializations));
-  EXPECT_NOT(link_operation(signed_operation, source, materializations));
-  EXPECT_NOT(link_operation(invalid_operation, source, materializations));
+  EXPECT(link_operation(canonical, source));
+  EXPECT_NOT(link_operation(distinct_left, source));
+  EXPECT_NOT(link_operation(distinct_right, source));
+  EXPECT_NOT(link_operation(signed_operation, source));
+  EXPECT_NOT(link_operation(invalid_operation, source));
 
   EXPECT(&canonical.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
-  EXPECT(canonical.get_inputs().get_size() == 2);
-  EXPECT(input_is(canonical, 0, canonical_left));
-  EXPECT(input_is(canonical, 1, canonical_right));
   EXPECT(is_dynamic(canonical.fold()));
   EXPECT(distinct_left.get_type().resolve().is<Invalid>());
   EXPECT(distinct_right.get_type().resolve().is<Invalid>());
@@ -222,24 +201,23 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, exact_type_and_edges) {
 PERIMORTEM_UNIT_TEST(LibraryAnd, truth_table_and_repetition) {
   Allocator::Arena domain;
   AndMonograph source(domain);
-  Materializations materializations(domain);
   auto& true_value = Constants::True::create_synthetic(
       domain, Tetrodotoxin::Library::Dialect::get_bool());
   auto& false_value = Constants::False::create_synthetic(
       domain, Tetrodotoxin::Library::Dialect::get_bool());
-  auto& true_true = Operations::And::create_synthetic(
-      domain, materializations, true_value, true_value);
-  auto& true_false = Operations::And::create_synthetic(
-      domain, materializations, true_value, false_value);
-  auto& false_true = Operations::And::create_synthetic(
-      domain, materializations, false_value, true_value);
-  auto& false_false = Operations::And::create_synthetic(
-      domain, materializations, false_value, false_value);
+  auto& true_true =
+      Operations::And::create_synthetic(domain, true_value, true_value);
+  auto& true_false =
+      Operations::And::create_synthetic(domain, true_value, false_value);
+  auto& false_true =
+      Operations::And::create_synthetic(domain, false_value, true_value);
+  auto& false_false =
+      Operations::And::create_synthetic(domain, false_value, false_value);
 
-  EXPECT(link_operation(true_true, source, materializations));
-  EXPECT(link_operation(true_false, source, materializations));
-  EXPECT(link_operation(false_true, source, materializations));
-  EXPECT(link_operation(false_false, source, materializations));
+  EXPECT(link_operation(true_true, source));
+  EXPECT(link_operation(true_false, source));
+  EXPECT(link_operation(false_true, source));
+  EXPECT(link_operation(false_false, source));
 
   auto both = selected(true_true.fold());
   auto left = selected(true_false.fold());
@@ -260,29 +238,25 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, truth_table_and_repetition) {
 PERIMORTEM_UNIT_TEST(LibraryAnd, ordered_reachability) {
   Allocator::Arena domain;
   AndMonograph source(domain);
-  Materializations materializations(domain);
   auto& true_value = Constants::True::create_synthetic(
       domain, Tetrodotoxin::Library::Dialect::get_bool());
   auto& false_value = Constants::False::create_synthetic(
       domain, Tetrodotoxin::Library::Dialect::get_bool());
   AndExpression dynamic(
       "dynamic"_view, Tetrodotoxin::Library::Dialect::get_bool());
-  AndFoldInput skipped_failure(
-      domain, materializations, true_value, true_value, True);
-  AndFoldInput reached_failure(
-      domain, materializations, true_value, true_value, True);
-  AndFoldInput dynamic_failure(
-      domain, materializations, true_value, true_value, True);
-  auto& skipped = Operations::And::create_synthetic(
-      domain, materializations, false_value, skipped_failure);
-  auto& reached = Operations::And::create_synthetic(
-      domain, materializations, true_value, reached_failure);
-  auto& dynamic_left = Operations::And::create_synthetic(
-      domain, materializations, dynamic, dynamic_failure);
+  AndFoldInput skipped_failure(domain, true_value, true_value, True);
+  AndFoldInput reached_failure(domain, true_value, true_value, True);
+  AndFoldInput dynamic_failure(domain, true_value, true_value, True);
+  auto& skipped =
+      Operations::And::create_synthetic(domain, false_value, skipped_failure);
+  auto& reached =
+      Operations::And::create_synthetic(domain, true_value, reached_failure);
+  auto& dynamic_left =
+      Operations::And::create_synthetic(domain, dynamic, dynamic_failure);
 
-  EXPECT(link_operation(skipped, source, materializations));
-  EXPECT(link_operation(reached, source, materializations));
-  EXPECT(link_operation(dynamic_left, source, materializations));
+  EXPECT(link_operation(skipped, source));
+  EXPECT(link_operation(reached, source));
+  EXPECT(link_operation(dynamic_left, source));
 
   auto skipped_result = selected(skipped.fold());
 
@@ -297,15 +271,21 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, ordered_reachability) {
       dynamic_left.fold(), Expression::Error::Type::InvalidConstant,
       dynamic_failure));
   EXPECT(dynamic_failure.get_evaluations() == 1);
-  EXPECT(input_is(skipped, 1, skipped_failure));
-  EXPECT(input_is(dynamic_left, 0, dynamic));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parse_and_atomic_failure) {
   static constexpr View::Bytes success_source = "true & false"_view;
   Allocator::Arena domain;
-  AndMonograph source(domain);
-  Materializations materializations(domain);
+  AndMonograph context(domain);
+  Tetrodotoxin::Library::Dialect dialect;
+  Errors host_errors;
+  Tokenizer host_tokens(domain, {}, "and-source.ttx"_view);
+  Cursor host_cursor(host_tokens, host_errors);
+  auto retained_source = dialect.interpret(
+      domain, host_cursor, Documentation::get_empty(), Anchor::create(Span()),
+      context);
+  ASSERT(retained_source && retained_source->is<Monograph>());
+  auto& source = static_cast<Monograph&>(*retained_source);
   Errors success_errors;
   Tokenizer success_tokens(domain, success_source, "and.ttx"_view);
   Cursor success_cursor(success_tokens, success_errors);
@@ -315,15 +295,14 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parse_and_atomic_failure) {
   auto& success_left = Constants::True::create_authored(
       domain, Tetrodotoxin::Library::Dialect::get_bool(), success_left_anchor);
   auto parsed = Operations::And::parse(
-      domain, materializations, success_cursor, Invalid::get_invalid(),
-      success_left);
+      domain, source, success_cursor, success_left, Span(success_left_token));
 
   ASSERT(parsed && parsed->is<Operations::And>());
   EXPECT(parsed->get_type().resolve().is<Invalid>());
   EXPECT(matches_anchor(*parsed, success_source, "&"_view, success_source));
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
-  EXPECT(parsed->link(source, Invalid::get_invalid(), materializations));
+  EXPECT(parsed->link(source, Invalid::get_invalid()));
 
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "true &"_view, "and.ttx"_view);
@@ -335,8 +314,7 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parse_and_atomic_failure) {
       domain, Tetrodotoxin::Library::Dialect::get_bool(), failure_left_anchor);
   Token operation = failure_cursor.current();
   auto rejected = Operations::And::parse(
-      domain, materializations, failure_cursor, Invalid::get_invalid(),
-      failure_left);
+      domain, source, failure_cursor, failure_left, Span(failure_left_token));
 
   EXPECT_NOT(rejected);
   EXPECT(failure_cursor.current().get_offset() == operation.get_offset());
@@ -346,12 +324,11 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parse_and_atomic_failure) {
   Errors mismatch_errors;
   Tokenizer mismatch_tokens(domain, "true & 1"_view, "and.ttx"_view);
   Cursor mismatch_cursor(mismatch_tokens, mismatch_errors);
-  auto mismatch = Parser::Expression::parse(
-      domain, materializations, mismatch_cursor, Invalid::get_invalid());
+  auto mismatch = Parser::Expression::parse(domain, source, mismatch_cursor);
 
   ASSERT(mismatch && mismatch->is<Operations::And>());
   EXPECT(mismatch_errors.is_empty());
-  EXPECT_NOT(mismatch->link(source, Invalid::get_invalid(), materializations));
+  EXPECT_NOT(mismatch->link(source, Invalid::get_invalid()));
   auto diagnostics = source.get_diagnostics();
   ASSERT(diagnostics.get_size() == 1);
   ASSERT(diagnostics.get_data()[0].get_anchor());

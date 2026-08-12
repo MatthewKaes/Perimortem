@@ -41,12 +41,10 @@ Library::Language::Monograph::Monograph(
     const Documentation& documentation,
     const Anchor& source_anchor,
     Library::Dialect& dialect,
-    const Abstract& interpretation_context,
-    Materializations& materializations)
+    const Abstract& interpretation_context)
     : Tetrodotoxin::Language::Monograph(domain, documentation),
       dialect(dialect),
       interpretation_context(interpretation_context),
-      materializations(materializations),
       imports(domain),
       imported_providers(domain),
       source(
@@ -61,12 +59,10 @@ auto Library::Language::Monograph::create_authored(
     const Documentation& documentation,
     const Anchor& source_anchor,
     Library::Dialect& dialect,
-    const Abstract& interpretation_context,
-    Materializations& materializations) -> Monograph& {
+    const Abstract& interpretation_context) -> Monograph& {
   return domain.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
-        domain, documentation, source_anchor, dialect, interpretation_context,
-        materializations);
+        domain, documentation, source_anchor, dialect, interpretation_context);
   });
 }
 
@@ -115,10 +111,8 @@ auto Library::Language::Monograph::link_imports() -> Bool {
       const Abstract& binding = selected.get();
       if (category == Types::Composite::Category::Callable) {
         auto function = binding.select<Function>();
-        auto signature =
-            function ? function->get_signature() : Option<const Signature&>();
-        Bool invalid_callable = !function || !function->is_complete() ||
-                                !signature || signature->declares_self();
+        Bool invalid_callable =
+            !function || !function->is_complete() || function->declares_self();
         if (invalid_callable) {
           report(
               Anchor::create(import_span),
@@ -160,7 +154,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
     }
 
     const Abstract& selected =
-        import.get_type_reference().resolve(*source_package);
+        import.get_type_reference().resolve_route(*source_package);
     auto target_package = selected.select<Package::Language::Monograph>();
     if (!target_package) {
       report(

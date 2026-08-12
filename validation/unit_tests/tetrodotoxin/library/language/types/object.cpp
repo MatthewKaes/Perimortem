@@ -9,6 +9,7 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
@@ -121,13 +122,12 @@ PERIMORTEM_UNIT_TEST(ObjectTests, field_writability) {
   ASSERT(field != fields.end());
   const auto& hidden_const =
       static_cast<const Language::Field&>((*field).get());
-  EXPECT(open.get_writability() == Language::Field::Writability::Full);
-  EXPECT(closed.get_writability() == Language::Field::Writability::Full);
-  EXPECT(observed.get_writability() == Language::Field::Writability::Internal);
-  EXPECT(
-      hidden_state.get_writability() == Language::Field::Writability::Internal);
-  EXPECT(fixed.get_writability() == Language::Field::Writability::Init);
-  EXPECT(hidden_const.get_writability() == Language::Field::Writability::Init);
+  EXPECT(open.get_writability() == Language::Writability::Full);
+  EXPECT(closed.get_writability() == Language::Writability::Full);
+  EXPECT(observed.get_writability() == Language::Writability::Internal);
+  EXPECT(hidden_state.get_writability() == Language::Writability::Internal);
+  EXPECT(fixed.get_writability() == Language::Writability::Init);
+  EXPECT(hidden_const.get_writability() == Language::Writability::Init);
   EXPECT(errors.is_empty());
 }
 
@@ -180,7 +180,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, malformed_grammar) {
 
 PERIMORTEM_UNIT_TEST(ObjectTests, private_exposure_rejected) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
-    "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public reveal : func = [Hidden] -> [] {}"_view,
+    "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public reveal : func = [.hidden : Hidden] -> [] {}"_view,
     "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public Holder : struct { public hidden : Hidden; }"_view,
     "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public Holder : object { public hidden : Hidden; }"_view,
     "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public Holder : object { public reveal : func = [.hidden : Hidden] -> Hidden { return hidden; } }"_view,
@@ -267,7 +267,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inherited_initializer_mismatch) {
   ASSERT(diagnostics.get_data()[0].get_anchor());
   EXPECT_TEXT(
       diagnostics.get_data()[0].get_anchor()->get_span().caculate_text(source),
-      "false"_view);
+      "private state value : Unsigned_8 = false;"_view);
   EXPECT_NOT(errors.is_empty());
 }
 

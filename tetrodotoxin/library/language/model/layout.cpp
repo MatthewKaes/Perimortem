@@ -1,0 +1,507 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#include "tetrodotoxin/library/language/model/layout.hpp"
+
+#include "tetrodotoxin/library/language/model/parser/layout.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/parameter.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
+#include "ttx/concept/invalid.hpp"
+#include "ttx/model/addressable.hpp"
+
+using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
+using namespace Perimortem::Utility;
+using namespace Ttx::Concept;
+using namespace Ttx::Lexical;
+using namespace Ttx::Model;
+using namespace Tetrodotoxin::Library;
+
+static auto select_entry_type(const Abstract& entry) -> Option<const Type&> {
+  auto type = entry.select<Type>();
+  if (type) {
+    return *type;
+  }
+
+  return entry.select<Addressable>().visit(
+      []() -> Option<const Type&> { return {}; },
+      [](const Addressable& addressable) -> Option<const Type&> {
+        return addressable.get_type();
+      });
+}
+
+static auto resolves_for_fitting(const Abstract& entry) -> const Abstract& {
+  // Authored Layouts retain direct Type and Parameter edges before every Type
+  // necessarily resolves. Those identities are already canonical; resolving
+  // first would collapse distinct staged Types to the shared Invalid object.
+  if (entry.is<Type>()) {
+    return entry;
+  }
+
+  auto direct_addressable = entry.select<Addressable>();
+  if (direct_addressable) {
+    return direct_addressable->get_type();
+  }
+
+  const Abstract& represented = entry.resolve();
+  return represented.visit<Addressable>(
+      [](const Addressable& addressable) -> const Abstract& {
+        return addressable.get_type();
+      },
+      [](const Abstract& abstract) -> const Abstract& { return abstract; });
+}
+
+static auto get_slot_name(const Ttx::Concept::Layout& layout, Count index)
+    -> Option<View::Bytes> {
+  auto explicit_name = layout.get_name(index);
+  if (explicit_name) {
+    return explicit_name;
+  }
+
+  return layout.get_abstract(index).visit(
+      []() -> Option<View::Bytes> { return {}; },
+      [](const Abstract& selected) -> Option<View::Bytes> {
+        View::Bytes name = selected.get_name();
+        return name.is_empty() ? Option<View::Bytes>()
+                               : Option<View::Bytes>(name);
+      });
+}
+
+auto Language::Model::Layout::interpret_parameters(
+    Allocator::Arena& domain,
+    Monograph& source,
+    Cursor& cursor) -> Option<Layout&> {
+  return interpret(domain, source, cursor, True);
+}
+
+auto Language::Model::Layout::interpret(
+    Allocator::Arena& domain,
+    Monograph& source,
+    Cursor& cursor) -> Option<Layout&> {
+  return interpret(domain, source, cursor, False);
+}
+
+auto Language::Model::Layout::interpret(
+    Allocator::Arena& domain,
+    Monograph& source,
+    Cursor& cursor,
+    Bool parameters) -> Option<Layout&> {
+  auto transaction = cursor.branch();
+  Token opening = transaction.current();
+  Managed::Vector<Slot> slots(domain);
+  auto closing = Parser::Layout::parse(
+      transaction,
+      [&](Cursor& entry, Count index, Option<Token> name_token) -> Bool {
+        if (entry.matches(Code::Type::Self)) {
+          if (!parameters || index != 0 || !name_token ||
+              name_token->get_code() != Code::Type::Self) {
+            entry.create_token_error(
+                "Library `self` must be the first Function parameter."_view);
+            return False;
+          }
+
+          Token self = entry.consume();
+          slots.insert(Slot({}, Anchor::create(Span(self)), "self"_view));
+          return True;
+        }
+
+        if (!entry.matches(Code::Type::Type)) {
+          entry.create_token_error(
+              "Library Layout entries require one Type reference."_view);
+          return False;
+        }
+
+        Token slot_opening = name_token ? entry.peek(-3) : entry.current();
+        auto type = TypeReference::parse(source, entry);
+        BAIL_IF(!type);
+
+        View::Bytes name;
+        Anchor slot_anchor = type->get_anchor();
+        if (name_token) {
+          name =
+              domain.proxy(name_token->caculate_text(entry.get_source_text()));
+          slot_anchor = Anchor::create(
+              *name_token,
+              Span(slot_opening, type->get_anchor().get_span().get_end()));
+        }
+
+        slots.insert(Slot(*type, slot_anchor, name));
+        return True;
+      });
+  BAIL_IF(!closing);
+
+  if (parameters && !slots.is_empty() && slots.at(0).name.is_empty()) {
+    transaction.create_expression_error(
+        slots.at(0).anchor,
+        "Library Function parameters require one Named Layout."_view,
+        "Use `[]` for no parameters or name every entry as `.name : Type`."_view);
+    return {};
+  }
+
+  Anchor anchor = Anchor::create(opening, Span(opening, *closing));
+  Layout& layout = domain.construct_from<Layout>(
+      [&]() -> Layout { return Layout(domain, slots, anchor); });
+  cursor.join(transaction);
+  return layout;
+}
+
+auto Language::Model::Layout::link_parameters(
+    Tetrodotoxin::Language::Monograph& source,
+    const Type& host) -> Bool {
+  return link(source, host, True);
+}
+
+auto Language::Model::Layout::link_types(
+    Tetrodotoxin::Language::Monograph& source,
+    const Type& host) -> Bool {
+  return link(source, host, False);
+}
+
+auto Language::Model::Layout::link(
+    Tetrodotoxin::Language::Monograph& source,
+    const Type& host,
+    Bool parameters) -> Bool {
+  auto context = host.select<Language::Types::Composite>();
+  if (!context) {
+    source.report(
+        anchor, "Library Layout requires one exact Composite host Type."_view,
+        "Retain the descriptor on the Composite that owns its declaration."_view);
+    return False;
+  }
+
+  Bool failed = False;
+  for (Count i = 0; i < slots.get_size(); i++) {
+    Slot& slot = slots[i];
+    const Type* type = nullptr;
+    if (!slot.type_reference) {
+      if (!parameters || i != 0 || slot.name != "self"_view) {
+        source.report(
+            slot.anchor,
+            "Only a leading Function parameter may derive its Type from "
+            "`self`."_view,
+            "Use an authored Type reference for every other Layout entry."_view);
+        failed = True;
+        continue;
+      }
+      type = &host;
+    } else {
+      const Abstract& selected = context->resolve_type(*slot.type_reference);
+      auto selected_type = selected.select<Type>();
+      if (!selected_type) {
+        source.report(
+            slot.get_type_anchor(),
+            "Library Layout Type route did not resolve to one stable Type."_view,
+            "Publish the named Type in this logical context before linking."_view);
+        failed = True;
+        continue;
+      }
+      type = &*selected_type;
+    }
+
+    if (!parameters) {
+      if (slot.edge) {
+        if (&slot.edge->get() != type) {
+          source.report(
+              slot.get_type_anchor(),
+              "Repeated Layout linking selected a different Type identity."_view,
+              "Preserve the original resolved Type edge across completion."_view);
+          failed = True;
+        }
+      } else {
+        slot.edge = Reference<const Abstract>(*type);
+      }
+      continue;
+    }
+
+    if (type->get_layout().is_empty()) {
+      source.report(
+          slot.get_type_anchor(),
+          "Function parameter cannot bind an empty Type Layout."_view,
+          "Remove the parameter or use a Type with one value leaf."_view);
+      failed = True;
+      continue;
+    }
+
+    if (slot.edge) {
+      auto parameter = slot.edge->get().select<Language::Parameter>();
+      if (!parameter || &parameter->get_type() != type) {
+        source.report(
+            slot.get_type_anchor(),
+            "Repeated parameter linking selected a different semantic edge."_view,
+            "Preserve the original Parameter and resolved Type identity."_view);
+        failed = True;
+      }
+      continue;
+    }
+
+    auto parameter =
+        Language::Parameter::create_authored(domain, slot.name, *type);
+    if (!parameter) {
+      source.report(
+          slot.anchor,
+          "Function parameter could not retain its authored Layout entry."_view,
+          "Use one named nonempty Type for each Function parameter."_view);
+      failed = True;
+      continue;
+    }
+    slot.edge = Reference<const Abstract>(*parameter);
+  }
+
+  return !failed && is_linked();
+}
+
+auto Language::Model::Layout::resolve_named(View::Bytes route) const
+    -> const Abstract& {
+  if (!is_linked()) {
+    return Invalid::get_invalid();
+  }
+
+  for (Count i = 0; i < get_size(); i++) {
+    auto name = get_name(i);
+    auto entry = get_abstract(i);
+    if (name && *name == route && entry) {
+      return *entry;
+    }
+  }
+
+  return Invalid::get_invalid();
+}
+
+auto Language::Model::Layout::validate_publication(
+    Tetrodotoxin::Language::Monograph& source,
+    const Type& host) const -> Bool {
+  auto context = host.select<Language::Types::Composite>();
+  if (!is_linked() || !context) {
+    source.report(
+        anchor,
+        "A published Function requires one linked Composite Layout."_view,
+        "Link every authored Layout entry on its exact Function host before "
+        "publication."_view);
+    return False;
+  }
+
+  Bool valid = True;
+  for (Count i = 0; i < slots.get_size(); i++) {
+    const Slot& slot = slots.at(i);
+    auto type = select_entry_type(slot.edge->get());
+    if (!type) {
+      source.report(
+          slot.get_type_anchor(),
+          "A published Function Layout retains an invalid semantic entry."_view,
+          "Retain the exact Parameter or Type selected during linking."_view);
+      valid = False;
+      continue;
+    }
+
+    Bool reachable = slot.type_reference.visit(
+        [&]() {
+          return Bool(i == 0 && slot.name == "self"_view && &*type == &host);
+        },
+        [&](const TypeReference& reference) {
+          return Bool(&context->resolve_exported_type(reference) == &*type);
+        });
+    if (!reachable) {
+      source.report(
+          slot.get_type_anchor(),
+          "Externally readable Function publishes an unreachable Type "
+          "route."_view,
+          "Keep the Function private or publish its authored Type route."_view);
+      valid = False;
+    }
+  }
+
+  return valid;
+}
+
+auto Language::Model::Layout::declares_self() const -> Bool {
+  if (slots.is_empty()) {
+    return False;
+  }
+
+  const Slot& first = slots.at(0);
+  return Bool(!first.type_reference && first.name == "self"_view);
+}
+
+auto Language::Model::Layout::is_linked() const -> Bool {
+  for (Count i = 0; i < slots.get_size(); i++) {
+    if (!slots.at(i).edge) {
+      return False;
+    }
+  }
+  return True;
+}
+
+auto Language::Model::Layout::is_named() const -> Bool {
+  return slots.is_empty() || !slots.at(0).name.is_empty();
+}
+
+auto Language::Model::Layout::get_visible_slot(Count index) const
+    -> const Slot* {
+  Count visible = 0;
+  for (Count i = 0; i < slots.get_size(); i++) {
+    const Slot& slot = slots.at(i);
+    // TTX Layout queries have the same lifecycle precondition as
+    // Addressable::get_type: the owning staged object must first link. The
+    // required dereference deliberately cannot turn an absent edge into an
+    // empty Layout.
+    auto type = select_entry_type(slot.edge->get());
+    if (!type || type->get_layout().is_empty()) {
+      continue;
+    }
+
+    if (visible == index) {
+      return &slot;
+    }
+    visible++;
+  }
+
+  return nullptr;
+}
+
+auto Language::Model::Layout::get_size() const -> Count {
+  Count size = 0;
+  for (Count i = 0; i < slots.get_size(); i++) {
+    auto type = select_entry_type(slots.at(i).edge->get());
+    if (type && !type->get_layout().is_empty()) {
+      size++;
+    }
+  }
+  return size;
+}
+
+auto Language::Model::Layout::get_abstract(Count index) const
+    -> Option<const Abstract&> {
+  const Slot* slot = get_visible_slot(index);
+  BAIL_IF(slot == nullptr || !slot->edge);
+  return slot->edge->get();
+}
+
+auto Language::Model::Layout::get_name(Count index) const
+    -> Option<View::Bytes> {
+  BAIL_IF(!is_named());
+
+  const Slot* slot = get_visible_slot(index);
+  BAIL_IF(slot == nullptr || slot->name.is_empty());
+  return slot->name;
+}
+
+auto Language::Model::Layout::fits_value(
+    const Ttx::Concept::Layout& target,
+    Count source_index,
+    Count target_index) const -> Bool {
+  auto source = get_abstract(source_index);
+  auto destination = target.get_abstract(target_index);
+  return Bool(
+      source && destination &&
+      &resolves_for_fitting(*source) == &resolves_for_fitting(*destination));
+}
+
+auto Language::Model::Layout::fits_entry(
+    const Ttx::Concept::Layout& target,
+    Count source_index,
+    Count target_index) const -> Bool {
+  BAIL_IF(source_index >= get_size() || target_index >= target.get_size());
+
+  if (!is_named()) {
+    return fits_value(target, source_index, target_index);
+  }
+
+  auto source_name = get_name(source_index);
+  auto target_name = get_slot_name(target, target_index);
+  return source_name && target_name && *source_name == *target_name &&
+         fits_value(target, source_index, target_index);
+}
+
+auto Language::Model::Layout::has_unique_names() const -> Bool {
+  for (Count i = 0; i < get_size(); i++) {
+    auto name = get_name(i);
+    BAIL_IF(!name);
+    for (Count other = i + 1; other < get_size(); other++) {
+      auto candidate = get_name(other);
+      BAIL_IF(!candidate || *candidate == *name);
+    }
+  }
+  return True;
+}
+
+auto Language::Model::Layout::fits_at(
+    const Ttx::Concept::Layout& target,
+    Count target_offset) const -> Bool {
+  BAIL_IF(!has_target_segment(target, target_offset));
+
+  if (!is_named()) {
+    for (Count i = 0; i < get_size(); i++) {
+      BAIL_IF(!fits_value(target, i, target_offset + i));
+    }
+    return True;
+  }
+
+  BAIL_IF(!has_unique_names());
+  for (Count source_index = 0; source_index < get_size(); source_index++) {
+    auto source_name = get_name(source_index);
+    BAIL_IF(!source_name);
+
+    Count selected = 0;
+    Count matches = 0;
+    for (Count target_index = 0; target_index < get_size(); target_index++) {
+      auto target_name = get_slot_name(target, target_offset + target_index);
+      if (target_name && *target_name == *source_name) {
+        selected = target_index;
+        matches++;
+      }
+    }
+    BAIL_IF(
+        matches != 1 ||
+        !fits_value(target, source_index, target_offset + selected));
+  }
+
+  return True;
+}
+
+auto Language::Model::Layout::get_fitted_at(
+    const Ttx::Concept::Layout& target,
+    Count target_offset,
+    Count target_index) const -> Result<const Abstract&, Errors> {
+  if (target_index >= get_size()) {
+    return Errors::IndexOutOfBounds;
+  }
+  if (!has_target_segment(target, target_offset)) {
+    return Errors::SizeMismatch;
+  }
+  if (!fits_at(target, target_offset)) {
+    return Errors::IncompatibleFit;
+  }
+
+  if (!is_named()) {
+    return get_abstract(target_index)
+        .visit(
+            []() -> Result<const Abstract&, Errors> {
+              return Errors::IncompatibleFit;
+            },
+            [](const Abstract& selected) -> Result<const Abstract&, Errors> {
+              return selected;
+            });
+  }
+
+  auto target_name = get_slot_name(target, target_offset + target_index);
+  if (!target_name) {
+    return Errors::IncompatibleFit;
+  }
+
+  for (Count source_index = 0; source_index < get_size(); source_index++) {
+    auto source_name = get_name(source_index);
+    if (source_name && *source_name == *target_name) {
+      return get_abstract(source_index)
+          .visit(
+              []() -> Result<const Abstract&, Errors> {
+                return Errors::IncompatibleFit;
+              },
+              [](const Abstract& selected) -> Result<const Abstract&, Errors> {
+                return selected;
+              });
+    }
+  }
+
+  return Errors::IncompatibleFit;
+}

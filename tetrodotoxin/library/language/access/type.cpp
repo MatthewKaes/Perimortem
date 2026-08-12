@@ -23,9 +23,8 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
 
 auto Language::Access::Type::parse(
     Memory::Allocator::Arena& domain,
-    Materializations&,
+    Language::Monograph&,
     Cursor& cursor,
-    const Abstract&,
     Expression& receiver) -> Core::Option<Expression&> {
   Token operation = cursor.consume();
   Token type = cursor.require(
@@ -53,10 +52,8 @@ auto Language::Access::Type::parse(
 auto Language::Access::Type::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& lexical_context,
-    Materializations& materializations,
     Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
-  BAIL_IF(
-      !receiver.link(source, lexical_context, materializations, access_scope));
+  BAIL_IF(!receiver.link(source, lexical_context, access_scope));
 
   const Abstract& receiver_result = receiver.get_result();
   auto receiver_type = receiver_result.select<Ttx::Model::Type>();
@@ -123,6 +120,7 @@ auto Language::Access::Type::get_result() const -> const Abstract& {
       });
 }
 
-auto Language::Access::Type::get_inputs() const -> const Layout& {
-  return inputs;
+auto Language::Access::Type::finalize() -> void {
+  receiver.finalize();
+  Expression::finalize();
 }

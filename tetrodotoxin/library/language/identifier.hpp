@@ -11,7 +11,6 @@
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/token.hpp"
 #include "ttx/model/addressable.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
@@ -39,7 +38,6 @@ class Identifier : public Expression {
   auto link(
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Concept::Abstract& lexical_context,
-      Materializations& materializations,
       Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
       -> Bool override;
 
@@ -50,8 +48,6 @@ class Identifier : public Expression {
   auto get_type() const -> const Ttx::Concept::Abstract& override;
 
   auto get_result() const -> const Ttx::Concept::Abstract& override;
-
-  auto get_inputs() const -> const Ttx::Concept::Layout& override;
 
   constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
 

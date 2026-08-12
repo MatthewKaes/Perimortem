@@ -11,32 +11,35 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/token.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
 
-// Swizzle selects and reorders named Addressables from one receiver Type. Its
-// positional result Layout retains those exact semantic identities without
-// creating an aggregate Type or copying their member facts.
+// Swizzle selects and reorders named values from one receiver Pack. A named
+// Pack contributes the real producer retained at each selected source index;
+// one multi-result producer may therefore supply several distinct slots. A
+// scalar Expression may instead contribute the named Addressables of its
+// output Type, in which case each selected slot is a real Address Expression
+// bound to that receiver. The result is positional Pack flow and never an
+// eagerly materialized Type.
 class Swizzle : public Expression {
  public:
   TTX_CONTRACT(Swizzle, Expression, 0xc43faea8e4984ac5, 0x81abdbb11a727513);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
+      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& source_context,
-      Expression& receiver) -> Perimortem::Core::Option<Expression&>;
+      Language::Model::Pack& receiver,
+      Ttx::Lexical::Span receiver_span)
+      -> Perimortem::Core::Option<Expression&>;
 
   auto link(
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Concept::Abstract& lexical_context,
-      Materializations& materializations,
       Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
       -> Bool override;
 
@@ -44,39 +47,38 @@ class Swizzle : public Expression {
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
-  auto get_inputs() const -> const Ttx::Concept::Layout& override;
-  auto fits(const Ttx::Model::Type& target) const -> Bool override;
+  auto get_layout() const -> const Ttx::Concept::Layout& override;
+  auto resolve() const -> const Ttx::Concept::Abstract& override;
+  auto finalize() -> void override;
 
-  constexpr auto get_receiver() const -> const Expression& { return receiver; }
-  constexpr auto get_results() const -> const Ttx::Concept::Layout& {
-    return results;
+  constexpr auto get_receiver() const -> const Language::Model::Pack& {
+    return receiver;
   }
 
  private:
   Swizzle(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
+      Language::Model::Pack& receiver,
       Perimortem::Core::View::Vector<Ttx::Lexical::Token> name_tokens,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor),
+        domain(domain),
         receiver(receiver),
         name_tokens(name_tokens),
         names(names),
-        selected(domain),
-        input(receiver),
-        inputs({&this->input, 1}) {}
+        selections(domain),
+        projections(domain) {}
 
-  Expression& receiver;
+  Perimortem::Memory::Allocator::Arena& domain;
+  Language::Model::Pack& receiver;
   Perimortem::Core::View::Vector<Ttx::Lexical::Token> name_tokens;
   Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names;
+  Perimortem::Memory::Managed::Vector<Count> selections;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-      selected;
-  Ttx::Model::Layouts::Fluid results;
-  Ttx::Concept::Reference<const Ttx::Concept::Abstract> input;
-  Ttx::Model::Layouts::Fluid inputs;
-  Bool linked = False;
+      projections;
+  Perimortem::Core::Option<const Ttx::Concept::Layout&> output;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

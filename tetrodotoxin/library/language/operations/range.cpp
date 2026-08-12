@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/operations/range.hpp"
 
 #include "tetrodotoxin/library/language/generics/range.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/types/signed.hpp"
@@ -17,15 +18,15 @@ using namespace Ttx::Model;
 
 auto Language::Operations::Range::parse(
     Memory::Allocator::Arena& domain,
-    Materializations& materializations,
+    Monograph& source,
     Cursor& cursor,
-    const Abstract& source_context,
-    Expression& left) -> Core::Option<Expression&> {
+    Model::Pack& left,
+    Span left_span) -> Core::Option<Expression&> {
   auto transaction = cursor.branch();
   Token opening = transaction.consume();
+  Token right_start = transaction.current();
   auto right = Language::Parser::Expression::parse_operand(
-      domain, materializations, transaction, source_context,
-      Code::Type::RangeOp);
+      domain, source, transaction, Code::Type::RangeOp);
   Span span(opening, transaction.peek(-1));
   if (!right) {
     transaction.create_expression_error(
@@ -41,18 +42,20 @@ auto Language::Operations::Range::parse(
     return {};
   }
 
-  const auto& left_anchor = left.get_anchor();
-  const auto& right_anchor = right->get_anchor();
-  if (!left_anchor || !right_anchor) {
+  auto left_expression = left.select<Expression>();
+  auto right_expression = right->select<Expression>();
+  Span right_span(right_start, transaction.peek(-1));
+  if (!left_expression || !right_expression) {
     transaction.create_expression_error(
-        span, "Range requires authored endpoint Anchors."_view);
+        Anchor::create(opening, left_span, right_span),
+        "Library Range requires one Expression from each endpoint Pack."_view,
+        "Use one unlabelled integer value for each Range endpoint."_view);
     return {};
   }
 
-  Anchor anchor = Anchor::create(
-      opening, left_anchor->get_span(), right_anchor->get_span());
+  Anchor anchor = Anchor::create(opening, left_span, right_span);
   Range& range =
-      create_authored(domain, materializations, left, *right, anchor);
+      create_authored(domain, *left_expression, *right_expression, anchor);
   cursor.join(transaction);
   return range;
 }
@@ -60,7 +63,8 @@ auto Language::Operations::Range::parse(
 TTX_BINARY_OP(Range);
 
 auto Language::Operations::Range::select_type(
-    Materializations& materializations) const -> Core::Option<const Type&> {
+    Tetrodotoxin::Language::Monograph& source) const
+    -> Core::Option<const Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right) {
@@ -79,13 +83,14 @@ auto Language::Operations::Range::select_type(
   Core::Static::Vector<Generic::Argument, 1> arguments = {{
     Generic::Argument(*element),
   }};
-  return materializations.materialize(
+  // Range construction consumes the graph transaction hosted by the concrete
+  // Library source. Parser and Operation retain no second capability edge.
+  auto& library_source = static_cast<Language::Monograph&>(source);
+  return library_source.get_materializations().materialize(
       Generics::Range::get_formula(), arguments.get_view());
 }
 
-auto Language::Operations::Range::evaluate_constants(
-    Memory::Allocator::Arena&,
-    Materializations&)
+auto Language::Operations::Range::evaluate_constants(Memory::Allocator::Arena&)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   return Core::Option<Constant&>{};
 }

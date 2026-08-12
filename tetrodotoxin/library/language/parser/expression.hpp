@@ -7,143 +7,163 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/library/language/expression.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
-#include "ttx/concept/abstract.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Parser {
 
-// Expression consumes one complete Library value operand. Postfix Access owns
-// its receiver chain before mathematical Operations participate in precedence.
-// Each concrete owner parses its complete grammar and constructs its source
-// identity. Semantic Types and Addressables connect only when the retained
-// owner links the complete Expression graph.
+// Expression consumes one complete Library value-flow operand. Parentheses may
+// therefore produce an empty, named, or multi-value Pack without inventing a
+// carrier Expression. Postfix Access and scalar Operations prove the narrower
+// Expression category only when their own grammar requires it.
 class Expression {
  public:
   Expression() = delete;
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Core::Option<Language::Expression&>;
+      Monograph& source,
+      Ttx::Lexical::Cursor& cursor)
+      -> Perimortem::Core::Option<Language::Model::Pack&>;
 
   // Parses one tighter operand with private diagnostics. The caller position
   // advances only when the complete operand succeeds.
   static auto parse_operand(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
+      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& source_context,
       Ttx::Lexical::Code::Type operation)
-      -> Perimortem::Core::Option<Language::Expression&>;
+      -> Perimortem::Core::Option<Language::Model::Pack&>;
 
   // Parses one prefix operand with private diagnostics. Postfix operations
   // remain inside the operand while binary operations remain outside it.
   static auto parse_prefix_operand(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Core::Option<Language::Expression&>;
+      Monograph& source,
+      Ttx::Lexical::Cursor& cursor)
+      -> Perimortem::Core::Option<Language::Model::Pack&>;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Parser
 
-// Ordinary operation parsers share their complete source transaction while
-// keeping direct and speculative cursor policies explicit at each definition.
-#define TTX_DIRECT_BINARY_PARSE(                                            \
-    type, token_type, malformed, repair, missing_anchor)                    \
+// Scalar Operations accept Pack operands at their grammar boundary, then
+// retain the exact Expression identities proved here. A parenthesized single
+// positional value is already that Expression; named and multi-value Packs
+// remain honest Packs and require an operation that defines their shape.
+#define TTX_DIRECT_BINARY_PARSE(type, token_type, malformed, repair)        \
   auto Tetrodotoxin::Library::Language::Operations::type::parse(            \
       Perimortem::Memory::Allocator::Arena& domain,                         \
-      Tetrodotoxin::Library::Language::Materializations& materializations,  \
+      Tetrodotoxin::Library::Language::Monograph& source,                   \
       Ttx::Lexical::Cursor& cursor,                                         \
-      const Ttx::Concept::Abstract& source_context,                         \
-      Tetrodotoxin::Library::Language::Expression& left)                    \
+      Tetrodotoxin::Library::Language::Model::Pack& left,                   \
+      Ttx::Lexical::Span left_span)                                         \
       -> Perimortem::Core::Option<                                          \
           Tetrodotoxin::Library::Language::Expression&> {                   \
     Ttx::Lexical::Token opening = cursor.consume();                         \
+    Ttx::Lexical::Token right_start = cursor.current();                     \
     auto right =                                                            \
         Tetrodotoxin::Library::Language::Parser::Expression::parse_operand( \
-            domain, materializations, cursor, source_context,               \
-            Ttx::Lexical::Code::Type::token_type);                          \
+            domain, source, cursor, Ttx::Lexical::Code::Type::token_type);  \
     Ttx::Lexical::Span span(opening, cursor.peek(-1));                      \
     if (!right) {                                                           \
       cursor.create_expression_error(span, malformed, repair);              \
       return {};                                                            \
     }                                                                       \
-    const auto& left_anchor = left.get_anchor();                            \
-    const auto& right_anchor = right->get_anchor();                         \
-    if (!left_anchor || !right_anchor) {                                    \
-      cursor.create_expression_error(span, missing_anchor);                 \
+    Ttx::Lexical::Span right_span(right_start, cursor.peek(-1));            \
+    auto left_expression =                                                  \
+        left.select<Tetrodotoxin::Library::Language::Expression>();         \
+    auto right_expression =                                                 \
+        right->select<Tetrodotoxin::Library::Language::Expression>();       \
+    if (!left_expression || !right_expression) {                            \
+      cursor.create_expression_error(                                       \
+          Ttx::Lexical::Anchor::create(opening, left_span, right_span),     \
+          "Library scalar operation requires one Expression from each "     \
+          "operand Pack."_view,                                             \
+          "Use one unlabelled scalar value; named and multi-value Packs "   \
+          "require an operation that defines their shape."_view);           \
       return {};                                                            \
     }                                                                       \
-    auto anchor = Ttx::Lexical::Anchor::create(                             \
-        opening, left_anchor->get_span(), right_anchor->get_span());        \
-    return create_authored(domain, materializations, left, *right, anchor); \
+    auto anchor =                                                           \
+        Ttx::Lexical::Anchor::create(opening, left_span, right_span);       \
+    return create_authored(                                                 \
+        domain, *left_expression, *right_expression, anchor);               \
   }
 
-#define TTX_TRANSACTIONAL_BINARY_PARSE(                                     \
-    type, token_type, malformed, repair, missing_anchor)                    \
-  auto Tetrodotoxin::Library::Language::Operations::type::parse(            \
-      Perimortem::Memory::Allocator::Arena& domain,                         \
-      Tetrodotoxin::Library::Language::Materializations& materializations,  \
-      Ttx::Lexical::Cursor& cursor,                                         \
-      const Ttx::Concept::Abstract& source_context,                         \
-      Tetrodotoxin::Library::Language::Expression& left)                    \
-      -> Perimortem::Core::Option<                                          \
-          Tetrodotoxin::Library::Language::Expression&> {                   \
-    auto transaction = cursor.branch();                                     \
-    Ttx::Lexical::Token opening = transaction.consume();                    \
-    auto right =                                                            \
-        Tetrodotoxin::Library::Language::Parser::Expression::parse_operand( \
-            domain, materializations, transaction, source_context,          \
-            Ttx::Lexical::Code::Type::token_type);                          \
-    Ttx::Lexical::Span span(opening, transaction.peek(-1));                 \
-    if (!right) {                                                           \
-      transaction.create_expression_error(span, malformed, repair);         \
-      return {};                                                            \
-    }                                                                       \
-    const auto& left_anchor = left.get_anchor();                            \
-    const auto& right_anchor = right->get_anchor();                         \
-    if (!left_anchor || !right_anchor) {                                    \
-      transaction.create_expression_error(span, missing_anchor);            \
-      return {};                                                            \
-    }                                                                       \
-    auto anchor = Ttx::Lexical::Anchor::create(                             \
-        opening, left_anchor->get_span(), right_anchor->get_span());        \
-    auto& result =                                                          \
-        create_authored(domain, materializations, left, *right, anchor);    \
-    cursor.join(transaction);                                               \
-    return result;                                                          \
+#define TTX_TRANSACTIONAL_BINARY_PARSE(type, token_type, malformed, repair)   \
+  auto Tetrodotoxin::Library::Language::Operations::type::parse(              \
+      Perimortem::Memory::Allocator::Arena& domain,                           \
+      Tetrodotoxin::Library::Language::Monograph& source,                     \
+      Ttx::Lexical::Cursor& cursor,                                           \
+      Tetrodotoxin::Library::Language::Model::Pack& left,                     \
+      Ttx::Lexical::Span left_span)                                           \
+      -> Perimortem::Core::Option<                                            \
+          Tetrodotoxin::Library::Language::Expression&> {                     \
+    auto transaction = cursor.branch();                                       \
+    Ttx::Lexical::Token opening = transaction.consume();                      \
+    Ttx::Lexical::Token right_start = transaction.current();                  \
+    auto right =                                                              \
+        Tetrodotoxin::Library::Language::Parser::Expression::parse_operand(   \
+            domain, source, transaction,                                      \
+            Ttx::Lexical::Code::Type::token_type);                            \
+    Ttx::Lexical::Span span(opening, transaction.peek(-1));                   \
+    if (!right) {                                                             \
+      transaction.create_expression_error(span, malformed, repair);           \
+      return {};                                                              \
+    }                                                                         \
+    Ttx::Lexical::Span right_span(right_start, transaction.peek(-1));         \
+    auto left_expression =                                                    \
+        left.select<Tetrodotoxin::Library::Language::Expression>();           \
+    auto right_expression =                                                   \
+        right->select<Tetrodotoxin::Library::Language::Expression>();         \
+    if (!left_expression || !right_expression) {                              \
+      transaction.create_expression_error(                                    \
+          Ttx::Lexical::Anchor::create(opening, left_span, right_span),       \
+          "Library scalar operation requires one Expression from each "       \
+          "operand Pack."_view,                                               \
+          "Use one unlabelled scalar value; named and multi-value Packs "     \
+          "require an operation that defines their shape."_view);             \
+      return {};                                                              \
+    }                                                                         \
+    auto anchor =                                                             \
+        Ttx::Lexical::Anchor::create(opening, left_span, right_span);         \
+    auto& result =                                                            \
+        create_authored(domain, *left_expression, *right_expression, anchor); \
+    cursor.join(transaction);                                                 \
+    return result;                                                            \
   }
 
-#define TTX_DIRECT_UNARY_PARSE(type, malformed, repair, missing_anchor)    \
-  auto Tetrodotoxin::Library::Language::Operations::type::parse(           \
-      Perimortem::Memory::Allocator::Arena& domain,                        \
-      Tetrodotoxin::Library::Language::Materializations& materializations, \
-      Ttx::Lexical::Cursor& cursor,                                        \
-      const Ttx::Concept::Abstract& source_context)                        \
-      -> Perimortem::Core::Option<                                         \
-          Tetrodotoxin::Library::Language::Expression&> {                  \
-    Ttx::Lexical::Token opening = cursor.consume();                        \
-    auto operand = Tetrodotoxin::Library::Language::Parser::Expression::   \
-        parse_prefix_operand(                                              \
-            domain, materializations, cursor, source_context);             \
-    Ttx::Lexical::Span span(opening, cursor.peek(-1));                     \
-    if (!operand) {                                                        \
-      cursor.create_expression_error(span, malformed, repair);             \
-      return {};                                                           \
-    }                                                                      \
-    const auto& operand_anchor = operand->get_anchor();                    \
-    if (!operand_anchor) {                                                 \
-      cursor.create_expression_error(span, missing_anchor);                \
-      return {};                                                           \
-    }                                                                      \
-    auto anchor = Ttx::Lexical::Anchor::create(                            \
-        opening, Ttx::Lexical::Span(opening), operand_anchor->get_span()); \
-    return create_authored(domain, materializations, *operand, anchor);    \
+#define TTX_DIRECT_UNARY_PARSE(type, malformed, repair)                   \
+  auto Tetrodotoxin::Library::Language::Operations::type::parse(          \
+      Perimortem::Memory::Allocator::Arena& domain,                       \
+      Tetrodotoxin::Library::Language::Monograph& source,                 \
+      Ttx::Lexical::Cursor& cursor)                                       \
+      -> Perimortem::Core::Option<                                        \
+          Tetrodotoxin::Library::Language::Expression&> {                 \
+    Ttx::Lexical::Token opening = cursor.consume();                       \
+    Ttx::Lexical::Token operand_start = cursor.current();                 \
+    auto operand = Tetrodotoxin::Library::Language::Parser::Expression::  \
+        parse_prefix_operand(domain, source, cursor);                     \
+    Ttx::Lexical::Span span(opening, cursor.peek(-1));                    \
+    if (!operand) {                                                       \
+      cursor.create_expression_error(span, malformed, repair);            \
+      return {};                                                          \
+    }                                                                     \
+    Ttx::Lexical::Span operand_span(operand_start, cursor.peek(-1));      \
+    auto expression =                                                     \
+        operand->select<Tetrodotoxin::Library::Language::Expression>();   \
+    if (!expression) {                                                    \
+      cursor.create_expression_error(                                     \
+          Ttx::Lexical::Anchor::create(                                   \
+              opening, Ttx::Lexical::Span(opening), operand_span),        \
+          "Library scalar operation requires one Expression operand "     \
+          "Pack."_view,                                                   \
+          "Use one unlabelled scalar value; named and multi-value Packs " \
+          "require an operation that defines their shape."_view);         \
+      return {};                                                          \
+    }                                                                     \
+    auto anchor = Ttx::Lexical::Anchor::create(                           \
+        opening, Ttx::Lexical::Span(opening), operand_span);              \
+    return create_authored(domain, *expression, anchor);                  \
   }

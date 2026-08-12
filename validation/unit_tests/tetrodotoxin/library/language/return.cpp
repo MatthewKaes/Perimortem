@@ -9,9 +9,6 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/language/access/call.hpp"
-#include "tetrodotoxin/library/language/access/swizzle.hpp"
-#include "tetrodotoxin/library/language/constants/flag.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
@@ -90,9 +87,19 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
       "}\n"
       "public Flow : struct {\n"
       "  public bare_void : func = [] -> Void { return; }\n"
+      "  public explicit_empty : func = [] -> [] { return (); }\n"
       "  public fallthrough : func = [] -> [] {}\n"
       "  public bare_empty : func = [] -> Empty { return; }\n"
       "  public scalar : func = [] -> Bool { return true; }\n"
+      "  public grouped_scalar : func = [] -> Bool { return (true); }\n"
+      "  public grouped_pair : func = [.packet : Packet] -> "
+      "[Unsigned_64, Bool] {\n"
+      "    return (packet.number, packet.flag);\n"
+      "  }\n"
+      "  public named_pair : func = [.packet : Packet] -> "
+      "[.number : Unsigned_64, .flag : Bool] {\n"
+      "    return (.flag = packet.flag, .number = packet.number);\n"
+      "  }\n"
       "  public pair : func = [.packet : Packet] -> [Unsigned_64, Bool] {\n"
       "    return packet.[number, flag];\n"
       "  }\n"
@@ -115,50 +122,50 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
   const auto& flow =
       static_cast<const Language::Types::Structure&>(flow_identity);
   auto bare_void = find_function(flow, "bare_void"_view);
+  auto explicit_empty = find_function(flow, "explicit_empty"_view);
   auto fallthrough = find_function(flow, "fallthrough"_view);
   auto bare_empty = find_function(flow, "bare_empty"_view);
   auto scalar = find_function(flow, "scalar"_view);
+  auto grouped_scalar = find_function(flow, "grouped_scalar"_view);
+  auto grouped_pair = find_function(flow, "grouped_pair"_view);
+  auto named_pair = find_function(flow, "named_pair"_view);
   auto pair = find_function(flow, "pair"_view);
   auto called = find_function(flow, "called"_view);
   auto empty_swizzle = find_function(flow, "empty_swizzle"_view);
-  ASSERT(bare_void && fallthrough && bare_empty && scalar && pair && called);
+  ASSERT(bare_void && explicit_empty && fallthrough && bare_empty && scalar);
+  ASSERT(grouped_scalar && grouped_pair && named_pair && pair && called);
   ASSERT(empty_swizzle);
 
   auto void_return = find_return(*bare_void);
+  auto explicit_return = find_return(*explicit_empty);
   auto empty_return = find_return(*bare_empty);
   auto scalar_return = find_return(*scalar);
+  auto grouped_scalar_return = find_return(*grouped_scalar);
+  auto grouped_pair_return = find_return(*grouped_pair);
+  auto named_pair_return = find_return(*named_pair);
   auto pair_return = find_return(*pair);
   auto called_return = find_return(*called);
   auto swizzle_return = find_return(*empty_swizzle);
-  ASSERT(void_return && !void_return->get_expression());
-  ASSERT(empty_return && !empty_return->get_expression());
-  ASSERT(scalar_return && scalar_return->get_expression());
-  ASSERT(pair_return && pair_return->get_expression());
-  ASSERT(called_return && called_return->get_expression());
-  ASSERT(swizzle_return && swizzle_return->get_expression());
+  ASSERT(void_return && explicit_return && empty_return && scalar_return);
+  ASSERT(grouped_scalar_return && grouped_pair_return && named_pair_return);
+  ASSERT(pair_return && called_return && swizzle_return);
   EXPECT(
       void_return->get_anchor().get_span().caculate_text(source) ==
       "return;"_view);
   EXPECT(bare_void->get_results().is_empty());
+  EXPECT(explicit_empty->get_results().is_empty());
   EXPECT(bare_empty->get_results().is_empty());
-  EXPECT(bare_void->get_results().fits(bare_empty->get_results()));
-  EXPECT(bare_empty->get_results().fits(bare_void->get_results()));
+  EXPECT(bare_void->get_results().fits(explicit_empty->get_results()));
+  EXPECT(explicit_empty->get_results().fits(bare_empty->get_results()));
   ASSERT(fallthrough->get_body());
   EXPECT(fallthrough->get_body()->get_statements().is_empty());
-  EXPECT(scalar_return->get_expression()->is<Language::Constants::Flag>());
-  EXPECT(pair_return->get_expression()->is<Language::Access::Swizzle>());
-  EXPECT(called_return->get_expression()->is<Language::Access::Call>());
-  EXPECT(swizzle_return->get_expression()->is<Language::Access::Swizzle>());
-
-  const auto& pair_swizzle = static_cast<const Language::Access::Swizzle&>(
-      *pair_return->get_expression());
-  const auto& called_call = static_cast<const Language::Access::Call&>(
-      *called_return->get_expression());
-  const auto& empty_result = static_cast<const Language::Access::Swizzle&>(
-      *swizzle_return->get_expression());
-  ASSERT_EQ(pair_swizzle.get_results().get_size(), Count(2));
-  ASSERT_EQ(called_call.get_results().get_size(), Count(2));
-  EXPECT(empty_result.get_results().is_empty());
+  EXPECT_EQ(scalar->get_results().get_size(), Count(1));
+  EXPECT_EQ(grouped_scalar->get_results().get_size(), Count(1));
+  EXPECT_EQ(grouped_pair->get_results().get_size(), Count(2));
+  EXPECT_EQ(named_pair->get_results().get_size(), Count(2));
+  EXPECT_EQ(pair->get_results().get_size(), Count(2));
+  EXPECT_EQ(called->get_results().get_size(), Count(2));
+  EXPECT(empty_swizzle->get_results().is_empty());
 
   ASSERT(monograph->link());
   ASSERT(monograph->finalize());
@@ -167,11 +174,14 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
 }
 
 PERIMORTEM_UNIT_TEST(ReturnTests, incompatible_flow_is_rejected) {
-  static constexpr Static::Vector<View::Bytes, 4> sources = {{
+  static constexpr Static::Vector<View::Bytes, 7> sources = {{
     "// Missing return.\ndialect : Library; private invalid : func = [] -> Bool {}"_view,
     "// Bare nonempty return.\ndialect : Library; private invalid : func = [] -> Bool { return; }"_view,
     "// Value in empty return.\ndialect : Library; private invalid : func = [] -> [] { return true; }"_view,
     "// Scalar mismatch.\ndialect : Library; private invalid : func = [] -> Bool { return 1; }"_view,
+    "// Explicit empty mismatch.\ndialect : Library; private invalid : func = [] -> Bool { return (); }"_view,
+    "// Positional Pack mismatch.\ndialect : Library; private invalid : func = [] -> [Unsigned_64, Bool] { return (true, 1); }"_view,
+    "// Named Pack mismatch.\ndialect : Library; private invalid : func = [] -> [.left : Bool] { return (.right = true); }"_view,
   }};
   for (Count i = 0; i < sources.get_size(); i++) {
     EXPECT(rejects_link(sources[i]));
@@ -179,9 +189,10 @@ PERIMORTEM_UNIT_TEST(ReturnTests, incompatible_flow_is_rejected) {
 }
 
 PERIMORTEM_UNIT_TEST(ReturnTests, unreachable_and_incomplete_syntax_roll_back) {
-  static constexpr Static::Vector<View::Bytes, 2> sources = {{
+  static constexpr Static::Vector<View::Bytes, 3> sources = {{
     "// Unreachable statement.\ndialect : Library; private invalid : func = [] -> [] { return; Invalid -> call(); }"_view,
     "// Missing return terminator.\ndialect : Library; private invalid : func = [] -> [] { return }"_view,
+    "// Missing Pack closing parenthesis.\ndialect : Library; private invalid : func = [] -> Bool { return (true; }"_view,
   }};
   for (Count i = 0; i < sources.get_size(); i++) {
     EXPECT(rejects_interpretation(sources[i]));

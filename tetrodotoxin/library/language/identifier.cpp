@@ -7,14 +7,11 @@
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/alias.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
-
-static const Layouts::Fluid identifier_inputs;
 
 static auto resolve_alias(const Abstract& binding) -> const Abstract& {
   return binding.visit<Ttx::Model::Alias>(
@@ -27,7 +24,6 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
 auto Language::Identifier::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& lexical_context,
-    Materializations&,
     Core::Option<const Type&> access_scope) -> Bool {
   const Abstract& selected =
       token.get_code() == Ttx::Lexical::Code::Type::Type
@@ -100,8 +96,4 @@ auto Language::Identifier::get_result() const -> const Abstract& {
       [](const Reference<const Abstract>& selected) -> const Abstract& {
         return selected.get();
       });
-}
-
-auto Language::Identifier::get_inputs() const -> const Layout& {
-  return identifier_inputs;
 }

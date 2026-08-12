@@ -7,6 +7,8 @@
 
 #include "perimortem/core/static/vector.hpp"
 
+#include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/generics/access.hpp"
 #include "tetrodotoxin/library/language/generics/fixed.hpp"
 #include "tetrodotoxin/library/language/generics/view.hpp"
@@ -15,6 +17,7 @@
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -275,7 +278,7 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, concrete_formulas) {
   };
   const Static::Vector<Generic::Argument, 2> fixed_arguments = {{
     Generic::Argument(element),
-    Generic::Argument(::Signed_64(4)),
+    Generic::Argument(::Unsigned_64(4)),
   }};
 
   auto access_type = materializations.materialize(access, element_argument);
@@ -301,7 +304,7 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, concrete_formulas) {
   EXPECT(fixed_type->visit<Types::Fixed>(
       [&element](const Types::Fixed& selected) {
         return &selected.get_element_type() == &element &&
-                       selected.get_extent() == ::Signed_64(4)
+                       selected.get_extent() == ::Unsigned_64(4)
                    ? True
                    : False;
       },
@@ -443,6 +446,32 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, parameter_kinds) {
   EXPECT_EQ(materializations.get_size(), Count(1));
 }
 
+PERIMORTEM_UNIT_TEST(
+    LibraryMaterializations,
+    layout_arguments_require_exact_scalar_domains) {
+  Allocator::Arena arena;
+  Materializations materializations(arena);
+  Count constructions = 0;
+  ProducingFormula formula(unsigned_parameters, constructions);
+  auto& narrow = Constants::Unsigned::create_synthetic(
+      arena, Tetrodotoxin::Library::Dialect::get_unsigned_8(), 9);
+  auto& exact = Constants::Unsigned::create_synthetic(
+      arena, Tetrodotoxin::Library::Dialect::get_unsigned_64(), 9);
+  const Static::Vector<Reference<const Abstract>, 1> narrow_entry = {
+    {Reference<const Abstract>(narrow)},
+  };
+  const Static::Vector<Reference<const Abstract>, 1> exact_entry = {
+    {Reference<const Abstract>(exact)},
+  };
+  Ttx::Model::Layouts::Fluid narrow_layout(narrow_entry);
+  Ttx::Model::Layouts::Fluid exact_layout(exact_entry);
+
+  EXPECT_NOT(materializations.materialize(formula, narrow_layout));
+  EXPECT(materializations.materialize(formula, exact_layout));
+  EXPECT_EQ(formula.get_constructions(), Count(1));
+  EXPECT_EQ(materializations.get_size(), Count(1));
+}
+
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, argument_rejection) {
   Allocator::Arena arena;
   Materializations materializations(arena);
@@ -492,11 +521,17 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, type_resolution) {
     {Generic::Argument(redirected)},
   };
 
-  EXPECT_NOT(materializations.materialize(formula, incomplete_argument));
-  EXPECT_EQ(materializations.get_size(), Count(0));
+  auto incomplete_result =
+      materializations.materialize(formula, incomplete_argument);
+  auto repeated_result =
+      materializations.materialize(formula, incomplete_argument);
+  ASSERT(incomplete_result);
+  ASSERT(repeated_result);
+  EXPECT(&*incomplete_result == &*repeated_result);
+  EXPECT_EQ(materializations.get_size(), Count(1));
   EXPECT_NOT(materializations.materialize(formula, redirected_argument));
-  EXPECT_EQ(materializations.get_size(), Count(0));
-  EXPECT_EQ(formula.get_constructions(), Count(0));
+  EXPECT_EQ(materializations.get_size(), Count(1));
+  EXPECT_EQ(formula.get_constructions(), Count(1));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, result_rejection) {

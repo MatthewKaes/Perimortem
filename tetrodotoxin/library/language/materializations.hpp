@@ -10,6 +10,7 @@
 #include "perimortem/memory/managed/map.hpp"
 
 #include "tetrodotoxin/library/language/generic.hpp"
+#include "ttx/concept/layout.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/type.hpp"
 
@@ -19,9 +20,9 @@ namespace Tetrodotoxin::Library::Language {
 // construction transaction. Formula objects remain immutable rules while this
 // owner retains the identities and complete keys needed by progressive passes.
 //
-// Type arguments and created Types must already resolve canonically to
-// themselves before a key can be published. Resolved formulas and Type
-// arguments must outlive the final query for every retained materialization.
+// Direct Type arguments are stable identities and may still be completing
+// their owner-defined Layout. Formula identities and Type arguments must
+// outlive the final query for every retained materialization.
 class Materializations {
  public:
   Materializations(Perimortem::Memory::Allocator::Arena& arena)
@@ -30,6 +31,15 @@ class Materializations {
   auto materialize(
       const Generic& generic,
       Perimortem::Core::View::Vector<Generic::Argument> arguments)
+      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
+
+  // Authored Generic application supplies one real linked Layout. This owner
+  // fits its entries against the formula's ordered parameter contract and
+  // normalizes literal identities into the semantic values used by the one
+  // canonical materialization key.
+  auto materialize(
+      const Generic& generic,
+      const Ttx::Concept::Layout& arguments)
       -> Perimortem::Core::Option<const Ttx::Model::Type&>;
 
   auto get_size() const -> Count { return entries.get_size(); }

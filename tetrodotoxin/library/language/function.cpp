@@ -3,10 +3,10 @@
 
 #include "tetrodotoxin/library/language/function.hpp"
 
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -17,8 +17,6 @@ using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
 using Tetrodotoxin::Language::Visibility;
-
-static const Layouts::Fluid incomplete_layout;
 
 static auto get_native_attribute_anchor(
     View::Vector<Tetrodotoxin::Language::Attribute> attributes)
@@ -125,42 +123,6 @@ static auto validate_authored_function(
       cursor, definition.get_visibility(), definition.get_attributes());
 }
 
-static auto get_unreachable_publication(const Language::Function& function)
-    -> Option<Anchor> {
-  if (!function.get_definition().is_published()) {
-    return {};
-  }
-
-  auto host = function.get_host().select<Language::Types::Composite>();
-  auto signature = function.get_signature();
-  if (!host || !signature) {
-    Token name = function.get_definition().get_name_token();
-    return name ? Option<Anchor>(Anchor::create(Span(name))) : Option<Anchor>();
-  }
-
-  Bool receives_self = function.is_type_bound(function.get_host());
-  for (Count i = 0; i < signature->get_parameter_size(); i++) {
-    if (i == 0 && receives_self) {
-      continue;
-    }
-
-    auto type = signature->get_parameter_type(i);
-    auto access = signature->get_parameter_type_reference(i);
-    if (!type || !access || &host->resolve_exported_type(*access) != &*type) {
-      return signature->get_parameter_type_anchor(i);
-    }
-  }
-  for (Count i = 0; i < signature->get_result_size(); i++) {
-    auto type = signature->get_result_type(i);
-    auto access = signature->get_result_type_reference(i);
-    if (!type || !access || &host->resolve_exported_type(*access) != &*type) {
-      return signature->get_result_type_anchor(i);
-    }
-  }
-
-  return {};
-}
-
 auto Language::Function::reserve(
     Allocator::Arena& domain,
     Cursor& cursor,
@@ -187,9 +149,7 @@ Language::Function::Function(
     Tetrodotoxin::Language::Definition& definition)
     : Base(definition), domain(domain) {}
 
-auto Language::Function::complete(
-    Cursor& cursor,
-    Materializations& materializations) -> Bool {
+auto Language::Function::complete(Monograph& source, Cursor& cursor) -> Bool {
   if (is_complete()) {
     cursor.create_token_error(
         "A Library Function can be completed only once."_view);
@@ -197,23 +157,22 @@ auto Language::Function::complete(
   }
 
   auto transaction = cursor.branch();
-  auto parsed_signature = Signature::interpret(domain, transaction);
+  auto parsed_signature = Signature::interpret(domain, source, transaction);
   BAIL_IF(!parsed_signature);
 
   // Receiver role is already the signature shape. An exported Function must
   // therefore have no reserved self parameter rather than another role flag.
   const auto& definition = get_definition();
   auto native_anchor = get_native_attribute_anchor(definition.get_attributes());
-  if (native_anchor && parsed_signature->get_parameter_size() > 0 &&
-      parsed_signature->get_parameter_name(0) == "self"_view) {
+  if (native_anchor && parsed_signature->declares_self()) {
     transaction.create_expression_error(
         *native_anchor,
         "Native publication Attributes require a Static Function."_view);
     return False;
   }
 
-  auto parsed_body = Block::interpret(
-      domain, materializations, transaction, *this, get_host());
+  auto parsed_body =
+      Block::interpret(domain, source, transaction, *this, get_host());
   BAIL_IF(!parsed_body);
   BAIL_IF(!complete_definition(
       definition.get_qualifier(),
@@ -250,15 +209,14 @@ auto Language::Function::link_signature(
   return signature->link(source, get_host());
 }
 
-auto Language::Function::link_body(
-    Tetrodotoxin::Language::Monograph& source,
-    Materializations& materializations) -> Bool {
+auto Language::Function::link_body(Tetrodotoxin::Language::Monograph& source)
+    -> Bool {
   BAIL_IF(!is_signature_linked());
   BAIL_IF(!body);
 
   // Signature edges publish before Block linking so every Identifier can reach
   // the exact Parameter object created for its authored declaration.
-  return body->link(source, materializations);
+  return body->link(source);
 }
 
 auto Language::Function::finalize(Tetrodotoxin::Language::Monograph& source)
@@ -266,13 +224,12 @@ auto Language::Function::finalize(Tetrodotoxin::Language::Monograph& source)
   BAIL_IF(!body);
 
   Bool valid = True;
-  auto unreachable = get_unreachable_publication(*this);
-  if (unreachable) {
-    source.report(
-        unreachable,
-        "Externally readable Function publishes an unreachable Type route."_view,
-        "Keep the Function private or publish its authored Type route."_view);
-    valid = False;
+  if (get_definition().is_published()) {
+    valid = signature.visit(
+        []() { return False; },
+        [&](const Signature& selected) {
+          return selected.validate_publication(source, get_host());
+        });
   }
 
   // Optional folding records a cached Constant for later consumers. A dynamic
@@ -294,7 +251,8 @@ auto Language::Function::resolve() const -> const Abstract& {
 auto Language::Function::resolve_context(View::Bytes route) const
     -> const Abstract& {
   if (signature) {
-    const Abstract& parameter = signature->resolve_parameter(route);
+    const Abstract& parameter =
+        signature->get_parameters().resolve_named(route);
     if (&parameter != &Invalid::get_invalid()) {
       return parameter;
     }
@@ -329,27 +287,20 @@ auto Language::Function::resolve_context(View::Bytes route) const
 }
 
 auto Language::Function::get_parameters() const -> const Layout& {
-  return signature.visit(
-      []() -> const Layout& { return incomplete_layout; },
-      [](const Signature& selected) -> const Layout& {
-        return selected.get_parameters();
-      });
+  // Callable Layouts are total only after resolve() proves this Function's
+  // Signature. Returning an empty Layout here would launder incomplete state
+  // into valid zero-value flow, so the lifecycle precondition remains explicit.
+  return signature->get_parameters();
 }
 
 auto Language::Function::get_results() const -> const Layout& {
-  return signature.visit(
-      []() -> const Layout& { return incomplete_layout; },
-      [](const Signature& selected) -> const Layout& {
-        return selected.get_results();
-      });
+  return signature->get_results();
 }
 
-auto Language::Function::get_signature() const -> Option<const Signature&> {
+auto Language::Function::declares_self() const -> Bool {
   return signature.visit(
-      []() -> Option<const Signature&> { return {}; },
-      [](const Signature& selected) -> Option<const Signature&> {
-        return selected;
-      });
+      []() { return False; },
+      [](const Signature& selected) { return selected.declares_self(); });
 }
 
 auto Language::Function::get_body() const -> Option<const Block&> {

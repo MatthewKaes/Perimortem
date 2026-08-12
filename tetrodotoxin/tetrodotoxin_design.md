@@ -67,6 +67,7 @@ They move complexity to the component that has enough information to own it.
 | Concrete semantic objects instead of one shared AST | A Dialect preserves the distinctions its language and tools actually use                  | Rich tooling must use that Dialect because the common TTX view is deliberately smaller                                                    |
 | Workspace local borrowed identity                   | Languages and consumers share one unambiguous object without copying or merging it        | References end with their Workspace and cannot become persistent handles                                                                  |
 | Interpretation, linking, and finalization barriers  | Forward references and recursive groups retain stable identity while they become complete | Consumers must respect publication and treat unanswered queries observed during construction as provisional                               |
+| Packs distinct from Layouts                         | Empty, scalar, named, and multi-value flow can remain live without an anonymous Type       | Dialects must retain producer identity separately from the descriptor used for fitting                                                      |
 | Semantic Layout                                     | One language shape can feed CPU, GPU, interpreter, editor, and archive consumers          | Every backend must derive and validate its own physical layout                                                                            |
 | Typed Terminal products                             | Each output preserves the facts and validation contract its next consumer needs           | There is no generic product registry or common output object                                                                              |
 | Dialect owned Archive payloads                      | Source independent restoration can reconstruct equivalent observable language meaning     | A persistent Dialect must maintain and validate its reconstruction schema, while a Dialect used only from source needs no Archive payload |
@@ -124,11 +125,11 @@ retains a Definition, that value is part of the same authored object rather
 than a second graph node.
 
 The common view is consequently modest. A generic TTX tool can follow identity,
-prove a shared category, inspect a Layout, and ask contextual questions. An
-Alias is opaque: a consumer may resolve it but cannot inspect or operate on a
-separate target edge. Source rewriting, language specific completion,
-callable registration policy, and rich declaration inspection belong to the
-concrete Dialect.
+prove a shared category, retain a produced Pack, inspect its output Layout, and
+ask contextual questions. An Alias is opaque: a consumer may resolve it but
+cannot inspect or operate on a separate target edge. Source rewriting, language
+specific completion, callable registration policy, and rich declaration
+inspection belong to the concrete Dialect.
 
 ## Dialects and Monographs
 
@@ -205,9 +206,9 @@ Tetrodotoxin syntax identifies the semantic question being asked:
 
 | Syntax                        | Semantic result                                                         |
 | ----------------------------- | ----------------------------------------------------------------------- |
-| `expression.name`             | One Addressable selected from the output Type's applicable named Layout |
+| `expression.name`             | One named value selected from the receiver Pack's applicable Layout     |
 | `expression::Name`            | One exact Type result whose Library output Type is `Descriptor`         |
-| `receiver -> name(arguments)` | One registered Callable invocation with argument fitting                |
+| `receiver -> name(arguments)` | One registered Callable invocation fitted from its argument Pack        |
 
 Every Library access evaluates the one Expression on its left. An Expression's
 exact semantic result is distinct from its output Type: the result preserves a
@@ -217,11 +218,16 @@ Type without copying or wrapping the selected Type.
 
 Postfix `::` is consequently a Library access Expression. Its receiver must
 produce an exact Type result, and the access produces the selected Type as its
-own result. Declaration positions instead retain an identity-free
-`TypeReference`. Such a route can cross Alias, Package, Monograph, source root,
-Type, or another Abstract context and resolves only during linking, after the
-relevant Type inventory exists. A declaration route never becomes an
-Expression or pretends its intermediate contexts are Types.
+own result. Declaration positions instead retain an identity-free type
+reference: one contextual route with an optional Generic argument Layout. A
+Type entry may itself be another type reference, so materialization can be
+nested. Without an argument Layout, the route must resolve to a Type. With one,
+the route must resolve to a Generic formula that materializes the exact Type
+during linking; an explicit empty Layout applies a zero-argument formula and is
+distinct from an omitted Layout. The route can cross Alias, Package, Monograph,
+source root, Type, or another Abstract context after the relevant Type inventory
+exists. A declaration reference never becomes an Expression or pretends its
+intermediate contexts are Types.
 
 A Structure may expose a Field, Callable, and nested Type with the same
 spelling because the authored operator already identifies the query domain.
@@ -231,8 +237,10 @@ registration, while admitting the same spelling once for Static and once for
 Self. Invocation therefore selects one registered Callable by name and role;
 it never constructs an overload set or defers ambiguity to call time.
 
-Address access asks the evaluated receiver's output Type for a named Layout and
-identifies one semantic Addressable and its Type. Callable access chooses
+Address access asks the evaluated receiver Pack for its applicable named
+Layout. Scalar flow obtains that Layout through its output Type and identifies
+one semantic Addressable and its Type; named flow selects the real producer at
+that slot without inventing an aggregate Type. Callable access chooses
 Static when the evaluated receiver result is an exact Type and Self when the
 receiver is a typed value. A backend may materialize or eliminate a physical
 address without changing the Addressable identity. Likewise, a Function host
@@ -249,13 +257,26 @@ wants to ask. Spelling alone cannot infer the category.
 
 ## Semantic shape and physical representation
 
-TTX Layouts express order and applicability among exact semantic identities.
-Library uses them for parameters, results, fields, named value packs, indexed
-values, and swizzles. Render and Shader use them to agree on Stage interfaces.
-An empty or multi value Layout remains a shape and does not become an anonymous
-Type. Atomic Types expose one exact terminal value entry. An empty Layout
-exposes none, so it can cross Dialect boundaries as zero-value flow without a
-shared `Void` Type, but it cannot support an Addressable.
+TTX separates produced value flow from the descriptor used to fit it. A Pack
+retains one producer and may carry empty, scalar, positional, named, ranged, or
+composed flow. Its output Layout promises the order and applicability of those
+values without becoming another semantic identity. Library uses Packs for
+expressions, invocation arguments and results, returns, swizzles, and slices.
+It uses Layout descriptors for Types, Fields, Function parameters and results,
+and receiving declarations. Render and Shader use Layouts to agree on Stage
+interfaces.
+
+A named descriptor slot uses `.name : Type`, while a named Pack slot uses
+`.name = expression`. Slot names remain independent from their source
+identities; fitting still returns the exact produced semantic object without
+renaming or wrapping it. This distinction also leaves declaration owners free
+to add a default with `.name : Type = expression` or infer one with
+`.name := expression` without confusing a descriptor with supplied flow.
+
+An empty or multi-value Pack remains flow and does not become an anonymous Type.
+Atomic Types expose one exact terminal value entry. An empty Layout exposes
+none, so `Void`, `[]`, `()`, and other zero-value domains can fit across Dialect
+boundaries without a shared `Void` Type, but no Addressable can name them.
 
 A compiler maps scalar abstract machine storage facts and derives target object
 layouts, ABI alignments, offsets, pointer forms, calling convention carriers,
@@ -312,8 +333,8 @@ The repository provides several concrete languages that can be composed as
 building blocks. Library supplies the language model for CPU execution. It
 defines concrete scalar Types, Generic materialization, Constants, Expressions,
 Functions, Structs, Objects, Enumerations, and Field policy while reusing TTX
-identity and Layout. Its [language guide](library/README.md) explains those
-semantics.
+identity, Pack, and Layout contracts. Its
+[language guide](library/README.md) explains those semantics.
 
 App owns startup profiles and application lifecycle. Scene owns live Scene
 state, signals, hosted graphics relationships, render submission facts, and

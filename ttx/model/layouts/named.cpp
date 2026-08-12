@@ -3,73 +3,98 @@
 
 #include "ttx/model/layouts/named.hpp"
 
-#include "ttx/model/addressable.hpp"
-
+using namespace Perimortem::Core;
+using namespace Perimortem::Utility;
 using namespace Ttx;
 using namespace Ttx::Model;
 
-static auto resolves_for_fitting(const Concept::Abstract& value)
-    -> const Concept::Abstract& {
-  const Concept::Abstract& represented = value.resolve();
-  return represented.visit<Addressable>(
-      [](const Addressable& addressable) -> const Concept::Abstract& {
-        return addressable.get_type().resolve();
-      },
-      [](const Concept::Abstract& abstract) -> const Concept::Abstract& {
-        return abstract;
+static auto get_slot_name(const Concept::Layout& layout, Count index)
+    -> Option<View::Bytes> {
+  auto explicit_name = layout.get_name(index);
+  if (explicit_name) {
+    return explicit_name;
+  }
+
+  return layout.get_abstract(index).visit(
+      []() -> Option<View::Bytes> { return {}; },
+      [](const Concept::Abstract& selected) -> Option<View::Bytes> {
+        View::Bytes name = selected.get_name();
+        return name.is_empty() ? Option<View::Bytes>()
+                               : Option<View::Bytes>(name);
       });
 }
 
-static auto fits_entry(
-    const Concept::Abstract& source,
-    const Concept::Abstract& target) -> Bool {
-  return &resolves_for_fitting(source) == &target ? True : False;
+constexpr auto Layouts::Named::get_name(Count index) const
+    -> Option<View::Bytes> {
+  BAIL_IF(index >= get_size());
+
+  View::Bytes selected = names.visit(
+      [&]() {
+        return get_source().get_abstract(index).visit(
+            []() { return View::Bytes(); },
+            [](const Concept::Abstract& abstract) {
+              return abstract.get_name();
+            });
+      },
+      [&](View::Vector<View::Bytes> explicit_names) {
+        return index < explicit_names.get_size()
+                   ? explicit_names.get_data()[index]
+                   : View::Bytes();
+      });
+  BAIL_IF(selected.is_empty());
+  return selected;
 }
 
 auto Layouts::Named::has_unique_names() const -> Bool {
-  for (Count i = 0; i < get_size(); i++) {
-    Perimortem::Core::View::Bytes name =
-        abstracts.get_data()[i].get().get_name();
-    BAIL_IF(name.is_empty());
+  for (Count index = 0; index < get_size(); index++) {
+    auto name = get_name(index);
+    BAIL_IF(!name);
 
-    for (Count other = i + 1; other < get_size(); other++) {
-      BAIL_IF(name == abstracts.get_data()[other].get().get_name());
+    for (Count other = index + 1; other < get_size(); other++) {
+      auto candidate = get_name(other);
+      BAIL_IF(!candidate || *name == *candidate);
     }
   }
 
-  return True;
+  return names.visit(
+      []() { return True; },
+      [&](View::Vector<View::Bytes> explicit_names) {
+        return explicit_names.get_size() == get_size() ? True : False;
+      });
+}
+
+auto Layouts::Named::fits_entry(
+    const Concept::Layout& target,
+    Count source_index,
+    Count target_index) const -> Bool {
+  BAIL_IF(source_index >= get_size() || target_index >= target.get_size());
+
+  auto source_name = get_name(source_index);
+  auto target_name = get_slot_name(target, target_index);
+  return source_name && target_name && *source_name == *target_name &&
+         get_source().fits_entry(target, source_index, target_index);
 }
 
 auto Layouts::Named::fits_at(const Concept::Layout& target, Count target_offset)
     const -> Bool {
   BAIL_IF(!has_target_segment(target, target_offset) || !has_unique_names());
 
-  for (Count i = 0; i < get_size(); i++) {
-    const Concept::Abstract& source = abstracts.get_data()[i].get();
+  for (Count source_index = 0; source_index < get_size(); source_index++) {
+    auto source_name = get_name(source_index);
+    BAIL_IF(!source_name);
+
+    Count selected = 0;
     Count matches = 0;
     for (Count target_index = 0; target_index < get_size(); target_index++) {
-      Bool candidate_fits =
-          target.get_abstract(target_offset + target_index)
-              .visit(
-                  []() { return False; },
-                  [&source, &matches](const Concept::Abstract& candidate) {
-                    if (source.get_name() != candidate.get_name()) {
-                      return True;
-                    }
-
-                    const Concept::Abstract& target_type =
-                        resolves_for_fitting(candidate);
-                    if (!fits_entry(source, target_type)) {
-                      return False;
-                    }
-
-                    matches++;
-                    return True;
-                  });
-      BAIL_IF(!candidate_fits);
+      auto target_name = get_slot_name(target, target_offset + target_index);
+      if (target_name && *source_name == *target_name) {
+        selected = target_index;
+        matches++;
+      }
     }
-
-    BAIL_IF(matches != 1);
+    BAIL_IF(
+        matches != 1 || !get_source().fits_entry(
+                            target, source_index, target_offset + selected));
   }
 
   return True;
@@ -78,41 +103,37 @@ auto Layouts::Named::fits_at(const Concept::Layout& target, Count target_offset)
 auto Layouts::Named::get_fitted_at(
     const Concept::Layout& target,
     Count target_offset,
-    Count target_index) const
-    -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> {
+    Count target_index) const -> Result<const Concept::Abstract&, Errors> {
   if (target_index >= get_size()) {
     return Errors::IndexOutOfBounds;
   }
-
   if (!has_target_segment(target, target_offset)) {
     return Errors::SizeMismatch;
   }
-
   if (!fits_at(target, target_offset)) {
     return Errors::IncompatibleFit;
   }
 
-  return target.get_abstract(target_offset + target_index)
-      .visit(
-          []()
-              -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> {
-            return Errors::IncompatibleFit;
-          },
-          [this](const Concept::Abstract& requested)
-              -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> {
-            for (Count i = 0; i < get_size(); i++) {
-              const Concept::Abstract& source = abstracts.get_data()[i].get();
-              if (source.get_name() != requested.get_name()) {
-                continue;
-              }
+  auto target_name = get_slot_name(target, target_offset + target_index);
+  if (!target_name) {
+    return Errors::IncompatibleFit;
+  }
 
-              const Concept::Abstract& target_type =
-                  resolves_for_fitting(requested);
-              if (fits_entry(source, target_type)) {
-                return source;
-              }
-            }
+  for (Count source_index = 0; source_index < get_size(); source_index++) {
+    auto source_name = get_name(source_index);
+    if (source_name && *source_name == *target_name) {
+      return get_source()
+          .get_abstract(source_index)
+          .visit(
+              []() -> Result<const Concept::Abstract&, Errors> {
+                return Errors::IncompatibleFit;
+              },
+              [](const Concept::Abstract& selected)
+                  -> Result<const Concept::Abstract&, Errors> {
+                return selected;
+              });
+    }
+  }
 
-            return Errors::IncompatibleFit;
-          });
+  return Errors::IncompatibleFit;
 }

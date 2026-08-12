@@ -7,16 +7,15 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "perimortem/memory/allocator/arena.hpp"
-
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/operation.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
@@ -24,7 +23,6 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
-#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library;
@@ -103,6 +101,19 @@ static auto find_function(
   return {};
 }
 
+static auto is_projection(
+    const Language::Access::Swizzle& swizzle,
+    Count index,
+    const Language::Field& field) -> Bool {
+  auto output = swizzle.get_layout().get_abstract(index);
+  BAIL_IF(!output || !output->is<Language::Access::Address>());
+
+  const auto& projection =
+      static_cast<const Language::Access::Address&>(*output);
+  return &projection.get_receiver() == &swizzle.get_receiver() &&
+         &projection.get_result() == &field;
+}
+
 PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
   static constexpr View::Bytes source =
       "// Swizzle value flow.\n"
@@ -150,7 +161,15 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
   ASSERT(height);
   ASSERT(gather);
   auto gather_return = find_return(*gather);
-  ASSERT(gather_return && gather_return->get_expression());
+  ASSERT(gather_return);
+  EXPECT_TEXT(
+      gather_return->get_anchor().get_span().caculate_text(source),
+      "return self.[secret, height];"_view);
+  ASSERT_EQ(gather->get_results().get_size(), Count(2));
+  EXPECT(
+      &*gather->get_results().get_abstract(0) == &Dialect::get_unsigned_64());
+  EXPECT(
+      &*gather->get_results().get_abstract(1) == &Dialect::get_unsigned_64());
 
   auto empty = find_function(monograph->get_source(), "empty"_view);
   auto single = find_field(monograph->get_source(), "single"_view);
@@ -158,80 +177,189 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
   auto chained = find_field(monograph->get_source(), "chained"_view);
   ASSERT(empty);
   auto empty_return = find_return(*empty);
-  ASSERT(empty_return && empty_return->get_expression());
+  ASSERT(empty_return);
+  EXPECT_TEXT(
+      empty_return->get_anchor().get_span().caculate_text(source),
+      "return packet.[];"_view);
+  EXPECT(empty->get_results().is_empty());
   ASSERT(single && single->get_initializer());
   ASSERT(dimensions && dimensions->get_initializer());
   ASSERT(chained && chained->get_initializer());
-  ASSERT(empty_return->get_expression()->is<Language::Access::Swizzle>());
   ASSERT(single->get_initializer()->is<Language::Access::Swizzle>());
   ASSERT(dimensions->get_initializer()->is<Language::Access::Swizzle>());
-  ASSERT(gather_return->get_expression()->is<Language::Access::Swizzle>());
 
-  const auto& empty_swizzle = static_cast<const Language::Access::Swizzle&>(
-      *empty_return->get_expression());
   const auto& single_swizzle =
       static_cast<const Language::Access::Swizzle&>(*single->get_initializer());
   const auto& dimensions_swizzle =
       static_cast<const Language::Access::Swizzle&>(
           *dimensions->get_initializer());
-  const auto& private_swizzle = static_cast<const Language::Access::Swizzle&>(
-      *gather_return->get_expression());
 
-  EXPECT(empty_swizzle.get_results().is_empty());
-  EXPECT(&empty_swizzle.get_type() == &Invalid::get_invalid());
-  const Abstract& empty_type = monograph->resolve_context("Empty"_view);
-  ASSERT(empty_type.is<Language::Types::Structure>());
-  EXPECT(empty_swizzle.fits(
-      static_cast<const Language::Types::Structure&>(empty_type)));
-  ASSERT_EQ(single_swizzle.get_results().get_size(), Count(1));
-  EXPECT(&*single_swizzle.get_results().get_abstract(0) == &*width);
+  ASSERT_EQ(single_swizzle.get_layout().get_size(), Count(1));
+  EXPECT(is_projection(single_swizzle, 0, *width));
   EXPECT(&single_swizzle.get_type() == &Dialect::get_unsigned_64());
   EXPECT(single_swizzle.fits(single->get_type()));
-  ASSERT_EQ(dimensions_swizzle.get_results().get_size(), Count(2));
-  EXPECT(&*dimensions_swizzle.get_results().get_abstract(0) == &*height);
-  EXPECT(&*dimensions_swizzle.get_results().get_abstract(1) == &*width);
+  ASSERT_EQ(dimensions_swizzle.get_layout().get_size(), Count(2));
+  EXPECT(is_projection(dimensions_swizzle, 0, *height));
+  EXPECT(is_projection(dimensions_swizzle, 1, *width));
   EXPECT(&dimensions_swizzle.get_type() == &Invalid::get_invalid());
   EXPECT(dimensions_swizzle.fits(dimensions->get_type()));
   Language::Types::Fixed fixed_pair(
       "Fixed[Unsigned_64, 2]"_view, Dialect::get_unsigned_64(), 2);
-  Language::Types::Fixed fixed_empty(
-      "Fixed[Unsigned_64, 0]"_view, Dialect::get_unsigned_64(), 0);
   EXPECT(dimensions_swizzle.fits(fixed_pair));
-  EXPECT(empty_swizzle.fits(fixed_empty));
-  ASSERT_EQ(private_swizzle.get_results().get_size(), Count(2));
-  EXPECT(&*private_swizzle.get_results().get_abstract(0) == &*secret);
-  EXPECT(&*private_swizzle.get_results().get_abstract(1) == &*height);
-
-  Perimortem::Memory::Allocator::Arena relink_domain;
-  Tokenizer relink_tokens(
-      relink_domain, "packet.[height, width]"_view, "relink-swizzle.ttx"_view);
-  Cursor relink_cursor(relink_tokens, errors);
-  auto relink_expression = Language::Parser::Expression::parse(
-      relink_domain, monograph->get_materializations(), relink_cursor,
-      *dimensions);
-  ASSERT(relink_expression && relink_cursor.matches(Code::Type::Terminal));
-  ASSERT(relink_expression->is<Language::Access::Swizzle>());
-  auto& relink_swizzle =
-      static_cast<Language::Access::Swizzle&>(*relink_expression);
-  ASSERT(relink_swizzle.link(
-      *monograph, *dimensions, monograph->get_materializations()));
-  ASSERT(relink_swizzle.link(
-      *monograph, *dimensions, monograph->get_materializations()));
-  ASSERT_EQ(relink_swizzle.get_results().get_size(), Count(2));
-  EXPECT(&*relink_swizzle.get_results().get_abstract(0) == &*height);
-  EXPECT(&*relink_swizzle.get_results().get_abstract(1) == &*width);
 
   ASSERT(chained->get_initializer()->is<Language::Operations::Add>());
-  auto chained_left = chained->get_initializer()->get_inputs().get_abstract(0);
-  ASSERT(chained_left && chained_left->is<Language::Access::Swizzle>());
-  const auto& chained_swizzle =
-      static_cast<const Language::Access::Swizzle&>(*chained_left);
-  EXPECT(chained_swizzle.get_receiver().is<Language::Access::Call>());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(SwizzleTests, named_pack_reorders_real_producers) {
+  static constexpr View::Bytes source =
+      "// Named Pack Swizzle.\n"
+      "dialect : Library;\n"
+      "public Pair : struct {\n"
+      "  public first : Bool; public second : Unsigned_64;\n"
+      "}\n"
+      "private left : Unsigned_64 = 7;\n"
+      "private right : Bool = false;\n"
+      "private reordered : Pair = "
+      "(.x = left, .y = right).[y, x];"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+
+  auto left = find_field(monograph->get_source(), "left"_view);
+  auto right = find_field(monograph->get_source(), "right"_view);
+  auto reordered = find_field(monograph->get_source(), "reordered"_view);
+  ASSERT(left && right && reordered && reordered->get_initializer());
+  ASSERT(reordered->get_initializer()->is<Language::Access::Swizzle>());
+
+  const auto& swizzle = static_cast<const Language::Access::Swizzle&>(
+      *reordered->get_initializer());
+  const Layout& receiver = swizzle.get_receiver().get_layout();
+  const Layout& output = swizzle.get_layout();
+  ASSERT_EQ(receiver.get_size(), Count(2));
+  ASSERT_EQ(output.get_size(), Count(2));
+  auto x_name = receiver.get_name(0);
+  auto y_name = receiver.get_name(1);
+  ASSERT(x_name && y_name);
+  EXPECT_TEXT(*x_name, "x"_view);
+  EXPECT_TEXT(*y_name, "y"_view);
+  EXPECT(!output.get_name(0));
+  EXPECT(!output.get_name(1));
+
+  auto source_x = receiver.get_abstract(0);
+  auto source_y = receiver.get_abstract(1);
+  auto selected_y = output.get_abstract(0);
+  auto selected_x = output.get_abstract(1);
+  ASSERT(source_x && source_y && selected_y && selected_x);
+  EXPECT(&*selected_y == &*source_y);
+  EXPECT(&*selected_x == &*source_x);
+  auto y_producer = selected_y->select<Language::Expression>();
+  auto x_producer = selected_x->select<Language::Expression>();
+  ASSERT(y_producer && x_producer);
+  EXPECT(&y_producer->get_result() == &*right);
+  EXPECT(&x_producer->get_result() == &*left);
+  EXPECT(swizzle.fits(reordered->get_type()));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(
+    SwizzleTests,
+    named_call_preserves_selected_descriptor_and_producer) {
+  static constexpr View::Bytes source =
+      "// Named Call result Swizzle.\n"
+      "dialect : Library;\n"
+      "public Results : struct {\n"
+      "  public produce : func = [] -> [\n"
+      "    .count : Unsigned_64, .flag : Bool,\n"
+      "  ] {\n"
+      "    return (.flag = false, .count = 7);\n"
+      "  }\n"
+      "}\n"
+      "public Reordered : struct {\n"
+      "  public first : Bool; public second : Unsigned_64;\n"
+      "}\n"
+      "public Original : struct {\n"
+      "  public first : Unsigned_64; public second : Bool;\n"
+      "}\n"
+      "private reordered : Reordered = "
+      "Results -> produce().[flag, count];\n"
+      "private selected : Bool = Results -> produce().[flag];"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+
+  auto reordered = find_field(monograph->get_source(), "reordered"_view);
+  auto selected = find_field(monograph->get_source(), "selected"_view);
+  ASSERT(reordered && selected);
+  ASSERT(reordered->get_initializer() && selected->get_initializer());
+  ASSERT(reordered->get_initializer()->is<Language::Access::Swizzle>());
+  ASSERT(selected->get_initializer()->is<Language::Access::Swizzle>());
+
+  const auto& reordered_swizzle = static_cast<const Language::Access::Swizzle&>(
+      *reordered->get_initializer());
+  const auto& selected_swizzle = static_cast<const Language::Access::Swizzle&>(
+      *selected->get_initializer());
+  ASSERT(reordered_swizzle.get_receiver().is<Language::Access::Call>());
+  ASSERT(selected_swizzle.get_receiver().is<Language::Access::Call>());
+  const auto& reordered_call = static_cast<const Language::Access::Call&>(
+      reordered_swizzle.get_receiver());
+  const auto& selected_call = static_cast<const Language::Access::Call&>(
+      selected_swizzle.get_receiver());
+
+  const Layout& call_output = reordered_call.get_layout();
+  ASSERT_EQ(call_output.get_size(), Count(2));
+  auto count_name = call_output.get_name(0);
+  auto flag_name = call_output.get_name(1);
+  ASSERT(count_name && flag_name);
+  EXPECT_TEXT(*count_name, "count"_view);
+  EXPECT_TEXT(*flag_name, "flag"_view);
+  auto count_producer = call_output.get_abstract(0);
+  auto flag_producer = call_output.get_abstract(1);
+  ASSERT(count_producer && flag_producer);
+  EXPECT(&*count_producer == &reordered_call);
+  EXPECT(&*flag_producer == &reordered_call);
+
+  const Layout& reordered_output = reordered_swizzle.get_layout();
+  ASSERT_EQ(reordered_output.get_size(), Count(2));
+  EXPECT(!reordered_output.get_name(0));
+  EXPECT(!reordered_output.get_name(1));
+  EXPECT(reordered_swizzle.fits(reordered->get_type()));
+  const Abstract& original_identity =
+      monograph->get_source().resolve_context("Original"_view);
+  ASSERT(original_identity.is<Language::Types::Structure>());
+  EXPECT(!reordered_swizzle.fits(
+      static_cast<const Language::Types::Structure&>(original_identity)));
+
+  for (Count index = 0; index < reordered_output.get_size(); index++) {
+    EXPECT(
+        reordered_output.get_fitted(reordered->get_type().get_layout(), index)
+            .visit(
+                [&](const Abstract& producer) {
+                  return Bool(&producer == &reordered_call);
+                },
+                [](Layout::Errors) { return False; }));
+  }
+
+  const Layout& selected_output = selected_swizzle.get_layout();
+  ASSERT_EQ(selected_output.get_size(), Count(1));
+  EXPECT(selected_swizzle.fits(selected->get_type()));
+  EXPECT(selected_output.get_fitted(selected->get_type().get_layout(), 0)
+             .visit(
+                 [&](const Abstract& producer) {
+                   return Bool(&producer == &selected_call);
+                 },
+                 [](Layout::Errors) { return False; }));
   EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(SwizzleTests, invalid_selections_are_rejected) {
-  static constexpr Static::Vector<View::Bytes, 3> sources = {{
+  static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Unknown Swizzle name.\ndialect : Library;\n"
     "public Packet : struct { public width : Unsigned_64; }\n"
     "private packet : Packet;\n"
@@ -247,6 +375,9 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, invalid_selections_are_rejected) {
     "public Pair : struct { public first : Bool; public second : Bool; }\n"
     "private packet : Packet;\n"
     "private invalid : Pair = packet.[width, height];"_view,
+    "// Unknown named Pack slot.\ndialect : Library;\n"
+    "private value : Unsigned_64 = 0;\n"
+    "private invalid : Unsigned_64 = (.known = value).[missing];"_view,
   }};
 
   for (Count index = 0; index < sources.get_size(); index++) {

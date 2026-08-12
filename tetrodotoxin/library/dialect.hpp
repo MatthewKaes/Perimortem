@@ -35,6 +35,12 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
   auto resolve_intrinsic(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract&;
 
+  // Materialization is mutable graph-construction capability owned by the
+  // installed Dialect. Interpretation binds it to the Workspace Arena before
+  // constructing any Monograph, so semantic hosts borrow one canonical writer
+  // without retaining or transporting a second edge.
+  auto get_materializations() const -> Language::Materializations&;
+
   static auto create_default(
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Model::Type& type)

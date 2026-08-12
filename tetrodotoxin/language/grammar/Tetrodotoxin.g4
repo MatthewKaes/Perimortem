@@ -56,15 +56,17 @@ fieldWritability
     ;
 
 typeReference
-    : typeRoute typeArguments?
+    : typeRoute genericArgumentLayout?
     ;
 
 typeRoute
     : typeName (TYPE_ACCESS typeName)*
     ;
 
-typeArguments
-    : BRACKET_START genericArgument (PACK genericArgument)* PACK? BRACKET_END
+genericArgumentLayout
+    : BRACKET_START
+      (genericArgument (PACK genericArgument)* PACK?)?
+      BRACKET_END
     ;
 
 genericArgument
@@ -113,15 +115,15 @@ functionSignature
     : parameterLayout CALL resultLayout
     ;
 
+// Parameters are an empty or Named descriptor Layout. Results admit the full
+// descriptor grammar. `:` promises a slot Type; it never supplies Pack flow.
 parameterLayout
-    : typeReference
-    | BRACKET_START parameterEntries? PACK? BRACKET_END
+    : BRACKET_START parameterEntries? PACK? BRACKET_END
     ;
 
 parameterEntries
     : SELF (PACK namedLayoutSlot)*
     | namedLayoutSlot (PACK namedLayoutSlot)*
-    | typeReference (PACK typeReference)*
     ;
 
 resultLayout

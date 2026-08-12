@@ -16,8 +16,8 @@ namespace Tetrodotoxin::Library::Language {
 
 // Generic is the Types model's Abstract contract for a named compile time
 // formula. It generates Types but is not itself a Type. The formula declares
-// its complete ordered signature so the parser can validate arguments and own
-// diagnostics before asking it for one stable materialized Type identity.
+// its complete ordered signature so Materializations can fit the linked
+// argument Layout before asking it for one stable Type identity.
 class Generic : public Ttx::Concept::Abstract {
  public:
   enum class Parameters : Unsigned_8 {
@@ -28,7 +28,8 @@ class Generic : public Ttx::Concept::Abstract {
   };
 
   // Semantic graph queries expose const references. Scalar arguments are
-  // copied directly, while Type arguments retain their resolved identity.
+  // copied directly, while Type arguments retain their exact selected
+  // identity even when its owner has not completed the Type's Layout yet.
   using Argument = Perimortem::Core::Static::
       Union<const Ttx::Model::Type&, ::Unsigned_64, ::Signed_64, ::Bool>;
 

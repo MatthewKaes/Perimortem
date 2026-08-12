@@ -1,7 +1,7 @@
 # TTX Design
 
 TTX is the shared semantic boundary between concrete languages and the systems
-that consume their work. It keeps exact identity, resolution, Type,
+that consume their work. It keeps exact identity, resolution, Type, Pack,
 Addressable, Callable, and Layout facts available before a package format,
 compiler target, runtime, or tool has been chosen.
 
@@ -25,7 +25,8 @@ Readers deciding whether that tradeoff fits their project should begin with the
 
 A representation works best when it has a clear job. TTX carries the facts
 that packages, concrete languages, editors, compilers, and runtimes can exchange
-directly. Facts meaningful to only one of those systems stay with that owner.
+directly. This includes produced Pack flow as well as the Layout contracts it
+must satisfy. Facts meaningful to only one system stay with that owner.
 
 The shared vocabulary contains relationships that are genuinely cross domain
 rather than source features owned by one language.
@@ -122,6 +123,7 @@ Abstract
 │       ├── Signed
 │       └── Unsigned
 ├── Addressable
+├── Pack
 └── Callable
 ```
 
@@ -138,17 +140,19 @@ route. Those paths retain one Type and do not give it a required parent.
 Structural similarity therefore says nothing about identity. Two Types may
 have equal Layouts and still mean different things. Two Alias objects may have
 different local names and Documentation while representing the same target.
-One Addressable keeps its own identity while reaching a Type. A Callable keeps
-its own identity while its parameters and results expose Layouts.
+One Addressable keeps its own identity while reaching a Type. A Pack keeps its
+producer identity while exposing an identity-free output Layout. A Callable
+keeps its own identity while its parameters and results expose required
+Layouts.
 
 This gives tools and lowerers the original semantic fact. It also means they
 must use the contracts exposed by its owner. TTX offers no synchronized member
 record or cloned Type graph for a consumer that wants a different shape.
 
-Category selection follows the identity's single public C++ inheritance chain.
-Cross-category source authorship remains an identity-free observation of the
-exact retained source fact rather than another selectable semantic contract.
-It allocates no wrapper, adds no identity, and consults no RTTI or registry.
+Category selection proves a contract on the original identity without creating
+a wrapper, clone, registry entry, or second identity. Cross-category source
+authorship remains an identity-free observation of the exact retained source
+fact rather than another selectable semantic contract.
 
 ## Reference and graph lifetime
 
@@ -206,6 +210,11 @@ it. An incomplete total query returns the shared `Invalid` object. Completion
 may make that unanswered query valid, while every successful identity remains
 stable.
 
+A staged Pack follows the same rule. It resolves to Invalid until its complete
+output Layout is known. Once Pack resolution succeeds, that Layout is total and
+stable. Empty Layout cannot represent this intermediate state because it is the
+complete descriptor for valid zero-value flow.
+
 This supports recursive declarations and source groups without adding an
 Incomplete Layout or a universal publication bit to every Abstract. The
 concrete owner decides how it stages construction and when completed roots can
@@ -221,21 +230,45 @@ Parser rejection, failed Layout fitting, archive corruption, and backend
 failure remain results of their owning operations. They do not create substitute
 semantic identities.
 
-## Layout is semantic shape
+## Pack is value flow; Layout is semantic shape
+
+Pack and Layout deliberately answer different questions. A Pack identifies one
+producer and the values it supplies. A Layout has no semantic identity and
+describes a promised shape. This lets a call, swizzle, return, or other
+multi-value operation remain live value flow without materializing an anonymous
+aggregate Type merely so another owner can fit it.
+
+A Pack may be empty, contain one ordinary value-producing expression, or carry
+several positional, named, ranged, or composed values. One expression is
+already a one-value Pack; grouping it does not create another semantic object.
+A multi-value Pack remains untyped as a group until a receiving declaration or
+operation deliberately materializes one Type. Its individual produced values
+retain their exact semantic identities throughout fitting. A language's `Void`
+result and an explicit empty grouping both expose an empty Layout, so
+cross-language empty flow needs no shared `Void` Type identity.
+
+The common source convention reinforces the distinction: parentheses group
+supplied Pack values and brackets describe required Layout entries. A named
+descriptor uses `.name : Type`; a named value uses `.name = expression`. A
+concrete language may omit a delimiter where its grammar remains unambiguous,
+but the semantic direction does not change.
 
 A Layout retains an ordered view of exact Abstract identities and answers
-whether one view fits another. Fitting is directional because a source Layout
-supplies the values required by a target Layout.
+whether one shape fits another. Fitting is directional because a Pack's source
+Layout supplies the values required by a target Layout.
 
-`Value` is the terminal one-entry shape for one exact atomic Type. `Fluid`
-compares entries in order. `Named` compares uniquely named entries by name and
-represented identity. `Ranged` repeats one entry across a fixed interval.
-`Composite` preserves two complete child Layouts.
+`Value` is the terminal one-entry descriptor for one exact atomic Type. `Fluid`
+describes positional entries and compares them in order. `Named` describes
+uniquely named slots, matches them by name, then preserves the source Layout's
+fitting rule for each match; a slot may borrow a name independently while
+retaining the exact source Abstract. `Ranged` describes one entry across a fixed
+interval. `Composite` preserves two complete child Layouts.
 
 Successful fitting returns the original source edge that supplies a target
-position. Layout retains order and applicability without copying field names,
-Types, Documentation, defaults, or storage facts into a generic
-member record.
+position. The Pack remains the value-flow owner; its Layout retains order,
+borrowed slot names, and applicability without copying Types, Documentation,
+defaults, or storage facts into a generic member record. A decorator or
+composition delegates entry fitting to the source Layout that owns each edge.
 
 Keeping Layout semantic lets the same graph feed a CPU compiler, GPU compiler,
 interpreter, editor, and archive writer without letting the first backend fix
@@ -246,7 +279,8 @@ address space, pointer form, or calling convention questions by itself. Each
 compiler derives and validates those facts for its own Terminal. That extra work
 is the price of keeping the graph target neutral.
 
-An empty Layout is a valid zero-value shape and fits another empty Layout.
+An empty Layout is a valid zero-value shape and fits another empty Layout. An
+empty Pack exposes that shape without requiring one shared Void Type identity.
 Atomic Types cannot launder that shape because their Value Layout contains
 their own exact identity. A zero-value Type may still own contextual or Static
 facts, but no Addressable can name an absent value.
@@ -320,6 +354,6 @@ whole program.
 
 TTX occupies the earlier boundary where independent owners still need to share
 meaning. Concrete languages decide which Types exist, how names are published,
-which writes are legal, how Callables are selected, and how expressions
-evaluate. Targets, runtimes, packages, and tools consume those facts without
+which writes are legal, how Callables are selected, and how expressions produce
+Packs. Targets, runtimes, packages, and tools consume those facts without
 becoming new TTX categories.

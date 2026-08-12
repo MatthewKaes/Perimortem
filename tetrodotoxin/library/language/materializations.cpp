@@ -5,7 +5,15 @@
 
 #include "perimortem/core/hash.hpp"
 
+#include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/managed/vector.hpp"
+
+#include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/constants/flag.hpp"
+#include "tetrodotoxin/library/language/constants/signed.hpp"
+#include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "ttx/concept/invalid.hpp"
+#include "ttx/model/alias.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -35,6 +43,51 @@ static auto matches_parameter(
   return False;
 }
 
+static auto normalize_argument(
+    Language::Generic::Parameters parameter,
+    const Ttx::Concept::Abstract& argument)
+    -> Core::Option<Language::Generic::Argument> {
+  switch (parameter) {
+  case Language::Generic::Parameters::Type: {
+    // Alias is opaque to materialization. Resolution is the only operation
+    // that may reveal its target, while a direct staged Type identity remains
+    // valid before that Type can expose its complete Layout.
+    const Ttx::Concept::Abstract& selected = argument.visit<Ttx::Model::Alias>(
+        [](const Ttx::Model::Alias& alias) -> const Ttx::Concept::Abstract& {
+          return alias.resolve();
+        },
+        [](const Ttx::Concept::Abstract& direct)
+            -> const Ttx::Concept::Abstract& { return direct; });
+    auto type = selected.select<Ttx::Model::Type>();
+    BAIL_IF(!type);
+    return Language::Generic::Argument(*type);
+  }
+  case Language::Generic::Parameters::Unsigned_64: {
+    auto constant = argument.select<Language::Constants::Unsigned>();
+    BAIL_IF(
+        !constant || &constant->get_type() !=
+                         &Tetrodotoxin::Library::Dialect::get_unsigned_64());
+    return Language::Generic::Argument(constant->get_value());
+  }
+  case Language::Generic::Parameters::Signed_64: {
+    auto constant = argument.select<Language::Constants::Signed>();
+    BAIL_IF(
+        !constant || &constant->get_type() !=
+                         &Tetrodotoxin::Library::Dialect::get_signed_64());
+    return Language::Generic::Argument(constant->get_value());
+  }
+  case Language::Generic::Parameters::Bool: {
+    auto constant = argument.select<Language::Constants::Flag>();
+    BAIL_IF(
+        !constant ||
+        &constant->get_type() != &Tetrodotoxin::Library::Dialect::get_bool());
+    return Language::Generic::Argument(constant->get_value());
+  }
+  }
+
+  return {};
+}
+
 auto Language::Materializations::Key::hash() const -> Unsigned_64 {
   Unsigned_64 value = Core::Hash(&formula).get_value();
   value = Core::Hash(arguments.get_size()).Rehash(value);
@@ -61,6 +114,28 @@ auto Language::Materializations::Key::hash() const -> Unsigned_64 {
 
 auto Language::Materializations::materialize(
     const Generic& generic,
+    const Ttx::Concept::Layout& argument_layout)
+    -> Core::Option<const Ttx::Model::Type&> {
+  auto parameters = generic.get_parameterization();
+  BAIL_IF(parameters.get_size() != argument_layout.get_size());
+
+  // Fitting is a query. Only a newly published key enters the Arena below;
+  // retries and cache hits must not accumulate transient normalization state.
+  Memory::Dynamic::Vector<Generic::Argument> arguments(parameters.get_size());
+  const auto* parameter_data = parameters.get_data();
+  for (Count i = 0; i < parameters.get_size(); i++) {
+    auto semantic = argument_layout.get_abstract(i);
+    BAIL_IF(!semantic);
+    auto argument = normalize_argument(parameter_data[i], *semantic);
+    BAIL_IF(!argument);
+    arguments.insert(*argument);
+  }
+
+  return materialize(generic, arguments.get_view());
+}
+
+auto Language::Materializations::materialize(
+    const Generic& generic,
     Core::View::Vector<Generic::Argument> arguments)
     -> Core::Option<const Ttx::Model::Type&> {
   auto parameters = generic.get_parameterization();
@@ -68,8 +143,9 @@ auto Language::Materializations::materialize(
       &generic.resolve() != &generic ||
       parameters.get_size() != arguments.get_size());
 
-  // A published key contains only complete semantic facts. Formula code never
-  // sees a mismatched value and an incomplete Type cannot become cache state.
+  // A key contains exact semantic facts. A directly selected Type may still
+  // be completing its owner-defined Layout; formulas retain that stable
+  // identity and must not demand facts that linking has not reached yet.
   const auto* parameter_data = parameters.get_data();
   const auto* argument_data = arguments.get_data();
   for (Count i = 0; i < arguments.get_size(); i++) {
@@ -77,7 +153,10 @@ auto Language::Materializations::materialize(
 
     const Ttx::Model::Type* type =
         argument_data[i].find<const Ttx::Model::Type&>();
-    BAIL_IF(type != nullptr && &type->resolve() != type);
+    if (type != nullptr) {
+      const Ttx::Concept::Abstract& resolved = type->resolve();
+      BAIL_IF(!resolved.is<Ttx::Concept::Invalid>() && &resolved != type);
+    }
   }
 
   Key key(generic, arguments);

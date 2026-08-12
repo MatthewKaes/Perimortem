@@ -81,13 +81,12 @@ TTX_TRANSACTIONAL_BINARY_PARSE(
     NotEqual,
     NotEqOp,
     "NotEqual has a malformed right operand."_view,
-    "Use a complete scalar or Bytes Expression after `!=`."_view,
-    "NotEqual requires authored operand Anchors."_view);
+    "Use a complete scalar or Bytes Expression after `!=`."_view);
 
 TTX_BINARY_OP(NotEqual);
 
-auto Language::Operations::NotEqual::select_type(Materializations&) const
-    -> Core::Option<const Type&> {
+auto Language::Operations::NotEqual::select_type(
+    Tetrodotoxin::Language::Monograph&) const -> Core::Option<const Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right ||
@@ -99,8 +98,7 @@ auto Language::Operations::NotEqual::select_type(Materializations&) const
 }
 
 auto Language::Operations::NotEqual::evaluate_constants(
-    Memory::Allocator::Arena& domain,
-    Materializations&)
+    Memory::Allocator::Arena& domain)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   auto authored_left = get_input(0);
   auto authored_right = get_input(1);

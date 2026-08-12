@@ -10,9 +10,11 @@
 
 namespace Ttx::Model::Layouts {
 
-// Fluid is positional value flow. Its entries are the real Abstracts produced
-// by a pack, return, or other reshapeable source. It fits another Layout by
-// ordered resolved identity and carries no field metadata.
+// Fluid is the positional descriptor exposed by a Pack or another ordered
+// source. Its entries are the real produced Abstracts, so fitting preserves
+// their provenance without turning the descriptor into value-flow identity.
+// Fluid fits another Layout by ordered represented identity and carries no
+// field metadata.
 class Fluid : public Concept::Layout {
  public:
   constexpr Fluid(
@@ -31,6 +33,11 @@ class Fluid : public Concept::Layout {
 
     return abstracts.get_data()[index].get();
   }
+
+  auto fits_entry(
+      const Concept::Layout& target,
+      Count source_index,
+      Count target_index) const -> Bool override;
 
   auto fits_at(const Concept::Layout& target, Count target_offset) const
       -> Bool override;

@@ -9,7 +9,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
-#include "tetrodotoxin/language/monograph.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/types/defined.hpp"
 #include "ttx/concept/reference.hpp"
@@ -44,6 +44,7 @@ class Enumeration : public Defined {
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
+      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Language::Definition& definition)
       -> Perimortem::Core::Option<Enumeration&>;

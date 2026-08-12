@@ -8,11 +8,10 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/addressable.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
 
@@ -25,9 +24,8 @@ class Address : public Expression {
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
+      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& source_context,
       Expression& receiver) -> Perimortem::Core::Option<Expression&>;
 
   static auto create_synthetic(
@@ -46,7 +44,6 @@ class Address : public Expression {
   auto link(
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Concept::Abstract& lexical_context,
-      Materializations& materializations,
       Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
       -> Bool override;
 
@@ -55,7 +52,7 @@ class Address : public Expression {
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_result() const -> const Ttx::Concept::Abstract& override;
-  auto get_inputs() const -> const Ttx::Concept::Layout& override;
+  auto finalize() -> void override;
 
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
 
@@ -75,9 +72,7 @@ class Address : public Expression {
         receiver(receiver),
         name_token(name_token),
         name(name),
-        addressable(addressable),
-        input(receiver),
-        inputs({&this->input, 1}) {}
+        addressable(addressable) {}
 
   Expression& receiver;
   Ttx::Lexical::Token name_token;
@@ -85,8 +80,6 @@ class Address : public Expression {
   Perimortem::Core::Option<
       Ttx::Concept::Reference<const Ttx::Model::Addressable>>
       addressable;
-  Ttx::Concept::Reference<const Ttx::Concept::Abstract> input;
-  Ttx::Model::Layouts::Fluid inputs;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

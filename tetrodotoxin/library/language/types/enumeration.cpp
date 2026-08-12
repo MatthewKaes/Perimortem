@@ -11,7 +11,6 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/types/signed.hpp"
 #include "ttx/model/types/unsigned.hpp"
 
@@ -22,8 +21,6 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library::Language;
-
-static const Layouts::Fluid incomplete_layout;
 
 struct ParsedCase {
   View::Bytes name;
@@ -155,6 +152,7 @@ Tetrodotoxin::Library::Language::Types::Enumeration::Enumeration(
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
     Allocator::Arena& domain,
+    Monograph& source,
     Cursor& cursor,
     Tetrodotoxin::Language::Definition& definition) -> Option<Enumeration&> {
   // The branch owns every spelling and delimiter until the closing brace.
@@ -190,7 +188,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::interpret(
       Code::Type::BracketStart,
       "Library Enumeration storage requires an opening `[`."_view));
 
-  auto storage = TypeReference::parse(transaction);
+  auto storage = TypeReference::parse(source, transaction);
   BAIL_IF(!storage);
   BAIL_IF(!transaction.require(
       Code::Type::BracketEnd,
@@ -426,11 +424,12 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::resolve_context(
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_layout() const
     -> const Layout& {
-  return storage_type.visit(
-      []() -> const Layout& { return incomplete_layout; },
-      [](const Reference<const Type>& selected) -> const Layout& {
-        return selected.get().get_layout();
-      });
+  if (!storage_type) {
+    // An Enumeration without its storage edge is incomplete, not an empty
+    // Type. Callers must first observe successful Type resolution.
+    __builtin_trap();
+  }
+  return storage_type->get().get_layout();
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_storage_type()

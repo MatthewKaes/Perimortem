@@ -2,8 +2,8 @@
 
 Library is Tetrodotoxin's reusable CPU language. It defines concrete scalar
 Types, values, expressions, functions, Structs, Objects, Enumerations, and
-Generic containers while retaining the shared TTX Type, Layout, Addressable,
-and Callable contracts.
+Generic containers while retaining the shared TTX Type, Pack, Layout,
+Addressable, and Callable contracts.
 
 Use Library when reusable CPU logic must share exact semantic identities with
 packages, applications, scenes, tools, and native compilation. A conventional
@@ -35,30 +35,33 @@ Library uses punctuation to select separate semantic domains:
 
 | Syntax                               | Meaning                                                       |
 | ------------------------------------ | ------------------------------------------------------------- |
-| `expression.name`                    | select one Addressable from the output Type's named Layout    |
+| `expression.name`                    | select one named value from the receiver Pack's Layout        |
 | `expression::Type`                   | produce one exact Type result with `Descriptor` output        |
-| `receiver -> callable(arguments...)` | select and invoke one Callable                                |
-| `value.[names...]`                   | select and reorder named Layout entries                       |
-| `access[index]`                      | try indexed reference access and return an optional reference |
+| `receiver -> callable(arguments...)` | fit one argument Pack and invoke one Callable                  |
+| `value.[names...]`                   | select and reorder named Pack values                           |
+| `access[index]`                      | produce one writable indexed address with the element Type    |
 | `value:[index]`                      | return an element value or its default                        |
-| `value:[start, count]`               | return a safe read only ranged value                          |
+| `value:[start, count]`               | return a Ranged Pack with compile-time-known size              |
 
 These domains never fall through to one another. A Field, Callable, and nested
 Type may share a spelling because the operator already states which category is
 being requested.
 
-A declaration that requires a Type retains an identity-free `TypeReference`,
-not an access Expression. Its authored segments resolve during linking after
-the surrounding Type inventory exists. This keeps forward declaration routes
-delayed without manufacturing a runtime value or conflating declaration
-qualification with postfix access.
+A declaration that requires a Type retains an identity-free type route, not an
+access Expression. The route may carry one optional Generic argument Layout,
+and each Type entry may recursively contain another route. Without an argument
+Layout the route must select a Type; with one it must select a Generic formula
+that materializes the exact Type from those arguments. This keeps forward
+declaration routes delayed without manufacturing runtime value flow or
+conflating declaration qualification with postfix access.
 
 ### Address access
 
-`.` evaluates its receiver and asks the receiver's output Type for an
-applicable named Layout. It selects one exact TTX Addressable from that Layout
-and is not limited to Struct or Object declarations. A named value flow may
-expose the same kind of entry.
+`.` evaluates its receiver and asks the receiver Pack for its applicable named
+Layout. Scalar flow obtains that Layout from its output Type and selects one
+exact TTX Addressable. Named flow selects the real producer at that slot. The
+operation is not limited to Struct or Object declarations and creates no group
+Type merely to select produced flow.
 
 ```ttx
 packet.width
@@ -96,7 +99,9 @@ own values. An ordinary value cannot use `::`, and `Descriptor` supplies no
 instance Layout for `.`.
 
 Contextual declaration routes through Alias, Package, Monograph, Library
-source, and Type objects remain `TypeReference` values rather than Expressions.
+source, and Type objects remain identity-free references rather than
+Expressions.
+
 Qualification preserves the original caller authority across every segment.
 An Alias is opaque to access and declaration operations: they may only ask it
 to resolve. Resolution may reveal another identity, but it does not add that
@@ -112,41 +117,61 @@ packet -> resize(width, height)
 System::Terminal -> write_line(message)
 ```
 
-A Call owns the complete invocation and evaluates one receiver Expression. An
-exact Type result selects the Static Callable registered on that Composite. A
-typed value receiver uses its output Type to select the registered Self
-Callable. The caller's Definition host chain remains unchanged while making
-that selection: it admits the receiver's private surface only when that exact
-Composite is already in the chain. Resolving an Alias never transfers private
-authority.
+An invocation evaluates one receiver Expression and retains one parenthesized
+argument Pack. An exact Type result selects the Static Callable registered on
+that Composite. A typed value receiver uses its output Type to select the
+registered Self Callable. The caller's Definition host chain remains unchanged
+while making that selection: it admits the receiver's private surface only when
+that exact Composite is already in the chain. Resolving an Alias never
+transfers private authority.
 
 Static and Self are properties of each Callable's parameter Layout. A Callable
 is Self exactly when parameter entry zero is the reserved `self` Addressable
 with the receiver's exact Type; otherwise it is Static. A Composite admits at
 most one Callable for each spelling and receiver role, rejecting a duplicate
-during registration. Static and Self Callables may share a spelling. The Call
-therefore selects one registered Callable and only then fits its authored
-arguments against the remaining parameter entries; it never constructs an
+during registration. Static and Self Callables may share a spelling. The
+invocation therefore selects one registered Callable and only then fits its
+argument Pack against the remaining parameter entries; it never constructs an
 overload set or reports call-time ambiguity.
 
 A Callable is not an Addressable and never appears in a value Layout. Callable,
 Addressable, and Type registration are independent spaces, so sharing a
-spelling across those categories creates no collision or fallback. The Call
-retains the selected Callable's complete result Layout, including an empty or
-multi-entry Layout. A scalar consumer can use that invocation only when the
-Layout proves one exact result Type. `->` introduces neither an implicit
-receiver nor a universal member resolver: `.`, `::`, and `->` continue to ask
-their distinct semantic questions.
+spelling across those categories creates no collision or fallback. The
+invocation is a Pack whose output follows the selected Callable's complete
+result Layout, including an empty or multi-entry Layout. A scalar consumer can
+use it only when that Pack proves one exact result Type. `->` introduces neither
+an implicit receiver nor a universal member resolver: `.`, `::`, and `->`
+continue to ask their distinct semantic questions.
 
-## Layouts and value flow
+## Packs and Layouts
 
-A Layout describes the ordered values supplied or required by an expression,
-declaration, Function, or Type. Library reuses TTX Layouts directly.
+A Pack carries produced value flow. It retains the real producer identities and
+exposes one output Layout for directional fitting. A Layout is an identity-free
+descriptor: it promises the ordered shape accepted or exposed by a Type,
+declaration, Function, or Pack. Producing several values therefore remains
+fluid Pack flow rather than materializing an anonymous aggregate Type.
 
-Function parameters and results may be positional or named:
+Parentheses group Packs and brackets describe Layouts:
 
 ```ttx
-public pair : func = [Unsigned_64, Bool] -> [Unsigned_64, Bool]
+()                              // empty Pack
+(value)                         // the same Pack as value
+(left, right)                   // positional Pack
+(.x = left, .y = right)         // named Pack
+
+[]                              // empty Layout
+[Unsigned_64, Bool]             // positional Layout
+[.x : Unsigned_64, .y : Bool]   // named Layout
+```
+
+A Function always has an empty or Named parameter Layout. Its result may use
+any empty, scalar, positional, or Named Layout:
+
+```ttx
+public pair : func = [
+  .left : Unsigned_64,
+  .right : Bool,
+] -> [Unsigned_64, Bool]
 
 public classify : func = [.value : Unsigned_64] -> [
   .accepted : Bool,
@@ -156,20 +181,35 @@ public classify : func = [.value : Unsigned_64] -> [
 }
 ```
 
-The leading `.accepted` and `.adjusted` spellings name Layout entries. They are
-not postfix Address access because they have no receiver. A named value retains
-its underlying expression and participates in fitting through that expression's
-Type.
+The leading `.accepted` and `.adjusted` spellings are not postfix Address
+access because they have no receiver. `.accepted : Bool` names a descriptor
+slot, while `.accepted = expression` names supplied Pack flow. A slot name need
+not be the semantic name of its producer, and fitting still returns that exact
+producer without a renamed value or Alias. Keeping `:` for descriptors and `=`
+for Packs also reserves `.name : Type = expression` for an explicitly typed
+default and `.name := expression` for an inferred one.
 
-The consuming declaration or expression fits a source Layout directionally
-against the Layout it requires. Producing several values creates value flow,
-not an anonymous aggregate Type.
+Both forms share empty, separator, trailing-comma, positional-versus-named, and
+duplicate-name rules, but they do not share one semantic owner. A Generic
+application accepts a Layout of Type references and literal Constants. A
+Function signature accepts descriptor Types and parameter names. Parenthesized
+value flow accepts Packs. A Call requires those parentheses; another context
+may omit them when its grammar remains unambiguous.
 
-Swizzle selects and reorders named entries:
+A receiving declaration or operation fits the Pack's complete output Layout
+directionally against the descriptor it requires. Empty `Void`, `()`, and `[]`
+agree through that fitting without becoming one Type or one Pack identity.
+
+Swizzle selects named Addressables and returns their values as one reordered
+positional Pack:
 
 ```ttx
 state dimensions : Fixed[Unsigned_64, 2] = packet.[width, height];
 ```
+
+The result is a Pack over the real selected producers. It becomes
+`Fixed[Unsigned_64, 2]` only because the receiving declaration deliberately
+materializes that Type; the swizzle itself creates no aggregate Type.
 
 Plain brackets are reference access on `Access[T]`. They never substitute a
 default address:
@@ -178,26 +218,29 @@ default address:
 access[index]                 // optional element reference
 ```
 
-This form does not introduce a Library `Option` Type. It is an address producing
-request whose evaluation either finds one element reference or reports absence
-to the statement that consumes it. Assignment writes through an engaged
-reference and leaves the receiver unchanged when the reference is absent. An
-indexed reference cannot be used as an ordinary value. Use `:[...]` when a
-value is required.
+This form does not introduce a Library `Option` Type. It is an Expression whose
+one-value Pack produces a writable address with the exact element Type. Runtime
+bounds determine whether that address is engaged. Assignment writes through an
+engaged address and leaves the receiver unchanged otherwise; a value consumer
+reads through the same address. Use `:[...]` when a missing element should
+instead produce the Type's default value.
 
-Colon bracket value access selects values. A missing element yields its Type
-default. A ranged selection with a start outside the receiver yields the
-default empty View, while a count beyond the remaining values stops at the
-receiver boundary. Neither form preserves writable `Access` in its result:
+Colon bracket value access selects values. A missing scalar element yields its
+Type default. A ranged selection requires its count to fold during linking to
+one supported nonnegative integer and returns a Ranged Pack with exactly that
+many element values. It does not materialize `Fixed`, `View`, or an anonymous
+aggregate Type merely to carry the range. Neither form preserves writable
+`Access` in its result:
 
 ```ttx
 bytes:[4]
 bytes:[4, 16]
 ```
 
-The operands must still have integer Types. A value that cannot represent a
-valid index or extent selects the same safe default. Another operand Type is a
-semantic error.
+The operands must still have integer Types. A scalar index that cannot represent
+a valid position selects the same safe default. A range count that does not
+constant-fold or cannot represent a supported nonnegative count is a semantic
+error, as is another operand Type.
 
 ## Built in Types
 
@@ -215,19 +258,24 @@ Scalar operations require the exact resolved Type identity expected by that
 operation. Library does not silently widen, narrow, retag, or reinterpret a
 Constant to make an operation legal.
 
-Generic Types describe contiguous element flow:
+Generic formulas describe reusable Type families. A formula is not itself a
+Type; applying its ordered arguments materializes one exact Type. Type arguments
+may recursively apply another formula:
 
 ```ttx
 Fixed[Unsigned_8, 64]
 View[Unsigned_8]
+View[Fixed[Unsigned_8, 4]]
 Access[Unsigned_8]
 Range[Unsigned_64]
 ```
 
-`Fixed` has a compile time element count. `View` is a borrowed contiguous view.
-`Access` additionally carries the language's writable contiguous capability.
-`Range` describes a lazy ascending integer sequence. Materializing the same
-Generic with the same semantic arguments returns the same Type identity.
+`Fixed[T, extent]` requires its compile-time `extent` to be an exact
+`Unsigned_64` value. `View` is a borrowed contiguous view. `Access` additionally
+carries the language's writable contiguous capability. `Range` describes a
+lazy ascending integer sequence. An explicit empty list applies a zero-argument
+formula; omitting the list instead requires the route to name a Type. Applying
+the same formula to the same semantic arguments returns the same Type identity.
 
 ### Default values
 
@@ -241,9 +289,10 @@ from the storage chosen by a compiler.
 
 `Void`, Enumerations, Structs, Objects, `Fixed[T, count]`, and `Access[T]` have
 no implicit default. A missing `value:[index]` is therefore legal only when the
-exact element Type admits a default. A missing ranged selection is always an
-empty `View[T]`. A Field initializer is an authored value and never defines a
-Type default for other declarations.
+exact element Type admits a default. A ranged selection instead requires one
+folded nonnegative count and produces exactly that many values; it has no
+missing-selection default. A Field initializer is an authored value and never
+defines a Type default for other declarations.
 
 ### Integer ranges
 
@@ -407,7 +456,7 @@ copy, and writability does not change the underlying TTX Addressable.
 
 A present initializer links through the Field in its containing Type's private
 context and must fit the declared Field Type. It remains one
-exact Expression supplying one value rather than a general value Flow.
+exact one-value Pack rather than a separate initializer inventory.
 
 A declaration written as `name := expression` has no declared Type to fit. The
 Field retains the exact completed Type of that initializer without widening or
@@ -483,11 +532,12 @@ is invalid because inference cannot supply the Type that initialization needs.
 Calls and returns may carry an already initialized Object while preserving its
 identity, but they do not infer an Object Type for a new transaction.
 
-Named arguments fit the receiving Object Type's initialization Layout. An
-external initializer can name its public and exposed Fields. Code hosted by
-the Object Type can also name private Fields. An unknown, duplicate, or
-inaccessible name fails the transaction. Every Field without an authored
-initializer is required unless `new` supplies it.
+The initializer retains one argument Pack and fits its output against the
+receiving Object Type's initialization Layout. An external initializer can name
+its public and exposed Fields. Code hosted by the Object Type can also name
+private Fields. An unknown, duplicate, or inaccessible name fails the
+transaction. Every Field without an authored initializer is required unless
+`new` supplies it.
 
 Supplied expressions evaluate in source order. The Object then initializes
 each Field exactly once in the Type's authored order, using the supplied fitted
@@ -516,7 +566,10 @@ same integer value without becoming the same semantic identity.
 
 ## Functions and invocation roles
 
-A Function declares parameter and result Layouts followed by a body:
+A Function declares one Named parameter Layout and one arbitrary result Layout
+followed by a body. `[]` is the empty parameter Layout. Every ordinary parameter
+uses `.name : Type`; only the reserved `self` entry may appear first without
+that spelling. A scalar Type is shorthand for a one-entry result Layout:
 
 ```ttx
 public add : func = [
@@ -556,8 +609,9 @@ Library expressions retain authored value dependencies and expose both their
 exact semantic result and output Type. The result preserves the identity
 selected by an access; the output Type states which value operations apply.
 Type-valued results use `Descriptor` as that output without replacing the
-selected Type. Scalar expression consumers require one exact output Type,
-while a Call preserves its selected Callable's complete result Layout.
+selected Type. Every Expression is also a Pack. Scalar expression consumers
+require one exact produced value and output Type, while calls, swizzles, and
+slices may preserve empty or multi-value output without inventing a group Type.
 Constants cover Bytes, Bool, signed integers, unsigned integers, and real
 values.
 
@@ -595,15 +649,20 @@ the corresponding exact Type operation before writing the result. Indexed
 assignment writes only when its optional reference is engaged. No assignment
 falls through from Address access to Type or Callable lookup.
 
-`return` fits its complete source Layout against the Function result Layout.
-Bare return and ordinary fallthrough supply the empty Layout and are legal when
-the Function result Layout is also empty. `Void`, `[]`, and any other empty Type
-therefore agree as zero-value flow without becoming the same Type identity. A
-Function with a nonempty result must return on every reachable path.
+`return` retains one Pack and fits its complete output Layout against the
+Function result Layout. `return;` and `return ();` supply empty flow;
+`return value;` supplies one value; positional and named parenthesized forms may
+supply several. Ordinary fallthrough is legal only for an empty result Layout.
+The Library `Void` Type, every other empty Type, `[]`, and `()` therefore agree
+as zero-value flow without becoming the same Type identity. A Function with a
+nonempty result must return on every reachable path.
 
-`if` and `while` require one exact `Bool` expression. `for` consumes one
-`Range[T]` and fits its loop binding Layout against the Range entry. `break` and
-`continue` target the nearest enclosing loop and are illegal outside one.
+`if` and `while` consume a Pack and use its first produced value for the control
+decision. That value's Type must satisfy the Flag contract. Parentheses may be
+omitted when the Pack is otherwise unambiguous, and additional produced values
+do not change which entry controls the branch. `for` consumes one `Range[T]`
+and fits its loop binding Layout against the Range entry. `break` and `continue`
+target the nearest enclosing loop and are illegal outside one.
 
 `match` evaluates its input once and compares cases in source order. Each case
 must fold to a Constant with the input's exact Type. The first equal case runs
@@ -611,8 +670,8 @@ and there is no fallthrough. `_` is the final default case. It may be omitted
 only when Library can prove that the preceding cases cover the complete input
 domain.
 
-An expression statement must be a complete Callable invocation. Its effects
-run in source order and the statement deliberately discards its result Layout.
+An invocation statement must be a complete Callable invocation. Its effects
+run in source order and the statement deliberately discards its result Pack.
 A pure arithmetic, comparison, or access expression is not a statement merely
 because it is followed by an end marker.
 

@@ -53,13 +53,12 @@ TTX_TRANSACTIONAL_BINARY_PARSE(
     Greater,
     GreaterOp,
     "Greater has a malformed right operand."_view,
-    "Use a complete scalar Expression after `>`."_view,
-    "Greater requires authored operand Anchors."_view);
+    "Use a complete scalar Expression after `>`."_view);
 
 TTX_BINARY_OP(Greater);
 
-auto Language::Operations::Greater::select_type(Materializations&) const
-    -> Core::Option<const Type&> {
+auto Language::Operations::Greater::select_type(
+    Tetrodotoxin::Language::Monograph&) const -> Core::Option<const Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right ||
@@ -71,8 +70,7 @@ auto Language::Operations::Greater::select_type(Materializations&) const
 }
 
 auto Language::Operations::Greater::evaluate_constants(
-    Memory::Allocator::Arena& domain,
-    Materializations&)
+    Memory::Allocator::Arena& domain)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   auto authored_left = get_input(0);
   auto authored_right = get_input(1);

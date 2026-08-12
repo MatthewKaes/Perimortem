@@ -23,7 +23,6 @@
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -54,9 +53,8 @@ class ModuloMonograph : public Tetrodotoxin::Language::Monograph {
 
 static auto link_operation(
     Operation& operation,
-    ModuloMonograph& source,
-    Materializations& materializations) -> Bool {
-  return operation.link(source, Invalid::get_invalid(), materializations);
+    Tetrodotoxin::Language::Monograph& source) -> Bool {
+  return operation.link(source, Invalid::get_invalid());
 }
 
 class ModuloExpression : public Expression {
@@ -69,12 +67,10 @@ class ModuloExpression : public Expression {
     return Documentation::get_empty();
   }
   auto get_type() const -> const Abstract& override { return type; }
-  auto get_inputs() const -> const Layout& override { return inputs; }
 
  private:
   View::Bytes name;
   const Abstract& type;
-  Ttx::Model::Layouts::Fluid inputs;
 };
 
 class ModuloUnresolvedType : public Ttx::Model::Type {
@@ -95,14 +91,12 @@ class ModuloFoldInput : public Operation {
  public:
   ModuloFoldInput(
       Allocator::Arena& domain,
-      Materializations& materializations,
       Expression& input,
       Constant& result,
       const Ttx::Model::Type& type,
       Bool fails = False)
       : Operation(
             domain,
-            materializations,
             Static::Vector<Reference<Expression>, 1>{{input}},
             {}),
         result(result),
@@ -116,7 +110,7 @@ class ModuloFoldInput : public Operation {
   auto get_evaluations() const -> Count { return evaluations; }
 
  protected:
-  auto evaluate_constants(Allocator::Arena&, Materializations&)
+  auto evaluate_constants(Allocator::Arena&)
       -> Result<Option<Constant&>, Expression::Error> override {
     evaluations++;
     if (fails) {
@@ -126,7 +120,7 @@ class ModuloFoldInput : public Operation {
     return result;
   }
 
-  auto select_type(Materializations&) const
+  auto select_type(Tetrodotoxin::Language::Monograph&) const
       -> Option<const Ttx::Model::Type&> override {
     return type;
   }
@@ -182,21 +176,9 @@ static auto value_is(const Expression& expression, value_type expected)
   return value && *value == expected ? True : False;
 }
 
-static auto input_is(
-    const Operations::Modulo& modulo,
-    Count index,
-    const Expression& expected) -> Bool {
-  return modulo.get_inputs().get_abstract(index).visit(
-      []() { return False; },
-      [&](const Abstract& expression) {
-        return &expression == &expected ? True : False;
-      });
-}
-
 PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection_and_partial) {
   Allocator::Arena domain;
   ModuloMonograph source(domain);
-  Materializations materializations(domain);
   Types::Signed_8 signed_8;
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
@@ -217,41 +199,37 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection_and_partial) {
   auto& truth = Constants::True::create_synthetic(domain, boolean);
   auto& bytes =
       Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
-  auto& signed_exact = Operations::Modulo::create_synthetic(
-      domain, materializations, signed_left, signed_right);
+  auto& signed_exact =
+      Operations::Modulo::create_synthetic(domain, signed_left, signed_right);
   auto& unsigned_exact = Operations::Modulo::create_synthetic(
-      domain, materializations, unsigned_left, unsigned_right);
-  auto& mismatch = Operations::Modulo::create_synthetic(
-      domain, materializations, unsigned_left, other);
-  auto& unresolved_pair = Operations::Modulo::create_synthetic(
-      domain, materializations, unresolved, unresolved);
-  auto& invalid_pair = Operations::Modulo::create_synthetic(
-      domain, materializations, invalid, invalid);
-  auto& real_values = Operations::Modulo::create_synthetic(
-      domain, materializations, real, real);
-  auto& flags = Operations::Modulo::create_synthetic(
-      domain, materializations, truth, truth);
-  auto& byte_values = Operations::Modulo::create_synthetic(
-      domain, materializations, bytes, bytes);
+      domain, unsigned_left, unsigned_right);
+  auto& mismatch =
+      Operations::Modulo::create_synthetic(domain, unsigned_left, other);
+  auto& unresolved_pair =
+      Operations::Modulo::create_synthetic(domain, unresolved, unresolved);
+  auto& invalid_pair =
+      Operations::Modulo::create_synthetic(domain, invalid, invalid);
+  auto& real_values = Operations::Modulo::create_synthetic(domain, real, real);
+  auto& flags = Operations::Modulo::create_synthetic(domain, truth, truth);
+  auto& byte_values =
+      Operations::Modulo::create_synthetic(domain, bytes, bytes);
 
   EXPECT(signed_exact.get_type().resolve().is<Invalid>());
   EXPECT_NOT(signed_exact.get_anchor());
-  EXPECT(link_operation(signed_exact, source, materializations));
-  EXPECT(link_operation(unsigned_exact, source, materializations));
-  EXPECT(!link_operation(mismatch, source, materializations));
-  EXPECT(!link_operation(unresolved_pair, source, materializations));
-  EXPECT(!link_operation(invalid_pair, source, materializations));
-  EXPECT(!link_operation(real_values, source, materializations));
-  EXPECT(!link_operation(flags, source, materializations));
-  EXPECT(!link_operation(byte_values, source, materializations));
+  EXPECT(link_operation(signed_exact, source));
+  EXPECT(link_operation(unsigned_exact, source));
+  EXPECT(!link_operation(mismatch, source));
+  EXPECT(!link_operation(unresolved_pair, source));
+  EXPECT(!link_operation(invalid_pair, source));
+  EXPECT(!link_operation(real_values, source));
+  EXPECT(!link_operation(flags, source));
+  EXPECT(!link_operation(byte_values, source));
 
   auto retained = selected(unsigned_exact.fold());
 
   EXPECT(&signed_exact.get_type() == &signed_8);
   EXPECT(&unsigned_exact.get_type() == &unsigned_8);
   EXPECT_NOT(retained);
-  EXPECT(input_is(unsigned_exact, 0, unsigned_left));
-  EXPECT(input_is(unsigned_exact, 1, unsigned_right));
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
   EXPECT(unresolved_pair.get_type().resolve().is<Invalid>());
   EXPECT(invalid_pair.get_type().resolve().is<Invalid>());
@@ -263,7 +241,6 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection_and_partial) {
 PERIMORTEM_UNIT_TEST(LibraryModulo, integer_remainders) {
   Allocator::Arena domain;
   ModuloMonograph source(domain);
-  Materializations materializations(domain);
   Types::Signed_8 signed_type;
   Types::Unsigned_8 unsigned_type;
   auto& positive = Constants::Signed::create_synthetic(domain, signed_type, 7);
@@ -294,53 +271,52 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, integer_remainders) {
       Constants::Unsigned::create_synthetic(domain, unsigned_type, 256);
   auto& invalid_unsigned_right =
       Constants::Unsigned::create_synthetic(domain, unsigned_type, 257);
-  auto& positive_result = Operations::Modulo::create_synthetic(
-      domain, materializations, positive, three);
-  auto& negative_dividend = Operations::Modulo::create_synthetic(
-      domain, materializations, negative, three);
-  auto& negative_divisor = Operations::Modulo::create_synthetic(
-      domain, materializations, positive, negative_three);
-  auto& both_negative = Operations::Modulo::create_synthetic(
-      domain, materializations, negative, negative_three);
-  auto& zero_result =
-      Operations::Modulo::create_synthetic(domain, materializations, zero, one);
-  auto& one_result = Operations::Modulo::create_synthetic(
-      domain, materializations, positive, one);
-  auto& minimum_result = Operations::Modulo::create_synthetic(
-      domain, materializations, minimum, three);
-  auto& zero_divisor = Operations::Modulo::create_synthetic(
-      domain, materializations, positive, zero);
-  auto& endpoint_overflow = Operations::Modulo::create_synthetic(
-      domain, materializations, minimum, negative_one);
-  auto& signed_width = Operations::Modulo::create_synthetic(
-      domain, materializations, invalid_left, invalid_right);
-  auto& unsigned_result = Operations::Modulo::create_synthetic(
-      domain, materializations, seven, unsigned_three);
-  auto& unsigned_zero_result = Operations::Modulo::create_synthetic(
-      domain, materializations, unsigned_zero, unsigned_one);
-  auto& unsigned_endpoint = Operations::Modulo::create_synthetic(
-      domain, materializations, maximum, unsigned_three);
-  auto& unsigned_zero_divisor = Operations::Modulo::create_synthetic(
-      domain, materializations, maximum, unsigned_zero);
+  auto& positive_result =
+      Operations::Modulo::create_synthetic(domain, positive, three);
+  auto& negative_dividend =
+      Operations::Modulo::create_synthetic(domain, negative, three);
+  auto& negative_divisor =
+      Operations::Modulo::create_synthetic(domain, positive, negative_three);
+  auto& both_negative =
+      Operations::Modulo::create_synthetic(domain, negative, negative_three);
+  auto& zero_result = Operations::Modulo::create_synthetic(domain, zero, one);
+  auto& one_result =
+      Operations::Modulo::create_synthetic(domain, positive, one);
+  auto& minimum_result =
+      Operations::Modulo::create_synthetic(domain, minimum, three);
+  auto& zero_divisor =
+      Operations::Modulo::create_synthetic(domain, positive, zero);
+  auto& endpoint_overflow =
+      Operations::Modulo::create_synthetic(domain, minimum, negative_one);
+  auto& signed_width =
+      Operations::Modulo::create_synthetic(domain, invalid_left, invalid_right);
+  auto& unsigned_result =
+      Operations::Modulo::create_synthetic(domain, seven, unsigned_three);
+  auto& unsigned_zero_result =
+      Operations::Modulo::create_synthetic(domain, unsigned_zero, unsigned_one);
+  auto& unsigned_endpoint =
+      Operations::Modulo::create_synthetic(domain, maximum, unsigned_three);
+  auto& unsigned_zero_divisor =
+      Operations::Modulo::create_synthetic(domain, maximum, unsigned_zero);
   auto& unsigned_width = Operations::Modulo::create_synthetic(
-      domain, materializations, invalid_unsigned_left, invalid_unsigned_right);
+      domain, invalid_unsigned_left, invalid_unsigned_right);
 
   EXPECT(positive_result.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(positive_result, source, materializations));
-  EXPECT(link_operation(negative_dividend, source, materializations));
-  EXPECT(link_operation(negative_divisor, source, materializations));
-  EXPECT(link_operation(both_negative, source, materializations));
-  EXPECT(link_operation(zero_result, source, materializations));
-  EXPECT(link_operation(one_result, source, materializations));
-  EXPECT(link_operation(minimum_result, source, materializations));
-  EXPECT(link_operation(zero_divisor, source, materializations));
-  EXPECT(link_operation(endpoint_overflow, source, materializations));
-  EXPECT(link_operation(signed_width, source, materializations));
-  EXPECT(link_operation(unsigned_result, source, materializations));
-  EXPECT(link_operation(unsigned_zero_result, source, materializations));
-  EXPECT(link_operation(unsigned_endpoint, source, materializations));
-  EXPECT(link_operation(unsigned_zero_divisor, source, materializations));
-  EXPECT(link_operation(unsigned_width, source, materializations));
+  EXPECT(link_operation(positive_result, source));
+  EXPECT(link_operation(negative_dividend, source));
+  EXPECT(link_operation(negative_divisor, source));
+  EXPECT(link_operation(both_negative, source));
+  EXPECT(link_operation(zero_result, source));
+  EXPECT(link_operation(one_result, source));
+  EXPECT(link_operation(minimum_result, source));
+  EXPECT(link_operation(zero_divisor, source));
+  EXPECT(link_operation(endpoint_overflow, source));
+  EXPECT(link_operation(signed_width, source));
+  EXPECT(link_operation(unsigned_result, source));
+  EXPECT(link_operation(unsigned_zero_result, source));
+  EXPECT(link_operation(unsigned_endpoint, source));
+  EXPECT(link_operation(unsigned_zero_divisor, source));
+  EXPECT(link_operation(unsigned_width, source));
 
   auto positive_fold = selected(positive_result.fold());
   auto negative_fold = selected(negative_dividend.fold());
@@ -389,26 +365,32 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, integer_remainders) {
 
 PERIMORTEM_UNIT_TEST(LibraryModulo, recursive_provenance_and_atomicity) {
   Allocator::Arena domain;
-  ModuloMonograph source(domain);
-  Materializations materializations(domain);
+  ModuloMonograph context(domain);
+  Tetrodotoxin::Library::Dialect dialect;
+  Errors host_errors;
+  Tokenizer host_tokens(domain, {}, "modulo-source.ttx"_view);
+  Cursor host_cursor(host_tokens, host_errors);
+  auto retained_source = dialect.interpret(
+      domain, host_cursor, Documentation::get_empty(), Anchor::create(Span()),
+      context);
+  ASSERT(retained_source && retained_source->is<Monograph>());
+  auto& source = static_cast<Monograph&>(*retained_source);
   Types::Unsigned_8 selected_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
   auto& folded =
       Constants::Unsigned::create_synthetic(domain, selected_type, 13);
   auto& divisor =
       Constants::Unsigned::create_synthetic(domain, selected_type, 5);
-  ModuloFoldInput child(domain, materializations, input, folded, selected_type);
-  ModuloFoldInput failing(
-      domain, materializations, input, folded, selected_type, True);
-  auto& modulo = Operations::Modulo::create_synthetic(
-      domain, materializations, child, divisor);
-  auto& failure = Operations::Modulo::create_synthetic(
-      domain, materializations, failing, divisor);
+  ModuloFoldInput child(domain, input, folded, selected_type);
+  ModuloFoldInput failing(domain, input, folded, selected_type, True);
+  auto& modulo = Operations::Modulo::create_synthetic(domain, child, divisor);
+  auto& failure =
+      Operations::Modulo::create_synthetic(domain, failing, divisor);
 
   EXPECT(modulo.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(modulo, source, materializations));
-  EXPECT(link_operation(modulo, source, materializations));
-  EXPECT(link_operation(failure, source, materializations));
+  EXPECT(link_operation(modulo, source));
+  EXPECT(link_operation(modulo, source));
+  EXPECT(link_operation(failure, source));
 
   auto first = selected(modulo.fold());
   auto second = selected(modulo.fold());
@@ -416,7 +398,6 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, recursive_provenance_and_atomicity) {
   ASSERT(first && second);
   EXPECT(&*first == &*second);
   EXPECT(value_is<Constants::Unsigned>(*first, Unsigned_64(3)));
-  EXPECT(input_is(modulo, 0, child));
   EXPECT(child.get_evaluations() == 1);
   EXPECT(reports(
       failure.fold(), Expression::Error::Type::InvalidConstant, failing));
@@ -432,8 +413,8 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, recursive_provenance_and_atomicity) {
   auto& success_left = Constants::Signed::create_authored(
       domain, parser_type, -7, success_left_anchor);
   auto parsed = Operations::Modulo::parse(
-      domain, materializations, success_cursor, Invalid::get_invalid(),
-      success_left);
+      domain, source, success_cursor, success_left,
+      Span(success_left_trigger, success_left_end));
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "-7 % true"_view, "modulo.ttx"_view);
   Cursor failure_cursor(failure_tokens, failure_errors);
@@ -444,15 +425,15 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, recursive_provenance_and_atomicity) {
   auto& failure_left = Constants::Signed::create_authored(
       domain, parser_type, -7, failure_left_anchor);
   auto rejected = Operations::Modulo::parse(
-      domain, materializations, failure_cursor, Invalid::get_invalid(),
-      failure_left);
+      domain, source, failure_cursor, failure_left,
+      Span(failure_left_trigger, failure_left_end));
 
   ASSERT(parsed);
   EXPECT(parsed->is<Operations::Modulo>());
   EXPECT(parsed->get_type().resolve().is<Invalid>());
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
-  EXPECT(parsed->link(source, Invalid::get_invalid(), materializations));
+  EXPECT(parsed->link(source, Invalid::get_invalid()));
 
   auto parsed_fold = parsed->visit<Operation>(
       [&](Operation& operation) { return selected(operation.fold()); },
@@ -470,7 +451,7 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, recursive_provenance_and_atomicity) {
   EXPECT(rejected->get_type().resolve().is<Invalid>());
   EXPECT(failure_cursor.matches(Code::Type::Terminal));
   EXPECT(failure_errors.is_empty());
-  EXPECT_NOT(rejected->link(source, Invalid::get_invalid(), materializations));
+  EXPECT_NOT(rejected->link(source, Invalid::get_invalid()));
   EXPECT(rejected->get_type().resolve().is<Invalid>());
 
   auto diagnostics = source.get_diagnostics();

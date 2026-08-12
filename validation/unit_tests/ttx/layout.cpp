@@ -93,6 +93,16 @@ class AtomicType : public Type {
   }
 };
 
+/// Layout fitting may compare a reserved Type before that Type's lifecycle
+/// owner completes it. Its exact identity remains meaningful even while
+/// resolve() reports Invalid.
+class StagedType final : public AtomicType {
+ public:
+  auto resolve() const -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
 static auto selects(
     const Perimortem::Core::Option<const Abstract&>& result,
     const Abstract& expected) -> Bool {
@@ -145,6 +155,33 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
   EXPECT(selects(layout.get_abstract(0), real));
   EXPECT(selects(layout.get_abstract(1), bits));
   EXPECT(is_none(layout.get_abstract(2)));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLayout, staged_type_identity) {
+  StagedType first;
+  StagedType second;
+  LayoutField first_field("first"_view, first);
+  LayoutField second_field("second"_view, second);
+  const Static::Vector<Reference<const Abstract>, 1> first_type = {{first}};
+  const Static::Vector<Reference<const Abstract>, 1> second_type = {{second}};
+  const Static::Vector<Reference<const Abstract>, 1> first_addressable = {
+    {first_field}};
+  const Static::Vector<Reference<const Abstract>, 1> second_addressable = {
+    {second_field}};
+  Fluid fluid_first(first_type);
+  Fluid fluid_same(first_type);
+  Fluid fluid_second(second_type);
+  Fluid field_first(first_addressable);
+  Fluid field_second(second_addressable);
+  Ranged ranged_first(first, 2);
+  Ranged ranged_same(first, 2);
+  Ranged ranged_second(second, 2);
+
+  EXPECT(fluid_first.fits(fluid_same));
+  EXPECT_NOT(fluid_first.fits(fluid_second));
+  EXPECT_NOT(field_first.fits(field_second));
+  EXPECT(ranged_first.fits(ranged_same));
+  EXPECT_NOT(ranged_first.fits(ranged_second));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, named_fields) {
@@ -257,16 +294,24 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
     {real, bits}};
   const Static::Vector<Reference<const Abstract>, 2> reordered = {
     {named_y, named_x}};
+  const Static::Vector<Reference<const Abstract>, 2> lexical_values = {
+    {bits, real}};
+  const Static::Vector<View::Bytes, 2> lexical_names = {{"y"_view, "x"_view}};
   Named target(fields);
   Fluid fluid(positional);
   Named named(reordered);
+  Fluid lexical_flow(lexical_values);
+  Named lexical(lexical_flow, lexical_names);
 
   EXPECT(fluid.fits(target));
   EXPECT(named.fits(target));
+  EXPECT(lexical.fits(target));
   EXPECT(target.fits(target));
   EXPECT(selects(fluid.get_fitted(target, 0), real));
   EXPECT(selects(named.get_fitted(target, 0), named_x));
   EXPECT(selects(named.get_fitted(target, 1), named_y));
+  EXPECT(selects(lexical.get_fitted(target, 0), real));
+  EXPECT(selects(lexical.get_fitted(target, 1), bits));
   EXPECT(selects(target.get_fitted(target, 1), y));
   EXPECT(
       reports(fluid.get_fitted(target, 2), Layout::Errors::IndexOutOfBounds));

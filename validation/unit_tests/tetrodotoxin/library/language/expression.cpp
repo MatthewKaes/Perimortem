@@ -3,12 +3,9 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
@@ -17,8 +14,6 @@
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
-#include "tetrodotoxin/library/language/identifier.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/real_64.hpp"
 #include "tetrodotoxin/library/language/types/signed_64.hpp"
@@ -28,14 +23,12 @@
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Library::Language;
 using namespace Ttx::Concept;
-using namespace Ttx::Lexical;
 using namespace Validation;
 
 class ExpressionType : public Ttx::Model::Type {
@@ -85,69 +78,15 @@ class ExpressionValue : public Expression {
     return Documentation::get_empty();
   }
   auto get_type() const -> const Ttx::Model::Type& override { return type; }
-  auto get_inputs() const -> const Layout& override { return inputs; }
 
  private:
   View::Bytes name;
   const Ttx::Model::Type& type;
-  inline static const Ttx::Model::Layouts::Fluid inputs;
-};
-
-class ExpressionContext : public Abstract {
- public:
-  constexpr ExpressionContext(const Ttx::Model::Addressable& selected)
-      : selected(selected) {}
-
-  constexpr auto get_name() const -> View::Bytes override {
-    return "ExpressionContext"_view;
-  }
-  auto get_documentation() const -> const Documentation& override {
-    return Documentation::get_empty();
-  }
-  auto resolve_context(View::Bytes route) const -> const Abstract& override {
-    if (route == selected.get_name()) {
-      return selected;
-    }
-
-    return Invalid::get_invalid();
-  }
-
- private:
-  const Ttx::Model::Addressable& selected;
-};
-
-class ExpressionMonograph : public Tetrodotoxin::Language::Monograph {
- public:
-  ExpressionMonograph(Allocator::Arena& domain)
-      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
-
-  constexpr auto get_name() const -> View::Bytes override {
-    return "ExpressionMonograph"_view;
-  }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
 };
 
 static Harness LibraryExpression = {
   .name = "Tetrodotoxin::Library::Language::Expression"_view,
 };
-
-static auto selects(
-    const Perimortem::Core::Option<const Abstract&>& result,
-    const Abstract& expected) -> Bool {
-  return result.visit(
-      []() { return False; },
-      [&expected](const Abstract& selected) {
-        return &selected == &expected ? True : False;
-      });
-}
-
-static auto is_none(const Perimortem::Core::Option<const Abstract&>& result)
-    -> Bool {
-  return result.visit(
-      []() { return True; }, [](const Abstract&) { return False; });
-}
 
 PERIMORTEM_UNIT_TEST(LibraryExpression, address_identity) {
   Allocator::Arena arena;
@@ -164,35 +103,7 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, address_identity) {
   EXPECT(&address.get_type() == &scalar);
   EXPECT(&address.get_receiver() == &receiver);
   EXPECT(&address.get_result() == &field);
-  EXPECT(selects(address.get_inputs().get_abstract(0), receiver));
-  EXPECT(is_none(address.get_inputs().get_abstract(1)));
   EXPECT(address.fits(scalar));
-}
-
-PERIMORTEM_UNIT_TEST(LibraryExpression, address_links_retained_input) {
-  Allocator::Arena arena;
-  Materializations materializations(arena);
-  ExpressionType scalar("Scalar"_view);
-  ExpressionField member("value"_view, scalar);
-  const Static::Vector<Reference<const Abstract>, 1> members = {{member}};
-  ExpressionType container(
-      "Container"_view, Ttx::Model::Layouts::Named(members));
-  ExpressionField receiver("receiver"_view, container);
-  ExpressionContext context(receiver);
-  ExpressionMonograph graph(arena);
-  Token receiver_token(0, 1, 1, 8, Code::Type::Addressable);
-  auto receiver_anchor = Anchor::create(receiver_token, Span(receiver_token));
-  auto& address_input = Identifier::create_authored(
-      arena, receiver_token, "receiver"_view, receiver_anchor);
-  auto& address =
-      Tetrodotoxin::Library::Language::Access::Address::create_synthetic(
-          arena, address_input, member);
-
-  EXPECT(address_input.get_result().is<Invalid>());
-  ASSERT(address.link(graph, context, materializations));
-  EXPECT(&address_input.get_result() == &receiver);
-  EXPECT(&address.get_result() == &member);
-  EXPECT(graph.get_diagnostics().is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryExpression, constant_identity) {
@@ -218,7 +129,6 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, constant_identity) {
   EXPECT(&first.get_type() == &type);
   EXPECT_TEXT(first.get_name(), type.get_name());
   EXPECT(first.get_value() == 100);
-  EXPECT(first.get_inputs().is_empty());
   EXPECT(first == same);
   EXPECT(first != different);
   EXPECT(first != other);

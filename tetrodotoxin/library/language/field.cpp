@@ -4,7 +4,8 @@
 #include "tetrodotoxin/library/language/field.hpp"
 
 #include "tetrodotoxin/library/language/initializer.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/language/model/parser/pack.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -18,7 +19,7 @@ using namespace Tetrodotoxin::Library;
 
 static auto parse_writability(
     const Tetrodotoxin::Language::Definition& definition,
-    Cursor& cursor) -> Option<Language::Field::Writability> {
+    Cursor& cursor) -> Option<Language::Writability> {
   auto modifiers = definition.get_modifiers();
   if (modifiers.get_size() > 1) {
     cursor.create_token_error(
@@ -27,14 +28,14 @@ static auto parse_writability(
     return {};
   }
 
-  Language::Field::Writability writability = Language::Field::Writability::Full;
+  Language::Writability writability = Language::Writability::Full;
   if (!modifiers.is_empty()) {
     switch (modifiers.get_data()[0].get_code().get_type()) {
     case Code::Type::State:
-      writability = Language::Field::Writability::Internal;
+      writability = Language::Writability::Internal;
       break;
     case Code::Type::Const:
-      writability = Language::Field::Writability::Init;
+      writability = Language::Writability::Init;
       break;
     default:
       cursor.create_token_error(
@@ -46,14 +47,14 @@ static auto parse_writability(
 
   Tetrodotoxin::Language::Visibility visibility = definition.get_visibility();
   if (visibility == Tetrodotoxin::Language::Visibility::Exposed &&
-      writability != Language::Field::Writability::Internal) {
+      writability != Language::Writability::Internal) {
     cursor.create_token_error(
         definition.get_visibility_token(),
         "Library `expose` Fields require the `state` evaluation policy."_view);
     return {};
   }
   if (visibility == Tetrodotoxin::Language::Visibility::Public &&
-      writability == Language::Field::Writability::Internal) {
+      writability == Language::Writability::Internal) {
     cursor.create_token_error(
         modifiers.get_data()[0],
         "Library state Fields require `private` or explicit `expose` "
@@ -66,7 +67,7 @@ static auto parse_writability(
 
 auto Language::Field::interpret(
     Allocator::Arena& domain,
-    Materializations& materializations,
+    Monograph& source,
     Cursor& cursor,
     Tetrodotoxin::Language::Definition& definition) -> Option<Field&> {
   auto transaction = cursor.branch();
@@ -83,7 +84,7 @@ auto Language::Field::interpret(
   }
 
   Option<TypeReference> type;
-  Option<Expression&> initializer;
+  Option<Model::Pack&> initializer;
   if (transaction.matches(Code::Type::Assign)) {
     transaction.consume();
     if (Initializer::is_next(transaction)) {
@@ -93,11 +94,10 @@ auto Language::Field::interpret(
       return {};
     }
 
-    initializer =
-        Parser::Expression::parse(domain, materializations, transaction, *host);
+    initializer = Model::Parser::Pack::parse(domain, source, transaction);
     BAIL_IF(!initializer);
   } else {
-    auto authored_type = TypeReference::parse(transaction);
+    auto authored_type = TypeReference::parse(source, transaction);
     BAIL_IF(!authored_type);
     type = *authored_type;
 
@@ -105,12 +105,11 @@ auto Language::Field::interpret(
       transaction.consume();
       if (Initializer::is_next(transaction)) {
         auto object_initializer =
-            Initializer::parse(domain, materializations, transaction, *host);
+            Initializer::parse(domain, source, transaction);
         BAIL_IF(!object_initializer);
         initializer = *object_initializer;
       } else {
-        initializer = Parser::Expression::parse(
-            domain, materializations, transaction, *host);
+        initializer = Model::Parser::Pack::parse(domain, source, transaction);
       }
       BAIL_IF(!initializer);
     } else if (*writability != Writability::Full) {
@@ -180,15 +179,14 @@ auto Language::Field::link_type(Tetrodotoxin::Language::Monograph& source)
 }
 
 auto Language::Field::link_initializer(
-    Tetrodotoxin::Language::Monograph& monograph,
-    Materializations& materializations) -> Bool {
+    Tetrodotoxin::Language::Monograph& monograph) -> Bool {
   if (initializer_linked) {
     return True;
   }
 
   auto selected_initializer = initializer.visit(
-      []() -> Option<Expression&> { return {}; },
-      [](Expression& selected) -> Option<Expression&> { return selected; });
+      []() -> Option<Model::Pack&> { return {}; },
+      [](Model::Pack& selected) -> Option<Model::Pack&> { return selected; });
   if (!selected_initializer) {
     monograph.report(
         get_anchor(), "Field initializer state is incomplete."_view,
@@ -202,13 +200,19 @@ auto Language::Field::link_initializer(
   // The Field remains the lexical owner of bare names. Its host Type travels
   // separately as access authority so nested expressions never have to infer
   // scope from the concrete declaration category.
-  Bool linked = selected_initializer->link(
-      monograph, *this, materializations, get_host());
-  BAIL_IF(!linked);
+  BAIL_IF(!selected_initializer->link(monograph, *this, get_host()));
 
   if (!type) {
+    if (selected_initializer->get_layout().get_size() != 1) {
+      monograph.report(
+          get_anchor(),
+          "Inferred Field initializer must produce exactly one value."_view,
+          "Name an explicit receiving Type for empty or multi-value flow."_view);
+      return False;
+    }
+
     const Abstract& result_type = selected_initializer->get_type();
-    // An Expression can expose one exact Composite Type before that Type
+    // A scalar Pack can expose one exact Composite Type before that Type
     // finishes its instance Layout. Inference retains that real identity
     // directly rather than resolving it to the incomplete sentinel.
     const Abstract& resolved_type =
@@ -216,7 +220,7 @@ auto Language::Field::link_initializer(
     auto initializer_type = resolved_type.select<Type>();
     if (!initializer_type) {
       monograph.report(
-          selected_initializer->get_anchor(),
+          get_anchor(),
           "Inferred Field initializer did not complete one stable Type."_view,
           "Use an initializer whose exact Type settles before Field "
           "publication."_view);
@@ -224,8 +228,7 @@ auto Language::Field::link_initializer(
     }
     if (initializer_type->get_layout().is_empty()) {
       monograph.report(
-          selected_initializer->get_anchor(),
-          "Inferred Field cannot bind an empty Type Layout."_view,
+          get_anchor(), "Inferred Field cannot bind an empty Type Layout."_view,
           "Keep the empty result as flow or infer from a Type with one value "
           "leaf."_view);
       return False;
@@ -238,10 +241,11 @@ auto Language::Field::link_initializer(
 
   if (!selected_initializer->fits(type->get())) {
     monograph.report(
-        selected_initializer->get_anchor(),
-        "Field initializer does not fit the declared Field Type's semantic "
-        "domain."_view,
-        "Supply one value accepted by the declared Field Type."_view);
+        get_anchor(),
+        "Field initializer Pack does not fit the declared Field Type's "
+        "Layout."_view,
+        "Supply the complete value flow accepted by the declared Field "
+        "Type."_view);
     return False;
   }
 
@@ -282,6 +286,11 @@ auto Language::Field::validate_publication(
   return False;
 }
 
+auto Language::Field::finalize() -> void {
+  initializer.visit(
+      []() {}, [](Model::Pack& selected) { selected.finalize(); });
+}
+
 auto Language::Field::resolve() const -> const Abstract& {
   if (!type) {
     return Invalid::get_invalid();
@@ -311,10 +320,10 @@ auto Language::Field::resolve_context(View::Bytes route) const
       });
 }
 
-auto Language::Field::get_initializer() const -> Option<const Expression&> {
+auto Language::Field::get_initializer() const -> Option<const Model::Pack&> {
   return initializer.visit(
-      []() -> Option<const Expression&> { return {}; },
-      [](const Expression& selected) -> Option<const Expression&> {
+      []() -> Option<const Model::Pack&> { return {}; },
+      [](const Model::Pack& selected) -> Option<const Model::Pack&> {
         return selected;
       });
 }

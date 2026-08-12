@@ -56,13 +56,12 @@ TTX_TRANSACTIONAL_BINARY_PARSE(
     Modulo,
     ModOp,
     "Modulo has a malformed right operand."_view,
-    "Use a complete integer Expression after `%`."_view,
-    "Modulo requires authored operand Anchors."_view);
+    "Use a complete integer Expression after `%`."_view);
 
 TTX_BINARY_OP(Modulo);
 
-auto Language::Operations::Modulo::select_type(Materializations&) const
-    -> Core::Option<const Type&> {
+auto Language::Operations::Modulo::select_type(
+    Tetrodotoxin::Language::Monograph&) const -> Core::Option<const Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right) {
@@ -73,8 +72,7 @@ auto Language::Operations::Modulo::select_type(Materializations&) const
 }
 
 auto Language::Operations::Modulo::evaluate_constants(
-    Memory::Allocator::Arena& domain,
-    Materializations&)
+    Memory::Allocator::Arena& domain)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   const Abstract& selected = get_type().resolve();
   auto authored_left = get_input(0);

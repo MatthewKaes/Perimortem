@@ -27,6 +27,7 @@
 #include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
+#include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
@@ -678,7 +679,6 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   const auto& object_initializer =
       static_cast<const Language::Initializer&>(*initializer);
   EXPECT(&object_initializer.get_type() == &session);
-  ASSERT_EQ(object_initializer.get_inputs().get_size(), Count(1));
   auto initializer_attributes = source_field.get_definition().get_attributes();
   ASSERT_EQ(initializer_attributes.get_size(), Count(2));
   EXPECT_TEXT(
@@ -729,30 +729,17 @@ PERIMORTEM_UNIT_TEST(DialectTests, value_acceptance) {
   ASSERT(width);
   ASSERT(height);
 
-  auto folded_add = find_function(source_type, "folded_add"_view);
-  auto default_byte = find_function(source_type, "default_byte"_view);
-  ASSERT(folded_add);
-  ASSERT(default_byte);
-  auto folded_add_return = find_return(*folded_add);
-  auto default_byte_return = find_return(*default_byte);
-  ASSERT(folded_add_return && folded_add_return->get_expression());
-  ASSERT(default_byte_return && default_byte_return->get_expression());
-  const auto& folded_add_expression = *folded_add_return->get_expression();
-  const auto& default_byte_expression = *default_byte_return->get_expression();
-  ASSERT(folded_add_expression.is<Language::Operations::Add>());
-  ASSERT(default_byte_expression.is<Language::Access::Value>());
-  auto folded_sum = folded_add_expression.get_folded();
-  auto folded_default = default_byte_expression.get_folded();
+  auto sum = find_field(source_type, "sum"_view);
+  ASSERT(sum && sum->get_initializer());
+  ASSERT(sum->get_initializer()->is<Language::Operations::Add>());
+  const auto& sum_expression =
+      static_cast<const Language::Expression&>(*sum->get_initializer());
+  auto folded_sum = sum_expression.get_folded();
   ASSERT(folded_sum && folded_sum->is<Language::Constants::Unsigned>());
-  ASSERT(folded_default && folded_default->is<Language::Constants::Unsigned>());
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*folded_sum)
           .get_value(),
       Unsigned_64(5));
-  EXPECT_EQ(
-      static_cast<const Language::Constants::Unsigned&>(*folded_default)
-          .get_value(),
-      Unsigned_64(0));
 
   auto sequence = find_field(source_type, "sequence"_view);
   auto selected_byte = find_field(source_type, "selected_byte"_view);
@@ -770,8 +757,23 @@ PERIMORTEM_UNIT_TEST(DialectTests, value_acceptance) {
   EXPECT(&range.get_element_type() == &Dialect::get_unsigned_64());
   EXPECT(&selected_byte->get_type() == &Dialect::get_unsigned_8());
   EXPECT(&missing_byte->get_type() == &Dialect::get_unsigned_8());
-  ASSERT(selected_slice->get_type().is<Language::Types::View>());
+  ASSERT(
+      missing_byte->get_initializer() &&
+      missing_byte->get_initializer()->is<Language::Access::Value>());
+  const auto& default_expression = static_cast<const Language::Expression&>(
+      *missing_byte->get_initializer());
+  auto folded_default = default_expression.get_folded();
+  ASSERT(folded_default && folded_default->is<Language::Constants::Unsigned>());
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*folded_default)
+          .get_value(),
+      Unsigned_64(0));
+  ASSERT(selected_slice->get_type().is<Language::Types::Fixed>());
   EXPECT(&selected_slice->get_type() == &missing_slice->get_type());
+  const auto& slice_type =
+      static_cast<const Language::Types::Fixed&>(selected_slice->get_type());
+  EXPECT(&slice_type.get_element_type() == &Dialect::get_unsigned_8());
+  EXPECT_EQ(slice_type.get_extent(), Unsigned_64(2));
 
   auto called = find_field(source_type, "called"_view);
   auto addressed = find_field(source_type, "addressed"_view);
@@ -796,24 +798,36 @@ PERIMORTEM_UNIT_TEST(DialectTests, value_acceptance) {
   auto reordered = find_field(source_type, "reordered"_view);
   ASSERT(empty);
   auto empty_return = find_return(*empty);
-  ASSERT(empty_return && empty_return->get_expression());
+  ASSERT(empty_return);
+  EXPECT_TEXT(
+      empty_return->get_anchor().get_span().caculate_text(*source),
+      "return packet.[];"_view);
+  EXPECT(empty->get_results().is_empty());
   ASSERT(single && single->get_initializer());
   ASSERT(reordered && reordered->get_initializer());
-  ASSERT(empty_return->get_expression()->is<Language::Access::Swizzle>());
   ASSERT(single->get_initializer()->is<Language::Access::Swizzle>());
   ASSERT(reordered->get_initializer()->is<Language::Access::Swizzle>());
-  const auto& empty_swizzle = static_cast<const Language::Access::Swizzle&>(
-      *empty_return->get_expression());
   const auto& single_swizzle =
       static_cast<const Language::Access::Swizzle&>(*single->get_initializer());
   const auto& reordered_swizzle = static_cast<const Language::Access::Swizzle&>(
       *reordered->get_initializer());
-  EXPECT(empty_swizzle.get_results().is_empty());
-  ASSERT_EQ(single_swizzle.get_results().get_size(), Count(1));
-  EXPECT(&*single_swizzle.get_results().get_abstract(0) == &*width);
-  ASSERT_EQ(reordered_swizzle.get_results().get_size(), Count(2));
-  EXPECT(&*reordered_swizzle.get_results().get_abstract(0) == &*height);
-  EXPECT(&*reordered_swizzle.get_results().get_abstract(1) == &*width);
+  ASSERT_EQ(single_swizzle.get_layout().get_size(), Count(1));
+  auto single_output = single_swizzle.get_layout().get_abstract(0);
+  ASSERT(single_output && single_output->is<Language::Access::Address>());
+  EXPECT(
+      &static_cast<const Language::Access::Address&>(*single_output)
+           .get_result() == &*width);
+  ASSERT_EQ(reordered_swizzle.get_layout().get_size(), Count(2));
+  auto first_output = reordered_swizzle.get_layout().get_abstract(0);
+  auto second_output = reordered_swizzle.get_layout().get_abstract(1);
+  ASSERT(first_output && first_output->is<Language::Access::Address>());
+  ASSERT(second_output && second_output->is<Language::Access::Address>());
+  EXPECT(
+      &static_cast<const Language::Access::Address&>(*first_output)
+           .get_result() == &*height);
+  EXPECT(
+      &static_cast<const Language::Access::Address&>(*second_output)
+           .get_result() == &*width);
   EXPECT(reordered_swizzle.fits(pair));
   EXPECT(errors.is_empty());
 }

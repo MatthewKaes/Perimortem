@@ -18,8 +18,9 @@
 
 #include "perimortem/system/file.hpp"
 
+#include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/parser/literal.hpp"
 #include "tetrodotoxin/package/archive/archive.hpp"
 #include "tetrodotoxin/package/archive/member.hpp"
@@ -189,13 +190,26 @@ class ResourceDialect : public Language::Dialect {
         static_cast<Package::Language::Monograph&>(interpretation_context);
     Package::Resources& resources = package.get_resources();
 
-    // Literal parsing asks Package directly for Resource bytes. No installed
-    // Library Dialect is needed just to recover its binary wide scalar Types.
-    Library::Language::Materializations materializations(domain);
-    auto table = Library::Language::Parser::Literal::parse(
-        domain, materializations, cursor, package);
-    auto empty = Library::Language::Parser::Literal::parse(
-        domain, materializations, cursor, package);
+    // Literal parsing enters through a real Library source transaction. The
+    // Package remains that source's interpretation context, while its installed
+    // Library Dialect owns the one materialization capability used by
+    // Constants.
+    Errors source_errors;
+    Tokenizer source_tokens(domain, ""_view, "resource-source.ttx"_view);
+    Cursor source_cursor(source_tokens, source_errors);
+    auto interpreted = library.interpret(
+        domain, source_cursor, Documentation::get_empty(),
+        Anchor::create(Span()), package);
+    if (!interpreted || !source_errors.is_empty() ||
+        !interpreted->is<Library::Language::Monograph>()) {
+      return {};
+    }
+
+    auto& source = static_cast<Library::Language::Monograph&>(*interpreted);
+    auto table =
+        Library::Language::Parser::Literal::parse(domain, source, cursor);
+    auto empty =
+        Library::Language::Parser::Literal::parse(domain, source, cursor);
     if (!table || !empty || !cursor.matches(Code::Type::Terminal)) {
       return {};
     }
@@ -224,6 +238,7 @@ class ResourceDialect : public Language::Dialect {
 
  private:
   WorkspaceTrace& trace;
+  Library::Dialect library;
 };
 
 class WorkspaceMonograph : public Language::Monograph {

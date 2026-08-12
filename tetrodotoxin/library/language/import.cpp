@@ -16,7 +16,7 @@ auto Library::Language::Import::parse(Cursor& cursor) -> Option<Import> {
     return {};
   }
 
-  auto type_reference = TypeReference::parse(cursor);
+  auto type_reference = TypeReference::parse_route(cursor);
   if (!type_reference) {
     cursor.recover_to_statement();
     return {};

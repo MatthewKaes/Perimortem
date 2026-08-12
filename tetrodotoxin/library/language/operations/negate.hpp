@@ -19,35 +19,30 @@ class Negate : public Operation {
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Core::Option<Expression&>;
+      Monograph& source,
+      Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Expression&>;
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
       Expression& operand,
       Ttx::Lexical::Anchor anchor) -> Negate&;
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
       Expression& operand) -> Negate&;
 
   TTX_NAME("Negate"_view);
 
  protected:
-  auto evaluate_constants(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations) -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Constant&>, Expression::Error> override;
-  auto select_type(Materializations& materializations) const
+  auto evaluate_constants(Perimortem::Memory::Allocator::Arena& domain)
+      -> Perimortem::Utility::Result<
+          Perimortem::Core::Option<Constant&>,
+          Expression::Error> override;
+  auto select_type(Tetrodotoxin::Language::Monograph& source) const
       -> Perimortem::Core::Option<const Ttx::Model::Type&> override;
 
  private:
   Negate(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
       Expression& operand,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 };

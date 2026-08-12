@@ -9,7 +9,6 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
@@ -208,18 +207,12 @@ PERIMORTEM_UNIT_TEST(StructureTests, independent_access_axes) {
   ASSERT(field != fields.end());
   const auto& const_private =
       static_cast<const Language::Field&>((*field).get());
-  EXPECT(
-      ordinary_public.get_writability() == Language::Field::Writability::Full);
-  EXPECT(
-      ordinary_private.get_writability() == Language::Field::Writability::Full);
-  EXPECT(
-      state_exposed.get_writability() ==
-      Language::Field::Writability::Internal);
-  EXPECT(
-      state_private.get_writability() ==
-      Language::Field::Writability::Internal);
-  EXPECT(const_public.get_writability() == Language::Field::Writability::Init);
-  EXPECT(const_private.get_writability() == Language::Field::Writability::Init);
+  EXPECT(ordinary_public.get_writability() == Language::Writability::Full);
+  EXPECT(ordinary_private.get_writability() == Language::Writability::Full);
+  EXPECT(state_exposed.get_writability() == Language::Writability::Internal);
+  EXPECT(state_private.get_writability() == Language::Writability::Internal);
+  EXPECT(const_public.get_writability() == Language::Writability::Init);
+  EXPECT(const_private.get_writability() == Language::Writability::Init);
 
   EXPECT(errors.is_empty());
 }
@@ -328,18 +321,18 @@ PERIMORTEM_UNIT_TEST(StructureTests, explicit_self_field_access) {
   ASSERT((*callables).get().is<Language::Function>());
   const auto& read = static_cast<const Language::Function&>((*callables).get());
   auto returned = find_return(read);
-  ASSERT(returned && returned->get_expression());
-  ASSERT(returned->get_expression()->is<Language::Access::Address>());
-  const auto& address = static_cast<const Language::Access::Address&>(
-      *returned->get_expression());
-  EXPECT(&address.get_result() == &field_identity);
-  ASSERT(address.get_receiver().is<Language::Identifier>());
-  const auto& receiver =
-      static_cast<const Language::Identifier&>(address.get_receiver());
-  auto receiver_result = receiver.get_result().select<Addressable>();
+  ASSERT(returned);
+  EXPECT_TEXT(
+      returned->get_anchor().get_span().caculate_text(source),
+      "return self.value;"_view);
+  ASSERT_EQ(read.get_results().get_size(), Count(1));
+  EXPECT(&*read.get_results().get_abstract(0) == &Dialect::get_bool());
+  const Abstract& receiver = read.resolve_context("self"_view);
+  auto receiver_result = receiver.select<Addressable>();
   ASSERT(receiver_result);
   EXPECT_TEXT(receiver_result->get_name(), "self"_view);
   EXPECT(&receiver_result->get_type() == &packet);
+  EXPECT(&*packet.get_layout().get_abstract(0) == &field_identity);
   EXPECT(errors.is_empty());
 }
 
@@ -446,16 +439,19 @@ PERIMORTEM_UNIT_TEST(StructureTests, public_callable_exposure_rejected) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
     "// Structure test.\n"
     "dialect : Library;\n"
-    "private Hidden : struct {}\n"
-    "public Packet : struct { public reveal : func = [Hidden] -> [] {} }"_view,
+    "private Hidden : struct { private value : Bool; }\n"
+    "public Packet : struct { public reveal : func = [.value : Hidden] -> [] {} }"_view,
     "// Structure test.\n"
     "dialect : Library;\n"
-    "private Hidden : struct {}\n"
-    "public Packet : struct { public reveal : func = [] -> Hidden {} }"_view,
+    "private Hidden : struct { private value : Bool; }\n"
+    "public Packet : struct {\n"
+    "  private hidden : Hidden;\n"
+    "  public reveal : func = [self] -> Hidden { return self.hidden; }\n"
+    "}"_view,
     "// Structure test.\n"
     "dialect : Library;\n"
-    "public reveal : func = [Hidden] -> [] {}\n"
-    "private Hidden : struct {}"_view,
+    "public reveal : func = [.value : Hidden] -> [] {}\n"
+    "private Hidden : struct { private value : Bool; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -746,16 +742,19 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
     auto diagnostics = monograph->get_diagnostics();
     ASSERT_EQ(diagnostics.get_size(), Count(1));
     ASSERT(diagnostics.get_data()[0].get_anchor());
-    EXPECT(
+    EXPECT_TEXT(
         diagnostics.get_data()[0].get_anchor()->get_span().caculate_text(
-            sources[i]) == (i == 0 ? "false"_view : "256"_view));
+            sources[i]),
+        i == 0 ? "private value : Unsigned_8 = false;"_view
+               : "private value : Unsigned_8 = 256;"_view);
     EXPECT_TEXT(
         diagnostics.get_data()[0].get_message(),
-        "Field initializer does not fit the declared Field Type's semantic "
-        "domain."_view);
+        "Field initializer Pack does not fit the declared Field Type's "
+        "Layout."_view);
     EXPECT_TEXT(
         diagnostics.get_data()[0].get_hint(),
-        "Supply one value accepted by the declared Field Type."_view);
+        "Supply the complete value flow accepted by the declared Field "
+        "Type."_view);
     EXPECT_NOT(errors.is_empty());
   }
 }

@@ -11,8 +11,9 @@
 
 namespace Tetrodotoxin::Library::Language::Generics {
 
-// Fixed accepts one element Type and a nonnegative signed extent. It rejects
-// mismatched arguments before the caller Arena constructs the concrete Type.
+// Fixed accepts one element Type and one unsigned extent. The parameter domain
+// expresses the nonnegative invariant directly, so materialization never
+// depends on a parser-specific signed conversion or a second range policy.
 class Fixed : public Generic {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "Fixed"_view;
@@ -42,7 +43,7 @@ class Fixed : public Generic {
       -> Perimortem::Core::Option<const Ttx::Model::Type&> override;
 
   static constexpr Perimortem::Core::Static::Vector<Parameters, 2>
-      parameterization = {{Parameters::Type, Parameters::Signed_64}};
+      parameterization = {{Parameters::Type, Parameters::Unsigned_64}};
   static constexpr Ttx::Model::Documentations::Comment documentation{
     "Creates a fixed homogeneous range Type."_view,
   };

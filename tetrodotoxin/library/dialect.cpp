@@ -13,6 +13,10 @@
 #include "tetrodotoxin/library/language/constants/real.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/generics/access.hpp"
+#include "tetrodotoxin/library/language/generics/fixed.hpp"
+#include "tetrodotoxin/library/language/generics/range.hpp"
+#include "tetrodotoxin/library/language/generics/view.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/real_32.hpp"
@@ -81,8 +85,7 @@ auto Library::Dialect::interpret(
   }
 
   auto& monograph = Library::Language::Monograph::create_authored(
-      domain, documentation, source_anchor, *this, interpretation_context,
-      *shared_materializations);
+      domain, documentation, source_anchor, *this, interpretation_context);
   Bool parsed = monograph.get_source().parse(cursor);
   if (!parsed) {
     return {};
@@ -112,8 +115,33 @@ auto Library::Dialect::materializations_for(
   return created;
 }
 
+auto Library::Dialect::get_materializations() const
+    -> Language::Materializations& {
+  // A Library Monograph can exist only after interpret() binds this edge. The
+  // append-only writer remains logically shared by const semantic queries even
+  // while a first request publishes a canonical generated Type.
+  return *materializations;
+}
+
 auto Library::Dialect::resolve_intrinsic(View::Bytes name) const
     -> const Abstract& {
+  // A formula is an intrinsic identity too, but its function-local singleton
+  // cannot participate in the constexpr Type table. Asking each formula
+  // owner preserves the exact object used by Materializations instead of
+  // creating a lookup-only copy with a different canonical key.
+  if (name == Language::Generics::Access::name) {
+    return Language::Generics::Access::get_formula();
+  }
+  if (name == Language::Generics::Fixed::name) {
+    return Language::Generics::Fixed::get_formula();
+  }
+  if (name == Language::Generics::Range::name) {
+    return Language::Generics::Range::get_formula();
+  }
+  if (name == Language::Generics::View::name) {
+    return Language::Generics::View::get_formula();
+  }
+
   // Immutable Library Types keep one binary wide identity. The packed table
   // preserves their constexpr addresses without copying them into each
   // installed Dialect allowing the compiler to optimize a lot of the lookup.

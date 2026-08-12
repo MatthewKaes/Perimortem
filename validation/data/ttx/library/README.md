@@ -37,17 +37,17 @@ offset, or a folded value.
 `::` traverses Abstract contexts to a Type. Intermediate Package, Monograph,
 Alias, source, and Type contexts remain their real identities.
 
-`->` owns the complete Callable invocation: candidate selection, receiver role,
-Signature fitting, arguments, and result flow are one source construct.
+`->` owns the complete Callable invocation: receiver role, registered Callable
+selection, argument Pack fitting, and result Pack flow are one source construct.
 
 `Packet` deliberately declares both Static and Self Callables named `identity`.
 Static has no implicit Self parameter. Self reserves parameter entry zero for
 the selected receiver value.
 
-## Named Layouts
+## Layouts and Packs
 
-Parameters, results, value packs, Fields, safe indexed values, and swizzles use
-real TTX Layouts:
+Parameters and results are Layout descriptors, while returns and swizzles
+produce Packs whose output Layouts are fitted by their receivers:
 
 ```ttx
 public classify : func = [.value : Unsigned_64] -> [
@@ -58,15 +58,17 @@ public classify : func = [.value : Unsigned_64] -> [
 return (.adjusted = value + 1, .accepted = value > 0);
 ```
 
-Leading `.value`, `.accepted`, and `.adjusted` spellings name Layout entries;
-they are not postfix Address access. Positional flow remains positional, and
-`packet.[width, height]` selects named Addressables for repacking.
+The `:` spellings name descriptor slots; the `=` spellings name produced Pack
+slots. Neither is postfix Address access. Positional flow remains positional,
+and `packet.[width, height]` selects named values for repacking.
 
 `access[index]` is the optional reference request for `Access[T]`. It does not
 create a Library Option Type. Indexed assignment writes through an engaged
 reference and leaves the receiver unchanged when it is absent.
-`value:[index]` and `value:[start, count]` are safe value forms. They supply a
-default element or empty ranged value when the requested start is unavailable.
+`value:[index]` and `value:[start, count]` are safe value forms. Scalar access
+supplies the element Type's default when selection misses. Range count must
+fold to a supported nonnegative value and produces exactly that many Pack
+entries; it has no implicit empty-View fallback.
 
 ## Library declarations
 

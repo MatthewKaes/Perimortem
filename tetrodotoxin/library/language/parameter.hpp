@@ -3,18 +3,23 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/library/language/signature.hpp"
 #include "ttx/model/addressable.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// Parameter is one named Function input Addressable. Signature owns its
-// authored source slot while Parameter retains only that stable source edge
-// and the exact resolved TTX Type required by the semantic graph.
+namespace Model {
+class Layout;
+}
+
+// Parameter is one named Function input Addressable. It is the real entry in
+// the linked parameter Layout and borrows that owner's stable authored name.
+// Its exact Type is the only semantic fact added when the Layout links; source
+// Anchors and TypeReference syntax remain in the one canonical Layout slot.
 class Parameter : public Ttx::Model::Addressable {
  public:
   TTX_CONTRACT(
@@ -23,38 +28,31 @@ class Parameter : public Ttx::Model::Addressable {
       0xd422d050fce343c0,
       0xbc6efef9f6271d15);
 
-  static auto create_authored(
-      Perimortem::Memory::Allocator::Arena& domain,
-      const Signature& signature,
-      Count index,
-      const Ttx::Model::Type& type) -> Perimortem::Core::Option<Parameter&>;
-
   Parameter(const Parameter&) = delete;
   Parameter(Parameter&&) = delete;
   auto operator=(const Parameter&) -> Parameter& = delete;
   auto operator=(Parameter&&) -> Parameter& = delete;
 
-  TTX_NAME(signature.get_parameter_name(index));
+  TTX_NAME(name);
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
   auto get_type() const -> const Ttx::Model::Type& override;
 
-  auto get_name_token() const -> Ttx::Lexical::Token;
-
-  auto get_span() const -> Ttx::Lexical::Span;
-
-  auto get_type_span() const -> Ttx::Lexical::Span;
-
  private:
-  constexpr Parameter(
-      const Signature& signature,
-      Count index,
-      const Ttx::Model::Type& type)
-      : signature(signature), index(index), type(type) {}
+  friend class Model::Layout;
 
-  const Signature& signature;
-  Count index;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Perimortem::Core::View::Bytes& name,
+      const Ttx::Model::Type& type) -> Perimortem::Core::Option<Parameter&>;
+
+  constexpr Parameter(
+      const Perimortem::Core::View::Bytes& name,
+      const Ttx::Model::Type& type)
+      : name(name), type(type) {}
+
+  const Perimortem::Core::View::Bytes& name;
   const Ttx::Model::Type& type;
 };
 

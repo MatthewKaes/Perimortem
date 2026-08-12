@@ -4,87 +4,33 @@
 #include "tetrodotoxin/library/language/operation.hpp"
 
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/addressable.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
 
+static auto retain_inputs(
+    Memory::Allocator::Arena& domain,
+    Core::View::Vector<Ttx::Concept::Reference<Language::Expression>>
+        expressions)
+    -> Memory::Managed::Vector<Ttx::Concept::Reference<Language::Expression>> {
+  // Operation owns the mutable traversal inventory. Expressions borrows the
+  // completed view below; no operand edge is copied into another graph.
+  Memory::Managed::Vector<Ttx::Concept::Reference<Language::Expression>>
+      retained(domain);
+  retained.reset(expressions.get_size());
+  for (const auto& expression : expressions) {
+    retained.insert(expression);
+  }
+  return retained;
+}
+
 Language::Operation::Operation(
     Memory::Allocator::Arena& domain,
-    Materializations& materializations,
     Core::View::Vector<Ttx::Concept::Reference<Expression>> expressions,
     Core::Option<Ttx::Lexical::Anchor> anchor)
     : Expression(anchor),
       domain(domain),
-      materializations(materializations),
-      inputs(domain),
-      input_layout(inputs) {
-  inputs.reset(expressions.get_size());
-  for (Count i = 0; i < expressions.get_size(); i++) {
-    inputs.insert(expressions.get_data()[i]);
-  }
-}
-
-static auto selects_fitting_type(
-    const Ttx::Concept::Abstract& value,
-    const Language::Expression& expression) -> Bool {
-  const Ttx::Concept::Abstract& selected = value.visit<Ttx::Model::Addressable>(
-      [](const Ttx::Model::Addressable& addressable)
-          -> const Ttx::Concept::Abstract& {
-        return addressable.get_type().resolve();
-      },
-      [](const Ttx::Concept::Abstract& abstract)
-          -> const Ttx::Concept::Abstract& { return abstract.resolve(); });
-  return selected.visit<Ttx::Model::Type>(
-      [&expression](const Ttx::Model::Type& type) {
-        return expression.fits(type);
-      },
-      [](const Ttx::Concept::Abstract&) { return False; });
-}
-
-constexpr auto Language::Operation::InputLayout::get_abstract(Count index) const
-    -> Core::Option<const Ttx::Concept::Abstract&> {
-  BAIL_IF(index >= inputs.get_size());
-
-  return inputs.at(index).get();
-}
-
-auto Language::Operation::InputLayout::fits_at(
-    const Ttx::Concept::Layout& target,
-    Count target_offset) const -> Bool {
-  BAIL_IF(!has_target_segment(target, target_offset));
-
-  for (Count i = 0; i < get_size(); i++) {
-    const Language::Expression& source = inputs.at(i).get();
-    Bool entry_fits = target.get_abstract(target_offset + i)
-                          .visit(
-                              []() { return False; },
-                              [&source](const Ttx::Concept::Abstract& target) {
-                                return selects_fitting_type(target, source);
-                              });
-    BAIL_IF(!entry_fits);
-  }
-
-  return True;
-}
-
-auto Language::Operation::InputLayout::get_fitted_at(
-    const Ttx::Concept::Layout& target,
-    Count target_offset,
-    Count target_index) const
-    -> Utility::Result<const Ttx::Concept::Abstract&, Errors> {
-  if (target_index >= get_size()) {
-    return Errors::IndexOutOfBounds;
-  }
-  if (!has_target_segment(target, target_offset)) {
-    return Errors::SizeMismatch;
-  }
-  if (!fits_at(target, target_offset)) {
-    return Errors::IncompatibleFit;
-  }
-
-  return inputs.at(target_index).get();
-}
+      inputs(retain_inputs(domain, expressions)) {}
 
 auto Language::Operation::get_type() const -> const Ttx::Concept::Abstract& {
   return result_type.visit(
@@ -98,18 +44,9 @@ auto Language::Operation::get_type() const -> const Ttx::Concept::Abstract& {
 auto Language::Operation::link(
     Tetrodotoxin::Language::Monograph& source,
     const Ttx::Concept::Abstract& lexical_context,
-    Materializations& materializations,
     Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
   Bool failed = False;
   auto source_anchor = get_anchor();
-
-  if (&materializations != &this->materializations) {
-    source.report(
-        source_anchor,
-        "Operation cannot link through another Materializations owner."_view,
-        "Reuse the graph inventory retained when this operation was built."_view);
-    return False;
-  }
 
   // Child order is authored evaluation order. Independent failures continue
   // so diagnostics retain that same order without making later graph edges
@@ -126,13 +63,12 @@ auto Language::Operation::link(
 
     // Operations preserve their caller's two contexts unchanged. Operand
     // nesting changes evaluation order, not lexical shadowing or host access.
-    failed |=
-        !input->link(source, lexical_context, materializations, access_scope);
+    failed |= !input->link(source, lexical_context, access_scope);
   }
 
   BAIL_IF(failed);
 
-  auto selected = select_type(this->materializations);
+  auto selected = select_type(source);
   if (!selected) {
     source.report(
         source_anchor, "Operation rejects the linked operand Types."_view,
@@ -154,6 +90,16 @@ auto Language::Operation::link(
 
   result_type = Ttx::Concept::Reference<const Ttx::Model::Type>(*selected);
   return True;
+}
+
+auto Language::Operation::finalize() -> void {
+  // Operands are the canonical authored evaluation inventory. Finalize each
+  // real producer in source order before asking this operation to cache its
+  // own optional folded result.
+  for (Ttx::Concept::Reference<Expression> input : inputs.get_view()) {
+    input.get().finalize();
+  }
+  Expression::finalize();
 }
 
 auto Language::Operation::fold_uncached()
@@ -183,7 +129,7 @@ auto Language::Operation::fold_uncached()
     return Core::Option<Expression&>{};
   }
 
-  auto evaluated = evaluate_constants(domain, materializations);
+  auto evaluated = evaluate_constants(domain);
   return evaluated.visit(
       [](const Core::Option<Constant&>& selected)
           -> Utility::Result<Core::Option<Expression&>, Expression::Error> {
@@ -230,9 +176,6 @@ auto Language::Operation::get_input(Count index) -> Core::Option<Expression&> {
 
 auto Language::Operation::get_input(Count index) const
     -> Core::Option<const Expression&> {
-  return input_layout.get_abstract(index).visit(
-      []() -> Core::Option<const Expression&> { return {}; },
-      [](const Ttx::Concept::Abstract& input) {
-        return input.select<Expression>();
-      });
+  BAIL_IF(index >= inputs.get_size());
+  return inputs.get_view().get_data()[index].get();
 }

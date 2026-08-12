@@ -7,13 +7,12 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/library/language/argument_pack.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/callable.hpp"
-#include "ttx/model/layouts/composite.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
 
@@ -28,15 +27,13 @@ class Call : public Expression {
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
+      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& source_context,
       Expression& receiver) -> Perimortem::Core::Option<Expression&>;
 
   auto link(
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Concept::Abstract& lexical_context,
-      Materializations& materializations,
       Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
       -> Bool override;
 
@@ -44,9 +41,9 @@ class Call : public Expression {
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
-  auto get_inputs() const -> const Ttx::Concept::Layout& override;
-
-  auto get_results() const -> const Ttx::Concept::Layout&;
+  auto get_layout() const -> const Ttx::Concept::Layout& override;
+  auto resolve() const -> const Ttx::Concept::Abstract& override;
+  auto finalize() -> void override;
 
   auto get_callable() const
       -> Perimortem::Core::Option<const Ttx::Model::Callable&>;
@@ -58,57 +55,29 @@ class Call : public Expression {
   }
 
  private:
-  // ReceiverLayout is the one value edge that precedes a Self invocation's
-  // authored ArgumentPack. It returns the real receiver Expression while
-  // fitting that value through Expression::fits(), so the reflected Call input
-  // Layout preserves the same result proved during link without a proxy value.
-  class ReceiverLayout : public Ttx::Concept::Layout {
-   public:
-    constexpr explicit ReceiverLayout(Expression& receiver)
-        : receiver(receiver) {}
-
-    constexpr auto get_size() const -> Count override { return 1; }
-
-    constexpr auto get_abstract(Count index) const
-        -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> override;
-
-    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
-        -> Bool override;
-
-    auto get_fitted_at(
-        const Ttx::Concept::Layout& target,
-        Count target_offset,
-        Count target_index) const
-        -> Perimortem::Utility::Result<
-            const Ttx::Concept::Abstract&,
-            Ttx::Concept::Layout::Errors> override;
-
-   private:
-    Expression& receiver;
-  };
-
   constexpr Call(
+      Perimortem::Memory::Allocator::Arena& domain,
       Expression& receiver,
       Ttx::Lexical::Token name_token,
       Perimortem::Core::View::Bytes name,
-      ArgumentPack& arguments,
+      Language::Model::Pack& arguments,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor),
+        domain(domain),
         receiver(receiver),
         name_token(name_token),
         name(name),
-        arguments(arguments),
-        receiver_inputs(receiver),
-        self_inputs(receiver_inputs, arguments) {}
+        arguments(arguments) {}
 
+  Perimortem::Memory::Allocator::Arena& domain;
   Expression& receiver;
   Ttx::Lexical::Token name_token;
   Perimortem::Core::View::Bytes name;
-  ArgumentPack& arguments;
-  ReceiverLayout receiver_inputs;
-  Ttx::Model::Layouts::Composite self_inputs;
+  Language::Model::Pack& arguments;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Callable>>
       callable;
+  Perimortem::Core::Option<const Ttx::Concept::Layout&> inputs;
+  Perimortem::Core::Option<const Ttx::Concept::Layout&> output;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

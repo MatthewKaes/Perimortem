@@ -27,7 +27,6 @@ static Harness LibraryRange = {
 
 PERIMORTEM_UNIT_TEST(LibraryRange, direct_contract) {
   Types::Range range("Range[Signed_16]"_view, Dialect::get_signed_16());
-  auto arguments = range.get_arguments();
 
   EXPECT(range.is<Types::Range>());
   EXPECT(range.is<Ttx::Model::Type>());
@@ -35,10 +34,6 @@ PERIMORTEM_UNIT_TEST(LibraryRange, direct_contract) {
   EXPECT_NOT(range.is<Generic>());
   EXPECT_TEXT(range.get_name(), "Range[Signed_16]"_view);
   EXPECT(&range.get_element_type() == &Dialect::get_signed_16());
-  ASSERT_EQ(arguments.get_size(), Count(1));
-  EXPECT(
-      arguments.get_data()[0].find<const Ttx::Model::Type&>() ==
-      &Dialect::get_signed_16());
   ASSERT_EQ(range.get_layout().get_size(), Count(1));
   EXPECT(&*range.get_layout().get_abstract(0) == &range);
   EXPECT_NOT(range.get_documentation().is_empty());

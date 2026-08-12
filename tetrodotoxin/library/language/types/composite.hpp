@@ -11,7 +11,6 @@
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
-#include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/types/defined.hpp"
 #include "ttx/concept/reference.hpp"

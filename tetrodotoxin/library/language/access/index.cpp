@@ -18,15 +18,19 @@ using namespace Ttx::Model;
 
 static auto parse_index(
     Memory::Allocator::Arena& domain,
-    Language::Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& source_context) -> Core::Option<Language::Expression&> {
+    Language::Monograph& source,
+    Cursor& cursor) -> Core::Option<Language::Expression&> {
   // Operand parsing uses a private Cursor so an incomplete index never moves
   // the enclosing postfix transaction or publishes its local diagnostic path.
   Errors operand_errors;
   auto operand_cursor = cursor.branch(operand_errors);
-  auto parsed = Language::Parser::Expression::parse(
-      domain, materializations, operand_cursor, source_context);
+  auto pack =
+      Language::Parser::Expression::parse(domain, source, operand_cursor);
+  auto parsed = pack.visit(
+      []() -> Core::Option<Language::Expression&> { return {}; },
+      [](Language::Model::Pack& selected) {
+        return selected.select<Language::Expression>();
+      });
   if (parsed) {
     cursor.join(operand_cursor);
   }
@@ -55,25 +59,29 @@ static auto is_integer(const Language::Expression& expression) -> Bool {
 
 auto Language::Access::Index::parse(
     Memory::Allocator::Arena& domain,
-    Materializations& materializations,
+    Language::Monograph& source,
     Cursor& cursor,
-    const Abstract& source_context,
     Expression& receiver) -> Core::Option<Expression&> {
-  Token opening = cursor.consume();
-  auto selected = parse_index(domain, materializations, cursor, source_context);
-  if (!selected || !cursor.matches(Code::Type::BracketEnd)) {
-    cursor.create_expression_error(
-        Span(opening, cursor.current()),
+  auto transaction = cursor.branch();
+  Token opening = transaction.require(
+      Code::Type::BracketStart,
+      "Index reference access requires an opening `[`."_view);
+  BAIL_IF(!opening);
+
+  auto selected = parse_index(domain, source, transaction);
+  if (!selected || !transaction.matches(Code::Type::BracketEnd)) {
+    transaction.create_expression_error(
+        Span(opening, transaction.current()),
         "Index access requires one complete index Expression."_view,
         "Use `[index]` with one signed or unsigned integer Expression."_view);
     return {};
   }
 
-  Token closing = cursor.consume();
+  Token closing = transaction.consume();
   const auto& receiver_anchor = receiver.get_anchor();
   const auto& index_anchor = selected->get_anchor();
   if (!receiver_anchor || !index_anchor) {
-    cursor.create_expression_error(
+    transaction.create_expression_error(
         Span(opening, closing),
         "Index access requires authored receiver and index Anchors."_view);
     return {};
@@ -81,19 +89,20 @@ auto Language::Access::Index::parse(
 
   Anchor anchor =
       Anchor::create(opening, receiver_anchor->get_span(), Span(closing));
-  return Expression::create_authored<Index>(
-      domain, anchor,
-      [&](auto source) -> Index { return Index(receiver, *selected, source); });
+  Index& result = Expression::create_authored<Index>(
+      domain, anchor, [&](auto authored) -> Index {
+        return Index(receiver, *selected, authored);
+      });
+  cursor.join(transaction);
+  return result;
 }
 
 auto Language::Access::Index::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& lexical_context,
-    Materializations& materializations,
     Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
-  BAIL_IF(
-      !receiver.link(source, lexical_context, materializations, access_scope));
-  BAIL_IF(!index.link(source, lexical_context, materializations, access_scope));
+  BAIL_IF(!receiver.link(source, lexical_context, access_scope));
+  BAIL_IF(!index.link(source, lexical_context, access_scope));
 
   // Index links both Expressions before reading their output domains. The
   // element Type is reference metadata only, so this owner never performs
@@ -118,23 +127,15 @@ auto Language::Access::Index::link(
 
   element_type = Reference<const Ttx::Model::Type>(selected);
 
-  // Index is complete once its optional reference metadata is known. It does
-  // not call Expression link because Invalid is the intentional ordinary value
-  // Type for a reference that only a consuming statement may observe.
-  return True;
+  // The exact element Type completes Index's one-value Pack. Runtime bounds
+  // decide whether its writable address is engaged; they do not change the
+  // semantic output shape or introduce an Option Type.
+  return Expression::link(source, lexical_context, access_scope);
 }
 
-auto Language::Access::Index::get_documentation() const
-    -> const Documentation& {
-  return Documentation::get_empty();
-}
-
-auto Language::Access::Index::get_type() const -> const Abstract& {
-  return Invalid::get_invalid();
-}
-
-auto Language::Access::Index::get_inputs() const -> const Layout& {
-  return inputs;
+auto Language::Access::Index::finalize() -> void {
+  receiver.finalize();
+  index.finalize();
 }
 
 auto Language::Access::Index::get_element_type() const -> const Abstract& {
@@ -143,4 +144,8 @@ auto Language::Access::Index::get_element_type() const -> const Abstract& {
       [](const Reference<const Ttx::Model::Type>& selected) -> const Abstract& {
         return selected.get();
       });
+}
+
+auto Language::Access::Index::get_type() const -> const Abstract& {
+  return get_element_type();
 }

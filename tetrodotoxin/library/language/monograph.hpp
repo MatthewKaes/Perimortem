@@ -23,8 +23,7 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       const Ttx::Concept::Documentation& documentation,
       const Ttx::Lexical::Anchor& source_anchor,
       Tetrodotoxin::Library::Dialect& dialect,
-      const Ttx::Concept::Abstract& interpretation_context,
-      Materializations& materializations);
+      const Ttx::Concept::Abstract& interpretation_context);
 
  public:
   TTX_CONTRACT(
@@ -38,8 +37,7 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       const Ttx::Concept::Documentation& documentation,
       const Ttx::Lexical::Anchor& source_anchor,
       Tetrodotoxin::Library::Dialect& dialect,
-      const Ttx::Concept::Abstract& interpretation_context,
-      Materializations& materializations) -> Monograph&;
+      const Ttx::Concept::Abstract& interpretation_context) -> Monograph&;
 
   // Imports remain in authored order until linking can inspect each selected
   // Package member through its own contextual source route.
@@ -58,8 +56,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
   constexpr auto get_source() const -> const Types::Source& { return source; }
 
-  constexpr auto get_materializations() -> Materializations& {
-    return materializations;
+  auto get_materializations() const -> Materializations& {
+    return dialect.get_materializations();
   }
 
   constexpr auto get_dialect() const -> const Tetrodotoxin::Library::Dialect& {
@@ -76,7 +74,6 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
   Tetrodotoxin::Library::Dialect& dialect;
   const Ttx::Concept::Abstract& interpretation_context;
-  Materializations& materializations;
   Perimortem::Memory::Managed::Vector<Import> imports;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Monograph>>
       imported_providers;

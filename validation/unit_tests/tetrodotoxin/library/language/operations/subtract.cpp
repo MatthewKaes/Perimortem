@@ -22,7 +22,6 @@
 #include "tetrodotoxin/library/language/types/unsigned_64.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -52,9 +51,8 @@ class SubtractMonograph : public Tetrodotoxin::Language::Monograph {
 
 static auto link_operation(
     Operation& operation,
-    SubtractMonograph& source,
-    Materializations& materializations) -> Bool {
-  return operation.link(source, Invalid::get_invalid(), materializations);
+    Tetrodotoxin::Language::Monograph& source) -> Bool {
+  return operation.link(source, Invalid::get_invalid());
 }
 
 class SubtractExpression : public Expression {
@@ -67,12 +65,10 @@ class SubtractExpression : public Expression {
     return Documentation::get_empty();
   }
   auto get_type() const -> const Abstract& override { return type; }
-  auto get_inputs() const -> const Layout& override { return inputs; }
 
  private:
   View::Bytes name;
   const Abstract& type;
-  Ttx::Model::Layouts::Fluid inputs;
 };
 
 static auto selected(
@@ -127,21 +123,9 @@ static auto get_real(const Expression& expression) -> Option<Real_64> {
       [](const Abstract&) -> Option<Real_64> { return {}; });
 }
 
-static auto input_is(
-    const Operations::Subtract& subtract,
-    Count index,
-    const Expression& expected) -> Bool {
-  return subtract.get_inputs().get_abstract(index).visit(
-      []() { return False; },
-      [&](const Abstract& expression) {
-        return &expression == &expected ? True : False;
-      });
-}
-
 PERIMORTEM_UNIT_TEST(LibrarySubtract, type_selection_and_partial) {
   Allocator::Arena domain;
   SubtractMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
   Types::Unsigned_64 unsigned_64;
@@ -166,36 +150,33 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, type_selection_and_partial) {
   auto& truth = Constants::True::create_synthetic(domain, boolean);
   auto& bytes =
       Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
-  auto& exact = Operations::Subtract::create_synthetic(
-      domain, materializations, left, same);
-  auto& mixed_left = Operations::Subtract::create_synthetic(
-      domain, materializations, wide_constant, left);
-  auto& mismatch = Operations::Subtract::create_synthetic(
-      domain, materializations, left, other);
+  auto& exact = Operations::Subtract::create_synthetic(domain, left, same);
+  auto& mixed_left =
+      Operations::Subtract::create_synthetic(domain, wide_constant, left);
+  auto& mismatch = Operations::Subtract::create_synthetic(domain, left, other);
   auto& mixed_constants = Operations::Subtract::create_synthetic(
-      domain, materializations, wide_constant, other_constant);
-  auto& signed_exact = Operations::Subtract::create_synthetic(
-      domain, materializations, signed_left, signed_right);
-  auto& real_exact = Operations::Subtract::create_synthetic(
-      domain, materializations, real_left, real_right);
-  auto& flags = Operations::Subtract::create_synthetic(
-      domain, materializations, truth, truth);
-  auto& byte_values = Operations::Subtract::create_synthetic(
-      domain, materializations, bytes, bytes);
-  auto& invalid = Operations::Subtract::create_synthetic(
-      domain, materializations, unresolved, same);
+      domain, wide_constant, other_constant);
+  auto& signed_exact =
+      Operations::Subtract::create_synthetic(domain, signed_left, signed_right);
+  auto& real_exact =
+      Operations::Subtract::create_synthetic(domain, real_left, real_right);
+  auto& flags = Operations::Subtract::create_synthetic(domain, truth, truth);
+  auto& byte_values =
+      Operations::Subtract::create_synthetic(domain, bytes, bytes);
+  auto& invalid =
+      Operations::Subtract::create_synthetic(domain, unresolved, same);
 
   EXPECT(exact.get_type().resolve().is<Invalid>());
   EXPECT_NOT(exact.get_anchor());
-  EXPECT(link_operation(exact, source, materializations));
-  EXPECT(!link_operation(mixed_left, source, materializations));
-  EXPECT(!link_operation(mismatch, source, materializations));
-  EXPECT(!link_operation(mixed_constants, source, materializations));
-  EXPECT(link_operation(signed_exact, source, materializations));
-  EXPECT(link_operation(real_exact, source, materializations));
-  EXPECT(!link_operation(flags, source, materializations));
-  EXPECT(!link_operation(byte_values, source, materializations));
-  EXPECT(!link_operation(invalid, source, materializations));
+  EXPECT(link_operation(exact, source));
+  EXPECT(!link_operation(mixed_left, source));
+  EXPECT(!link_operation(mismatch, source));
+  EXPECT(!link_operation(mixed_constants, source));
+  EXPECT(link_operation(signed_exact, source));
+  EXPECT(link_operation(real_exact, source));
+  EXPECT(!link_operation(flags, source));
+  EXPECT(!link_operation(byte_values, source));
+  EXPECT(!link_operation(invalid, source));
 
   auto exact_result = selected(exact.fold());
 
@@ -209,14 +190,11 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, type_selection_and_partial) {
   EXPECT(flags.get_type().resolve().is<Invalid>());
   EXPECT(byte_values.get_type().resolve().is<Invalid>());
   EXPECT(invalid.get_type().resolve().is<Invalid>());
-  EXPECT(input_is(exact, 0, left));
-  EXPECT(input_is(exact, 1, same));
 }
 
 PERIMORTEM_UNIT_TEST(LibrarySubtract, checked_integer_widths) {
   Allocator::Arena domain;
   SubtractMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 unsigned_type;
   Types::Signed_8 signed_type;
   auto& maximum =
@@ -239,29 +217,29 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, checked_integer_widths) {
       Constants::Signed::create_synthetic(domain, signed_type, -12);
   auto& negative_ten =
       Constants::Signed::create_synthetic(domain, signed_type, -10);
-  auto& unsigned_success = Operations::Subtract::create_synthetic(
-      domain, materializations, maximum, one_unsigned);
+  auto& unsigned_success =
+      Operations::Subtract::create_synthetic(domain, maximum, one_unsigned);
   auto& unsigned_underflow = Operations::Subtract::create_synthetic(
-      domain, materializations, zero_unsigned, one_unsigned);
+      domain, zero_unsigned, one_unsigned);
   auto& signed_difference = Operations::Subtract::create_synthetic(
-      domain, materializations, negative_twelve, negative_ten);
+      domain, negative_twelve, negative_ten);
   auto& upper_endpoint = Operations::Subtract::create_synthetic(
-      domain, materializations, maximum_signed, zero_signed);
+      domain, maximum_signed, zero_signed);
   auto& lower_endpoint = Operations::Subtract::create_synthetic(
-      domain, materializations, minimum_signed, zero_signed);
+      domain, minimum_signed, zero_signed);
   auto& signed_overflow = Operations::Subtract::create_synthetic(
-      domain, materializations, maximum_signed, negative_one);
+      domain, maximum_signed, negative_one);
   auto& signed_underflow = Operations::Subtract::create_synthetic(
-      domain, materializations, minimum_signed, one_signed);
+      domain, minimum_signed, one_signed);
 
   EXPECT(unsigned_success.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(unsigned_success, source, materializations));
-  EXPECT(link_operation(unsigned_underflow, source, materializations));
-  EXPECT(link_operation(signed_difference, source, materializations));
-  EXPECT(link_operation(upper_endpoint, source, materializations));
-  EXPECT(link_operation(lower_endpoint, source, materializations));
-  EXPECT(link_operation(signed_overflow, source, materializations));
-  EXPECT(link_operation(signed_underflow, source, materializations));
+  EXPECT(link_operation(unsigned_success, source));
+  EXPECT(link_operation(unsigned_underflow, source));
+  EXPECT(link_operation(signed_difference, source));
+  EXPECT(link_operation(upper_endpoint, source));
+  EXPECT(link_operation(lower_endpoint, source));
+  EXPECT(link_operation(signed_overflow, source));
+  EXPECT(link_operation(signed_underflow, source));
 
   auto unsigned_value = selected(unsigned_success.fold());
   auto signed_value = selected(signed_difference.fold());
@@ -299,7 +277,6 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, checked_integer_widths) {
 PERIMORTEM_UNIT_TEST(LibrarySubtract, ieee_real_domains) {
   Allocator::Arena domain;
   SubtractMonograph source(domain);
-  Materializations materializations(domain);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
   auto& narrow_left =
@@ -317,20 +294,19 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, ieee_real_domains) {
   auto& nan =
       Constants::Real::create_synthetic(domain, real_64, __builtin_nan(""));
   auto& one = Constants::Real::create_synthetic(domain, real_64, Real_64(1.0));
-  auto& narrow = Operations::Subtract::create_synthetic(
-      domain, materializations, narrow_left, narrow_right);
-  auto& wide = Operations::Subtract::create_synthetic(
-      domain, materializations, wide_left, wide_right);
+  auto& narrow =
+      Operations::Subtract::create_synthetic(domain, narrow_left, narrow_right);
+  auto& wide =
+      Operations::Subtract::create_synthetic(domain, wide_left, wide_right);
   auto& infinite = Operations::Subtract::create_synthetic(
-      domain, materializations, infinity, negative_infinity);
-  auto& unordered = Operations::Subtract::create_synthetic(
-      domain, materializations, nan, one);
+      domain, infinity, negative_infinity);
+  auto& unordered = Operations::Subtract::create_synthetic(domain, nan, one);
 
   EXPECT(narrow.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(narrow, source, materializations));
-  EXPECT(link_operation(wide, source, materializations));
-  EXPECT(link_operation(infinite, source, materializations));
-  EXPECT(link_operation(unordered, source, materializations));
+  EXPECT(link_operation(narrow, source));
+  EXPECT(link_operation(wide, source));
+  EXPECT(link_operation(infinite, source));
+  EXPECT(link_operation(unordered, source));
 
   auto narrow_value = selected(narrow.fold());
   auto wide_value = selected(wide.fold());
@@ -356,19 +332,17 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, ieee_real_domains) {
 PERIMORTEM_UNIT_TEST(LibrarySubtract, recursive_exact_is_idempotent) {
   Allocator::Arena domain;
   SubtractMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 selected_type;
   auto& two = Constants::Unsigned::create_synthetic(domain, selected_type, 2);
   auto& twelve =
       Constants::Unsigned::create_synthetic(domain, selected_type, 12);
-  auto& child = Operations::Multiply::create_synthetic(
-      domain, materializations, two, two);
-  auto& subtract = Operations::Subtract::create_synthetic(
-      domain, materializations, twelve, child);
+  auto& child = Operations::Multiply::create_synthetic(domain, two, two);
+  auto& subtract =
+      Operations::Subtract::create_synthetic(domain, twelve, child);
 
   EXPECT(subtract.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(subtract, source, materializations));
-  EXPECT(link_operation(subtract, source, materializations));
+  EXPECT(link_operation(subtract, source));
+  EXPECT(link_operation(subtract, source));
   EXPECT(&subtract.get_type() == &selected_type);
 
   auto first = selected(subtract.fold());
@@ -381,6 +355,4 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, recursive_exact_is_idempotent) {
   EXPECT(first->is<Constants::Unsigned>());
   EXPECT(&first->get_type() == &selected_type);
   EXPECT(value && *value == 8);
-  EXPECT(input_is(subtract, 0, twelve));
-  EXPECT(input_is(subtract, 1, child));
 }

@@ -5,7 +5,7 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/algorithm/search.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -15,7 +15,6 @@
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
-#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -40,10 +39,24 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
   return static_cast<Language::Monograph&>(*interpreted);
 }
 
-static auto rejects_interpretation(View::Bytes source) -> Bool {
+static auto rejects_interpretation(
+    View::Bytes source,
+    View::Bytes diagnostic = {}) -> Bool {
   Workspace workspace;
   Errors errors;
-  return !interpret(workspace, errors, source) && !errors.is_empty();
+  BAIL_IF(interpret(workspace, errors, source) || errors.is_empty());
+  if (diagnostic.is_empty()) {
+    return True;
+  }
+
+  Perimortem::Memory::Allocator::Arena rendered;
+  for (Count index = 0; index < errors.get_size(); index++) {
+    if (Algorithm::search(errors.render_message(rendered, index), diagnostic) !=
+        Count(-1)) {
+      return True;
+    }
+  }
+  return False;
 }
 
 static auto rejects_link_without_publication(View::Bytes source) -> Bool {
@@ -74,7 +87,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, empty_and_supplied) {
       "}\n"
       "public empty : Defaults = new;\n"
       "public parenthesized : Defaults = new();\n"
-      "public configured : Required = new(.second = true, .first = 4);"_view;
+      "public configured : Required = new(.second = true, .first = 4,);"_view;
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -111,41 +124,6 @@ PERIMORTEM_UNIT_TEST(InitializerTests, empty_and_supplied) {
   EXPECT(&empty.get_type() == &defaults);
   EXPECT(&parenthesized.get_type() == &defaults);
   EXPECT(&configured.get_type() == &required);
-  EXPECT(empty.get_inputs().is_empty());
-  EXPECT(parenthesized.get_inputs().is_empty());
-
-  auto first_field = required.get_layout().get_abstract(0);
-  auto second_field = required.get_layout().get_abstract(2);
-  ASSERT(first_field);
-  ASSERT(second_field);
-
-  const Layout& inputs = configured.get_inputs();
-  ASSERT_EQ(inputs.get_size(), Count(2));
-  auto second = inputs.get_abstract(0);
-  auto first = inputs.get_abstract(1);
-  ASSERT(second);
-  ASSERT(first);
-  EXPECT(second->is<Language::Expression>());
-  EXPECT(first->is<Language::Expression>());
-
-  Static::Vector<Reference<const Abstract>, 2> initialization_fields = {{
-    *first_field,
-    *second_field,
-  }};
-  Layouts::Named initialization_layout(initialization_fields.get_view());
-  EXPECT(inputs.fits(initialization_layout));
-  auto fitted_first = inputs.get_fitted(initialization_layout, 0);
-  auto fitted_second = inputs.get_fitted(initialization_layout, 1);
-  EXPECT(fitted_first.visit(
-      [&](const Abstract& selected) {
-        return &selected == &*first ? True : False;
-      },
-      [](Layout::Errors) { return False; }));
-  EXPECT(fitted_second.visit(
-      [&](const Abstract& selected) {
-        return &selected == &*second ? True : False;
-      },
-      [](Layout::Errors) { return False; }));
   EXPECT(errors.is_empty());
 }
 
@@ -209,7 +187,19 @@ PERIMORTEM_UNIT_TEST(InitializerTests, duplicate_name_rejected) {
       "dialect : Library;\n"
       "public Session : object { public value : Unsigned_64; }\n"
       "public invalid : Session = new(.value = 1, .value = 2);"_view;
-  EXPECT(rejects_link_without_publication(source));
+  EXPECT(rejects_interpretation(
+      source, "Duplicate name in one Library Pack."_view));
+}
+
+PERIMORTEM_UNIT_TEST(InitializerTests, mixed_pack_rejected) {
+  static constexpr View::Bytes source =
+      "// Mixed initializer Layout test.\n"
+      "dialect : Library;\n"
+      "public Session : object { public value : Unsigned_64; }\n"
+      "public invalid : Session = new(1, .value = 2);"_view;
+  EXPECT(rejects_interpretation(
+      source,
+      "Positional and named entries cannot share one Library Pack."_view));
 }
 
 PERIMORTEM_UNIT_TEST(InitializerTests, missing_field_rejected) {

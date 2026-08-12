@@ -25,7 +25,6 @@
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -56,9 +55,8 @@ class GreaterMonograph : public Tetrodotoxin::Language::Monograph {
 
 static auto link_operation(
     Operation& operation,
-    GreaterMonograph& source,
-    Materializations& materializations) -> Bool {
-  return operation.link(source, Invalid::get_invalid(), materializations);
+    Tetrodotoxin::Language::Monograph& source) -> Bool {
+  return operation.link(source, Invalid::get_invalid());
 }
 
 class GreaterExpression : public Expression {
@@ -71,12 +69,10 @@ class GreaterExpression : public Expression {
     return Documentation::get_empty();
   }
   auto get_type() const -> const Abstract& override { return type; }
-  auto get_inputs() const -> const Layout& override { return inputs; }
 
  private:
   View::Bytes name;
   const Abstract& type;
-  Ttx::Model::Layouts::Fluid inputs;
 };
 
 class GreaterUnresolvedType : public Ttx::Model::Type {
@@ -97,14 +93,12 @@ class GreaterFoldInput : public Operation {
  public:
   GreaterFoldInput(
       Allocator::Arena& domain,
-      Materializations& materializations,
       Expression& input,
       Constant& result,
       const Ttx::Model::Type& type,
       Bool fails = False)
       : Operation(
             domain,
-            materializations,
             Static::Vector<Reference<Expression>, 1>{{input}},
             {}),
         result(result),
@@ -118,7 +112,7 @@ class GreaterFoldInput : public Operation {
   auto get_evaluations() const -> Count { return evaluations; }
 
  protected:
-  auto evaluate_constants(Allocator::Arena&, Materializations&)
+  auto evaluate_constants(Allocator::Arena&)
       -> Result<Option<Constant&>, Expression::Error> override {
     evaluations++;
     if (fails) {
@@ -128,7 +122,7 @@ class GreaterFoldInput : public Operation {
     return result;
   }
 
-  auto select_type(Materializations&) const
+  auto select_type(Tetrodotoxin::Language::Monograph&) const
       -> Option<const Ttx::Model::Type&> override {
     return type;
   }
@@ -168,21 +162,9 @@ static auto reports(
       });
 }
 
-static auto input_is(
-    const Operations::Greater& greater,
-    Count index,
-    const Expression& expected) -> Bool {
-  return greater.get_inputs().get_abstract(index).visit(
-      []() { return False; },
-      [&](const Abstract& expression) {
-        return &expression == &expected ? True : False;
-      });
-}
-
 PERIMORTEM_UNIT_TEST(LibraryGreater, type_selection_and_partial) {
   Allocator::Arena domain;
   GreaterMonograph source(domain);
-  Materializations materializations(domain);
   Types::Signed_8 signed_8;
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
@@ -204,33 +186,32 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, type_selection_and_partial) {
   auto& truth = Constants::True::create_synthetic(domain, boolean);
   auto& bytes =
       Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
-  auto& signed_exact = Operations::Greater::create_synthetic(
-      domain, materializations, signed_left, signed_right);
+  auto& signed_exact =
+      Operations::Greater::create_synthetic(domain, signed_left, signed_right);
   auto& unsigned_exact = Operations::Greater::create_synthetic(
-      domain, materializations, unsigned_left, unsigned_right);
-  auto& real_exact = Operations::Greater::create_synthetic(
-      domain, materializations, real_left, real_right);
-  auto& mismatch = Operations::Greater::create_synthetic(
-      domain, materializations, unsigned_left, other);
-  auto& unresolved_pair = Operations::Greater::create_synthetic(
-      domain, materializations, unresolved, unresolved);
-  auto& invalid_pair = Operations::Greater::create_synthetic(
-      domain, materializations, invalid, invalid);
-  auto& flags = Operations::Greater::create_synthetic(
-      domain, materializations, truth, truth);
-  auto& byte_values = Operations::Greater::create_synthetic(
-      domain, materializations, bytes, bytes);
+      domain, unsigned_left, unsigned_right);
+  auto& real_exact =
+      Operations::Greater::create_synthetic(domain, real_left, real_right);
+  auto& mismatch =
+      Operations::Greater::create_synthetic(domain, unsigned_left, other);
+  auto& unresolved_pair =
+      Operations::Greater::create_synthetic(domain, unresolved, unresolved);
+  auto& invalid_pair =
+      Operations::Greater::create_synthetic(domain, invalid, invalid);
+  auto& flags = Operations::Greater::create_synthetic(domain, truth, truth);
+  auto& byte_values =
+      Operations::Greater::create_synthetic(domain, bytes, bytes);
 
   EXPECT(signed_exact.get_type().resolve().is<Invalid>());
   EXPECT_NOT(signed_exact.get_anchor());
-  EXPECT(link_operation(signed_exact, source, materializations));
-  EXPECT(link_operation(unsigned_exact, source, materializations));
-  EXPECT(link_operation(real_exact, source, materializations));
-  EXPECT(!link_operation(mismatch, source, materializations));
-  EXPECT(!link_operation(unresolved_pair, source, materializations));
-  EXPECT(!link_operation(invalid_pair, source, materializations));
-  EXPECT(!link_operation(flags, source, materializations));
-  EXPECT(!link_operation(byte_values, source, materializations));
+  EXPECT(link_operation(signed_exact, source));
+  EXPECT(link_operation(unsigned_exact, source));
+  EXPECT(link_operation(real_exact, source));
+  EXPECT(!link_operation(mismatch, source));
+  EXPECT(!link_operation(unresolved_pair, source));
+  EXPECT(!link_operation(invalid_pair, source));
+  EXPECT(!link_operation(flags, source));
+  EXPECT(!link_operation(byte_values, source));
 
   auto retained = selected(unsigned_exact.fold());
 
@@ -241,8 +222,6 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, type_selection_and_partial) {
       &Tetrodotoxin::Library::Dialect::get_bool());
   EXPECT(&real_exact.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
   EXPECT_NOT(retained);
-  EXPECT(input_is(unsigned_exact, 0, unsigned_left));
-  EXPECT(input_is(unsigned_exact, 1, unsigned_right));
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
   EXPECT(unresolved_pair.get_type().resolve().is<Invalid>());
   EXPECT(invalid_pair.get_type().resolve().is<Invalid>());
@@ -253,7 +232,6 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, type_selection_and_partial) {
 PERIMORTEM_UNIT_TEST(LibraryGreater, integer_endpoints) {
   Allocator::Arena domain;
   GreaterMonograph source(domain);
-  Materializations materializations(domain);
   Types::Signed_8 signed_type;
   Types::Unsigned_8 unsigned_type;
   auto& minimum =
@@ -264,26 +242,26 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, integer_endpoints) {
   auto& top = Constants::Unsigned::create_synthetic(domain, unsigned_type, 255);
   auto& same_top =
       Constants::Unsigned::create_synthetic(domain, unsigned_type, 255);
-  auto& signed_true = Operations::Greater::create_synthetic(
-      domain, materializations, maximum, minimum);
-  auto& signed_false = Operations::Greater::create_synthetic(
-      domain, materializations, minimum, maximum);
-  auto& signed_equal = Operations::Greater::create_synthetic(
-      domain, materializations, maximum, equal);
-  auto& unsigned_true = Operations::Greater::create_synthetic(
-      domain, materializations, top, zero);
-  auto& unsigned_false = Operations::Greater::create_synthetic(
-      domain, materializations, zero, top);
-  auto& unsigned_equal = Operations::Greater::create_synthetic(
-      domain, materializations, top, same_top);
+  auto& signed_true =
+      Operations::Greater::create_synthetic(domain, maximum, minimum);
+  auto& signed_false =
+      Operations::Greater::create_synthetic(domain, minimum, maximum);
+  auto& signed_equal =
+      Operations::Greater::create_synthetic(domain, maximum, equal);
+  auto& unsigned_true =
+      Operations::Greater::create_synthetic(domain, top, zero);
+  auto& unsigned_false =
+      Operations::Greater::create_synthetic(domain, zero, top);
+  auto& unsigned_equal =
+      Operations::Greater::create_synthetic(domain, top, same_top);
 
   EXPECT(signed_true.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(signed_true, source, materializations));
-  EXPECT(link_operation(signed_false, source, materializations));
-  EXPECT(link_operation(signed_equal, source, materializations));
-  EXPECT(link_operation(unsigned_true, source, materializations));
-  EXPECT(link_operation(unsigned_false, source, materializations));
-  EXPECT(link_operation(unsigned_equal, source, materializations));
+  EXPECT(link_operation(signed_true, source));
+  EXPECT(link_operation(signed_false, source));
+  EXPECT(link_operation(signed_equal, source));
+  EXPECT(link_operation(unsigned_true, source));
+  EXPECT(link_operation(unsigned_false, source));
+  EXPECT(link_operation(unsigned_equal, source));
 
   auto signed_yes = selected(signed_true.fold());
   auto signed_no = selected(signed_false.fold());
@@ -306,7 +284,6 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, integer_endpoints) {
 PERIMORTEM_UNIT_TEST(LibraryGreater, ieee_domains) {
   Allocator::Arena domain;
   GreaterMonograph source(domain);
-  Materializations materializations(domain);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
   auto& narrow_left =
@@ -323,32 +300,32 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, ieee_domains) {
   auto& positive_zero = Constants::Real::create_synthetic(domain, real_64, 0.0);
   auto& negative_zero =
       Constants::Real::create_synthetic(domain, real_64, -0.0);
-  auto& narrow = Operations::Greater::create_synthetic(
-      domain, materializations, narrow_left, narrow_right);
-  auto& wide = Operations::Greater::create_synthetic(
-      domain, materializations, wide_left, wide_right);
+  auto& narrow =
+      Operations::Greater::create_synthetic(domain, narrow_left, narrow_right);
+  auto& wide =
+      Operations::Greater::create_synthetic(domain, wide_left, wide_right);
   auto& positive_infinite = Operations::Greater::create_synthetic(
-      domain, materializations, positive_infinity, wide_left);
+      domain, positive_infinity, wide_left);
   auto& negative_infinite = Operations::Greater::create_synthetic(
-      domain, materializations, negative_infinity, wide_left);
-  auto& left_unordered = Operations::Greater::create_synthetic(
-      domain, materializations, nan, wide_left);
-  auto& right_unordered = Operations::Greater::create_synthetic(
-      domain, materializations, wide_left, nan);
+      domain, negative_infinity, wide_left);
+  auto& left_unordered =
+      Operations::Greater::create_synthetic(domain, nan, wide_left);
+  auto& right_unordered =
+      Operations::Greater::create_synthetic(domain, wide_left, nan);
   auto& zero_forward = Operations::Greater::create_synthetic(
-      domain, materializations, positive_zero, negative_zero);
+      domain, positive_zero, negative_zero);
   auto& zero_reverse = Operations::Greater::create_synthetic(
-      domain, materializations, negative_zero, positive_zero);
+      domain, negative_zero, positive_zero);
 
   EXPECT(narrow.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(narrow, source, materializations));
-  EXPECT(link_operation(wide, source, materializations));
-  EXPECT(link_operation(positive_infinite, source, materializations));
-  EXPECT(link_operation(negative_infinite, source, materializations));
-  EXPECT(link_operation(left_unordered, source, materializations));
-  EXPECT(link_operation(right_unordered, source, materializations));
-  EXPECT(link_operation(zero_forward, source, materializations));
-  EXPECT(link_operation(zero_reverse, source, materializations));
+  EXPECT(link_operation(narrow, source));
+  EXPECT(link_operation(wide, source));
+  EXPECT(link_operation(positive_infinite, source));
+  EXPECT(link_operation(negative_infinite, source));
+  EXPECT(link_operation(left_unordered, source));
+  EXPECT(link_operation(right_unordered, source));
+  EXPECT(link_operation(zero_forward, source));
+  EXPECT(link_operation(zero_reverse, source));
 
   auto narrow_result = selected(narrow.fold());
   auto wide_result = selected(wide.fold());
@@ -377,26 +354,30 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, ieee_domains) {
 
 PERIMORTEM_UNIT_TEST(LibraryGreater, recursive_provenance_and_atomicity) {
   Allocator::Arena domain;
-  GreaterMonograph source(domain);
-  Materializations materializations(domain);
+  GreaterMonograph context(domain);
+  Tetrodotoxin::Library::Dialect dialect;
+  Errors host_errors;
+  Tokenizer host_tokens(domain, {}, "greater-source.ttx"_view);
+  Cursor host_cursor(host_tokens, host_errors);
+  auto retained_source = dialect.interpret(
+      domain, host_cursor, Documentation::get_empty(), Anchor::create(Span()),
+      context);
+  ASSERT(retained_source && retained_source->is<Monograph>());
+  auto& source = static_cast<Monograph&>(*retained_source);
   Types::Unsigned_8 selected_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
   auto& folded =
       Constants::Unsigned::create_synthetic(domain, selected_type, 8);
   auto& right = Constants::Unsigned::create_synthetic(domain, selected_type, 5);
-  GreaterFoldInput child(
-      domain, materializations, input, folded, selected_type);
-  GreaterFoldInput failing(
-      domain, materializations, input, folded, selected_type, True);
-  auto& greater = Operations::Greater::create_synthetic(
-      domain, materializations, child, right);
-  auto& failure = Operations::Greater::create_synthetic(
-      domain, materializations, failing, right);
+  GreaterFoldInput child(domain, input, folded, selected_type);
+  GreaterFoldInput failing(domain, input, folded, selected_type, True);
+  auto& greater = Operations::Greater::create_synthetic(domain, child, right);
+  auto& failure = Operations::Greater::create_synthetic(domain, failing, right);
 
   EXPECT(greater.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(greater, source, materializations));
-  EXPECT(link_operation(greater, source, materializations));
-  EXPECT(link_operation(failure, source, materializations));
+  EXPECT(link_operation(greater, source));
+  EXPECT(link_operation(greater, source));
+  EXPECT(link_operation(failure, source));
 
   auto first = selected(greater.fold());
   auto second = selected(greater.fold());
@@ -404,7 +385,6 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, recursive_provenance_and_atomicity) {
   ASSERT(first && second);
   EXPECT(&*first == &*second);
   EXPECT(first->is<Constants::True>());
-  EXPECT(input_is(greater, 0, child));
   EXPECT(child.get_evaluations() == 1);
   EXPECT(reports(
       failure.fold(), Expression::Error::Type::InvalidConstant, failing));
@@ -419,8 +399,7 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, recursive_provenance_and_atomicity) {
   auto& success_left = Constants::Unsigned::create_authored(
       domain, parser_type, 2, success_left_anchor);
   auto parsed = Operations::Greater::parse(
-      domain, materializations, success_cursor, Invalid::get_invalid(),
-      success_left);
+      domain, source, success_cursor, success_left, Span(success_left_token));
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "2 > true"_view, "greater.ttx"_view);
   Cursor failure_cursor(failure_tokens, failure_errors);
@@ -430,15 +409,14 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, recursive_provenance_and_atomicity) {
   auto& failure_left = Constants::Unsigned::create_authored(
       domain, parser_type, 2, failure_left_anchor);
   auto rejected = Operations::Greater::parse(
-      domain, materializations, failure_cursor, Invalid::get_invalid(),
-      failure_left);
+      domain, source, failure_cursor, failure_left, Span(failure_left_token));
 
   ASSERT(parsed);
   EXPECT(parsed->is<Operations::Greater>());
   EXPECT(parsed->get_type().resolve().is<Invalid>());
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
-  EXPECT(parsed->link(source, Invalid::get_invalid(), materializations));
+  EXPECT(parsed->link(source, Invalid::get_invalid()));
 
   auto parsed_fold = parsed->visit<Operation>(
       [&](Operation& operation) { return selected(operation.fold()); },
@@ -453,7 +431,7 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, recursive_provenance_and_atomicity) {
   EXPECT(rejected->get_type().resolve().is<Invalid>());
   EXPECT(failure_cursor.matches(Code::Type::Terminal));
   EXPECT(failure_errors.is_empty());
-  EXPECT_NOT(rejected->link(source, Invalid::get_invalid(), materializations));
+  EXPECT_NOT(rejected->link(source, Invalid::get_invalid()));
   EXPECT(rejected->get_type().resolve().is<Invalid>());
 
   auto diagnostics = source.get_diagnostics();

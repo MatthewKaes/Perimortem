@@ -26,6 +26,13 @@ class Authored : public base_type {
     return definition.complete(focus, closing);
   }
 
+  // A derived owner may need the enclosing mutable transaction while linking
+  // its own retained edge. This exposes the real Definition host without
+  // making that host semantic parentage or publishing mutable Definition data.
+  constexpr auto get_definition_host() -> Ttx::Concept::Abstract& {
+    return definition.get_host();
+  }
+
  public:
   constexpr auto get_definition() const
       -> const Tetrodotoxin::Language::Definition& {

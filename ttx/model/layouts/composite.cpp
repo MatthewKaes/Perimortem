@@ -6,6 +6,18 @@
 using namespace Ttx;
 using namespace Ttx::Model;
 
+auto Layouts::Composite::fits_entry(
+    const Concept::Layout& target,
+    Count source_index,
+    Count target_index) const -> Bool {
+  BAIL_IF(source_index >= get_size() || target_index >= target.get_size());
+
+  return source_index < first.get_size()
+             ? first.fits_entry(target, source_index, target_index)
+             : second.fits_entry(
+                   target, source_index - first.get_size(), target_index);
+}
+
 auto Layouts::Composite::fits_at(
     const Concept::Layout& target,
     Count target_offset) const -> Bool {

@@ -2,8 +2,8 @@
 
 TTX is a small semantic interchange vocabulary for live multi domain semantic
 IRs. It gives concrete languages shared contracts for identity, resolution,
-Types, Addressables, Callables, and semantic Layout without requiring them to
-share one syntax tree or one universal type system.
+Types, Packs, Addressables, Callables, and semantic Layout without requiring
+them to share one syntax tree or one universal type system.
 
 A language still owns the meaning of its source. TTX owns only the contracts
 that another language, package system, compiler, editor, or runtime can use
@@ -30,10 +30,10 @@ authored source
 
 The live semantic IR keeps facts that are still meaningful before a target,
 runtime, or output format has been chosen. It can tell a consumer which exact
-Type an Alias represents, which Type an Addressable reaches, which Layout a
-Callable accepts, or whether one Layout fits another. It does not decide how
-those facts become registers, offsets, object records, editor messages, or
-serialized bytes.
+Type an Alias represents, which Type an Addressable reaches, which values a Pack
+supplies, which Layout a Callable accepts, or whether one Layout fits another.
+It does not decide how those facts become registers, offsets, object records,
+editor messages, or serialized bytes.
 
 This makes TTX earlier than LLVM IR in a compiler pipeline. LLVM IR describes
 computation after a language has chosen a lowered form suitable for optimization
@@ -71,6 +71,7 @@ Abstract
 │       ├── Signed
 │       └── Unsigned
 ├── Addressable
+├── Pack
 └── Callable
 ```
 
@@ -78,6 +79,7 @@ Abstract
 becoming identities themselves.
 
 A `Type` exposes one complete Layout. An `Addressable` names typed data. A
+`Pack` carries produced value flow and exposes its complete output Layout. A
 `Callable` exposes parameter and result Layouts. An `Alias` keeps its own local
 name and Documentation while resolving to another identity. `Invalid` is the
 total result of a semantic query that cannot be answered at that stage.
@@ -87,20 +89,50 @@ constructed by its owner. Equal names, equal structure, and equal Layouts do not
 make two objects the same Type. That distinction lets packages, languages,
 editors, and compilers share a fact without maintaining synchronized copies.
 
-### Semantic Layout
+### Packs and semantic Layout
+
+A Pack preserves the identity of produced value flow without turning that flow
+into a Type. It may supply no values, one value, or several positional, named,
+ranged, or composed values. One ordinary value-producing expression is already
+a Pack, while a multi-value Pack remains fluid until a receiving contract
+deliberately materializes a Type. A language's `Void` result and `()` both
+supply an empty Layout, so they interoperate without a universal `Void` Type
+identity.
+
+The common source shapes make that direction visible. Parentheses group values
+that are being supplied, while brackets describe values that are required:
+
+```ttx
+()                         // empty Pack
+(value)                    // the same one-value Pack as value
+(left, right)              // positional Pack
+(.x = left, .y = right)    // named Pack
+
+[]                         // empty Layout
+[Left, Right]              // positional Layout
+[.x : Left, .y : Right]    // named Layout
+```
+
+Named Layout slots use `.name : Type` because they promise a descriptor, while
+named Pack slots use `.name = value` because they supply value flow. Concrete
+languages decide where either delimiter may be omitted without ambiguity.
+Omitting a delimiter does not change the semantic Pack or Layout.
 
 A Layout is an ordered view of exact semantic identities and a directional
 fitting contract. TTX supplies five common forms:
 
 * `Value` contains one exact atomic Type as a terminal leaf.
-* `Fluid` fits ordered values.
-* `Named` retains uniquely named entries and fits them by name.
-* `Ranged` repeats one entry over a fixed interval.
-* `Composite` joins complete Layouts without flattening them.
+* `Fluid` describes and fits ordered positional entries.
+* `Named` retains uniquely named slots and fits them by name. A slot can borrow
+  a name independently while fitted queries still return the exact source
+  identity.
+* `Ranged` describes one entry repeated over a fixed interval.
+* `Composite` joins complete descriptors without flattening them.
 
-Layouts describe semantic shape and how one ordered view fits another. A
+Layouts describe promised semantic shape and how supplied values fit it. Layout
+decorators preserve the fitting rules of the source that owns each entry. A
 leaf Type contributes its own one-entry Value Layout, while an empty Layout
-carries no value and fits every other empty Layout. An Addressable therefore
+describes no value and fits every other empty Layout. An Addressable therefore
 requires a Type with at least one Layout entry. Scalar Values separately define
 abstract machine width and storage requirements. Target object layout, field
 offsets, registers, address spaces, pointer forms, and runtime storage belong to
@@ -176,8 +208,8 @@ or Clang ecosystems.
 
 ## Further reading
 
-* [TTX design](ttx_design.md) explains why the graph, identity, Layout, and
-  Terminal boundaries take this form.
+* [TTX design](ttx_design.md) explains why the graph, identity, Pack, Layout,
+  and Terminal boundaries take this form.
 * [TTX semantics](ttx_semantics.md) is the normative lexical and semantic
   contract.
 * [Tetrodotoxin](../tetrodotoxin/README.md) shows how the reference host

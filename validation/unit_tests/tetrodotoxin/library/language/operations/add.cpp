@@ -20,7 +20,6 @@
 #include "tetrodotoxin/library/language/types/unsigned_64.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -58,19 +57,16 @@ class AddExpression : public Expression {
     return Documentation::get_empty();
   }
   auto get_type() const -> const Abstract& override { return type; }
-  auto get_inputs() const -> const Layout& override { return inputs; }
 
  private:
   View::Bytes name;
   const Abstract& type;
-  Ttx::Model::Layouts::Fluid inputs;
 };
 
 static auto link_operation(
     Operation& operation,
-    AddMonograph& source,
-    Materializations& materializations) -> Bool {
-  return operation.link(source, Invalid::get_invalid(), materializations);
+    Tetrodotoxin::Language::Monograph& source) -> Bool {
+  return operation.link(source, Invalid::get_invalid());
 }
 
 static auto selected(
@@ -121,21 +117,9 @@ static auto get_real(const Expression& expression) -> Option<Real_64> {
       [](const Abstract&) -> Option<Real_64> { return {}; });
 }
 
-static auto input_is(
-    const Operations::Add& add,
-    Count index,
-    const Expression& expected) -> Bool {
-  return add.get_inputs().get_abstract(index).visit(
-      []() { return False; },
-      [&](const Abstract& expression) {
-        return &expression == &expected ? True : False;
-      });
-}
-
 PERIMORTEM_UNIT_TEST(LibraryAdd, exact_type_selection_and_partial) {
   Allocator::Arena domain;
   AddMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
   Types::Signed_8 signed_8;
@@ -147,31 +131,28 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, exact_type_selection_and_partial) {
   AddExpression signed_right("signed right"_view, signed_8);
   AddExpression real_left("real left"_view, real_32);
   AddExpression real_right("real right"_view, real_32);
-  auto& unsigned_add = Operations::Add::create_synthetic(
-      domain, materializations, unsigned_left, unsigned_right);
-  auto& signed_add = Operations::Add::create_synthetic(
-      domain, materializations, signed_left, signed_right);
-  auto& real_add = Operations::Add::create_synthetic(
-      domain, materializations, real_left, real_right);
-  auto& mismatched = Operations::Add::create_synthetic(
-      domain, materializations, unsigned_left, other_width);
+  auto& unsigned_add =
+      Operations::Add::create_synthetic(domain, unsigned_left, unsigned_right);
+  auto& signed_add =
+      Operations::Add::create_synthetic(domain, signed_left, signed_right);
+  auto& real_add =
+      Operations::Add::create_synthetic(domain, real_left, real_right);
+  auto& mismatched =
+      Operations::Add::create_synthetic(domain, unsigned_left, other_width);
 
-  EXPECT(link_operation(unsigned_add, source, materializations));
-  EXPECT(link_operation(signed_add, source, materializations));
-  EXPECT(link_operation(real_add, source, materializations));
-  EXPECT_NOT(link_operation(mismatched, source, materializations));
+  EXPECT(link_operation(unsigned_add, source));
+  EXPECT(link_operation(signed_add, source));
+  EXPECT(link_operation(real_add, source));
+  EXPECT_NOT(link_operation(mismatched, source));
   EXPECT(&unsigned_add.get_type() == &unsigned_8);
   EXPECT(&signed_add.get_type() == &signed_8);
   EXPECT(&real_add.get_type() == &real_32);
   EXPECT_NOT(selected(unsigned_add.fold()));
-  EXPECT(input_is(unsigned_add, 0, unsigned_left));
-  EXPECT(input_is(unsigned_add, 1, unsigned_right));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, integer_width_and_host_overflow) {
   Allocator::Arena domain;
   AddMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_64 unsigned_64;
   Types::Signed_8 signed_8;
@@ -189,19 +170,19 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, integer_width_and_host_overflow) {
   auto& signed_one = Constants::Signed::create_synthetic(domain, signed_8, 1);
   auto& signed_negative_one =
       Constants::Signed::create_synthetic(domain, signed_8, -1);
-  auto& width_overflow = Operations::Add::create_synthetic(
-      domain, materializations, unsigned_max, unsigned_one);
-  auto& host_overflow = Operations::Add::create_synthetic(
-      domain, materializations, host_max, host_one);
-  auto& signed_overflow = Operations::Add::create_synthetic(
-      domain, materializations, signed_max, signed_one);
+  auto& width_overflow =
+      Operations::Add::create_synthetic(domain, unsigned_max, unsigned_one);
+  auto& host_overflow =
+      Operations::Add::create_synthetic(domain, host_max, host_one);
+  auto& signed_overflow =
+      Operations::Add::create_synthetic(domain, signed_max, signed_one);
   auto& signed_underflow = Operations::Add::create_synthetic(
-      domain, materializations, signed_min, signed_negative_one);
+      domain, signed_min, signed_negative_one);
 
-  ASSERT(link_operation(width_overflow, source, materializations));
-  ASSERT(link_operation(host_overflow, source, materializations));
-  ASSERT(link_operation(signed_overflow, source, materializations));
-  ASSERT(link_operation(signed_underflow, source, materializations));
+  ASSERT(link_operation(width_overflow, source));
+  ASSERT(link_operation(host_overflow, source));
+  ASSERT(link_operation(signed_overflow, source));
+  ASSERT(link_operation(signed_underflow, source));
   EXPECT(reports(
       width_overflow.fold(), Expression::Error::Type::ArithmeticOverflow,
       width_overflow));
@@ -219,7 +200,6 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, integer_width_and_host_overflow) {
 PERIMORTEM_UNIT_TEST(LibraryAdd, integer_results_retain_type) {
   Allocator::Arena domain;
   AddMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 unsigned_type;
   Types::Signed_8 signed_type;
   auto& unsigned_left =
@@ -230,13 +210,13 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, integer_results_retain_type) {
       Constants::Signed::create_synthetic(domain, signed_type, -5);
   auto& signed_right =
       Constants::Signed::create_synthetic(domain, signed_type, 2);
-  auto& unsigned_add = Operations::Add::create_synthetic(
-      domain, materializations, unsigned_left, unsigned_right);
-  auto& signed_add = Operations::Add::create_synthetic(
-      domain, materializations, signed_left, signed_right);
+  auto& unsigned_add =
+      Operations::Add::create_synthetic(domain, unsigned_left, unsigned_right);
+  auto& signed_add =
+      Operations::Add::create_synthetic(domain, signed_left, signed_right);
 
-  ASSERT(link_operation(unsigned_add, source, materializations));
-  ASSERT(link_operation(signed_add, source, materializations));
+  ASSERT(link_operation(unsigned_add, source));
+  ASSERT(link_operation(signed_add, source));
   auto unsigned_result = selected(unsigned_add.fold());
   auto signed_result = selected(signed_add.fold());
   ASSERT(unsigned_result && signed_result);
@@ -249,7 +229,6 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, integer_results_retain_type) {
 PERIMORTEM_UNIT_TEST(LibraryAdd, ieee_real_domains) {
   Allocator::Arena domain;
   AddMonograph source(domain);
-  Materializations materializations(domain);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
   auto& narrow_left =
@@ -261,16 +240,14 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, ieee_real_domains) {
   auto& one = Constants::Real::create_synthetic(domain, real_64, Real_64(1));
   auto& nan =
       Constants::Real::create_synthetic(domain, real_64, __builtin_nan(""));
-  auto& narrow = Operations::Add::create_synthetic(
-      domain, materializations, narrow_left, narrow_right);
-  auto& infinite = Operations::Add::create_synthetic(
-      domain, materializations, infinity, one);
-  auto& unordered =
-      Operations::Add::create_synthetic(domain, materializations, nan, one);
+  auto& narrow =
+      Operations::Add::create_synthetic(domain, narrow_left, narrow_right);
+  auto& infinite = Operations::Add::create_synthetic(domain, infinity, one);
+  auto& unordered = Operations::Add::create_synthetic(domain, nan, one);
 
-  ASSERT(link_operation(narrow, source, materializations));
-  ASSERT(link_operation(infinite, source, materializations));
-  ASSERT(link_operation(unordered, source, materializations));
+  ASSERT(link_operation(narrow, source));
+  ASSERT(link_operation(infinite, source));
+  ASSERT(link_operation(unordered, source));
   auto narrow_result = selected(narrow.fold());
   auto infinite_result = selected(infinite.fold());
   auto unordered_result = selected(unordered.fold());
@@ -287,40 +264,32 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, ieee_real_domains) {
 PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_fold_is_idempotent) {
   Allocator::Arena domain;
   AddMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 type;
   auto& one = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& two = Constants::Unsigned::create_synthetic(domain, type, 2);
   auto& three = Constants::Unsigned::create_synthetic(domain, type, 3);
-  auto& child =
-      Operations::Add::create_synthetic(domain, materializations, one, two);
-  auto& root =
-      Operations::Add::create_synthetic(domain, materializations, child, three);
+  auto& child = Operations::Add::create_synthetic(domain, one, two);
+  auto& root = Operations::Add::create_synthetic(domain, child, three);
 
-  ASSERT(link_operation(root, source, materializations));
+  ASSERT(link_operation(root, source));
   auto first = selected(root.fold());
   auto second = selected(root.fold());
   auto child_result = selected(child.fold());
   ASSERT(first && second && child_result);
   EXPECT(&*first == &*second);
   EXPECT(get_unsigned(*first) == Option<Unsigned_64>(6));
-  EXPECT(input_is(root, 0, child));
-  EXPECT(input_is(root, 1, three));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_error_keeps_child_origin) {
   Allocator::Arena domain;
   AddMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 type;
   auto& maximum = Constants::Unsigned::create_synthetic(domain, type, 255);
   auto& one = Constants::Unsigned::create_synthetic(domain, type, 1);
-  auto& child =
-      Operations::Add::create_synthetic(domain, materializations, maximum, one);
-  auto& root =
-      Operations::Add::create_synthetic(domain, materializations, child, one);
+  auto& child = Operations::Add::create_synthetic(domain, maximum, one);
+  auto& root = Operations::Add::create_synthetic(domain, child, one);
 
-  ASSERT(link_operation(root, source, materializations));
+  ASSERT(link_operation(root, source));
   EXPECT(
       reports(root.fold(), Expression::Error::Type::ArithmeticOverflow, child));
 }
@@ -328,21 +297,18 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_error_keeps_child_origin) {
 PERIMORTEM_UNIT_TEST(LibraryAdd, invalid_constant_keeps_operand_origin) {
   Allocator::Arena domain;
   AddMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 type;
   auto& wrong = Constants::Bytes::create_synthetic(domain, type, {});
   auto& valid = Constants::Unsigned::create_synthetic(domain, type, 1);
-  auto& add =
-      Operations::Add::create_synthetic(domain, materializations, wrong, valid);
+  auto& add = Operations::Add::create_synthetic(domain, wrong, valid);
 
-  ASSERT(link_operation(add, source, materializations));
+  ASSERT(link_operation(add, source));
   EXPECT(reports(add.fold(), Expression::Error::Type::InvalidConstant, wrong));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, rejects_nonnumeric_and_mixed_domains) {
   Allocator::Arena domain;
   AddMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 unsigned_8;
   Types::Signed_8 signed_8;
   Types::Real_32 real_32;
@@ -356,17 +322,15 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, rejects_nonnumeric_and_mixed_domains) {
       Constants::Unsigned::create_synthetic(domain, unsigned_8, 1);
   auto& signed_value = Constants::Signed::create_synthetic(domain, signed_8, 1);
   auto& real_value = Constants::Real::create_synthetic(domain, real_32, 1.0);
-  auto& bool_add =
-      Operations::Add::create_synthetic(domain, materializations, truth, truth);
-  auto& bytes_add =
-      Operations::Add::create_synthetic(domain, materializations, bytes, bytes);
-  auto& mixed_integer = Operations::Add::create_synthetic(
-      domain, materializations, unsigned_value, signed_value);
-  auto& mixed_domain = Operations::Add::create_synthetic(
-      domain, materializations, unsigned_value, real_value);
+  auto& bool_add = Operations::Add::create_synthetic(domain, truth, truth);
+  auto& bytes_add = Operations::Add::create_synthetic(domain, bytes, bytes);
+  auto& mixed_integer =
+      Operations::Add::create_synthetic(domain, unsigned_value, signed_value);
+  auto& mixed_domain =
+      Operations::Add::create_synthetic(domain, unsigned_value, real_value);
 
-  EXPECT_NOT(link_operation(bool_add, source, materializations));
-  EXPECT_NOT(link_operation(bytes_add, source, materializations));
-  EXPECT_NOT(link_operation(mixed_integer, source, materializations));
-  EXPECT_NOT(link_operation(mixed_domain, source, materializations));
+  EXPECT_NOT(link_operation(bool_add, source));
+  EXPECT_NOT(link_operation(bytes_add, source));
+  EXPECT_NOT(link_operation(mixed_integer, source));
+  EXPECT_NOT(link_operation(mixed_domain, source));
 }

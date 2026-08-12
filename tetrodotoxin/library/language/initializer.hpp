@@ -7,9 +7,10 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/library/language/argument_pack.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -27,10 +28,8 @@ class Initializer : public Expression {
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Core::Option<Initializer&>;
+      Monograph& source,
+      Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Initializer&>;
 
   Initializer(const Initializer&) = delete;
   Initializer(Initializer&&) = delete;
@@ -46,21 +45,18 @@ class Initializer : public Expression {
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
 
-  constexpr auto get_inputs() const -> const Ttx::Concept::Layout& override {
-    return arguments;
-  }
-
   auto link(
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Concept::Abstract& lexical_context,
-      Materializations& materializations,
       Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
       -> Bool override;
+
+  auto finalize() -> void override;
 
  private:
   Initializer(
       Perimortem::Memory::Allocator::Arena& domain,
-      ArgumentPack& arguments,
+      Model::Pack& arguments,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 
   auto supplies(
@@ -75,7 +71,7 @@ class Initializer : public Expression {
           Ttx::Concept::Reference<const Types::Object>> path) const -> Bool;
 
   Perimortem::Memory::Allocator::Arena& domain;
-  ArgumentPack& arguments;
+  Model::Pack& arguments;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Types::Object>>
       expected_type;
 };

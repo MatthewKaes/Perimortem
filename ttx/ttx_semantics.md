@@ -101,6 +101,7 @@ The closed identity categories are:
 * `Value` provides a leaf Type with no contextual subdomains.
 * `Flag`, `Real`, `Signed`, and `Unsigned` refine Value domains.
 * `Addressable` provides a named address whose edge reaches one Type.
+* `Pack` provides produced value flow and one total output Layout.
 * `Callable` provides complete parameter and result Layouts.
 
 `Authorship`, `Documentation`, `Layout`, and `Reference` are supporting
@@ -129,11 +130,10 @@ An unanswered semantic query returns `Invalid`, never a null graph edge. Later
 construction may answer a query that formerly returned Invalid, but it does not
 replace an identity that was already returned successfully.
 
-Category proof establishes the semantic contract of the original object. A proof
-never creates a wrapper, clone, or substitute identity. The consumer states the
-category it needs and either receives that same object under the proven
-contract or retains the original Abstract. Category proof follows one public
-C++ inheritance chain.
+Category proof establishes the semantic contract of the original object. A
+proof never creates a wrapper, clone, registry entry, or substitute identity.
+The consumer states the category it needs and either receives that same object
+under the proven contract or retains the original Abstract.
 
 An Abstract may separately borrow one identity-free Authorship source fact.
 Authorship preserves the exact authored Documentation and Anchor while its
@@ -207,6 +207,36 @@ representation, and later realization does not change the selected identity.
 Assignment, writability, storage duration, and visibility are concrete language
 policy rather than part of the shared Addressable contract.
 
+## Pack
+
+Pack is an Abstract that carries one produced value flow. It is not a Type,
+Addressable, or Layout. The Pack preserves the exact producer identity while
+its output Layout describes the values that producer supplies. A consumer can
+therefore retain, link, inspect, fit, or lower a value flow without first
+materializing an aggregate Type.
+
+A Pack may supply zero, one, or several values. It may expose positional, named,
+ranged, or composed output shape. One ordinary value-producing expression is
+already a one-value Pack; grouping that expression does not create a second
+semantic identity. An empty Pack exposes an empty Layout. A concrete language's
+`Void` result and an explicit empty grouping agree through that Layout without
+requiring one shared `Void` Type identity. A multi-value Pack remains value flow
+until a receiving contract fits it and an owning language deliberately
+materializes a Type.
+
+The common delimiter shapes keep value flow and required shape visually
+distinct: parentheses group produced Packs while brackets describe Layouts.
+Concrete languages decide which productions may omit those delimiters, but
+omission does not change the resulting Pack or Layout contract. Named Pack
+slots use `.name = expression` and retain those names independently from the
+produced semantic objects. Named descriptor slots use `.name : Type`; the
+different operator keeps promised shape distinct from supplied value flow.
+
+A graph owner may reserve a stable Pack before its output is complete. During
+that interval it resolves to Invalid. Once Pack resolution succeeds, its output
+Layout is total, stable, and never replaced. An empty Layout is valid zero-value
+flow and cannot serve as an incomplete placeholder.
+
 ## Callable
 
 Callable is an Abstract that supplies one complete signature as a parameter
@@ -216,15 +246,18 @@ Type. This role is derived from the Layout and creates no second Callable
 category or retained marker.
 
 TTX does not prescribe how a Callable is selected or invoked. A concrete
-language may fit its parameter and result Layouts while adding executable body,
+language may fit an argument Pack to the parameter Layout and expose the
+invocation's result Pack through the result Layout while adding executable body,
 calling convention, machine address, or target ABI policy.
 
 ## Layout
 
-Layout carries no semantic identity. It provides ordered observation and
-directional fitting over a group of exact Abstract identities. A consumer may
-test a complete fit, test a fit at an offset, and recover the original source
-edge that supplies a target position.
+Layout carries no semantic identity. It describes one promised value shape and
+provides ordered observation and directional fitting over exact Abstract
+identities. Types and Callables expose required Layouts; Packs expose the output
+Layout of the values they supply. A consumer may test a complete fit, test a fit
+at an offset, and recover the original source edge that supplies a target
+position.
 
 The closed fitting errors are `IndexOutOfBounds`, `SizeMismatch`, and
 `IncompatibleFit`. A failed fit does not add Invalid to the semantic graph.
@@ -232,17 +265,22 @@ The closed fitting errors are `IndexOutOfBounds`, `SizeMismatch`, and
 TTX defines five common Layout forms:
 
 * `Value` contains one exact atomic Type as the terminal Layout leaf.
-* `Fluid` fits ordered entries by represented identity. An Addressable target
-  participates through its Type.
-* `Named` fits nonempty unique names by name and represented identity.
-* `Ranged` repeats one exact entry over a fixed interval and applies Fluid
-  fitting.
-* `Composite` combines two complete Layouts without flattening them.
+* `Fluid` describes ordered positional entries and fits them by represented
+  identity. An Addressable target participates through its Type.
+* `Named` describes nonempty unique slot names, matches them by name, then
+  preserves the fitting rule of the source Layout for each matched entry. A
+  slot may borrow its name independently from the source Abstract without
+  renaming or wrapping that Abstract.
+* `Ranged` describes one exact entry repeated over a fixed interval and applies
+  Fluid fitting.
+* `Composite` describes two complete Layouts as one shape without flattening
+  them.
 
 Fitting is directional: the source supplies the target. Complete fitting
 requires equal sizes. Segmented fitting places a source in one target interval.
 Successful fitted queries return the original source edge that supplies the
-target position.
+target position. A Layout that decorates or combines another Layout delegates
+entry fitting to the source owner rather than replacing its fitting rules.
 
 A consumer may select one exact Layout entry and prove the category required by
 its own operation. `Named` provides name based fitting without defining a
@@ -252,8 +290,8 @@ Layout retains no copied semantic record, target offset, storage class, ABI
 rule, or anonymous Type identity. Structural coincidence does not create Type
 identity.
 
-An empty Layout has size zero. It fits another empty Layout and carries no
-stable value or address, regardless of which concrete Type exposes it.
+An empty Layout has size zero. It fits another empty Layout and describes no
+stable value or address, regardless of which concrete Type or Pack exposes it.
 
 ## Documentation
 
@@ -285,7 +323,8 @@ carried across a Terminal boundary.
 
 Concrete languages may define expressions, constants, generic formulas,
 mutation capabilities, receiver roles, executable bodies, and concrete scalar
-Types. They retain exact TTX Type, Layout, Addressable, and Callable edges.
+Types. Their value-producing expressions participate as Packs and retain exact
+TTX Type, Layout, Addressable, and Callable edges.
 
 Targets may derive sizes, offsets, pointer forms, address spaces, registers,
 ABI carriers, and executable addresses. Runtimes may add managed storage,
@@ -302,7 +341,7 @@ or common byte container.
 Each Terminal format belongs to its concrete producer. The format may retain
 source presentation, target representation, or reconstruction facts defined by
 semantic owners according to that producer's purpose. The Terminal itself is
-never an Abstract, Type, Layout, Addressable, Callable, or Reference.
+never an Abstract, Type, Pack, Layout, Addressable, Callable, or Reference.
 
 A target Terminal such as LLVM IR or an object module does not become a
 semantic source of truth. Target Types, offsets, registers, address spaces,
@@ -338,21 +377,24 @@ offsets, or treat a backend Type as the original semantic Type.
 9. An atomic Type exposes itself as one terminal Value Layout entry.
    Addressable reaches one Type with a nonempty Layout, and Callable supplies
    complete parameter and result Layouts.
-10. Type, Addressable, Callable, and Layout remain independent contracts. TTX
-    defines no universal member model over them.
-11. Layout owns order and directional fitting, not copied semantic or physical
+10. Pack preserves produced value-flow identity and exposes one complete output
+    Layout without acquiring Type identity.
+11. Type, Pack, Addressable, Callable, and Layout remain independent contracts.
+    TTX defines no universal member model over them.
+12. Layout owns promised shape, order, and directional fitting, not produced
+    value identity or copied semantic or physical
     records.
-12. Concrete language, package, target, runtime, and diagnostic policy remain
+13. Concrete language, package, target, runtime, and diagnostic policy remain
     outside TTX.
-13. Reference preserves one exact borrowed object and never resolves or
+14. Reference preserves one exact borrowed object and never resolves or
     canonicalizes it implicitly.
-14. A Reference is valid only within the lifetime guaranteed by its graph
+15. A Reference is valid only within the lifetime guaranteed by its graph
     owner and never crosses a Terminal boundary.
-15. A Terminal product is outside the semantic graph and belongs to no TTX
+16. A Terminal product is outside the semantic graph and belongs to no TTX
     identity category.
-16. Target facts specific to a Terminal never flow backward into the graph as
+17. Target facts specific to a Terminal never flow backward into the graph as
     semantic authority.
-17. Reconstruction without source creates a new live graph through its graph
+18. Reconstruction without source creates a new live graph through its graph
     owner and never restores process addresses.
-18. A reconstructed graph is published only after the graph owner's complete
+19. A reconstructed graph is published only after the graph owner's complete
     validation, completion, and publication contract succeeds.

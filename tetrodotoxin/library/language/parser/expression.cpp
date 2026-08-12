@@ -10,6 +10,7 @@
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/access/value.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
+#include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
 #include "tetrodotoxin/library/language/operations/and.hpp"
 #include "tetrodotoxin/library/language/operations/divide.hpp"
@@ -41,14 +42,29 @@ static constexpr Count prefix_precedence = 31;
 
 using ReceiverParser = auto (*)(
     Allocator::Arena&,
-    Library::Language::Materializations&,
+    Library::Language::Monograph&,
     Cursor&,
-    const Abstract&,
     Library::Language::Expression&) -> Option<Library::Language::Expression&>;
+
+using BinaryParser = auto (*)(
+    Allocator::Arena&,
+    Library::Language::Monograph&,
+    Cursor&,
+    Library::Language::Model::Pack&,
+    Span) -> Option<Library::Language::Expression&>;
+
+class Parsed {
+ public:
+  constexpr Parsed(Library::Language::Model::Pack& pack, Span span)
+      : pack(pack), span(span) {}
+
+  Reference<Library::Language::Model::Pack> pack;
+  Span span;
+};
 
 struct BinaryRule {
   Count precedence;
-  ReceiverParser parse;
+  BinaryParser parse;
 };
 
 static auto find_postfix(Code::Type code) -> Option<ReceiverParser> {
@@ -59,8 +75,6 @@ static auto find_postfix(Code::Type code) -> Option<ReceiverParser> {
     return &Library::Language::Access::Call::parse;
   case Code::Type::BracketStart:
     return &Library::Language::Access::Index::parse;
-  case Code::Type::SwizzleOp:
-    return &Library::Language::Access::Swizzle::parse;
   case Code::Type::TypeAccessOp:
     return &Library::Language::Access::Type::parse;
   case Code::Type::ValueAccessOp:
@@ -113,9 +127,13 @@ static auto get_precedence(Code::Type operation) -> Count {
 
 static auto parse_primary(
     Allocator::Arena& domain,
-    Library::Language::Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& source_context) -> Option<Library::Language::Expression&> {
+    Library::Language::Monograph& source,
+    Cursor& cursor) -> Option<Library::Language::Model::Pack&> {
+  if (cursor.matches(Code::Type::PackingStart)) {
+    return Library::Language::Model::Parser::Pack::parse(
+        domain, source, cursor, True);
+  }
+
   if (cursor.matches(Code::Type::Type) ||
       cursor.matches(Code::Type::Addressable) ||
       cursor.matches(Code::Type::Self)) {
@@ -125,8 +143,10 @@ static auto parse_primary(
   }
 
   if (cursor.matches(Code::Type::NotOp)) {
-    return Library::Language::Operations::Not::parse(
-        domain, materializations, cursor, source_context);
+    auto operation =
+        Library::Language::Operations::Not::parse(domain, source, cursor);
+    BAIL_IF(!operation);
+    return static_cast<Library::Language::Model::Pack&>(*operation);
   }
 
   if (cursor.matches(Code::Type::SubOp)) {
@@ -137,13 +157,15 @@ static auto parse_primary(
     case Code::Type::Float:
       break;
     default:
-      return Library::Language::Operations::Negate::parse(
-          domain, materializations, cursor, source_context);
+      auto operation =
+          Library::Language::Operations::Negate::parse(domain, source, cursor);
+      BAIL_IF(!operation);
+      return static_cast<Library::Language::Model::Pack&>(*operation);
     }
   }
 
-  auto literal = Library::Language::Parser::Literal::parse(
-      domain, materializations, cursor, source_context);
+  auto literal =
+      Library::Language::Parser::Literal::parse(domain, source, cursor);
   BAIL_IF(!literal);
 
   return *literal;
@@ -151,35 +173,51 @@ static auto parse_primary(
 
 static auto parse_expression(
     Allocator::Arena& domain,
-    Library::Language::Materializations& materializations,
+    Library::Language::Monograph& source,
     Cursor& cursor,
-    const Abstract& source_context,
-    Count minimum_precedence) -> Option<Library::Language::Expression&> {
-  auto primary =
-      parse_primary(domain, materializations, cursor, source_context);
+    Count minimum_precedence) -> Option<Parsed> {
+  Token start = cursor.current();
+  auto primary = parse_primary(domain, source, cursor);
   BAIL_IF(!primary);
 
-  Reference<Library::Language::Expression> expression(*primary);
+  Parsed parsed(*primary, Span(start, cursor.peek(-1)));
 
   // Postfix Access binds to the complete receiver before binary grammar. Each
   // completed node becomes the receiver for the next suffix. The binary loop
   // below then resolves that finished chain as its left Expression.
   while (True) {
+    if (cursor.matches(Code::Type::SwizzleOp)) {
+      auto selected = Library::Language::Access::Swizzle::parse(
+          domain, source, cursor, parsed.pack.get(), parsed.span);
+      BAIL_IF(!selected);
+
+      parsed = Parsed(*selected, Span(start, cursor.peek(-1)));
+      continue;
+    }
+
     auto postfix = find_postfix(cursor.get_code().get_type());
     if (!postfix) {
       break;
     }
 
-    auto parsed = postfix.visit(
-        []() -> Option<Library::Language::Expression&> { return {}; },
-        [&](ReceiverParser selected) {
-          return selected(
-              domain, materializations, cursor, source_context,
-              expression.get());
-        });
-    BAIL_IF(!parsed);
+    auto receiver = parsed.pack.get().select<Library::Language::Expression>();
+    if (!receiver) {
+      cursor.create_expression_error(
+          Anchor::create(cursor.current(), parsed.span, Span(cursor.current())),
+          "Library postfix access requires one Expression receiver Pack."_view,
+          "Select through one unlabelled scalar value; named and multi-value "
+          "Packs have no implicit receiver."_view);
+      return {};
+    }
 
-    expression = *parsed;
+    auto selected = postfix.visit(
+        []() -> Option<Library::Language::Expression&> { return {}; },
+        [&](ReceiverParser parser) {
+          return parser(domain, source, cursor, *receiver);
+        });
+    BAIL_IF(!selected);
+
+    parsed = Parsed(*selected, Span(start, cursor.peek(-1)));
   }
 
   while (True) {
@@ -190,68 +228,62 @@ static auto parse_expression(
           return Bool(selected.precedence >= minimum_precedence);
         });
     if (!applicable) {
-      return expression.get();
+      return parsed;
     }
 
-    auto parsed = binary.visit(
+    auto selected = binary.visit(
         []() -> Option<Library::Language::Expression&> { return {}; },
         [&](const BinaryRule& selected) {
           return selected.parse(
-              domain, materializations, cursor, source_context,
-              expression.get());
+              domain, source, cursor, parsed.pack.get(), parsed.span);
         });
-    BAIL_IF(!parsed);
+    BAIL_IF(!selected);
 
-    expression = *parsed;
+    parsed = Parsed(*selected, Span(start, cursor.peek(-1)));
   }
 }
 
 auto Library::Language::Parser::Expression::parse(
     Allocator::Arena& domain,
-    Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& source_context) -> Option<Language::Expression&> {
+    Language::Monograph& source,
+    Cursor& cursor) -> Option<Language::Model::Pack&> {
   auto transaction = cursor.branch();
-  auto parsed = parse_expression(
-      domain, materializations, transaction, source_context, 0);
+  auto parsed = parse_expression(domain, source, transaction, 0);
   BAIL_IF(!parsed);
 
   // Only this final join changes caller position. Nested operands and partial
   // postfix chains remain private to the transaction Cursor.
   cursor.join(transaction);
-  return *parsed;
+  return parsed->pack.get();
 }
 
 auto Library::Language::Parser::Expression::parse_operand(
     Allocator::Arena& domain,
-    Materializations& materializations,
+    Language::Monograph& source,
     Cursor& cursor,
-    const Abstract& source_context,
-    Code::Type operation) -> Option<Language::Expression&> {
+    Code::Type operation) -> Option<Language::Model::Pack&> {
   Count precedence = get_precedence(operation);
   BAIL_IF(precedence == 0);
 
   Errors operand_errors;
   auto transaction = cursor.branch(operand_errors);
-  auto parsed = parse_expression(
-      domain, materializations, transaction, source_context, precedence + 1);
+  auto parsed = parse_expression(domain, source, transaction, precedence + 1);
   BAIL_IF(!parsed);
 
   cursor.join(transaction);
-  return *parsed;
+  return parsed->pack.get();
 }
 
 auto Library::Language::Parser::Expression::parse_prefix_operand(
     Allocator::Arena& domain,
-    Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& source_context) -> Option<Language::Expression&> {
+    Language::Monograph& source,
+    Cursor& cursor) -> Option<Language::Model::Pack&> {
   Errors operand_errors;
   auto transaction = cursor.branch(operand_errors);
-  auto parsed = parse_expression(
-      domain, materializations, transaction, source_context, prefix_precedence);
+  auto parsed =
+      parse_expression(domain, source, transaction, prefix_precedence);
   BAIL_IF(!parsed);
 
   cursor.join(transaction);
-  return *parsed;
+  return parsed->pack.get();
 }

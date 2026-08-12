@@ -43,7 +43,7 @@ static auto materialize_bytes_type(
 
   Static::Vector<Library::Language::Generic::Argument, 2> arguments = {{
     Library::Language::Generic::Argument(Library::Dialect::get_unsigned_8()),
-    Library::Language::Generic::Argument(Signed_64(size)),
+    Library::Language::Generic::Argument(Unsigned_64(size)),
   }};
   auto materialized = materializations.materialize(
       Library::Language::Generics::Fixed::get_formula(), arguments.get_view());
@@ -296,9 +296,11 @@ static auto parse_real(Allocator::Arena& domain, Cursor& cursor)
 
 auto Library::Language::Parser::Literal::parse(
     Allocator::Arena& domain,
-    Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& source_context) -> Option<Constant&> {
+    Library::Language::Monograph& source,
+    Cursor& cursor) -> Option<Constant&> {
+  auto& materializations = source.get_materializations();
+  const Abstract& source_context = source.get_interpretation_context();
+
   // A leading subtraction spelling admits only signed decimal and Real
   // literals. Without it the ordinary unsigned parser keeps its full domain.
   if (cursor.matches(Code::Type::SubOp)) {

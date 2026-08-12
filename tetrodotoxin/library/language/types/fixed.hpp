@@ -3,9 +3,6 @@
 
 #pragma once
 
-#include "perimortem/core/static/vector.hpp"
-
-#include "tetrodotoxin/library/language/generic.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/documentations/comment.hpp"
 #include "ttx/model/layouts/ranged.hpp"
@@ -13,7 +10,7 @@
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Fixed is one homogeneous range Type. It retains the original signed extent
+// Fixed is one homogeneous range Type. It retains the original unsigned extent
 // and element edge while Ranged exposes the repeated identity without copies.
 class Fixed : public Ttx::Model::Type {
  public:
@@ -22,11 +19,11 @@ class Fixed : public Ttx::Model::Type {
   Fixed(
       Perimortem::Core::View::Bytes name,
       const Ttx::Model::Type& element,
-      ::Signed_64 extent)
-      : name(name), layout(element, Count(extent)) {
-    arguments[0] = Generic::Argument(element);
-    arguments[1] = Generic::Argument(extent);
-  }
+      ::Unsigned_64 extent)
+      : name(name),
+        element(element),
+        extent(extent),
+        layout(element, Count(extent)) {}
 
   TTX_NAME(name);
 
@@ -39,22 +36,16 @@ class Fixed : public Ttx::Model::Type {
     return layout;
   }
 
-  constexpr auto get_arguments() const
-      -> Perimortem::Core::View::Vector<Generic::Argument> {
-    return arguments;
-  }
-
   constexpr auto get_element_type() const -> const Ttx::Model::Type& {
-    return *arguments[0].find<const Ttx::Model::Type&>();
+    return element;
   }
 
-  constexpr auto get_extent() const -> ::Signed_64 {
-    return *arguments[1].find<::Signed_64>();
-  }
+  constexpr auto get_extent() const -> ::Unsigned_64 { return extent; }
 
  private:
   Perimortem::Core::View::Bytes name;
-  Perimortem::Core::Static::Vector<Generic::Argument, 2> arguments;
+  const Ttx::Model::Type& element;
+  ::Unsigned_64 extent;
   Ttx::Model::Layouts::Ranged layout;
   static constexpr Ttx::Model::Documentations::Comment documentation{
     "Creates a fixed homogeneous range Type."_view,

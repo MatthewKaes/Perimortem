@@ -8,8 +8,8 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "tetrodotoxin/library/language/expression.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/layout.hpp"
@@ -20,9 +20,10 @@
 
 namespace Tetrodotoxin::Library::Language {
 
-// Return is one concrete terminal statement. It retains the optional authored
-// Expression while the enclosing Block supplies lexical lookup, host access,
-// and the Function result Layout required during linking.
+// Return is one concrete terminal statement. It retains one real Pack while the
+// enclosing Block supplies lexical lookup, host access, and the Function result
+// Layout required during linking. `return;` owns an empty Pack, so empty and
+// multi-value flow follow the same lifecycle without optional flow state.
 class Return : public Ttx::Concept::Abstract {
  public:
   TTX_CONTRACT(
@@ -33,10 +34,8 @@ class Return : public Ttx::Concept::Abstract {
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Core::Option<Return&>;
+      Monograph& source,
+      Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Return&>;
 
   Return(const Return&) = delete;
   Return(Return&&) = delete;
@@ -46,7 +45,6 @@ class Return : public Ttx::Concept::Abstract {
   auto link(
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Concept::Abstract& lexical_context,
-      Materializations& materializations,
       const Ttx::Model::Type& access_scope,
       const Ttx::Concept::Layout& results) -> Bool;
 
@@ -58,16 +56,14 @@ class Return : public Ttx::Concept::Abstract {
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
 
-  auto get_expression() const -> Perimortem::Core::Option<const Expression&>;
-
  private:
   constexpr Return(
       Ttx::Lexical::Anchor anchor,
-      Perimortem::Core::Option<Ttx::Concept::Reference<Expression>> expression)
-      : anchor(anchor), expression(expression) {}
+      Ttx::Concept::Reference<Model::Pack> pack)
+      : anchor(anchor), pack(pack) {}
 
   Ttx::Lexical::Anchor anchor;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Expression>> expression;
+  Ttx::Concept::Reference<Model::Pack> pack;
   Bool linked = False;
 };
 

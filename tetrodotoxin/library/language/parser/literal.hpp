@@ -8,8 +8,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
-#include "ttx/concept/abstract.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Parser {
@@ -27,10 +26,8 @@ class Literal {
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& source_context)
-      -> Perimortem::Core::Option<Constant&>;
+      Monograph& source,
+      Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Constant&>;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Parser

@@ -103,8 +103,7 @@ auto Types::Source::retain_binding(Abstract& binding, Category category)
   if (category == Category::Callable) {
     auto function = binding.select<Function>();
     BAIL_IF(!function || &function->get_host() != this);
-    auto signature = function->get_signature();
-    if (signature && signature->declares_self()) {
+    if (function->declares_self()) {
       Token name = function->get_definition().get_name_token();
       get_monograph().report(
           name ? Option<Anchor>(Anchor::create(Span(name))) : Option<Anchor>(),

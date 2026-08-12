@@ -18,30 +18,30 @@ using namespace Tetrodotoxin::Library::Language;
 
 auto Parser::Member::parse(
     Allocator::Arena& domain,
-    Materializations& materializations,
+    Monograph& source,
     Cursor& cursor,
     Tetrodotoxin::Language::Definition& definition) -> Option<Abstract&> {
   Token qualifier = definition.get_qualifier();
   switch (qualifier.get_code().get_type()) {
   case Code::Type::Type:
   case Code::Type::Assign: {
-    auto field = Field::interpret(domain, materializations, cursor, definition);
+    auto field = Field::interpret(domain, source, cursor, definition);
     BAIL_IF(!field);
     return *field;
   }
   case Code::Type::Alias: {
-    auto alias = Alias::interpret(domain, cursor, definition);
+    auto alias = Alias::interpret(domain, source, cursor, definition);
     BAIL_IF(!alias);
     return *alias;
   }
   case Code::Type::Func: {
     auto function = Function::reserve(domain, cursor, definition);
-    BAIL_IF(!function || !function->complete(cursor, materializations));
+    BAIL_IF(!function || !function->complete(source, cursor));
     return *function;
   }
   case Code::Type::Enum: {
     auto enumeration =
-        Types::Enumeration::interpret(domain, cursor, definition);
+        Types::Enumeration::interpret(domain, source, cursor, definition);
     BAIL_IF(!enumeration);
     return *enumeration;
   }

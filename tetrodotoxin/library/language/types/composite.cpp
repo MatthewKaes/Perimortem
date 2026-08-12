@@ -71,10 +71,7 @@ static auto definition_category(Token qualifier)
 
 static auto function_declares_self(const Abstract& binding) -> Bool {
   return binding.visit<Function>(
-      [](const Function& function) -> Bool {
-        auto signature = function.get_signature();
-        return Bool(signature && signature->declares_self());
-      },
+      [](const Function& function) -> Bool { return function.declares_self(); },
       [](const Abstract&) { return False; });
 }
 
@@ -145,10 +142,12 @@ auto Types::Composite::interpret_definition(
     return False;
   }
 
-  Materializations& materializations =
-      static_cast<Monograph&>(get_monograph()).get_materializations();
-  auto member =
-      Parser::Member::parse(domain, materializations, cursor, definition);
+  // The Definition host chain already identifies the owning Library source.
+  // Member grammar receives that owner and requests any source capability from
+  // it directly; Composite does not relay individual caches through every
+  // declaration parser.
+  auto& source = static_cast<Monograph&>(get_monograph());
+  auto member = Parser::Member::parse(domain, source, cursor, definition);
   BAIL_IF(!member);
   if (!retain_binding(*member, *category)) {
     cursor.create_expression_error(
@@ -263,7 +262,8 @@ auto Types::Composite::publish_binding(Abstract& binding, Category category)
 auto Types::Composite::resolve_type(const TypeReference& reference) const
     -> const Abstract& {
   const Abstract& root = resolve_type_root(reference.get_root(), *this);
-  return reference.resolve_from(root, *this);
+  const Abstract& selected = reference.resolve_route_from(root, *this);
+  return reference.resolve_type(selected, *this);
 }
 
 auto Types::Composite::resolve_exported_type(
@@ -273,13 +273,15 @@ auto Types::Composite::resolve_exported_type(
     // A published root owns the whole qualified route. A missing suffix must
     // not retry an intrinsic with the same spelling and bypass lexical
     // shadowing established by that root.
-    return reference.resolve_from(root);
+    const Abstract& selected = reference.resolve_route_from(root);
+    return reference.resolve_exported_type(selected, *this);
   }
 
   const auto& source = static_cast<const Monograph&>(get_monograph());
   const Abstract& intrinsic =
       source.get_dialect().resolve_intrinsic(reference.get_root());
-  return reference.resolve_from(intrinsic);
+  const Abstract& selected = reference.resolve_route_from(intrinsic);
+  return reference.resolve_exported_type(selected, *this);
 }
 
 auto Types::Composite::link_types() -> Bool {
@@ -296,9 +298,8 @@ auto Types::Composite::link_types() -> Bool {
   }
 
   auto& source = get_monograph();
-  Bool failed = !visit_each<Alias>(types.get_view(), [&](Alias& alias) {
-    return alias.link_target(source);
-  });
+  Bool failed = !visit_each<Alias>(
+      types.get_view(), [&](Alias& alias) { return alias.link_target(); });
   failed |=
       !visit_each<Enumeration>(types.get_view(), [&](Enumeration& enumeration) {
         return enumeration.link_storage(source);
@@ -327,8 +328,6 @@ auto Types::Composite::link_fields() -> Bool {
   }
 
   auto& source = get_monograph();
-  Materializations& materializations =
-      static_cast<Monograph&>(source).get_materializations();
   Bool failed = !visit_each<Composite>(
       types.get_view(),
       [](Composite& composite) { return composite.link_fields(); });
@@ -349,7 +348,7 @@ auto Types::Composite::link_fields() -> Bool {
       return True;
     }
 
-    return field.link_initializer(source, materializations);
+    return field.link_initializer(source);
   });
 
   BAIL_IF(failed);
@@ -382,13 +381,11 @@ auto Types::Composite::link_initializers() -> Bool {
   }
 
   auto& source = get_monograph();
-  Materializations& materializations =
-      static_cast<Monograph&>(source).get_materializations();
   Bool failed = !visit_each<Composite>(
       types.get_view(),
       [](Composite& composite) { return composite.link_initializers(); });
   failed |= !visit_each<Field>(addressables.get_view(), [&](Field& field) {
-    return field.link_initializer(source, materializations);
+    return field.link_initializer(source);
   });
 
   BAIL_IF(failed);
@@ -439,15 +436,12 @@ auto Types::Composite::link_callable_bodies() -> Bool {
   }
 
   auto& source = get_monograph();
-  Materializations& materializations =
-      static_cast<Monograph&>(source).get_materializations();
   Bool failed = !visit_each<Composite>(
       types.get_view(),
       [](Composite& composite) { return composite.link_callable_bodies(); });
-  failed |=
-      !visit_each<Function>(callables.get_view(), [&](Function& function) {
-        return function.link_body(source, materializations);
-      });
+  failed |= !visit_each<Function>(
+      callables.get_view(),
+      [&](Function& function) { return function.link_body(source); });
 
   BAIL_IF(failed);
 
@@ -476,6 +470,7 @@ auto Types::Composite::finalize() -> Bool {
   });
 
   failed |= !visit_each<Field>(addressables.get_view(), [&](Field& field) {
+    field.finalize();
     return field.validate_publication(source);
   });
 

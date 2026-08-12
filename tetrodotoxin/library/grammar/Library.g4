@@ -63,7 +63,7 @@ declarationInitializer
     ;
 
 objectInitializer
-    : NEW argumentPack?
+    : NEW parenthesizedPack?
     ;
 
 functionDefinition
@@ -85,11 +85,11 @@ statement
     | breakStatement
     | localDeclaration
     | assignmentStatement
-    | expressionStatement
+    | invocationStatement
     ;
 
 conditionalStatement
-    : IF PACKING_START expression PACKING_END block
+    : IF pack block
       (ELSE (conditionalStatement | block))?
     ;
 
@@ -98,7 +98,7 @@ forStatement
     ;
 
 whileStatement
-    : WHILE PACKING_START expression PACKING_END block
+    : WHILE pack block
     ;
 
 matchStatement
@@ -110,7 +110,7 @@ matchCase
     ;
 
 returnStatement
-    : RETURN expression? END_STATEMENT
+    : RETURN pack? END_STATEMENT
     ;
 
 continueStatement
@@ -147,7 +147,7 @@ assignmentSuffix
     | BRACKET_START expression BRACKET_END
     ;
 
-expressionStatement
+invocationStatement
     : expression END_STATEMENT
     ;
 
@@ -195,7 +195,7 @@ postfixExpression
 
 postfixSuffix
     : ADDRESS addressableName
-    | CALL addressableName argumentPack
+    | CALL addressableName parenthesizedPack
     | TYPE_ACCESS typeName
     | BRACKET_START expression BRACKET_END
     | SWIZZLE swizzleSelection? BRACKET_END
@@ -211,21 +211,29 @@ primaryExpression
     | typeName
     | addressableName
     | SELF
-    | argumentPack
+    | parenthesizedPack
     ;
 
-argumentPack
-    : PACKING_START (namedArguments | expressionList)? PACK? PACKING_END
+pack
+    : expression
+    | parenthesizedPack
     ;
 
-namedArguments
-    : namedArgument (PACK namedArgument)*
+// Parentheses supply Pack flow. `=` names a produced value and remains distinct
+// from the `:` used by descriptor Layout slots in Tetrodotoxin.g4.
+parenthesizedPack
+    : PACKING_START (namedPackEntries | positionalPackEntries)? PACK?
+      PACKING_END
     ;
 
-namedArgument
-    : ADDRESS (addressableName | NUMERIC | HEX) ASSIGN expression
+namedPackEntries
+    : namedPackEntry (PACK namedPackEntry)*
     ;
 
-expressionList
+namedPackEntry
+    : ADDRESS addressableName ASSIGN expression
+    ;
+
+positionalPackEntries
     : expression (PACK expression)*
     ;

@@ -9,13 +9,14 @@
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
-#include "tetrodotoxin/library/language/generics/view.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/model/addressable.hpp"
 #include "ttx/model/types/signed.hpp"
 #include "ttx/model/types/unsigned.hpp"
 
@@ -143,19 +144,114 @@ static auto get_count(
       });
 }
 
+static auto select_required_type(const Abstract& candidate)
+    -> Core::Option<const Type&> {
+  auto direct = candidate.select<Type>();
+  if (direct) {
+    return *direct;
+  }
+
+  const Abstract& resolved = candidate.resolve();
+  auto addressable = candidate.select<Addressable>();
+  if (!addressable) {
+    addressable = resolved.select<Addressable>();
+  }
+  const Abstract& selected = addressable ? addressable->get_type() : resolved;
+  direct = selected.select<Type>();
+  return direct ? direct : selected.resolve().select<Type>();
+}
+
+namespace {
+
+// A slice is homogeneous value flow, but the repeated source is still the one
+// Value expression that performs selection. Keeping this Layout subordinate to
+// Value avoids teaching host-neutral Ranged how a Library Expression fits a
+// required element Type, and avoids fabricating one proxy identity per slot.
+class SliceLayout final : public Layout {
+ public:
+  constexpr SliceLayout(
+      const Language::Access::Value& source,
+      const Type& element,
+      Count size)
+      : source(source), element(element), size(size) {}
+
+  constexpr auto get_size() const -> Count override { return size; }
+
+  constexpr auto get_abstract(Count index) const
+      -> Core::Option<const Abstract&> override {
+    BAIL_IF(index >= size);
+    return source;
+  }
+
+  auto fits_entry(const Layout& target, Count source_index, Count target_index)
+      const -> Bool override {
+    BAIL_IF(source_index >= size || target_index >= target.get_size());
+    return target.get_abstract(target_index)
+        .visit(
+            []() { return False; },
+            [&](const Abstract& required) {
+              return select_required_type(required).visit(
+                  []() { return False; },
+                  [&](const Type& type) {
+                    return element.get_layout().fits(type.get_layout());
+                  });
+            });
+  }
+
+  auto fits_at(const Layout& target, Count target_offset) const
+      -> Bool override {
+    BAIL_IF(!has_target_segment(target, target_offset));
+    for (Count index = 0; index < size; index++) {
+      BAIL_IF(!fits_entry(target, index, target_offset + index));
+    }
+    return True;
+  }
+
+  auto get_fitted_at(
+      const Layout& target,
+      Count target_offset,
+      Count target_index) const
+      -> Utility::Result<const Abstract&, Errors> override {
+    if (target_index >= size) {
+      return Errors::IndexOutOfBounds;
+    }
+    if (!has_target_segment(target, target_offset)) {
+      return Errors::SizeMismatch;
+    }
+    if (!fits_at(target, target_offset)) {
+      return Errors::IncompatibleFit;
+    }
+
+    // Layout index retains which repeated value is consumed. Lowering can use
+    // that index without replacing the one semantic producer with shadow nodes.
+    return source;
+  }
+
+ private:
+  const Language::Access::Value& source;
+  const Type& element;
+  Count size;
+};
+
+}  // namespace
+
 static auto parse_operand(
     Memory::Allocator::Arena& domain,
-    Language::Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& source_context) -> Core::Option<Language::Expression&> {
+    Language::Monograph& source,
+    Cursor& cursor) -> Core::Option<Language::Expression&> {
   Errors operand_errors;
   auto operand_cursor = cursor.branch(operand_errors);
 
   // The complete operand grammar stays inside this private Cursor. Its
   // provisional diagnostics remain local until Value can attribute failure to
   // the complete postfix.
-  auto result = Language::Parser::Expression::parse(
-      domain, materializations, operand_cursor, source_context);
+  auto pack =
+      Language::Parser::Expression::parse(domain, source, operand_cursor);
+  auto result = pack.visit(
+      []() -> Core::Option<Language::Expression&> { return {}; },
+      [](Language::Model::Pack& selected) {
+        return selected.select<Language::Expression>();
+      });
   if (result) {
     cursor.join(operand_cursor);
   }
@@ -163,48 +259,21 @@ static auto parse_operand(
   return result;
 }
 
-// Value returns a view even when its receiver supplies writable access.
-// The separate bracket access form owns optional references, so retaining
-// Access here would let safe value selection manufacture write capability.
-static auto materialize_view(
-    Language::Materializations& materializations,
-    const Type& element) -> Core::Option<const Type&> {
-  Core::Static::Vector<Language::Generic::Argument, 1> arguments = {{
-    Language::Generic::Argument(element),
-  }};
-  return materializations.materialize(
-      Language::Generics::View::get_formula(), arguments.get_view());
-}
-
 static auto select_result_type(
-    Language::Materializations& materializations,
     const Language::Expression& receiver,
-    const Language::Expression& first,
-    Core::Option<const Language::Expression&> second) -> const Abstract& {
+    const Language::Expression& first) -> const Abstract& {
   auto element = get_element_type(receiver);
   if (!element || !is_integer(first)) {
     return Invalid::get_invalid();
   }
 
-  if (!second) {
-    return *element;
-  }
-
-  if (!is_integer(*second)) {
-    return Invalid::get_invalid();
-  }
-
-  return materialize_view(materializations, *element)
-      .visit(
-          []() -> const Abstract& { return Invalid::get_invalid(); },
-          [](const Type& result) -> const Abstract& { return result; });
+  return *element;
 }
 
 auto Language::Access::Value::parse(
     Memory::Allocator::Arena& domain,
-    Materializations& materializations,
+    Monograph& source,
     Cursor& cursor,
-    const Abstract& source_context,
     Expression& receiver) -> Core::Option<Expression&> {
   // Expression selects Value only after seeing ValueAccessOp. Consuming it here
   // commits the transaction to this owner's complete postfix grammar.
@@ -223,15 +292,16 @@ auto Language::Access::Value::parse(
   Token first_start = cursor.current();
   Token first_end =
       cursor.matches(Code::Type::SubOp) ? cursor.peek(1) : first_start;
-  auto first = parse_operand(domain, materializations, cursor, source_context);
+  auto first = parse_operand(domain, source, cursor);
   if (!first) {
     Span span = complete_postfix_span(cursor, opening);
     reject_operand(cursor, span, Span(first_start, first_end));
     return {};
   }
 
-  // A comma changes element selection into a ranged value. A range containing
-  // one element still has View Type, so `:[0, 1]` does not become `:[0]`.
+  // A comma changes element selection into ranged Pack flow. A one-entry range
+  // retains that authored range shape even though scalar reflection can expose
+  // its one element Type.
   Bool range = cursor.matches(Code::Type::PackingOp);
   Core::Option<Expression&> second;
   if (range) {
@@ -250,7 +320,7 @@ auto Language::Access::Value::parse(
     Token second_start = cursor.current();
     Token second_end =
         cursor.matches(Code::Type::SubOp) ? cursor.peek(1) : second_start;
-    second = parse_operand(domain, materializations, cursor, source_context);
+    second = parse_operand(domain, source, cursor);
     if (!second) {
       Span span = complete_postfix_span(cursor, opening);
       reject_operand(cursor, span, Span(second_start, second_end));
@@ -282,16 +352,14 @@ auto Language::Access::Value::parse(
   auto anchor =
       Anchor::create(opening, receiver_anchor->get_span(), Span(closing));
   if (range) {
-    return create_authored(
-        domain, materializations, receiver, *first, *second, anchor);
+    return create_authored(domain, receiver, *first, *second, anchor);
   }
 
-  return create_authored(domain, materializations, receiver, *first, anchor);
+  return create_authored(domain, receiver, *first, anchor);
 }
 
 auto Language::Access::Value::create_authored(
     Memory::Allocator::Arena& domain,
-    Materializations& materializations,
     Expression& receiver,
     Expression& index,
     Anchor anchor) -> Value& {
@@ -300,14 +368,12 @@ auto Language::Access::Value::create_authored(
     index,
   }};
   return Expression::create_authored<Value>(
-      domain, anchor, [&](auto source) -> Value {
-        return Value(domain, materializations, inputs, source);
-      });
+      domain, anchor,
+      [&](auto source) -> Value { return Value(domain, inputs, source); });
 }
 
 auto Language::Access::Value::create_synthetic(
     Memory::Allocator::Arena& domain,
-    Materializations& materializations,
     Expression& receiver,
     Expression& index) -> Value& {
   Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2> inputs = {{
@@ -315,13 +381,12 @@ auto Language::Access::Value::create_synthetic(
     index,
   }};
   return Expression::create_synthetic<Value>(domain, [&](auto source) -> Value {
-    return Value(domain, materializations, inputs, source);
+    return Value(domain, inputs, source);
   });
 }
 
 auto Language::Access::Value::create_authored(
     Memory::Allocator::Arena& domain,
-    Materializations& materializations,
     Expression& receiver,
     Expression& start,
     Expression& count,
@@ -332,14 +397,12 @@ auto Language::Access::Value::create_authored(
     count,
   }};
   return Expression::create_authored<Value>(
-      domain, anchor, [&](auto source) -> Value {
-        return Value(domain, materializations, inputs, source);
-      });
+      domain, anchor,
+      [&](auto source) -> Value { return Value(domain, inputs, source); });
 }
 
 auto Language::Access::Value::create_synthetic(
     Memory::Allocator::Arena& domain,
-    Materializations& materializations,
     Expression& receiver,
     Expression& start,
     Expression& count) -> Value& {
@@ -349,39 +412,167 @@ auto Language::Access::Value::create_synthetic(
     count,
   }};
   return Expression::create_synthetic<Value>(domain, [&](auto source) -> Value {
-    return Value(domain, materializations, inputs, source);
+    return Value(domain, inputs, source);
   });
 }
 
 Language::Access::Value::Value(
     Memory::Allocator::Arena& domain,
-    Materializations& materializations,
     Core::View::Vector<Ttx::Concept::Reference<Expression>> inputs,
     Core::Option<Anchor> anchor)
-    : Operation(domain, materializations, inputs, anchor) {}
+    : Operation(domain, inputs, anchor),
+      domain(domain),
+      range(inputs.get_size() == 3) {}
+
+auto Language::Access::Value::link(
+    Tetrodotoxin::Language::Monograph& source,
+    const Abstract& lexical_context,
+    Core::Option<const Type&> access_scope) -> Bool {
+  if (!range) {
+    return Operation::link(source, lexical_context, access_scope);
+  }
+
+  // Range count determines the complete Pack shape and is therefore a link
+  // fact, not a lowering-time payload detail. Start remains ordinary dynamic
+  // input because it changes which values flow, never how many slots exist.
+  Bool failed = False;
+  for (Count index = 0; index < 3; index++) {
+    auto input = get_input(index);
+    if (!input) {
+      failed = True;
+      continue;
+    }
+    failed |= !input->link(source, lexical_context, access_scope);
+  }
+  BAIL_IF(failed);
+
+  auto receiver = get_input(0);
+  auto start = get_input(1);
+  auto count = get_input(2);
+  auto element =
+      receiver ? get_element_type(*receiver) : Core::Option<const Type&>{};
+  if (!receiver || !start || !count || !element || !is_integer(*start) ||
+      !is_integer(*count)) {
+    source.report(
+        get_anchor(), "Value range rejects the linked operand Types."_view,
+        "Use an indexable receiver and integer start and count Expressions."_view);
+    return False;
+  }
+
+  Core::Option<Expression&> folded_count;
+  Core::Option<Expression::Error> fold_error;
+  count->fold().visit(
+      [&](const Core::Option<Expression&>& folded) { folded_count = folded; },
+      [&](const Expression::Error& error) { fold_error = error; });
+  if (fold_error || !folded_count) {
+    source.report(
+        count->get_anchor(),
+        "Value range count did not constant-fold during linking."_view,
+        "Supply one nonnegative integer Constant for the range count."_view);
+    return False;
+  }
+
+  Core::Option<Count> selected_count;
+  Core::Option<Expression::Error> count_error;
+  get_count(*folded_count, *count)
+      .visit(
+          [&](const Core::Option<Count>& selected) {
+            selected_count = selected;
+          },
+          [&](const Expression::Error& error) { count_error = error; });
+  if (count_error || !selected_count) {
+    source.report(
+        count->get_anchor(),
+        "Value range count is outside the supported nonnegative range."_view,
+        "Use a nonnegative integer Constant representable as Count."_view);
+    return False;
+  }
+
+  if (range_layout) {
+    Bool changed = !range_element || &range_element->get() != &*element ||
+                   !range_count || *range_count != *selected_count;
+    if (changed) {
+      source.report(
+          get_anchor(),
+          "Value range cannot change its linked output Layout."_view,
+          "Keep one exact element Type and constant count for this access."_view);
+      return False;
+    }
+    return True;
+  }
+
+  range_element = Reference<const Type>(*element);
+  range_count = *selected_count;
+  const auto& layout =
+      domain.construct<SliceLayout>(*this, *element, *selected_count);
+  range_layout = layout;
+  return True;
+}
+
+auto Language::Access::Value::get_type() const -> const Abstract& {
+  if (!range) {
+    return Operation::get_type();
+  }
+  if (!range_layout || !range_count || *range_count != 1 || !range_element) {
+    return Invalid::get_invalid();
+  }
+
+  return range_element->get();
+}
+
+auto Language::Access::Value::get_layout() const -> const Layout& {
+  if (!range) {
+    return Expression::get_layout();
+  }
+
+  return *range_layout;
+}
+
+auto Language::Access::Value::resolve() const -> const Abstract& {
+  if (!range) {
+    return Expression::resolve();
+  }
+
+  if (!range_layout) {
+    return Invalid::get_invalid();
+  }
+
+  return static_cast<const Ttx::Model::Pack&>(*this);
+}
+
+auto Language::Access::Value::fits(const Type& target) const -> Bool {
+  if (!range) {
+    return Expression::fits(target);
+  }
+
+  // A range Value is not one element with a special carrier Type. Its complete
+  // Pack must negotiate with the receiving descriptor so `Fixed[T, count]`,
+  // structural Layouts, and the empty Layout all observe the same flow.
+  return Model::Pack::fits(target);
+}
 
 auto Language::Access::Value::select_type(
-    Materializations& materializations) const -> Core::Option<const Type&> {
+    Tetrodotoxin::Language::Monograph&) const -> Core::Option<const Type&> {
+  BAIL_IF(range);
   auto receiver = get_input(0);
   auto first = get_input(1);
   if (!receiver || !first) {
     return {};
   }
 
-  Core::Option<const Expression&> count;
-  auto authored_count = get_input(2);
-  if (authored_count) {
-    count = *authored_count;
-  }
-
-  return select_result_type(materializations, *receiver, *first, count)
-      .select<Type>();
+  return select_result_type(*receiver, *first).select<Type>();
 }
 
 auto Language::Access::Value::evaluate_constants(
-    Memory::Allocator::Arena& domain,
-    Materializations&)
+    Memory::Allocator::Arena& domain)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
+  if (range) {
+    // A range is a Pack of values rather than one Constant carrier. Folding
+    // individual selected values belongs to lowering once it consumes the
+    // Pack Layout and its slot indices.
+    return Core::Option<Constant&>{};
+  }
+
   auto authored_receiver = get_input(0);
   auto authored_first = get_input(1);
   auto receiver = get_folded_input(0);
@@ -397,81 +588,18 @@ auto Language::Access::Value::evaluate_constants(
   }
 
   auto first = get_count(*first_expression, *authored_first);
-  auto authored_count = get_input(2);
-  if (!authored_count) {
-    return first.visit(
-        [&](const Core::Option<Count>& index)
-            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          return receiver->visit<Constants::Bytes>(
-              [&](const Constants::Bytes& bytes)
-                  -> Utility::Result<
-                      Core::Option<Constant&>, Expression::Error> {
-                Core::View::Bytes value = bytes.get_value();
-                if (!index || *index >= value.get_size()) {
-                  // No payload element exists, so the exact element Type
-                  // decides whether safe selection has a value or a failure.
-                  auto fallback =
-                      Library::Dialect::create_default(domain, *element);
-                  if (!fallback) {
-                    return Expression::Error(
-                        Expression::Error::Type::InvalidConstant, *this);
-                  }
-
-                  return *fallback;
-                }
-
-                // Bytes exposes raw elements, but the result still carries the
-                // exact eight bit Unsigned Type selected during linking.
-                auto byte_type = get_byte_type(*element);
-                if (!byte_type) {
-                  return Expression::Error(
-                      Expression::Error::Type::InvalidConstant,
-                      *authored_receiver);
-                }
-
-                Unsigned_64 selected = Unsigned_64(value.get_data()[*index]);
-                return Constants::Unsigned::create_synthetic(
-                    domain, *byte_type, selected);
-              },
-              [&](const Abstract&)
-                  -> Utility::Result<
-                      Core::Option<Constant&>, Expression::Error> {
-                // Bytes is the live Constant payload domain. Another legal
-                // Constant stays as Value until its payload owner exists.
-                return Core::Option<Constant&>{};
-              });
-        },
-        [](const Expression::Error& error)
-            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          return error;
-        });
-  }
-
-  auto count_expression = get_folded_input(2);
-  if (!count_expression) {
-    return Expression::Error(Expression::Error::Type::InvalidInput, *this);
-  }
-
-  auto count = get_count(*count_expression, *authored_count);
   return first.visit(
-      [&](const Core::Option<Count>& start)
+      [&](const Core::Option<Count>& index)
           -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-        return count.visit(
-            [&](const Core::Option<Count>& count)
+        return receiver->visit<Constants::Bytes>(
+            [&](const Constants::Bytes& bytes)
                 -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-              if (!start || !count) {
-                const Abstract& selected_type = get_type().resolve();
-                auto result_type = selected_type.select<Type>();
-                if (!result_type) {
-                  return Expression::Error(
-                      Expression::Error::Type::InvalidOperationType, *this);
-                }
-
-                // Conversion misses select the real View default before
-                // payload slicing. This keeps every safe range result on the
-                // same exact materialized Type as an ordinary slice.
+              Core::View::Bytes value = bytes.get_value();
+              if (!index || *index >= value.get_size()) {
+                // No payload element exists, so the exact element Type decides
+                // whether safe selection has a value or a failure.
                 auto fallback =
-                    Library::Dialect::create_default(domain, *result_type);
+                    Library::Dialect::create_default(domain, *element);
                 if (!fallback) {
                   return Expression::Error(
                       Expression::Error::Type::InvalidConstant, *this);
@@ -480,39 +608,24 @@ auto Language::Access::Value::evaluate_constants(
                 return *fallback;
               }
 
-              return receiver->visit<Constants::Bytes>(
-                  [&](const Constants::Bytes& bytes)
-                      -> Utility::Result<
-                          Core::Option<Constant&>, Expression::Error> {
-                    Core::View::Bytes selected =
-                        bytes.get_value().slice(*start, *count);
-                    const Abstract& result_type = get_type().resolve();
-                    return result_type.visit<Type>(
-                        [&](const Type& type)
-                            -> Utility::Result<
-                                Core::Option<Constant&>, Expression::Error> {
-                          return Constants::Bytes::create_synthetic(
-                              domain, type, selected);
-                        },
-                        [&](const Abstract&)
-                            -> Utility::Result<
-                                Core::Option<Constant&>, Expression::Error> {
-                          return Expression::Error(
-                              Expression::Error::Type::InvalidOperationType,
-                              *this);
-                        });
-                  },
-                  [&](const Abstract&)
-                      -> Utility::Result<
-                          Core::Option<Constant&>, Expression::Error> {
-                    // Type legality does not imply a universal Constant payload
-                    // interface, so unsupported payload owners remain Value.
-                    return Core::Option<Constant&>{};
-                  });
+              // Bytes exposes raw elements, but the result still carries the
+              // exact eight bit Unsigned Type selected during linking.
+              auto byte_type = get_byte_type(*element);
+              if (!byte_type) {
+                return Expression::Error(
+                    Expression::Error::Type::InvalidConstant,
+                    *authored_receiver);
+              }
+
+              Unsigned_64 selected = Unsigned_64(value.get_data()[*index]);
+              return Constants::Unsigned::create_synthetic(
+                  domain, *byte_type, selected);
             },
-            [](const Expression::Error& error)
+            [&](const Abstract&)
                 -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-              return error;
+              // Bytes is the live Constant payload domain. Another legal
+              // Constant stays as Value until its payload owner exists.
+              return Core::Option<Constant&>{};
             });
       },
       [](const Expression::Error& error)

@@ -8,10 +8,9 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
-#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/authored.hpp"
 #include "tetrodotoxin/library/language/block.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/signature.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/callable.hpp"
@@ -46,15 +45,11 @@ class Function : public Authored<Ttx::Model::Callable> {
   auto operator=(const Function&) -> Function& = delete;
   auto operator=(Function&&) -> Function& = delete;
 
-  auto complete(
-      Ttx::Lexical::Cursor& cursor,
-      Materializations& materializations) -> Bool;
+  auto complete(Monograph& source, Ttx::Lexical::Cursor& cursor) -> Bool;
 
   auto link_signature(Tetrodotoxin::Language::Monograph& source) -> Bool;
 
-  auto link_body(
-      Tetrodotoxin::Language::Monograph& source,
-      Materializations& materializations) -> Bool;
+  auto link_body(Tetrodotoxin::Language::Monograph& source) -> Bool;
 
   auto finalize(Tetrodotoxin::Language::Monograph& source) -> Bool;
 
@@ -73,7 +68,11 @@ class Function : public Authored<Ttx::Model::Callable> {
     return static_cast<const Ttx::Model::Type&>(get_definition().get_host());
   }
 
-  auto get_signature() const -> Perimortem::Core::Option<const Signature&>;
+  // Before Signature linking publishes the receiver Addressable, registration
+  // still needs the authored receiver role. This query derives it from the
+  // retained Signature shape; Callable::is_type_bound() becomes authoritative
+  // once the parameter Layout exists.
+  auto declares_self() const -> Bool;
 
   auto get_body() const -> Perimortem::Core::Option<const Block&>;
 

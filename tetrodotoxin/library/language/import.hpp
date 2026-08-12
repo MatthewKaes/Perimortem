@@ -23,7 +23,7 @@ class Import {
       -> Perimortem::Core::Option<Import>;
 
   constexpr auto matches(const Import& other) const -> Bool {
-    return type_reference.matches(other.type_reference);
+    return type_reference.matches_route(other.type_reference);
   }
 
   constexpr auto get_type_reference() const -> const TypeReference& {

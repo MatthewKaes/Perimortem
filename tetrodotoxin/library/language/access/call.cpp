@@ -3,10 +3,10 @@
 
 #include "tetrodotoxin/library/language/access/call.hpp"
 
+#include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -14,7 +14,150 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-static const Layouts::Fluid empty_results;
+static auto select_result_type(const Abstract& result)
+    -> Core::Option<const Ttx::Model::Type&>;
+
+namespace {
+
+// The Callable result Layout describes what one invocation produces, while
+// this Layout preserves which invocation produced it. Fitting therefore
+// delegates to the immutable signature shape, but a successful fitted query
+// returns the Call rather than laundering value flow into a result Type. This
+// is Call's canonical output Layout, not a shadow inventory: it borrows the
+// Callable and retains no copied entries, names, or Types.
+class CallLayout final : public Layout {
+ public:
+  constexpr CallLayout(
+      const Language::Access::Call& call,
+      const Callable& callable)
+      : call(call), callable(callable) {}
+
+  constexpr auto get_size() const -> Count override {
+    return callable.get_results().get_size();
+  }
+
+  constexpr auto get_abstract(Count index) const
+      -> Core::Option<const Abstract&> override {
+    BAIL_IF(index >= get_size());
+    return call;
+  }
+
+  constexpr auto get_name(Count index) const
+      -> Core::Option<Core::View::Bytes> override {
+    return callable.get_results().get_name(index);
+  }
+
+  auto fits_entry(const Layout& target, Count source_index, Count target_index)
+      const -> Bool override {
+    return callable.get_results().fits_entry(
+        target, source_index, target_index);
+  }
+
+  auto fits_at(const Layout& target, Count target_offset) const
+      -> Bool override {
+    return callable.get_results().fits_at(target, target_offset);
+  }
+
+  auto get_fitted_at(
+      const Layout& target,
+      Count target_offset,
+      Count target_index) const
+      -> Utility::Result<const Abstract&, Errors> override {
+    if (target_index >= get_size()) {
+      return Errors::IndexOutOfBounds;
+    }
+    if (!has_target_segment(target, target_offset)) {
+      return Errors::SizeMismatch;
+    }
+    if (!fits_at(target, target_offset)) {
+      return Errors::IncompatibleFit;
+    }
+    return call;
+  }
+
+ private:
+  const Language::Access::Call& call;
+  const Callable& callable;
+};
+
+// Self input reflection composes the real receiver with the authored argument
+// Pack without creating another producer or copying either Layout. Static Calls
+// need no composition because their Type receiver contributes no runtime value.
+class SelfInputs final : public Layout {
+ public:
+  constexpr SelfInputs(
+      const Language::Expression& receiver,
+      const Language::Model::Pack& arguments)
+      : receiver(receiver), arguments(arguments) {}
+
+  auto get_size() const -> Count override {
+    return 1 + arguments.get_layout().get_size();
+  }
+
+  auto get_abstract(Count index) const
+      -> Core::Option<const Abstract&> override {
+    if (index == 0) {
+      return receiver;
+    }
+    return arguments.get_layout().get_abstract(index - 1);
+  }
+
+  auto get_name(Count index) const -> Core::Option<Core::View::Bytes> override {
+    return index == 0 ? Core::Option<Core::View::Bytes>()
+                      : arguments.get_layout().get_name(index - 1);
+  }
+
+  auto fits_entry(const Layout& target, Count source, Count target_index) const
+      -> Bool override {
+    BAIL_IF(source >= get_size() || target_index >= target.get_size());
+    if (source != 0) {
+      return arguments.fits_entry(target, source - 1, target_index);
+    }
+
+    auto target_entry = target.get_abstract(target_index);
+    BAIL_IF(!target_entry);
+    return select_result_type(*target_entry)
+        .visit(
+            []() { return False; },
+            [&](const Ttx::Model::Type& type) { return receiver.fits(type); });
+  }
+
+  auto fits_at(const Layout& target, Count target_offset) const
+      -> Bool override {
+    BAIL_IF(
+        target_offset > target.get_size() ||
+        get_size() > target.get_size() - target_offset);
+    return fits_entry(target, 0, target_offset) &&
+           arguments.fits_at(target, target_offset + 1);
+  }
+
+  auto get_fitted_at(
+      const Layout& target,
+      Count target_offset,
+      Count target_index) const
+      -> Utility::Result<const Abstract&, Errors> override {
+    if (target_index >= get_size()) {
+      return Errors::IndexOutOfBounds;
+    }
+    if (target_offset > target.get_size() ||
+        get_size() > target.get_size() - target_offset) {
+      return Errors::SizeMismatch;
+    }
+    if (!fits_at(target, target_offset)) {
+      return Errors::IncompatibleFit;
+    }
+    return target_index == 0
+               ? Utility::Result<const Abstract&, Errors>(receiver)
+               : arguments.get_fitted_at(
+                     target, target_offset + 1, target_index - 1);
+  }
+
+ private:
+  const Language::Expression& receiver;
+  const Language::Model::Pack& arguments;
+};
+
+}  // namespace
 
 static auto select_type(const Abstract& candidate)
     -> Core::Option<const Ttx::Model::Type&> {
@@ -44,52 +187,10 @@ static auto select_result_type(const Abstract& result)
                      : select_type(resolved);
 }
 
-constexpr auto Language::Access::Call::ReceiverLayout::get_abstract(
-    Count index) const -> Core::Option<const Abstract&> {
-  BAIL_IF(index != 0);
-
-  return receiver;
-}
-
-auto Language::Access::Call::ReceiverLayout::fits_at(
-    const Layout& target,
-    Count target_offset) const -> Bool {
-  BAIL_IF(!has_target_segment(target, target_offset));
-
-  return target.get_abstract(target_offset)
-      .visit(
-          []() { return False; },
-          [&](const Abstract& parameter) {
-            return select_result_type(parameter).visit(
-                []() { return False; },
-                [&](const Ttx::Model::Type& type) {
-                  return receiver.fits(type);
-                });
-          });
-}
-
-auto Language::Access::Call::ReceiverLayout::get_fitted_at(
-    const Layout& target,
-    Count target_offset,
-    Count target_index) const -> Utility::Result<const Abstract&, Errors> {
-  if (target_index != 0) {
-    return Errors::IndexOutOfBounds;
-  }
-  if (!has_target_segment(target, target_offset)) {
-    return Errors::SizeMismatch;
-  }
-  if (!fits_at(target, target_offset)) {
-    return Errors::IncompatibleFit;
-  }
-
-  return receiver;
-}
-
 auto Language::Access::Call::parse(
     Memory::Allocator::Arena& domain,
-    Materializations& materializations,
+    Language::Monograph& source,
     Cursor& cursor,
-    const Abstract& source_context,
     Expression& receiver) -> Core::Option<Expression&> {
   auto transaction = cursor.branch();
   Token operation = transaction.require(
@@ -102,16 +203,16 @@ auto Language::Access::Call::parse(
       "Library invocation requires one Callable name after `->`."_view);
   BAIL_IF(!name_token);
 
-  auto arguments = ArgumentPack::parse(
-      domain, materializations, transaction, source_context);
+  Token arguments_opening = transaction.current();
+  auto arguments =
+      Language::Model::Parser::Pack::parse(domain, source, transaction, True);
   BAIL_IF(!arguments);
+  Token closing = transaction.peek(-1);
 
   auto receiver_anchor = receiver.get_anchor();
   if (!receiver_anchor) {
     transaction.create_expression_error(
-        Anchor::create(
-            name_token,
-            Span(operation, arguments->get_anchor().get_span().get_end())),
+        Anchor::create(name_token, Span(operation, closing)),
         "Library invocation requires an authored receiver Anchor."_view);
     return {};
   }
@@ -123,10 +224,10 @@ auto Language::Access::Call::parse(
       domain.proxy(name_token.caculate_text(transaction.get_source_text()));
   Anchor anchor = Anchor::create(
       name_token, receiver_anchor->get_span(),
-      arguments->get_anchor().get_span());
+      Span(arguments_opening, closing));
   Call& call = Expression::create_authored<Call>(
       domain, anchor, [&](Core::Option<Anchor> source) -> Call {
-        return Call(receiver, name_token, name, *arguments, source);
+        return Call(domain, receiver, name_token, name, *arguments, source);
       });
   cursor.join(transaction);
   return call;
@@ -135,14 +236,11 @@ auto Language::Access::Call::parse(
 auto Language::Access::Call::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& lexical_context,
-    Materializations& materializations,
     Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
   // Every access first completes its receiver. Static and Self are outcomes of
   // that result, not parser modes or retained role flags.
-  BAIL_IF(
-      !receiver.link(source, lexical_context, materializations, access_scope));
-  BAIL_IF(
-      !arguments.link(source, lexical_context, materializations, access_scope));
+  BAIL_IF(!receiver.link(source, lexical_context, access_scope));
+  BAIL_IF(!arguments.link(source, lexical_context, access_scope));
 
   const Abstract& receiver_result = receiver.get_result();
   auto static_type = receiver_result.select<Ttx::Model::Type>();
@@ -196,12 +294,14 @@ auto Language::Access::Call::link(
   }
 
   const Layout& parameters = selected->get_parameters();
-  Bool fits = static_type
-                  ? arguments.fits(parameters)
-                  : Bool(
-                        parameters.get_size() == arguments.get_size() + 1 &&
-                        arguments.fits_at(parameters, 1));
-  if (!fits) {
+  Bool arguments_fit = arguments.fits(parameters);
+  if (!static_type) {
+    if (!inputs) {
+      inputs = domain.construct<SelfInputs>(receiver, arguments);
+    }
+    arguments_fit = inputs->fits(parameters);
+  }
+  if (!arguments_fit) {
     source.report(
         get_anchor(),
         "Library invocation arguments do not fit the registered Callable."_view,
@@ -217,7 +317,16 @@ auto Language::Access::Call::link(
     return False;
   }
 
+  if (callable) {
+    // Re-linking may revalidate the surrounding graph, but this invocation's
+    // successfully published producer Layout remains the original object.
+    return True;
+  }
+
+  const Layout& retained_output =
+      domain.construct<CallLayout>(*this, *selected);
   callable = Reference<const Callable>(*selected);
+  output = retained_output;
 
   // Call deliberately does not delegate to Expression::link. Invocations with
   // empty or multiple result Layouts are complete even though scalar get_type()
@@ -233,27 +342,11 @@ auto Language::Access::Call::get_documentation() const -> const Documentation& {
       });
 }
 
-auto Language::Access::Call::get_inputs() const -> const Layout& {
-  // A receiver whose result is a Type participates in link selection but
-  // contributes no runtime value. Self remains the leading evaluated input
-  // without storing a separate receiver role fact.
-  if (receiver.get_result().is<Ttx::Model::Type>()) {
-    return arguments;
-  }
-
-  return self_inputs;
-}
-
-auto Language::Access::Call::get_results() const -> const Layout& {
-  return callable.visit(
-      []() -> const Layout& { return empty_results; },
-      [](const Reference<const Callable>& selected) -> const Layout& {
-        return selected.get().get_results();
-      });
-}
-
 auto Language::Access::Call::get_type() const -> const Abstract& {
-  const Layout& results = get_results();
+  if (!callable) {
+    return Invalid::get_invalid();
+  }
+  const Layout& results = callable->get().get_results();
   if (results.get_size() != 1) {
     return Invalid::get_invalid();
   }
@@ -267,6 +360,27 @@ auto Language::Access::Call::get_type() const -> const Abstract& {
               return type;
             });
       });
+}
+
+auto Language::Access::Call::get_layout() const -> const Layout& {
+  return *output;
+}
+
+auto Language::Access::Call::resolve() const -> const Abstract& {
+  if (!callable || !output) {
+    return Invalid::get_invalid();
+  }
+
+  return static_cast<const Language::Model::Pack&>(*this);
+}
+
+auto Language::Access::Call::finalize() -> void {
+  // Receiver and argument Pack are the complete evaluation inputs owned by
+  // this invocation. A Call retained directly by a Block is the effect itself;
+  // discarded result flow must not turn that effectful Call into a fold
+  // request.
+  receiver.finalize();
+  arguments.finalize();
 }
 
 auto Language::Access::Call::get_callable() const

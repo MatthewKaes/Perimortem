@@ -4,10 +4,10 @@
 #include "tetrodotoxin/library/language/initializer.hpp"
 
 #include "tetrodotoxin/library/language/access/address.hpp"
+#include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -36,25 +36,27 @@ auto Language::Initializer::is_next(const Ttx::Lexical::Cursor& cursor)
 
 auto Language::Initializer::parse(
     Memory::Allocator::Arena& domain,
-    Materializations& materializations,
-    Ttx::Lexical::Cursor& cursor,
-    const Abstract& source_context) -> Core::Option<Initializer&> {
+    Language::Monograph& source,
+    Ttx::Lexical::Cursor& cursor) -> Core::Option<Initializer&> {
   auto transaction = cursor.branch();
   BAIL_IF(!is_next(transaction));
 
   Ttx::Lexical::Token opening = transaction.consume();
-  ArgumentPack* arguments = nullptr;
+  Language::Model::Pack* arguments = nullptr;
+  Ttx::Lexical::Token closing = opening;
   if (transaction.matches(Ttx::Lexical::Code::Type::PackingStart)) {
-    auto parsed = ArgumentPack::parse(
-        domain, materializations, transaction, source_context);
+    auto parsed =
+        Language::Model::Parser::Pack::parse(domain, source, transaction, True);
     BAIL_IF(!parsed);
     arguments = &*parsed;
+    closing = transaction.peek(-1);
   } else {
-    arguments = &ArgumentPack::create_empty(
-        domain, Ttx::Lexical::Anchor::create(Ttx::Lexical::Span(opening)));
+    // The omitted form owns an independent empty Pack. Sharing one static
+    // empty Layout would also share its staged link and finalization lifetime
+    // across otherwise unrelated initializer transactions.
+    arguments = &Language::Model::Pack::create_empty(domain);
   }
 
-  Ttx::Lexical::Token closing = arguments->get_anchor().get_span().get_end();
   Ttx::Lexical::Anchor anchor = Ttx::Lexical::Anchor::create(
       opening, Ttx::Lexical::Span(opening, closing));
   Initializer& initializer = Expression::create_authored<Initializer>(
@@ -68,7 +70,7 @@ auto Language::Initializer::parse(
 
 Language::Initializer::Initializer(
     Memory::Allocator::Arena& domain,
-    ArgumentPack& arguments,
+    Language::Model::Pack& arguments,
     Core::Option<Ttx::Lexical::Anchor> anchor)
     : Expression(anchor), domain(domain), arguments(arguments) {}
 
@@ -80,13 +82,23 @@ auto Language::Initializer::get_type() const -> const Abstract& {
       });
 }
 
+auto Language::Initializer::finalize() -> void {
+  // The initializer owns the complete argument flow. Finalize its real Pack in
+  // source order before folding the initializer node itself; no second
+  // expression inventory exists beside the Pack's canonical Layout.
+  arguments.finalize();
+  Expression::finalize();
+}
+
 auto Language::Initializer::supplies(
     Core::Option<const Type&> access_scope,
     const Types::Object& target,
     const Field& field) const -> Bool {
-  if (arguments.is_named()) {
-    for (Count i = 0; i < arguments.get_size(); i++) {
-      if (arguments.get_label_spelling(i) == field.get_name()) {
+  const Layout& inputs = arguments.get_layout();
+  if (inputs.get_name(0)) {
+    for (Count i = 0; i < inputs.get_size(); i++) {
+      auto name = inputs.get_name(i);
+      if (name && *name == field.get_name()) {
         return True;
       }
     }
@@ -100,7 +112,7 @@ auto Language::Initializer::supplies(
       continue;
     }
 
-    if (input >= arguments.get_size()) {
+    if (input >= inputs.get_size()) {
       break;
     }
 
@@ -163,7 +175,6 @@ auto Language::Initializer::has_mandatory_cycle(
 auto Language::Initializer::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& lexical_context,
-    Materializations& materializations,
     Core::Option<const Type&> access_scope) -> Bool {
   auto receiver = lexical_context.select<Addressable>();
   if (!receiver) {
@@ -194,16 +205,17 @@ auto Language::Initializer::link(
     return False;
   }
 
-  BAIL_IF(
-      !arguments.link(source, lexical_context, materializations, access_scope));
+  BAIL_IF(!arguments.link(source, lexical_context, access_scope));
+
+  const Layout& inputs = arguments.get_layout();
 
   Memory::Managed::Vector<Reference<const Abstract>> fitted_fields(domain);
-  fitted_fields.reset(arguments.get_size());
+  fitted_fields.reset(inputs.get_size());
 
   // The receiving host selects the real accessible Field range. Named inputs
   // preserve their source order while the fitted target follows authored Field
   // order. Positional inputs select the same accessible range directly.
-  if (arguments.is_named()) {
+  if (inputs.get_name(0)) {
     for (const Reference<Abstract>& selected : target->get_addressables()) {
       auto selected_field =
           select_accessible_field(selected.get(), access_scope);
@@ -211,9 +223,10 @@ auto Language::Initializer::link(
         continue;
       }
       const Field& field = *selected_field;
-      for (Count input_index = 0; input_index < arguments.get_size();
+      for (Count input_index = 0; input_index < inputs.get_size();
            input_index++) {
-        if (arguments.get_label_spelling(input_index) == field.get_name()) {
+        auto name = inputs.get_name(input_index);
+        if (name && *name == field.get_name()) {
           fitted_fields.insert(field);
         }
       }
@@ -226,7 +239,7 @@ auto Language::Initializer::link(
       if (!selected_field) {
         continue;
       }
-      if (input >= arguments.get_size()) {
+      if (input >= inputs.get_size()) {
         break;
       }
       fitted_fields.insert(*selected_field);
@@ -234,14 +247,8 @@ auto Language::Initializer::link(
     }
   }
 
-  Bool fitted = False;
-  if (arguments.is_named()) {
-    Layouts::Named target_layout(fitted_fields.get_view());
-    fitted = arguments.fits(target_layout);
-  } else {
-    Layouts::Fluid target_layout(fitted_fields.get_view());
-    fitted = arguments.fits(target_layout);
-  }
+  Ttx::Model::Layouts::Fluid target_layout(fitted_fields.get_view());
+  Bool fitted = arguments.fits(target_layout);
   if (!fitted) {
     source.report(
         get_anchor(),

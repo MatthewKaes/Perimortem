@@ -29,6 +29,7 @@
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
+#include "tetrodotoxin/library/language/types/view.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "tetrodotoxin/package/repository/repository.hpp"
@@ -162,7 +163,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_statement_grammar) {
     EXPECT(errors.is_empty());
   }
 
-  static constexpr Static::Vector<View::Bytes, 9> rejected = {{
+  static constexpr Static::Vector<View::Bytes, 11> rejected = {{
     "Using Core;"_view,
     "use Core;"_view,
     "using core;"_view,
@@ -172,6 +173,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_statement_grammar) {
     "using Core Other;"_view,
     "using Core"_view,
     "using Core trailing;"_view,
+    "using Fixed[Unsigned_8, 4];"_view,
+    "using Core[];"_view,
   }};
 
   for (Count i = 0; i < rejected.get_size(); i++) {
@@ -441,8 +444,9 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_field_keeps_provider_identity) {
   const auto& consumer = static_cast<const Library::Language::Function&>(
       (*callable_iterator).get());
 
-  // Root linking resolves through the private Alias. The linked Identifier
-  // permanently retains the provider Addressable after Alias resolution.
+  // Root linking resolves the call argument through the private Alias. A
+  // completed Call proves that the real argument Pack fitted its selected
+  // Callable without exposing a second input inventory for inspection.
   auto body = consumer.get_body();
   ASSERT(body);
   auto statements = body->get_statements();
@@ -450,13 +454,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_field_keeps_provider_identity) {
   ASSERT(statements.get_data()[0].get().is<Library::Language::Access::Call>());
   const auto& call = static_cast<const Library::Language::Access::Call&>(
       statements.get_data()[0].get());
-  auto argument = call.get_inputs().get_abstract(0);
-  ASSERT(argument && argument->is<Library::Language::Identifier>());
-  auto selected = static_cast<const Library::Language::Identifier&>(*argument)
-                      .get_result()
-                      .select<Ttx::Model::Addressable>();
-  ASSERT(selected);
-  EXPECT(&*selected == &provided);
+  ASSERT(call.get_callable());
   EXPECT(&consumer.resolve_context("hidden"_view) == &Invalid::get_invalid());
 }
 
@@ -959,13 +957,14 @@ PERIMORTEM_UNIT_TEST(LibraryImports, retry_preserves_local_alias) {
 
 PERIMORTEM_UNIT_TEST(LibraryImports, private_type_alias_cannot_escape) {
   static constexpr View::Bytes source =
-      "using Core;\npublic publish : func = [Shared] -> Void {}"_view;
+      "using Core;\npublic publish : func = [.value : Shared] -> Void {}"_view;
   Allocator::Arena arena;
   ImportRegistry registry;
   Library::Dialect library_dialect;
   Package::Dialect package_dialect;
   auto provider = interpret_library(
-      arena, library_dialect, registry, "public Shared : struct {}"_view);
+      arena, library_dialect, registry,
+      "public Shared : struct { public value : Bool; }"_view);
   ASSERT(provider);
   ASSERT(provider->link());
   const Abstract& shared = provider->resolve_context("Shared"_view);
@@ -986,11 +985,13 @@ PERIMORTEM_UNIT_TEST(LibraryImports, private_type_alias_cannot_escape) {
   ASSERT((*callable_iterator).get().is<Library::Language::Function>());
   const auto& publish = static_cast<const Library::Language::Function&>(
       (*callable_iterator).get());
-  auto signature = publish.get_signature();
-  ASSERT(signature);
-  auto parameter_type = signature->get_parameter_type(0);
-  ASSERT(parameter_type);
-  EXPECT(&*parameter_type == &shared);
+  const Layout& parameters = publish.get_parameters();
+  ASSERT_EQ(parameters.get_size(), Count(1));
+  auto parameter = parameters.get_abstract(0);
+  ASSERT(parameter && parameter->is<Ttx::Model::Addressable>());
+  EXPECT(
+      &static_cast<const Ttx::Model::Addressable&>(*parameter).get_type() ==
+      &shared);
   EXPECT(&importer->resolve_context("Shared"_view) == &Invalid::get_invalid());
   ASSERT_NOT(importer->finalize());
   auto diagnostics = importer->get_diagnostics();
@@ -1070,6 +1071,47 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_alias_identity_is_retained) {
     }
   }
   EXPECT(retained);
+}
+
+PERIMORTEM_UNIT_TEST(
+    LibraryImports,
+    generic_alias_argument_uses_completed_imported_provider) {
+  static constexpr View::Bytes provider_source =
+      "public Shared : struct { public value : Bool; }\n"
+      "public Exported : alias = Shared;"_view;
+  Allocator::Arena arena;
+  ImportRegistry registry;
+  Library::Dialect library_dialect;
+  Package::Dialect package_dialect;
+  auto provider =
+      interpret_library(arena, library_dialect, registry, provider_source);
+  ASSERT(provider);
+
+  Package::Language::Monograph& target = create_package(arena, package_dialect);
+  ASSERT(target.bind_member("Provider"_view, *provider));
+  Package::Language::Monograph& context =
+      create_package_with_dependency(arena, package_dialect, "Core"_view);
+  ASSERT(bind_only_dependency(context, target));
+  auto importer = interpret_library(
+      arena, library_dialect, context,
+      "using Core;\npublic SharedView : alias = View[Exported];"_view);
+  ASSERT(importer);
+
+  // Provider-first closure completion settles Exported before the importer
+  // observes its opaque edge as one Generic argument. The importing Alias owns
+  // only its local DFS and materializes the canonical View identity.
+  ASSERT(importer->link());
+  const Abstract& provider_shared =
+      provider->get_source().resolve_context("Shared"_view);
+  ASSERT(provider_shared.is<Library::Language::Types::Structure>());
+  const Abstract& local =
+      importer->get_source().resolve_context("SharedView"_view);
+  ASSERT(local.is<Ttx::Model::Alias>());
+  auto view = local.resolve().select<Library::Language::Types::View>();
+  ASSERT(view);
+  EXPECT(&view->get_element_type() == &provider_shared);
+  EXPECT_EQ(importer->get_materializations().get_size(), Count(1));
+  ASSERT(importer->finalize());
 }
 
 static constexpr Count temporary_path_capacity = 160;
@@ -1268,14 +1310,22 @@ PERIMORTEM_UNIT_TEST(
       (*holder_field_iterator).get());
   EXPECT(&shared_field.get_type() == &shared);
   EXPECT(&mode_field.get_type() == &mode);
-  auto local_signature = local.get_signature();
-  ASSERT(local_signature);
-  ASSERT(local_signature->get_parameter_type(0));
-  ASSERT(local_signature->get_parameter_type(1));
-  ASSERT(local_signature->get_result_type(0));
-  EXPECT(&*local_signature->get_parameter_type(0) == &shared);
-  EXPECT(&*local_signature->get_parameter_type(1) == &mode);
-  EXPECT(&*local_signature->get_result_type(0) == &shared);
+  const Layout& local_parameters = local.get_parameters();
+  const Layout& local_results = local.get_results();
+  ASSERT_EQ(local_parameters.get_size(), Count(2));
+  ASSERT_EQ(local_results.get_size(), Count(1));
+  auto value_parameter = local_parameters.get_abstract(0);
+  auto mode_parameter = local_parameters.get_abstract(1);
+  ASSERT(value_parameter && value_parameter->is<Ttx::Model::Addressable>());
+  ASSERT(mode_parameter && mode_parameter->is<Ttx::Model::Addressable>());
+  EXPECT(
+      &static_cast<const Ttx::Model::Addressable&>(*value_parameter)
+           .get_type() == &shared);
+  EXPECT(
+      &static_cast<const Ttx::Model::Addressable&>(*mode_parameter)
+           .get_type() == &mode);
+  ASSERT(local_results.get_abstract(0));
+  EXPECT(&*local_results.get_abstract(0) == &shared);
   auto api_callables =
       api_source.get_callables(Tetrodotoxin::Language::Visibility::Private);
   auto api_callable_iterator = api_callables.begin();

@@ -23,7 +23,6 @@
 #include "tetrodotoxin/library/language/types/unsigned_64.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -53,9 +52,8 @@ class MultiplyMonograph : public Tetrodotoxin::Language::Monograph {
 
 static auto link_operation(
     Operation& operation,
-    MultiplyMonograph& source,
-    Materializations& materializations) -> Bool {
-  return operation.link(source, Invalid::get_invalid(), materializations);
+    Tetrodotoxin::Language::Monograph& source) -> Bool {
+  return operation.link(source, Invalid::get_invalid());
 }
 
 class MultiplyExpression : public Expression {
@@ -68,25 +66,21 @@ class MultiplyExpression : public Expression {
     return Documentation::get_empty();
   }
   auto get_type() const -> const Abstract& override { return type; }
-  auto get_inputs() const -> const Layout& override { return inputs; }
 
  private:
   View::Bytes name;
   const Abstract& type;
-  Ttx::Model::Layouts::Fluid inputs;
 };
 
 class MultiplyFoldInput : public Operation {
  public:
   MultiplyFoldInput(
       Allocator::Arena& domain,
-      Materializations& materializations,
       Expression& input,
       Constant& result,
       const Ttx::Model::Type& type)
       : Operation(
             domain,
-            materializations,
             Static::Vector<Reference<Expression>, 1>{{input}},
             {}),
         result(result),
@@ -99,13 +93,13 @@ class MultiplyFoldInput : public Operation {
   auto get_evaluations() const -> Count { return evaluations; }
 
  protected:
-  auto evaluate_constants(Allocator::Arena&, Materializations&)
+  auto evaluate_constants(Allocator::Arena&)
       -> Result<Option<Constant&>, Expression::Error> override {
     evaluations++;
     return result;
   }
 
-  auto select_type(Materializations&) const
+  auto select_type(Tetrodotoxin::Language::Monograph&) const
       -> Option<const Ttx::Model::Type&> override {
     return type;
   }
@@ -168,21 +162,9 @@ static auto get_real(const Expression& expression) -> Option<Real_64> {
       [](const Abstract&) -> Option<Real_64> { return {}; });
 }
 
-static auto input_is(
-    const Operations::Multiply& multiply,
-    Count index,
-    const Expression& expected) -> Bool {
-  return multiply.get_inputs().get_abstract(index).visit(
-      []() { return False; },
-      [&](const Abstract& expression) {
-        return &expression == &expected ? True : False;
-      });
-}
-
 PERIMORTEM_UNIT_TEST(LibraryMultiply, type_selection) {
   Allocator::Arena domain;
   MultiplyMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
   Types::Unsigned_64 unsigned_64;
@@ -201,30 +183,27 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, type_selection) {
   auto& truth = Constants::True::create_synthetic(domain, boolean);
   auto& bytes =
       Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
-  auto& exact = Operations::Multiply::create_synthetic(
-      domain, materializations, left, same);
-  auto& mixed_left = Operations::Multiply::create_synthetic(
-      domain, materializations, wide_constant, left);
-  auto& mismatch = Operations::Multiply::create_synthetic(
-      domain, materializations, left, other);
+  auto& exact = Operations::Multiply::create_synthetic(domain, left, same);
+  auto& mixed_left =
+      Operations::Multiply::create_synthetic(domain, wide_constant, left);
+  auto& mismatch = Operations::Multiply::create_synthetic(domain, left, other);
   auto& mixed_constants = Operations::Multiply::create_synthetic(
-      domain, materializations, wide_constant, other_constant);
-  auto& flags = Operations::Multiply::create_synthetic(
-      domain, materializations, truth, truth);
-  auto& byte_values = Operations::Multiply::create_synthetic(
-      domain, materializations, bytes, bytes);
-  auto& invalid = Operations::Multiply::create_synthetic(
-      domain, materializations, unresolved, same);
+      domain, wide_constant, other_constant);
+  auto& flags = Operations::Multiply::create_synthetic(domain, truth, truth);
+  auto& byte_values =
+      Operations::Multiply::create_synthetic(domain, bytes, bytes);
+  auto& invalid =
+      Operations::Multiply::create_synthetic(domain, unresolved, same);
 
   EXPECT(exact.get_type().resolve().is<Invalid>());
   EXPECT_NOT(exact.get_anchor());
-  EXPECT(link_operation(exact, source, materializations));
-  EXPECT(!link_operation(mixed_left, source, materializations));
-  EXPECT(!link_operation(mismatch, source, materializations));
-  EXPECT(!link_operation(mixed_constants, source, materializations));
-  EXPECT(!link_operation(flags, source, materializations));
-  EXPECT(!link_operation(byte_values, source, materializations));
-  EXPECT(!link_operation(invalid, source, materializations));
+  EXPECT(link_operation(exact, source));
+  EXPECT(!link_operation(mixed_left, source));
+  EXPECT(!link_operation(mismatch, source));
+  EXPECT(!link_operation(mixed_constants, source));
+  EXPECT(!link_operation(flags, source));
+  EXPECT(!link_operation(byte_values, source));
+  EXPECT(!link_operation(invalid, source));
 
   auto exact_result = selected(exact.fold());
 
@@ -236,14 +215,11 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, type_selection) {
   EXPECT(flags.get_type().resolve().is<Invalid>());
   EXPECT(byte_values.get_type().resolve().is<Invalid>());
   EXPECT(invalid.get_type().resolve().is<Invalid>());
-  EXPECT(input_is(exact, 0, left));
-  EXPECT(input_is(exact, 1, same));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryMultiply, checked_integer_widths) {
   Allocator::Arena domain;
   MultiplyMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 unsigned_type;
   Types::Signed_8 signed_type;
   auto& fifteen =
@@ -262,26 +238,25 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, checked_integer_widths) {
   auto& negative_one =
       Constants::Signed::create_synthetic(domain, signed_type, -1);
   auto& one = Constants::Signed::create_synthetic(domain, signed_type, 1);
-  auto& unsigned_success = Operations::Multiply::create_synthetic(
-      domain, materializations, fifteen, seventeen);
-  auto& unsigned_overflow = Operations::Multiply::create_synthetic(
-      domain, materializations, sixteen, sixteen);
-  auto& zero_product = Operations::Multiply::create_synthetic(
-      domain, materializations, zero, seventeen);
+  auto& unsigned_success =
+      Operations::Multiply::create_synthetic(domain, fifteen, seventeen);
+  auto& unsigned_overflow =
+      Operations::Multiply::create_synthetic(domain, sixteen, sixteen);
+  auto& zero_product =
+      Operations::Multiply::create_synthetic(domain, zero, seventeen);
   auto& signed_success = Operations::Multiply::create_synthetic(
-      domain, materializations, negative_twelve, negative_ten);
-  auto& endpoint = Operations::Multiply::create_synthetic(
-      domain, materializations, minimum, one);
-  auto& signed_overflow = Operations::Multiply::create_synthetic(
-      domain, materializations, minimum, negative_one);
+      domain, negative_twelve, negative_ten);
+  auto& endpoint = Operations::Multiply::create_synthetic(domain, minimum, one);
+  auto& signed_overflow =
+      Operations::Multiply::create_synthetic(domain, minimum, negative_one);
 
   EXPECT(unsigned_success.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(unsigned_success, source, materializations));
-  EXPECT(link_operation(unsigned_overflow, source, materializations));
-  EXPECT(link_operation(zero_product, source, materializations));
-  EXPECT(link_operation(signed_success, source, materializations));
-  EXPECT(link_operation(endpoint, source, materializations));
-  EXPECT(link_operation(signed_overflow, source, materializations));
+  EXPECT(link_operation(unsigned_success, source));
+  EXPECT(link_operation(unsigned_overflow, source));
+  EXPECT(link_operation(zero_product, source));
+  EXPECT(link_operation(signed_success, source));
+  EXPECT(link_operation(endpoint, source));
+  EXPECT(link_operation(signed_overflow, source));
 
   auto unsigned_value = selected(unsigned_success.fold());
   auto zero_value = selected(zero_product.fold());
@@ -314,7 +289,6 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, checked_integer_widths) {
 PERIMORTEM_UNIT_TEST(LibraryMultiply, ieee_real_domains) {
   Allocator::Arena domain;
   MultiplyMonograph source(domain);
-  Materializations materializations(domain);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
   auto& narrow_left =
@@ -330,20 +304,19 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, ieee_real_domains) {
   auto& nan =
       Constants::Real::create_synthetic(domain, real_64, __builtin_nan(""));
   auto& one = Constants::Real::create_synthetic(domain, real_64, Real_64(1.0));
-  auto& narrow = Operations::Multiply::create_synthetic(
-      domain, materializations, narrow_left, narrow_right);
-  auto& wide = Operations::Multiply::create_synthetic(
-      domain, materializations, wide_left, wide_right);
-  auto& infinite = Operations::Multiply::create_synthetic(
-      domain, materializations, infinity, one);
-  auto& unordered = Operations::Multiply::create_synthetic(
-      domain, materializations, nan, one);
+  auto& narrow =
+      Operations::Multiply::create_synthetic(domain, narrow_left, narrow_right);
+  auto& wide =
+      Operations::Multiply::create_synthetic(domain, wide_left, wide_right);
+  auto& infinite =
+      Operations::Multiply::create_synthetic(domain, infinity, one);
+  auto& unordered = Operations::Multiply::create_synthetic(domain, nan, one);
 
   EXPECT(narrow.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(narrow, source, materializations));
-  EXPECT(link_operation(wide, source, materializations));
-  EXPECT(link_operation(infinite, source, materializations));
-  EXPECT(link_operation(unordered, source, materializations));
+  EXPECT(link_operation(narrow, source));
+  EXPECT(link_operation(wide, source));
+  EXPECT(link_operation(infinite, source));
+  EXPECT(link_operation(unordered, source));
 
   auto narrow_value = selected(narrow.fold());
   auto wide_value = selected(wide.fold());
@@ -370,21 +343,19 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, ieee_real_domains) {
 PERIMORTEM_UNIT_TEST(LibraryMultiply, recursive_exact_is_idempotent) {
   Allocator::Arena domain;
   MultiplyMonograph source(domain);
-  Materializations materializations(domain);
   Types::Unsigned_8 selected_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
   auto& folded =
       Constants::Unsigned::create_synthetic(domain, selected_type, 4);
   auto& factor =
       Constants::Unsigned::create_synthetic(domain, selected_type, 3);
-  MultiplyFoldInput child(
-      domain, materializations, input, folded, selected_type);
-  auto& multiply = Operations::Multiply::create_synthetic(
-      domain, materializations, factor, child);
+  MultiplyFoldInput child(domain, input, folded, selected_type);
+  auto& multiply =
+      Operations::Multiply::create_synthetic(domain, factor, child);
 
   EXPECT(multiply.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(multiply, source, materializations));
-  EXPECT(link_operation(multiply, source, materializations));
+  EXPECT(link_operation(multiply, source));
+  EXPECT(link_operation(multiply, source));
   EXPECT(&multiply.get_type() == &selected_type);
 
   auto first = selected(multiply.fold());
@@ -396,7 +367,5 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, recursive_exact_is_idempotent) {
   EXPECT(first->is<Constants::Unsigned>());
   EXPECT(&first->get_type() == &selected_type);
   EXPECT(value && *value == 12);
-  EXPECT(input_is(multiply, 0, factor));
-  EXPECT(input_is(multiply, 1, child));
   EXPECT(child.get_evaluations() == 1);
 }

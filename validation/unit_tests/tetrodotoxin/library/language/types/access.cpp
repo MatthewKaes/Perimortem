@@ -26,7 +26,6 @@ static Harness LibraryAccess = {
 PERIMORTEM_UNIT_TEST(LibraryAccess, direct_contract) {
   Tetrodotoxin::Library::Language::Types::Unsigned_8 element;
   Types::Access access("Access[Unsigned_8]"_view, element);
-  auto arguments = access.get_arguments();
 
   EXPECT(access.is<Types::Access>());
   EXPECT(access.is<Ttx::Model::Type>());
@@ -34,8 +33,6 @@ PERIMORTEM_UNIT_TEST(LibraryAccess, direct_contract) {
   EXPECT_NOT(access.is<Generic>());
   EXPECT_TEXT(access.get_name(), "Access[Unsigned_8]"_view);
   EXPECT(&access.get_element_type() == &element);
-  ASSERT_EQ(arguments.get_size(), Count(1));
-  EXPECT(arguments.get_data()[0].find<const Ttx::Model::Type&>() == &element);
   EXPECT_NOT(access.get_documentation().is_empty());
   EXPECT(&access.resolve_context("member"_view) == &Invalid::get_invalid());
 }

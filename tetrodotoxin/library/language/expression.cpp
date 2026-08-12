@@ -10,10 +10,43 @@ using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
+constexpr Ttx::Model::Layouts::Fluid Language::Expression::empty_output;
+
+static auto select_output_type(const Abstract& candidate)
+    -> Option<const Type&> {
+  auto direct = candidate.select<Type>();
+  return direct ? direct : candidate.resolve().select<Type>();
+}
+
+auto Language::Expression::get_layout() const -> const Layout& {
+  auto type = select_output_type(get_type());
+  if (!type) {
+    // Layout observation is legal only after resolve() proves this Pack. An
+    // empty Layout is completed zero-value flow, so returning it here would
+    // silently turn an incomplete Expression into a valid empty producer.
+    __builtin_trap();
+  }
+
+  return type->get_layout().is_empty()
+             ? static_cast<const Layout&>(empty_output)
+             : static_cast<const Layout&>(output_layout);
+}
+
+auto Language::Expression::resolve() const -> const Abstract& {
+  if (!select_output_type(get_type())) {
+    return Invalid::get_invalid();
+  }
+
+  return static_cast<const Language::Model::Pack&>(*this);
+}
+
+auto Language::Expression::finalize() -> void {
+  fold();
+}
+
 auto Language::Expression::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract&,
-    Materializations&,
     Option<const Type&>) -> Bool {
   auto source_anchor = get_anchor();
 

@@ -34,9 +34,10 @@ runtime = Windowed {
 }
 ```
 
-`Windowed` requests a native window and graphics presentation. Its named Layout
-contains `title`, `icon`, `width`, `height`, and `resizable`. The leading dots
-name Layout entries rather than postfix Address access.
+`Windowed` requests a native window and graphics presentation. The authored
+named Pack supplies `title`, `icon`, `width`, `height`, and `resizable` and fits
+the Windowed profile Layout. The leading dots name produced Pack slots rather
+than postfix Address access.
 
 ### Terminal startup profile
 

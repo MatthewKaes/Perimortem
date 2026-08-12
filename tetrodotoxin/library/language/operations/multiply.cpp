@@ -66,13 +66,12 @@ TTX_DIRECT_BINARY_PARSE(
     Multiply,
     MulOp,
     "Multiply has a malformed right operand."_view,
-    "Use a complete scalar Expression after `*`."_view,
-    "Multiply requires authored operand Anchors."_view);
+    "Use a complete scalar Expression after `*`."_view);
 
 TTX_BINARY_OP(Multiply);
 
-auto Language::Operations::Multiply::select_type(Materializations&) const
-    -> Core::Option<const Type&> {
+auto Language::Operations::Multiply::select_type(
+    Tetrodotoxin::Language::Monograph&) const -> Core::Option<const Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right) {
@@ -83,8 +82,7 @@ auto Language::Operations::Multiply::select_type(Materializations&) const
 }
 
 auto Language::Operations::Multiply::evaluate_constants(
-    Memory::Allocator::Arena& domain,
-    Materializations&)
+    Memory::Allocator::Arena& domain)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   const Abstract& selected = get_type().resolve();
   auto authored_left = get_input(0);

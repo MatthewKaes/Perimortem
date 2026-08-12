@@ -7,26 +7,26 @@
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/language/monograph.hpp"
-#include "tetrodotoxin/library/language/type_reference.hpp"
+#include "tetrodotoxin/library/language/model/layout.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/layout.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// Signature owns the authored parameter and result syntax for one Function.
-// Its private slots retain unresolved Type routes and exact Anchors until link
-// can construct the real TTX Layouts without replacing the source
-// representation.
+class Function;
+
+// Signature owns exactly the authored parameter and result Layout models for
+// one Function. Each model retains its source descriptors and final semantic
+// entries, so Signature coordinates the two roles without copying slots,
+// names, Type routes, or resolved Layouts into another representation.
 class Signature {
  public:
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
+      Monograph& source,
       Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Signature&>;
 
   Signature(const Signature&) = delete;
@@ -38,82 +38,26 @@ class Signature {
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Model::Type& host) -> Bool;
 
-  auto get_parameters() const -> const Ttx::Concept::Layout&;
-  auto get_results() const -> const Ttx::Concept::Layout&;
-
-  auto resolve_parameter(Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract&;
-
-  constexpr auto get_anchor() const
-      -> const Perimortem::Core::Option<Ttx::Lexical::Anchor>& {
-    return anchor;
+  constexpr auto get_parameters() const -> const Model::Layout& {
+    return parameters;
   }
-
-  constexpr auto get_parameter_size() const -> Count {
-    return parameters.get_size();
-  }
-
-  constexpr auto get_result_size() const -> Count { return results.get_size(); }
-
-  auto get_parameter_name(Count index) const -> Perimortem::Core::View::Bytes;
-  auto get_result_name(Count index) const -> Perimortem::Core::View::Bytes;
-
-  auto get_parameter_type_reference(Count index) const
-      -> Perimortem::Core::Option<const TypeReference&>;
-  auto get_result_type_reference(Count index) const
-      -> Perimortem::Core::Option<const TypeReference&>;
+  constexpr auto get_results() const -> const Model::Layout& { return results; }
 
   auto declares_self() const -> Bool;
-
-  auto get_parameter_anchor(Count index) const
-      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
-  auto get_result_anchor(Count index) const
-      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
-
-  auto get_parameter_type_anchor(Count index) const
-      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
-  auto get_result_type_anchor(Count index) const
-      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
-
-  auto get_parameter_type(Count index) const
-      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
-  auto get_result_type(Count index) const
-      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
-
-  constexpr auto is_linked() const -> Bool { return linked; }
+  auto is_linked() const -> Bool;
 
  private:
-  class Slot {
-   public:
-    constexpr Slot(
-        Perimortem::Core::Option<TypeReference> type_reference,
-        Ttx::Lexical::Anchor anchor,
-        Perimortem::Core::View::Bytes name,
-        Perimortem::Core::Option<Ttx::Lexical::Anchor> name_anchor)
-        : type_reference(type_reference),
-          anchor(anchor),
-          name(name),
-          name_anchor(name_anchor) {}
+  friend class Function;
 
-    constexpr auto is_named() const -> Bool { return Bool(name_anchor); }
+  constexpr Signature(Model::Layout& parameters, Model::Layout& results)
+      : parameters(parameters), results(results) {}
 
-    Perimortem::Core::Option<TypeReference> type_reference;
-    Ttx::Lexical::Anchor anchor;
-    Perimortem::Core::View::Bytes name;
-    Perimortem::Core::Option<Ttx::Lexical::Anchor> name_anchor;
-    Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
-        type;
-  };
+  auto validate_publication(
+      Tetrodotoxin::Language::Monograph& source,
+      const Ttx::Model::Type& host) const -> Bool;
 
-  explicit Signature(Perimortem::Memory::Allocator::Arena& domain);
-
-  Perimortem::Memory::Allocator::Arena& domain;
-  Perimortem::Memory::Managed::Vector<Slot> parameters;
-  Perimortem::Memory::Managed::Vector<Slot> results;
-  Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor;
-  Perimortem::Core::Option<const Ttx::Concept::Layout&> parameter_layout;
-  Perimortem::Core::Option<const Ttx::Concept::Layout&> result_layout;
-  Bool linked = False;
+  Model::Layout& parameters;
+  Model::Layout& results;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

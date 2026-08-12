@@ -5,14 +5,14 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/value.hpp"
+#include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
 #include "tetrodotoxin/library/language/operations/and.hpp"
 #include "tetrodotoxin/library/language/operations/divide.hpp"
@@ -85,27 +85,33 @@ class ExpressionParserContext : public Abstract {
   ExpressionParserResource table;
 };
 
-class ExpressionParserMonograph : public Tetrodotoxin::Language::Monograph {
- public:
-  ExpressionParserMonograph(Allocator::Arena& domain)
-      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
-
-  auto get_name() const -> View::Bytes override { return "Expressions"_view; }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+static auto create_monograph(
+    Allocator::Arena& domain,
+    Library::Dialect& dialect,
+    Abstract& context) -> Option<Library::Language::Monograph&> {
+  Errors errors;
+  Tokenizer tokenizer(domain, ""_view, "expression-source.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  auto interpreted = dialect.interpret(
+      domain, cursor, Documentation::get_empty(), Anchor::create(Span()),
+      context);
+  if (!interpreted || !errors.is_empty() ||
+      !interpreted->is<Library::Language::Monograph>()) {
+    return {};
   }
-};
+
+  return static_cast<Library::Language::Monograph&>(*interpreted);
+}
 
 static auto parse_one(
     Allocator::Arena& domain,
-    Library::Language::Materializations& materializations,
-    const Abstract& context,
+    Library::Language::Monograph& monograph,
     View::Bytes source,
-    Errors& errors) -> Option<Library::Language::Expression&> {
+    Errors& errors) -> Option<Library::Language::Model::Pack&> {
   Tokenizer tokenizer(domain, source, "expression-parser.ttx"_view);
   Cursor cursor(tokenizer, errors);
-  auto parsed = Library::Language::Parser::Expression::parse(
-      domain, materializations, cursor, context);
+  auto parsed =
+      Library::Language::Parser::Expression::parse(domain, monograph, cursor);
   if (parsed && !cursor.matches(Code::Type::Terminal)) {
     return {};
   }
@@ -115,52 +121,36 @@ static auto parse_one(
 
 static auto rejects_grammar(
     Allocator::Arena& domain,
-    Library::Language::Materializations& materializations,
-    const Abstract& context,
+    Library::Language::Monograph& monograph,
     View::Bytes source) -> Bool {
   Errors errors;
   Tokenizer tokenizer(domain, source, "rejected-expression.ttx"_view);
   Cursor cursor(tokenizer, errors);
   Token start = cursor.current();
-  auto parsed = Library::Language::Parser::Expression::parse(
-      domain, materializations, cursor, context);
+  auto parsed =
+      Library::Language::Parser::Expression::parse(domain, monograph, cursor);
   Token current = cursor.current();
   return !parsed && current.get_offset() == start.get_offset() &&
          current.get_code() == start.get_code() && !errors.is_empty();
 }
 
 template <typename selected_type>
-static auto select(const Library::Language::Expression& expression)
-    -> Option<const selected_type&> {
-  return expression.visit<selected_type>(
+static auto select(const Abstract& abstract) -> Option<const selected_type&> {
+  return abstract.visit<selected_type>(
       [](const selected_type& selected) -> Option<const selected_type&> {
         return selected;
       },
       [](const Abstract&) -> Option<const selected_type&> { return {}; });
 }
 
-static auto get_input(
-    const Library::Language::Expression& expression,
-    Count index) -> Option<const Library::Language::Expression&> {
-  return expression.get_inputs().get_abstract(index).visit(
-      []() -> Option<const Library::Language::Expression&> { return {}; },
-      [](const Abstract& selected) {
-        return selected.visit<Library::Language::Expression>(
-            [](const Library::Language::Expression& input)
-                -> Option<const Library::Language::Expression&> {
-              return input;
-            },
-            [](const Abstract&)
-                -> Option<const Library::Language::Expression&> { return {}; });
-      });
-}
-
 static auto matches_anchor(
-    const Library::Language::Expression& expression,
+    const Abstract& abstract,
     View::Bytes source,
     View::Bytes focus,
     View::Bytes span) -> Bool {
-  return expression.get_anchor().visit(
+  auto expression = select<Library::Language::Expression>(abstract);
+  BAIL_IF(!expression);
+  return expression->get_anchor().visit(
       []() { return False; },
       [&](const Anchor& anchor) -> Bool {
         return anchor.get_token().caculate_text(source) == focus &&
@@ -170,57 +160,48 @@ static auto matches_anchor(
       });
 }
 
-template <typename root_type, typename left_type>
-static auto has_left_shape(const Library::Language::Expression& expression)
-    -> Bool {
-  auto root = select<root_type>(expression);
-  if (!root) {
-    return False;
-  }
-
-  auto left = get_input(*root, 0);
-  return left && left->template is<left_type>();
-}
-
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, original_operation_and_link) {
   static constexpr View::Bytes source = "2 * 3"_view;
   Allocator::Arena domain;
-  Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
-  ExpressionParserMonograph monograph(domain);
+  Library::Dialect dialect;
+  auto monograph = create_monograph(domain, dialect, context);
+  ASSERT(monograph);
   Errors errors;
-  auto parsed = parse_one(domain, materializations, context, source, errors);
+  auto parsed = parse_one(domain, *monograph, source, errors);
   ASSERT(parsed && parsed->is<Library::Language::Operations::Multiply>());
-  const Library::Language::Expression* identity = &*parsed;
+  auto expression = select<Library::Language::Expression>(*parsed);
+  ASSERT(expression);
+  const Library::Language::Expression* identity = &*expression;
 
   EXPECT(&parsed->get_type() == &Invalid::get_invalid());
   EXPECT(matches_anchor(*parsed, source, "*"_view, source));
-  ASSERT_EQ(parsed->get_inputs().get_size(), Count(2));
-  ASSERT(parsed->link(monograph, context, materializations));
-  ASSERT(parsed->link(monograph, context, materializations));
-  EXPECT(&*parsed == identity);
+  ASSERT(parsed->link(*monograph, context));
+  ASSERT(parsed->link(*monograph, context));
+  EXPECT(&*expression == identity);
   EXPECT(&parsed->get_type() == &Library::Dialect::get_unsigned_64());
-  EXPECT(monograph.get_diagnostics().is_empty());
+  EXPECT(monograph->get_diagnostics().is_empty());
   EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, type_mismatch_waits_for_link) {
   Allocator::Arena domain;
-  Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
-  ExpressionParserMonograph mismatch_graph(domain);
+  Library::Dialect dialect;
+  auto mismatch_graph = create_monograph(domain, dialect, context);
+  ASSERT(mismatch_graph);
   Errors mismatch_errors;
-  auto mismatch = parse_one(
-      domain, materializations, context, "2 * true"_view, mismatch_errors);
+  auto mismatch =
+      parse_one(domain, *mismatch_graph, "2 * true"_view, mismatch_errors);
   ASSERT(mismatch);
   EXPECT(mismatch->is<Library::Language::Operations::Multiply>());
-  EXPECT_NOT(mismatch->link(mismatch_graph, context, materializations));
-  ASSERT_EQ(mismatch_graph.get_diagnostics().get_size(), Count(1));
-  ASSERT(mismatch_graph.get_diagnostics().get_data()[0].get_anchor());
+  EXPECT_NOT(mismatch->link(*mismatch_graph, context));
+  ASSERT_EQ(mismatch_graph->get_diagnostics().get_size(), Count(1));
+  ASSERT(mismatch_graph->get_diagnostics().get_data()[0].get_anchor());
   EXPECT_TEXT(
-      mismatch_graph.get_diagnostics()
+      mismatch_graph->get_diagnostics()
           .get_data()[0]
           .get_anchor()
           ->get_span()
@@ -233,35 +214,37 @@ PERIMORTEM_UNIT_TEST(
     ExpressionParserTests,
     value_access_legality_waits_for_link) {
   Allocator::Arena domain;
-  Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
-  ExpressionParserMonograph bounds_graph(domain);
-  ExpressionParserMonograph real_graph(domain);
+  Library::Dialect dialect;
+  auto bounds_graph = create_monograph(domain, dialect, context);
+  auto real_graph = create_monograph(domain, dialect, context);
+  ASSERT(bounds_graph && real_graph);
   Errors bounds_errors;
   Errors real_errors;
-  auto bounds = parse_one(
-      domain, materializations, context, "\"abc\":[9]"_view, bounds_errors);
-  auto real = parse_one(
-      domain, materializations, context, "\"abc\":[1.0]"_view, real_errors);
+  auto bounds =
+      parse_one(domain, *bounds_graph, "\"abc\":[9]"_view, bounds_errors);
+  auto real = parse_one(domain, *real_graph, "\"abc\":[1.0]"_view, real_errors);
   ASSERT(bounds && real);
   EXPECT(bounds->is<Library::Language::Access::Value>());
   EXPECT(real->is<Library::Language::Access::Value>());
-  EXPECT(bounds->link(bounds_graph, context, materializations));
-  EXPECT_NOT(real->link(real_graph, context, materializations));
-  ASSERT_EQ(real_graph.get_diagnostics().get_size(), Count(1));
+  EXPECT(bounds->link(*bounds_graph, context));
+  EXPECT_NOT(real->link(*real_graph, context));
+  ASSERT_EQ(real_graph->get_diagnostics().get_size(), Count(1));
   EXPECT(bounds_errors.is_empty());
   EXPECT(real_errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, postfix_span) {
   Allocator::Arena domain;
-  Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
+  Library::Dialect dialect;
+  auto monograph = create_monograph(domain, dialect, context);
+  ASSERT(monograph);
   Errors slice_errors;
-  auto value = parse_one(
-      domain, materializations, context, "\"abcd\":[1, 2]"_view, slice_errors);
+  auto value =
+      parse_one(domain, *monograph, "\"abcd\":[1, 2]"_view, slice_errors);
   ASSERT(value);
   EXPECT(value->is<Library::Language::Access::Value>());
   EXPECT(matches_anchor(
@@ -271,15 +254,15 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, postfix_span) {
 
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, prefix_spans) {
   Allocator::Arena domain;
-  Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
+  Library::Dialect dialect;
+  auto monograph = create_monograph(domain, dialect, context);
+  ASSERT(monograph);
   Errors negate_errors;
   Errors not_errors;
-  auto negate =
-      parse_one(domain, materializations, context, "--8"_view, negate_errors);
-  auto logical =
-      parse_one(domain, materializations, context, "!true"_view, not_errors);
+  auto negate = parse_one(domain, *monograph, "--8"_view, negate_errors);
+  auto logical = parse_one(domain, *monograph, "!true"_view, not_errors);
   ASSERT(negate && logical);
   EXPECT(negate->is<Library::Language::Operations::Negate>());
   EXPECT(matches_anchor(*negate, "--8"_view, "-"_view, "--8"_view));
@@ -291,43 +274,30 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, prefix_spans) {
 
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
   Allocator::Arena domain;
-  Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
+  Library::Dialect dialect;
+  auto monograph = create_monograph(domain, dialect, context);
+  ASSERT(monograph);
   Errors errors;
 
-  auto divide =
-      parse_one(domain, materializations, context, "8 / 2"_view, errors);
-  auto add = parse_one(domain, materializations, context, "1 + 2"_view, errors);
-  auto logical_and =
-      parse_one(domain, materializations, context, "true & false"_view, errors);
-  auto logical_or =
-      parse_one(domain, materializations, context, "false | true"_view, errors);
-  auto equal =
-      parse_one(domain, materializations, context, "1 == 1"_view, errors);
-  auto greater =
-      parse_one(domain, materializations, context, "2 > 1"_view, errors);
-  auto greater_equal =
-      parse_one(domain, materializations, context, "2 >= 1"_view, errors);
-  auto less =
-      parse_one(domain, materializations, context, "1 < 2"_view, errors);
-  auto less_equal =
-      parse_one(domain, materializations, context, "1 <= 2"_view, errors);
-  auto modulo =
-      parse_one(domain, materializations, context, "8 % 3"_view, errors);
-  auto multiply =
-      parse_one(domain, materializations, context, "2 * 3"_view, errors);
-  auto negate = parse_one(domain, materializations, context, "-8"_view, errors);
-  auto logical =
-      parse_one(domain, materializations, context, "!true"_view, errors);
-  auto not_equal =
-      parse_one(domain, materializations, context, "1 != 2"_view, errors);
-  auto value =
-      parse_one(domain, materializations, context, "\"a\":[0]"_view, errors);
-  auto subtract =
-      parse_one(domain, materializations, context, "2 - 1"_view, errors);
-  auto range =
-      parse_one(domain, materializations, context, "1...4"_view, errors);
+  auto divide = parse_one(domain, *monograph, "8 / 2"_view, errors);
+  auto add = parse_one(domain, *monograph, "1 + 2"_view, errors);
+  auto logical_and = parse_one(domain, *monograph, "true & false"_view, errors);
+  auto logical_or = parse_one(domain, *monograph, "false | true"_view, errors);
+  auto equal = parse_one(domain, *monograph, "1 == 1"_view, errors);
+  auto greater = parse_one(domain, *monograph, "2 > 1"_view, errors);
+  auto greater_equal = parse_one(domain, *monograph, "2 >= 1"_view, errors);
+  auto less = parse_one(domain, *monograph, "1 < 2"_view, errors);
+  auto less_equal = parse_one(domain, *monograph, "1 <= 2"_view, errors);
+  auto modulo = parse_one(domain, *monograph, "8 % 3"_view, errors);
+  auto multiply = parse_one(domain, *monograph, "2 * 3"_view, errors);
+  auto negate = parse_one(domain, *monograph, "-8"_view, errors);
+  auto logical = parse_one(domain, *monograph, "!true"_view, errors);
+  auto not_equal = parse_one(domain, *monograph, "1 != 2"_view, errors);
+  auto value = parse_one(domain, *monograph, "\"a\":[0]"_view, errors);
+  auto subtract = parse_one(domain, *monograph, "2 - 1"_view, errors);
+  auto range = parse_one(domain, *monograph, "1...4"_view, errors);
 
   ASSERT(
       divide && add && logical_and && logical_or && equal && greater &&
@@ -359,94 +329,81 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
 
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, range_rhs_rollback) {
   Allocator::Arena domain;
-  Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
+  Library::Dialect dialect;
+  auto monograph = create_monograph(domain, dialect, context);
+  ASSERT(monograph);
 
-  EXPECT(rejects_grammar(domain, materializations, context, "1..."_view));
-  EXPECT(rejects_grammar(domain, materializations, context, "1...2...3"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "1..."_view));
+  EXPECT(rejects_grammar(domain, *monograph, "1...2...3"_view));
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, nested_precedence_spans) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, nested_precedence_evaluates) {
   static constexpr View::Bytes source = "2 * 3 - 4 == 2"_view;
   Allocator::Arena domain;
-  Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
+  Library::Dialect dialect;
+  auto monograph = create_monograph(domain, dialect, context);
+  ASSERT(monograph);
   Errors errors;
-  auto parsed = parse_one(domain, materializations, context, source, errors);
+  auto parsed = parse_one(domain, *monograph, source, errors);
   ASSERT(parsed);
   auto equal = select<Library::Language::Operations::Equal>(*parsed);
   ASSERT(equal);
-  auto subtract_expression = get_input(*equal, 0);
-  ASSERT(subtract_expression);
-  auto subtract =
-      select<Library::Language::Operations::Subtract>(*subtract_expression);
-  ASSERT(subtract);
-  auto multiply_expression = get_input(*subtract, 0);
-  ASSERT(multiply_expression);
-  auto multiply =
-      select<Library::Language::Operations::Multiply>(*multiply_expression);
-  ASSERT(multiply);
-
-  auto multiply_left = get_input(*multiply, 0);
-  auto multiply_right = get_input(*multiply, 1);
-  auto subtract_right = get_input(*subtract, 1);
-  auto equal_right = get_input(*equal, 1);
-  ASSERT(multiply_left && multiply_right && subtract_right && equal_right);
   EXPECT(matches_anchor(*equal, source, "=="_view, source));
-  EXPECT(matches_anchor(*subtract, source, "-"_view, "2 * 3 - 4"_view));
-  EXPECT(matches_anchor(*multiply, source, "*"_view, "2 * 3"_view));
-  EXPECT(matches_anchor(*multiply_left, source, "2"_view, "2"_view));
-  EXPECT(matches_anchor(*multiply_right, source, "3"_view, "3"_view));
-  EXPECT(matches_anchor(*subtract_right, source, "4"_view, "4"_view));
-  EXPECT(matches_anchor(*equal_right, source, "2"_view, "2"_view));
+  ASSERT(parsed->link(*monograph, context));
+  parsed->finalize();
+  auto folded = equal->get_folded();
+  ASSERT(folded);
+  EXPECT(folded->is<Library::Language::Constants::True>());
   EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, ordered_chain_links_after_grammar) {
   Allocator::Arena domain;
-  Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
-  ExpressionParserMonograph invalid_chain_graph(domain);
+  Library::Dialect dialect;
+  auto invalid_chain_graph = create_monograph(domain, dialect, context);
+  ASSERT(invalid_chain_graph);
   Errors errors;
   auto comparison_chain =
-      parse_one(domain, materializations, context, "1 < 2 <= 3"_view, errors);
+      parse_one(domain, *invalid_chain_graph, "1 < 2 <= 3"_view, errors);
   ASSERT(comparison_chain);
-  EXPECT((has_left_shape<
-          Library::Language::Operations::LessEqual,
-          Library::Language::Operations::Less>(*comparison_chain)));
-  EXPECT_NOT(
-      comparison_chain->link(invalid_chain_graph, context, materializations));
+  EXPECT(comparison_chain->is<Library::Language::Operations::LessEqual>());
+  EXPECT_NOT(comparison_chain->link(*invalid_chain_graph, context));
   EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, embedded_source_stays_operation) {
   Allocator::Arena domain;
-  Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
-  ExpressionParserMonograph monograph(domain);
+  Library::Dialect dialect;
+  auto monograph = create_monograph(domain, dialect, context);
+  ASSERT(monograph);
   Errors errors;
-  auto parsed = parse_one(
-      domain, materializations, context, "$[table]:[2, 4]"_view, errors);
+  auto parsed = parse_one(domain, *monograph, "$[table]:[2, 4]"_view, errors);
   ASSERT(parsed && parsed->is<Library::Language::Access::Value>());
   EXPECT(observations.table_seen);
   EXPECT(matches_anchor(
       *parsed, "$[table]:[2, 4]"_view, ":["_view, "$[table]:[2, 4]"_view));
-  EXPECT(parsed->link(monograph, context, materializations));
+  EXPECT(parsed->link(*monograph, context));
   EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(ExpressionParserTests, address_chain_and_anchor) {
   static constexpr View::Bytes source = "receiver.member.tail"_view;
   Allocator::Arena domain;
-  Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
+  Library::Dialect dialect;
+  auto monograph = create_monograph(domain, dialect, context);
+  ASSERT(monograph);
   Errors errors;
-  auto parsed = parse_one(domain, materializations, context, source, errors);
+  auto parsed = parse_one(domain, *monograph, source, errors);
   ASSERT(parsed);
   auto outer = select<Library::Language::Access::Address>(*parsed);
   ASSERT(outer);
@@ -462,23 +419,105 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, address_chain_and_anchor) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, malformed_grammar_is_atomic) {
+PERIMORTEM_UNIT_TEST(
+    ExpressionParserTests,
+    parenthesized_pack_preserves_real_value_flow) {
   Allocator::Arena domain;
-  Library::Language::Materializations materializations(domain);
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
+  Library::Dialect dialect;
+  auto monograph = create_monograph(domain, dialect, context);
+  ASSERT(monograph);
+  Errors errors;
 
-  EXPECT(rejects_grammar(domain, materializations, context, "2 *"_view));
-  EXPECT(rejects_grammar(domain, materializations, context, "2 +"_view));
-  EXPECT(rejects_grammar(domain, materializations, context, "true &"_view));
-  EXPECT(rejects_grammar(domain, materializations, context, "false |"_view));
-  EXPECT(rejects_grammar(domain, materializations, context, "!"_view));
-  EXPECT(rejects_grammar(domain, materializations, context, "receiver."_view));
-  EXPECT(rejects_grammar(domain, materializations, context, "\"abc\":[]"_view));
-  EXPECT(
-      rejects_grammar(domain, materializations, context, "\"abc\":[1,]"_view));
-  EXPECT(
-      rejects_grammar(domain, materializations, context, "\"abc\":[1, 1"_view));
-  EXPECT(
-      rejects_grammar(domain, materializations, context, "\"abc\":[1 1]"_view));
+  auto scalar = parse_one(domain, *monograph, "(2)"_view, errors);
+  auto empty = parse_one(domain, *monograph, "()"_view, errors);
+  auto positional = parse_one(domain, *monograph, "(1, true)"_view, errors);
+  auto named =
+      parse_one(domain, *monograph, "(.right = true, .left = 1)"_view, errors);
+  ASSERT(scalar && empty && positional && named);
+
+  // Parentheses do not manufacture a carrier around one positional value.
+  // Empty, multiple, and named values remain complete Pack owners instead of
+  // being laundered through an eager aggregate Type.
+  EXPECT(scalar->is<Library::Language::Expression>());
+  EXPECT_NOT(empty->is<Library::Language::Expression>());
+  EXPECT_NOT(positional->is<Library::Language::Expression>());
+  EXPECT_NOT(named->is<Library::Language::Expression>());
+  EXPECT(empty->resolve().is<Invalid>());
+  EXPECT(positional->resolve().is<Invalid>());
+  EXPECT(named->resolve().is<Invalid>());
+
+  ASSERT(scalar->link(*monograph, context));
+  ASSERT(empty->link(*monograph, context));
+  ASSERT(positional->link(*monograph, context));
+  ASSERT(named->link(*monograph, context));
+  EXPECT(&empty->resolve() == &*empty);
+  EXPECT(&positional->resolve() == &*positional);
+  EXPECT(&named->resolve() == &*named);
+  EXPECT_EQ(empty->get_layout().get_size(), Count(0));
+  EXPECT_EQ(positional->get_layout().get_size(), Count(2));
+  EXPECT_EQ(named->get_layout().get_size(), Count(2));
+  EXPECT(named->get_type().is<Invalid>());
+
+  auto positional_first = positional->get_layout().get_abstract(0);
+  auto positional_second = positional->get_layout().get_abstract(1);
+  auto named_first = named->get_layout().get_abstract(0);
+  auto named_second = named->get_layout().get_abstract(1);
+  ASSERT(positional_first && positional_second && named_first && named_second);
+  EXPECT(positional_first->is<Library::Language::Expression>());
+  EXPECT(positional_second->is<Library::Language::Expression>());
+  EXPECT(named_first->is<Library::Language::Expression>());
+  EXPECT(named_second->is<Library::Language::Expression>());
+  EXPECT_NOT(positional->get_layout().get_name(0));
+  ASSERT(named->get_layout().get_name(0));
+  ASSERT(named->get_layout().get_name(1));
+  EXPECT_TEXT(*named->get_layout().get_name(0), "right"_view);
+  EXPECT_TEXT(*named->get_layout().get_name(1), "left"_view);
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(
+    ExpressionParserTests,
+    scalar_operations_accept_only_expression_packs) {
+  static constexpr View::Bytes source = "(2) * (3)"_view;
+  Allocator::Arena domain;
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Library::Dialect dialect;
+  auto monograph = create_monograph(domain, dialect, context);
+  ASSERT(monograph);
+  Errors errors;
+
+  auto parsed = parse_one(domain, *monograph, source, errors);
+  ASSERT(parsed && parsed->is<Library::Language::Operations::Multiply>());
+  EXPECT(matches_anchor(*parsed, source, "*"_view, source));
+  EXPECT(parsed->link(*monograph, context));
+  EXPECT(errors.is_empty());
+
+  EXPECT(rejects_grammar(domain, *monograph, "(1, 2) + 3"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "1 + (2, 3)"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "(.x = 1) + 2"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "!(.x = true)"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "(1, 2):[0]"_view));
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, malformed_grammar_is_atomic) {
+  Allocator::Arena domain;
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Library::Dialect dialect;
+  auto monograph = create_monograph(domain, dialect, context);
+  ASSERT(monograph);
+
+  EXPECT(rejects_grammar(domain, *monograph, "2 *"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "2 +"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "true &"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "false |"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "!"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "receiver."_view));
+  EXPECT(rejects_grammar(domain, *monograph, "\"abc\":[]"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "\"abc\":[1,]"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "\"abc\":[1, 1"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "\"abc\":[1 1]"_view));
 }

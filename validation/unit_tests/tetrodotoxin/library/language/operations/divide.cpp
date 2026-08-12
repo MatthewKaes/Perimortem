@@ -25,7 +25,6 @@
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -56,9 +55,8 @@ class DivideMonograph : public Tetrodotoxin::Language::Monograph {
 
 static auto link_operation(
     Operation& operation,
-    DivideMonograph& source,
-    Materializations& materializations) -> Bool {
-  return operation.link(source, Invalid::get_invalid(), materializations);
+    Tetrodotoxin::Language::Monograph& source) -> Bool {
+  return operation.link(source, Invalid::get_invalid());
 }
 
 class DivideExpression : public Expression {
@@ -71,12 +69,10 @@ class DivideExpression : public Expression {
     return Documentation::get_empty();
   }
   auto get_type() const -> const Abstract& override { return type; }
-  auto get_inputs() const -> const Layout& override { return inputs; }
 
  private:
   View::Bytes name;
   const Abstract& type;
-  Ttx::Model::Layouts::Fluid inputs;
 };
 
 class DivideUnresolvedType : public Ttx::Model::Type {
@@ -97,14 +93,12 @@ class DivideFoldInput : public Operation {
  public:
   DivideFoldInput(
       Allocator::Arena& domain,
-      Materializations& materializations,
       Expression& input,
       Constant& result,
       const Ttx::Model::Type& type,
       Bool fails = False)
       : Operation(
             domain,
-            materializations,
             Static::Vector<Reference<Expression>, 1>{{input}},
             {}),
         result(result),
@@ -118,7 +112,7 @@ class DivideFoldInput : public Operation {
   auto get_evaluations() const -> Count { return evaluations; }
 
  protected:
-  auto evaluate_constants(Allocator::Arena&, Materializations&)
+  auto evaluate_constants(Allocator::Arena&)
       -> Result<Option<Constant&>, Expression::Error> override {
     evaluations++;
     if (fails) {
@@ -128,7 +122,7 @@ class DivideFoldInput : public Operation {
     return result;
   }
 
-  auto select_type(Materializations&) const
+  auto select_type(Tetrodotoxin::Language::Monograph&) const
       -> Option<const Ttx::Model::Type&> override {
     return type;
   }
@@ -184,21 +178,9 @@ static auto value_is(const Expression& expression, value_type expected)
   return value && *value == expected ? True : False;
 }
 
-static auto input_is(
-    const Operations::Divide& divide,
-    Count index,
-    const Expression& expected) -> Bool {
-  return divide.get_inputs().get_abstract(index).visit(
-      []() { return False; },
-      [&](const Abstract& expression) {
-        return &expression == &expected ? True : False;
-      });
-}
-
 PERIMORTEM_UNIT_TEST(LibraryDivide, type_selection) {
   Allocator::Arena domain;
   DivideMonograph source(domain);
-  Materializations materializations(domain);
   Types::Signed_8 signed_8;
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
@@ -220,33 +202,32 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, type_selection) {
   auto& truth = Constants::True::create_synthetic(domain, boolean);
   auto& bytes =
       Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
-  auto& signed_exact = Operations::Divide::create_synthetic(
-      domain, materializations, signed_left, signed_right);
+  auto& signed_exact =
+      Operations::Divide::create_synthetic(domain, signed_left, signed_right);
   auto& unsigned_exact = Operations::Divide::create_synthetic(
-      domain, materializations, unsigned_left, unsigned_right);
-  auto& real_exact = Operations::Divide::create_synthetic(
-      domain, materializations, real_left, real_right);
-  auto& mismatch = Operations::Divide::create_synthetic(
-      domain, materializations, unsigned_left, other);
-  auto& unresolved_pair = Operations::Divide::create_synthetic(
-      domain, materializations, unresolved, unresolved);
-  auto& invalid_pair = Operations::Divide::create_synthetic(
-      domain, materializations, invalid, invalid);
-  auto& flags = Operations::Divide::create_synthetic(
-      domain, materializations, truth, truth);
-  auto& byte_values = Operations::Divide::create_synthetic(
-      domain, materializations, bytes, bytes);
+      domain, unsigned_left, unsigned_right);
+  auto& real_exact =
+      Operations::Divide::create_synthetic(domain, real_left, real_right);
+  auto& mismatch =
+      Operations::Divide::create_synthetic(domain, unsigned_left, other);
+  auto& unresolved_pair =
+      Operations::Divide::create_synthetic(domain, unresolved, unresolved);
+  auto& invalid_pair =
+      Operations::Divide::create_synthetic(domain, invalid, invalid);
+  auto& flags = Operations::Divide::create_synthetic(domain, truth, truth);
+  auto& byte_values =
+      Operations::Divide::create_synthetic(domain, bytes, bytes);
 
   EXPECT(signed_exact.get_type().resolve().is<Invalid>());
   EXPECT_NOT(signed_exact.get_anchor());
-  EXPECT(link_operation(signed_exact, source, materializations));
-  EXPECT(link_operation(unsigned_exact, source, materializations));
-  EXPECT(link_operation(real_exact, source, materializations));
-  EXPECT(!link_operation(mismatch, source, materializations));
-  EXPECT(!link_operation(unresolved_pair, source, materializations));
-  EXPECT(!link_operation(invalid_pair, source, materializations));
-  EXPECT(!link_operation(flags, source, materializations));
-  EXPECT(!link_operation(byte_values, source, materializations));
+  EXPECT(link_operation(signed_exact, source));
+  EXPECT(link_operation(unsigned_exact, source));
+  EXPECT(link_operation(real_exact, source));
+  EXPECT(!link_operation(mismatch, source));
+  EXPECT(!link_operation(unresolved_pair, source));
+  EXPECT(!link_operation(invalid_pair, source));
+  EXPECT(!link_operation(flags, source));
+  EXPECT(!link_operation(byte_values, source));
 
   auto retained = selected(unsigned_exact.fold());
 
@@ -254,8 +235,6 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, type_selection) {
   EXPECT(&unsigned_exact.get_type() == &unsigned_8);
   EXPECT(&real_exact.get_type() == &real_32);
   EXPECT_NOT(retained);
-  EXPECT(input_is(unsigned_exact, 0, unsigned_left));
-  EXPECT(input_is(unsigned_exact, 1, unsigned_right));
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
   EXPECT(unresolved_pair.get_type().resolve().is<Invalid>());
   EXPECT(invalid_pair.get_type().resolve().is<Invalid>());
@@ -266,7 +245,6 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, type_selection) {
 PERIMORTEM_UNIT_TEST(LibraryDivide, integer_quotients) {
   Allocator::Arena domain;
   DivideMonograph source(domain);
-  Materializations materializations(domain);
   Types::Signed_8 signed_type;
   Types::Unsigned_8 unsigned_type;
   auto& positive = Constants::Signed::create_synthetic(domain, signed_type, 7);
@@ -295,47 +273,47 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, integer_quotients) {
       Constants::Unsigned::create_synthetic(domain, unsigned_type, 255);
   auto& invalid_unsigned =
       Constants::Unsigned::create_synthetic(domain, unsigned_type, 256);
-  auto& positive_result = Operations::Divide::create_synthetic(
-      domain, materializations, positive, two);
-  auto& negative_result = Operations::Divide::create_synthetic(
-      domain, materializations, negative, two);
-  auto& opposite_sign = Operations::Divide::create_synthetic(
-      domain, materializations, positive, negative_two);
-  auto& signed_zero_result = Operations::Divide::create_synthetic(
-      domain, materializations, signed_zero, signed_one);
-  auto& minimum_result = Operations::Divide::create_synthetic(
-      domain, materializations, minimum, signed_one);
-  auto& signed_zero_divisor = Operations::Divide::create_synthetic(
-      domain, materializations, positive, signed_zero);
-  auto& endpoint_overflow = Operations::Divide::create_synthetic(
-      domain, materializations, minimum, negative_one);
-  auto& signed_width = Operations::Divide::create_synthetic(
-      domain, materializations, invalid_signed, signed_one);
-  auto& unsigned_result = Operations::Divide::create_synthetic(
-      domain, materializations, seven, unsigned_two);
-  auto& unsigned_zero_result = Operations::Divide::create_synthetic(
-      domain, materializations, unsigned_zero, unsigned_one);
-  auto& unsigned_endpoint = Operations::Divide::create_synthetic(
-      domain, materializations, maximum, unsigned_one);
-  auto& unsigned_zero_divisor = Operations::Divide::create_synthetic(
-      domain, materializations, maximum, unsigned_zero);
+  auto& positive_result =
+      Operations::Divide::create_synthetic(domain, positive, two);
+  auto& negative_result =
+      Operations::Divide::create_synthetic(domain, negative, two);
+  auto& opposite_sign =
+      Operations::Divide::create_synthetic(domain, positive, negative_two);
+  auto& signed_zero_result =
+      Operations::Divide::create_synthetic(domain, signed_zero, signed_one);
+  auto& minimum_result =
+      Operations::Divide::create_synthetic(domain, minimum, signed_one);
+  auto& signed_zero_divisor =
+      Operations::Divide::create_synthetic(domain, positive, signed_zero);
+  auto& endpoint_overflow =
+      Operations::Divide::create_synthetic(domain, minimum, negative_one);
+  auto& signed_width =
+      Operations::Divide::create_synthetic(domain, invalid_signed, signed_one);
+  auto& unsigned_result =
+      Operations::Divide::create_synthetic(domain, seven, unsigned_two);
+  auto& unsigned_zero_result =
+      Operations::Divide::create_synthetic(domain, unsigned_zero, unsigned_one);
+  auto& unsigned_endpoint =
+      Operations::Divide::create_synthetic(domain, maximum, unsigned_one);
+  auto& unsigned_zero_divisor =
+      Operations::Divide::create_synthetic(domain, maximum, unsigned_zero);
   auto& unsigned_width = Operations::Divide::create_synthetic(
-      domain, materializations, invalid_unsigned, unsigned_one);
+      domain, invalid_unsigned, unsigned_one);
 
   EXPECT(positive_result.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(positive_result, source, materializations));
-  EXPECT(link_operation(negative_result, source, materializations));
-  EXPECT(link_operation(opposite_sign, source, materializations));
-  EXPECT(link_operation(signed_zero_result, source, materializations));
-  EXPECT(link_operation(minimum_result, source, materializations));
-  EXPECT(link_operation(signed_zero_divisor, source, materializations));
-  EXPECT(link_operation(endpoint_overflow, source, materializations));
-  EXPECT(link_operation(signed_width, source, materializations));
-  EXPECT(link_operation(unsigned_result, source, materializations));
-  EXPECT(link_operation(unsigned_zero_result, source, materializations));
-  EXPECT(link_operation(unsigned_endpoint, source, materializations));
-  EXPECT(link_operation(unsigned_zero_divisor, source, materializations));
-  EXPECT(link_operation(unsigned_width, source, materializations));
+  EXPECT(link_operation(positive_result, source));
+  EXPECT(link_operation(negative_result, source));
+  EXPECT(link_operation(opposite_sign, source));
+  EXPECT(link_operation(signed_zero_result, source));
+  EXPECT(link_operation(minimum_result, source));
+  EXPECT(link_operation(signed_zero_divisor, source));
+  EXPECT(link_operation(endpoint_overflow, source));
+  EXPECT(link_operation(signed_width, source));
+  EXPECT(link_operation(unsigned_result, source));
+  EXPECT(link_operation(unsigned_zero_result, source));
+  EXPECT(link_operation(unsigned_endpoint, source));
+  EXPECT(link_operation(unsigned_zero_divisor, source));
+  EXPECT(link_operation(unsigned_width, source));
 
   auto positive_fold = selected(positive_result.fold());
   auto negative_fold = selected(negative_result.fold());
@@ -381,7 +359,6 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, integer_quotients) {
 PERIMORTEM_UNIT_TEST(LibraryDivide, ieee_domains) {
   Allocator::Arena domain;
   DivideMonograph source(domain);
-  Materializations materializations(domain);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
   auto& narrow_seven = Constants::Real::create_synthetic(domain, real_32, 7.0);
@@ -394,32 +371,32 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, ieee_domains) {
   auto& wide_zero = Constants::Real::create_synthetic(domain, real_64, 0.0);
   auto& wide_negative_zero =
       Constants::Real::create_synthetic(domain, real_64, -0.0);
-  auto& narrow_finite = Operations::Divide::create_synthetic(
-      domain, materializations, narrow_seven, narrow_two);
+  auto& narrow_finite =
+      Operations::Divide::create_synthetic(domain, narrow_seven, narrow_two);
   auto& narrow_signed_zero = Operations::Divide::create_synthetic(
-      domain, materializations, narrow_negative_zero, narrow_two);
+      domain, narrow_negative_zero, narrow_two);
   auto& narrow_infinity = Operations::Divide::create_synthetic(
-      domain, materializations, narrow_seven, narrow_negative_zero);
-  auto& narrow_nan = Operations::Divide::create_synthetic(
-      domain, materializations, narrow_zero, narrow_zero);
-  auto& wide_finite = Operations::Divide::create_synthetic(
-      domain, materializations, wide_seven, wide_two);
+      domain, narrow_seven, narrow_negative_zero);
+  auto& narrow_nan =
+      Operations::Divide::create_synthetic(domain, narrow_zero, narrow_zero);
+  auto& wide_finite =
+      Operations::Divide::create_synthetic(domain, wide_seven, wide_two);
   auto& wide_signed_zero = Operations::Divide::create_synthetic(
-      domain, materializations, wide_negative_zero, wide_two);
+      domain, wide_negative_zero, wide_two);
   auto& wide_infinity = Operations::Divide::create_synthetic(
-      domain, materializations, wide_seven, wide_negative_zero);
-  auto& wide_nan = Operations::Divide::create_synthetic(
-      domain, materializations, wide_zero, wide_zero);
+      domain, wide_seven, wide_negative_zero);
+  auto& wide_nan =
+      Operations::Divide::create_synthetic(domain, wide_zero, wide_zero);
 
   EXPECT(narrow_finite.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(narrow_finite, source, materializations));
-  EXPECT(link_operation(narrow_signed_zero, source, materializations));
-  EXPECT(link_operation(narrow_infinity, source, materializations));
-  EXPECT(link_operation(narrow_nan, source, materializations));
-  EXPECT(link_operation(wide_finite, source, materializations));
-  EXPECT(link_operation(wide_signed_zero, source, materializations));
-  EXPECT(link_operation(wide_infinity, source, materializations));
-  EXPECT(link_operation(wide_nan, source, materializations));
+  EXPECT(link_operation(narrow_finite, source));
+  EXPECT(link_operation(narrow_signed_zero, source));
+  EXPECT(link_operation(narrow_infinity, source));
+  EXPECT(link_operation(narrow_nan, source));
+  EXPECT(link_operation(wide_finite, source));
+  EXPECT(link_operation(wide_signed_zero, source));
+  EXPECT(link_operation(wide_infinity, source));
+  EXPECT(link_operation(wide_nan, source));
 
   auto narrow_value = selected(narrow_finite.fold());
   auto narrow_zero_value = selected(narrow_signed_zero.fold());
@@ -465,26 +442,32 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, ieee_domains) {
 
 PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   Allocator::Arena domain;
-  DivideMonograph source(domain);
-  Materializations materializations(domain);
+  DivideMonograph context(domain);
+  Tetrodotoxin::Library::Dialect dialect;
+  Errors host_errors;
+  Tokenizer host_tokens(domain, {}, "divide-source.ttx"_view);
+  Cursor host_cursor(host_tokens, host_errors);
+  auto retained_source = dialect.interpret(
+      domain, host_cursor, Documentation::get_empty(), Anchor::create(Span()),
+      context);
+  ASSERT(retained_source && retained_source->is<Monograph>());
+  auto& source = static_cast<Monograph&>(*retained_source);
   Types::Unsigned_8 selected_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
   auto& folded =
       Constants::Unsigned::create_synthetic(domain, selected_type, 12);
   auto& divisor =
       Constants::Unsigned::create_synthetic(domain, selected_type, 3);
-  DivideFoldInput child(domain, materializations, input, folded, selected_type);
-  DivideFoldInput failing(
-      domain, materializations, input, folded, selected_type, True);
-  auto& divide = Operations::Divide::create_synthetic(
-      domain, materializations, child, divisor);
-  auto& failure = Operations::Divide::create_synthetic(
-      domain, materializations, failing, divisor);
+  DivideFoldInput child(domain, input, folded, selected_type);
+  DivideFoldInput failing(domain, input, folded, selected_type, True);
+  auto& divide = Operations::Divide::create_synthetic(domain, child, divisor);
+  auto& failure =
+      Operations::Divide::create_synthetic(domain, failing, divisor);
 
   EXPECT(divide.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(divide, source, materializations));
-  EXPECT(link_operation(divide, source, materializations));
-  EXPECT(link_operation(failure, source, materializations));
+  EXPECT(link_operation(divide, source));
+  EXPECT(link_operation(divide, source));
+  EXPECT(link_operation(failure, source));
 
   auto first = selected(divide.fold());
   auto second = selected(divide.fold());
@@ -492,7 +475,6 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   ASSERT(first && second);
   EXPECT(&*first == &*second);
   EXPECT(value_is<Constants::Unsigned>(*first, Unsigned_64(4)));
-  EXPECT(input_is(divide, 0, child));
   EXPECT(child.get_evaluations() == 1);
   EXPECT(reports(
       failure.fold(), Expression::Error::Type::InvalidConstant, failing));
@@ -507,8 +489,7 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   auto& success_left = Constants::Unsigned::create_authored(
       domain, parser_type, 24, success_left_anchor);
   auto parsed = Operations::Divide::parse(
-      domain, materializations, success_cursor, Invalid::get_invalid(),
-      success_left);
+      domain, source, success_cursor, success_left, Span(success_left_token));
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "24 / true"_view, "divide.ttx"_view);
   Cursor failure_cursor(failure_tokens, failure_errors);
@@ -518,15 +499,14 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   auto& failure_left = Constants::Unsigned::create_authored(
       domain, parser_type, 24, failure_left_anchor);
   auto rejected = Operations::Divide::parse(
-      domain, materializations, failure_cursor, Invalid::get_invalid(),
-      failure_left);
+      domain, source, failure_cursor, failure_left, Span(failure_left_token));
 
   ASSERT(parsed);
   EXPECT(parsed->is<Operations::Divide>());
   EXPECT(parsed->get_type().resolve().is<Invalid>());
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
-  EXPECT(parsed->link(source, Invalid::get_invalid(), materializations));
+  EXPECT(parsed->link(source, Invalid::get_invalid()));
 
   auto parsed_fold = parsed->visit<Operation>(
       [&](Operation& operation) { return selected(operation.fold()); },
@@ -544,7 +524,7 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   EXPECT(rejected->get_type().resolve().is<Invalid>());
   EXPECT(failure_cursor.matches(Code::Type::Terminal));
   EXPECT(failure_errors.is_empty());
-  EXPECT_NOT(rejected->link(source, Invalid::get_invalid(), materializations));
+  EXPECT_NOT(rejected->link(source, Invalid::get_invalid()));
   EXPECT(rejected->get_type().resolve().is<Invalid>());
 
   auto diagnostics = source.get_diagnostics();

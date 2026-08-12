@@ -166,12 +166,12 @@ shaderPostfixExpression
     ;
 
 shaderStaticInvocation
-    : typeReference CALL addressableName shaderArgumentPack
+    : typeReference CALL addressableName shaderParenthesizedPack
     ;
 
 shaderPostfixSuffix
     : ADDRESS addressableName
-    | CALL addressableName shaderArgumentPack
+    | CALL addressableName shaderParenthesizedPack
     | SWIZZLE shaderSwizzleSelection? BRACKET_END
     ;
 
@@ -184,26 +184,28 @@ shaderPrimaryExpression
     | addressableName
     | SELF
     | shaderConstructionExpression
-    | shaderArgumentPack
+    | shaderParenthesizedPack
     ;
 
 shaderConstructionExpression
-    : typeReference shaderArgumentPack
+    : typeReference shaderParenthesizedPack
     ;
 
-shaderArgumentPack
+// Shader retains its own expression grammar while following the shared Pack
+// distinction: parentheses supply values, and a named value uses `=`.
+shaderParenthesizedPack
     : PACKING_START
-      (shaderNamedArguments | shaderExpressionList)? PACK? PACKING_END
+      (shaderNamedPackEntries | shaderPositionalPackEntries)? PACK? PACKING_END
     ;
 
-shaderNamedArguments
-    : shaderNamedArgument (PACK shaderNamedArgument)*
+shaderNamedPackEntries
+    : shaderNamedPackEntry (PACK shaderNamedPackEntry)*
     ;
 
-shaderNamedArgument
+shaderNamedPackEntry
     : ADDRESS addressableName ASSIGN shaderExpression
     ;
 
-shaderExpressionList
+shaderPositionalPackEntries
     : shaderExpression (PACK shaderExpression)*
     ;

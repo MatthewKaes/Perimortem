@@ -13,7 +13,6 @@
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
@@ -31,14 +30,14 @@ static Harness CallTests = {
   .name = "Tetrodotoxin::Library::Language::Access::Call"_view,
 };
 
-static auto find_return(const Language::Function& function)
-    -> Option<const Language::Return&> {
+static auto find_call(const Language::Function& function)
+    -> Option<const Language::Access::Call&> {
   auto body = function.get_body();
   BAIL_IF(!body);
   for (const Reference<Abstract>& statement : body->get_statements()) {
-    auto returned = statement.get().select<Language::Return>();
-    if (returned) {
-      return *returned;
+    auto call = statement.get().select<Language::Access::Call>();
+    if (call) {
+      return *call;
     }
   }
 
@@ -71,7 +70,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
   return &workspace.resolve_context("CallTest"_view) == &Invalid::get_invalid();
 }
 
-static auto rejects_registration(View::Bytes source) -> Bool {
+static auto rejects_interpretation(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -116,15 +115,16 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
       "// Call selection test.\n"
       "dialect : Library;\n"
       "public Packet : struct {\n"
-      "  private positional := Packet -> choose(5, true);\n"
-      "  private named := Packet -> choose(.flag = true, .number = 5);\n"
+      "  private positional := Packet -> choose(5, true,);\n"
+      "  private named := Packet -> choose(.flag = true, .number = 5,);\n"
       "  public invoke : func = [self] -> Bool {\n"
-      "    return self -> choose();\n"
+      "    self -> choose(.flag = true,);\n"
+      "    return true;\n"
       "  }\n"
       "  public choose : func = [\n"
-      "    .number : Unsigned_64, .flag : Bool\n"
+      "    .number : Unsigned_64, .flag : Bool,\n"
       "  ] -> Unsigned_64 { return number; }\n"
-      "  public choose : func = [self] -> Bool { return true; }\n"
+      "  public choose : func = [self, .flag : Bool] -> Bool { return flag; }\n"
       "}\n"
       "public First : struct {\n"
       "  private seed : Later;\n"
@@ -158,31 +158,22 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
   ASSERT(positional->get_initializer()->is<Language::Access::Call>());
   ASSERT(named->get_initializer());
   ASSERT(named->get_initializer()->is<Language::Access::Call>());
-  auto invoke_return = find_return(*invoke);
-  ASSERT(invoke_return && invoke_return->get_expression());
-  ASSERT(invoke_return->get_expression()->is<Language::Access::Call>());
+  auto self_call = find_call(*invoke);
+  ASSERT(self_call);
 
   const auto& positional_call = static_cast<const Language::Access::Call&>(
       *positional->get_initializer());
-  const auto& self_call = static_cast<const Language::Access::Call&>(
-      *invoke_return->get_expression());
+  const auto& named_call =
+      static_cast<const Language::Access::Call&>(*named->get_initializer());
   ASSERT(positional_call.get_callable());
-  ASSERT(self_call.get_callable());
+  ASSERT(named_call.get_callable());
+  ASSERT(self_call->get_callable());
   EXPECT_NOT(positional_call.get_callable()->is_type_bound());
-  EXPECT(self_call.get_callable()->is_type_bound(packet));
-  const Layout& self_parameters = self_call.get_callable()->get_parameters();
-  EXPECT(self_call.get_inputs().fits(self_parameters));
-  EXPECT(self_call.get_inputs()
-             .get_fitted(self_parameters, 0)
-             .visit(
-                 [&](const Abstract& fitted) {
-                   return Bool(&fitted == &self_call.get_receiver());
-                 },
-                 [](Layout::Errors) { return False; }));
+  EXPECT(self_call->get_callable()->is_type_bound(packet));
   EXPECT(&positional->get_type() == &Dialect::get_unsigned_64());
   EXPECT(&named->get_type() == &Dialect::get_unsigned_64());
   EXPECT(&positional_call.get_type() == &Dialect::get_unsigned_64());
-  EXPECT(&self_call.get_type() == &Dialect::get_bool());
+  EXPECT(&self_call->get_type() == &Dialect::get_bool());
 
   const Abstract& first_identity =
       monograph->get_source().resolve_context("First"_view);
@@ -238,8 +229,18 @@ PERIMORTEM_UNIT_TEST(CallTests, duplicate_role_is_rejected_at_registration) {
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
-    EXPECT(rejects_registration(sources[i]));
+    EXPECT(rejects_interpretation(sources[i]));
   }
+}
+
+PERIMORTEM_UNIT_TEST(CallTests, argument_pack_requires_parentheses) {
+  EXPECT(rejects_interpretation(
+      "// Missing Call argument Pack.\n"
+      "dialect : Library;\n"
+      "public Target : struct {\n"
+      "  public use : func = [] -> Bool { return true; }\n"
+      "}\n"
+      "private invalid := Target -> use;"_view));
 }
 
 PERIMORTEM_UNIT_TEST(CallTests, definition_host_grants_private_authority) {
@@ -343,18 +344,30 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_single_result_chaining) {
       statements.get_data()[3].get());
   const auto& self_one = static_cast<const Language::Access::Call&>(
       statements.get_data()[4].get());
-  EXPECT(none.get_results().is_empty());
+  EXPECT(none.get_layout().is_empty());
   EXPECT(&none.get_type() == &Invalid::get_invalid());
-  EXPECT_EQ(one.get_results().get_size(), Count(1));
+  EXPECT_EQ(one.get_layout().get_size(), Count(1));
   EXPECT(&one.get_type() == &Dialect::get_bool());
-  EXPECT_EQ(many.get_results().get_size(), Count(2));
+  EXPECT_EQ(many.get_layout().get_size(), Count(2));
   EXPECT(&many.get_type() == &Invalid::get_invalid());
-  EXPECT(self_none.get_results().is_empty());
-  EXPECT_EQ(self_one.get_results().get_size(), Count(1));
+  EXPECT(self_none.get_layout().is_empty());
+  EXPECT_EQ(self_one.get_layout().get_size(), Count(1));
   ASSERT(self_none.get_callable());
   ASSERT(self_one.get_callable());
   EXPECT(self_none.get_callable()->is_type_bound());
   EXPECT(self_one.get_callable()->is_type_bound());
+
+  ASSERT(many.get_callable());
+  const Layout& many_results = many.get_callable()->get_results();
+  EXPECT(many.get_layout().fits(many_results));
+  for (Count index = 0; index < many.get_layout().get_size(); index++) {
+    EXPECT(
+        many.get_layout()
+            .get_fitted(many_results, index)
+            .visit(
+                [&](const Abstract& fitted) { return Bool(&fitted == &many); },
+                [](Layout::Errors) { return False; }));
+  }
 
   auto selected = find_field(monograph->get_source(), "selected"_view);
   ASSERT(selected);

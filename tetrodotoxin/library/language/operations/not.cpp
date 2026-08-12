@@ -40,13 +40,12 @@ static auto make_result(Memory::Allocator::Arena& domain, Bool value)
 TTX_DIRECT_UNARY_PARSE(
     Not,
     "Not has a malformed operand."_view,
-    "Use a complete Expression after unary `!`."_view,
-    "Not requires an authored operand Anchor."_view);
+    "Use a complete Expression after unary `!`."_view);
 
 TTX_UNARY_OP(Not);
 
-auto Language::Operations::Not::select_type(Materializations&) const
-    -> Core::Option<const Type&> {
+auto Language::Operations::Not::select_type(
+    Tetrodotoxin::Language::Monograph&) const -> Core::Option<const Type&> {
   auto operand = get_input(0);
   if (!operand) {
     return {};
@@ -56,8 +55,7 @@ auto Language::Operations::Not::select_type(Materializations&) const
 }
 
 auto Language::Operations::Not::evaluate_constants(
-    Memory::Allocator::Arena& domain,
-    Materializations&)
+    Memory::Allocator::Arena& domain)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   auto authored_operand = get_input(0);
   auto operand = get_folded_input(0);

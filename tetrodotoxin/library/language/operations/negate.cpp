@@ -61,13 +61,12 @@ static auto signed_inverse(
 TTX_DIRECT_UNARY_PARSE(
     Negate,
     "Negate has a malformed operand."_view,
-    "Use a complete Expression after unary `-`."_view,
-    "Negate requires an authored operand Anchor."_view);
+    "Use a complete Expression after unary `-`."_view);
 
 TTX_UNARY_OP(Negate);
 
-auto Language::Operations::Negate::select_type(Materializations&) const
-    -> Core::Option<const Type&> {
+auto Language::Operations::Negate::select_type(
+    Tetrodotoxin::Language::Monograph&) const -> Core::Option<const Type&> {
   auto operand = get_input(0);
   if (!operand) {
     return {};
@@ -77,8 +76,7 @@ auto Language::Operations::Negate::select_type(Materializations&) const
 }
 
 auto Language::Operations::Negate::evaluate_constants(
-    Memory::Allocator::Arena& domain,
-    Materializations&)
+    Memory::Allocator::Arena& domain)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   const Abstract& selected = get_type().resolve();
   auto authored_operand = get_input(0);

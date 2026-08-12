@@ -8,11 +8,11 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
-#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/authored.hpp"
-#include "tetrodotoxin/library/language/expression.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
+#include "tetrodotoxin/library/language/writability.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -23,23 +23,18 @@ namespace Tetrodotoxin::Library::Language {
 // Field is the exact Addressable binding retained by a Library Composite. Its
 // authored Visibility decides readable lookup while Writability records who
 // may mutate the reached value without widening the shared TTX Addressable
-// contract.
+// contract. An initializer remains its real Pack: declared Fields receive the
+// complete flow through Layout fitting, while inference accepts only one
+// scalar output and retains that exact Type.
 class Field : public Authored<Ttx::Model::Addressable> {
   using Base = Authored<Ttx::Model::Addressable>;
-
- public:
-  enum class Writability : Unsigned_8 {
-    Full,
-    Internal,
-    Init,
-  };
 
  private:
   constexpr Field(
       Tetrodotoxin::Language::Definition& definition,
       Writability writability,
       Perimortem::Core::Option<TypeReference> type_reference,
-      Perimortem::Core::Option<Expression&> initializer)
+      Perimortem::Core::Option<Model::Pack&> initializer)
       : Base(definition),
         writability(writability),
         type_reference(type_reference),
@@ -51,7 +46,7 @@ class Field : public Authored<Ttx::Model::Addressable> {
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,
-      Materializations& materializations,
+      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Language::Definition& definition)
       -> Perimortem::Core::Option<Field&>;
@@ -63,12 +58,15 @@ class Field : public Authored<Ttx::Model::Addressable> {
   auto operator=(const Field&) -> Field& = delete;
   auto operator=(Field&&) -> Field& = delete;
 
-  auto link_initializer(
-      Tetrodotoxin::Language::Monograph& source,
-      Materializations& materializations) -> Bool;
+  auto link_initializer(Tetrodotoxin::Language::Monograph& source) -> Bool;
 
   auto validate_publication(Tetrodotoxin::Language::Monograph& source) const
       -> Bool;
+
+  // Finalization visits the real initializer Pack after linking has frozen
+  // its output Layout. Field remains the declaration owner; no Expression
+  // side inventory is required merely to cache constant producers.
+  auto finalize() -> void;
 
   TTX_DOCUMENTATION(get_definition().get_documentation());
 
@@ -109,7 +107,7 @@ class Field : public Authored<Ttx::Model::Addressable> {
     return static_cast<const Ttx::Model::Type&>(get_definition().get_host());
   }
 
-  auto get_initializer() const -> Perimortem::Core::Option<const Expression&>;
+  auto get_initializer() const -> Perimortem::Core::Option<const Model::Pack&>;
 
   constexpr auto is_linked() const -> Bool {
     return Bool(type) && initializer_linked;
@@ -118,7 +116,7 @@ class Field : public Authored<Ttx::Model::Addressable> {
  private:
   Writability writability;
   Perimortem::Core::Option<TypeReference> type_reference;
-  Perimortem::Core::Option<Expression&> initializer;
+  Perimortem::Core::Option<Model::Pack&> initializer;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       type;
   Bool initializer_linked;

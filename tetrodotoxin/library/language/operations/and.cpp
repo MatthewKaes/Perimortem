@@ -44,13 +44,12 @@ TTX_TRANSACTIONAL_BINARY_PARSE(
     And,
     AndOp,
     "And has a malformed right operand."_view,
-    "Use a complete Bool Expression after `&`."_view,
-    "And requires authored operand Anchors."_view);
+    "Use a complete Bool Expression after `&`."_view);
 
 TTX_BINARY_OP(And);
 
-auto Language::Operations::And::select_type(Materializations&) const
-    -> Core::Option<const Type&> {
+auto Language::Operations::And::select_type(
+    Tetrodotoxin::Language::Monograph&) const -> Core::Option<const Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right) {
@@ -72,8 +71,7 @@ auto Language::Operations::And::reaches_next_input(
 }
 
 auto Language::Operations::And::evaluate_constants(
-    Memory::Allocator::Arena& domain,
-    Materializations&)
+    Memory::Allocator::Arena& domain)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   auto authored_left = get_input(0);
   auto authored_right = get_input(1);

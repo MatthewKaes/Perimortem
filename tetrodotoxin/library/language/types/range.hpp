@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "tetrodotoxin/library/language/generic.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/documentations/comment.hpp"
 #include "ttx/model/type.hpp"
@@ -11,7 +10,7 @@
 namespace Tetrodotoxin::Library::Language::Types {
 
 // Range is one lazy integer sequence Type. It retains the exact element edge
-// and original Generic argument without claiming contiguous storage or state.
+// without claiming contiguous storage, state, or ownership of its Generic key.
 class Range : public Ttx::Model::Type {
  public:
   TTX_CONTRACT(Range, Ttx::Model::Type, 0x824db901761e4b83, 0xa54b4be20f4144b7);
@@ -19,7 +18,7 @@ class Range : public Ttx::Model::Type {
   constexpr Range(
       Perimortem::Core::View::Bytes name,
       const Ttx::Model::Type& element)
-      : name(name), argument(element) {}
+      : name(name), element(element) {}
 
   TTX_NAME(name);
 
@@ -27,18 +26,13 @@ class Range : public Ttx::Model::Type {
 
   TTX_CONSTEXPR_INVALID_CONTEXT;
 
-  constexpr auto get_arguments() const
-      -> Perimortem::Core::View::Vector<Generic::Argument> {
-    return {&argument, 1};
-  }
-
   constexpr auto get_element_type() const -> const Ttx::Model::Type& {
-    return *argument.find<const Ttx::Model::Type&>();
+    return element;
   }
 
  private:
   Perimortem::Core::View::Bytes name;
-  Generic::Argument argument;
+  const Ttx::Model::Type& element;
   static constexpr Ttx::Model::Documentations::Comment documentation{
     "Provides a lazy ascending integer sequence."_view,
   };

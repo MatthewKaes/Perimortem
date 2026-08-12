@@ -6,7 +6,6 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
@@ -15,9 +14,9 @@ namespace Tetrodotoxin::Library::Language {
 // value domains expose their payload through derived contracts without
 // extending a central tag.
 //
-// Constants have no evaluation inputs. Equality includes resolved Type identity
-// as well as the derived value, preserving the distinction between equal bits
-// interpreted by different Types.
+// Equality includes resolved Type identity as well as the derived value,
+// preserving the distinction between equal bits interpreted by different
+// Types.
 class Constant : public Expression {
  public:
   TTX_CONTRACT(Constant, Expression, 0xba0cda6e761646bc, 0x99c434aed9d840fa);
@@ -30,10 +29,6 @@ class Constant : public Expression {
   // A Constant is a value rather than an authored declaration. When it is
   // stored under a documented name, that prose belongs to the Addressable.
   TTX_EMPTY_DOCUMENTATION();
-
-  constexpr auto get_inputs() const -> const Ttx::Concept::Layout& override {
-    return inputs;
-  }
 
   virtual constexpr auto get_type() const
       -> const Ttx::Model::Type& override = 0;
@@ -62,9 +57,6 @@ class Constant : public Expression {
       Result<Perimortem::Core::Option<Expression&>, Error> override {
     return Perimortem::Core::Option<Expression&>(*this);
   }
-
- private:
-  static constexpr Ttx::Model::Layouts::Fluid inputs;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

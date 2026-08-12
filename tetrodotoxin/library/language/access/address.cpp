@@ -64,9 +64,8 @@ auto Language::Access::Address::is_accessible(
 
 auto Language::Access::Address::parse(
     Memory::Allocator::Arena& domain,
-    Materializations&,
+    Language::Monograph&,
     Cursor& cursor,
-    const Abstract&,
     Expression& receiver) -> Core::Option<Expression&> {
   Token operation = cursor.consume();
   Token addressable = cursor.require(
@@ -110,10 +109,8 @@ auto Language::Access::Address::create_synthetic(
 auto Language::Access::Address::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& lexical_context,
-    Materializations& materializations,
     Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
-  BAIL_IF(
-      !receiver.link(source, lexical_context, materializations, access_scope));
+  BAIL_IF(!receiver.link(source, lexical_context, access_scope));
 
   auto source_anchor = get_anchor();
   const Abstract& output_type = receiver.get_type();
@@ -149,8 +146,7 @@ auto Language::Access::Address::link(
         }
 
         addressable = Reference<const Addressable>(*selected);
-        return Expression::link(
-            source, lexical_context, materializations, access_scope);
+        return Expression::link(source, lexical_context, access_scope);
       });
 }
 
@@ -179,6 +175,7 @@ auto Language::Access::Address::get_result() const -> const Abstract& {
       });
 }
 
-auto Language::Access::Address::get_inputs() const -> const Layout& {
-  return inputs;
+auto Language::Access::Address::finalize() -> void {
+  receiver.finalize();
+  Expression::finalize();
 }

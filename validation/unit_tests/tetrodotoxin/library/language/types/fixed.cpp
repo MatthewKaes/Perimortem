@@ -25,8 +25,7 @@ static Harness LibraryFixed = {
 
 PERIMORTEM_UNIT_TEST(LibraryFixed, direct_contract) {
   Tetrodotoxin::Library::Language::Types::Unsigned_8 element;
-  Types::Fixed fixed("Fixed[Unsigned_8,4]"_view, element, ::Signed_64(4));
-  auto arguments = fixed.get_arguments();
+  Types::Fixed fixed("Fixed[Unsigned_8,4]"_view, element, ::Unsigned_64(4));
   const Ttx::Model::Layouts::Ranged& layout = fixed.get_layout();
 
   EXPECT(fixed.is<Types::Fixed>());
@@ -35,13 +34,7 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, direct_contract) {
   EXPECT_NOT(fixed.is<Generic>());
   EXPECT_TEXT(fixed.get_name(), "Fixed[Unsigned_8,4]"_view);
   EXPECT(&fixed.get_element_type() == &element);
-  EXPECT_EQ(fixed.get_extent(), ::Signed_64(4));
-  ASSERT_EQ(arguments.get_size(), Count(2));
-  EXPECT(arguments.get_data()[0].find<const Ttx::Model::Type&>() == &element);
-  EXPECT(arguments.get_data()[0].find<::Signed_64>() == nullptr);
-  EXPECT(arguments.get_data()[1].find<const Ttx::Model::Type&>() == nullptr);
-  ASSERT(arguments.get_data()[1].find<::Signed_64>() != nullptr);
-  EXPECT_EQ(*arguments.get_data()[1].find<::Signed_64>(), ::Signed_64(4));
+  EXPECT_EQ(fixed.get_extent(), ::Unsigned_64(4));
   EXPECT_EQ(layout.get_size(), Count(4));
   EXPECT(layout.get_abstract(0).visit(
       []() { return False; },
@@ -64,19 +57,16 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, formula_construction) {
   Generics::Fixed fixed_formula;
   const Generic& formula = fixed_formula;
   const Static::Vector<Generic::Argument, 2> positive = {
-    {Generic::Argument(element), Generic::Argument(::Signed_64(4))},
+    {Generic::Argument(element), Generic::Argument(::Unsigned_64(4))},
   };
   const Static::Vector<Generic::Argument, 2> zero = {
-    {Generic::Argument(element), Generic::Argument(::Signed_64(0))},
-  };
-  const Static::Vector<Generic::Argument, 2> negative = {
-    {Generic::Argument(element), Generic::Argument(::Signed_64(-1))},
+    {Generic::Argument(element), Generic::Argument(::Unsigned_64(0))},
   };
   const Static::Vector<Generic::Argument, 2> wrong_element = {
-    {Generic::Argument(::Unsigned_64(8)), Generic::Argument(::Signed_64(4))},
+    {Generic::Argument(::Unsigned_64(8)), Generic::Argument(::Unsigned_64(4))},
   };
   const Static::Vector<Generic::Argument, 2> wrong_extent = {
-    {Generic::Argument(element), Generic::Argument(::Unsigned_64(4))},
+    {Generic::Argument(element), Generic::Argument(::Signed_64(4))},
   };
   const Static::Vector<Generic::Argument, 1> wrong_arity = {
     {Generic::Argument(element)},
@@ -89,7 +79,7 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, formula_construction) {
   EXPECT(positive_type->visit<Types::Fixed>(
       [&element](const Types::Fixed& selected) {
         return &selected.get_element_type() == &element &&
-                       selected.get_extent() == ::Signed_64(4)
+                       selected.get_extent() == ::Unsigned_64(4)
                    ? True
                    : False;
       },
@@ -101,14 +91,13 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, formula_construction) {
   EXPECT_TEXT(zero_type->get_name(), "Fixed[Unsigned_8,0]"_view);
   EXPECT(zero_type->visit<Types::Fixed>(
       [](const Types::Fixed& selected) {
-        return selected.get_extent() == ::Signed_64(0) &&
+        return selected.get_extent() == ::Unsigned_64(0) &&
                        selected.get_layout().get_size() == Count(0)
                    ? True
                    : False;
       },
       [](const Abstract&) { return False; }));
 
-  EXPECT_NOT(formula.create(negative, arena));
   EXPECT_NOT(formula.create(wrong_element, arena));
   EXPECT_NOT(formula.create(wrong_extent, arena));
   EXPECT_NOT(formula.create(wrong_arity, arena));

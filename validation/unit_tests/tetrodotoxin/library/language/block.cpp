@@ -11,7 +11,6 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
@@ -67,7 +66,7 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
       "  public touch : func = [] -> Void { return; }\n"
       "  public empty : func = [] -> Void {}\n"
       "  public body : func = [.input : Unsigned_64] -> Unsigned_64 {\n"
-      "    Packet -> touch();\n"
+      "    (Packet -> touch());\n"
       "    return input;\n"
       "  }\n"
       "}"_view;
@@ -95,7 +94,7 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
       empty_block.get_anchor().get_span().caculate_text(source) == "{}"_view);
   EXPECT(
       populated.get_anchor().get_span().caculate_text(source) ==
-      "{\n    Packet -> touch();\n    return input;\n  }"_view);
+      "{\n    (Packet -> touch());\n    return input;\n  }"_view);
 
   auto statements = populated.get_statements();
   ASSERT_EQ(statements.get_size(), Count(2));
@@ -107,8 +106,10 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
   const auto& invoked = static_cast<const Language::Access::Call&>(first);
   const auto& returned = static_cast<const Language::Return&>(second);
   EXPECT(invoked.get_callable());
-  ASSERT(returned.get_expression());
-  EXPECT(returned.get_expression()->is<Language::Identifier>());
+  EXPECT_NOT(invoked.get_folded());
+  EXPECT_TEXT(
+      returned.get_anchor().get_span().caculate_text(source),
+      "return input;"_view);
 
   auto parameter = body->get_parameters().get_abstract(0);
   ASSERT(parameter);
@@ -124,11 +125,13 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
 }
 
 PERIMORTEM_UNIT_TEST(BlockTests, non_invocations_are_not_statements) {
-  static constexpr Static::Vector<View::Bytes, 4> sources = {{
+  static constexpr Static::Vector<View::Bytes, 6> sources = {{
     "// Constant statement.\ndialect : Library; private invalid : func = [] -> [] { true; }"_view,
     "// Operation statement.\ndialect : Library; private invalid : func = [] -> [] { 1 + 2; }"_view,
     "// Address statement.\ndialect : Library; public Packet : struct { public value : Bool; } private packet : Packet; private invalid : func = [] -> [] { packet.value; }"_view,
     "// Type statement.\ndialect : Library; private invalid : func = [] -> [] { Bool; }"_view,
+    "// Composed invocation Pack.\ndialect : Library; private Packet : struct { private touch : func = [] -> [] {} } private invalid : func = [] -> [] { (Packet -> touch(), Packet -> touch()); }"_view,
+    "// Named invocation Pack.\ndialect : Library; private Packet : struct { private touch : func = [] -> [] {} } private invalid : func = [] -> [] { (.result = Packet -> touch()); }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
