@@ -21,8 +21,6 @@ class Source : public Composite {
   auto retain_binding(Ttx::Concept::Abstract& binding, Category category)
       -> Bool override;
 
-  auto complete_field_layout() -> void override;
-
  public:
   TTX_CONTRACT(Source, Composite, 0xa972070bd27746e0, 0x959dd29d7924aed4);
 

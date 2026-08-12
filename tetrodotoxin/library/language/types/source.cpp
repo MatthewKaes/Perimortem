@@ -117,8 +117,6 @@ auto Types::Source::retain_binding(Abstract& binding, Category category)
   return bind_static(binding, category);
 }
 
-auto Types::Source::complete_field_layout() -> void {}
-
 auto Types::Source::resolve_context(View::Bytes route) const
     -> const Abstract& {
   for (const Reference<Abstract>& binding : get_types(Visibility::Public)) {

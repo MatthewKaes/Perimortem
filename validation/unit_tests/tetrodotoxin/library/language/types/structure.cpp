@@ -14,6 +14,7 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
@@ -29,6 +30,20 @@ using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 using Tetrodotoxin::Environment::Workspace;
 using namespace Validation;
+
+static auto find_return(const Language::Function& function)
+    -> Option<const Language::Return&> {
+  auto body = function.get_body();
+  BAIL_IF(!body);
+  for (const Reference<Abstract>& statement : body->get_statements()) {
+    auto returned = statement.get().select<Language::Return>();
+    if (returned) {
+      return *returned;
+    }
+  }
+
+  return {};
+}
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
@@ -85,7 +100,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
       "// Nested Alias source.\n"
       "dialect : Library;\n"
       "// Hidden Type documentation.\n"
-      "private Hidden : struct {}\n"
+      "private Hidden : struct { private value : Bool; }\n"
       "public Packet : struct {\n"
       "  // Visible Alias documentation.\n"
       "  public Visible : alias = Hidden;\n"
@@ -250,7 +265,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, category_names_coexist) {
     "public Packet : struct { public value : Bool; public value : func = [] -> [] {} }"_view,
     "// Structure test.\n"
     "dialect : Library;\n"
-    "public Packet : struct { public value : func = [] -> [] {} public value : func = [self] -> [] {} }"_view,
+    "public Packet : struct { private storage : Bool; public value : func = [] -> [] {} public value : func = [self] -> [] {} }"_view,
     "// Structure test.\n"
     "dialect : Library;\n"
     "public Packet : struct { public value : Bool; public inspect : func = [self, .value : Bool] -> Bool { return value; } }"_view,
@@ -312,11 +327,11 @@ PERIMORTEM_UNIT_TEST(StructureTests, explicit_self_field_access) {
   ASSERT(callables != callables.end());
   ASSERT((*callables).get().is<Language::Function>());
   const auto& read = static_cast<const Language::Function&>((*callables).get());
-  auto returned = read.get_return_expression();
-  ASSERT(returned);
-  ASSERT(returned->is<Language::Access::Address>());
-  const auto& address =
-      static_cast<const Language::Access::Address&>(*returned);
+  auto returned = find_return(read);
+  ASSERT(returned && returned->get_expression());
+  ASSERT(returned->get_expression()->is<Language::Access::Address>());
+  const auto& address = static_cast<const Language::Access::Address&>(
+      *returned->get_expression());
   EXPECT(&address.get_result() == &field_identity);
   ASSERT(address.get_receiver().is<Language::Identifier>());
   const auto& receiver =
@@ -355,11 +370,74 @@ PERIMORTEM_UNIT_TEST(StructureTests, missing_type_rejected) {
   EXPECT(rejects_link(source));
 }
 
+PERIMORTEM_UNIT_TEST(StructureTests, empty_types_are_static_only) {
+  static constexpr Static::Vector<View::Bytes, 5> rejected = {{
+    "// Void Addressable.\ndialect : Library; private invalid : Void;"_view,
+    "// Empty Fixed Addressable.\ndialect : Library; private invalid := 0x[];"_view,
+    "// Empty Composite Addressable.\ndialect : Library; private Empty : struct {} private invalid : Empty;"_view,
+    "// Empty Self receiver.\ndialect : Library; public Empty : struct { public invalid : func = [self] -> [] {} }"_view,
+    "// Empty named parameter.\ndialect : Library; private Empty : struct {} private invalid : func = [.value : Empty] -> [] {}"_view,
+  }};
+  EXPECT(rejects_link(rejected[0]));
+  EXPECT(rejects_link(rejected[1]));
+  EXPECT(rejects_link(rejected[2]));
+  EXPECT(rejects_link(rejected[3]));
+  EXPECT(rejects_link(rejected[4]));
+
+  static constexpr View::Bytes source =
+      "// Empty Types retain only Static bindings.\n"
+      "dialect : Library;\n"
+      "public Empty : struct { public create : func = [] -> [] {} }\n"
+      "private void_result : func = [] -> Void {}\n"
+      "private empty_result : func = [] -> [] {}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+
+  const Abstract& empty_identity = monograph->resolve_context("Empty"_view);
+  ASSERT(empty_identity.is<Language::Types::Structure>());
+  const auto& empty =
+      static_cast<const Language::Types::Structure&>(empty_identity);
+  EXPECT(empty.get_layout().is_empty());
+  auto empty_callables = empty.get_callables();
+  ASSERT(empty_callables != empty_callables.end());
+  EXPECT_TEXT((*empty_callables).get().get_name(), "create"_view);
+  ++empty_callables;
+  EXPECT(empty_callables == empty.get_callables().end());
+
+  auto callables = monograph->get_source().get_callables();
+  ASSERT(callables != callables.end());
+  ASSERT((*callables).get().is<Language::Function>());
+  const auto& void_result =
+      static_cast<const Language::Function&>((*callables).get());
+  ++callables;
+  ASSERT(callables != monograph->get_source().get_callables().end());
+  ASSERT((*callables).get().is<Language::Function>());
+  const auto& empty_result =
+      static_cast<const Language::Function&>((*callables).get());
+  ++callables;
+  EXPECT(callables == monograph->get_source().get_callables().end());
+  EXPECT(void_result.get_results().is_empty());
+  EXPECT(empty_result.get_results().is_empty());
+  EXPECT(void_result.get_results().fits(empty_result.get_results()));
+  EXPECT(empty_result.get_results().fits(void_result.get_results()));
+
+  const auto& scalar = Dialect::get_unsigned_8();
+  ASSERT_EQ(scalar.get_layout().get_size(), Count(1));
+  EXPECT(&*scalar.get_layout().get_abstract(0) == &scalar);
+  EXPECT_NOT(void_result.get_results().fits(scalar.get_layout()));
+  EXPECT_NOT(scalar.get_layout().fits(void_result.get_results()));
+  EXPECT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(StructureTests, public_field_exposure_rejected) {
   static constexpr View::Bytes source =
       "// Structure test.\n"
       "dialect : Library;\n"
-      "private Hidden : struct {}\n"
+      "private Hidden : struct { private value : Bool; }\n"
       "public Packet : struct { public hidden : Hidden; }"_view;
   EXPECT(rejects_finalize(source));
 }
@@ -389,12 +467,13 @@ PERIMORTEM_UNIT_TEST(StructureTests, private_exposure_retained_locally) {
   static constexpr View::Bytes source =
       "// Structure test.\n"
       "dialect : Library;\n"
-      "private Hidden : struct {}\n"
+      "private Hidden : struct { private value : Bool; }\n"
       "public Packet : struct {\n"
       "  private hidden : Hidden;\n"
-      "  private reveal : func = [Hidden] -> Hidden {}\n"
+      "  private reveal : func = [.value : Hidden] -> Hidden { return value; "
       "}\n"
-      "private root : func = [Hidden] -> Hidden {}"_view;
+      "}\n"
+      "private root : func = [.value : Hidden] -> Hidden { return value; }"_view;
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -599,7 +678,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_public_type_reachability) {
   static constexpr View::Bytes source =
       "// Field inference test.\n"
       "dialect : Library;\n"
-      "private Hidden : struct {}\n"
+      "private Hidden : struct { private value : Bool; }\n"
       "private seed : Hidden;\n"
       "public revealed := seed;"_view;
   Workspace workspace;

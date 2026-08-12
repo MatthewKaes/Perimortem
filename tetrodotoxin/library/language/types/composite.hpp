@@ -60,7 +60,7 @@ class Composite : public Defined {
       Ttx::Concept::Abstract& binding,
       Category category) -> Bool;
 
-  virtual auto complete_field_layout() -> void;
+  auto complete_field_layout() -> void;
 
   // Hosting is provenance and access authority rather than universal semantic
   // parentage. Following only the required Definition host chain reaches the

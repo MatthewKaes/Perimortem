@@ -24,6 +24,7 @@
 #include "tetrodotoxin/library/language/initializer.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
+#include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
@@ -48,6 +49,20 @@ using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 using Tetrodotoxin::Environment::Workspace;
 using namespace Validation;
+
+static auto find_return(const Language::Function& function)
+    -> Option<const Language::Return&> {
+  auto body = function.get_body();
+  BAIL_IF(!body);
+  for (const Reference<Abstract>& statement : body->get_statements()) {
+    auto returned = statement.get().select<Language::Return>();
+    if (returned) {
+      return *returned;
+    }
+  }
+
+  return {};
+}
 
 class EmptyRegistry : public Abstract {
  public:
@@ -716,12 +731,18 @@ PERIMORTEM_UNIT_TEST(DialectTests, value_acceptance) {
 
   auto folded_add = find_function(source_type, "folded_add"_view);
   auto default_byte = find_function(source_type, "default_byte"_view);
-  ASSERT(folded_add && folded_add->get_return_expression());
-  ASSERT(default_byte && default_byte->get_return_expression());
-  ASSERT(folded_add->get_return_expression()->is<Language::Operations::Add>());
-  ASSERT(default_byte->get_return_expression()->is<Language::Access::Value>());
-  auto folded_sum = folded_add->get_return_expression()->get_folded();
-  auto folded_default = default_byte->get_return_expression()->get_folded();
+  ASSERT(folded_add);
+  ASSERT(default_byte);
+  auto folded_add_return = find_return(*folded_add);
+  auto default_byte_return = find_return(*default_byte);
+  ASSERT(folded_add_return && folded_add_return->get_expression());
+  ASSERT(default_byte_return && default_byte_return->get_expression());
+  const auto& folded_add_expression = *folded_add_return->get_expression();
+  const auto& default_byte_expression = *default_byte_return->get_expression();
+  ASSERT(folded_add_expression.is<Language::Operations::Add>());
+  ASSERT(default_byte_expression.is<Language::Access::Value>());
+  auto folded_sum = folded_add_expression.get_folded();
+  auto folded_default = default_byte_expression.get_folded();
   ASSERT(folded_sum && folded_sum->is<Language::Constants::Unsigned>());
   ASSERT(folded_default && folded_default->is<Language::Constants::Unsigned>());
   EXPECT_EQ(
@@ -770,17 +791,19 @@ PERIMORTEM_UNIT_TEST(DialectTests, value_acceptance) {
   ASSERT(self_call.get_callable());
   EXPECT(self_call.get_callable()->is_type_bound(packet));
 
-  auto empty = find_field(source_type, "empty"_view);
+  auto empty = find_function(source_type, "empty"_view);
   auto single = find_field(source_type, "single"_view);
   auto reordered = find_field(source_type, "reordered"_view);
-  ASSERT(empty && empty->get_initializer());
+  ASSERT(empty);
+  auto empty_return = find_return(*empty);
+  ASSERT(empty_return && empty_return->get_expression());
   ASSERT(single && single->get_initializer());
   ASSERT(reordered && reordered->get_initializer());
-  ASSERT(empty->get_initializer()->is<Language::Access::Swizzle>());
+  ASSERT(empty_return->get_expression()->is<Language::Access::Swizzle>());
   ASSERT(single->get_initializer()->is<Language::Access::Swizzle>());
   ASSERT(reordered->get_initializer()->is<Language::Access::Swizzle>());
-  const auto& empty_swizzle =
-      static_cast<const Language::Access::Swizzle&>(*empty->get_initializer());
+  const auto& empty_swizzle = static_cast<const Language::Access::Swizzle&>(
+      *empty_return->get_expression());
   const auto& single_swizzle =
       static_cast<const Language::Access::Swizzle&>(*single->get_initializer());
   const auto& reordered_swizzle = static_cast<const Language::Access::Swizzle&>(

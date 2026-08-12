@@ -180,10 +180,10 @@ PERIMORTEM_UNIT_TEST(ObjectTests, malformed_grammar) {
 
 PERIMORTEM_UNIT_TEST(ObjectTests, private_exposure_rejected) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
-    "// Object test.\ndialect : Library; private Hidden : object {} public reveal : func = [Hidden] -> [] {}"_view,
-    "// Object test.\ndialect : Library; private Hidden : object {} public Holder : struct { public hidden : Hidden; }"_view,
-    "// Object test.\ndialect : Library; private Hidden : object {} public Holder : object { public hidden : Hidden; }"_view,
-    "// Object test.\ndialect : Library; private Hidden : object {} public Holder : object { public reveal : func = [] -> Hidden {} }"_view,
+    "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public reveal : func = [Hidden] -> [] {}"_view,
+    "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public Holder : struct { public hidden : Hidden; }"_view,
+    "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public Holder : object { public hidden : Hidden; }"_view,
+    "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public Holder : object { public reveal : func = [.hidden : Hidden] -> Hidden { return hidden; } }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -195,12 +195,13 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface_retained_locally) {
   static constexpr View::Bytes source =
       "// Object test.\n"
       "dialect : Library;\n"
-      "private Hidden : object {}\n"
+      "private Hidden : object { private value : Bool = false; }\n"
       "public Holder : object {\n"
       "  private hidden : Hidden;\n"
-      "  private reveal : func = [Hidden] -> Hidden {}\n"
+      "  private reveal : func = [.value : Hidden] -> Hidden { return value; "
       "}\n"
-      "private root : func = [Hidden] -> Hidden {}"_view;
+      "}\n"
+      "private root : func = [.value : Hidden] -> Hidden { return value; }"_view;
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -297,7 +298,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inferred_object_identity) {
   static constexpr View::Bytes source =
       "// Object inference test.\n"
       "dialect : Library;\n"
-      "public Child : object {}\n"
+      "public Child : object { private value : Bool = false; }\n"
       "public Holder : object {\n"
       "  private child : Child;\n"
       "  private copy := child;\n"

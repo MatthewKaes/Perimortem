@@ -13,8 +13,8 @@ auto Language::Parameter::create_authored(
     const Ttx::Model::Type& type) -> Perimortem::Core::Option<Parameter&> {
   auto linked_type = signature.get_parameter_type(index);
   auto source = signature.get_parameter_anchor(index);
-  if (!linked_type || &*linked_type != &type || !source ||
-      signature.get_parameter_name(index).is_empty()) {
+  if (!linked_type || &*linked_type != &type || type.get_layout().is_empty() ||
+      !source || signature.get_parameter_name(index).is_empty()) {
     return {};
   }
 

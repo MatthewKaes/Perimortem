@@ -17,6 +17,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
@@ -35,6 +36,20 @@ using namespace Validation;
 static Harness SwizzleTests = {
   .name = "Tetrodotoxin::Library::Language::Access::Swizzle"_view,
 };
+
+static auto find_return(const Language::Function& function)
+    -> Option<const Language::Return&> {
+  auto body = function.get_body();
+  BAIL_IF(!body);
+  for (const Reference<Abstract>& statement : body->get_statements()) {
+    auto returned = statement.get().select<Language::Return>();
+    if (returned) {
+      return *returned;
+    }
+  }
+
+  return {};
+}
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
@@ -108,7 +123,7 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
       "  public first : Unsigned_64; public second : Unsigned_64;\n"
       "}\n"
       "private packet : Packet;\n"
-      "private empty : Empty = packet.[];\n"
+      "private empty : func = [] -> Empty { return packet.[]; }\n"
       "private single : Unsigned_64 = packet.[width,];\n"
       "private dimensions : Dimensions = "
       "packet.[height, width];\n"
@@ -133,34 +148,41 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
   ASSERT(secret);
   ASSERT(width);
   ASSERT(height);
-  ASSERT(gather && gather->get_return_expression());
+  ASSERT(gather);
+  auto gather_return = find_return(*gather);
+  ASSERT(gather_return && gather_return->get_expression());
 
-  auto empty = find_field(monograph->get_source(), "empty"_view);
+  auto empty = find_function(monograph->get_source(), "empty"_view);
   auto single = find_field(monograph->get_source(), "single"_view);
   auto dimensions = find_field(monograph->get_source(), "dimensions"_view);
   auto chained = find_field(monograph->get_source(), "chained"_view);
-  ASSERT(empty && empty->get_initializer());
+  ASSERT(empty);
+  auto empty_return = find_return(*empty);
+  ASSERT(empty_return && empty_return->get_expression());
   ASSERT(single && single->get_initializer());
   ASSERT(dimensions && dimensions->get_initializer());
   ASSERT(chained && chained->get_initializer());
-  ASSERT(empty->get_initializer()->is<Language::Access::Swizzle>());
+  ASSERT(empty_return->get_expression()->is<Language::Access::Swizzle>());
   ASSERT(single->get_initializer()->is<Language::Access::Swizzle>());
   ASSERT(dimensions->get_initializer()->is<Language::Access::Swizzle>());
-  ASSERT(gather->get_return_expression()->is<Language::Access::Swizzle>());
+  ASSERT(gather_return->get_expression()->is<Language::Access::Swizzle>());
 
-  const auto& empty_swizzle =
-      static_cast<const Language::Access::Swizzle&>(*empty->get_initializer());
+  const auto& empty_swizzle = static_cast<const Language::Access::Swizzle&>(
+      *empty_return->get_expression());
   const auto& single_swizzle =
       static_cast<const Language::Access::Swizzle&>(*single->get_initializer());
   const auto& dimensions_swizzle =
       static_cast<const Language::Access::Swizzle&>(
           *dimensions->get_initializer());
   const auto& private_swizzle = static_cast<const Language::Access::Swizzle&>(
-      *gather->get_return_expression());
+      *gather_return->get_expression());
 
   EXPECT(empty_swizzle.get_results().is_empty());
   EXPECT(&empty_swizzle.get_type() == &Invalid::get_invalid());
-  EXPECT(empty_swizzle.fits(empty->get_type()));
+  const Abstract& empty_type = monograph->resolve_context("Empty"_view);
+  ASSERT(empty_type.is<Language::Types::Structure>());
+  EXPECT(empty_swizzle.fits(
+      static_cast<const Language::Types::Structure&>(empty_type)));
   ASSERT_EQ(single_swizzle.get_results().get_size(), Count(1));
   EXPECT(&*single_swizzle.get_results().get_abstract(0) == &*width);
   EXPECT(&single_swizzle.get_type() == &Dialect::get_unsigned_64());

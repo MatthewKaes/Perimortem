@@ -1,0 +1,86 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/option.hpp"
+
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/vector.hpp"
+
+#include "tetrodotoxin/language/monograph.hpp"
+#include "tetrodotoxin/library/language/materializations.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/reference.hpp"
+#include "ttx/lexical/anchor.hpp"
+#include "ttx/lexical/cursor.hpp"
+#include "ttx/model/callable.hpp"
+#include "ttx/model/type.hpp"
+
+namespace Tetrodotoxin::Library::Language {
+
+// Block is one authored Function body and lexical scope. It retains exact
+// statement identities in source order while the concrete statement owners
+// retain their grammar and semantics. The Function remains the outer lexical
+// context and its host Type remains the independent access authority.
+// This is not a lowered basic block and owns no predecessor arguments, result
+// Layout, SSA edges, or target control flow.
+class Block : public Ttx::Concept::Abstract {
+ public:
+  TTX_CONTRACT(
+      Block,
+      Ttx::Concept::Abstract,
+      0x833edbf9ef0e42de,
+      0x82cdbc6fdf4e7805);
+
+  static auto interpret(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Materializations& materializations,
+      Ttx::Lexical::Cursor& cursor,
+      Ttx::Model::Callable& lexical_context,
+      const Ttx::Model::Type& access_scope) -> Perimortem::Core::Option<Block&>;
+
+  Block(const Block&) = delete;
+  Block(Block&&) = delete;
+  auto operator=(const Block&) -> Block& = delete;
+  auto operator=(Block&&) -> Block& = delete;
+
+  auto link(
+      Tetrodotoxin::Language::Monograph& source,
+      Materializations& materializations) -> Bool;
+
+  auto finalize() -> void;
+
+  TTX_NAME("Block"_view);
+  TTX_EMPTY_DOCUMENTATION();
+
+  auto resolve_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
+
+  constexpr auto get_statements() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>> {
+    return statements;
+  }
+
+ private:
+  Block(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Ttx::Model::Callable& lexical_context,
+      const Ttx::Model::Type& access_scope)
+      : lexical_context(lexical_context),
+        access_scope(access_scope),
+        statements(domain) {}
+
+  Ttx::Model::Callable& lexical_context;
+  const Ttx::Model::Type& access_scope;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      statements;
+  Ttx::Lexical::Anchor anchor = Ttx::Lexical::Anchor::create({});
+  Bool linked = False;
+};
+
+}  // namespace Tetrodotoxin::Library::Language

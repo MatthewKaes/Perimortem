@@ -253,7 +253,9 @@ TTX Layouts express order and applicability among exact semantic identities.
 Library uses them for parameters, results, fields, named value packs, indexed
 values, and swizzles. Render and Shader use them to agree on Stage interfaces.
 An empty or multi value Layout remains a shape and does not become an anonymous
-Type.
+Type. Atomic Types expose one exact terminal value entry. An empty Layout
+exposes none, so it can cross Dialect boundaries as zero-value flow without a
+shared `Void` Type, but it cannot support an Addressable.
 
 A compiler maps scalar abstract machine storage facts and derives target object
 layouts, ABI alignments, offsets, pointer forms, calling convention carriers,

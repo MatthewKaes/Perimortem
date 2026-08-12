@@ -28,6 +28,7 @@
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
+#include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;

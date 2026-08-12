@@ -21,6 +21,7 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/access/call.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
@@ -374,7 +375,12 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_field_keeps_provider_identity) {
       "private hidden : Unsigned_8;"_view;
   static constexpr View::Bytes importer_source =
       "using Core;\n"
-      "private consumer : func = [] -> Void { provided; }"_view;
+      "private Consumer : struct {\n"
+      "  public accept : func = [.value : Unsigned_8] -> [] {}\n"
+      "}\n"
+      "private consumer : func = [] -> Void {\n"
+      "  Consumer -> accept(provided);\n"
+      "}"_view;
   Allocator::Arena arena;
   ImportRegistry registry;
   Library::Dialect library_dialect;
@@ -437,11 +443,16 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_field_keeps_provider_identity) {
 
   // Root linking resolves through the private Alias. The linked Identifier
   // permanently retains the provider Addressable after Alias resolution.
-  auto expressions = consumer.get_expressions();
-  ASSERT_EQ(expressions.get_size(), Count(1));
-  ASSERT(expressions.get_data()[0].get().is<Library::Language::Identifier>());
-  auto selected = static_cast<const Library::Language::Identifier&>(
-                      expressions.get_data()[0].get())
+  auto body = consumer.get_body();
+  ASSERT(body);
+  auto statements = body->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(1));
+  ASSERT(statements.get_data()[0].get().is<Library::Language::Access::Call>());
+  const auto& call = static_cast<const Library::Language::Access::Call&>(
+      statements.get_data()[0].get());
+  auto argument = call.get_inputs().get_abstract(0);
+  ASSERT(argument && argument->is<Library::Language::Identifier>());
+  auto selected = static_cast<const Library::Language::Identifier&>(*argument)
                       .get_result()
                       .select<Ttx::Model::Addressable>();
   ASSERT(selected);
@@ -674,7 +685,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, category_collisions_are_atomic) {
 
     // Callable uniqueness is proven before any imported Alias becomes visible.
     // The earlier unique candidate therefore remains absent beside the later
-    // same-role collision.
+    // collision in the same receiver role.
     Package::Language::Monograph& target =
         create_package(arena, package_dialect);
     Bool first_member_bound = target.bind_member("FirstProvider"_view, *first);
@@ -992,7 +1003,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, private_type_alias_cannot_escape) {
 
 PERIMORTEM_UNIT_TEST(LibraryImports, provider_alias_identity_is_retained) {
   static constexpr View::Bytes provider_source =
-      "public Shared : struct {}\n"
+      "public Shared : struct { public value : Bool; }\n"
       "public Exported : alias = Shared;\n"
       "private Hidden : alias = Shared;"_view;
   Allocator::Arena arena;
@@ -1150,7 +1161,7 @@ PERIMORTEM_UNIT_TEST(
       "nested/api.ttx"_view,
       "// Provider Library\n"
       "dialect : Library;\n"
-      "public Shared : struct {}\n"
+      "public Shared : struct { public value : Bool; }\n"
       "public Domain : struct {\n"
       "  public Mode : enum[Unsigned_8] { ready = 1; }\n"
       "}\n"
@@ -1164,7 +1175,9 @@ PERIMORTEM_UNIT_TEST(
       "  private shared : Shared;\n"
       "  private mode : Domain::Mode;\n"
       "}\n"
-      "private local : func = [Shared, Domain::Mode] -> Shared {}\n"_view);
+      "private local : func = [\n"
+      "  .value : Shared, .mode : Domain::Mode\n"
+      "] -> Shared { return value; }\n"_view);
   ASSERT(nested_created);
   ASSERT(root_written);
   ASSERT(nested_written);

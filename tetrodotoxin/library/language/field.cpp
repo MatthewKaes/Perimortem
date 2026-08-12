@@ -155,6 +155,13 @@ auto Language::Field::link_type(Tetrodotoxin::Language::Monograph& source)
         "Publish the named Type in this Library context before linking."_view);
     return False;
   }
+  if (selected_type->get_layout().is_empty()) {
+    source.report(
+        get_type_anchor(), "Field cannot bind an empty Type Layout."_view,
+        "Use the empty Type as a Static namespace or choose a Type with one "
+        "value leaf."_view);
+    return False;
+  }
 
   if (type) {
     if (&type->get() == &*selected_type) {
@@ -213,6 +220,14 @@ auto Language::Field::link_initializer(
           "Inferred Field initializer did not complete one stable Type."_view,
           "Use an initializer whose exact Type settles before Field "
           "publication."_view);
+      return False;
+    }
+    if (initializer_type->get_layout().is_empty()) {
+      monograph.report(
+          selected_initializer->get_anchor(),
+          "Inferred Field cannot bind an empty Type Layout."_view,
+          "Keep the empty result as flow or infer from a Type with one value "
+          "leaf."_view);
       return False;
     }
 

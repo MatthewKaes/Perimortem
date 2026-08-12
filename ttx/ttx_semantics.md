@@ -174,7 +174,8 @@ the completed graph.
 
 Type is an Abstract that represents a semantic domain. Once resolution
 succeeds, each Type exposes one complete Layout. An empty Layout is a valid
-shape and does not alone establish scalar identity.
+zero-value shape. It fits every other empty Layout without creating a shared
+Type identity.
 
 Value is a leaf Type used for scalar bit interpretations. Its contextual
 resolution always returns Invalid. Value provides bit width and abstract
@@ -182,12 +183,19 @@ machine storage size and alignment. These are language level scalar facts, not
 target object layout, ABI alignment, or register policy. Concrete domains and
 representations belong to the language that constructs them.
 
+The terminal `Value` Layout has one entry containing its exact atomic Type.
+Every scalar Value Type uses that leaf, so scalar identity participates in
+ordinary Layout fitting instead of being inferred from an otherwise empty
+shape.
+
 TTX defines the `Flag`, `Real`, `Signed`, and `Unsigned` Value interfaces.
 
 ## Addressable
 
-Addressable is an Abstract that names typed data. It reaches
-one exact Type.
+Addressable is an Abstract that names typed data. It reaches one exact Type
+whose Layout contains at least one value. A zero-value Type remains a valid
+semantic domain, but there is no value whose stable address an Addressable
+could name.
 
 A concrete graph object may be Addressable while adding capabilities
 owned by its language. TTX defines only the named edge to one Type.
@@ -221,8 +229,9 @@ edge that supplies a target position.
 The closed fitting errors are `IndexOutOfBounds`, `SizeMismatch`, and
 `IncompatibleFit`. A failed fit does not add Invalid to the semantic graph.
 
-TTX defines four common Layout forms:
+TTX defines five common Layout forms:
 
+* `Value` contains one exact atomic Type as the terminal Layout leaf.
 * `Fluid` fits ordered entries by represented identity. An Addressable target
   participates through its Type.
 * `Named` fits nonempty unique names by name and represented identity.
@@ -242,6 +251,9 @@ universal lookup or member interface.
 Layout retains no copied semantic record, target offset, storage class, ABI
 rule, or anonymous Type identity. Structural coincidence does not create Type
 identity.
+
+An empty Layout has size zero. It fits another empty Layout and carries no
+stable value or address, regardless of which concrete Type exposes it.
 
 ## Documentation
 
@@ -323,8 +335,9 @@ offsets, or treat a backend Type as the original semantic Type.
 6. Later construction never changes an identity already returned successfully.
 7. Alias preserves local identity while redirecting represented identity.
 8. Value has no contextual subdomains.
-9. Addressable reaches one Type and Callable supplies complete parameter and
-   result Layouts.
+9. An atomic Type exposes itself as one terminal Value Layout entry.
+   Addressable reaches one Type with a nonempty Layout, and Callable supplies
+   complete parameter and result Layouts.
 10. Type, Addressable, Callable, and Layout remain independent contracts. TTX
     defines no universal member model over them.
 11. Layout owns order and directional fitting, not copied semantic or physical

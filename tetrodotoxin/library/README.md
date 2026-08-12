@@ -207,7 +207,9 @@ Library provides these scalar families:
 * `Signed_8`, `Signed_16`, `Signed_32`, and `Signed_64`
 * `Unsigned_8`, `Unsigned_16`, `Unsigned_32`, and `Unsigned_64`
 * `Real_32` and `Real_64`
-* `Void`
+
+Library also names `Void` as its empty result Type. `Void` is not a scalar and
+has no value entry.
 
 Scalar operations require the exact resolved Type identity expected by that
 operation. Library does not silently widen, narrow, retag, or reinterpret a
@@ -370,6 +372,12 @@ shared parser error.
 A Field is a TTX Addressable owned by one Composite. Structure and Object Fields
 enter the instance Layout, while Source Fields remain Static. Visibility and
 writability are independent.
+
+A Field Type must expose at least one Layout entry because an Addressable names
+real value flow. `Void`, `Fixed[T, 0]`, and an empty Composite remain valid
+zero-value Types but cannot become Fields, named parameters, or `self`.
+An empty Composite can still own Static Functions and nested Types, which makes
+it a natural namespace without manufacturing a one-byte instance.
 
 ```ttx
 public width : Unsigned_64 = 0;
@@ -588,9 +596,10 @@ assignment writes only when its optional reference is engaged. No assignment
 falls through from Address access to Type or Callable lookup.
 
 `return` fits its complete source Layout against the Function result Layout.
-Bare return and ordinary fallthrough are legal only for concrete `Void`. A
-Function with another result must return on every reachable path. An empty
-Layout is not another spelling for `Void`.
+Bare return and ordinary fallthrough supply the empty Layout and are legal when
+the Function result Layout is also empty. `Void`, `[]`, and any other empty Type
+therefore agree as zero-value flow without becoming the same Type identity. A
+Function with a nonempty result must return on every reachable path.
 
 `if` and `while` require one exact `Bool` expression. `for` consumes one
 `Range[T]` and fits its loop binding Layout against the Range entry. `break` and

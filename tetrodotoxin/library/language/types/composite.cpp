@@ -23,7 +23,7 @@ using namespace Tetrodotoxin::Library::Language;
 using Tetrodotoxin::Language::Visibility;
 using Ttx::Model::Type;
 
-static constexpr Ttx::Model::Layouts::Named incomplete_layout;
+static constexpr Ttx::Model::Layouts::Named empty_layout;
 
 template <typename abstract_type>
 static auto find_monograph(abstract_type& host)
@@ -354,10 +354,6 @@ auto Types::Composite::link_fields() -> Bool {
 
   BAIL_IF(failed);
 
-  // Every exact Type settles before the Composite publishes a Field. The
-  // Layout borrows the retained authored identities, so completion never
-  // constructs or synchronizes another member model.
-  complete_field_layout();
   stage = Stage::FieldsLinked;
   return True;
 }
@@ -594,7 +590,7 @@ auto Types::Composite::resolve_exported_type_root(View::Bytes route) const
 
 auto Types::Composite::get_layout() const -> const Ttx::Model::Layouts::Named& {
   return layout.visit(
-      []() -> const Ttx::Model::Layouts::Named& { return incomplete_layout; },
+      []() -> const Ttx::Model::Layouts::Named& { return empty_layout; },
       [](const Ttx::Model::Layouts::Named& selected)
           -> const Ttx::Model::Layouts::Named& { return selected; });
 }

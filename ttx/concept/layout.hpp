@@ -21,10 +21,11 @@ namespace Ttx::Concept {
 // object that supplies each target slot. Indexing absence and fitting errors
 // remain ordinary query results rather than semantic Invalid graph edges.
 //
-// Model::Layouts::Fluid, Named, Ranged, and Composite express different fitting
-// rules through inheritance rather than a tag on one record. Layout therefore
-// has no incomplete state. An unfinished Type or host object resolves to
-// Invalid. Once resolution succeeds its concrete Layout contract is available.
+// Model::Layouts::Value, Fluid, Named, Ranged, and Composite express different
+// fitting rules through inheritance rather than a tag on one record. Layout
+// therefore has no incomplete state. An unfinished Type or host object resolves
+// to Invalid. Once resolution succeeds its concrete Layout contract is
+// available.
 class Layout {
  public:
   enum class Errors : Unsigned_8 {

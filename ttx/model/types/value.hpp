@@ -8,8 +8,10 @@
 
 namespace Ttx::Model::Types {
 
-// Value types that do not have a composite representation and represent some
-// kind of terminal bit interpretation (memory or storage).
+// Value Types are terminal bit interpretations with no structural
+// representation. Type supplies their one entry Value Layout, so the exact
+// scalar identity closes recursive semantic shape instead of laundering the
+// scalar through an empty Layout.
 //
 // Any further contextual resolution on the type terminates to `Invalid`.
 class Value : public Type {

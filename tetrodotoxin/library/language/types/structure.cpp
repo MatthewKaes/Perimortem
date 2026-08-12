@@ -68,5 +68,11 @@ auto Types::Structure::interpret_body(
   }
 
   Token closing = cursor.consume();
-  return definition.complete(kind_token, closing);
+  BAIL_IF(!definition.complete(kind_token, closing));
+
+  // Field identity and source order are complete with the authored body even
+  // though each Field Type links later. Publishing that real Layout here makes
+  // emptiness an immutable Type fact before Signatures negotiate their shape.
+  complete_field_layout();
+  return True;
 }

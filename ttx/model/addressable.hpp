@@ -7,7 +7,9 @@
 
 namespace Ttx::Model {
 
-// Addressable is the narrow contract for a named address to typed data. A
+// Addressable is the narrow contract for a named address to typed data whose
+// exact Type exposes at least one Layout entry. An empty Type remains a valid
+// semantic domain but supplies no value whose stable address can be named. A
 // structured field, receiver, local, external symbol, interpreted endpoint, or
 // runtime object may all be Addressable while publishing different richer
 // contracts. Capabilities related to the Addressable are granted by Dialects

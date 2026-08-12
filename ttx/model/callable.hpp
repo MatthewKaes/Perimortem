@@ -10,10 +10,10 @@
 namespace Ttx::Model {
 
 // Callable is the Abstract contract for invocation. Its parameter and result
-// Layouts are the target-independent signature consumed by fitting,
-// reflection, invocation, and lowering. Their concrete Fluid, Named, Ranged,
-// or Composite contracts own the fitting behavior. A Dialect may enrich the
-// same Callable with an executable body, but the body is not part of this
+// Layouts are the target independent signature consumed by fitting,
+// reflection, invocation, and lowering. Their concrete Value, Fluid, Named,
+// Ranged, or Composite contracts own the fitting behavior. A Dialect may enrich
+// the same Callable with an executable body, but the body is not part of this
 // contract.
 // Machine linkage and executable addresses belong to an ABI or execution
 // contract. Callability alone does not imply an address to data.

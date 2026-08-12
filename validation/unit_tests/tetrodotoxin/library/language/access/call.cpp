@@ -13,6 +13,7 @@
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
@@ -29,6 +30,20 @@ using namespace Validation;
 static Harness CallTests = {
   .name = "Tetrodotoxin::Library::Language::Access::Call"_view,
 };
+
+static auto find_return(const Language::Function& function)
+    -> Option<const Language::Return&> {
+  auto body = function.get_body();
+  BAIL_IF(!body);
+  for (const Reference<Abstract>& statement : body->get_statements()) {
+    auto returned = statement.get().select<Language::Return>();
+    if (returned) {
+      return *returned;
+    }
+  }
+
+  return {};
+}
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
@@ -120,7 +135,7 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
       "    return value;\n"
       "  }\n"
       "}\n"
-      "public Later : struct {}"_view;
+      "public Later : struct { public value : Bool; }"_view;
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -143,13 +158,14 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
   ASSERT(positional->get_initializer()->is<Language::Access::Call>());
   ASSERT(named->get_initializer());
   ASSERT(named->get_initializer()->is<Language::Access::Call>());
-  ASSERT(invoke->get_return_expression());
-  ASSERT(invoke->get_return_expression()->is<Language::Access::Call>());
+  auto invoke_return = find_return(*invoke);
+  ASSERT(invoke_return && invoke_return->get_expression());
+  ASSERT(invoke_return->get_expression()->is<Language::Access::Call>());
 
   const auto& positional_call = static_cast<const Language::Access::Call&>(
       *positional->get_initializer());
   const auto& self_call = static_cast<const Language::Access::Call&>(
-      *invoke->get_return_expression());
+      *invoke_return->get_expression());
   ASSERT(positional_call.get_callable());
   ASSERT(self_call.get_callable());
   EXPECT_NOT(positional_call.get_callable()->is_type_bound());
@@ -276,11 +292,17 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_single_result_chaining) {
   static constexpr View::Bytes source =
       "// Call result flow test.\n"
       "dialect : Library;\n"
-      "public Packet : struct { public value : Unsigned_64; }\n"
+      "public Packet : struct {\n"
+      "  public value : Unsigned_64; public flag : Bool;\n"
+      "  public self_none : func = [self] -> [] {}\n"
+      "  public self_one : func = [self] -> Bool { return true; }\n"
+      "}\n"
       "public Results : struct {\n"
       "  public none : func = [] -> [] {}\n"
       "  public one : func = [] -> Bool { return true; }\n"
-      "  public many : func = [] -> [Unsigned_64, Bool] {}\n"
+      "  public many : func = [.packet : Packet] -> [Unsigned_64, Bool] {\n"
+      "    return packet.[value, flag];\n"
+      "  }\n"
       "  public identity : func = [.packet : Packet] -> Packet {\n"
       "    return packet;\n"
       "  }\n"
@@ -290,7 +312,9 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_single_result_chaining) {
       "private observe : func = [] -> Void {\n"
       "  Results -> none();\n"
       "  Results -> one();\n"
-      "  Results -> many();\n"
+      "  Results -> many(seed);\n"
+      "  seed -> self_none();\n"
+      "  seed -> self_one();\n"
       "}"_view;
   Workspace workspace;
   Errors errors;
@@ -301,24 +325,36 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_single_result_chaining) {
 
   auto observe = find_function(monograph->get_source(), "observe"_view);
   ASSERT(observe);
-  auto expressions = observe->get_expressions();
-  ASSERT_EQ(expressions.get_size(), Count(3));
-  for (Count i = 0; i < expressions.get_size(); i++) {
-    ASSERT(expressions.get_data()[i].get().is<Language::Access::Call>());
+  auto body = observe->get_body();
+  ASSERT(body);
+  auto statements = body->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(5));
+  for (Count i = 0; i < statements.get_size(); i++) {
+    ASSERT(statements.get_data()[i].get().is<Language::Access::Call>());
   }
 
   const auto& none = static_cast<const Language::Access::Call&>(
-      expressions.get_data()[0].get());
+      statements.get_data()[0].get());
   const auto& one = static_cast<const Language::Access::Call&>(
-      expressions.get_data()[1].get());
+      statements.get_data()[1].get());
   const auto& many = static_cast<const Language::Access::Call&>(
-      expressions.get_data()[2].get());
+      statements.get_data()[2].get());
+  const auto& self_none = static_cast<const Language::Access::Call&>(
+      statements.get_data()[3].get());
+  const auto& self_one = static_cast<const Language::Access::Call&>(
+      statements.get_data()[4].get());
   EXPECT(none.get_results().is_empty());
   EXPECT(&none.get_type() == &Invalid::get_invalid());
   EXPECT_EQ(one.get_results().get_size(), Count(1));
   EXPECT(&one.get_type() == &Dialect::get_bool());
   EXPECT_EQ(many.get_results().get_size(), Count(2));
   EXPECT(&many.get_type() == &Invalid::get_invalid());
+  EXPECT(self_none.get_results().is_empty());
+  EXPECT_EQ(self_one.get_results().get_size(), Count(1));
+  ASSERT(self_none.get_callable());
+  ASSERT(self_one.get_callable());
+  EXPECT(self_none.get_callable()->is_type_bound());
+  EXPECT(self_one.get_callable()->is_type_bound());
 
   auto selected = find_field(monograph->get_source(), "selected"_view);
   ASSERT(selected);

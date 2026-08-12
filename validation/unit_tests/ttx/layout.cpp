@@ -12,6 +12,7 @@
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/layouts/ranged.hpp"
+#include "ttx/model/layouts/value.hpp"
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
@@ -81,6 +82,17 @@ static Harness TtxLayout = {
   .name = "Ttx::Model::Layout"_view,
 };
 
+class AtomicType : public Type {
+ public:
+  auto get_name() const -> View::Bytes override { return "Atomic"_view; }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes) const -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
 static auto selects(
     const Perimortem::Core::Option<const Abstract&>& result,
     const Abstract& expected) -> Bool {
@@ -111,6 +123,16 @@ static auto reports(
   return result.visit(
       [](const Abstract&) { return false; },
       [&](Layout::Errors error) { return error == expected; });
+}
+
+PERIMORTEM_UNIT_TEST(TtxLayout, value_terminal) {
+  AtomicType atomic;
+  const Layout& layout = atomic.get_layout();
+
+  EXPECT_EQ(layout.get_size(), Count(1));
+  EXPECT(selects(layout.get_abstract(0), atomic));
+  EXPECT(layout.fits(layout));
+  EXPECT(selects(layout.get_fitted(layout, 0), atomic));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {

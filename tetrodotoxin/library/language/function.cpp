@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/function.hpp"
 
-#include "tetrodotoxin/language/parser/comment.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -163,81 +161,6 @@ static auto get_unreachable_publication(const Language::Function& function)
   return {};
 }
 
-static auto parse_body(
-    Allocator::Arena& domain,
-    Language::Materializations& materializations,
-    Cursor& cursor,
-    const Abstract& context,
-    Managed::Vector<Reference<Language::Expression>>& expressions,
-    Token& return_token,
-    Span& return_span,
-    Option<Reference<Language::Expression>>& return_expression,
-    Token& closing) -> Bool {
-  BAIL_IF(!cursor.require(
-      Code::Type::ScopeStart,
-      "Library Function signatures require a body beginning with `{`."_view));
-
-  Tetrodotoxin::Language::Parser::Comment::parse(cursor);
-  while (!cursor.matches(Code::Type::ScopeEnd)) {
-    if (cursor.matches(Code::Type::Terminal)) {
-      cursor.create_token_error(
-          "Library Function body reached the end of source before `}`."_view);
-      return False;
-    }
-
-    if (cursor.matches(Code::Type::Return)) {
-      // Return is the only retained terminal form. Closing the grammar here
-      // keeps later source from appearing reachable without a statement owner.
-      Token selected_return = cursor.consume();
-      Option<Language::Expression&> selected_expression;
-      if (!cursor.matches(Code::Type::EndStatement)) {
-        selected_expression = Language::Parser::Expression::parse(
-            domain, materializations, cursor, context);
-        BAIL_IF(!selected_expression);
-      }
-
-      Token terminator = cursor.require(
-          Code::Type::EndStatement,
-          "Library Function returns require one terminating `;`."_view);
-      BAIL_IF(!terminator);
-
-      Tetrodotoxin::Language::Parser::Comment::parse(cursor);
-      if (!cursor.matches(Code::Type::ScopeEnd)) {
-        cursor.create_token_error(
-            "A Library Function return must be the final body form."_view);
-        return False;
-      }
-
-      closing = cursor.consume();
-      return_token = selected_return;
-      return_span = Span(selected_return, terminator);
-      if (selected_expression) {
-        expressions.insert(*selected_expression);
-        return_expression =
-            Reference<Language::Expression>(*selected_expression);
-      }
-
-      return True;
-    }
-
-    auto expression = Language::Parser::Expression::parse(
-        domain, materializations, cursor, context);
-    BAIL_IF(!expression);
-
-    BAIL_IF(!cursor.require(
-        Code::Type::EndStatement,
-        "Library Function expressions require one terminating `;`."_view));
-
-    // The terminator belongs to body grammar rather than the retained root.
-    // Expression Span therefore ends at the last authored value Token.
-    expressions.insert(*expression);
-    Tetrodotoxin::Language::Parser::Comment::parse(cursor);
-  }
-
-  closing = cursor.consume();
-  return True;
-}
-
 auto Language::Function::reserve(
     Allocator::Arena& domain,
     Cursor& cursor,
@@ -262,10 +185,7 @@ auto Language::Function::reserve(
 Language::Function::Function(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition)
-    : Base(definition),
-      domain(domain),
-      expressions(domain),
-      expression_observations(domain) {}
+    : Base(definition), domain(domain) {}
 
 auto Language::Function::complete(
     Cursor& cursor,
@@ -277,7 +197,6 @@ auto Language::Function::complete(
   }
 
   auto transaction = cursor.branch();
-  Managed::Vector<Reference<Expression>> parsed_expressions(domain);
   auto parsed_signature = Signature::interpret(domain, transaction);
   BAIL_IF(!parsed_signature);
 
@@ -293,28 +212,17 @@ auto Language::Function::complete(
     return False;
   }
 
-  Token parsed_return_token;
-  Span parsed_return_span;
-  Option<Reference<Expression>> parsed_return_expression;
-  Token closing;
-  Bool body_complete = parse_body(
-      domain, materializations, transaction, *this, parsed_expressions,
-      parsed_return_token, parsed_return_span, parsed_return_expression,
-      closing);
-  BAIL_IF(!body_complete);
-  BAIL_IF(!complete_definition(definition.get_qualifier(), closing));
+  auto parsed_body = Block::interpret(
+      domain, materializations, transaction, *this, get_host());
+  BAIL_IF(!parsed_body);
+  BAIL_IF(!complete_definition(
+      definition.get_qualifier(),
+      parsed_body->get_anchor().get_span().get_end()));
 
-  // Only complete grammar publishes Signature and Expression roots. Failed
-  // Arena values remain unreachable from the reserved Function.
+  // Only complete grammar publishes Signature and Block edges. Failed Arena
+  // values remain unreachable from the reserved Function.
   signature = *parsed_signature;
-  for (Count i = 0; i < parsed_expressions.get_size(); i++) {
-    expressions.insert(parsed_expressions[i]);
-    expression_observations.insert(parsed_expressions[i].get());
-  }
-
-  return_token = parsed_return_token;
-  return_span = parsed_return_span;
-  return_expression = parsed_return_expression;
+  body = *parsed_body;
   completed = True;
   cursor.join(transaction);
   return True;
@@ -338,37 +246,24 @@ auto Language::Function::link_signature(
 
   // Signature routes receive the host Type directly. They therefore use the
   // same access authority as the body without making an incomplete Function
-  // double as a Type-resolution mode switch.
+  // double as a Type resolution mode switch.
   return signature->link(source, get_host());
 }
 
 auto Language::Function::link_body(
     Tetrodotoxin::Language::Monograph& source,
     Materializations& materializations) -> Bool {
-  if (linked) {
-    return True;
-  }
   BAIL_IF(!is_signature_linked());
+  BAIL_IF(!body);
 
-  // Signature edges publish before body linking so every Identifier can reach
+  // Signature edges publish before Block linking so every Identifier can reach
   // the exact Parameter object created for its authored declaration.
-  Bool failed = False;
-  View::Vector<Reference<Expression>> body = expressions;
-  for (Count i = 0; i < body.get_size(); i++) {
-    // Lexical context and access authority are independent facts. Function
-    // owns parameter and bare-name lookup, while its exact host Type grants
-    // private access only to explicit member receivers in this body.
-    failed |= !body.get_data()[i].get().link(
-        source, *this, materializations, get_host());
-  }
-
-  linked = !failed;
-  return linked;
+  return body->link(source, materializations);
 }
 
 auto Language::Function::finalize(Tetrodotoxin::Language::Monograph& source)
     -> Bool {
-  BAIL_IF(!linked);
+  BAIL_IF(!body);
 
   Bool valid = True;
   auto unreachable = get_unreachable_publication(*this);
@@ -383,10 +278,7 @@ auto Language::Function::finalize(Tetrodotoxin::Language::Monograph& source)
   // Optional folding records a cached Constant for later consumers. A dynamic
   // result or failure remains queryable but cannot turn an otherwise complete
   // Function into a semantic failure without a Constant requirement.
-  View::Vector<Reference<Expression>> body = expressions;
-  for (Count i = 0; i < body.get_size(); i++) {
-    body.get_data()[i].get().fold();
-  }
+  body->finalize();
 
   return valid;
 }
@@ -414,7 +306,7 @@ auto Language::Function::resolve_context(View::Bytes route) const
         // Only a Function hosted directly by Source receives bare Static
         // Addressables. A nested Composite grants access authority, but it
         // never supplies an implicit receiver or leaks Source statics through
-        // the Definition-host chain.
+        // the Definition host chain.
         // Signature linking uses the explicit Type resolver and never enters
         // this lexical surface. Source Addressables therefore need no lifecycle
         // switch: this owner is always describing body name lookup.
@@ -460,18 +352,10 @@ auto Language::Function::get_signature() const -> Option<const Signature&> {
       });
 }
 
-auto Language::Function::get_expressions() const
-    -> View::Vector<Reference<const Expression>> {
-  return expression_observations;
-}
-
-auto Language::Function::get_return_expression() const
-    -> Option<const Expression&> {
-  return return_expression.visit(
-      []() -> Option<const Expression&> { return {}; },
-      [](const Reference<Expression>& expression) -> Option<const Expression&> {
-        return expression.get();
-      });
+auto Language::Function::get_body() const -> Option<const Block&> {
+  return body.visit(
+      []() -> Option<const Block&> { return {}; },
+      [](const Block& selected) -> Option<const Block&> { return selected; });
 }
 
 auto Language::Function::is_signature_linked() const -> Bool {

@@ -3,21 +3,17 @@
 
 #pragma once
 
-#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/authored.hpp"
-#include "tetrodotoxin/library/language/expression.hpp"
+#include "tetrodotoxin/library/language/block.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/signature.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/lexical/span.hpp"
 #include "ttx/model/callable.hpp"
 #include "ttx/model/type.hpp"
 
@@ -25,7 +21,7 @@ namespace Tetrodotoxin::Library::Language {
 
 // Function is one Library defined Callable. Reservation fixes its graph
 // identity while Definition supplies its exact host Type. Completion installs
-// the signature and authored Expression roots. A reserved self Addressable at
+// the signature and one authored Block. A reserved self Addressable at
 // parameter entry zero records receiver invocation and has that exact host
 // Type.
 class Function : public Authored<Ttx::Model::Callable> {
@@ -79,11 +75,7 @@ class Function : public Authored<Ttx::Model::Callable> {
 
   auto get_signature() const -> Perimortem::Core::Option<const Signature&>;
 
-  auto get_expressions() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<const Expression>>;
-
-  auto get_return_expression() const
-      -> Perimortem::Core::Option<const Expression&>;
+  auto get_body() const -> Perimortem::Core::Option<const Block&>;
 
   constexpr auto is_complete() const -> Bool { return completed; }
 
@@ -92,16 +84,8 @@ class Function : public Authored<Ttx::Model::Callable> {
 
   Perimortem::Memory::Allocator::Arena& domain;
   Perimortem::Core::Option<Signature&> signature;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Expression>>
-      expressions;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<const Expression>>
-      expression_observations;
-  Ttx::Lexical::Token return_token;
-  Ttx::Lexical::Span return_span;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Expression>>
-      return_expression;
+  Perimortem::Core::Option<Block&> body;
   Bool completed = False;
-  Bool linked = False;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

@@ -48,6 +48,8 @@ private missing_slice := 0x[10 20 30]:[99, 2];
 private called := Factory -> add(2, 3);
 private addressed := Factory -> identity(packet).width;
 private self_called := packet -> total();
-private empty : Empty = packet.[];
+private empty : func = [] -> Empty {
+  return packet.[];
+}
 private single : Unsigned_64 = packet.[width];
 private reordered : Pair = packet.[height, width];

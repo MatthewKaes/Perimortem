@@ -6,6 +6,7 @@
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
+#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -115,9 +116,9 @@ auto Language::Access::Call::parse(
     return {};
   }
 
-  // The Token remains the canonical authored name fact. The Arena-stable
-  // spelling exists only because Token coordinates need source bytes after the
-  // parser Cursor has left this transaction.
+  // The Token remains the canonical authored name fact. The spelling copied
+  // into the Arena supports delayed lookup because Token coordinates require
+  // source bytes after the parser Cursor leaves this transaction.
   Core::View::Bytes name =
       domain.proxy(name_token.caculate_text(transaction.get_source_text()));
   Anchor anchor = Anchor::create(
@@ -218,9 +219,9 @@ auto Language::Access::Call::link(
 
   callable = Reference<const Callable>(*selected);
 
-  // Call deliberately does not delegate to Expression::link. Empty and
-  // multi-result invocations are complete even though scalar get_type() is
-  // Invalid; the selected Callable remains the exact result Layout owner.
+  // Call deliberately does not delegate to Expression::link. Invocations with
+  // empty or multiple result Layouts are complete even though scalar get_type()
+  // is Invalid. The selected Callable remains the exact result Layout owner.
   return True;
 }
 
@@ -233,9 +234,9 @@ auto Language::Access::Call::get_documentation() const -> const Documentation& {
 }
 
 auto Language::Access::Call::get_inputs() const -> const Layout& {
-  // A Type-valued receiver participates in link selection but contributes no
-  // runtime value. Self remains the leading evaluated input without storing a
-  // second receiver-role fact.
+  // A receiver whose result is a Type participates in link selection but
+  // contributes no runtime value. Self remains the leading evaluated input
+  // without storing a separate receiver role fact.
   if (receiver.get_result().is<Ttx::Model::Type>()) {
     return arguments;
   }

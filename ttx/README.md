@@ -90,18 +90,21 @@ editors, and compilers share a fact without maintaining synchronized copies.
 ### Semantic Layout
 
 A Layout is an ordered view of exact semantic identities and a directional
-fitting contract. TTX supplies four common forms:
+fitting contract. TTX supplies five common forms:
 
+* `Value` contains one exact atomic Type as a terminal leaf.
 * `Fluid` fits ordered values.
 * `Named` retains uniquely named entries and fits them by name.
 * `Ranged` repeats one entry over a fixed interval.
 * `Composite` joins complete Layouts without flattening them.
 
-Layouts describe semantic shape and how one ordered view fits another. Scalar
-Values separately define abstract machine width and storage requirements.
-Target object layout, field offsets, registers, address spaces, pointer forms,
-and runtime storage belong to the consumer that chooses a physical
-representation.
+Layouts describe semantic shape and how one ordered view fits another. A
+leaf Type contributes its own one-entry Value Layout, while an empty Layout
+carries no value and fits every other empty Layout. An Addressable therefore
+requires a Type with at least one Layout entry. Scalar Values separately define
+abstract machine width and storage requirements. Target object layout, field
+offsets, registers, address spaces, pointer forms, and runtime storage belong to
+the consumer that chooses a physical representation.
 
 ### Terminal products
 

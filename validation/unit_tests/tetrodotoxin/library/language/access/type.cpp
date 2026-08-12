@@ -42,13 +42,15 @@ PERIMORTEM_UNIT_TEST(TypeAccessTests, qualified_private_authority) {
       "// Qualified private Type access.\n"
       "dialect : Library;\n"
       "public Outer : struct {\n"
-      "  private Hidden : struct {}\n"
+      "  private Hidden : struct { private value : Bool; }\n"
       "  public Inner : struct { private value : Outer::Hidden; }\n"
       "}"_view;
   static constexpr View::Bytes rejected =
       "// External private Type access.\n"
       "dialect : Library;\n"
-      "public Outer : struct { private Hidden : struct {} }\n"
+      "public Outer : struct {\n"
+      "  private Hidden : struct { private value : Bool; }\n"
+      "}\n"
       "public Borrowed : alias = Outer;\n"
       "private invalid : Borrowed::Hidden;"_view;
 
@@ -61,7 +63,9 @@ PERIMORTEM_UNIT_TEST(TypeAccessTests, local_root_shadows_intrinsic) {
       "// Local Type root shadowing.\n"
       "dialect : Library;\n"
       "public Host : struct {\n"
-      "  public Bool : struct { public Nested : struct {} }\n"
+      "  public Bool : struct {\n"
+      "    public Nested : struct { private value : Unsigned_8; }\n"
+      "  }\n"
       "  public value : Bool::Nested;\n"
       "}"_view;
 
@@ -81,7 +85,10 @@ PERIMORTEM_UNIT_TEST(TypeAccessTests, expression_result_drives_access) {
   static constexpr View::Bytes value_qualification =
       "// Value cannot provide Type qualification.\n"
       "dialect : Library;\n"
-      "public Outer : struct { public Nested : struct {} }\n"
+      "public Outer : struct {\n"
+      "  private value : Bool;\n"
+      "  public Nested : struct {}\n"
+      "}\n"
       "private value : Outer;\n"
       "private invalid := value::Nested;"_view;
   static constexpr View::Bytes descriptor_address =

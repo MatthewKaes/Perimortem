@@ -7,6 +7,7 @@
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/alias.hpp"
+#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;

@@ -269,6 +269,22 @@ auto Language::Signature::link(
   link_slots(results, False);
   BAIL_IF(failed);
 
+  // A named parameter creates one real Addressable. Empty Types still carry
+  // valid semantic shape, but there is no value slot whose stable address that
+  // name could denote. Unnamed empty slots simply contribute no flow.
+  for (Count i = 0; i < parameters.get_size(); i++) {
+    Slot& slot = parameters[i];
+    BAIL_IF(!slot.type);
+    if (slot.is_named() && slot.type->get().get_layout().is_empty()) {
+      source.report(
+          slot.anchor,
+          "Function parameter cannot bind an empty Type Layout."_view,
+          "Remove the parameter name or use a Type with one value leaf."_view);
+      failed = True;
+    }
+  }
+  BAIL_IF(failed);
+
   auto construct_layout = [&](Managed::Vector<Slot>& slots,
                               Bool parameters) -> Option<const Layout&> {
     Bool named = False;
@@ -278,6 +294,10 @@ auto Language::Signature::link(
       BAIL_IF(!slot.type);
 
       const Type& type = slot.type->get();
+      if (type.get_layout().is_empty()) {
+        continue;
+      }
+
       named |= slot.is_named();
       if (!slot.is_named()) {
         edges.insert(type);

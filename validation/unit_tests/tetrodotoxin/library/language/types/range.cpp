@@ -39,7 +39,8 @@ PERIMORTEM_UNIT_TEST(LibraryRange, direct_contract) {
   EXPECT(
       arguments.get_data()[0].find<const Ttx::Model::Type&>() ==
       &Dialect::get_signed_16());
-  EXPECT(range.get_layout().is_empty());
+  ASSERT_EQ(range.get_layout().get_size(), Count(1));
+  EXPECT(&*range.get_layout().get_abstract(0) == &range);
   EXPECT_NOT(range.get_documentation().is_empty());
   EXPECT(&range.resolve_context("member"_view) == &Invalid::get_invalid());
 }

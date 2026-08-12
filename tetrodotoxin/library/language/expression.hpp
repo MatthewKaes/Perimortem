@@ -118,21 +118,17 @@ class Expression : public Ttx::Concept::Abstract {
     return anchor;
   }
 
-  // Ordinary expressions fit their exact retained Type or the same completed
-  // represented Type. Constant domains may extend this rule when their value
-  // proves a contextual conversion safe.
+  // Ordinary expressions supply the complete Layout of their output Type.
+  // Atomic Types retain their own exact identity as one terminal value while
+  // structural and empty Types expose their real shapes. Constant domains may
+  // extend this rule when their value proves a contextual conversion safe.
   virtual constexpr auto fits(const Ttx::Model::Type& target) const -> Bool {
-    // A staged Composite may already be the exact retained result Type while
-    // its incomplete Layout still makes resolve() return Invalid. Preserve
-    // that real identity before consulting represented Type identities.
-    if (&get_type() == &target) {
-      return True;
+    auto source_type = get_type().select<Ttx::Model::Type>();
+    if (!source_type) {
+      source_type = get_type().resolve().select<Ttx::Model::Type>();
     }
 
-    const Ttx::Concept::Abstract& source_type = get_type().resolve();
-    const Ttx::Concept::Abstract& target_type = target.resolve();
-    return source_type.is<Ttx::Model::Type>() &&
-           target_type.is<Ttx::Model::Type>() && &source_type == &target_type;
+    return source_type && source_type->get_layout().fits(target.get_layout());
   }
 
  protected:

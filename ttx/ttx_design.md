@@ -227,9 +227,10 @@ A Layout retains an ordered view of exact Abstract identities and answers
 whether one view fits another. Fitting is directional because a source Layout
 supplies the values required by a target Layout.
 
-`Fluid` compares entries in order. `Named` compares uniquely named entries by
-name and represented identity. `Ranged` repeats one entry across a fixed
-interval. `Composite` preserves two complete child Layouts.
+`Value` is the terminal one-entry shape for one exact atomic Type. `Fluid`
+compares entries in order. `Named` compares uniquely named entries by name and
+represented identity. `Ranged` repeats one entry across a fixed interval.
+`Composite` preserves two complete child Layouts.
 
 Successful fitting returns the original source edge that supplies a target
 position. Layout retains order and applicability without copying field names,
@@ -245,8 +246,10 @@ address space, pointer form, or calling convention questions by itself. Each
 compiler derives and validates those facts for its own Terminal. That extra work
 is the price of keeping the graph target neutral.
 
-An empty Layout is a valid shape. It says nothing about whether a Type is a
-scalar leaf or whether construction is complete.
+An empty Layout is a valid zero-value shape and fits another empty Layout.
+Atomic Types cannot launder that shape because their Value Layout contains
+their own exact identity. A zero-value Type may still own contextual or Static
+facts, but no Addressable can name an absent value.
 
 ## Terminal products and reconstruction
 
