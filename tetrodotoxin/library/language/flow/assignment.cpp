@@ -1,13 +1,13 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/assignment.hpp"
+#include "tetrodotoxin/library/language/flow/assignment.hpp"
 
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/index.hpp"
+#include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
-#include "tetrodotoxin/library/language/identifier.hpp"
-#include "tetrodotoxin/library/language/local.hpp"
+#include "tetrodotoxin/library/language/flow/local.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
@@ -29,8 +29,8 @@ static auto is_assignment_operator(Code::Type code) -> Bool {
 
 static auto is_assignment_syntax(const Language::Expression& expression)
     -> Bool {
-  return expression.visit<Language::Identifier>(
-      [](const Language::Identifier& identifier) {
+  return expression.visit<Language::Expressions::Identifier>(
+      [](const Language::Expressions::Identifier& identifier) {
         Code code = identifier.get_token().get_code();
         return Bool(
             code == Code::Type::Addressable || code == Code::Type::Self);
@@ -53,8 +53,8 @@ static auto is_assignment_syntax(const Language::Expression& expression)
 static auto is_writable(
     const Addressable& addressable,
     const Type& access_scope) -> Bool {
-  return addressable.visit<Language::Local>(
-      [](const Language::Local& local) {
+  return addressable.visit<Language::Flow::Local>(
+      [](const Language::Flow::Local& local) {
         return Bool(local.get_writability() == Language::Writability::Full);
       },
       [&](const Abstract& not_local) {
@@ -84,7 +84,7 @@ static auto is_numeric(const Type& type) -> Bool {
          type.is<Ttx::Model::Types::Real>();
 }
 
-auto Language::Assignment::interpret(
+auto Language::Flow::Assignment::interpret(
     Memory::Allocator::Arena& domain,
     Monograph& source,
     Cursor& cursor) -> Core::Option<Assignment&> {
@@ -128,7 +128,7 @@ auto Language::Assignment::interpret(
   return assignment;
 }
 
-auto Language::Assignment::link(
+auto Language::Flow::Assignment::link(
     Tetrodotoxin::Language::Monograph& monograph,
     const Abstract& lexical_context,
     const Type& access_scope) -> Bool {
@@ -187,7 +187,7 @@ auto Language::Assignment::link(
   return True;
 }
 
-auto Language::Assignment::finalize() -> void {
+auto Language::Flow::Assignment::finalize() -> void {
   target.finalize();
   source.finalize();
 }

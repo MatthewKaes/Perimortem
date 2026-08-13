@@ -17,7 +17,7 @@
 #include "ttx/model/callable.hpp"
 #include "ttx/model/type.hpp"
 
-namespace Tetrodotoxin::Library::Language {
+namespace Tetrodotoxin::Library::Language::Flow {
 
 // Block is one authored Function body or nested lexical scope. It retains exact
 // statement identities in source order while the concrete statement owners
@@ -87,4 +87,4 @@ class Block : public Ttx::Concept::Abstract {
   Bool linked = False;
 };
 
-}  // namespace Tetrodotoxin::Library::Language
+}  // namespace Tetrodotoxin::Library::Language::Flow

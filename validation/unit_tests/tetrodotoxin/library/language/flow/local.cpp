@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/local.hpp"
+#include "tetrodotoxin/library/language/flow/local.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -9,7 +9,7 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/language/block.hpp"
+#include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
@@ -26,7 +26,7 @@ using Tetrodotoxin::Environment::Workspace;
 using namespace Validation;
 
 static Harness LocalTests = {
-  .name = "Tetrodotoxin::Library::Language::Local"_view,
+  .name = "Tetrodotoxin::Library::Language::Flow::Local"_view,
 };
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
@@ -106,30 +106,30 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
   auto body = find_function(source_type, "body"_view);
   ASSERT(body && body->get_body());
 
-  const Language::Block& block = *body->get_body();
+  const Language::Flow::Block& block = *body->get_body();
   auto statements = block.get_statements();
   ASSERT_EQ(statements.get_size(), Count(8));
-  ASSERT(statements.get_data()[0].get().is<Language::Local>());
-  ASSERT(statements.get_data()[1].get().is<Language::Local>());
-  ASSERT(statements.get_data()[2].get().is<Language::Local>());
-  ASSERT(statements.get_data()[3].get().is<Language::Local>());
-  ASSERT(statements.get_data()[4].get().is<Language::Local>());
-  ASSERT(statements.get_data()[5].get().is<Language::Local>());
-  ASSERT(statements.get_data()[6].get().is<Language::Local>());
+  ASSERT(statements.get_data()[0].get().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[1].get().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[2].get().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[3].get().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[4].get().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[5].get().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[6].get().is<Language::Flow::Local>());
   const auto& explicit_local =
-      static_cast<const Language::Local&>(statements.get_data()[0].get());
+      static_cast<const Language::Flow::Local&>(statements.get_data()[0].get());
   const auto& fixed_local =
-      static_cast<const Language::Local&>(statements.get_data()[1].get());
+      static_cast<const Language::Flow::Local&>(statements.get_data()[1].get());
   const auto& inferred_local =
-      static_cast<const Language::Local&>(statements.get_data()[2].get());
+      static_cast<const Language::Flow::Local&>(statements.get_data()[2].get());
   const auto& copied_local =
-      static_cast<const Language::Local&>(statements.get_data()[3].get());
+      static_cast<const Language::Flow::Local&>(statements.get_data()[3].get());
   const auto& created_local =
-      static_cast<const Language::Local&>(statements.get_data()[4].get());
+      static_cast<const Language::Flow::Local&>(statements.get_data()[4].get());
   const auto& positional_local =
-      static_cast<const Language::Local&>(statements.get_data()[5].get());
+      static_cast<const Language::Flow::Local&>(statements.get_data()[5].get());
   const auto& named_local =
-      static_cast<const Language::Local&>(statements.get_data()[6].get());
+      static_cast<const Language::Flow::Local&>(statements.get_data()[6].get());
 
   EXPECT(&explicit_local.get_type() == &Dialect::get_bool());
   EXPECT(&fixed_local.get_type() == &Dialect::get_bool());

@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/return.hpp"
+#include "tetrodotoxin/library/language/flow/return.hpp"
 
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 
@@ -11,7 +11,7 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Return::interpret(
+auto Language::Flow::Return::interpret(
     Memory::Allocator::Arena& domain,
     Language::Monograph& source,
     Cursor& cursor) -> Core::Option<Return&> {
@@ -43,7 +43,7 @@ auto Language::Return::interpret(
   return result;
 }
 
-auto Language::Return::link(
+auto Language::Flow::Return::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& lexical_context,
     const Type& access_scope,
@@ -69,6 +69,6 @@ auto Language::Return::link(
   return True;
 }
 
-auto Language::Return::finalize() -> void {
+auto Language::Flow::Return::finalize() -> void {
   pack.get().finalize();
 }

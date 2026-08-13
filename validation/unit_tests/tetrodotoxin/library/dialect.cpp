@@ -20,12 +20,12 @@
 #include "tetrodotoxin/library/language/access/swizzle.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/library/language/initializer.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
-#include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
@@ -53,11 +53,11 @@ using Tetrodotoxin::Environment::Workspace;
 using namespace Validation;
 
 static auto find_return(const Language::Function& function)
-    -> Option<const Language::Return&> {
+    -> Option<const Language::Flow::Return&> {
   auto body = function.get_body();
   BAIL_IF(!body);
   for (const Reference<Abstract>& statement : body->get_statements()) {
-    auto returned = statement.get().select<Language::Return>();
+    auto returned = statement.get().select<Language::Flow::Return>();
     if (returned) {
       return *returned;
     }
@@ -707,9 +707,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   const auto& source_field =
       static_cast<const Language::Field&>(source_field_identity);
   auto initializer = source_field.get_initializer();
-  ASSERT(initializer && initializer->is<Language::Initializer>());
+  ASSERT(initializer && initializer->is<Language::Expressions::Initializer>());
   const auto& object_initializer =
-      static_cast<const Language::Initializer&>(*initializer);
+      static_cast<const Language::Expressions::Initializer&>(*initializer);
   EXPECT(&object_initializer.get_type() == &session);
   auto initializer_attributes = source_field.get_definition().get_attributes();
   ASSERT_EQ(initializer_attributes.get_size(), Count(2));

@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/initializer.hpp"
+#include "tetrodotoxin/library/language/expressions/initializer.hpp"
 
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
@@ -24,18 +24,18 @@ static auto select_accessible_field(
       !Language::Access::Address::is_accessible(*field, access_scope));
 
   // Object construction consumes the target's real authored Field order, but
-  // shares Address's one publication and host-authority decision. A const Field
-  // always uses its one declaration-owned initializer and therefore never
+  // shares Address's one publication and host authority decision. A const Field
+  // always uses its one declaration owned initializer and therefore never
   // enters the supplied construction Layout.
   return *field;
 }
 
-auto Language::Initializer::is_next(const Ttx::Lexical::Cursor& cursor)
-    -> Bool {
+auto Language::Expressions::Initializer::is_next(
+    const Ttx::Lexical::Cursor& cursor) -> Bool {
   return cursor.matches(Ttx::Lexical::Code::Type::New);
 }
 
-auto Language::Initializer::parse(
+auto Language::Expressions::Initializer::parse(
     Memory::Allocator::Arena& domain,
     Language::Monograph& source,
     Ttx::Lexical::Cursor& cursor) -> Core::Option<Initializer&> {
@@ -69,13 +69,13 @@ auto Language::Initializer::parse(
   return initializer;
 }
 
-Language::Initializer::Initializer(
+Language::Expressions::Initializer::Initializer(
     Memory::Allocator::Arena& domain,
     Language::Model::Pack& arguments,
     Core::Option<Ttx::Lexical::Anchor> anchor)
     : Expression(anchor), domain(domain), arguments(arguments) {}
 
-auto Language::Initializer::get_type() const -> const Abstract& {
+auto Language::Expressions::Initializer::get_type() const -> const Abstract& {
   return expected_type.visit(
       []() -> const Abstract& { return Invalid::get_invalid(); },
       [](const Reference<const Types::Object>& selected) -> const Abstract& {
@@ -83,15 +83,15 @@ auto Language::Initializer::get_type() const -> const Abstract& {
       });
 }
 
-auto Language::Initializer::finalize() -> void {
+auto Language::Expressions::Initializer::finalize() -> void {
   // The initializer owns the complete argument flow. Finalize its real Pack in
-  // source order before folding the initializer node itself; no second
+  // source order before folding the initializer node itself. No second
   // expression inventory exists beside the Pack's canonical Layout.
   arguments.finalize();
   Expression::finalize();
 }
 
-auto Language::Initializer::supplies(
+auto Language::Expressions::Initializer::supplies(
     Core::Option<const Type&> access_scope,
     const Types::Object& target,
     const Field& field) const -> Bool {
@@ -125,7 +125,7 @@ auto Language::Initializer::supplies(
   return False;
 }
 
-auto Language::Initializer::has_mandatory_cycle(
+auto Language::Expressions::Initializer::has_mandatory_cycle(
     Core::Option<const Type&> access_scope,
     const Types::Object& target,
     Core::View::Vector<Reference<const Types::Object>> path) const -> Bool {
@@ -173,7 +173,7 @@ auto Language::Initializer::has_mandatory_cycle(
   return False;
 }
 
-auto Language::Initializer::link(
+auto Language::Expressions::Initializer::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& lexical_context,
     Core::Option<const Type&> access_scope) -> Bool {

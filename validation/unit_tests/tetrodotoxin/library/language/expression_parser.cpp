@@ -11,7 +11,7 @@
 #include "tetrodotoxin/library/language/access/slice.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "tetrodotoxin/library/language/identifier.hpp"
+#include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
 #include "tetrodotoxin/library/language/operations/and.hpp"
@@ -415,7 +415,8 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, address_chain_and_anchor) {
   EXPECT_TEXT(inner->get_name(), "member"_view);
   EXPECT(matches_anchor(*outer, source, "tail"_view, source));
   EXPECT(matches_anchor(*inner, source, "member"_view, "receiver.member"_view));
-  EXPECT(inner->get_receiver().is<Library::Language::Identifier>());
+  EXPECT(
+      inner->get_receiver().is<Library::Language::Expressions::Identifier>());
   EXPECT(errors.is_empty());
 }
 

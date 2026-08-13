@@ -9,7 +9,7 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/language/authored.hpp"
-#include "tetrodotoxin/library/language/block.hpp"
+#include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/signature.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -74,7 +74,7 @@ class Function : public Authored<Ttx::Model::Callable> {
   // once the parameter Layout exists.
   auto declares_self() const -> Bool;
 
-  auto get_body() const -> Perimortem::Core::Option<const Block&>;
+  auto get_body() const -> Perimortem::Core::Option<const Flow::Block&>;
 
   constexpr auto is_complete() const -> Bool { return completed; }
 
@@ -83,7 +83,7 @@ class Function : public Authored<Ttx::Model::Callable> {
 
   Perimortem::Memory::Allocator::Arena& domain;
   Perimortem::Core::Option<Signature&> signature;
-  Perimortem::Core::Option<Block&> body;
+  Perimortem::Core::Option<Flow::Block&> body;
   Bool completed = False;
 };
 

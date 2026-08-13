@@ -12,11 +12,11 @@
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/operation.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
-#include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
@@ -36,11 +36,11 @@ static Harness SwizzleTests = {
 };
 
 static auto find_return(const Language::Function& function)
-    -> Option<const Language::Return&> {
+    -> Option<const Language::Flow::Return&> {
   auto body = function.get_body();
   BAIL_IF(!body);
   for (const Reference<Abstract>& statement : body->get_statements()) {
-    auto returned = statement.get().select<Language::Return>();
+    auto returned = statement.get().select<Language::Flow::Return>();
     if (returned) {
       return *returned;
     }

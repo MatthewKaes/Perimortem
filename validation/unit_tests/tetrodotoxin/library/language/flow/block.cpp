@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/block.hpp"
+#include "tetrodotoxin/library/language/flow/block.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -10,9 +10,9 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
+#include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -26,7 +26,7 @@ using Tetrodotoxin::Environment::Workspace;
 using namespace Validation;
 
 static Harness BlockTests = {
-  .name = "Tetrodotoxin::Library::Language::Block"_view,
+  .name = "Tetrodotoxin::Library::Language::Flow::Block"_view,
 };
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
@@ -87,8 +87,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
   ASSERT(empty && empty->get_body());
   ASSERT(body && body->get_body());
 
-  const Language::Block& empty_block = *empty->get_body();
-  const Language::Block& populated = *body->get_body();
+  const Language::Flow::Block& empty_block = *empty->get_body();
+  const Language::Flow::Block& populated = *body->get_body();
   EXPECT(empty_block.get_statements().is_empty());
   EXPECT(
       empty_block.get_anchor().get_span().caculate_text(source) == "{}"_view);
@@ -102,9 +102,9 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
   const Abstract& second = statements.get_data()[1].get();
   EXPECT(&first != &second);
   ASSERT(first.is<Language::Access::Call>());
-  ASSERT(second.is<Language::Return>());
+  ASSERT(second.is<Language::Flow::Return>());
   const auto& invoked = static_cast<const Language::Access::Call&>(first);
-  const auto& returned = static_cast<const Language::Return&>(second);
+  const auto& returned = static_cast<const Language::Flow::Return&>(second);
   EXPECT(invoked.get_callable());
   EXPECT_NOT(invoked.get_folded());
   EXPECT_TEXT(

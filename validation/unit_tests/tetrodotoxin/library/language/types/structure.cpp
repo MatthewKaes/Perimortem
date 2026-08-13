@@ -9,11 +9,11 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
@@ -31,11 +31,11 @@ using Tetrodotoxin::Environment::Workspace;
 using namespace Validation;
 
 static auto find_return(const Language::Function& function)
-    -> Option<const Language::Return&> {
+    -> Option<const Language::Flow::Return&> {
   auto body = function.get_body();
   BAIL_IF(!body);
   for (const Reference<Abstract>& statement : body->get_statements()) {
-    auto returned = statement.get().select<Language::Return>();
+    auto returned = statement.get().select<Language::Flow::Return>();
     if (returned) {
       return *returned;
     }
@@ -560,9 +560,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
   EXPECT(&*exact.get_initializer() == &*exact_initializer);
   EXPECT(&*copy.get_initializer() == &*copy_initializer);
   EXPECT(&*narrow.get_initializer() == &*narrow_initializer);
-  ASSERT(copy_initializer->is<Language::Identifier>());
+  ASSERT(copy_initializer->is<Language::Expressions::Identifier>());
   const auto& identifier =
-      static_cast<const Language::Identifier&>(*copy_initializer);
+      static_cast<const Language::Expressions::Identifier&>(*copy_initializer);
   EXPECT(&identifier.get_result() == &exact);
   EXPECT(errors.is_empty());
 }
@@ -618,9 +618,10 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
   EXPECT(&scalar_copy.get_type() == &scalar.get_type());
   EXPECT(&scalar.get_type() == &Dialect::get_unsigned_64());
   ASSERT(root_copy.get_initializer());
-  ASSERT(root_copy.get_initializer()->is<Language::Identifier>());
+  ASSERT(root_copy.get_initializer()->is<Language::Expressions::Identifier>());
   const auto& root_identifier =
-      static_cast<const Language::Identifier&>(*root_copy.get_initializer());
+      static_cast<const Language::Expressions::Identifier&>(
+          *root_copy.get_initializer());
   EXPECT(&root_identifier.get_result() == &root);
 
   const Language::Field* source_identity = &root_copy;

@@ -17,7 +17,7 @@
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/type.hpp"
 
-namespace Tetrodotoxin::Library::Language {
+namespace Tetrodotoxin::Library::Language::Flow {
 
 // Assignment is one authored write statement. It retains the target Expression
 // and source Pack directly because target selection and supplied value flow are
@@ -77,4 +77,4 @@ class Assignment : public Ttx::Concept::Abstract {
   Bool linked = False;
 };
 
-}  // namespace Tetrodotoxin::Library::Language
+}  // namespace Tetrodotoxin::Library::Language::Flow

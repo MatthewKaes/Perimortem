@@ -12,7 +12,7 @@
 #include "ttx/lexical/token.hpp"
 #include "ttx/model/addressable.hpp"
 
-namespace Tetrodotoxin::Library::Language {
+namespace Tetrodotoxin::Library::Language::Expressions {
 
 // Identifier is one authored root name Expression. It retains the exact Token
 // and an Arena-stable spelling, then delays binding until the Type-defining
@@ -65,4 +65,4 @@ class Identifier : public Expression {
       result;
 };
 
-}  // namespace Tetrodotoxin::Library::Language
+}  // namespace Tetrodotoxin::Library::Language::Expressions

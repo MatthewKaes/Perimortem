@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/range_loop.hpp"
+#include "tetrodotoxin/library/language/flow/range_loop.hpp"
 
 #include "tetrodotoxin/library/language/model/parser/layout.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
@@ -15,7 +15,7 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-auto Language::RangeLoop::interpret(
+auto Language::Flow::RangeLoop::interpret(
     Allocator::Arena& domain,
     Monograph& source,
     Cursor& cursor,
@@ -92,7 +92,7 @@ auto Language::RangeLoop::interpret(
   return loop;
 }
 
-auto Language::RangeLoop::link(
+auto Language::Flow::RangeLoop::link(
     Tetrodotoxin::Language::Monograph& source,
     const Type& access_scope) -> Bool {
   if (linked) {
@@ -146,18 +146,18 @@ auto Language::RangeLoop::link(
   return True;
 }
 
-auto Language::RangeLoop::finalize() -> void {
+auto Language::Flow::RangeLoop::finalize() -> void {
   range.get().finalize();
   body.visit(
       []() {}, [](Reference<Block>& selected) { selected.get().finalize(); });
 }
 
-auto Language::RangeLoop::resolve() const -> const Abstract& {
+auto Language::Flow::RangeLoop::resolve() const -> const Abstract& {
   return type ? static_cast<const Abstract&>(*this)
               : static_cast<const Abstract&>(Invalid::get_invalid());
 }
 
-auto Language::RangeLoop::resolve_context(View::Bytes route) const
+auto Language::Flow::RangeLoop::resolve_context(View::Bytes route) const
     -> const Abstract& {
   if (route == name) {
     return resolve();

@@ -9,9 +9,9 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
@@ -336,9 +336,10 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inferred_object_identity) {
   EXPECT(&child_field.get_type() == &child);
   EXPECT(&copy_field.get_type() == &child);
   ASSERT(copy_field.get_initializer());
-  ASSERT(copy_field.get_initializer()->is<Language::Identifier>());
+  ASSERT(copy_field.get_initializer()->is<Language::Expressions::Identifier>());
   const auto& identifier =
-      static_cast<const Language::Identifier&>(*copy_field.get_initializer());
+      static_cast<const Language::Expressions::Identifier&>(
+          *copy_field.get_initializer());
   EXPECT(&identifier.get_result() == &child_field);
   EXPECT(errors.is_empty());
 }

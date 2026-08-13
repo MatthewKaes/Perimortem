@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/branch.hpp"
+#include "tetrodotoxin/library/language/flow/branch.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -9,10 +9,10 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/flow/local.hpp"
+#include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/library/language/local.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -25,7 +25,7 @@ using Tetrodotoxin::Environment::Workspace;
 using namespace Validation;
 
 static Harness BranchTests = {
-  .name = "Tetrodotoxin::Library::Language::Branch"_view,
+  .name = "Tetrodotoxin::Library::Language::Flow::Branch"_view,
 };
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
@@ -99,17 +99,17 @@ PERIMORTEM_UNIT_TEST(BranchTests, retained_blocks_and_condition_pack) {
   ASSERT(function && function->get_body());
   auto statements = function->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(4));
-  ASSERT(statements.get_data()[0].get().is<Language::Local>());
-  ASSERT(statements.get_data()[1].get().is<Language::Branch>());
-  ASSERT(statements.get_data()[2].get().is<Language::Branch>());
-  ASSERT(statements.get_data()[3].get().is<Language::Return>());
+  ASSERT(statements.get_data()[0].get().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[1].get().is<Language::Flow::Branch>());
+  ASSERT(statements.get_data()[2].get().is<Language::Flow::Branch>());
+  ASSERT(statements.get_data()[3].get().is<Language::Flow::Return>());
 
-  const auto& conditional =
-      static_cast<const Language::Branch&>(statements.get_data()[1].get());
-  const auto& loop =
-      static_cast<const Language::Branch&>(statements.get_data()[2].get());
-  EXPECT(conditional.get_kind() == Language::Branch::Kind::If);
-  EXPECT(loop.get_kind() == Language::Branch::Kind::While);
+  const auto& conditional = static_cast<const Language::Flow::Branch&>(
+      statements.get_data()[1].get());
+  const auto& loop = static_cast<const Language::Flow::Branch&>(
+      statements.get_data()[2].get());
+  EXPECT(conditional.get_kind() == Language::Flow::Branch::Kind::If);
+  EXPECT(loop.get_kind() == Language::Flow::Branch::Kind::While);
   EXPECT_EQ(conditional.get_condition().get_layout().get_size(), Count(2));
   ASSERT(conditional.get_alternate());
   EXPECT_TEXT(
@@ -125,7 +125,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, retained_blocks_and_condition_pack) {
   const Abstract& shadowed =
       conditional.get_body().resolve_context("outer"_view);
   EXPECT(&shadowed != &outer);
-  EXPECT(shadowed.is<Language::Local>());
+  EXPECT(shadowed.is<Language::Flow::Local>());
   EXPECT(&conditional.get_alternate()->resolve_context("outer"_view) == &outer);
 
   const Abstract& retained = statements.get_data()[1].get();

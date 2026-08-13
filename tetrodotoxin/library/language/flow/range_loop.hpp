@@ -7,7 +7,7 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/library/language/block.hpp"
+#include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
@@ -19,7 +19,7 @@
 #include "ttx/model/callable.hpp"
 #include "ttx/model/type.hpp"
 
-namespace Tetrodotoxin::Library::Language {
+namespace Tetrodotoxin::Library::Language::Flow {
 
 // RangeLoop owns one authored `for` statement and is itself the loop binding.
 // The binding is a read only Addressable whose exact Type must match the Range
@@ -98,4 +98,4 @@ class RangeLoop : public Ttx::Model::Addressable {
   Bool linked = False;
 };
 
-}  // namespace Tetrodotoxin::Library::Language
+}  // namespace Tetrodotoxin::Library::Language::Flow

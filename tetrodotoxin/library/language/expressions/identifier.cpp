@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/identifier.hpp"
+#include "tetrodotoxin/library/language/expressions/identifier.hpp"
 
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
@@ -21,7 +21,7 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
       [](const Abstract& direct) -> const Abstract& { return direct; });
 }
 
-auto Language::Identifier::link(
+auto Language::Expressions::Identifier::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& lexical_context,
     Core::Option<const Type&> access_scope) -> Bool {
@@ -70,7 +70,8 @@ auto Language::Identifier::link(
   return True;
 }
 
-auto Language::Identifier::get_documentation() const -> const Documentation& {
+auto Language::Expressions::Identifier::get_documentation() const
+    -> const Documentation& {
   return result.visit(
       []() -> const Documentation& { return Documentation::get_empty(); },
       [](const Reference<const Abstract>& selected) -> const Documentation& {
@@ -78,7 +79,7 @@ auto Language::Identifier::get_documentation() const -> const Documentation& {
       });
 }
 
-auto Language::Identifier::get_type() const -> const Abstract& {
+auto Language::Expressions::Identifier::get_type() const -> const Abstract& {
   return result.visit(
       []() -> const Abstract& { return Invalid::get_invalid(); },
       [](const Reference<const Abstract>& selected) -> const Abstract& {
@@ -92,7 +93,7 @@ auto Language::Identifier::get_type() const -> const Abstract& {
       });
 }
 
-auto Language::Identifier::get_result() const -> const Abstract& {
+auto Language::Expressions::Identifier::get_result() const -> const Abstract& {
   return result.visit(
       []() -> const Abstract& { return Invalid::get_invalid(); },
       [](const Reference<const Abstract>& selected) -> const Abstract& {

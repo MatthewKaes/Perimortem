@@ -9,7 +9,7 @@
 #include "tetrodotoxin/library/language/access/slice.hpp"
 #include "tetrodotoxin/library/language/access/swizzle.hpp"
 #include "tetrodotoxin/library/language/access/type.hpp"
-#include "tetrodotoxin/library/language/identifier.hpp"
+#include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
 #include "tetrodotoxin/library/language/operations/and.hpp"
@@ -138,7 +138,7 @@ static auto parse_primary(
       cursor.matches(Code::Type::Addressable) ||
       cursor.matches(Code::Type::Self) || cursor.matches(Code::Type::Source)) {
     Token token = cursor.consume();
-    return Library::Language::Identifier::create_authored(
+    return Library::Language::Expressions::Identifier::create_authored(
         domain, token, cursor.get_source_text(), Anchor::create(Span(token)));
   }
 

@@ -7,7 +7,7 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/library/language/block.hpp"
+#include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/abstract.hpp"
@@ -18,7 +18,7 @@
 #include "ttx/model/callable.hpp"
 #include "ttx/model/type.hpp"
 
-namespace Tetrodotoxin::Library::Language {
+namespace Tetrodotoxin::Library::Language::Flow {
 
 // Branch owns one complete authored `if` or `while` statement. Its condition
 // keeps the complete Pack even though control flow selects the first value.
@@ -104,4 +104,4 @@ class Branch : public Ttx::Concept::Abstract {
   Bool linked = False;
 };
 
-}  // namespace Tetrodotoxin::Library::Language
+}  // namespace Tetrodotoxin::Library::Language::Flow

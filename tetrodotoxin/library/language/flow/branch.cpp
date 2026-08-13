@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/branch.hpp"
+#include "tetrodotoxin/library/language/flow/branch.hpp"
 
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -38,7 +38,7 @@ static auto select_condition_type(const Language::Model::Pack& condition)
               : static_cast<const Abstract&>(Invalid::get_invalid());
 }
 
-auto Language::Branch::interpret(
+auto Language::Flow::Branch::interpret(
     Allocator::Arena& domain,
     Monograph& source,
     Cursor& cursor,
@@ -83,7 +83,7 @@ auto Language::Branch::interpret(
   return result;
 }
 
-auto Language::Branch::link(
+auto Language::Flow::Branch::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& lexical_context,
     const Type& access_scope) -> Bool {
@@ -113,14 +113,14 @@ auto Language::Branch::link(
   return True;
 }
 
-auto Language::Branch::finalize() -> void {
+auto Language::Flow::Branch::finalize() -> void {
   condition.get().finalize();
   body.get().finalize();
   alternate.visit(
       []() {}, [](Reference<Block>& selected) { selected.get().finalize(); });
 }
 
-auto Language::Branch::reaches_next_statement() const -> Bool {
+auto Language::Flow::Branch::reaches_next_statement() const -> Bool {
   if (kind == Kind::While || !alternate) {
     return True;
   }

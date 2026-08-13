@@ -1,9 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/local.hpp"
+#include "tetrodotoxin/library/language/flow/local.hpp"
 
-#include "tetrodotoxin/library/language/initializer.hpp"
+#include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -14,7 +14,7 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Local::interpret(
+auto Language::Flow::Local::interpret(
     Memory::Allocator::Arena& domain,
     Monograph& source,
     Cursor& cursor,
@@ -46,7 +46,7 @@ auto Language::Local::interpret(
   Core::Option<Model::Pack&> initializer;
   if (transaction.matches(Code::Type::Assign)) {
     transaction.consume();
-    if (Initializer::is_next(transaction)) {
+    if (Expressions::Initializer::is_next(transaction)) {
       transaction.create_token_error(
           "An inferred Library Local cannot use `new`."_view,
           "Name one exact Object Type before initialization begins."_view);
@@ -62,9 +62,9 @@ auto Language::Local::interpret(
 
     if (transaction.matches(Code::Type::Assign)) {
       transaction.consume();
-      if (Initializer::is_next(transaction)) {
+      if (Expressions::Initializer::is_next(transaction)) {
         auto object_initializer =
-            Initializer::parse(domain, source, transaction);
+            Expressions::Initializer::parse(domain, source, transaction);
         BAIL_IF(!object_initializer);
         initializer = *object_initializer;
       } else {
@@ -96,7 +96,7 @@ auto Language::Local::interpret(
   return local;
 }
 
-auto Language::Local::link(
+auto Language::Flow::Local::link(
     Tetrodotoxin::Language::Monograph& source,
     const Type& access_scope) -> Bool {
   if (type && initializer_linked) {
@@ -210,7 +210,7 @@ auto Language::Local::link(
   return True;
 }
 
-auto Language::Local::resolve() const -> const Abstract& {
+auto Language::Flow::Local::resolve() const -> const Abstract& {
   if (!type || !initializer_linked) {
     return Invalid::get_invalid();
   }
@@ -218,17 +218,17 @@ auto Language::Local::resolve() const -> const Abstract& {
   return *this;
 }
 
-auto Language::Local::finalize() -> void {
+auto Language::Flow::Local::finalize() -> void {
   initializer.visit(
       []() {}, [](Model::Pack& selected) { selected.finalize(); });
 }
 
-auto Language::Local::resolve_context(Core::View::Bytes route) const
+auto Language::Flow::Local::resolve_context(Core::View::Bytes route) const
     -> const Abstract& {
   return host.resolve_context(route);
 }
 
-auto Language::Local::get_constant() const -> Core::Option<Model::Pack&> {
+auto Language::Flow::Local::get_constant() const -> Core::Option<Model::Pack&> {
   if (writability != Writability::Constant || !cache_constant()) {
     return {};
   }
@@ -240,7 +240,7 @@ auto Language::Local::get_constant() const -> Core::Option<Model::Pack&> {
       });
 }
 
-auto Language::Local::link_constant(
+auto Language::Flow::Local::link_constant(
     Tetrodotoxin::Language::Monograph& source) const -> Bool {
   if (writability != Writability::Constant || cache_constant()) {
     return True;
@@ -253,7 +253,7 @@ auto Language::Local::link_constant(
   return False;
 }
 
-auto Language::Local::cache_constant() const -> Bool {
+auto Language::Flow::Local::cache_constant() const -> Bool {
   if (constant_state == ConstantState::Folded) {
     return True;
   }

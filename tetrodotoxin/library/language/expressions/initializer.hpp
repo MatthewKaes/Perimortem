@@ -15,7 +15,7 @@
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Library::Language {
+namespace Tetrodotoxin::Library::Language::Expressions {
 
 // Initializer is the authored `new` signal for one declaration that already
 // supplies an Object Type. It retains supplied values in source order while
@@ -76,4 +76,4 @@ class Initializer : public Expression {
       expected_type;
 };
 
-}  // namespace Tetrodotoxin::Library::Language
+}  // namespace Tetrodotoxin::Library::Language::Expressions

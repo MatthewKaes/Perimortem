@@ -171,8 +171,8 @@ auto Language::Function::complete(Monograph& source, Cursor& cursor) -> Bool {
     return False;
   }
 
-  auto parsed_body =
-      Block::interpret(domain, source, transaction, *this, *this, get_host());
+  auto parsed_body = Flow::Block::interpret(
+      domain, source, transaction, *this, *this, get_host());
   BAIL_IF(!parsed_body);
   BAIL_IF(!complete_definition(
       definition.get_qualifier(),
@@ -313,10 +313,12 @@ auto Language::Function::declares_self() const -> Bool {
       [](const Signature& selected) { return selected.declares_self(); });
 }
 
-auto Language::Function::get_body() const -> Option<const Block&> {
+auto Language::Function::get_body() const -> Option<const Flow::Block&> {
   return body.visit(
-      []() -> Option<const Block&> { return {}; },
-      [](const Block& selected) -> Option<const Block&> { return selected; });
+      []() -> Option<const Flow::Block&> { return {}; },
+      [](const Flow::Block& selected) -> Option<const Flow::Block&> {
+        return selected;
+      });
 }
 
 auto Language::Function::is_signature_linked() const -> Bool {

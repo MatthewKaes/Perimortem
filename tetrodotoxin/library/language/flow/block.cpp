@@ -1,16 +1,16 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/block.hpp"
+#include "tetrodotoxin/library/language/flow/block.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
-#include "tetrodotoxin/library/language/assignment.hpp"
-#include "tetrodotoxin/library/language/branch.hpp"
-#include "tetrodotoxin/library/language/local.hpp"
+#include "tetrodotoxin/library/language/flow/assignment.hpp"
+#include "tetrodotoxin/library/language/flow/branch.hpp"
+#include "tetrodotoxin/library/language/flow/local.hpp"
+#include "tetrodotoxin/library/language/flow/range_loop.hpp"
+#include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
-#include "tetrodotoxin/library/language/range_loop.hpp"
-#include "tetrodotoxin/library/language/return.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -53,22 +53,22 @@ static auto interpret_call_statement(
 static auto link_statement(
     Abstract& statement,
     Tetrodotoxin::Language::Monograph& source,
-    Language::Block& block,
+    Language::Flow::Block& block,
     const Ttx::Model::Type& access_scope,
     Ttx::Model::Callable& function) -> Bool {
-  if (auto local = statement.select<Language::Local>()) {
+  if (auto local = statement.select<Language::Flow::Local>()) {
     return local->link(source, access_scope);
   }
-  if (auto assignment = statement.select<Language::Assignment>()) {
+  if (auto assignment = statement.select<Language::Flow::Assignment>()) {
     return assignment->link(source, block, access_scope);
   }
-  if (auto branch = statement.select<Language::Branch>()) {
+  if (auto branch = statement.select<Language::Flow::Branch>()) {
     return branch->link(source, block, access_scope);
   }
-  if (auto loop = statement.select<Language::RangeLoop>()) {
+  if (auto loop = statement.select<Language::Flow::RangeLoop>()) {
     return loop->link(source, access_scope);
   }
-  if (auto returned = statement.select<Language::Return>()) {
+  if (auto returned = statement.select<Language::Flow::Return>()) {
     return returned->link(source, block, access_scope, function.get_results());
   }
   if (auto call = statement.select<Language::Access::Call>()) {
@@ -81,23 +81,23 @@ static auto link_statement(
 }
 
 static auto finalize_statement(Abstract& statement) -> void {
-  if (auto local = statement.select<Language::Local>()) {
+  if (auto local = statement.select<Language::Flow::Local>()) {
     local->finalize();
     return;
   }
-  if (auto assignment = statement.select<Language::Assignment>()) {
+  if (auto assignment = statement.select<Language::Flow::Assignment>()) {
     assignment->finalize();
     return;
   }
-  if (auto branch = statement.select<Language::Branch>()) {
+  if (auto branch = statement.select<Language::Flow::Branch>()) {
     branch->finalize();
     return;
   }
-  if (auto loop = statement.select<Language::RangeLoop>()) {
+  if (auto loop = statement.select<Language::Flow::RangeLoop>()) {
     loop->finalize();
     return;
   }
-  if (auto returned = statement.select<Language::Return>()) {
+  if (auto returned = statement.select<Language::Flow::Return>()) {
     returned->finalize();
     return;
   }
@@ -106,7 +106,7 @@ static auto finalize_statement(Abstract& statement) -> void {
   }
 }
 
-auto Language::Block::interpret(
+auto Language::Flow::Block::interpret(
     Allocator::Arena& domain,
     Monograph& source,
     Cursor& cursor,
@@ -216,7 +216,8 @@ auto Language::Block::interpret(
   return block;
 }
 
-auto Language::Block::link(Tetrodotoxin::Language::Monograph& source) -> Bool {
+auto Language::Flow::Block::link(Tetrodotoxin::Language::Monograph& source)
+    -> Bool {
   if (linked) {
     return True;
   }
@@ -235,7 +236,7 @@ auto Language::Block::link(Tetrodotoxin::Language::Monograph& source) -> Bool {
   return linked;
 }
 
-auto Language::Block::finalize() -> void {
+auto Language::Flow::Block::finalize() -> void {
   // A retained Call is the effect to execute, not a discarded value to fold.
   // Return owns its complete Pack and finalizes every real producer through
   // that value flow owner without replacing the terminal statement identity.
@@ -244,7 +245,7 @@ auto Language::Block::finalize() -> void {
   }
 }
 
-auto Language::Block::reaches_next_statement() const -> Bool {
+auto Language::Flow::Block::reaches_next_statement() const -> Bool {
   auto retained = statements.get_view();
   if (retained.is_empty()) {
     return True;
@@ -262,7 +263,7 @@ auto Language::Block::reaches_next_statement() const -> Bool {
       });
 }
 
-auto Language::Block::resolve_context(View::Bytes route) const
+auto Language::Flow::Block::resolve_context(View::Bytes route) const
     -> const Abstract& {
   auto retained_statements = statements.get_view();
   Count visible = visible_statement_count < retained_statements.get_size()

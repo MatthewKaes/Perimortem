@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/return.hpp"
+#include "tetrodotoxin/library/language/flow/return.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -24,7 +24,7 @@ using Tetrodotoxin::Environment::Workspace;
 using namespace Validation;
 
 static Harness ReturnTests = {
-  .name = "Tetrodotoxin::Library::Language::Return"_view,
+  .name = "Tetrodotoxin::Library::Language::Flow::Return"_view,
 };
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
@@ -64,11 +64,11 @@ static auto find_function(
 }
 
 static auto find_return(const Language::Function& function)
-    -> Option<const Language::Return&> {
+    -> Option<const Language::Flow::Return&> {
   auto body = function.get_body();
   BAIL_IF(!body);
   for (const Reference<Abstract>& statement : body->get_statements()) {
-    auto returned = statement.get().select<Language::Return>();
+    auto returned = statement.get().select<Language::Flow::Return>();
     if (returned) {
       return *returned;
     }

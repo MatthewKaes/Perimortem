@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/assignment.hpp"
+#include "tetrodotoxin/library/language/flow/assignment.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -9,7 +9,7 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/language/block.hpp"
+#include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
@@ -24,7 +24,7 @@ using Tetrodotoxin::Environment::Workspace;
 using namespace Validation;
 
 static Harness AssignmentTests = {
-  .name = "Tetrodotoxin::Library::Language::Assignment"_view,
+  .name = "Tetrodotoxin::Library::Language::Flow::Assignment"_view,
 };
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
@@ -115,9 +115,9 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, retained_targets_and_order) {
   }};
   for (Count i = 0; i < operations.get_size(); i++) {
     const Abstract& statement = statements.get_data()[i + 2].get();
-    ASSERT(statement.is<Language::Assignment>());
+    ASSERT(statement.is<Language::Flow::Assignment>());
     const auto& assignment =
-        static_cast<const Language::Assignment&>(statement);
+        static_cast<const Language::Flow::Assignment&>(statement);
     EXPECT(assignment.get_operator() == operations[i]);
     EXPECT(assignment.get_target().resolve().is<Language::Expression>());
     EXPECT(assignment.get_source().resolve().is<Language::Model::Pack>());

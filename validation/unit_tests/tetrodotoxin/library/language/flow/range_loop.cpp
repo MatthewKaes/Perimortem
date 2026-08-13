@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/range_loop.hpp"
+#include "tetrodotoxin/library/language/flow/range_loop.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -9,10 +9,10 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/flow/local.hpp"
+#include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/library/language/local.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/return.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -27,7 +27,7 @@ using Tetrodotoxin::Environment::Workspace;
 using namespace Validation;
 
 static Harness RangeLoopTests = {
-  .name = "Tetrodotoxin::Library::Language::RangeLoop"_view,
+  .name = "Tetrodotoxin::Library::Language::Flow::RangeLoop"_view,
 };
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
@@ -97,13 +97,13 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
   ASSERT(function && function->get_body());
   auto statements = function->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(4));
-  ASSERT(statements.get_data()[0].get().is<Language::Local>());
-  ASSERT(statements.get_data()[1].get().is<Language::Local>());
-  ASSERT(statements.get_data()[2].get().is<Language::RangeLoop>());
-  ASSERT(statements.get_data()[3].get().is<Language::Return>());
+  ASSERT(statements.get_data()[0].get().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[1].get().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[2].get().is<Language::Flow::RangeLoop>());
+  ASSERT(statements.get_data()[3].get().is<Language::Flow::Return>());
 
-  const auto& loop =
-      static_cast<const Language::RangeLoop&>(statements.get_data()[2].get());
+  const auto& loop = static_cast<const Language::Flow::RangeLoop&>(
+      statements.get_data()[2].get());
   EXPECT_TEXT(loop.get_name(), "entry"_view);
   EXPECT(loop.get_type().is<Ttx::Model::Types::Unsigned>());
   const Abstract& range_type = loop.get_range().get_type().resolve();

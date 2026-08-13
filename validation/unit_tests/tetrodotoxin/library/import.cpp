@@ -22,9 +22,9 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
+#include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
@@ -1097,7 +1097,7 @@ PERIMORTEM_UNIT_TEST(
       "using Core;\npublic SharedView : alias = View[Exported];"_view);
   ASSERT(importer);
 
-  // Provider-first closure completion settles Exported before the importer
+  // Provider first closure completion settles Exported before the importer
   // observes its opaque edge as one Generic argument. The importing Alias owns
   // only its local DFS and materializes the canonical View identity.
   ASSERT(importer->link());

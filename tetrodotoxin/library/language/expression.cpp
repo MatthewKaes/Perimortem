@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
-#include "tetrodotoxin/library/language/local.hpp"
+#include "tetrodotoxin/library/language/flow/local.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -24,7 +24,7 @@ auto Language::Expression::get_layout() const -> const Layout& {
   auto type = select_output_type(get_type());
   if (!type) {
     // Layout observation is legal only after resolve() proves this Pack. An
-    // empty Layout is completed zero-value flow, so returning it here would
+    // empty Layout is completed zero value flow, so returning it here would
     // silently turn an incomplete Expression into a valid empty producer.
     __builtin_trap();
   }
@@ -54,7 +54,7 @@ auto Language::Expression::link(
 
   // A declaration pass may already expose one exact Composite Type while that
   // Type still resolves Invalid until its own Layout is complete. Expression
-  // linking retains that real output edge; it does not make unrelated Type
+  // linking retains that real output edge. It does not make unrelated Type
   // completion a prerequisite for selecting the value's domain.
   if (get_type().is<Type>() || get_type().resolve().is<Type>()) {
     return True;
@@ -205,8 +205,10 @@ auto Language::Expression::evaluate() -> Perimortem::Utility::
   return result.visit<Language::Field>(
       [](const Language::Field& field) { return field.get_constant(); },
       [](const Abstract& candidate) {
-        return candidate.visit<Language::Local>(
-            [](const Language::Local& local) { return local.get_constant(); },
+        return candidate.visit<Language::Flow::Local>(
+            [](const Language::Flow::Local& local) {
+              return local.get_constant();
+            },
             [](const Abstract&) -> Option<Language::Model::Pack&> {
               return {};
             });

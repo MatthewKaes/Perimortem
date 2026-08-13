@@ -7,8 +7,8 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/library/language/block.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
+#include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/writability.hpp"
@@ -17,7 +17,7 @@
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/addressable.hpp"
 
-namespace Tetrodotoxin::Library::Language {
+namespace Tetrodotoxin::Library::Language::Flow {
 
 // Local is one Addressable declaration retained directly by its lexical Block.
 // It owns its source name, declared or inferred Type, and initializer Pack
@@ -111,4 +111,4 @@ class Local : public Ttx::Model::Addressable {
   Bool initializer_linked;
 };
 
-}  // namespace Tetrodotoxin::Library::Language
+}  // namespace Tetrodotoxin::Library::Language::Flow

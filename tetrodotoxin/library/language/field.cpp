@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/library/language/field.hpp"
 
-#include "tetrodotoxin/library/language/initializer.hpp"
+#include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
@@ -87,7 +87,7 @@ auto Language::Field::interpret(
   Option<Model::Pack&> initializer;
   if (transaction.matches(Code::Type::Assign)) {
     transaction.consume();
-    if (Initializer::is_next(transaction)) {
+    if (Expressions::Initializer::is_next(transaction)) {
       transaction.create_token_error(
           "An inferred Library Field cannot use `new`."_view,
           "Name one exact Object Type before initialization begins."_view);
@@ -103,9 +103,9 @@ auto Language::Field::interpret(
 
     if (transaction.matches(Code::Type::Assign)) {
       transaction.consume();
-      if (Initializer::is_next(transaction)) {
+      if (Expressions::Initializer::is_next(transaction)) {
         auto object_initializer =
-            Initializer::parse(domain, source, transaction);
+            Expressions::Initializer::parse(domain, source, transaction);
         BAIL_IF(!object_initializer);
         initializer = *object_initializer;
       } else {

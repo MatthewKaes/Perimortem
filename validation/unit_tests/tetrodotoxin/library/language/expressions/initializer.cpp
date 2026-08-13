@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/initializer.hpp"
+#include "tetrodotoxin/library/language/expressions/initializer.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -72,7 +72,7 @@ static auto rejects_link_without_publication(View::Bytes source) -> Bool {
 }
 
 static Harness InitializerTests = {
-  .name = "Tetrodotoxin::Library::Language::Initializer"_view,
+  .name = "Tetrodotoxin::Library::Language::Expressions::Initializer"_view,
 };
 
 PERIMORTEM_UNIT_TEST(InitializerTests, empty_and_supplied) {
@@ -112,15 +112,17 @@ PERIMORTEM_UNIT_TEST(InitializerTests, empty_and_supplied) {
   ASSERT(empty_initializer);
   ASSERT(parenthesized_initializer);
   ASSERT(configured_initializer);
-  ASSERT(empty_initializer->is<Language::Initializer>());
-  ASSERT(parenthesized_initializer->is<Language::Initializer>());
-  ASSERT(configured_initializer->is<Language::Initializer>());
-  const auto& empty =
-      static_cast<const Language::Initializer&>(*empty_initializer);
+  ASSERT(empty_initializer->is<Language::Expressions::Initializer>());
+  ASSERT(parenthesized_initializer->is<Language::Expressions::Initializer>());
+  ASSERT(configured_initializer->is<Language::Expressions::Initializer>());
+  const auto& empty = static_cast<const Language::Expressions::Initializer&>(
+      *empty_initializer);
   const auto& parenthesized =
-      static_cast<const Language::Initializer&>(*parenthesized_initializer);
+      static_cast<const Language::Expressions::Initializer&>(
+          *parenthesized_initializer);
   const auto& configured =
-      static_cast<const Language::Initializer&>(*configured_initializer);
+      static_cast<const Language::Expressions::Initializer&>(
+          *configured_initializer);
   EXPECT(&empty.get_type() == &defaults);
   EXPECT(&parenthesized.get_type() == &defaults);
   EXPECT(&configured.get_type() == &required);

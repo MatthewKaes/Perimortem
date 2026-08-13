@@ -18,7 +18,7 @@
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/type.hpp"
 
-namespace Tetrodotoxin::Library::Language {
+namespace Tetrodotoxin::Library::Language::Flow {
 
 // Return is one concrete terminal statement. It retains one real Pack while the
 // enclosing Block supplies lexical lookup, host access, and the Function result
@@ -67,4 +67,4 @@ class Return : public Ttx::Concept::Abstract {
   Bool linked = False;
 };
 
-}  // namespace Tetrodotoxin::Library::Language
+}  // namespace Tetrodotoxin::Library::Language::Flow
