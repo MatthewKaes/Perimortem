@@ -19,10 +19,10 @@
 
 namespace Tetrodotoxin::Library::Language {
 
-// Block is one authored Function body and lexical scope. It retains exact
+// Block is one authored Function body or nested lexical scope. It retains exact
 // statement identities in source order while the concrete statement owners
-// retain their grammar and semantics. The Function remains the outer lexical
-// context and its host Type remains the independent access authority.
+// retain their grammar and semantics. Its lexical parent, owning Function, and
+// host Type remain independent facts.
 // This is not a lowered basic block and owns no predecessor arguments, result
 // Layout, SSA edges, or target control flow.
 class Block : public Ttx::Concept::Abstract {
@@ -37,7 +37,8 @@ class Block : public Ttx::Concept::Abstract {
       Perimortem::Memory::Allocator::Arena& domain,
       Monograph& source,
       Ttx::Lexical::Cursor& cursor,
-      Ttx::Model::Callable& lexical_context,
+      const Ttx::Concept::Abstract& lexical_context,
+      Ttx::Model::Callable& function,
       const Ttx::Model::Type& access_scope) -> Perimortem::Core::Option<Block&>;
 
   Block(const Block&) = delete;
@@ -48,6 +49,8 @@ class Block : public Ttx::Concept::Abstract {
   auto link(Tetrodotoxin::Language::Monograph& source) -> Bool;
 
   auto finalize() -> void;
+
+  auto reaches_next_statement() const -> Bool;
 
   TTX_NAME("Block"_view);
   TTX_EMPTY_DOCUMENTATION();
@@ -65,13 +68,16 @@ class Block : public Ttx::Concept::Abstract {
  private:
   Block(
       Perimortem::Memory::Allocator::Arena& domain,
-      Ttx::Model::Callable& lexical_context,
+      const Ttx::Concept::Abstract& lexical_context,
+      Ttx::Model::Callable& function,
       const Ttx::Model::Type& access_scope)
       : lexical_context(lexical_context),
+        function(function),
         access_scope(access_scope),
         statements(domain) {}
 
-  Ttx::Model::Callable& lexical_context;
+  const Ttx::Concept::Abstract& lexical_context;
+  Ttx::Model::Callable& function;
   const Ttx::Model::Type& access_scope;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>

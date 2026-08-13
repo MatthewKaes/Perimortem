@@ -172,7 +172,7 @@ auto Language::Function::complete(Monograph& source, Cursor& cursor) -> Bool {
   }
 
   auto parsed_body =
-      Block::interpret(domain, source, transaction, *this, get_host());
+      Block::interpret(domain, source, transaction, *this, *this, get_host());
   BAIL_IF(!parsed_body);
   BAIL_IF(!complete_definition(
       definition.get_qualifier(),
@@ -216,7 +216,17 @@ auto Language::Function::link_body(Tetrodotoxin::Language::Monograph& source)
 
   // Signature edges publish before Block linking so every Identifier can reach
   // the exact Parameter object created for its authored declaration.
-  return body->link(source);
+  BAIL_IF(!body->link(source));
+  if (!get_results().is_empty() && body->reaches_next_statement()) {
+    source.report(
+        body->get_anchor(),
+        "Function result Layout requires a terminal return statement."_view,
+        "Return the complete ordered values required by the Function "
+        "signature."_view);
+    return False;
+  }
+
+  return True;
 }
 
 auto Language::Function::finalize(Tetrodotoxin::Language::Monograph& source)
@@ -289,7 +299,7 @@ auto Language::Function::resolve_context(View::Bytes route) const
 auto Language::Function::get_parameters() const -> const Layout& {
   // Callable Layouts are total only after resolve() proves this Function's
   // Signature. Returning an empty Layout here would launder incomplete state
-  // into valid zero-value flow, so the lifecycle precondition remains explicit.
+  // into valid zero value flow, so the lifecycle precondition remains explicit.
   return signature->get_parameters();
 }
 
