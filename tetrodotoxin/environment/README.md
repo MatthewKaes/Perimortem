@@ -1,37 +1,31 @@
 # Environment
 
-Environment is Tetrodotoxin's compilation session and semantic lifetime
-boundary. Its public `Workspace` groups the Dialects and source results that may
-refer to one another, much as a compiler context keeps declarations alive for
-one compilation.
+Environment manages a Tetrodotoxin compilation session. Its `Workspace` keeps
+related languages and source results alive so they can safely refer to one
+another.
 
-The difference is that a Workspace can retain several independently modeled
-languages. Package, Library, App, Scene, Render, and Shader Monographs keep
-their own semantic shapes while borrowing exact TTX identities across the
-common lifetime.
+A Workspace can contain Package, Library, App, Scene, Render, and Shader sources
+at the same time. Each language keeps the model that fits its own job. TTX gives
+them a shared way to refer to identities, Types, Layouts, and Callables without
+forcing them into one syntax tree.
 
-Together those concrete objects form the Workspace's live multi domain semantic
-IR. The shared part is identity, category, resolution, and Layout rather than a
-common AST or declaration model.
-
-Use Environment when a tool interprets related sources, needs stable cross
-language identity, drives grouped completion, presents source Diagnostics, or
-restores a Package Archive. A consumer that receives only a completed Terminal
-does not need to retain the Workspace. The cost of cheap borrowed identity is a
-clear boundary: ordinary References cannot outlive or move between Workspaces.
+Tools use Environment to read a group of sources, connect references between
+them, report source errors, or restore a Package Archive. A finished output such
+as an executable no longer needs the Workspace. Ordinary references cannot be
+moved to another Workspace or kept after their Workspace is destroyed.
 
 ## Workspace lifetime
 
-A Workspace keeps every installed Dialect and retained Monograph alive while
-their semantic identities can be queried. Package Aliases, Library Types,
-Function Signatures, and source imports can therefore retain exact identities
-produced by other owners.
+A Workspace keeps every installed Dialect and Monograph alive while tools may
+still inspect them. Package Aliases, Library Types, Function Signatures, and
+source imports can therefore refer directly to objects produced by another
+language.
 
 Each Workspace is independent. Installing the same Dialect in another Workspace
 creates another language environment and new Monograph identities. Tools may
 correlate those objects through durable names defined by their owners.
-Source independent semantic continuity comes from validated Archive facts, not
-shared References or a global Type inventory.
+An Archive can rebuild equivalent source results in another Workspace. It does
+not keep the original references alive or rely on a global Type list.
 
 References between ordinary Monographs remain inside this lifetime. They are
 not durable identifiers and they are never written into a Package Archive. An
@@ -55,15 +49,20 @@ The Tetrodotoxin toolchain includes Package support, but Package is not
 installed into every Workspace automatically. A standalone source request may
 install only its selected Dialect. A Package compilation, resource request, or
 Archive restoration installs Package together with the concrete Dialects named
-by that transaction.
+by that request.
+
+Some Dialects require another Dialect. Scene requires Library, while Shader
+requires Library and Render. Environment creates each dependency once and gives
+the shared instance to every language that needs it. A missing dependency is a
+source error, and dependency loops are rejected.
 
 ## Direct source import
 
 Direct import supplies three independent facts:
 
-* the semantic name used for Workspace lookup
-* the diagnostic path presented to the user
-* the source bytes interpreted by the selected Dialect
+- the stable name used for Workspace lookup
+- the path shown in errors
+- the source bytes read by the selected Dialect
 
 Environment reads the common envelope, selects the Dialect, and retains the
 returned Monograph under the authored semantic name. The path describes origin.
@@ -83,11 +82,11 @@ resolve Graphics : Perimortem.Graphics = "1.0";
 source Scenes::Splash from "scenes/splash.ttx";
 ```
 
-Package acquires each declared path through its confined Storage. Environment
-interprets the member with the selected Dialect, reconstructs exact dependencies
-from their Archives, and binds the resulting Monographs through their Package
-contexts. Names local to a Package remain inside that Package rather than
-entering the Workspace root automatically.
+Package reads each declared path from its confined storage. Environment gives
+the member to its selected Dialect, restores dependencies from their Archives,
+and connects the resulting Monographs through their Package contexts. Names
+local to a Package remain inside that Package rather than entering the Workspace
+root automatically.
 
 ## Linking and publication
 
@@ -105,16 +104,27 @@ This ordering allows forward references and dependency cycles that the concrete
 languages can resolve while preventing a partially completed group from being
 published as completed input.
 
-An `Invalid` answer observed before these barriers finish is not a permanent
-negative result. Immutable consumers begin after publication. A tool that
-chooses to inspect a group during construction must not cache unanswered routes
-across a link or finalize transition.
+An `Invalid` answer observed before these stages finish is not a permanent
+negative result. Read-only consumers begin after publication. A tool that
+inspects a group while it is still being built must ask unresolved questions
+again after linking or finalization.
 
 Archive restoration uses the same barriers. Environment does not deserialize
 live objects or revive process addresses. It asks each installed Dialect to
 construct a new Monograph from its validated payload, retains the complete
 group, links every member, finalizes every member, and then publishes the
 restored roots.
+
+A Monograph may contain child layers from its dependencies. Environment keeps
+and publishes the outer Monograph, while the outer language moves its children
+through the same linking and finalization steps. Tools ask the outer Monograph
+for a layer instead of looking for another Workspace name.
+
+During Archive restoration, Environment creates the Package Monograph before
+restoring its members. Every member receives that Package context, including
+child layers inside Scene and Shader. The language dependencies still come from
+the Workspace. If a child layer cannot be restored, its outer member also
+fails.
 
 ## Contextual lookup
 
@@ -126,14 +136,19 @@ does not require every Monograph to expose a Type or one common member model.
 
 ## Diagnostics
 
-Environment retains the source name and body associated with each authored
-Monograph. A concrete language records Diagnostics against its semantic facts.
-Environment combines them with that retained origin when presenting errors.
+Environment keeps the name and text of each authored source. The source and all
+of its child layers write errors to one ordered diagnostic list. Messages stay
+in the order they occurred, and errors cannot be hidden inside a child layer.
+Environment adds the source location when it presents them.
 
 Package paths, Archive bytes, and Repository requests can fail without an
 authored Token. Their owners preserve the cause belonging to that domain, and
 the caller attaches it to an authored dependency or compile request when such a
 source location exists.
+
+Perimortem process Diagnostics remain an emergency path for fatal host state.
+They do not replace the source error list for ordinary parsing, language, or
+restoration failures.
 
 ## Boundaries
 

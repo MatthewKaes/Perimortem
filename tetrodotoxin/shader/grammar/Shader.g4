@@ -128,11 +128,11 @@ shaderExpression
     ;
 
 shaderOrExpression
-    : shaderAndExpression ((OR | OR_OP) shaderAndExpression)*
+    : shaderAndExpression (OR shaderAndExpression)*
     ;
 
 shaderAndExpression
-    : shaderEqualityExpression ((AND | AND_OP) shaderEqualityExpression)*
+    : shaderEqualityExpression (AND shaderEqualityExpression)*
     ;
 
 shaderEqualityExpression

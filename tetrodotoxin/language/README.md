@@ -1,19 +1,18 @@
 # Tetrodotoxin Language
 
-The Tetrodotoxin Language contract defines how a source language participates
-in a Workspace. It is closest to a compiler frontend interface. A Dialect
-receives the Tokens for one source body and returns a retained semantic root
-that tools and other languages can query.
+The Tetrodotoxin Language contract explains how a source language joins a
+Workspace. Each language is a Dialect. It reads the Tokens for one source and
+returns a Monograph, which is the lasting result that tools and other languages
+can inspect.
 
-Package, Library, App, Scene, Render, and Shader use the same lifecycle without
-translating their source into one common AST or type system. Each Dialect keeps
-the grammar and semantics unique to its language while exposing shared TTX
-identity, resolution, and Layout where another domain can use them.
+Package, Library, App, Scene, Render, and Shader all follow this lifecycle. They
+do not translate their source into one common syntax tree or type system. Each
+Dialect keeps the rules that make its language unique and exposes shared TTX
+Types, Layouts, and relationships where another tool can use them.
 
-Together those concrete objects form the Workspace's live multi domain semantic
-IR. The shared part is the TTX contracts rather than a common node schema. A
-generic tool can use those contracts while richer tooling continues through the
-concrete Dialect.
+Together, the Monographs form the live program in a Workspace. General tools
+can use their shared TTX surface, while language-aware tools can ask a concrete
+Dialect for richer details.
 
 ## When to implement a Dialect
 
@@ -23,39 +22,34 @@ usually belongs in that language instead. A grammar rule can be shared by
 several Dialects when the complete construct and returned contract are genuinely
 the same.
 
-Adding a Dialect means owning a real frontend contract. It defines
-interpretation, contextual queries, Diagnostics, link and finalize behavior,
-and any payload required for source independent restoration. Generic tools can
-use the common TTX surface. Rich language tooling depends on the concrete
-Dialect.
+Adding a Dialect means owning the complete source-language contract. The Dialect
+defines how source is read, how names are resolved, which errors are reported,
+how its result is completed, and what an Archive must store. General tools still
+use the common TTX surface, while richer tooling uses the concrete Dialect.
 
-Every top level Dialect provided by this repository publishes a canonical G4
+Every top-level Dialect provided by this repository publishes a canonical G4
 grammar reference for authored language shape and parse order. These references
 describe valid input. The toolchain does not generate or run its parsers from
 them. A custom Dialect owns its grammar but does not have to express it in G4.
 
-The shared grammar defines `Definition` as greedily retained Documentation,
-Attributes, one exact Visibility, ordered evaluation modifiers, and a name
-followed by `:`. The next Token is its qualifier and remains for the concrete
-language to dispatch. Definition is a source value, not an Abstract, common AST
-node, declaration hierarchy, or semantic category. The selected concrete
-semantic object retains that exact value. A concrete language decides whether
-its Visibility and evaluation modifiers are legal for the object it constructs.
+The shared grammar uses `Definition` for the common prefix of a declaration.
+It contains Documentation, Attributes, Visibility, evaluation modifiers, and a
+name followed by `:`. The concrete language reads the qualifier that follows
+and decides what kind of declaration it creates. Definition records how that
+object was introduced, but it is not a second declaration object or a universal
+syntax-tree node.
 
-Every Definition also retains its exact host: the mutable semantic owner whose
-transaction and access authority admit that definition. Host is provenance,
-not universal graph parentage or a canonical route to the identity. Authored
-Definitions complete their Anchor only after the selected concrete grammar
-succeeds. A concrete owner may instead create a synthetic Definition with an
-explicit truthful Anchor; doing so fabricates neither authored Tokens nor an
-Authorship observation on the resulting semantic identity.
+Every Definition also remembers the language object that hosts it. The host
+records where the declaration was admitted and which private access it may use.
+It is not a universal parent link. Authored Definitions gain their source Anchor
+only after the complete declaration parses successfully. A language can also
+create a generated Definition with a truthful Anchor, but generated declarations
+never pretend that source Tokens were authored for them.
 
-An Attribute is one ordered key with at most one scalar value. Every Definition
-can retain arbitrary Attributes (any number with duplicates being valid). The
-concrete consumer decides which keys it interprets, whether repeated keys are
-meaningful, and which local combinations are invalid. The shared parser never
-rejects an Attribute because of the qualifier that follows it and it does not
-validate its contents if it has any.
+An Attribute is an ordered key with at most one scalar value. A Definition can
+keep any number of Attributes, including repeated keys. The concrete language
+decides which keys it understands, whether repetition is meaningful, and which
+combinations are invalid. The shared parser only preserves the authored data.
 
 ## Dialect
 
@@ -81,6 +75,22 @@ context for every source. A Workspace that interprets one standalone source may
 omit the Package Dialect. Package participates when the request composes a
 Package, acquires its resources, or restores an Archive.
 
+## Dialect dependencies
+
+Some languages build on the work of another language. Scene uses Library for
+its CPU state and functions. Shader uses Library for CPU helpers and Render for
+GPU data. The Workspace creates these dependencies once and gives each language
+the same shared instance.
+
+Dependencies only point from a higher-level language to a lower-level one.
+Library does not depend on Scene or Shader. Render does not depend on Shader,
+and Shader does not depend on Vulkan. This rule also applies to build targets.
+If two language targets need each other, the shared contract belongs in a
+lower-level owner.
+
+When a required language is missing, Tetrodotoxin reports the problem before it
+tries to finish the source. A dependency loop is always an invalid Workspace.
+
 ## Contextual resolution
 
 `resolve()` follows represented identity. `resolve_context(route)` asks the
@@ -90,8 +100,8 @@ proves the category required by its grammar.
 Three questions recur across the provided languages:
 
 1. Address access selects an Addressable through an applicable Layout.
-2. An owner directed contextual route reaches an identity, and the consuming
-   position proves the category it requires.
+2. A context route reaches an object, and the consuming position checks that it
+   belongs to the required category.
 3. Call access lets a concrete language select and invoke a Callable using its
    parameter and result Layouts.
 
@@ -101,28 +111,43 @@ policy applies.
 
 ## Monograph
 
-A Monograph is the retained result of one Dialect invocation. It provides:
+A Monograph is the retained result of reading one source with one Dialect. It
+provides:
 
-* stable Abstract identity
-* opening Documentation
-* contextual resolution defined by its concrete Dialect
-* ordered diagnostics
-* link and finalize lifecycle hooks
+- stable TTX identity
+- opening Documentation
+- name resolution defined by its Dialect
+- ordered diagnostics
+- link and finalize lifecycle stages
 
 A Monograph may expose no Types, one global Type, several independent Types,
 package members, entry policy, or another semantic context. Its role is the
 retained root of one source, not a promise that every language has the same
 shape.
 
+A Monograph may contain a small, fixed set of child layers built by its language
+dependencies. A Scene contains one Library layer. A Shader contains one Library
+layer and one Render layer. Tools can ask the outer Monograph for a layer by
+using the same Dialect instance that the Workspace installed.
+
+This lookup is intentionally narrow. It does not search by name, follow Aliases,
+or create a wrapper around the child. A top-level Monograph answers with itself.
+A Scene answers with its Library child. A Shader answers with its Library or
+Render child. Any other request has no result.
+
+The Package keeps only the outer Monograph as a member. That outer Monograph
+keeps its children alive, moves them through linking and finalization, shows
+their diagnostics with its own, and stores their Archive data. The children do
+not become separate Package members or copied views of the same declarations.
+
 The Monograph remains queryable for the lifetime of its Workspace. It retains
 semantic facts rather than parser positions or source traversal state.
 
-The concrete Dialect constructs its Types, Addressables, Callables, lifecycle
-facts, or package members directly. As an example, a semantic object should
-retain the exact Definition that introduced it but it's up to the Dialect's
-concrete parsers to define what are actual durable semantics. The concrete
-Monograph exposes that result directly. Environment does not wrap those objects
-in generic declaration identities or copy them into a shared member inventory.
+The concrete Dialect creates its Types, Addressables, Callables, lifecycle facts,
+or Package members directly. An object keeps the Definition that introduced it,
+while the Dialect decides which other facts remain part of the completed
+language model. The Monograph exposes those real objects. Environment does not
+wrap them in generic declarations or copy them into a shared member list.
 
 Shared grammar rules return the complete semantic result requested by the
 concrete Dialect. Definition preserves only its common authored prefix and is
@@ -155,14 +180,21 @@ absence without introducing a universal error enum.
 
 ## Diagnostics
 
-`Language::Diagnostic` is a failure fact that does not depend on source. A
-Monograph retains it. An authored diagnostic can name an exact TTX Anchor. A
-restored or synthetic diagnostic can omit source coordinates while retaining
-its message and hint.
+Each source or restored Package member collects errors in one ordered list. The
+outer Monograph and all of its child layers write to that same list while they
+read, link, finalize, or restore their data. Related errors therefore appear
+together, and a child cannot hide a separate list of failures.
+
+The source reader still tracks the current Token and reports lexical errors at
+that location. Semantic errors can point to a TTX Anchor when source text
+exists. Errors from restored or generated data can omit a source location while
+keeping a useful message and hint.
 
 Environment combines the Diagnostic with the source origin it retained for the
 Monograph. Binary Archive validation and other operations that have no source
 context report their own domain details rather than inventing authored Tokens.
+Perimortem's process-wide Diagnostics remain reserved for fatal host state, not
+ordinary source or restoration failures.
 
 ## Semantic lifecycle
 
@@ -179,12 +211,25 @@ presenting the same link and finalize boundary to Environment.
 
 ## Persistence
 
-A concrete Dialect owns the payload schema and reconstruction procedure needed
-to construct a new Monograph without source. This is an optional capability. A
-Dialect that is always interpreted from source does not need an Archive
-payload. Package Archive frames a persistent Dialect's payload and records its
-name. Environment selects the installed Dialect by that exact name and gives it
-the exact member payload bytes.
+A language that supports Archives defines the data needed to rebuild one of its
+Monographs without the original source. Languages that are always read from
+source do not need an Archive format. Package stores each language's data under
+the corresponding member and leaves its contents to that language.
+
+Persistent payloads have two profiles:
+
+- `Complete` keeps public and private declarations, executable bodies,
+  expressions, control flow, access edges, and the relationships needed to
+  restore and compile the graph again.
+- `Interface` retains public Types, Layouts, Fields, Callable signatures,
+  folded public constants, ABI requests, publication relationships, bridge
+  facts, and compiled artifact locations, but no executable bodies.
+
+The selected profile also applies to child layers. The outer language stores a
+separate section for each child, but only the child's language reads and checks
+that section. Neither profile stores parser state, temporary caches, generated
+IR, live runtime handles, or process addresses. Debug symbols and source mapping
+belong to a separate output.
 
 Restoration constructs a fresh graph with equivalent observable semantic facts
 and identity relations. It applies the same link and finalize lifecycle as
@@ -200,11 +245,18 @@ A payload may be much smaller than a memory image because it records only the
 owner facts needed for those observations. Compactness is a format benefit. It
 does not define whether a Dialect is persistent.
 
-The Dialect validates its complete payload before returning a Monograph.
-Environment then retains the reconstructed group and runs the same link and
-finalize barriers used for authored source. A target representation such as
-LLVM IR cannot substitute for this payload because it has already lost owner
-facts that were meaningful in the source language.
+When restoring a Package, Environment creates its Package Monograph before it
+restores the members. Every member receives that same Package context, so
+imports and resources work the same way they do for authored source. Scene and
+Shader pass the context to their child layers. Language dependencies still come
+from the Workspace, not from the Package. If a child rejects its data, the
+outer Monograph also fails.
+
+The Dialect validates its complete bounded payload before returning a
+Monograph. Environment then retains the reconstructed group and runs the same
+link and finalize barriers used for authored source. A target representation
+such as LLVM IR cannot substitute for this payload because it has already lost
+owner facts that were meaningful in the source language.
 
 ## Shared source envelope
 

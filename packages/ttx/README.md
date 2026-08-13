@@ -1,19 +1,17 @@
 # Standard Tetrodotoxin Packages
 
-The standard Tetrodotoxin packages connect the language model to reusable math,
-system, and graphics behavior. They are ordinary Package products, not compiler
-builtins. A source receives one only by declaring a Package dependency, and a
-source free consumer receives the same semantics by restoring its Archive.
+The standard Tetrodotoxin packages provide reusable Math, System, and Graphics
+features. They are ordinary Packages rather than hidden compiler built-ins. A
+source declares them as dependencies, and an Archive can provide the same
+public behavior when source is unavailable.
 
-Use these packages when an application needs the repository's runtime services
-and wants those relationships to remain explicit in the semantic graph. A host
-embedding Tetrodotoxin can publish different packages for the same roles. The
-compiler does not acquire an implicit `System`, `Math`, or `Graphics` namespace.
+An application can use these packages for Perimortem's runtime services, while
+another host can provide different Packages for the same roles. The compiler
+does not create an implicit `System`, `Math`, or `Graphics` namespace.
 
-The three packages deliberately keep different meanings in different Types.
-A four component math vector, a color tone, and a Render Stage value may expose
-similar Layouts without becoming the same Type. Each consuming language retains
-the exact identity it selected.
+Similar shapes do not erase meaning. A four-component math vector, a color
+tone, and a Render Stage value may have matching Layouts while remaining
+different Types.
 
 ## Perimortem.Math
 
@@ -29,7 +27,7 @@ Stage is meant to exchange that value.
 
 ## Perimortem.System
 
-`Perimortem.System` publishes CPU facing Library Types and Callables backed by
+`Perimortem.System` publishes CPU-facing Library Types and Callables backed by
 explicit Foreign declarations. Package native locators connect those declared
 symbols to the Perimortem System runtime. Neither Library nor Workspace knows a
 special System namespace.
@@ -37,16 +35,17 @@ special System namespace.
 ### Terminal lines
 
 `System::Terminal -> read_line()` returns one nonnull `System::Line` Object. It
-owns the returned bytes and keeps their read only View stable for the Line
+owns the returned bytes and keeps their read-only View stable for the Line
 identity's lifetime. Its public observations are:
 
-* `available` is true for a completed line, including an empty line
-* `failed` is true for an input failure
-* `value` is the exact `View[Unsigned_8]` without its line terminator
+- `available` is true for a completed line, including an empty line
+- `failed` is true for an input failure
+- `value` is the `View[Unsigned_8]` without its line terminator
 
-End of input has both flags false. A failure has `failed` true. These states
-belong to the Terminal operation and do not introduce a universal Library
-Option or Result Type.
+End of input leaves both flags false, while an input error sets `failed`. A
+three-state Line is useful here because `Option[View[Unsigned_8]]` could not
+distinguish the end of input from an error. This result belongs to Terminal
+rather than introducing one universal error Type for unrelated systems.
 
 Terminal publishes two `write_line` Callables. One writes a single byte View.
 The other writes a prefix View followed by a value View. Both append exactly one
@@ -76,13 +75,13 @@ while (true) {
 }
 ```
 
-The native boundary uses an explicit carrier for line status, retained storage,
-and byte Views. A C linkage symbol never exposes a C++ `Option`, allocator
-object, or process address as its semantic contract.
+The native boundary carries the line status, retained bytes, and Views
+explicitly. Allocator objects and process addresses never become part of the
+language contract.
 
 ### Process arguments
 
-`System -> get_arguments()` returns one immutable `System::Arguments` Object
+`System -> get_arguments()` returns one read-only `System::Arguments` Object
 established before the Program entry Callable runs. Its `count` excludes the
 platform executable name. `arguments -> at(.index = n)` returns the exact byte
 View for an index below that count and the empty View at or above it.
@@ -92,13 +91,13 @@ Arguments Object lifetime. An empty authored argument remains distinct from a
 missing index because callers compare the index with `count` first. App does
 not add these values to the Program entry Signature.
 
-The native boundary carries the platform arguments through an explicit target
-lifetime. The standard Package constructs the language Object and does not
-turn an `argv` address into semantic identity.
+The native boundary keeps platform argument storage alive for the required
+lifetime. The standard Package constructs the language Object instead of
+treating a platform address as a language value.
 
 ### Input snapshots
 
-`System -> get_input()` returns one immutable `System::Input` snapshot. The
+`System -> get_input()` returns one read-only `System::Input` snapshot. The
 production window loop and deterministic application driver both supply the
 same value shape. The snapshot exposes exact `current`, `pressed`, and
 `released` queries over stable `System::Key` identities.
@@ -108,9 +107,9 @@ by the Scene Lifetime sources. Focus loss, key repeat, and frame boundaries are
 System policy. Scene observes the completed snapshot and does not receive a
 platform event stream in its update Signature.
 
-The native boundary carries one completed key snapshot in a target value shape.
-Platform event objects and window system addresses never become `System::Input`
-identity or Package reconstruction facts.
+The native boundary turns platform events into one completed key snapshot.
+Platform event objects and window-system addresses do not become part of
+`System::Input` or its archived representation.
 
 ## Perimortem.Graphics
 
@@ -126,19 +125,20 @@ and `Sprite` are nonnull Objects. An Image owns a stable decoded pixel result or
 represents the authored empty image state. Backend textures and upload resources
 are not part of that Object's semantic identity.
 
-`Sprite` is a nonnull Object that proves the Tetrodotoxin Graphics hosting
-contract. Its public mutable Fields are `image`, `size_pixels`, `position`,
-`tone`, `visible`, and `z_index`. Their exact Types are `Image`, `Size2D`,
+`Sprite` is a nonnull Object that supports Tetrodotoxin Graphics hosting. Its
+public mutable Fields are `image`, `size_pixels`, `position`, `tone`, `visible`,
+and `z_index`. Their Types are `Image`, `Size2D`,
 `Point2D`, `Tone`, `Bool`, and `Signed_64` in that order. Construction creates a
 valid unconfigured Sprite with an empty Image, zero size and position, opaque
 white tone, visible state, and zero draw index. It produces no draw until it has
-drawable content. Those initial values are authored Sprite construction facts,
-not implicit defaults of Object, Struct, or Image Types.
+drawable content. Those authored Field initializers determine Sprite's semantic
+default. Image, the inline Structs, and each scalar also retain their own total
+Library defaults.
 
-A Scene hosts a Sprite through the real private const Field that retains it.
-The Scene mutates the Sprite's public Fields through ordinary Address access.
-Graphics reads the same Object when it builds a frame submission. No standard
-package creates a second node, Field table, or global Sprite registry.
+A Scene hosts a Sprite through the private state Field initialized with `new`.
+The Scene changes the Sprite's public Fields through ordinary Library access,
+and Graphics reads the same Object when it builds a frame. There is no second
+node tree or global Sprite registry.
 
 Hosted Fields retain authored tree order. A higher `z_index` is in front, and a
 later Field is in front when two indices match. Visibility and transform
@@ -154,16 +154,17 @@ language observation while target storage stays a runtime fact.
 
 ## Native and durable boundaries
 
-Each standard package owns its Library source and reconstruction payload.
-Package owns the Archive envelope and native locators. The relevant Perimortem
-runtime component owns native behavior, and Linker owns the resulting object and
-executable bytes.
+Each standard Package owns its Library source and the data needed to rebuild it.
+Package owns the Archive, its Complete or Interface profile, and native artifact
+locations. The matching Perimortem runtime component provides native behavior,
+while Linker creates object files and executables for the chosen CPU and
+operating system.
 
-A restored standard package constructs fresh semantic identities and reruns the
-ordinary completion barriers. It reproduces public names, categories,
-relationships, Layout behavior, and native locators without storing LLVM IR,
-runtime handles, input snapshots, decoded images, or live Objects in the
-Archive.
+A Complete Archive rebuilds both public and private language objects. An
+Interface Archive rebuilds the public contracts and compiled artifact locations
+needed by other Packages without including executable bodies. Neither profile
+stores LLVM IR, runtime handles, current input, decoded images, live Objects, or
+source-level debugging data.
 
 See [Package](../../tetrodotoxin/package/README.md) for dependency and Archive
 selection, [Library](../../tetrodotoxin/library/README.md) for the concrete CPU

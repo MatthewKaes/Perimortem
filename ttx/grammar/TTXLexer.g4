@@ -63,6 +63,7 @@ PUSH      : 'push';
 POP       : 'pop';
 EXIT      : 'exit';
 SIGNAL    : 'signal';
+EMIT      : 'emit';
 PREPARE   : 'prepare';
 PAUSE     : 'pause';
 RESUME    : 'resume';
@@ -107,6 +108,7 @@ GREATER    : '>';
 ADDRESS    : '.';
 PACK       : ',';
 NOT        : '!';
+QUESTION   : '?';
 AND_OP     : '&';
 OR_OP      : '|';
 

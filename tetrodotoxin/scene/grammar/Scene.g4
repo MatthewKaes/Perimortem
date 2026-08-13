@@ -21,7 +21,11 @@ sceneSourceDeclaration
     : documentedLibraryDeclaration
     | documentedSceneExtension
     | documentation? usingDeclaration
-    | documentation? foreignBlock
+    | foreignBlock
+    ;
+
+documentedLibraryDeclaration
+    : definition libraryDefinition
     ;
 
 documentedSceneExtension
@@ -39,6 +43,22 @@ signalDeclaration
 
 lifecycleRoleDeclaration
     : SCENE_DIALECT lifecycleRole functionSignature block
+    ;
+
+// Scene overrides Library's Block composition so nested Library control flow
+// can contain the one Scene-owned statement without teaching Library about
+// Signals or a generic statement extension registry.
+block
+    : SCOPE_START sceneStatement* SCOPE_END
+    ;
+
+sceneStatement
+    : emissionStatement
+    | statement
+    ;
+
+emissionStatement
+    : EMIT addressableName parenthesizedPack? END_STATEMENT
     ;
 
 lifecycleRole

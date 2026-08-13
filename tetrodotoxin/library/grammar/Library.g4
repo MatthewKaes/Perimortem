@@ -106,7 +106,14 @@ matchStatement
     ;
 
 matchCase
-    : CASE (DISCARD | expression) DEFINE block
+    : CASE (DISCARD | optionBindingPattern | expression) DEFINE block
+    ;
+
+// `some` and `empty` remain contextual Library spellings carried by
+// ADDRESSABLE Tokens. The semantic Match owner admits only `some(name)`,
+// unbound `some`, and `empty` when the input has exact Type Option[T].
+optionBindingPattern
+    : addressableName PACKING_START addressableName PACKING_END
     ;
 
 returnStatement
@@ -160,11 +167,11 @@ rangeExpression
     ;
 
 orExpression
-    : andExpression ((OR | OR_OP) andExpression)*
+    : andExpression (OR andExpression)*
     ;
 
 andExpression
-    : equalityExpression ((AND | AND_OP) equalityExpression)*
+    : equalityExpression (AND equalityExpression)*
     ;
 
 equalityExpression
@@ -200,6 +207,7 @@ postfixSuffix
     | BRACKET_START expression BRACKET_END
     | SWIZZLE swizzleSelection? BRACKET_END
     | VALUE_ACCESS expression (PACK expression)? BRACKET_END
+    | QUESTION
     ;
 
 swizzleSelection

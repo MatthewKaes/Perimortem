@@ -1,15 +1,14 @@
 # App
 
-App is Tetrodotoxin's program level policy language. It plays the role normally
+App is Tetrodotoxin's program-level policy language. It plays the role normally
 split between an entry declaration, application manifest, and lifecycle
 configuration. An App selects how a completed program starts, which
-presentation surface it requires, and how its long lived state is controlled.
+presentation surface it requires, and how its long-lived state is controlled.
 
-Use App when those decisions should remain semantic and refer directly to
-Library Callables or Scene identities. App retains the selected relationships
-while Library owns CPU lowering and Linker owns the final platform artifact.
-This keeps startup policy inspectable without turning App into an instruction or
-linking language.
+App points directly to the Library Functions or Scenes that take part in that
+policy. Library compiles the CPU code and Linker builds the platform program.
+App keeps the startup and lifecycle choices visible without becoming a machine
+instruction or linking language.
 
 Canonical grammar reference: [App.g4](grammar/App.g4).
 
@@ -34,10 +33,9 @@ runtime = Windowed {
 }
 ```
 
-`Windowed` requests a native window and graphics presentation. The authored
-named Pack supplies `title`, `icon`, `width`, `height`, and `resizable` and fits
-the Windowed profile Layout. The leading dots name produced Pack slots rather
-than postfix Address access.
+`Windowed` requests a native window and graphics presentation. Its settings are
+`title`, `icon`, `width`, `height`, and `resizable`. The leading dots name those
+settings rather than selecting Fields from another value.
 
 ### Terminal startup profile
 
@@ -74,7 +72,7 @@ than injected into the entry Signature.
 
 ## Scene lifecycle
 
-Scene lifecycle retains one initial Scene and maps Scene signals to transitions:
+Scene lifecycle names one initial Scene and maps its Signals to transitions:
 
 ```ttx
 lifecycle = Scene {
@@ -87,40 +85,49 @@ lifecycle = Scene {
 
 App owns the live Scene stack and four transition operations:
 
-* `replace` releases the active Scene and prepares a new destination.
-* `push` pauses and retains the active Scene before preparing a new destination.
-* `pop` releases the active Scene and resumes the retained Scene below it.
-* `exit` releases the complete stack from top to bottom without resuming it.
+- `replace` releases the active Scene and prepares a new destination.
+- `push` pauses and retains the active Scene before preparing a new destination.
+- `pop` releases the active Scene and resumes the retained Scene below it.
+- `exit` releases the complete stack from top to bottom without resuming it.
 
-A transition is applied after the active Scene has finished its update and its
-submission facts for that frame are stable. Scene owns state, signals, hosted
-graphics relationships, and lifecycle roles. App owns movement between Scene
-identities.
+At the end of each frame, App checks the events published by the active Scene in
+the order they were emitted. The first event with a matching `on` rule wins.
+Other subscribers may still observe later events, but App performs no second
+transition during that frame. If no event matches, the Scene stack stays as it
+is.
+
+Scene owns the signals and decides when to emit them. App owns the transition
+rules and the live Scene stack.
 
 ## Windowed execution
 
-The Windowed Scene driver realizes App policy without becoming another semantic
-owner. It opens the declared System window, creates the initial Scene instance,
-and calls `prepare` before the first frame.
+The Windowed Scene driver applies App policy at runtime. It opens the declared
+System window, creates the initial Scene instance, and calls `prepare` before
+the first frame.
 
 Each frame follows one observable order:
 
-1. System completes one immutable input snapshot and a monotonic delta time.
+1. System completes one read-only input snapshot and a monotonic delta time.
 2. App calls `update` on the active Scene exactly once.
 3. Scene and Graphics make that frame's submission stable.
 4. The selected backend presents the stable submission.
-5. App applies the returned Scene transition.
+5. Scene publishes the frame's events in emission order.
+6. App applies the first matching transition, if there is one.
 
-A resize changes the System surface and the target presentation extent. It does
-not replace the active Scene or rewrite its semantic identities. Shutdown
+An event emitted while the current events are being delivered waits for the
+next frame. Scene never returns a transition from `update`. The `on` rules in
+App are the only source of transition policy.
+
+A resize changes the System surface and the presentation size. It does not
+replace the active Scene or rewrite its language objects. Shutdown
 releases the Scene stack according to App policy before destroying the backend
 and window resources that realized it.
 
 ## Package selection
 
-Package assembly selects the App Monograph that provides the application policy.
-Its Source route is the semantic name used to select that Monograph. `main.ttx`
-is only a filename convention.
+Package assembly selects the App result that provides the application policy.
+Its Source route is the stable Package name used to select it. `main.ttx` is
+only a filename convention.
 
 Embedded startup resources resolve beneath the App source's Package root. The
 Package retains their bytes and App interprets their role in the startup
@@ -128,13 +135,26 @@ profile.
 
 ## Persistence
 
-App is a persistent Dialect. Its payload records the startup profile, exact
-resource relationships, selected Static entry Callable, initial Scene, and
-signal transition edges needed to reconstruct the policy in a fresh Workspace.
-It does not record a live Scene stack, process state, window, or generated entry
-code.
+App supports both Package Archive profiles. Complete stores the full startup and
+lifecycle policy. Interface stores the public policy and the location of the
+compiled program, without executable bodies.
+
+Referenced Scenes remain separate Package members. App stores the relationships
+to those members instead of copying their data. Neither profile stores a live
+Scene stack, queued events, process state, an open window, generated code, or
+debug information.
+
+## Target and host selection
+
+Building an App selects both a CPU target and a platform host. The CPU target
+defines how functions and values are represented. The Linux or Windows host
+provides process startup, loading, terminals, windows, and events.
+
+Library may compile the CPU code with LLVM or the direct native compiler. This
+choice does not change App behavior. Linker still produces the final ELF or PE
+program.
 
 See [Scene](../scene/README.md) for Scene roles,
 [Library](../library/README.md) for Callable and named Layout semantics, and the
-[standard packages](../../packages/ttx/README.md) for the source visible System
+[standard packages](../../packages/ttx/README.md) for the source-visible System
 terminal, argument, and input surfaces.

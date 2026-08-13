@@ -1,45 +1,44 @@
 # TTX
 
-TTX is a small semantic interchange vocabulary for live multi domain semantic
-IRs. It gives concrete languages shared contracts for identity, resolution,
-Types, Packs, Addressables, Callables, and semantic Layout without requiring
-them to share one syntax tree or one universal type system.
+TTX is a small shared vocabulary for tools and languages that need to describe
+the same program. It defines common ideas such as Types, values, addresses,
+callable code, and the shape of data without forcing every language into one
+syntax tree or one universal type system.
 
-A language still owns the meaning of its source. TTX owns only the contracts
-that another language, package system, compiler, editor, or runtime can use
-directly. Those consumers can meet in one live graph and refer to the same
-semantic object instead of copying it into a model of their own.
+Each language still decides what its source means. TTX only defines the pieces
+that a Package manager, compiler, editor, or runtime may need to inspect. Those
+systems can refer to the same program object directly instead of building and
+synchronizing private copies.
 
-Tetrodotoxin is the reference host in this repository. It supplies Workspaces
-that use TTX to retain one live semantic IR of concrete language objects.
-Tetrodotoxin also supplies packages, compilers, and runtime policy while TTX
-remains independent of all of them.
+[Tetrodotoxin](../tetrodotoxin/README.md) is the reference host in this
+repository. It uses TTX to keep the objects created by several languages in one
+Workspace. Tetrodotoxin provides Packages, compilers, and runtime policy, while
+TTX remains independent from those choices.
 
 ## Where TTX sits
 
-TTX lives between source interpretation and the representations used by a
-particular compiler or tool:
+TTX sits between reading source and producing a file for a particular tool or
+machine:
 
 ```text
 authored source
 -> Tokens with exact source locations
--> semantic objects constructed by a concrete language
--> shared queries over one live graph
--> LLVM IR, SPIR-V, editor data, semantic archives, or another Terminal product
+-> language objects created from those Tokens
+-> shared questions about the completed program
+-> LLVM IR, SPIR-V, editor data, Archives, or another final product
 ```
 
-The live semantic IR keeps facts that are still meaningful before a target,
-runtime, or output format has been chosen. It can tell a consumer which exact
-Type an Alias represents, which Type an Addressable reaches, which values a Pack
-supplies, which Layout a Callable accepts, or whether one Layout fits another.
-It does not decide how those facts become registers, offsets, object records,
-editor messages, or serialized bytes.
+The live graph keeps facts that still matter before a target, runtime, or output
+format has been chosen. A tool can ask which Type an Alias represents, which
+Type an Addressable reaches, which values a Pack supplies, which Layout a
+Callable accepts, or whether one Layout fits another. TTX does not decide how
+those facts become registers, offsets, editor messages, or stored bytes.
 
-This makes TTX earlier than LLVM IR in a compiler pipeline. LLVM IR describes
-computation after a language has chosen a lowered form suitable for optimization
-and code generation. TTX describes the semantic identities that must remain
-available while languages and tools are still composing the program. A project
-can use TTX for that shared semantic layer and LLVM IR for CPU compilation.
+TTX therefore appears earlier than LLVM IR in a compiler. LLVM IR describes
+computation after the language has chosen a form suitable for optimization and
+machine-code generation. TTX keeps language-level meaning available while
+several languages and tools are still putting the program together. A project
+can use TTX for that shared meaning and LLVM IR for CPU compilation.
 
 ## The shared vocabulary
 
@@ -57,8 +56,8 @@ Monographs directly from Tokens and retains no second source graph.
 
 ### Semantic identities
 
-Every queryable semantic identity is an `Abstract`. The closed TTX
-categories are:
+Every language object that tools can query belongs to one of these TTX
+categories:
 
 ```text
 Abstract
@@ -75,8 +74,8 @@ Abstract
 └── Callable
 ```
 
-`Layout`, `Documentation`, and `Reference` support those identities without
-becoming identities themselves.
+`Layout`, `Documentation`, and `Reference` describe or connect those objects
+without becoming separate language objects themselves.
 
 A `Type` exposes one complete Layout. An `Addressable` names typed data. A
 `Pack` carries produced value flow and exposes its complete output Layout. A
@@ -84,10 +83,10 @@ A `Type` exposes one complete Layout. An `Addressable` names typed data. A
 name and Documentation while resolving to another identity. `Invalid` is the
 total result of a semantic query that cannot be answered at that stage.
 
-A Reference retains a nonnull borrowed edge to the exact object
-constructed by its owner. Equal names, equal structure, and equal Layouts do not
-make two objects the same Type. That distinction lets packages, languages,
-editors, and compilers share a fact without maintaining synchronized copies.
+A Reference points to the object created by its owner. Equal names, structures,
+and Layouts do not make two objects the same Type. This distinction lets
+Packages, languages, editors, and compilers share one fact instead of keeping
+several copies synchronized.
 
 ### Packs and semantic Layout
 
@@ -95,7 +94,7 @@ A Pack preserves the identity of produced value flow without turning that flow
 into a Type. It may supply no values, one value, or several positional, named,
 ranged, or composed values. One ordinary value-producing expression is already
 a Pack, while a multi-value Pack remains fluid until a receiving contract
-deliberately materializes a Type. A language's `Void` result and `()` both
+chooses to materialize a Type. A language's `Void` result and `()` both
 supply an empty Layout, so they interoperate without a universal `Void` Type
 identity.
 
@@ -118,16 +117,16 @@ named Pack slots use `.name = value` because they supply value flow. Concrete
 languages decide where either delimiter may be omitted without ambiguity.
 Omitting a delimiter does not change the semantic Pack or Layout.
 
-A Layout is an ordered view of exact semantic identities and a directional
-fitting contract. TTX supplies five common forms:
+A Layout describes an ordered shape and how supplied values fit it. TTX provides
+five common forms:
 
-* `Value` contains one exact atomic Type as a terminal leaf.
-* `Fluid` describes and fits ordered positional entries.
-* `Named` retains uniquely named slots and fits them by name. A slot can borrow
+- `Value` contains one atomic Type.
+- `Fluid` describes and fits ordered positional entries.
+- `Named` retains uniquely named slots and fits them by name. A slot can borrow
   a name independently while fitted queries still return the exact source
   identity.
-* `Ranged` describes one entry repeated over a fixed interval.
-* `Composite` joins complete descriptors without flattening them.
+- `Ranged` describes one entry repeated over a fixed interval.
+- `Composite` joins complete descriptors without flattening them.
 
 Layouts describe promised semantic shape and how supplied values fit it. Layout
 decorators preserve the fitting rules of the source that owns each entry. A
@@ -138,29 +137,29 @@ abstract machine width and storage requirements. Target object layout, field
 offsets, registers, address spaces, pointer forms, and runtime storage belong to
 the consumer that chooses a physical representation.
 
+Every concrete Type that a language allows as an ordinary value has a default.
+That language defines and creates the value. TTX does not infer it from cleared
+memory or provide one universal default object. An empty View is still one View
+value, while an empty Layout means that no value was produced.
+
 ### Terminal products
 
-A Terminal product is a completed output whose use no longer depends on the
-live graph or its process identities. LLVM IR, SPIR-V words, debug data, object
-modules, native binaries, editor data, formatted source, and semantic archives
-are examples.
+A Terminal product is a finished output that no longer depends on the live
+Workspace. LLVM IR, SPIR-V, debug data, object modules, native programs, editor
+data, formatted source, and semantic Archives are examples.
 
-Terminal describes a boundary role rather than one common product model. Each
-compiler, linker, formatter, editor service, or package owner defines the
-format it emits. No live `Abstract` identity or `Reference` survives in that
-output.
+Terminal describes where live language objects end, not one shared file format.
+Each compiler, linker, formatter, editor service, or Package defines the output
+it produces. References to live Workspace objects never appear in that output.
 
-Most Terminal products intentionally preserve only the facts needed by their
-next consumer. LLVM IR, debug data, and object files cannot reconstruct the
-complete source semantic graph. A semantic archive has a different purpose. It
-can avoid source acquisition, lexing, and parsing by retaining the owner facts
-needed to create a fresh graph and apply the graph owner's validation,
-completion, and publication contract.
+Most Terminal products keep only the facts needed by their next consumer. LLVM
+IR, debug data, and object files cannot rebuild the complete language model. A
+semantic Archive has a different purpose. It keeps enough information for each
+language to create fresh objects without acquiring and parsing the source again.
 
-Reconstruction equivalence concerns public semantic observations rather than
-internal graph shape. Names, categories, represented identity relationships,
-semantic edges, order, Layout behavior, completion, and concrete owner facts
-remain observable. Process addresses and private supporting structure do not.
+A restored Archive must present the same public names, categories,
+relationships, order, Layout behavior, and language facts. It does not need to
+reproduce process addresses or the old in-memory arrangement.
 
 ## Relationship to other compiler models
 
@@ -179,7 +178,7 @@ commits to one lowered representation.
 A language AST remains the direct choice when one frontend owns the source and
 needs a rich model of its declarations and syntax. Clang is the stronger choice
 when faithful C or C++ semantics and its mature tooling ecosystem are the
-product. TTX gains a smaller cross language boundary by leaving those rich
+product. TTX gains a smaller cross-language boundary by leaving those rich
 rules with each concrete language. The cost is that TTX does not provide them
 on the language's behalf.
 

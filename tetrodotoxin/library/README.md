@@ -1,15 +1,10 @@
 # Library
 
-Library is Tetrodotoxin's reusable CPU language. It defines concrete scalar
-Types, values, expressions, functions, Structs, Objects, Enumerations, and
-Generic containers while retaining the shared TTX Type, Pack, Layout,
-Addressable, and Callable contracts.
-
-Use Library when reusable CPU logic must share exact semantic identities with
-packages, applications, scenes, tools, and native compilation. A conventional
-language frontend is a simpler fit when one language owns the whole program or
-compatibility with an established language and tooling ecosystem matters more
-than cross language composition.
+Library is Tetrodotoxin's language for reusable CPU code. It provides scalar
+Types, values, expressions, Functions, Structs, Objects, Enumerations, and
+Generic containers. Packages, applications, Scenes, tools, and native compilers
+all work with those same language objects instead of translating them through a
+separate intermediate model.
 
 Canonical grammar reference: [Library.g4](grammar/Library.g4).
 
@@ -42,6 +37,7 @@ Library uses punctuation to select separate semantic domains:
 | `access[index]`                      | produce one writable indexed address with the element Type    |
 | `value:[index]`                      | return an element value or its default                        |
 | `value:[start, count]`               | return a Ranged Pack whose size is known during linking        |
+| `option?`                            | unwrap `some` or return `empty` from the enclosing Function    |
 
 These domains never fall through to one another. A Field, Callable, and nested
 Type may share a spelling because the operator already states which category is
@@ -50,11 +46,10 @@ being requested.
 A declaration that requires a Type retains a type route with no identity. It
 does not retain an access Expression. The route may carry one optional Generic
 argument Layout, and each Type entry may recursively contain another route.
-Without an argument
-Layout the route must select a Type. With one it must select a Generic formula
-that materializes the exact Type from those arguments. This keeps forward
-declaration routes delayed without manufacturing runtime value flow or
-conflating declaration qualification with postfix access.
+Without an argument Layout, the route must select a Type. With one, it must
+select a Generic formula that creates the Type from those arguments. The route
+can stay unresolved until linking without pretending to be a runtime value or
+postfix access expression.
 
 ### Address access
 
@@ -97,7 +92,7 @@ Postfix `::` is a Type access Expression:
 ```ttx
 Graphics::Image
 System::Terminal
-Scene::Flow
+Option[Graphics::Image]
 ```
 
 It evaluates its receiver, requires that receiver's exact semantic result to be
@@ -218,8 +213,8 @@ state dimensions : Fixed[Unsigned_64, 2] = packet.[width, height];
 ```
 
 The result is a Pack over the real selected producers. It becomes
-`Fixed[Unsigned_64, 2]` only because the receiving declaration deliberately
-materializes that Type. The swizzle itself creates no aggregate Type.
+`Fixed[Unsigned_64, 2]` only because the receiving declaration chooses that
+Type. The swizzle itself creates no aggregate Type.
 
 Plain brackets are reference access on `Access[T]`. They never substitute a
 default address:
@@ -252,7 +247,7 @@ a valid position selects the same safe default. A range count that does not
 fold to a constant or cannot represent a supported nonnegative count is a semantic
 error, as is another operand Type.
 
-## Built in Types
+## Built-in Types
 
 Library provides these scalar families:
 
@@ -278,32 +273,65 @@ View[Unsigned_8]
 View[Fixed[Unsigned_8, 4]]
 Access[Unsigned_8]
 Range[Unsigned_64]
+Option[View[Unsigned_8]]
 ```
 
 `Fixed[T, extent]` requires its `extent` to be an exact `Unsigned_64` value
-known during linking. `View` is a borrowed contiguous view. `Access` additionally
-carries the language's writable contiguous capability. `Range` describes a
-lazy ascending integer sequence. An explicit empty list applies a formula with
-no arguments. Omitting the list instead requires the route to name a Type.
-Applying the same formula to the same semantic arguments returns the same Type
-identity.
+known during linking. `View` is a borrowed contiguous view. `Access`
+additionally carries the language's writable contiguous capability. `Range`
+describes a lazy ascending integer sequence. `Option[T]` represents a value that
+may be absent in an otherwise nonnullable language. It is either `empty` or
+`some` with one `T` value. An explicit empty list applies a formula with no arguments.
+Omitting the list instead requires the route to name a Type. Applying the same
+formula to the same semantic arguments returns the same Type identity.
+
+`Option[T]` exposes exact Static construction Callables:
+
+```ttx
+Option[Result] -> empty()
+Option[Result] -> some(result)
+```
+
+Option is a built-in Library Generic Type. It does not make Objects nullable and
+it is not supplied by a standard Package. A user-defined operation that may fail
+is written as a Static factory returning an Option. Object initialization itself
+never publishes a partly initialized value.
 
 ### Default values
 
-A default is a Library Type fact. It is not inferred from target zero bits or
-from the storage chosen by a compiler.
+Every Library Type that can appear in source has a default value. The language
+defines that value independently of the storage chosen by a compiler:
 
-* `Bool` defaults to `false`.
-* Every signed, unsigned, and real scalar Type defaults to its exact zero value.
-* Every `View[T]` defaults to an empty View with that exact materialized Type.
-* An Alias uses the default of the Type it represents.
+- `Bool` is false and numeric Types use zero.
+- An Enumeration uses its underlying zero value even when no case names
+  zero.
+- `View[T]` and `Access[T]` use empty read-only and writable views respectively.
+- `Range[T]` uses the empty range.
+- `Option[T]` uses `empty` without constructing `T`.
+- `Fixed[T, count]` contains `count` default `T` values.
+- A Structure initializes state Fields in source order from each Field's
+  authored initializer when present and otherwise from that Field Type's
+  default.
+- An Object default is one new nonnull Object initialized by the same Field
+  rules.
+- `Void` and another valid zero-value Type use empty Pack flow.
+- An Alias uses the default of the Type it represents.
 
-`Void`, Enumerations, Structs, Objects, `Fixed[T, count]`, and `Access[T]` have
-no implicit default. A missing `value:[index]` is therefore legal only when the
-exact element Type admits a default. A ranged selection instead requires one
-folded nonnegative count and produces exactly that many values. It has no
-default for a missing selection. A Field initializer is an authored value and never
-defines a Type default for other declarations.
+`Descriptor` belongs to compile-time Type selection and cannot be used as an
+ordinary source value. Library also rejects a chain of defaults that would have
+to construct itself forever. `Option[T]` breaks such a chain because its empty
+default does not construct `T`.
+
+Cleared memory may make initialization faster, but it does not define these
+defaults. Every initializer required by the Type still runs. An empty
+`View[Unsigned_8]` is still one View value rather than a Pack with no values.
+
+A missing scalar `value:[index]` returns the element Type's default. For an
+Option, `option:[0]` returns its stored value when present and creates a default
+`T` when empty. Reading an empty `Option[ObjectType]` more than once can therefore
+create a different Object each time. The Option itself stays empty. A ranged
+selection still returns exactly its declared count and does not fill missing
+entries with defaults.
 
 ### Integer ranges
 
@@ -319,7 +347,7 @@ entry binding Layout against the exact `T` carried by the Range.
 
 ## Source and Composite Types
 
-Each Library Monograph owns one synthetic Source Type with an empty instance
+Each Library Monograph owns one generated Source Type with an empty instance
 Layout. Top level declarations enter its Static surface. Instance Fields
 cannot. The exact `source` route returns that Source, while ordinary Monograph
 lookup forwards only its externally visible Static entries.
@@ -332,7 +360,7 @@ semantic identity and never becomes a competing declaration identity or graph.
 Composite owns member categories, Layout completion, and lifecycle barriers
 without becoming another declaration model.
 
-Each Monograph creates and retains its Source with one synthetic Definition.
+Each Monograph creates and retains its Source with one generated Definition.
 That Definition uses the reserved name `<source>`, which cannot be emitted. It
 also retains the exact opening Documentation and truthful source envelope
 Anchor supplied by Environment. It
@@ -349,7 +377,7 @@ resolve those exact identities as bare source names. Private Fields remain
 limited to their owning source context.
 
 Type aliases use the exact declaration
-`public|private TypeName : alias = TypeRoute;` in the synthetic Source or an
+`public|private TypeName : alias = TypeRoute;` in the generated Source or an
 authored Structure. The receiving Composite retains one exact TTX Alias in its
 Type category and authored order. Its target is the Type selected through that
 Composite's private local and enclosing source context, so an Alias may
@@ -388,6 +416,25 @@ Definition host is the Source, which already reaches the Monograph that owns
 diagnostics, imports, and completion. The Function retains no duplicate source,
 host, or parent edge.
 
+### Embedded Library layers
+
+A top-level Library source is already a Library layer. Scene and Shader can also
+contain a Library child built by the same Library language installed in the
+Workspace. Reusing that language keeps Generic Types such as `Option[T]`,
+`Fixed[T, count]`, and `View[T]` consistent everywhere they appear.
+
+The child has its own Source context for imports, Foreign declarations, and
+Package access. A Scene places its Object, state Fields, helpers, and lifecycle
+Functions there. A Shader uses its child for CPU helpers and marshaling. Only
+the outer Scene or Shader appears as a Package member, but Library tools can
+inspect the real child directly. Nothing is copied into a second Type or member
+list.
+
+Scene and Shader remain responsible for the parts of their languages that are
+not Library code. For example, Scene owns `emit` while the expressions and
+ordinary statements around it still follow Library rules. This lets the Library
+compiler handle the CPU code without making Library depend on Scene or Shader.
+
 ## Definitions
 
 Every ordinary Library member begins with one shared Definition:
@@ -409,12 +456,10 @@ a Callable. Each resulting Field, Structure, Object, Enumeration, or Function
 retains that same Definition while its concrete language form owns the
 remaining grammar and validation.
 
-Definition retains the exact host that admits the declaration: the containing
-Composite for ordinary members and the Monograph for Source. This supplies
-transaction provenance and hosted access authority, not universal semantic
-parentage or a required TTX graph path. Walking only those Composite hosts
-grants a caller private authority over each containing Type while leaving the
-selected receiver and semantic graph unchanged.
+Definition remembers the host that admits the declaration. Ordinary members use
+their containing Composite, while Source uses its Monograph. That host explains
+where the declaration came from and which private members it may access. It is
+not a universal parent link or an implicit receiver.
 
 Defined Types retain their Definition as part of the Type identity. Fields,
 Functions, and authored Aliases retain the same declaration facts while
@@ -422,9 +467,10 @@ remaining solely Addressable, Callable, and Alias identities. Once its grammar
 is complete, an authored identity exposes the Definition's Documentation,
 complete Anchor, and publication decision as Authorship with no identity.
 
-Definition alone owns Library Visibility and authored lexical Tokens. Source's
-required synthetic Definition does not become Authorship. Forwarding Aliases
-created by imports remain synthetic TTX Alias identities with no Definition.
+Definition owns Library Visibility and the authored Tokens. Source uses a
+generated Definition and does not pretend to have authored declaration text.
+Forwarding Aliases created by imports are generated TTX Aliases without a
+Definition.
 
 Attributes do not choose the definition category and are not rejected because
 of that category. A consumer may interpret selected keys and leave all
@@ -475,7 +521,7 @@ Evaluation policy has three states:
 
 * an ordinary Field owns Static storage and is fully writable by callers that
   can select it
-* `state` owns instance storage; `public state` is writable by external callers,
+* `state` owns instance storage. `public state` is writable by external callers,
   while `private state` and `expose state` require authority from the declaring
   Type's Definition host chain
 * `const` is never writable and must resolve completely at compile time
@@ -491,7 +537,7 @@ value rather than a separate initializer inventory.
 A declaration written as `name := expression` has no declared Type to fit. The
 Field retains the exact completed Type of that initializer without widening or
 retagging it. `new` cannot be used here because Object initialization requires
-an exact receiving Object Type before the initialization transaction begins.
+a declared Object Type before initialization begins.
 
 ## Structs
 
@@ -535,51 +581,59 @@ public Session : object {
 }
 ```
 
-An Object value is a nonnull managed reference identity. Assignment, parameter
-passing, and return preserve that identity, so aliases observe the same
-mutations. Object reuses the Structure model's Fields, Functions, Layout,
-Visibility, and Writability rather than defining a parallel member model.
+An Object value is a nonnull managed reference. Assignment, parameter passing,
+and return all preserve that reference, so every alias sees the same mutations.
+Object uses the same Fields, Functions, Layout, Visibility, and Writability as a
+Structure instead of defining a second member system.
 
-Library owns the lifetime semantics. Allocation strategy, pointer shape,
-collector policy, and reclamation timing belong to the compiler and runtime.
-Object exposes no finalizer, weak reference, explicit release, or observable
+Library defines what Object lifetime means to a program. The runtime chooses how
+Objects are allocated, represented, traced, and eventually reclaimed. Source
+code has no finalizer, weak reference, explicit release, or observable
 reclamation order.
+
+At runtime, related Objects live in a Garbage Realm owned by one worker. The
+whole Realm can move to another worker without invalidating any of its Object
+references. A single Object cannot cross on its own. Code must instead copy it
+into a new identity, transfer its complete Realm, or use separately shared
+read-only storage. These choices do not change the Library Type or add
+source-visible lifetime operations.
 
 ### Object initialization
 
-Inline Struct values use positional or named value flow and are fitted by the
-typed declaration that receives them. Object initialization uses `new` only as
-the initializer of a declaration that already names one exact Object Type:
+Inline Struct values use positional or named values and are checked against the
+declaration that receives them. Object initialization uses `new` only where the
+receiving declaration already names the Object Type:
 
 ```ttx
 state session : Session = new;
 state configured : Session = new(.progress = 4);
 ```
 
-The receiving declaration owns the transaction. It initializes one unpublished
-Object, applies Field writes in authored order, and publishes the
-nonnull identity only after every initializer succeeds. `state session := new;`
-is invalid because inference cannot supply the Type that initialization needs.
-Calls and returns may carry an already initialized Object while preserving its
-identity, but they do not infer an Object Type for a new transaction.
+The declaration creates one private Object, initializes its Fields in source
+order, and makes the nonnull reference visible only when initialization is
+complete. `state session := new;` is invalid because `new` needs the declared
+Type. Calls and returns can carry an Object that already exists, but they do not
+infer the Type of a new Object.
 
-The initializer retains one argument Pack and fits its output against the
-receiving Object Type's state-only initialization Layout. An external
-initializer can name its public and exposed state Fields. Code hosted by the
-Object Type can also name private state Fields. An unknown, duplicate,
-inaccessible, Static, or const name fails the transaction. Every state Field
-without an authored initializer is required unless `new` supplies it. Ordinary
-Static Fields initialize through their declaration owner and are never Object
-inputs.
+The arguments to `new` can name public and exposed state Fields. Code hosted by
+the Object Type can also name its private state Fields. Unknown, repeated, or
+inaccessible names are errors, as are Static or const Fields. A state Field not
+supplied by `new` uses its own initializer when present and otherwise its Type's
+default. Static Fields are initialized separately and are never inputs to
+`new`.
 
-Supplied expressions evaluate in source order. The Object then initializes each
-state Field exactly once in the Type's authored order, using the supplied fitted
-value when present and otherwise the Field's own initializer. A missing required
-state Field or failed expression leaves no published Object identity.
+Arguments are evaluated in source order. The Object then initializes each state
+Field once in its declared order. It uses the supplied value first, then the
+Field's initializer, and finally the Field Type's default. Initialization has no
+recoverable failure path, so it needs no rollback behavior. Running out of
+memory is a fatal diagnostic. Cleared memory may speed up allocation, but the
+language defaults still determine the finished values.
 
-A chain of required Object initializers must terminate. Library rejects a
-mandatory initialization cycle during completion rather than recursing while a
-runtime Object is being initialized.
+A chain of Structure or Object defaults must eventually end. Library rejects a
+cycle while completing the program instead of discovering it during runtime
+initialization. An `Option[T]` Field breaks the cycle because its default is
+empty. Construction that can reject input belongs in a Static factory returning
+`Option[T]`, not in `new`.
 
 ## Enumerations
 
@@ -596,6 +650,9 @@ public Mode : enum[Unsigned_8] {
 
 Each case has its own Alias and Constant identity. Two case names may carry the
 same integer value without becoming the same semantic identity.
+The Enumeration default is the exact Enumeration value whose underlying
+integer is zero. That representable value remains valid even when no case Alias
+names it.
 
 ## Functions and invocation roles
 
@@ -649,11 +706,30 @@ inventing a group Type.
 Constants cover Bytes, Bool, signed integers, unsigned integers, and real
 values.
 
-Arithmetic and comparison operate on exact compatible scalar Types. `and` and
-`or` preserve short circuit reachability. Unary `!` accepts Bool. Unary `-`
-accepts signed integer and real domains. Integer overflow and division by zero
-are semantic failures in their owning operation. Safe `:[...]` selection
-uses a default value instead of publishing a bounds failure.
+Arithmetic and comparison operate on exact compatible scalar Types. The
+keyword forms `and` and `or` alone own short-circuit Boolean semantics. The
+host-neutral `&` and `|` Tokens remain reserved for future bitwise operators and
+are not alternate spellings of those Library Operations. Unary `!` accepts
+Bool. Unary `-` accepts signed integer and real domains. Integer overflow and
+division by zero are semantic failures in their owning operation. Safe
+`:[...]` selection uses a default value instead of publishing a bounds failure.
+
+Postfix `?` makes a chain of fallible operations concise without introducing
+nullable values or truthiness. Its left side must be `Option[T]`. A `some(value)`
+continues the chain with `value`. An `empty` stops immediately and returns
+`empty` from the enclosing Function. Nothing to the right is evaluated.
+
+The Function must return one scalar `Option[R]`. Successful values are not
+wrapped automatically, so a successful return still uses
+`Option[R] -> some(value)` explicitly:
+
+```ttx
+const parsed : Parsed = source? -> parse()?;
+return Option[Output] -> some(parsed -> finish());
+```
+
+Postfix `?` is defined only for that single-result form. Propagation from a
+Function with several results is reserved for future language support.
 
 Binary `+` accepts exact signed, unsigned, or real operands and returns that
 same Type. It does not concatenate Bytes or Views. An output owner that accepts
@@ -700,14 +776,32 @@ do not change which entry controls the branch. `for` consumes one `Range[T]`
 and fits its loop binding Layout against the Range entry. `break` and `continue`
 target the nearest enclosing loop and are illegal outside one.
 
-`match` evaluates its input once and compares cases in source order. Each case
-must fold to a Constant with the input's exact Type. The first equal case runs
-and there is no fallthrough. `_` is the final default case. It may be omitted
-only when Library can prove that the preceding cases cover the complete input
-domain.
+`match` evaluates its input once and compares cases in source order. An ordinary
+case must fold to a Constant with the input's exact Type. The first equal case
+runs and there is no fallthrough. `_` is the final default case. It may be
+omitted only when Library can prove that the preceding cases cover the complete
+input domain.
+
+An `Option[T]` input instead admits exhaustive `some` and `empty` patterns:
+
+```ttx
+match value {
+  case some(item): {
+    item -> consume();
+  }
+  case empty: {
+  }
+}
+```
+
+`some(item)` makes the stored `T` available only inside that branch. When `T`
+has an empty Layout, the pattern is written `case some:` without a name. The
+`empty` branch has no stored value. General runtime Type patterns require a real
+sum or dynamic-Type domain. They are not meaningful for ordinary values that
+already have one known static Type.
 
 An invocation statement must be a complete Callable invocation. Its effects
-run in source order and the statement deliberately discards its result Pack.
+run in source order and the statement discards its result Pack.
 A pure arithmetic, comparison, or access expression is not a statement merely
 because it is followed by an end marker.
 
@@ -765,41 +859,56 @@ and retains every other Attribute without assigning it native meaning. The same
 key on another definition is that definition consumer's concern. Function does
 not decide whether another Function requests the same global name.
 
-Library lowering proves that every parameter and result Type has a complete C
-carrier for the selected target. Linker validates global symbol uniqueness over
-the complete target product before emitting native bytes. Function owns neither
-target carrier policy nor the symbol set for the complete product.
+The Library compiler checks that every parameter and result Type has a valid C
+representation for the selected target. Linker checks that exported symbol
+names are unique before it emits native bytes. A Function records its own
+request, but it does not decide either target representation or whole-program
+symbol policy.
 
-A public Callable without `@abi` still participates in semantic lookup. The
-compiler gives any native carrier it needs a deterministic internal symbol
-derived from Package identity, member route, owning Type route, receiver role,
-and exact Signature. Private Callables never enter the exported symbol
-inventory.
+A public Callable without `@abi` is still available to language lookup. The
+compiler gives it a stable internal symbol when native code needs one. Private
+Callables never enter the exported symbol list.
 [Linker](../linker/README.md) owns the resulting Symbol records and native
 bytes.
 
 ## Persistence
 
-Library is a persistent Dialect. Its payload records the owner facts needed to
-construct Types, Fields, Functions, expressions, access relationships, and
-publication policy in a fresh Workspace. It does not record parser state,
-process addresses, fold caches, LLVM IR, or native symbols.
+Library can be stored in a Package Archive and rebuilt without its source file.
+A Complete payload keeps public and private Types, Fields, Functions,
+expressions, control flow, access relationships, Foreign declarations, and the
+connections needed to compile the Library again. An Interface payload keeps the
+public Types, Layouts, Fields, Function signatures, folded public constants,
+ABI requests, and native artifact locations, but leaves out Function bodies.
 
-Restoration creates new semantic objects and reruns Library completion. The new
-graph must reproduce the observable names, categories, identity relationships,
-edges, order, Layout behavior, and concrete Library facts promised by the
-Archive. It does not have to reproduce the old allocation or internal graph
-shape.
+Neither profile stores parser state, process addresses, compiler caches, LLVM
+IR, native bytes, live Object references, or source-level debugging data.
+
+Restoring an Archive creates new Library objects and completes them through the
+same rules used for source. The result preserves all names, categories,
+relationships, ordering, Layout behavior, and other visible facts promised by
+the selected profile. Its in-memory arrangement does not need to match the old
+process. A Library child inside Scene or Shader uses the same Complete or
+Interface profile as its parent.
 
 ## Compilation boundary
 
-Library lowering consumes completed CPU facts owned by Library, App, or Scene.
-It derives target object layouts, calling convention carriers, registers,
-instructions, and relocations without changing their semantic identities.
+The Library compiler accepts either a top-level Library or the Library child
+inside Scene or Shader. App may select one Static Callable as the program entry,
+but App itself does not become Library code. Compilation chooses object layouts,
+calling conventions, registers, instructions, and relocations without changing
+the language objects seen by tools.
 
-Linker owns object modules and final native products. Package owns the Archive
-envelope while each persistent Dialect owns its reconstruction payload. Runtime
-allocation and execution remain separate from both.
+The CPU target chooses the instruction set, data layout, and calling convention.
+x86-64 System V and x86-64 Win64 are separate targets. Tetrodotoxin can compile
+through LLVM IR or through its direct x86-64 compiler. Both produce the same
+kind of object module for Linker. LLVM does not own Package locations, operating
+system startup, or linking rules.
+
+Linux and Windows hosts provide process entry, runtime and System services,
+loader inputs, and the executable format around the CPU code. Linker owns ELF,
+COFF, PE, symbols, relocations, and final native files. Package owns the Archive
+that stores language payloads. Runtime allocation and execution happen after
+both compilation and restoration.
 
 See [TTX semantics](../../ttx/ttx_semantics.md) for the shared contracts and
 [Package](../package/README.md) for `using` and resource contexts. The

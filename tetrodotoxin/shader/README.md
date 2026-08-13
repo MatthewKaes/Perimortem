@@ -1,18 +1,14 @@
 # Shader
 
-Shader is Tetrodotoxin's GPU source language. Like a conventional shader
-language, it defines typed Stage bodies, resources, and values that lower to
-SPIR-V. Its distinguishing feature is that each Shader implements a semantic
-Render contract shared with the rest of the program.
+Shader is Tetrodotoxin's language for writing GPU programs that work with both
+[Render](../render/README.md) interfaces and CPU-visible
+[Library](../library/README.md) Types. It checks each stage against its Render
+contract, describes how data moves between CPU and GPU forms, and compiles the
+finished GPU program to SPIR-V.
 
-That relationship lets the host check a Stage interface before either side has
-been reduced to a GPU ABI. Shader retains its own Types, resource rules, and
-body semantics while exact edges connect them to the Render identities they
-implement.
-
-Use Shader when a Tetrodotoxin program needs GPU stages that compose with an
-authored Render interface. The model requires that interface and is not intended
-as a standalone replacement for every GLSL, HLSL, or platform shader workflow.
+Shader is designed for Tetrodotoxin programs whose CPU and GPU sides share an
+authored contract. It does not try to replace every standalone GLSL, HLSL, or
+platform-specific shader workflow.
 
 Canonical grammar reference: [Shader.g4](grammar/Shader.g4).
 
@@ -28,65 +24,114 @@ shader TestShader : Formats::Simple {
 }
 ```
 
-`Formats::Simple` is contextual Type access. `.color` names entries in the Stage
-parameter and result Layouts. It is not postfix Address access.
+`Formats::Simple` is contextual Type access. `.color` names entries in Stage
+parameter and result Layouts rather than postfix Address access.
 
-## Render contracts
+## CPU and GPU layers
 
-A Shader definition selects one Render identity and supplies every Stage that
+Shader uses the Library and Render languages installed in its Workspace. If
+either language is missing, the source cannot be completed. Reusing those
+installed languages keeps shared Types consistent across the whole Workspace.
+Shader does not create private copies of them, and it does not depend on Vulkan.
+
+Each completed Shader has this shape:
+
+```text
+Shader Monograph
+├── selected Render contracts and CPU↔GPU bridge facts
+├── Library CPU child
+│   └── CPU helpers, host representations, and marshaling facts
+└── Render GPU child
+    └── concrete GPU Types, resources, values, and Stage body facts
+```
+
+Only the outer Shader Monograph appears as a Package member. A tool interested
+in Library can ask the Shader for its CPU layer, while a Render tool can ask for
+its GPU layer. A Shader-aware tool can inspect both layers and the bridge between
+them. These are the real child layers, not copies in a second Shader-only model.
+
+Shader completes both children as one operation. Errors from the outer Shader
+and either child appear together in source order. When a Shader is restored from
+an Archive, each child reads its own stored section and uses the same Package
+context as the outer Shader.
+
+## Render contracts and Stage bodies
+
+A Shader definition selects one Render interface and supplies every Stage that
 contract requires. Each Stage must fit the declared parameter and result
-Layouts and satisfy the required facts for resources, builtins, locations, and
-address spaces.
+Layouts and satisfy required resources, builtins, locations, address spaces,
+and capabilities.
 
-Structural Layout coincidence does not create Shader Type or ABI identity. A
-managed CPU Type is not admitted into a GPU value merely because both expose a
-similar Layout.
+Shader decides how stages are written and whether their implementation is
+legal. The resulting GPU values, expressions, resources, and bodies live in the
+Render child. They do not pass through Library's CPU expression model.
+Constants, push values, resources, and local state remain GPU values throughout
+the toolchain.
 
-## Stage bodies
+Shader can construct a GPU value explicitly with `Type(arguments...)`. Named
+swizzles select and reorder entries from a GPU Layout. Shader checks whether
+these operations are legal, while the Render child keeps the resulting values.
 
-Shader owns the grammar and semantics of Stage bodies. Constants, push values,
-resources, and local state become Shader facts directly. They do not pass
-through Library's CPU expression or executable body model.
+A similar Layout does not make two CPU, GPU, or ABI Types interchangeable. A
+managed Library Type cannot become a GPU value merely because their fields look
+alike.
 
-Shader may construct one of its concrete value Types explicitly with
-`Type(arguments...)`. This is a Shader construction operation, not a Type value
-flowing through the expression graph. Named swizzles select and reorder entries
-from a Shader Layout. Shader defines the legality of those operations for its
-own Types.
+## CPU-to-GPU bridges
 
-When a Shader Type implements a distinct Render Type, Shader retains an exact
-edge between those semantic identities. Lowering consumes that completed edge
-and derives its GPU representation without placing the backend Type in the
-semantic graph.
+Every bridge names one Library Type and one Render Type, the direction data
+moves, how it is converted or marshaled, and when it must be synchronized.
+Shader owns this relationship because it is the layer that understands both
+sides. Matching Layouts can help prove that a bridge is valid, but they never
+turn the two Types into the same Type.
+
+Shader describes uploads, downloads, and marshaling without choosing a graphics
+API. Once the Shader and its Render contract are complete, the SPIR-V compiler
+chooses a GPU representation. The CPU compiler uses the Library child. Neither
+side tries to reconstruct the other from offsets or reflection data.
 
 ## Access
 
 Shader follows the shared TTX access domains:
 
-* `value.name` selects an Addressable from a named Layout.
-* `context::Type` resolves a Type through contextual access.
-* `receiver -> callable(arguments...)` selects and invokes a Callable admitted
-  by Shader grammar.
-* `.[...]` selects named Layout flow.
+- `value.name` selects an Addressable from a named Layout.
+- `context::Type` resolves one Type.
+- `receiver -> callable(arguments...)` invokes a Callable admitted by Shader.
+- `.[...]` selects named Layout flow.
 
-Render Attributes on Shader definitions, resources, and Stage entries retain
-the exact interface facts they implement. Shader rejects an Attribute that is
-not admitted by the selected Render contract.
+The keyword forms `and` and `or` own short-circuit logic. Reserved `&` and `|`
+Tokens are not alternate spellings and remain available for separately defined
+bitwise GPU operations.
 
-## Lowering boundary
+Render Attributes on Shader definitions, resources, and Stage entries describe
+the interface facts they implement. Shader rejects an Attribute that is not
+allowed by the selected Render contract.
 
-Shader lowering chooses GPU representation, storage classes, bindings, and
-instructions after semantic validation. The Shader assembler emits SPIR-V words
-from those completed decisions without consulting source.
+## SPIR-V and Vulkan
 
-Package owns durable payload framing and artifact identity. Runtime submission
-lies outside Shader semantics. Neither one reinterprets Shader source grammar.
+The SPIR-V backend chooses the GPU representation, storage classes, bindings,
+and instructions. It can emit validated SPIR-V from a completed Shader without
+reading the source again. The generated SPIR-V is an output of compilation, not
+an input to the language model.
 
-Shader is a persistent Dialect. Its payload records the concrete Types, Stage
-bodies, resource facts, Render identity edges, and Layout relationships needed
-to construct a fresh semantic graph. SPIR-V is a separate Terminal product and
-cannot substitute for that payload.
+Shader keeps graphics-API-independent marshaling and synchronization
+requirements. Vulkan later consumes the generated SPIR-V, Graphics batches,
+and a selected host surface. It chooses concrete offsets and descriptor
+bindings, creates handles and command buffers, synchronizes the device, and
+presents the result. Vulkan-specific rules stay in that backend instead of
+leaking into Library, Render, or Shader's shared bridge.
 
-See [Render](../render/README.md) for the shared rendering interface and
-[TTX semantics](../../ttx/ttx_semantics.md) for the shared Type and Layout
+## Persistence
+
+Shader can be stored in a Package Archive and rebuilt without its source file.
+A Complete payload keeps the stage organization, contracts, bridge details, and
+Complete Library and Render children needed to compile it again. An Interface
+payload keeps the public CPU and GPU contracts, bridge details, and compiled
+artifact locations, but leaves out executable bodies.
+
+Neither profile stores live backend handles, commands, device resources,
+generated SPIR-V, or source-level debugging data.
+
+See [Render](../render/README.md) for the interface and reusable GPU layer,
+[Library](../library/README.md) for CPU semantics, and
+[TTX semantics](../../ttx/ttx_semantics.md) for shared Type and Layout
 contracts.

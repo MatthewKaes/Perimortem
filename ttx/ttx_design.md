@@ -285,6 +285,26 @@ Atomic Types cannot launder that shape because their Value Layout contains
 their own exact identity. A zero-value Type may still own contextual or Static
 facts, but no Addressable can name an absent value.
 
+## Semantic defaults
+
+Every concrete Type admitted to ordinary value flow has one default selected
+by its owning language. This is a total language invariant, not a shared TTX
+value representation. It lets safe selection, omitted initialization, and
+other concrete operations ask their language owner for a value without making
+nullable references or target zero bits part of the semantic model.
+
+The distinction matters for composite and managed values. A target may obtain
+cleared storage, but a language default may still require recursive Field
+initialization or allocation of a fresh nonnull identity. Conversely, the
+default of an optional value may be empty without constructing its payload.
+Completion rejects a mandatory recursive default graph that cannot terminate.
+
+Default value and empty Layout are also independent. A View with no elements
+is still one exact View value, so the Pack carrying it has a one-entry Layout.
+An empty Layout instead describes zero value flow. TTX preserves this
+distinction while leaving every concrete default constructor with its language
+owner.
+
 ## Terminal products and reconstruction
 
 A Terminal is a completed output that leaves the live semantic graph. Its use

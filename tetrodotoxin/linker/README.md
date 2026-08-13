@@ -1,71 +1,78 @@
 # Linker
 
-Linker is Tetrodotoxin's source independent native product owner. It receives
-object modules and declared native inputs, resolves their symbols and
-relocations, and emits object libraries or platform executables. It knows
-nothing about source grammar, TTX Types, Monographs, or Workspace identity.
+Linker builds native libraries and programs from compiled object modules. It
+works with sections, symbols, relocations, archives, and platform imports. It
+does not read source code or depend on TTX Types and Workspace identities.
 
-Use Linker when a Tetrodotoxin build needs a reproducible native product from a
-closed set of declared inputs. A platform linker is the better choice when a
-project values the full compatibility surface of an established native
-toolchain more than Tetrodotoxin's smaller ownership model. Linker does not try
-to reproduce every linker script, object format, or platform convention.
+Tetrodotoxin's Linker is intended for reproducible builds with a closed set of
+declared inputs. Projects that need the full feature set of an established
+platform linker can still use that linker instead.
 
-## Source independent objects
+## Object modules
 
-A compiler gives Linker a typed object module containing sections, symbols, and
-relocation requests. The module describes the native facts Linker needs without
-retaining the semantic graph that produced them.
+A compiler gives Linker an object module containing native sections, symbols,
+and relocation requests:
 
-Sections own their target bytes and placement requirements. Symbols name
-defined or required native ranges. Relocations name one exact symbol and the
-location whose target representation must be patched. Linker validates these
-relationships before it emits a format.
+* A section owns bytes and their placement requirements.
+* A symbol names a defined or required native range.
+* A relocation names the symbol whose address must be written at a particular
+  location.
 
-The same object model can receive a module produced directly by a language
-compiler or read one from a declared ELF object. Reading an object is a format
-operation. It never attempts to reconstruct source Types or treat debug records
-as semantic authority.
+Linker checks these relationships before it writes an object format. The module
+may come from Library's LLVM compiler, Library's direct native compiler, another
+language compiler, or a declared ELF or COFF file. LLVM is one possible
+producer, not a dependency of Linker.
 
-## Archives and resolution
+## CPU targets and platform hosts
 
-System V archives are ordered collections of object members with an index of
-their global definitions. Linker preserves declared input order and extracts an
-archive member only when an unresolved symbol requires one of its definitions.
-Extraction continues until no new required member can satisfy another symbol.
+The CPU target defines the instruction set, data layout, calling convention,
+relocation kinds, and native value representation. x86-64 System V and x86-64
+Win64 are different targets even though both use the x86-64 instruction set.
 
-Two strong definitions for the same selected symbol are an error. A required
-symbol that remains unresolved is also an error unless the executable request
-declares it as a dynamic import. Every relocation must name an admitted symbol,
-fit its target encoding, and address a valid output range. These checks belong
-to Linker rather than to the compiler that requested the relocation.
+The platform host defines how the operating system loads and starts the
+program. Linux uses ELF together with its loader and shared-library rules.
+Windows uses PE together with its loader and import rules. Window systems and
+event loops belong to the host runtime, not to the CPU compiler.
 
-## Dynamic ELF inputs
+The compiler selects a CPU target before it creates an object. The final link
+also selects a matching host. Linker rejects a target and host that do not fit
+together.
 
-A Linux executable can declare dynamic libraries and imported symbols as part
-of its toolchain and Package inputs. Linker records only the dynamic dependency
-names and ELF tables needed by the platform loader. It does not search ambient
-host directories or infer a dependency from a missing symbol.
+## Archives and symbol resolution
 
-The selected toolchain supplies the platform entry objects, runtime libraries,
-dynamic loader identity, and target profile. Package can retain native artifact
-locators, but it does not own symbol resolution, relocation policy, or native
-bytes.
+A System V archive is an ordered collection of object files with an index of
+their global symbols. Linker reads archive members only when an unresolved
+symbol needs one of their definitions. It repeats this process until no more
+members are needed.
+
+Two selected strong definitions of the same symbol are an error. A required
+symbol that remains unresolved is also an error unless the build declares it as
+a dynamic import. Every relocation must fit its target encoding and point to a
+valid output range.
+
+## Platform imports
+
+A Linux build declares its shared libraries and imported symbols. Linker uses
+those declarations to write the ELF loader, dependency, symbol, string, and
+relocation records. It does not search arbitrary host directories or guess a
+library from a missing symbol.
+
+A Windows build follows the same principle with COFF objects, archives, and PE
+imports. The Windows path has its own format and loader rules rather than
+reusing ELF behavior under different names.
 
 ## Executable production
 
-An executable request provides one exact entry symbol and a closed ordered set
-of generated objects, object files, archives, runtime inputs, and dynamic
-dependencies. Linker resolves that set, lays out the target segments, applies
-relocations, and emits one platform executable.
+An executable request names the CPU target, platform host, entry symbol,
+generated objects, object files, archives, runtime inputs, and dynamic
+dependencies. Linker resolves the symbols, lays out the image, applies the
+relocations, and writes an ELF or PE executable.
 
-The executable is a Terminal product. Its bytes preserve the native facts
-required by the operating system, not the semantic meaning of the Workspace
-that produced it. Debug data can correlate native locations with durable source
-facts, but neither the executable nor that correlation data can be fed back as
-the original TTX graph.
+The executable contains the native facts required by the operating system. It
+is not a serialized copy of the Workspace that produced it. Debug data may map
+native locations back to source, but neither the executable nor that mapping
+can recreate the original TTX graph.
 
-Puffer may request and publish the result, while Linker retains ownership of
-the format and its validation. See [Puffer](../../puffer/README.md) for that
-application boundary and [Package](../package/README.md) for declared native
-artifact relationships.
+Puffer coordinates the request and publishes the result. See
+[Puffer](../../puffer/README.md) for the application boundary and
+[Package](../package/README.md) for declared native artifacts.

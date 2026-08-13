@@ -76,6 +76,7 @@ The lexer preserves common operator spellings as distinct Codes:
 | `CallOp`        | `->`     |
 | `SwizzleOp`     | `.[`     |
 | `ValueAccessOp` | `:[`     |
+| `QuestionOp`    | `?`      |
 
 `BracketStart` and `BracketEnd` retain the shared delimiter Codes. A concrete
 language may assign different grammar roles to the same delimiter according to
@@ -176,6 +177,19 @@ Type is an Abstract that represents a semantic domain. Once resolution
 succeeds, each Type exposes one complete Layout. An empty Layout is a valid
 zero-value shape. It fits every other empty Layout without creating a shared
 Type identity.
+
+Every completed concrete Type that its owning language admits to ordinary
+value flow has one total semantic default. The concrete language owns the
+default value and the operation that materializes it. TTX does not infer that
+value from an all-zero target representation, add a default query to Type, or
+require different Types with equivalent defaults to share identity. A Type
+used only as an internal compile-time descriptor need not be admitted to
+ordinary value flow.
+
+For a Type with an empty Layout, the default is empty value flow. That does not
+make every default an empty Layout. An empty View, for example, is one value of
+the exact View Type and therefore still contributes that Type to its Pack's
+Layout.
 
 Value is a leaf Type used for scalar bit interpretations. Its contextual
 resolution always returns Invalid. Value provides bit width and abstract
@@ -384,17 +398,20 @@ offsets, or treat a backend Type as the original semantic Type.
 12. Layout owns promised shape, order, and directional fitting, not produced
     value identity or copied semantic or physical
     records.
-13. Concrete language, package, target, runtime, and diagnostic policy remain
+13. Every completed concrete Type admitted to ordinary value flow has one
+    language-owned semantic default. TTX neither derives it from target bits
+    nor makes it a shared identity or Type query.
+14. Concrete language, package, target, runtime, and diagnostic policy remain
     outside TTX.
-14. Reference preserves one exact borrowed object and never resolves or
+15. Reference preserves one exact borrowed object and never resolves or
     canonicalizes it implicitly.
-15. A Reference is valid only within the lifetime guaranteed by its graph
+16. A Reference is valid only within the lifetime guaranteed by its graph
     owner and never crosses a Terminal boundary.
-16. A Terminal product is outside the semantic graph and belongs to no TTX
+17. A Terminal product is outside the semantic graph and belongs to no TTX
     identity category.
-17. Target facts specific to a Terminal never flow backward into the graph as
+18. Target facts specific to a Terminal never flow backward into the graph as
     semantic authority.
-18. Reconstruction without source creates a new live graph through its graph
+19. Reconstruction without source creates a new live graph through its graph
     owner and never restores process addresses.
-19. A reconstructed graph is published only after the graph owner's complete
+20. A reconstructed graph is published only after the graph owner's complete
     validation, completion, and publication contract succeeds.

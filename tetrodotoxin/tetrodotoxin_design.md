@@ -155,9 +155,20 @@ may expose package members or lifecycle facts. Its contextual resolution
 behavior is part of the concrete language contract.
 
 The common Monograph surface provides stable identity, Documentation,
-Diagnostics, and the link and finalize hooks required by Environment. That is
-enough for a Workspace to retain heterogeneous sources without flattening them
-into one member inventory.
+Diagnostics, exact Dialect-layer negotiation, and the link and finalize hooks
+required by Environment. A Monograph answers
+`get_layer(requested_dialect)` only for itself or one fixed child built from
+that exact installed Dialect identity. This is capability negotiation rather
+than contextual name resolution: it follows no Alias, consults no registry,
+and creates no wrapper.
+
+A plain source Monograph is one layer. A composite Dialect may own a fixed set
+of child Monographs when those children are the real semantic owners of facts
+used by the outer language. Only the outer Monograph is retained as the Package
+member. It drives child linking and finalization, shares its diagnostic
+transaction with them, and owns their payload framing. This is enough for a
+Workspace to retain heterogeneous sources without flattening them into one
+member inventory or permitting arbitrary Dialect nesting.
 
 Adding a Dialect is therefore closest to adding a compiler frontend, not adding
 an enum case to a parser. The [Language extension model](language/README.md)
@@ -171,6 +182,15 @@ a common lifetime.
 
 A Dialect may keep localized graph state, but every borrowed edge and cross
 language query remains inside the one Workspace lifetime.
+
+Installed Dialect dependencies form a strict directed acyclic graph. The tool
+constructing a Workspace injects each exact dependency instance; an outer
+Dialect never constructs a second instance or discovers one by name. Missing
+dependencies are diagnosed before that source can complete, and a dependency
+cycle is an invalid toolchain configuration. Source ownership, namespace,
+path, and Bazel dependency direction must describe this same graph. A special
+build carveout needed only to break a Dialect cycle is evidence that a contract
+has been assigned to the wrong owner.
 
 Source construction has three semantic stages:
 
@@ -193,9 +213,15 @@ Archive writer, or other Terminal producer begins after completion. A
 tool that chooses to inspect the graph earlier accepts that negative answers
 are provisional.
 
-A Monograph retains the ordered Diagnostics produced during interpretation and
-completion. Environment combines each retained Diagnostic with the source
-Origin only when it presents the authored error.
+Environment creates one ordered diagnostic transaction for each outer source
+or restored member. Parsing, the outer Monograph, and every embedded child push
+their failures into that same transaction during interpretation, linking,
+finalization, and restoration. The outer retained root presents the resulting
+ordered facts. Children do not hide failures in independent vectors and
+Environment does not merge diagnostic collections after the transaction.
+Environment combines each retained Diagnostic with the source Origin only when
+it presents the authored error. Process-fatal Perimortem diagnostics remain an
+emergency host path rather than semantic transaction output.
 
 The [Environment guide](environment/README.md) explains Workspace integration
 and lifecycle in more detail.
@@ -285,11 +311,11 @@ them.
 
 A compiler maps scalar abstract machine storage facts and derives target object
 layouts, ABI alignments, offsets, pointer forms, calling convention carriers,
-registers, and relocations only after the semantic graph is complete.
-Library lowering can consume completed CPU facts owned by Library, App, or Scene
-without converting those Monographs into Library source. Shader lowering
-consumes Shader facts independently. Linker owns object modules, symbols,
-relocations, target encoding, and final native products.
+registers, and relocations only after the semantic graph is complete. Library
+lowering consumes completed Library child facts, including the child owned by a
+Scene or Shader, without constructing a shadow graph. Shader lowering consumes
+its exact Render child and Shader-owned bridge facts. Linker owns object
+modules, symbols, relocations, target encoding, and final native products.
 
 This separation lets several targets consume the same language meaning. It also
 means Tetrodotoxin cannot answer target layout questions by consulting the
@@ -299,6 +325,21 @@ Runtime policy follows the same boundary. Library defines Object identity and
 language lifetime. Allocation strategy, collector policy, pointer
 representation, and reclamation timing belong to the runtime that realizes
 those promises.
+
+CPU target and operating-system host are separate selections. A CPU target
+defines ISA, data layout, and calling convention, such as x86-64 System V or
+x86-64 Win64. LLVM and the direct Library native compiler are alternative
+producers of the same source-independent Linker object contract. Linux and
+Windows hosts then supply process entry, runtime and System ABI
+implementations, loader inputs, executable format, and window surface policy.
+Linker depends on those declared target and host facts, never on LLVM as a
+semantic authority.
+
+The GPU path is parallel. Shader and Render complete target-neutral GPU facts,
+the SPIR-V backend emits their GPU Terminal, and Vulkan consumes that artifact
+together with Graphics batches and one selected host surface. Vulkan owns
+realized descriptors, offsets, commands, handles, and synchronization. Those
+facts never flow downward into Shader, Render, or Library.
 
 ## Package as a composition example
 
@@ -341,15 +382,19 @@ Functions, Structs, Objects, Enumerations, and Field policy while reusing TTX
 identity, Pack, and Layout contracts. Its
 [language guide](library/README.md) explains those semantics.
 
-App owns startup profiles and application lifecycle. Scene owns live Scene
-state, signals, hosted graphics relationships, render submission facts, and
-lifecycle roles. App owns transitions between Scene identities instead of
-asking Library to turn those concepts into ordinary source declarations.
+App owns startup profiles and application lifecycle. Each Scene Monograph owns
+one real Library child whose synthetic Object is the Scene instance Type. Scene
+owns signals, lifecycle-role edges, hosted graphics relationships, frame event
+delivery, and render submission facts around that child. App owns transitions
+between Scene identities.
 
-Render declares the semantic interfaces used by rendering. Shader implements a
-Render contract, owns GPU Stage bodies, and lowers completed facts into a GPU
-Terminal product. Foreign embeds an external ABI declaration surface inside a
-parent Dialect that already supports CPU execution.
+Render declares semantic rendering interfaces and supplies the reusable GPU
+semantic layer. Each Shader Monograph owns one Library CPU child and one Render
+GPU child. Shader owns its source grammar, Stage organization, legality, and
+the exact CPU-to-GPU bridge and marshaling relations between those children.
+SPIR-V lowering consumes the completed GPU facts. Foreign embeds an external
+ABI declaration surface inside a parent Dialect that already supports CPU
+execution.
 
 Graphics is not another Dialect. It defines the language neutral hosting and
 frame submission boundary between completed Scene state and a rendering
@@ -381,9 +426,25 @@ language meaning behind.
 
 The Package Archive is the canonical semantic Terminal product for
 Tetrodotoxin use without source. Package defines the envelope, Package identity,
-pinned dependencies, member routes, Dialect names, and native artifact
-locators. Each persistent Dialect defines the payload and
+pinned dependencies, member routes, Dialect names, selected payload profile,
+and native artifact locators. Each persistent Dialect defines the payload and
 reconstruction procedure needed to create a new Monograph.
+
+`Complete` and `Interface` are the two Archive profiles. A Complete payload
+retains the complete semantic graph required for source-independent restoration
+and re-lowering. An Interface payload retains public Types, Layouts, Fields,
+Callable signatures, folded public constants, ABI requests, publication and
+bridge relationships, and exact artifact locators, but no executable bodies.
+Debug/source correlation remains a separate Terminal product rather than a
+third semantic payload profile.
+
+The selected profile applies recursively to every embedded layer. A Complete
+Scene contains a Complete Library child; an Interface Scene contains the
+Library interface and locators required by consumers. A Complete Shader
+contains Complete Library and Render children; its Interface payload retains
+the public CPU and GPU contracts, bridge facts, and artifact locators. The
+outer payload length-delimits each child section, while the child Dialect alone
+validates and interprets its opaque bytes.
 
 Replaying declaration text in a later Workspace would not provide the same
 continuity. The same spelling can select a different Type or Layout after a
@@ -401,7 +462,9 @@ Restoration follows the ordinary ownership path:
 validated Package Archive
 -> a fresh Environment Workspace
 -> installed concrete Dialects
--> each Dialect constructs a new Monograph in the model it owns
+-> Environment creates and reserves the restored Package context
+-> each outer Dialect receives that exact context and constructs its Monograph
+-> each outer Dialect passes the same context to its embedded child restorers
 -> Environment retains the complete group
 -> every Monograph links
 -> every Monograph finalizes
@@ -416,9 +479,10 @@ do not.
 
 A Dialect payload may be much smaller than a memory image because it records
 only sufficient reconstruction facts. Compactness is a useful format property,
-not the persistence contract. A persistent Dialect is one that defines and
-validates a complete reconstruction payload. Other Dialects do not have to be
-persistent.
+not the persistence contract. A persistent Dialect defines and validates each
+profile it supports. Other Dialects do not have to be persistent. The common
+restoration hook receives the destination domain, opaque payload, and exact
+interpretation context; it does not receive a generic Workspace resolver.
 
 Puffer is the user facing compiler driver and LSP application shell. Its caller
 or build integration supplies declared inputs and outputs. Puffer constructs
