@@ -30,6 +30,9 @@
 #include "tetrodotoxin/library/language/flow/match.hpp"
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
+#include "tetrodotoxin/library/language/foreign/function.hpp"
+#include "tetrodotoxin/library/language/foreign/state.hpp"
+#include "tetrodotoxin/library/language/foreign/surface.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
@@ -448,7 +451,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
     View::Bytes message;
     View::Bytes source_line;
   };
-  static constexpr Static::Vector<Rejection, 5> rejections = {{
+  static constexpr Static::Vector<Rejection, 12> rejections = {{
     Rejection{
       "validation/data/ttx/library/dialect_led_callable.ttx"_view,
       "Definitions require one authored visibility before their name."_view,
@@ -475,6 +478,41 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
       "Library Function signatures require a body beginning with `{`."_view,
       "public missing_body : func = [] -> Unsigned_64;"_view,
     },
+    {
+      "validation/data/ttx/library/foreign_undeclared_symbol.ttx"_view,
+      "Library invocation did not find its registered Callable."_view,
+      "foreign -> missing();"_view,
+    },
+    {
+      "validation/data/ttx/library/foreign_with_body.ttx"_view,
+      "Foreign Function declarations cannot contain an authored body."_view,
+      "public func illegal_definition[] -> Void {"_view,
+    },
+    {
+      "validation/data/ttx/library/foreign_const.ttx"_view,
+      "Foreign const declarations require a loader or embedding contract."_view,
+      "public const imported_constant : Unsigned_64;"_view,
+    },
+    {
+      "validation/data/ttx/library/foreign_private_state.ttx"_view,
+      "Private Foreign State is unreachable from its parent Library."_view,
+      "private state hidden : Unsigned_64;"_view,
+    },
+    {
+      "validation/data/ttx/library/foreign_private_function.ttx"_view,
+      "Private Foreign Functions are unreachable from their parent Library."_view,
+      "private func hidden[] -> Void;"_view,
+    },
+    {
+      "validation/data/ttx/library/foreign_exposed_function.ttx"_view,
+      "Foreign Functions do not accept `expose` visibility."_view,
+      "expose func visible[] -> Void;"_view,
+    },
+    {
+      "validation/data/ttx/library/foreign_exposed_write.ttx"_view,
+      "Assignment target is not one writable Library Addressable."_view,
+      "foreign.observed = 1;"_view,
+    },
   }};
 
   for (Count i = 0; i < rejections.get_size(); i++) {
@@ -499,6 +537,43 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
     EXPECT(Algorithm::search(rendered, rejection.message) != Count(-1));
     EXPECT(Algorithm::search(rendered, rejection.source_line) != Count(-1));
   }
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, foreign_workspace_acceptance) {
+  static constexpr View::Bytes path =
+      "validation/data/ttx/library/foreign_triad.ttx"_view;
+  auto source = File::read(path);
+  ASSERT(source);
+
+  Workspace workspace;
+  Errors errors;
+  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
+  auto interpreted = workspace.interpret_source(
+      errors, "ForeignAcceptance"_view, path, *source);
+  ASSERT(interpreted && interpreted->is<Language::Monograph>());
+  auto& monograph = static_cast<Language::Monograph&>(*interpreted);
+  auto& surface = monograph.get_source().get_foreign();
+
+  ASSERT(workspace.link(errors));
+  ASSERT(monograph.link());
+  ASSERT(workspace.finalize(errors));
+  ASSERT(monograph.finalize());
+
+  auto readonly = surface.select_state("imported_readonly"_view);
+  auto state = surface.select_state("imported_state"_view);
+  auto function = surface.select_function("imported_function"_view);
+  ASSERT(readonly);
+  ASSERT(state);
+  ASSERT(function);
+  EXPECT(
+      readonly->get_visibility() ==
+      Tetrodotoxin::Language::Visibility::Exposed);
+  EXPECT(state->get_visibility() == Tetrodotoxin::Language::Visibility::Public);
+  EXPECT(&state->get_type() == &Dialect::get_unsigned_64());
+  EXPECT_EQ(function->get_parameters().get_size(), Count(2));
+  EXPECT_EQ(function->get_results().get_size(), Count(1));
+  EXPECT(errors.is_empty());
+  EXPECT(monograph.get_diagnostics().is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(

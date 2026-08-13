@@ -16,7 +16,7 @@ Canonical grammar fragment: [Foreign.g4](grammar/Foreign.g4).
 
 ```ttx
 foreign "C" {
-  public const external_limit : Unsigned_64;
+  expose state external_readonly : Unsigned_64;
   public state external_counter : Unsigned_64;
   public func external_add[
     .left : Unsigned_64,
@@ -30,20 +30,24 @@ select a Package dependency or native provider.
 
 Every declaration names an external semantic contract:
 
-* `const` is an external Addressable that cannot be written. It is not a
-  Constant evaluated at compile time.
-* `state` is an external Addressable with the write capability defined by the
-  parent CPU language.
+* `public state` is an external Addressable that the parent may read and write.
+* `expose state` is an external Addressable that the parent may read but cannot
+  write.
 * `func` is a bodyless external Callable with complete parameter and result
   Layouts.
+
+Foreign rejects `const`. Importing a compile time value requires a separate
+loader or embedding contract rather than treating external storage as a
+Constant. Private declarations are unreachable because Foreign has no member
+authority of its own.
 
 ## Access
 
 Foreign data and Callables remain separate query domains:
 
 ```ttx
-foreign.external_counter = foreign.external_limit;
-foreign -> external_add(foreign.external_counter, foreign.external_limit);
+foreign.external_counter = foreign.external_readonly;
+foreign -> external_add(foreign.external_counter, foreign.external_readonly);
 ```
 
 `.` selects one declared external Addressable. `->` selects and invokes one
@@ -52,9 +56,9 @@ cannot make an authored access legal.
 
 ## Visibility
 
-Publication inside the block controls which declarations are visible through
-the `foreign` context in that source. It does not automatically republish an
-external symbol through the containing Monograph or Package.
+State visibility controls write authority through the source local `foreign`
+context. Functions are public. No Foreign declaration is automatically
+republished through the containing Monograph or Package.
 
 The parent language supplies Documentation, Type identity, writability, and
 invocation semantics. Foreign retains the ABI selector and external symbol

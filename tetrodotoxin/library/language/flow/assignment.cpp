@@ -8,6 +8,7 @@
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/flow/local.hpp"
+#include "tetrodotoxin/library/language/foreign/state.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
@@ -58,23 +59,34 @@ static auto is_writable(
         return Bool(local.get_writability() == Language::Writability::Full);
       },
       [&](const Abstract& not_local) {
-        return not_local.visit<Language::Field>(
-            [&](const Language::Field& field) {
-              switch (field.get_writability()) {
-              case Language::Writability::Full:
-                return True;
-              case Language::Writability::Internal:
-                return field.get_host().visit<Language::Types::Composite>(
-                    [&](const Language::Types::Composite& composite) {
-                      return composite.grants_private_access(access_scope);
-                    },
-                    [](const Abstract&) { return False; });
-              case Language::Writability::Constant:
-                return False;
-              }
-              return False;
+        return not_local.visit<Language::Foreign::State>(
+            [](const Language::Foreign::State& state) {
+              // Exposed State is readable through dot but only public State
+              // grants the parent Library a write path.
+              return Bool(
+                  state.get_visibility() ==
+                  Tetrodotoxin::Language::Visibility::Public);
             },
-            [](const Abstract&) { return False; });
+            [&](const Abstract& not_foreign) {
+              return not_foreign.visit<Language::Field>(
+                  [&](const Language::Field& field) {
+                    switch (field.get_writability()) {
+                    case Language::Writability::Full:
+                      return True;
+                    case Language::Writability::Internal:
+                      return field.get_host().visit<Language::Types::Composite>(
+                          [&](const Language::Types::Composite& composite) {
+                            return composite.grants_private_access(
+                                access_scope);
+                          },
+                          [](const Abstract&) { return False; });
+                    case Language::Writability::Constant:
+                      return False;
+                    }
+                    return False;
+                  },
+                  [](const Abstract&) { return False; });
+            });
       });
 }
 
@@ -157,7 +169,8 @@ auto Language::Flow::Assignment::link(
     monograph.report(
         anchor,
         "Assignment target is not one writable Library Addressable."_view,
-        "Use mutable Local or Field storage, or an indexed Access address."_view);
+        "Use mutable Local or Field storage, public Foreign State, or an "
+        "indexed Access address."_view);
     return False;
   }
 

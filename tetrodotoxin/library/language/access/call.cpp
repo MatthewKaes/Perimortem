@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/access/call.hpp"
 
+#include "tetrodotoxin/library/language/foreign/surface.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -257,6 +258,7 @@ auto Language::Access::Call::link(
   BAIL_IF(!arguments.link(source, lexical_context, access_scope));
 
   const Abstract& receiver_result = receiver.get_result();
+  auto foreign = receiver_result.select<Language::Foreign::Surface>();
   auto static_type = receiver_result.select<Ttx::Model::Type>();
   auto receiver_type =
       static_type ? static_type : select_type(receiver.get_type());
@@ -266,7 +268,7 @@ auto Language::Access::Call::link(
           -> Core::Option<const Types::Composite&> {
         return type.select<Types::Composite>();
       });
-  if (!target) {
+  if (!foreign && !target) {
     source.report(
         get_anchor(),
         "Library invocation receiver did not produce one Composite Type."_view,
@@ -275,26 +277,37 @@ auto Language::Access::Call::link(
     return False;
   }
 
-  Tetrodotoxin::Language::Visibility visibility =
-      access_scope && target->grants_private_access(*access_scope)
-          ? Tetrodotoxin::Language::Visibility::Private
-          : Tetrodotoxin::Language::Visibility::Public;
-
   Core::Option<const Callable&> selected;
-  for (const Reference<Abstract>& binding : target->get_callables(visibility)) {
-    // The inventory binding owns the local spelling. Alias is otherwise
-    // opaque: only its ordinary resolution may reveal the registered Callable.
-    if (binding.get().get_name() != name) {
-      continue;
-    }
+  if (foreign) {
+    // Foreign is already the complete source local receiver role. Its Function
+    // receives only the authored argument Pack and never a fabricated self
+    // entry or a Composite lookup fallback.
+    selected = foreign->select_function(name).visit(
+        []() -> Core::Option<const Callable&> { return {}; },
+        [](const Language::Foreign::Function& function)
+            -> Core::Option<const Callable&> { return function; });
+  } else {
+    Tetrodotoxin::Language::Visibility visibility =
+        access_scope && target->grants_private_access(*access_scope)
+            ? Tetrodotoxin::Language::Visibility::Private
+            : Tetrodotoxin::Language::Visibility::Public;
+    for (const Reference<Abstract>& binding :
+         target->get_callables(visibility)) {
+      // The inventory binding owns the local spelling. Alias is otherwise
+      // opaque: only its ordinary resolution may reveal the registered
+      // Callable.
+      if (binding.get().get_name() != name) {
+        continue;
+      }
 
-    auto candidate = binding.get().resolve().select<Callable>();
-    Bool admits_receiver =
-        candidate && (static_type ? !candidate->is_type_bound()
-                                  : candidate->is_type_bound(*target));
-    if (admits_receiver) {
-      selected = *candidate;
-      break;
+      auto candidate = binding.get().resolve().select<Callable>();
+      Bool admits_receiver =
+          candidate && (static_type ? !candidate->is_type_bound()
+                                    : candidate->is_type_bound(*target));
+      if (admits_receiver) {
+        selected = *candidate;
+        break;
+      }
     }
   }
 
@@ -302,14 +315,14 @@ auto Language::Access::Call::link(
     source.report(
         get_anchor(),
         "Library invocation did not find its registered Callable."_view,
-        "Select an accessible Callable name with the receiver's Static or "
-        "Self role."_view);
+        "Select an accessible Callable in the receiver's Foreign, Static, or "
+        "Self category."_view);
     return False;
   }
 
   const Ttx::Concept::Layout& parameters = selected->get_parameters();
   Bool arguments_fit = arguments.fits(parameters);
-  if (!static_type) {
+  if (!foreign && !static_type) {
     if (!inputs) {
       inputs = create_inputs(domain, receiver, arguments);
     }
@@ -332,7 +345,8 @@ auto Language::Access::Call::link(
   }
 
   if (callable) {
-    // Re-linking may revalidate the surrounding graph, but this invocation's
+    // Repeated linking may revalidate the surrounding graph, but this
+    // invocation's
     // successfully published producer Layout remains the original object.
     return True;
   }
@@ -390,7 +404,7 @@ auto Language::Access::Call::resolve() const -> const Abstract& {
 
 auto Language::Access::Call::finalize() -> void {
   // Receiver and argument Pack are the complete evaluation inputs owned by
-  // this invocation. A Call retained directly by a Block is the effect itself;
+  // this invocation. A Call retained directly by a Block is the effect itself.
   // discarded result flow must not turn that effectful Call into a fold
   // request.
   receiver.finalize();

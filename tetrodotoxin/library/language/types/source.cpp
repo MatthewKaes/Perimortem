@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/types/source.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/library/language/foreign/surface.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/import.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
@@ -28,8 +29,18 @@ auto Types::Source::create_synthetic(
   auto& definition = Tetrodotoxin::Language::Definition::create_synthetic(
       domain, documentation, host, "<source>"_view, Visibility::Public,
       source_anchor);
-  return domain.construct_from<Source>(
+  Source& source = domain.construct_from<Source>(
       [&]() -> Source { return Source(domain, definition); });
+  // One stable Foreign Surface belongs to the synthetic root even when the
+  // source has no blocks. Later blocks append declarations to this identity.
+  source.foreign = Foreign::Surface::create(domain, source);
+  return source;
+}
+
+static auto is_foreign_keyword(const Cursor& cursor) -> Bool {
+  return cursor.matches(Code::Type::Addressable) &&
+         cursor.current().caculate_text(cursor.get_source_text()) ==
+             "foreign"_view;
 }
 
 auto Types::Source::parse(Cursor& cursor) -> Bool {
@@ -52,6 +63,12 @@ auto Types::Source::parse(Cursor& cursor) -> Bool {
       continue;
     }
 
+    if (is_foreign_keyword(extension)) {
+      BAIL_IF(!get_foreign().parse(monograph, extension));
+      cursor.join(extension);
+      continue;
+    }
+
     auto transaction = cursor.branch();
     auto definition =
         Tetrodotoxin::Language::Definition::parse(transaction, *this);
@@ -60,6 +77,34 @@ auto Types::Source::parse(Cursor& cursor) -> Bool {
   }
 
   return True;
+}
+
+auto Types::Source::link_types() -> Bool {
+  BAIL_IF(!Composite::link_types());
+  return get_foreign().link_types(static_cast<Monograph&>(get_monograph()));
+}
+
+auto Types::Source::link_fields() -> Bool {
+  return Composite::link_fields();
+}
+
+auto Types::Source::link_initializers() -> Bool {
+  return Composite::link_initializers();
+}
+
+auto Types::Source::link_callable_signatures() -> Bool {
+  auto& monograph = static_cast<Monograph&>(get_monograph());
+  BAIL_IF(!get_foreign().link_callables(monograph));
+  return Composite::link_callable_signatures();
+}
+
+auto Types::Source::link_callable_bodies() -> Bool {
+  return Composite::link_callable_bodies();
+}
+
+auto Types::Source::finalize() -> Bool {
+  BAIL_IF(!Composite::finalize());
+  return get_foreign().finalize(static_cast<Monograph&>(get_monograph()));
 }
 
 auto Types::Source::can_bind_static(const Abstract& binding, Category category)

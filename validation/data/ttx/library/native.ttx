@@ -22,7 +22,7 @@ private PrivateOps : struct {
 }
 
 foreign "C" {
-  public const library_foreign_bias : Unsigned_64;
+  expose state library_foreign_bias : Unsigned_64;
   public state library_foreign_state : Unsigned_64;
   public func library_foreign_add[
     .left : Unsigned_64,

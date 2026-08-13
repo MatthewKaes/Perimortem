@@ -32,10 +32,10 @@ foreignDeclaration
     ;
 
 foreignFieldDeclaration
-    : visibility (CONST | STATE) addressableName DEFINE typeReference
+    : (PUBLIC | EXPOSE) STATE addressableName DEFINE typeReference
       END_STATEMENT
     ;
 
 foreignFunctionDeclaration
-    : visibility FUNC addressableName functionSignature END_STATEMENT
+    : PUBLIC FUNC addressableName functionSignature END_STATEMENT
     ;

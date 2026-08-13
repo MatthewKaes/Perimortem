@@ -12,7 +12,7 @@ file defines the exact production behavior it observes.
 | [`value_acceptance.ttx`](value_acceptance.ttx) | focused production Workspace acceptance for defaults, scalar operations, value access, invocation, Address chaining, and Swizzle fitting |
 | [`executable_acceptance.ttx`](executable_acceptance.ttx) | focused production Workspace acceptance for executable Block order, Locals, writes, branches, loops, loop control, Match, returns, and invocation statements |
 | [`broad.ttx`](broad.ttx) | broad Library source corpus covering declarations, Layouts, access chains, expressions, control flow, Foreign, Struct, Object, and Enumeration syntax |
-| [`foreign_triad.ttx`](foreign_triad.ttx) | one external const Addressable, state Addressable, and Callable under the C ABI |
+| [`foreign_triad.ttx`](foreign_triad.ttx) | one exposed State, public State, and Callable under the C ABI |
 | [`native.ttx`](native.ttx) | compact unsigned-integer and Foreign source paired with `native_harness.c` |
 | [`native_harness.c`](native_harness.c) | C definitions and observation point for the native fixture |
 
@@ -98,7 +98,7 @@ code.
 
 [`foreign_triad.ttx`](foreign_triad.ttx) declares the three external categories:
 
-1. `imported_constant` is a read-only external Addressable.
+1. `imported_readonly` is an exposed read-only external State.
 2. `imported_state` is a writable external Addressable.
 3. `imported_function` is a bodyless external Callable.
 
@@ -139,6 +139,11 @@ Each remaining TTX file isolates one source condition:
 | [`foreign_with_body.ttx`](foreign_with_body.ttx) | a Foreign Callable supplies an authored body |
 | [`foreign_named_scope.ttx`](foreign_named_scope.ttx) | Foreign uses the obsolete named-definition spelling `private C : foreign` |
 | [`foreign_undeclared_symbol.ttx`](foreign_undeclared_symbol.ttx) | source invokes an undeclared Foreign Callable |
+| [`foreign_const.ttx`](foreign_const.ttx) | Foreign attempts to import compile time data without a loader contract |
+| [`foreign_private_state.ttx`](foreign_private_state.ttx) | Foreign declares State that its parent cannot reach |
+| [`foreign_private_function.ttx`](foreign_private_function.ttx) | Foreign declares a private Callable that its parent cannot reach |
+| [`foreign_exposed_function.ttx`](foreign_exposed_function.ttx) | Foreign applies data-only exposed visibility to a Callable |
+| [`foreign_exposed_write.ttx`](foreign_exposed_write.ttx) | Library attempts to write an exposed Foreign State |
 | [`duplicate_name.ttx`](duplicate_name.ttx) | two root declarations use the same name in one category |
 | [`new_without_expected_type.ttx`](new_without_expected_type.ttx) | `new` appears in an inferred declaration without an expected Object Type |
 | [`bare_return.ttx`](bare_return.ttx) | bare `return;` appears with an empty Layout result rather than concrete `Void` |

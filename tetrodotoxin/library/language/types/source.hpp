@@ -5,6 +5,10 @@
 
 #include "tetrodotoxin/library/language/types/composite.hpp"
 
+namespace Tetrodotoxin::Library::Language::Foreign {
+class Surface;
+}
+
 namespace Tetrodotoxin::Library::Language::Types {
 
 // Source is one Library Monograph's synthetic root Composite. It owns synthetic
@@ -40,6 +44,19 @@ class Source : public Composite {
   // without teaching Composite about source grammar.
   auto parse(Ttx::Lexical::Cursor& cursor) -> Bool;
 
+  auto link_types() -> Bool;
+  auto link_fields() -> Bool;
+  auto link_initializers() -> Bool;
+  auto link_callable_signatures() -> Bool;
+  auto link_callable_bodies() -> Bool;
+  auto finalize() -> Bool;
+
+  constexpr auto get_foreign() -> Foreign::Surface& { return *foreign; }
+
+  constexpr auto get_foreign() const -> const Foreign::Surface& {
+    return *foreign;
+  }
+
   auto bind_static(Ttx::Concept::Abstract& binding, Category category) -> Bool;
 
   auto can_bind_static(const Ttx::Concept::Abstract& binding, Category category)
@@ -51,6 +68,9 @@ class Source : public Composite {
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
+
+ private:
+  Perimortem::Core::Option<Foreign::Surface&> foreign;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Types

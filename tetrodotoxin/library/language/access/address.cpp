@@ -4,6 +4,8 @@
 #include "tetrodotoxin/library/language/access/address.hpp"
 
 #include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/foreign/state.hpp"
+#include "tetrodotoxin/library/language/foreign/surface.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -104,7 +106,7 @@ auto Language::Access::Address::parse(
     return {};
   }
 
-  // Token is the authored selection fact. The Arena-stable spelling exists
+  // Token is the authored selection fact. The Arena stable spelling exists
   // only because lookup happens after this Cursor transaction has completed.
   Core::View::Bytes name =
       domain.proxy(addressable.caculate_text(cursor.get_source_text()));
@@ -138,7 +140,7 @@ auto Language::Access::Address::link(
   auto source_anchor = get_anchor();
   if (!name_token && addressable) {
     // Swizzle owns selection from arbitrary value flow. Its synthetic Address
-    // already carries the exact selected Field, so it does not re-enter the
+    // already carries the exact selected Field, so it does not enter the
     // authored `.` receiver rules.
     BAIL_IF(!is_accessible(addressable->get(), access_scope));
     return Expression::link(source, lexical_context, access_scope);
@@ -146,8 +148,16 @@ auto Language::Access::Address::link(
 
   Core::Option<const Addressable&> selected;
   const Abstract& receiver_result = receiver.get_result();
-  auto source_type = receiver_result.select<Language::Types::Source>();
-  if (source_type) {
+  auto foreign = receiver_result.select<Language::Foreign::Surface>();
+  if (foreign) {
+    // Dot asks the Foreign owner only for State. A same named Function remains
+    // in its separate arrow category and never enters Address fallback.
+    selected = foreign->select_state(name).visit(
+        []() -> Core::Option<const Addressable&> { return {}; },
+        [](const Language::Foreign::State& state)
+            -> Core::Option<const Addressable&> { return state; });
+  } else if (
+      auto source_type = receiver_result.select<Language::Types::Source>()) {
     selected = select_addressable(*source_type, name);
   } else if (
       auto receiver_addressable = receiver_result.select<Addressable>()) {
@@ -167,9 +177,9 @@ auto Language::Access::Address::link(
   if (!selected || !is_accessible(*selected, access_scope)) {
     source.report(
         source_anchor,
-        "Address did not find one readable Field for this receiver identity."_view,
-        "Use an Addressable for mutable Fields, a Type for const Fields, or "
-        "Source for either category."_view);
+        "Address did not find one readable Addressable for this receiver "
+        "identity."_view,
+        "Use the receiver's exact Field or Foreign State category."_view);
     return False;
   }
 

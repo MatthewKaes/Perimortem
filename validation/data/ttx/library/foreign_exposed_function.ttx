@@ -1,0 +1,6 @@
+//
+dialect : Library;
+
+foreign "C" {
+  expose func visible[] -> Void;
+}
