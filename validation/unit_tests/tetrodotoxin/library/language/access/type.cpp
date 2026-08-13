@@ -42,14 +42,14 @@ PERIMORTEM_UNIT_TEST(TypeAccessTests, qualified_private_authority) {
       "// Qualified private Type access.\n"
       "dialect : Library;\n"
       "public Outer : struct {\n"
-      "  private Hidden : struct { private value : Bool; }\n"
+      "  private Hidden : struct { private state value : Bool; }\n"
       "  public Inner : struct { private value : Outer::Hidden; }\n"
       "}"_view;
   static constexpr View::Bytes rejected =
       "// External private Type access.\n"
       "dialect : Library;\n"
       "public Outer : struct {\n"
-      "  private Hidden : struct { private value : Bool; }\n"
+      "  private Hidden : struct { private state value : Bool; }\n"
       "}\n"
       "public Borrowed : alias = Outer;\n"
       "private invalid : Borrowed::Hidden;"_view;
@@ -64,7 +64,7 @@ PERIMORTEM_UNIT_TEST(TypeAccessTests, local_root_shadows_intrinsic) {
       "dialect : Library;\n"
       "public Host : struct {\n"
       "  public Bool : struct {\n"
-      "    public Nested : struct { private value : Unsigned_8; }\n"
+      "    public Nested : struct { private state value : Unsigned_8; }\n"
       "  }\n"
       "  public value : Bool::Nested;\n"
       "}"_view;
@@ -86,7 +86,7 @@ PERIMORTEM_UNIT_TEST(TypeAccessTests, expression_result_drives_access) {
       "// Value cannot provide Type qualification.\n"
       "dialect : Library;\n"
       "public Outer : struct {\n"
-      "  private value : Bool;\n"
+      "  private state value : Bool;\n"
       "  public Nested : struct {}\n"
       "}\n"
       "private value : Outer;\n"
@@ -99,7 +99,7 @@ PERIMORTEM_UNIT_TEST(TypeAccessTests, expression_result_drives_access) {
   static constexpr View::Bytes object_descriptor_address =
       "// An Object Type descriptor does not prove static storage.\n"
       "dialect : Library;\n"
-      "public Packet : object { public value : Bool = false; }\n"
+      "public Packet : object { public state value : Bool = false; }\n"
       "private invalid := Packet.value;"_view;
   static constexpr View::Bytes const_descriptor_address =
       "// A Structure Type selects its compile-time const Field.\n"

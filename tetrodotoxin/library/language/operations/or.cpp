@@ -42,9 +42,9 @@ static auto make_result(Memory::Allocator::Arena& domain, Bool value)
 
 TTX_TRANSACTIONAL_BINARY_PARSE(
     Or,
-    OrOp,
+    Or,
     "Or has a malformed right operand."_view,
-    "Use a complete Bool Expression after `|`."_view);
+    "Use a complete Bool Expression after `or`."_view);
 
 TTX_BINARY_OP(Or);
 

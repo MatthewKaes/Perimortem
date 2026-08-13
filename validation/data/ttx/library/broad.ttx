@@ -5,9 +5,9 @@ dialect : Library;
 //
 // The empty documentation line above must survive as a paragraph break.
 public Packet : struct {
-  public width : Unsigned_64 = 0;
-  public height : Unsigned_64 = 0;
-  public ready : Bool = false;
+  public state width : Unsigned_64 = 0;
+  public state height : Unsigned_64 = 0;
+  public state ready : Bool = false;
 
   public identity : func = [.value : Unsigned_64] -> Unsigned_64 {
     return value;
@@ -46,7 +46,7 @@ public Session : object {
 }
 
 public PacketAlias : alias = Packet;
-expose state observed_total : Unsigned_64 = 0;
+public observed_total : Unsigned_64 = 0;
 public const signature : Fixed[Unsigned_8, 4] = 0x[54 54 58 31];
 public default_packet : PacketAlias = (
   .width = 2,
@@ -62,12 +62,6 @@ public broad_entry : func = [
   state local : Unsigned_64 = 0;
   state packet : Packet = default_packet;
   state dense : Fixed[Unsigned_64, 4] = (1, 2, 3, 4);
-  state sparse : Fixed[Unsigned_64, 4] = (
-    .0 = 8,
-    .0x1 = 13,
-    .2 = 21,
-    .0x3 = 34,
-  );
   state middle : Fixed[Unsigned_64, 2] = dense:[1, 2];
   state dimensions : Fixed[Unsigned_64, 2] = packet.[width, height];
   state negative : Signed_64 = -1;
@@ -108,7 +102,7 @@ public broad_entry : func = [
   local = packet -> identity();
   session -> advance(middle:[0]);
   foreign -> library_observe(dimensions:[0]);
-  private_total = PrivateOps -> combine(local, sparse:[0]);
+  private_total = PrivateOps -> combine(local, dense:[0]);
   observed_total = private_total;
   return observed_total;
 }
@@ -145,14 +139,8 @@ private PrivateOps : struct {
   }
 }
 
-private state private_total : Unsigned_64 = 0;
+private private_total : Unsigned_64 = 0;
 private const mask : Unsigned_64 = 0xFF;
-private decode_table : Fixed[Unsigned_8, 4] = (
-  .0 = 0,
-  .1 = 1,
-  .2 = 2,
-  .3 = 3,
-);
 private private_packet : Packet = (
   .width = 5,
   .height = 8,

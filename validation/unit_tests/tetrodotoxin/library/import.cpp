@@ -964,7 +964,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, private_type_alias_cannot_escape) {
   Package::Dialect package_dialect;
   auto provider = interpret_library(
       arena, library_dialect, registry,
-      "public Shared : struct { public value : Bool; }"_view);
+      "public Shared : struct { public state value : Bool; }"_view);
   ASSERT(provider);
   ASSERT(provider->link());
   const Abstract& shared = provider->resolve_context("Shared"_view);
@@ -1004,7 +1004,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, private_type_alias_cannot_escape) {
 
 PERIMORTEM_UNIT_TEST(LibraryImports, provider_alias_identity_is_retained) {
   static constexpr View::Bytes provider_source =
-      "public Shared : struct { public value : Bool; }\n"
+      "public Shared : struct { public state value : Bool; }\n"
       "public Exported : alias = Shared;\n"
       "private Hidden : alias = Shared;"_view;
   Allocator::Arena arena;
@@ -1077,7 +1077,7 @@ PERIMORTEM_UNIT_TEST(
     LibraryImports,
     generic_alias_argument_uses_completed_imported_provider) {
   static constexpr View::Bytes provider_source =
-      "public Shared : struct { public value : Bool; }\n"
+      "public Shared : struct { public state value : Bool; }\n"
       "public Exported : alias = Shared;"_view;
   Allocator::Arena arena;
   ImportRegistry registry;
@@ -1203,7 +1203,7 @@ PERIMORTEM_UNIT_TEST(
       "nested/api.ttx"_view,
       "// Provider Library\n"
       "dialect : Library;\n"
-      "public Shared : struct { public value : Bool; }\n"
+      "public Shared : struct { public state value : Bool; }\n"
       "public Domain : struct {\n"
       "  public Mode : enum[Unsigned_8] { ready = 1; }\n"
       "}\n"

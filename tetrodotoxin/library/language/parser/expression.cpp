@@ -108,9 +108,9 @@ static auto find_binary(Code::Type code) -> Option<BinaryRule> {
     return BinaryRule{5, &Library::Language::Operations::Equal::parse};
   case Code::Type::NotEqOp:
     return BinaryRule{5, &Library::Language::Operations::NotEqual::parse};
-  case Code::Type::AndOp:
+  case Code::Type::And:
     return BinaryRule{3, &Library::Language::Operations::And::parse};
-  case Code::Type::OrOp:
+  case Code::Type::Or:
     return BinaryRule{2, &Library::Language::Operations::Or::parse};
   case Code::Type::RangeOp:
     return BinaryRule{1, &Library::Language::Operations::Range::parse};

@@ -238,19 +238,17 @@ Self. Invocation therefore selects one registered Callable by name and role.
 It never constructs an overload set or defers ambiguity to call time.
 
 Address access selects one semantic Addressable and its Type. An Addressable
-receiver may select mutable instance storage relative to the receiver or a
-const Field owned by its Type. An exact Type receiver selects only const Fields.
-Those values complete during linking and never occupy the receiver's instance
-storage. An exact Source receiver selects mutable Static Fields with global
-construction and lifetime as well as const Fields. Arbitrary computed values do
-not provide mutable Address access. Selecting a const Field through its Type,
-an Addressable, or Source returns the same foldable identity. Named flow selects
-the real producer at its slot without inventing an aggregate Type. Callable
-access chooses Static when the evaluated receiver result is an exact Type and
-Self when the receiver is a typed value. A backend may materialize or eliminate
-a physical address without changing the Addressable identity. A Function host
-grants access authority while an explicit receiver supplies the Addressable or
-Source used for mutable Field selection.
+receiver may select state relative to that receiver or a const Field owned by
+its Type. An exact Type receiver selects ordinary Static Fields and const
+Fields. An exact Source receiver selects its ordinary Static Fields and const
+Fields. Arbitrary computed values do not provide mutable Address access.
+Selecting a const Field through its Type, an Addressable, or Source returns the
+same foldable identity. Named flow selects the real producer at its slot without
+inventing an aggregate Type. Callable access chooses Static when the evaluated
+receiver result is an exact Type and Self when the receiver is a typed value. A
+backend may materialize or eliminate a physical address without changing the
+Addressable identity. A Function host grants access authority while an explicit
+receiver supplies the Addressable or Source used for state selection.
 
 No access operator inspects an Alias target. Alias resolution may reveal the
 identity used by the requested category, but it does not transfer private

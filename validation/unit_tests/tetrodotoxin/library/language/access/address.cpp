@@ -5,9 +5,14 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
+#include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -41,7 +46,7 @@ PERIMORTEM_UNIT_TEST(AddressTests, descendant_private_authority) {
       "// Descendant private Address access.\n"
       "dialect : Library;\n"
       "public Outer : struct {\n"
-      "  private secret : Bool;\n"
+      "  private state secret : Bool;\n"
       "  public Inner : struct {\n"
       "    public read : func = [.outer : Outer] -> Bool {\n"
       "      return outer.secret;\n"
@@ -62,7 +67,7 @@ PERIMORTEM_UNIT_TEST(AddressTests, sibling_private_denied) {
       "// Sibling private Address access.\n"
       "dialect : Library;\n"
       "public Outer : struct {\n"
-      "  public Target : struct { private secret : Bool; }\n"
+      "  public Target : struct { private state secret : Bool; }\n"
       "  public Caller : struct {\n"
       "    public read : func = [.target : Outer::Target] -> Bool {\n"
       "      return target.secret;\n"
@@ -75,4 +80,63 @@ PERIMORTEM_UNIT_TEST(AddressTests, sibling_private_denied) {
   ASSERT(monograph);
   EXPECT_NOT(workspace.link(errors));
   EXPECT_NOT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage_categories) {
+  static constexpr View::Bytes accepted =
+      "// Address receiver categories.\n"
+      "dialect : Library;\n"
+      "public source_static : Bool = false;\n"
+      "public Data : struct {\n"
+      "  public static_value : Bool = false;\n"
+      "  public state instance_value : Bool;\n"
+      "  public const fixed : Bool = false;\n"
+      "}\n"
+      "private data : Data;\n"
+      "private from_source := source.source_static;\n"
+      "private from_type := Data.static_value;\n"
+      "private from_instance := data.instance_value;\n"
+      "private const_from_type := Data.fixed;\n"
+      "private const_from_instance := data.fixed;"_view;
+  Environment::Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, accepted);
+  ASSERT(monograph);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+
+  const auto& source = monograph->get_source();
+  const auto& data = static_cast<const Library::Language::Types::Composite&>(
+      source.resolve_context("Data"_view));
+  auto fields = data.get_addressables();
+  auto field = fields.begin();
+  ASSERT(field != fields.end());
+  const Ttx::Concept::Abstract& static_identity = (*field).get();
+  ++field;
+  ASSERT(field != fields.end());
+  const Ttx::Concept::Abstract& state_identity = (*field).get();
+  auto layout_state = data.get_layout().get_abstract(0);
+  ASSERT(layout_state);
+  EXPECT(&*layout_state == &state_identity);
+  EXPECT(
+      &data.resolve_lexical_addressable("static_value"_view, data) ==
+      &static_identity);
+  EXPECT(
+      &data.resolve_lexical_addressable("instance_value"_view, data) ==
+      &Ttx::Concept::Invalid::get_invalid());
+  EXPECT(errors.is_empty());
+
+  static constexpr Static::Vector<View::Bytes, 2> rejected = {{
+    "// Instance rejects Static.\ndialect : Library; public Data : struct { public static_value : Bool = false; } private data : Data; private invalid := data.static_value;"_view,
+    "// Type rejects state.\ndialect : Library; public Data : struct { public state instance_value : Bool; } private invalid := Data.instance_value;"_view,
+  }};
+  for (Count index = 0; index < rejected.get_size(); index++) {
+    Environment::Workspace rejected_workspace;
+    Errors rejected_errors;
+    auto rejected_monograph =
+        interpret(rejected_workspace, rejected_errors, rejected[index]);
+    ASSERT(rejected_monograph);
+    EXPECT_NOT(rejected_workspace.link(rejected_errors));
+    EXPECT_NOT(rejected_errors.is_empty());
+  }
 }

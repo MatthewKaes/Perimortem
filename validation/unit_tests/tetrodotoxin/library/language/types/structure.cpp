@@ -99,7 +99,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
       "// Nested Alias source.\n"
       "dialect : Library;\n"
       "// Hidden Type documentation.\n"
-      "private Hidden : struct { private value : Bool; }\n"
+      "private Hidden : struct { private state value : Bool; }\n"
       "public Packet : struct {\n"
       "  // Visible Alias documentation.\n"
       "  public Visible : alias = Hidden;\n"
@@ -166,6 +166,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, independent_access_axes) {
       "public Packet : struct {\n"
       "  public ordinary_public : Bool;\n"
       "  private ordinary_private : Bool;\n"
+      "  public state state_public : Bool;\n"
       "  expose state state_exposed : Bool = false;\n"
       "  private state state_private : Bool = false;\n"
       "  public const const_public : Bool = false;\n"
@@ -193,6 +194,10 @@ PERIMORTEM_UNIT_TEST(StructureTests, independent_access_axes) {
       static_cast<const Language::Field&>((*field).get());
   ++field;
   ASSERT(field != fields.end());
+  const auto& state_public =
+      static_cast<const Language::Field&>((*field).get());
+  ++field;
+  ASSERT(field != fields.end());
   const auto& state_exposed =
       static_cast<const Language::Field&>((*field).get());
   ++field;
@@ -209,18 +214,15 @@ PERIMORTEM_UNIT_TEST(StructureTests, independent_access_axes) {
       static_cast<const Language::Field&>((*field).get());
   EXPECT(ordinary_public.get_writability() == Language::Writability::Full);
   EXPECT(ordinary_private.get_writability() == Language::Writability::Full);
+  EXPECT(state_public.get_writability() == Language::Writability::Internal);
   EXPECT(state_exposed.get_writability() == Language::Writability::Internal);
   EXPECT(state_private.get_writability() == Language::Writability::Internal);
   EXPECT(const_public.get_writability() == Language::Writability::Constant);
   EXPECT(const_private.get_writability() == Language::Writability::Constant);
-  ASSERT_EQ(packet.get_layout().get_size(), Count(4));
-  for (Count index = 0; index < packet.get_layout().get_size(); index++) {
-    auto entry = packet.get_layout().get_abstract(index);
-    ASSERT(entry);
-    EXPECT(
-        entry->get_name() != "const_public"_view &&
-        entry->get_name() != "const_private"_view);
-  }
+  ASSERT_EQ(packet.get_layout().get_size(), Count(3));
+  EXPECT(&*packet.get_layout().get_abstract(0) == &state_public);
+  EXPECT(&*packet.get_layout().get_abstract(1) == &state_exposed);
+  EXPECT(&*packet.get_layout().get_abstract(2) == &state_private);
 
   EXPECT(errors.is_empty());
 }
@@ -229,12 +231,12 @@ PERIMORTEM_UNIT_TEST(StructureTests, declaration_reorder) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Structure test.\n"
     "dialect : Library;\n"
-    "public First : struct { public next : Second; }\n"
-    "public Second : struct { public value : Unsigned_64; }"_view,
+    "public First : struct { public state next : Second; }\n"
+    "public Second : struct { public state value : Unsigned_64; }"_view,
     "// Structure test.\n"
     "dialect : Library;\n"
-    "public Second : struct { public value : Unsigned_64; }\n"
-    "public First : struct { public next : Second; }"_view,
+    "public Second : struct { public state value : Unsigned_64; }\n"
+    "public First : struct { public state next : Second; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -263,13 +265,13 @@ PERIMORTEM_UNIT_TEST(StructureTests, category_names_coexist) {
   static constexpr Static::Vector<View::Bytes, 3> accepted = {{
     "// Structure test.\n"
     "dialect : Library;\n"
-    "public Packet : struct { public value : Bool; public value : func = [] -> [] {} }"_view,
+    "public Packet : struct { public state value : Bool; public value : func = [] -> [] {} }"_view,
     "// Structure test.\n"
     "dialect : Library;\n"
-    "public Packet : struct { private storage : Bool; public value : func = [] -> [] {} public value : func = [self] -> [] {} }"_view,
+    "public Packet : struct { private state storage : Bool; public value : func = [] -> [] {} public value : func = [self] -> [] {} }"_view,
     "// Structure test.\n"
     "dialect : Library;\n"
-    "public Packet : struct { public value : Bool; public inspect : func = [self, .value : Bool] -> Bool { return value; } }"_view,
+    "public Packet : struct { public state value : Bool; public inspect : func = [self, .value : Bool] -> Bool { return value; } }"_view,
   }};
   for (Count i = 0; i < accepted.get_size(); i++) {
     Workspace workspace;
@@ -292,10 +294,10 @@ PERIMORTEM_UNIT_TEST(StructureTests, fields_require_address_access) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Structure test.\n"
     "dialect : Library;\n"
-    "public Packet : struct { public value : Bool; public read : func = [] -> Bool { return value; } }"_view,
+    "public Packet : struct { public state value : Bool; public read : func = [] -> Bool { return value; } }"_view,
     "// Structure test.\n"
     "dialect : Library;\n"
-    "public Packet : struct { public value : Bool; public read : func = [self] -> Bool { return value; } }"_view,
+    "public Packet : struct { public state value : Bool; public read : func = [self] -> Bool { return value; } }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -308,7 +310,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, explicit_self_field_access) {
       "// Structure test.\n"
       "dialect : Library;\n"
       "public Packet : struct {\n"
-      "  private value : Bool;\n"
+      "  private state value : Bool;\n"
       "  public read : func = [self] -> Bool { return self.value; }\n"
       "}"_view;
   Workspace workspace;
@@ -345,7 +347,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, explicit_self_field_access) {
 }
 
 PERIMORTEM_UNIT_TEST(StructureTests, malformed_grammar) {
-  static constexpr Static::Vector<View::Bytes, 10> sources = {{
+  static constexpr Static::Vector<View::Bytes, 9> sources = {{
     "// Structure test.\ndialect : Library; public Packet struct {}"_view,
     "// Structure test.\ndialect : Library; public Packet : wrong {}"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { value : Bool; }"_view,
@@ -354,7 +356,6 @@ PERIMORTEM_UNIT_TEST(StructureTests, malformed_grammar) {
     "// Structure test.\ndialect : Library; public Packet : struct { public value : Bool }"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { public value : Core ::Bool; }"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { public value : Core:: Bool; }"_view,
-    "// Structure test.\ndialect : Library; public Packet : struct { public state value : Bool = false; }"_view,
     "// Structure test.\ndialect : Library; public Packet : struct { using Core; }"_view,
   }};
 
@@ -438,8 +439,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, public_field_exposure_rejected) {
   static constexpr View::Bytes source =
       "// Structure test.\n"
       "dialect : Library;\n"
-      "private Hidden : struct { private value : Bool; }\n"
-      "public Packet : struct { public hidden : Hidden; }"_view;
+      "private Hidden : struct { private state value : Bool; }\n"
+      "public Packet : struct { public state hidden : Hidden; }"_view;
   EXPECT(rejects_finalize(source));
 }
 
@@ -447,19 +448,19 @@ PERIMORTEM_UNIT_TEST(StructureTests, public_callable_exposure_rejected) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
     "// Structure test.\n"
     "dialect : Library;\n"
-    "private Hidden : struct { private value : Bool; }\n"
+    "private Hidden : struct { private state value : Bool; }\n"
     "public Packet : struct { public reveal : func = [.value : Hidden] -> [] {} }"_view,
     "// Structure test.\n"
     "dialect : Library;\n"
-    "private Hidden : struct { private value : Bool; }\n"
+    "private Hidden : struct { private state value : Bool; }\n"
     "public Packet : struct {\n"
-    "  private hidden : Hidden;\n"
+    "  private state hidden : Hidden;\n"
     "  public reveal : func = [self] -> Hidden { return self.hidden; }\n"
     "}"_view,
     "// Structure test.\n"
     "dialect : Library;\n"
     "public reveal : func = [.value : Hidden] -> [] {}\n"
-    "private Hidden : struct { private value : Bool; }"_view,
+    "private Hidden : struct { private state value : Bool; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -471,9 +472,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, private_exposure_retained_locally) {
   static constexpr View::Bytes source =
       "// Structure test.\n"
       "dialect : Library;\n"
-      "private Hidden : struct { private value : Bool; }\n"
+      "private Hidden : struct { private state value : Bool; }\n"
       "public Packet : struct {\n"
-      "  private hidden : Hidden;\n"
+      "  private state hidden : Hidden;\n"
       "  private reveal : func = [.value : Hidden] -> Hidden { return value; "
       "}\n"
       "}\n"
@@ -683,7 +684,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_public_type_reachability) {
   static constexpr View::Bytes source =
       "// Field inference test.\n"
       "dialect : Library;\n"
-      "private Hidden : struct { private value : Bool; }\n"
+      "private Hidden : struct { private state value : Bool; }\n"
       "private seed : Hidden;\n"
       "public revealed := seed;"_view;
   Workspace workspace;

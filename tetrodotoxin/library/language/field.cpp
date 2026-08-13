@@ -7,6 +7,7 @@
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -53,15 +54,6 @@ static auto parse_writability(
         "Library `expose` Fields require the `state` evaluation policy."_view);
     return {};
   }
-  if (visibility == Tetrodotoxin::Language::Visibility::Public &&
-      writability == Language::Writability::Internal) {
-    cursor.create_token_error(
-        modifiers.get_data()[0],
-        "Library state Fields require `private` or explicit `expose` "
-        "publication."_view);
-    return {};
-  }
-
   return writability;
 }
 
@@ -75,6 +67,15 @@ auto Language::Field::interpret(
   BAIL_IF(!host);
   auto writability = parse_writability(definition, transaction);
   BAIL_IF(!writability);
+  if (host->is<Language::Types::Source>() &&
+      *writability == Language::Writability::Internal) {
+    transaction.create_token_error(
+        definition.get_name_token(),
+        "Library Source rejects instance state Fields."_view,
+        "Use an ordinary Static Field or move state into a Structure or "
+        "Object."_view);
+    return {};
+  }
 
   if (definition.get_name_token().get_code() != Code::Type::Addressable) {
     transaction.create_token_error(
@@ -112,9 +113,9 @@ auto Language::Field::interpret(
         initializer = Model::Parser::Pack::parse(domain, source, transaction);
       }
       BAIL_IF(!initializer);
-    } else if (*writability != Writability::Full) {
+    } else if (*writability == Writability::Constant) {
       transaction.create_token_error(
-          "Library state and const Fields require an initializer."_view);
+          "Library const Fields require an initializer."_view);
       return {};
     }
   }

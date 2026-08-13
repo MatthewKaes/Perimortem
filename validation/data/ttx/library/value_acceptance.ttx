@@ -2,8 +2,8 @@
 dialect : Library;
 
 public Packet : struct {
-  public width : Unsigned_64 = 2;
-  public height : Unsigned_64 = 3;
+  public state width : Unsigned_64 = 2;
+  public state height : Unsigned_64 = 3;
 
   public total : func = [self] -> Unsigned_64 {
     return self.width + self.height;
@@ -11,8 +11,8 @@ public Packet : struct {
 }
 
 public Pair : struct {
-  public first : Unsigned_64;
-  public second : Unsigned_64;
+  public state first : Unsigned_64;
+  public state second : Unsigned_64;
 }
 
 public Empty : struct {}

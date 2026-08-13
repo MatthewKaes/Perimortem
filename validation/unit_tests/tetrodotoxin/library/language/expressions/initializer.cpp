@@ -79,10 +79,11 @@ PERIMORTEM_UNIT_TEST(InitializerTests, empty_and_supplied) {
   static constexpr View::Bytes source =
       "// Initializer test.\n"
       "dialect : Library;\n"
-      "public Defaults : object { public enabled : Bool = false; }\n"
+      "public Defaults : object { public cache : Bool; public state enabled : "
+      "Bool = false; }\n"
       "public Required : object {\n"
-      "  public first : Unsigned_64;\n"
-      "  private hidden : Bool = false;\n"
+      "  public state first : Unsigned_64;\n"
+      "  private state hidden : Bool = false;\n"
       "  expose state second : Bool = false;\n"
       "}\n"
       "public empty : Defaults = new;\n"
@@ -134,7 +135,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, descendant_private_field) {
       "// Descendant Object initialization.\n"
       "dialect : Library;\n"
       "public Owner : object {\n"
-      "  private hidden : Bool = false;\n"
+      "  private state hidden : Bool = false;\n"
       "  public Builder : struct {\n"
       "    private value : Owner = new(.hidden = true);\n"
       "  }\n"
@@ -169,7 +170,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, unknown_name_rejected) {
   static constexpr View::Bytes source =
       "// Unknown initializer input test.\n"
       "dialect : Library;\n"
-      "public Session : object { public value : Unsigned_64; }\n"
+      "public Session : object { public state value : Unsigned_64; }\n"
       "public invalid : Session = new(.missing = 1);"_view;
   EXPECT(rejects_link_without_publication(source));
 }
@@ -178,7 +179,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, private_name_rejected) {
   static constexpr View::Bytes source =
       "// Private initializer input test.\n"
       "dialect : Library;\n"
-      "public Session : object { private hidden : Bool = false; }\n"
+      "public Session : object { private state hidden : Bool = false; }\n"
       "public invalid : Session = new(.hidden = true);"_view;
   EXPECT(rejects_link_without_publication(source));
 }
@@ -187,7 +188,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, duplicate_name_rejected) {
   static constexpr View::Bytes source =
       "// Duplicate initializer input test.\n"
       "dialect : Library;\n"
-      "public Session : object { public value : Unsigned_64; }\n"
+      "public Session : object { public state value : Unsigned_64; }\n"
       "public invalid : Session = new(.value = 1, .value = 2);"_view;
   EXPECT(rejects_interpretation(
       source, "Duplicate name in one Library Pack."_view));
@@ -197,7 +198,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, mixed_pack_rejected) {
   static constexpr View::Bytes source =
       "// Mixed initializer Layout test.\n"
       "dialect : Library;\n"
-      "public Session : object { public value : Unsigned_64; }\n"
+      "public Session : object { public state value : Unsigned_64; }\n"
       "public invalid : Session = new(1, .value = 2);"_view;
   EXPECT(rejects_interpretation(
       source,
@@ -208,7 +209,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, missing_field_rejected) {
   static constexpr View::Bytes source =
       "// Missing initializer input test.\n"
       "dialect : Library;\n"
-      "public Session : object { public value : Unsigned_64; }\n"
+      "public Session : object { public state value : Unsigned_64; }\n"
       "public invalid : Session = new;"_view;
   EXPECT(rejects_link_without_publication(source));
 }
@@ -217,7 +218,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, input_type_rejected) {
   static constexpr View::Bytes source =
       "// Initializer input Type test.\n"
       "dialect : Library;\n"
-      "public Session : object { public value : Unsigned_64; }\n"
+      "public Session : object { public state value : Unsigned_64; }\n"
       "public invalid : Session = new(.value = false);"_view;
   EXPECT(rejects_link_without_publication(source));
 }
@@ -234,10 +235,17 @@ PERIMORTEM_UNIT_TEST(InitializerTests, const_field_override_rejected) {
 }
 
 PERIMORTEM_UNIT_TEST(InitializerTests, mandatory_cycle_rejected) {
+  static constexpr View::Bytes static_override =
+      "// Static initializer ownership test.\n"
+      "dialect : Library;\n"
+      "public Session : object { public value : Unsigned_64 = 1; }\n"
+      "public invalid : Session = new(.value = 2);"_view;
+  EXPECT(rejects_link_without_publication(static_override));
+
   static constexpr View::Bytes source =
       "// Initializer cycle test.\n"
       "dialect : Library;\n"
-      "public Node : object { private next : Node = new; }\n"
+      "public Node : object { private state next : Node = new; }\n"
       "public invalid : Node = new;"_view;
   EXPECT(rejects_link_without_publication(source));
 }

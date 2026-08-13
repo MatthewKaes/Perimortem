@@ -22,11 +22,11 @@
 namespace Tetrodotoxin::Library::Language {
 
 // Field is the exact Addressable binding retained by a Library Composite. Its
-// authored Visibility decides readable lookup while Writability records who
-// may mutate the reached value without widening the shared TTX Addressable
-// contract. An initializer remains its real Pack: declared Fields receive the
-// complete flow through Layout fitting, while inference accepts only one
-// scalar output and retains that exact Type.
+// authored Visibility decides readable lookup while Writability records its
+// Static, state, or compile-time evaluation policy without widening the shared
+// TTX Addressable contract. An initializer remains its real Pack: declared
+// Fields receive the complete flow through Layout fitting, while inference
+// accepts only one scalar output and retains that exact Type.
 class Field : public Authored<Ttx::Model::Addressable> {
   using Base = Authored<Ttx::Model::Addressable>;
 

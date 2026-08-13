@@ -34,7 +34,7 @@ static auto interpret_source(Workspace& workspace, Errors& errors)
       errors, "LayoutModelTest"_view, "layout-model.ttx"_view,
       "// Authored Layout model test.\n"
       "dialect : Library;\n"
-      "public Box : struct { public value : Bool; }"_view);
+      "public Box : struct { public state value : Bool; }"_view);
   BAIL_IF(!interpreted || !interpreted->is<Language::Monograph>());
   return static_cast<Language::Monograph&>(*interpreted);
 }

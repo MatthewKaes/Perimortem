@@ -13,7 +13,7 @@ public library_native : func = [] -> Unsigned_64 {
   );
 }
 
-private state total : Unsigned_64 = 0;
+private total : Unsigned_64 = 0;
 
 private PrivateOps : struct {
   public increment : func = [] -> Unsigned_64 {

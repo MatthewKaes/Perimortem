@@ -20,13 +20,13 @@ static auto select_accessible_field(
     -> Core::Option<const Language::Field&> {
   auto field = candidate.select<Language::Field>();
   BAIL_IF(
-      !field || field->get_writability() == Language::Writability::Constant ||
+      !field || field->get_writability() != Language::Writability::Internal ||
       !Language::Access::Address::is_accessible(*field, access_scope));
 
   // Object construction consumes the target's real authored Field order, but
-  // shares Address's one publication and host authority decision. A const Field
-  // always uses its one declaration owned initializer and therefore never
-  // enters the supplied construction Layout.
+  // shares Address's one publication and host authority decision. Static and
+  // const Fields remain declaration owned and never enter the supplied
+  // construction Layout.
   return *field;
 }
 
@@ -148,7 +148,8 @@ auto Language::Expressions::Initializer::has_mandatory_cycle(
   // scope, so an outer constructor never lends authority to another Object.
   for (const Reference<Abstract>& selected : target.get_addressables()) {
     auto selected_field = selected.get().select<Field>();
-    if (!selected_field) {
+    if (!selected_field ||
+        selected_field->get_writability() != Writability::Internal) {
       continue;
     }
     const Field& field = *selected_field;
@@ -258,19 +259,22 @@ auto Language::Expressions::Initializer::link(
     return False;
   }
 
-  // Every omitted Field must contribute its own authored initializer. The
-  // transaction checks the complete Object before retaining its expected Type.
+  // Every omitted state Field must contribute its own authored initializer.
+  // The transaction checks the complete Object before retaining its expected
+  // Type.
   Bool failed = False;
   for (const Reference<Abstract>& selected : target->get_addressables()) {
     auto selected_field = selected.get().select<Field>();
-    if (!selected_field) {
+    if (!selected_field ||
+        selected_field->get_writability() != Writability::Internal) {
       continue;
     }
     const Field& field = *selected_field;
     if (!supplies(access_scope, *target, field) && !field.get_initializer()) {
       source.report(
-          get_anchor(), "Object initializer omits one required Field."_view,
-          "Supply every Field that has no authored initializer."_view);
+          get_anchor(),
+          "Object initializer omits one required state Field."_view,
+          "Supply every state Field that has no authored initializer."_view);
       failed = True;
     }
   }

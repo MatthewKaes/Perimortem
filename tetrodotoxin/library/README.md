@@ -59,9 +59,9 @@ conflating declaration qualification with postfix access.
 ### Address access
 
 `.` evaluates its receiver and selects one exact TTX Addressable from that
-identity. An Addressable receiver can select mutable instance Fields and const
-Fields owned by its Type. An exact Type receiver can select only const Fields.
-An exact Source receiver can select its mutable Static Fields and its const
+identity. An Addressable receiver can select state Fields and const Fields owned
+by its Type. An exact Type receiver can select ordinary Static Fields and const
+Fields. An exact Source receiver can select its ordinary Static Fields and const
 Fields. Arbitrary computed values do not provide mutable member access. The
 operation creates no group Type.
 
@@ -78,10 +78,10 @@ value completed during linking. Selection through its Type, an Addressable
 instance, or Source returns that same foldable declaration value. It never
 creates storage relative to the receiver.
 
-Source cannot be instantiated, so its mutable Fields are Static values with
-global construction and lifetime. Structure and Object Type results expose
-only their const Field category. Mutable Fields require one exact Addressable
-receiver.
+Source cannot be instantiated and rejects state Fields. Its ordinary Fields
+are Static values with global construction and lifetime. Structure and Object
+Type results expose their ordinary Static and const Field categories. State
+Fields require one exact Addressable receiver.
 
 The caller has private authority for every Composite in its Definition host
 chain. That chain authorizes members selected from an explicit receiver. It
@@ -433,12 +433,15 @@ shared parser error.
 
 ## Fields
 
-A Field is a TTX Addressable owned by one Composite. Mutable Structure and
-Object Fields enter the instance Layout. Mutable Source Fields remain Static. A
-const Field never enters the receiver's instance Layout. Its initializer must
-fold before the Abstract DAG is complete. Address access through its declaring
-Type, an Addressable instance, or Source selects the same immutable declaration
-value. Visibility and evaluation policy remain independent.
+A Field is a TTX Addressable owned by one Composite. `state` is the sole
+authored discriminator for instance storage, so only state Structure and Object
+Fields enter the instance Layout. An ordinary mutable Field is Static even when
+hosted by a Structure or Object. Source rejects state Fields and retains only
+ordinary Static or const Fields. A const Field never enters the receiver's
+instance Layout. Its initializer must fold before the Abstract DAG is complete.
+Address access through its declaring Type, an Addressable instance, or Source
+selects the same immutable declaration value. Visibility and evaluation policy
+remain independent.
 
 A constant domain may retain memory for its completed representation. A
 default constructed Object is a valid const value only when linking can produce
@@ -470,9 +473,11 @@ Visibility controls selection:
 
 Evaluation policy has three states:
 
-* an ordinary Field is fully writable by callers that can select it
-* `state` is writable only when the caller's Definition host chain contains the
-  declaring Type
+* an ordinary Field owns Static storage and is fully writable by callers that
+  can select it
+* `state` owns instance storage; `public state` is writable by external callers,
+  while `private state` and `expose state` require authority from the declaring
+  Type's Definition host chain
 * `const` is never writable and must resolve completely at compile time
 
 Every view exposes the same Field identity. Visibility does not create a public
@@ -494,9 +499,9 @@ an exact receiving Object Type before the initialization transaction begins.
 
 ```ttx
 public Packet : struct {
-  public width : Unsigned_64 = 0;
-  public height : Unsigned_64 = 0;
-  private checksum : Unsigned_64 = 0;
+  public state width : Unsigned_64 = 0;
+  public state height : Unsigned_64 = 0;
+  private state checksum : Unsigned_64 = 0;
 
   public area : func = [self] -> Unsigned_64 {
     return self.width * self.height;
@@ -504,9 +509,10 @@ public Packet : struct {
 }
 ```
 
-The Struct's instance Layout is a named Layout over its exact Fields in authored
-order. Copying a Struct value copies its inline value semantics. Target offsets
-and padding are derived later by the compiler.
+The Struct's instance Layout is a named Layout over its exact state Fields in
+authored order. Ordinary Static and const Fields remain on the same authored
+inventory but do not enter that Layout. Copying a Struct value copies its inline
+value semantics. Target offsets and padding are derived later by the compiler.
 
 The containing Type supplies complete access to its hosted Functions and an
 external view to other callers. Nested Types, Callables, and Fields remain
@@ -558,16 +564,18 @@ Calls and returns may carry an already initialized Object while preserving its
 identity, but they do not infer an Object Type for a new transaction.
 
 The initializer retains one argument Pack and fits its output against the
-receiving Object Type's initialization Layout. An external initializer can name
-its public and exposed Fields. Code hosted by the Object Type can also name
-private Fields. An unknown, duplicate, or inaccessible name fails the
-transaction. Every Field without an authored initializer is required unless
-`new` supplies it.
+receiving Object Type's state-only initialization Layout. An external
+initializer can name its public and exposed state Fields. Code hosted by the
+Object Type can also name private state Fields. An unknown, duplicate,
+inaccessible, Static, or const name fails the transaction. Every state Field
+without an authored initializer is required unless `new` supplies it. Ordinary
+Static Fields initialize through their declaration owner and are never Object
+inputs.
 
-Supplied expressions evaluate in source order. The Object then initializes
-each Field exactly once in the Type's authored order, using the supplied fitted
+Supplied expressions evaluate in source order. The Object then initializes each
+state Field exactly once in the Type's authored order, using the supplied fitted
 value when present and otherwise the Field's own initializer. A missing required
-Field or failed expression leaves no published Object identity.
+state Field or failed expression leaves no published Object identity.
 
 A chain of required Object initializers must terminate. Library rejects a
 mandatory initialization cycle during completion rather than recursing while a

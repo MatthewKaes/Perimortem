@@ -87,6 +87,11 @@ static auto resolve_local_addressable(
       continue;
     }
 
+    auto field = candidate.select<Field>();
+    if (field && field->get_writability() == Writability::Internal) {
+      continue;
+    }
+
     if (candidate.get_name() == route) {
       return candidate;
     }
@@ -144,7 +149,7 @@ auto Types::Composite::interpret_definition(
 
   // The Definition host chain already identifies the owning Library source.
   // Member grammar receives that owner and requests any source capability from
-  // it directly; Composite does not relay individual caches through every
+  // it directly. Composite does not relay individual caches through every
   // declaration parser.
   auto& source = static_cast<Monograph&>(get_monograph());
   auto member = Parser::Member::parse(domain, source, cursor, definition);
@@ -362,7 +367,7 @@ auto Types::Composite::complete_field_layout() -> void {
   fields.reset(addressables.get_size());
   for (const Reference<Abstract>& binding : addressables.get_view()) {
     auto field = binding.get().select<Field>();
-    if (field && field->get_writability() != Writability::Constant) {
+    if (field && field->get_writability() == Writability::Internal) {
       fields.insert(*field);
     }
   }

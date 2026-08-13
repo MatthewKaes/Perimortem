@@ -21,9 +21,9 @@
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Composite owns the member inventories, lookup categories, Layout, and
-// completion lifecycle shared by Source, Structure, and Object. Each concrete
-// Type supplies its own presentation and authored semantics.
+// Composite owns the member inventories, lookup categories, state-only Layout,
+// and completion lifecycle shared by Source, Structure, and Object. Each
+// concrete Type supplies its own presentation and authored semantics.
 class Composite : public Defined {
  public:
   // Category names the three independent declaration spaces owned by a

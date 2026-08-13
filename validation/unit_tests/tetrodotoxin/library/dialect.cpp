@@ -339,6 +339,13 @@ PERIMORTEM_UNIT_TEST(DialectTests, top_level_self_is_rejected_at_registration) {
       "public invalid : func = [self] -> Void {}"_view));
 }
 
+PERIMORTEM_UNIT_TEST(DialectTests, source_rejects_instance_state) {
+  EXPECT(rejects_library_source(
+      "// Source state rejection.\n"
+      "dialect : Library;\n"
+      "public state invalid : Bool;"_view));
+}
+
 PERIMORTEM_UNIT_TEST(DialectTests, source_alias_identity_and_visibility) {
   static constexpr View::Bytes source =
       "// Hidden documentation.\n"
@@ -471,7 +478,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
     {
       "validation/data/ttx/library/new_without_expected_type.ttx"_view,
       "An inferred Library Field cannot use `new`."_view,
-      "private state inferred := new;"_view,
+      "private inferred := new;"_view,
     },
     {
       "validation/data/ttx/library/ordinary_bodyless.ttx"_view,
@@ -810,6 +817,27 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   EXPECT_TEXT(attributes.get_data()[2].get_key(), "tooling"_view);
   EXPECT_TEXT(attributes.get_data()[3].get_key(), "tooling"_view);
   EXPECT(errors.is_empty());
+}
+
+static auto completes_fixture(View::Bytes path) -> Bool {
+  auto source = File::read(path);
+  BAIL_IF(!source);
+  Workspace workspace;
+  Errors errors;
+  BAIL_IF(!workspace.install_dialect<Dialect>("Library"_view));
+  auto interpreted = workspace.interpret_source(
+      errors, "CanonicalLibrary"_view, path, *source);
+  BAIL_IF(!interpreted || !interpreted->is<Language::Monograph>());
+  return workspace.link(errors) && workspace.finalize(errors) &&
+         errors.is_empty();
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, broad_source_completes) {
+  EXPECT(completes_fixture("validation/data/ttx/library/broad.ttx"_view));
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, native_source_completes) {
+  EXPECT(completes_fixture("validation/data/ttx/library/native.ttx"_view));
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
@@ -1165,7 +1193,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, const_field_access_is_type_owned) {
       "public Packet : struct {\n"
       "  public const offset := base;\n"
       "  public const base : Unsigned_64 = 1;\n"
-      "  public value : Unsigned_64;\n"
+      "  public state value : Unsigned_64;\n"
       "}\n"
       "private packet : Packet;\n"
       "private from_type := Packet.offset + 12;\n"

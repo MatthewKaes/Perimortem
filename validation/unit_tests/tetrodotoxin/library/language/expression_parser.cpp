@@ -283,8 +283,9 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
 
   auto divide = parse_one(domain, *monograph, "8 / 2"_view, errors);
   auto add = parse_one(domain, *monograph, "1 + 2"_view, errors);
-  auto logical_and = parse_one(domain, *monograph, "true & false"_view, errors);
-  auto logical_or = parse_one(domain, *monograph, "false | true"_view, errors);
+  auto logical_and =
+      parse_one(domain, *monograph, "true and false"_view, errors);
+  auto logical_or = parse_one(domain, *monograph, "false or true"_view, errors);
   auto equal = parse_one(domain, *monograph, "1 == 1"_view, errors);
   auto greater = parse_one(domain, *monograph, "2 > 1"_view, errors);
   auto greater_equal = parse_one(domain, *monograph, "2 >= 1"_view, errors);
@@ -307,9 +308,9 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
   EXPECT(matches_anchor(*divide, "8 / 2"_view, "/"_view, "8 / 2"_view));
   EXPECT(matches_anchor(*add, "1 + 2"_view, "+"_view, "1 + 2"_view));
   EXPECT(matches_anchor(
-      *logical_and, "true & false"_view, "&"_view, "true & false"_view));
+      *logical_and, "true and false"_view, "and"_view, "true and false"_view));
   EXPECT(matches_anchor(
-      *logical_or, "false | true"_view, "|"_view, "false | true"_view));
+      *logical_or, "false or true"_view, "or"_view, "false or true"_view));
   EXPECT(matches_anchor(*equal, "1 == 1"_view, "=="_view, "1 == 1"_view));
   EXPECT(matches_anchor(*greater, "2 > 1"_view, ">"_view, "2 > 1"_view));
   EXPECT(
@@ -513,12 +514,28 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, malformed_grammar_is_atomic) {
 
   EXPECT(rejects_grammar(domain, *monograph, "2 *"_view));
   EXPECT(rejects_grammar(domain, *monograph, "2 +"_view));
-  EXPECT(rejects_grammar(domain, *monograph, "true &"_view));
-  EXPECT(rejects_grammar(domain, *monograph, "false |"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "true and"_view));
+  EXPECT(rejects_grammar(domain, *monograph, "false or"_view));
   EXPECT(rejects_grammar(domain, *monograph, "!"_view));
   EXPECT(rejects_grammar(domain, *monograph, "receiver."_view));
   EXPECT(rejects_grammar(domain, *monograph, "\"abc\":[]"_view));
   EXPECT(rejects_grammar(domain, *monograph, "\"abc\":[1,]"_view));
   EXPECT(rejects_grammar(domain, *monograph, "\"abc\":[1, 1"_view));
   EXPECT(rejects_grammar(domain, *monograph, "\"abc\":[1 1]"_view));
+}
+
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, bitwise_symbols_are_not_logical) {
+  Allocator::Arena domain;
+  ExpressionParserObservations observations;
+  ExpressionParserContext context(domain, observations);
+  Library::Dialect dialect;
+  auto monograph = create_monograph(domain, dialect, context);
+  ASSERT(monograph);
+  Errors and_errors;
+  Errors or_errors;
+
+  EXPECT_NOT(parse_one(domain, *monograph, "true & false"_view, and_errors));
+  EXPECT_NOT(parse_one(domain, *monograph, "false | true"_view, or_errors));
+  EXPECT(and_errors.is_empty());
+  EXPECT(or_errors.is_empty());
 }

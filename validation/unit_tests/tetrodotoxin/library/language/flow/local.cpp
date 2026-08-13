@@ -80,8 +80,9 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
   static constexpr View::Bytes source =
       "// Local outcomes.\n"
       "dialect : Library;\n"
-      "public Packet : object { public enabled : Bool = false; }\n"
-      "public Pair : struct { public left : Bool; public right : Bool; }\n"
+      "public Packet : object { public state enabled : Bool = false; }\n"
+      "public Pair : struct { public state left : Bool; public state right : "
+      "Bool; }\n"
       "public body : func = [] -> Bool {\n"
       "  state explicit : Bool = true;\n"
       "  const fixed : Bool = false;\n"

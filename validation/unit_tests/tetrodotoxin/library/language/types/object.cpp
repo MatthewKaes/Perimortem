@@ -81,7 +81,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, field_writability) {
       "// Object test.\n"
       "dialect : Library;\n"
       "public Session : object {\n"
-      "  public open : Bool;\n"
+      "  public state open : Bool;\n"
       "  private closed : Bool;\n"
       "  expose state observed : Bool = false;\n"
       "  private state hidden_state : Bool = false;\n"
@@ -122,20 +122,16 @@ PERIMORTEM_UNIT_TEST(ObjectTests, field_writability) {
   ASSERT(field != fields.end());
   const auto& hidden_const =
       static_cast<const Language::Field&>((*field).get());
-  EXPECT(open.get_writability() == Language::Writability::Full);
+  EXPECT(open.get_writability() == Language::Writability::Internal);
   EXPECT(closed.get_writability() == Language::Writability::Full);
   EXPECT(observed.get_writability() == Language::Writability::Internal);
   EXPECT(hidden_state.get_writability() == Language::Writability::Internal);
   EXPECT(fixed.get_writability() == Language::Writability::Constant);
   EXPECT(hidden_const.get_writability() == Language::Writability::Constant);
-  ASSERT_EQ(object.get_layout().get_size(), Count(4));
-  for (Count index = 0; index < object.get_layout().get_size(); index++) {
-    auto entry = object.get_layout().get_abstract(index);
-    ASSERT(entry);
-    EXPECT(
-        entry->get_name() != "fixed"_view &&
-        entry->get_name() != "hidden_const"_view);
-  }
+  ASSERT_EQ(object.get_layout().get_size(), Count(3));
+  EXPECT(&*object.get_layout().get_abstract(0) == &open);
+  EXPECT(&*object.get_layout().get_abstract(1) == &observed);
+  EXPECT(&*object.get_layout().get_abstract(2) == &hidden_state);
   EXPECT(errors.is_empty());
 }
 
@@ -169,13 +165,11 @@ PERIMORTEM_UNIT_TEST(ObjectTests, exact_collision_domain) {
 }
 
 PERIMORTEM_UNIT_TEST(ObjectTests, malformed_grammar) {
-  static constexpr Static::Vector<View::Bytes, 9> sources = {{
+  static constexpr Static::Vector<View::Bytes, 7> sources = {{
     "// Object test.\ndialect : Library; public Session object {}"_view,
     "// Object test.\ndialect : Library; public Session : managed {}"_view,
     "// Object test.\ndialect : Library; public Session : object { state value : Bool = false; }"_view,
     "// Object test.\ndialect : Library; public Session : object { expose value : Bool = false; }"_view,
-    "// Object test.\ndialect : Library; public Session : object { public state value : Bool = false; }"_view,
-    "// Object test.\ndialect : Library; public Session : object { expose state value : Bool; }"_view,
     "// Object test.\ndialect : Library; public Session : object { expose state value : Bool = false }"_view,
     "// Object test.\ndialect : Library; public Session : object { expose state Value : Bool = false; }"_view,
     "// Object test.\ndialect : Library; public Session : object { expose state value : Bool = false;"_view,
@@ -188,10 +182,10 @@ PERIMORTEM_UNIT_TEST(ObjectTests, malformed_grammar) {
 
 PERIMORTEM_UNIT_TEST(ObjectTests, private_exposure_rejected) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
-    "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public reveal : func = [.hidden : Hidden] -> [] {}"_view,
-    "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public Holder : struct { public hidden : Hidden; }"_view,
-    "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public Holder : object { public hidden : Hidden; }"_view,
-    "// Object test.\ndialect : Library; private Hidden : object { private value : Bool = false; } public Holder : object { public reveal : func = [.hidden : Hidden] -> Hidden { return hidden; } }"_view,
+    "// Object test.\ndialect : Library; private Hidden : object { private state value : Bool = false; } public reveal : func = [.hidden : Hidden] -> [] {}"_view,
+    "// Object test.\ndialect : Library; private Hidden : object { private state value : Bool = false; } public Holder : struct { public state hidden : Hidden; }"_view,
+    "// Object test.\ndialect : Library; private Hidden : object { private state value : Bool = false; } public Holder : object { public state hidden : Hidden; }"_view,
+    "// Object test.\ndialect : Library; private Hidden : object { private state value : Bool = false; } public Holder : object { public reveal : func = [.hidden : Hidden] -> Hidden { return hidden; } }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -203,9 +197,9 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface_retained_locally) {
   static constexpr View::Bytes source =
       "// Object test.\n"
       "dialect : Library;\n"
-      "private Hidden : object { private value : Bool = false; }\n"
+      "private Hidden : object { private state value : Bool = false; }\n"
       "public Holder : object {\n"
-      "  private hidden : Hidden;\n"
+      "  private state hidden : Hidden;\n"
       "  private reveal : func = [.value : Hidden] -> Hidden { return value; "
       "}\n"
       "}\n"
@@ -306,7 +300,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inferred_object_identity) {
   static constexpr View::Bytes source =
       "// Object inference test.\n"
       "dialect : Library;\n"
-      "public Child : object { private value : Bool = false; }\n"
+      "public Child : object { private state value : Bool = false; }\n"
       "public Holder : object {\n"
       "  private child : Child;\n"
       "  private copy := child;\n"

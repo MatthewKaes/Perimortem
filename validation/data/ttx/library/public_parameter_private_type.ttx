@@ -6,5 +6,5 @@ public reveal : func = [.value : Hidden] -> Unsigned_64 {
 }
 
 private Hidden : struct {
-  public value : Unsigned_64 = 0;
+  public state value : Unsigned_64 = 0;
 }

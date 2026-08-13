@@ -83,12 +83,12 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, retained_targets_and_order) {
       "  }\n"
       "}\n"
       "private data : Data;\n"
-      "private state global : Unsigned_64 = 0;\n"
+      "private global : Unsigned_64 = 0;\n"
       "public run : func = [] -> [] {\n"
       "  state local : Unsigned_64 = 1;\n"
       "  state access : Access[Unsigned_64];\n"
-      "  data.value = local;\n"
-      "  global = data.value;\n"
+      "  Data.value = local;\n"
+      "  global = Data.value;\n"
       "  local += 3;\n"
       "  local -= 1;\n"
       "  access[0] = local;\n"
@@ -135,8 +135,8 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, complete_pack_fits_target) {
       "// Assignment Pack.\n"
       "dialect : Library;\n"
       "public Pair : struct {\n"
-      "  public number : Unsigned_64;\n"
-      "  public flag : Bool;\n"
+      "  public state number : Unsigned_64;\n"
+      "  public state flag : Bool;\n"
       "}\n"
       "public run : func = [] -> Pair {\n"
       "  state pair : Pair;\n"
@@ -153,6 +153,20 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, complete_pack_fits_target) {
 }
 
 PERIMORTEM_UNIT_TEST(AssignmentTests, immutable_targets_are_rejected) {
+  static constexpr View::Bytes writable =
+      "// Public state write.\n"
+      "dialect : Library;\n"
+      "public Data : struct { public state value : Unsigned_64; }\n"
+      "private data : Data;\n"
+      "private write : func = [] -> [] { data.value = 1; return; }"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, writable);
+  ASSERT(monograph);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+  EXPECT(errors.is_empty());
+
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Const Local.\ndialect : Library; private invalid : func = [] -> [] { const value : Unsigned_64 = 1; value = 2; return; }"_view,
     "// Const Field.\ndialect : Library; private const value : Unsigned_64 = 1; private invalid : func = [] -> [] { value = 2; return; }"_view,
@@ -179,8 +193,7 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, incompatible_values_are_rejected) {
 }
 
 PERIMORTEM_UNIT_TEST(AssignmentTests, malformed_targets_are_rejected) {
-  static constexpr Static::Vector<View::Bytes, 3> sources = {{
-    "// Type target.\ndialect : Library; private invalid : func = [] -> [] { Bool = true; return; }"_view,
+  static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Computed target.\ndialect : Library; private invalid : func = [] -> [] { 1 + 2 = 3; return; }"_view,
     "// Missing source.\ndialect : Library; private invalid : func = [] -> [] { state value : Unsigned_64 = 0; value = ; return; }"_view,
   }};
@@ -188,4 +201,7 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, malformed_targets_are_rejected) {
   for (Count i = 0; i < sources.get_size(); i++) {
     EXPECT(rejects_interpretation(sources[i]));
   }
+
+  EXPECT(rejects_link(
+      "// Type target.\ndialect : Library; private invalid : func = [] -> [] { Bool = true; return; }"_view));
 }

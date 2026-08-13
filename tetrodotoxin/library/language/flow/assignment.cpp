@@ -34,7 +34,8 @@ static auto is_assignment_syntax(const Language::Expression& expression)
       [](const Language::Expressions::Identifier& identifier) {
         Code code = identifier.get_token().get_code();
         return Bool(
-            code == Code::Type::Addressable || code == Code::Type::Self);
+            code == Code::Type::Addressable || code == Code::Type::Self ||
+            code == Code::Type::Type);
       },
       [](const Abstract& not_identifier) {
         return not_identifier.visit<Language::Access::Address>(
@@ -74,6 +75,10 @@ static auto is_writable(
                     case Language::Writability::Full:
                       return True;
                     case Language::Writability::Internal:
+                      if (field.get_definition().get_visibility() ==
+                          Tetrodotoxin::Language::Visibility::Public) {
+                        return True;
+                      }
                       return field.get_host().visit<Language::Types::Composite>(
                           [&](const Language::Types::Composite& composite) {
                             return composite.grants_private_access(
@@ -100,8 +105,11 @@ auto Language::Flow::Assignment::interpret(
     Memory::Allocator::Arena& domain,
     Monograph& source,
     Cursor& cursor) -> Core::Option<Assignment&> {
+  // A Type token may begin only a Static Field path. The completed target must
+  // still resolve to Addressable, so a bare Type never becomes writable.
   Code start = cursor.get_code();
-  if (start != Code::Type::Addressable && start != Code::Type::Self) {
+  if (start != Code::Type::Addressable && start != Code::Type::Self &&
+      start != Code::Type::Type) {
     return {};
   }
 
@@ -119,7 +127,7 @@ auto Language::Flow::Assignment::interpret(
     transaction.create_expression_error(
         Anchor::create(operation, Span(opening, operation)),
         "Library assignment requires an addressable target path."_view,
-        "Start with one Addressable or `self` and use only `.` or `[]` "
+        "Start with one Addressable, Type, or `self` and use only `.` or `[]` "
         "selection."_view);
     return {};
   }

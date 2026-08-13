@@ -15,9 +15,9 @@
 
 namespace Tetrodotoxin::Library::Language::Access {
 
-// Address evaluates one value receiver and selects one Addressable from its
-// Type Layout. The selected address may use stack storage or a receiver base,
-// while target generation owns its concrete representation.
+// Address evaluates one receiver and selects one Addressable from the category
+// supplied by that exact result. The selected address may use Static storage or
+// a receiver base, while target generation owns its concrete representation.
 class Address : public Expression {
  public:
   TTX_CONTRACT(Address, Expression, 0xdf9d470a5b024335, 0xb38fc893710f519e);
@@ -33,9 +33,9 @@ class Address : public Expression {
       Expression& receiver,
       const Ttx::Model::Addressable& addressable) -> Address&;
 
-  // The receiver Layout is already the complete candidate range for `.`.
-  // Semantic linking and completion tooling apply this predicate to each
-  // Addressable rather than copying Layout entries into a member registry.
+  // The receiver result already selects the complete candidate category for
+  // `.`. Semantic linking and completion tooling apply this predicate to each
+  // Addressable rather than copying entries into a member registry.
   static auto is_accessible(
       const Ttx::Model::Addressable& candidate,
       Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})

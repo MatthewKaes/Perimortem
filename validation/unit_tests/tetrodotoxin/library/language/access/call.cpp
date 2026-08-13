@@ -115,7 +115,7 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
       "// Call selection test.\n"
       "dialect : Library;\n"
       "public Packet : struct {\n"
-      "  private positional := Packet -> choose(5, true,);\n"
+      "  private state positional := Packet -> choose(5, true,);\n"
       "  private named := Packet -> choose(.flag = true, .number = 5,);\n"
       "  public invoke : func = [self] -> Bool {\n"
       "    self -> choose(.flag = true,);\n"
@@ -135,7 +135,7 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
       "    return value;\n"
       "  }\n"
       "}\n"
-      "public Later : struct { public value : Bool; }"_view;
+      "public Later : struct { public state value : Bool; }"_view;
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -294,7 +294,7 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
       "// Call result flow test.\n"
       "dialect : Library;\n"
       "public Packet : struct {\n"
-      "  public value : Unsigned_64; public flag : Bool;\n"
+      "  public state value : Unsigned_64; public state flag : Bool;\n"
       "  public self_none : func = [self] -> [] {}\n"
       "  public self_one : func = [self] -> Bool { return true; }\n"
       "}\n"

@@ -7,9 +7,10 @@
 
 namespace Tetrodotoxin::Library::Language {
 
-// Writability is the Library mutation policy retained by declarations that
-// create an Addressable. Constant marks compile-time value identity rather
-// than an initialization-time write window.
+// Writability is the Library storage and evaluation policy retained by Fields
+// and Locals that create an Addressable. Field visibility independently
+// decides which selected callers may write that storage. Constant marks
+// compile-time value identity rather than an initialization-time write window.
 enum class Writability : ::Unsigned_8 {
   Full,
   Internal,

@@ -83,7 +83,7 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
       "dialect : Library;\n"
       "public Empty : struct {}\n"
       "public Packet : struct {\n"
-      "  public number : Unsigned_64; public flag : Bool;\n"
+      "  public state number : Unsigned_64; public state flag : Bool;\n"
       "}\n"
       "public Flow : struct {\n"
       "  public bare_void : func = [] -> Void { return; }\n"

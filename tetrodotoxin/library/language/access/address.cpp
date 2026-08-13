@@ -43,7 +43,7 @@ static auto select_addressable(const Layout& layout, Core::View::Bytes name)
 static auto select_addressable(
     const Language::Types::Composite& composite,
     Core::View::Bytes name,
-    Bool constant_only = False) -> Core::Option<const Addressable&> {
+    Language::Writability receiver_policy) -> Core::Option<const Addressable&> {
   Core::Option<const Addressable&> selected;
   for (const Reference<Abstract>& candidate : composite.get_addressables()) {
     if (candidate.get().get_name() != name) {
@@ -53,8 +53,9 @@ static auto select_addressable(
     BAIL_IF(selected);
     const Abstract& resolved = candidate.get().resolve();
     auto field = resolved.select<Language::Field>();
-    if (constant_only && (!field || field->get_writability() !=
-                                        Language::Writability::Constant)) {
+    if (!field ||
+        (field->get_writability() != receiver_policy &&
+         field->get_writability() != Language::Writability::Constant)) {
       continue;
     }
     selected = resolved.select<Addressable>();
@@ -158,19 +159,22 @@ auto Language::Access::Address::link(
             -> Core::Option<const Addressable&> { return state; });
   } else if (
       auto source_type = receiver_result.select<Language::Types::Source>()) {
-    selected = select_addressable(*source_type, name);
+    selected =
+        select_addressable(*source_type, name, Language::Writability::Full);
   } else if (
       auto receiver_addressable = receiver_result.select<Addressable>()) {
     const Abstract& output_type = receiver_addressable->get_type().resolve();
     auto composite = output_type.select<Language::Types::Composite>();
     selected = composite
-                   ? select_addressable(*composite, name)
+                   ? select_addressable(
+                         *composite, name, Language::Writability::Internal)
                    : select_addressable(
                          receiver_addressable->get_type().get_layout(), name);
   } else if (auto receiver_type = receiver_result.select<Ttx::Model::Type>()) {
     auto composite = receiver_type->select<Language::Types::Composite>();
     if (composite) {
-      selected = select_addressable(*composite, name, True);
+      selected =
+          select_addressable(*composite, name, Language::Writability::Full);
     }
   }
 

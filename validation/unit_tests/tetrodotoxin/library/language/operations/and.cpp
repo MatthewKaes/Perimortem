@@ -274,7 +274,7 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, ordered_reachability) {
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parse_and_atomic_failure) {
-  static constexpr View::Bytes success_source = "true & false"_view;
+  static constexpr View::Bytes success_source = "true and false"_view;
   Allocator::Arena domain;
   AndMonograph context(domain);
   Tetrodotoxin::Library::Dialect dialect;
@@ -299,13 +299,13 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parse_and_atomic_failure) {
 
   ASSERT(parsed && parsed->is<Operations::And>());
   EXPECT(parsed->get_type().resolve().is<Invalid>());
-  EXPECT(matches_anchor(*parsed, success_source, "&"_view, success_source));
+  EXPECT(matches_anchor(*parsed, success_source, "and"_view, success_source));
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
   EXPECT(parsed->link(source, Invalid::get_invalid()));
 
   Errors failure_errors;
-  Tokenizer failure_tokens(domain, "true &"_view, "and.ttx"_view);
+  Tokenizer failure_tokens(domain, "true and"_view, "and.ttx"_view);
   Cursor failure_cursor(failure_tokens, failure_errors);
   Token failure_left_token = failure_cursor.consume();
   auto failure_left_anchor =
@@ -322,7 +322,7 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parse_and_atomic_failure) {
   EXPECT_NOT(failure_errors.is_empty());
 
   Errors mismatch_errors;
-  Tokenizer mismatch_tokens(domain, "true & 1"_view, "and.ttx"_view);
+  Tokenizer mismatch_tokens(domain, "true and 1"_view, "and.ttx"_view);
   Cursor mismatch_cursor(mismatch_tokens, mismatch_errors);
   auto mismatch = Parser::Expression::parse(domain, source, mismatch_cursor);
 
@@ -334,6 +334,6 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parse_and_atomic_failure) {
   ASSERT(diagnostics.get_data()[0].get_anchor());
   EXPECT_TEXT(
       diagnostics.get_data()[0].get_anchor()->get_span().caculate_text(
-          "true & 1"_view),
-      "true & 1"_view);
+          "true and 1"_view),
+      "true and 1"_view);
 }
