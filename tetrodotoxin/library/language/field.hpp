@@ -9,6 +9,7 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/language/authored.hpp"
+#include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
@@ -60,6 +61,10 @@ class Field : public Authored<Ttx::Model::Addressable> {
 
   auto link_initializer(Tetrodotoxin::Language::Monograph& source) -> Bool;
 
+  // Const completion is a required link barrier. The initializer must reduce
+  // to one exact constant Pack before any body can consume this Field.
+  auto link_constant(Tetrodotoxin::Language::Monograph& source) const -> Bool;
+
   auto validate_publication(Tetrodotoxin::Language::Monograph& source) const
       -> Bool;
 
@@ -109,16 +114,32 @@ class Field : public Authored<Ttx::Model::Addressable> {
 
   auto get_initializer() const -> Perimortem::Core::Option<const Model::Pack&>;
 
+  // Const Fields are declaration-owned compile-time values. They never denote
+  // per-instance storage, regardless of which valid receiver selects them.
+  auto get_constant() const -> Perimortem::Core::Option<Model::Pack&>;
+
   constexpr auto is_linked() const -> Bool {
     return Bool(type) && initializer_linked;
   }
 
  private:
+  enum class ConstantState : Unsigned_8 {
+    Unresolved,
+    Folding,
+    Folded,
+    Failed,
+  };
+
+  auto cache_constant() const -> Bool;
+
   Writability writability;
   Perimortem::Core::Option<TypeReference> type_reference;
   Perimortem::Core::Option<Model::Pack&> initializer;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       type;
+  mutable Perimortem::Core::Option<Ttx::Concept::Reference<Model::Pack>>
+      constant;
+  mutable ConstantState constant_state = ConstantState::Unresolved;
   Bool initializer_linked;
 };
 

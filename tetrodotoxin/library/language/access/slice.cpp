@@ -1,9 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/access/value.hpp"
+#include "tetrodotoxin/library/language/access/slice.hpp"
 
-#include "perimortem/core/static/vector.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
@@ -27,7 +27,7 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
 static auto complete_postfix_span(Cursor& cursor, Token opening) -> Span {
-  // A malformed tail still belongs to one Value access. Consume only its local
+  // A malformed tail still belongs to one Slice access. Consume only its local
   // closing bracket so the diagnostic covers the authored operation.
   while (!cursor.matches(Code::Type::Terminal) &&
          !cursor.matches(Code::Type::BracketEnd)) {
@@ -43,14 +43,14 @@ static auto complete_postfix_span(Cursor& cursor, Token opening) -> Span {
 
 static auto reject_syntax(Cursor& cursor, Span span) -> void {
   cursor.create_expression_error(
-      span, "Value access has malformed index or range operands."_view,
+      span, "Slice access has malformed index or range operands."_view,
       "Use `:[index]` or `:[start, count]` with complete delimiters."_view);
 }
 
 static auto reject_operand(Cursor& cursor, Span postfix_span, Span operand_span)
     -> void {
   auto report = cursor.create_report(postfix_span);
-  report << "Value access operand `"_view
+  report << "Slice access operand `"_view
          << operand_span.caculate_text(cursor.get_source_text())
          << "` could not be parsed as a complete Expression."_view;
   report.get_hint() << "Use a complete scalar or byte Expression."_view;
@@ -144,11 +144,24 @@ static auto get_count(
       });
 }
 
+static auto select_scalar(Language::Model::Pack& pack)
+    -> Core::Option<Language::Expression&> {
+  return pack.select<Language::Expression>();
+}
+
 static auto select_required_type(const Abstract& candidate)
     -> Core::Option<const Type&> {
   auto direct = candidate.select<Type>();
   if (direct) {
     return *direct;
+  }
+
+  auto pack = candidate.select<Language::Model::Pack>();
+  if (pack) {
+    direct = pack->get_type().select<Type>();
+    if (direct) {
+      return *direct;
+    }
   }
 
   const Abstract& resolved = candidate.resolve();
@@ -161,79 +174,86 @@ static auto select_required_type(const Abstract& candidate)
   return direct ? direct : selected.resolve().select<Type>();
 }
 
-namespace {
-
 // A slice is homogeneous value flow, but the repeated source is still the one
-// Value expression that performs selection. Keeping this Layout subordinate to
-// Value avoids teaching host-neutral Ranged how a Library Expression fits a
+// Slice expression that performs selection. Keeping this Layout subordinate to
+// Slice avoids teaching host-neutral Ranged how a Library Expression fits a
 // required element Type, and avoids fabricating one proxy identity per slot.
-class SliceLayout final : public Layout {
- public:
-  constexpr SliceLayout(
-      const Language::Access::Value& source,
-      const Type& element,
-      Count size)
-      : source(source), element(element), size(size) {}
+static auto create_layout(
+    Memory::Allocator::Arena& domain,
+    const Language::Access::Slice& source,
+    const Type& element,
+    Count size) -> const Ttx::Concept::Layout& {
+  class Layout final : public Ttx::Concept::Layout {
+   public:
+    constexpr Layout(
+        const Language::Access::Slice& source,
+        const Type& element,
+        Count size)
+        : source(source), element(element), size(size) {}
 
-  constexpr auto get_size() const -> Count override { return size; }
+    constexpr auto get_size() const -> Count override { return size; }
 
-  constexpr auto get_abstract(Count index) const
-      -> Core::Option<const Abstract&> override {
-    BAIL_IF(index >= size);
-    return source;
-  }
-
-  auto fits_entry(const Layout& target, Count source_index, Count target_index)
-      const -> Bool override {
-    BAIL_IF(source_index >= size || target_index >= target.get_size());
-    return target.get_abstract(target_index)
-        .visit(
-            []() { return False; },
-            [&](const Abstract& required) {
-              return select_required_type(required).visit(
-                  []() { return False; },
-                  [&](const Type& type) {
-                    return element.get_layout().fits(type.get_layout());
-                  });
-            });
-  }
-
-  auto fits_at(const Layout& target, Count target_offset) const
-      -> Bool override {
-    BAIL_IF(!has_target_segment(target, target_offset));
-    for (Count index = 0; index < size; index++) {
-      BAIL_IF(!fits_entry(target, index, target_offset + index));
-    }
-    return True;
-  }
-
-  auto get_fitted_at(
-      const Layout& target,
-      Count target_offset,
-      Count target_index) const
-      -> Utility::Result<const Abstract&, Errors> override {
-    if (target_index >= size) {
-      return Errors::IndexOutOfBounds;
-    }
-    if (!has_target_segment(target, target_offset)) {
-      return Errors::SizeMismatch;
-    }
-    if (!fits_at(target, target_offset)) {
-      return Errors::IncompatibleFit;
+    constexpr auto get_abstract(Count index) const
+        -> Core::Option<const Abstract&> override {
+      BAIL_IF(index >= size);
+      return source;
     }
 
-    // Layout index retains which repeated value is consumed. Lowering can use
-    // that index without replacing the one semantic producer with shadow nodes.
-    return source;
-  }
+    auto fits_entry(
+        const Ttx::Concept::Layout& target,
+        Count source_index,
+        Count target_index) const -> Bool override {
+      BAIL_IF(source_index >= size || target_index >= target.get_size());
+      return target.get_abstract(target_index)
+          .visit(
+              []() { return False; },
+              [&](const Abstract& required) {
+                return select_required_type(required).visit(
+                    []() { return False; },
+                    [&](const Type& type) {
+                      return element.get_layout().fits(type.get_layout());
+                    });
+              });
+    }
 
- private:
-  const Language::Access::Value& source;
-  const Type& element;
-  Count size;
-};
+    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
+        -> Bool override {
+      BAIL_IF(!has_target_segment(target, target_offset));
+      for (Count index = 0; index < size; index++) {
+        BAIL_IF(!fits_entry(target, index, target_offset + index));
+      }
+      return True;
+    }
 
-}  // namespace
+    auto get_fitted_at(
+        const Ttx::Concept::Layout& target,
+        Count target_offset,
+        Count target_index) const
+        -> Utility::Result<const Abstract&, Errors> override {
+      if (target_index >= size) {
+        return Errors::IndexOutOfBounds;
+      }
+      if (!has_target_segment(target, target_offset)) {
+        return Errors::SizeMismatch;
+      }
+      if (!fits_at(target, target_offset)) {
+        return Errors::IncompatibleFit;
+      }
+
+      // Layout index retains which repeated value is consumed. Lowering can use
+      // that index without replacing the one semantic producer with shadow
+      // nodes.
+      return source;
+    }
+
+   private:
+    const Language::Access::Slice& source;
+    const Type& element;
+    Count size;
+  };
+
+  return domain.construct<Layout>(source, element, size);
+}
 
 static auto parse_operand(
     Memory::Allocator::Arena& domain,
@@ -243,7 +263,7 @@ static auto parse_operand(
   auto operand_cursor = cursor.branch(operand_errors);
 
   // The complete operand grammar stays inside this private Cursor. Its
-  // provisional diagnostics remain local until Value can attribute failure to
+  // provisional diagnostics remain local until Slice can attribute failure to
   // the complete postfix.
   auto pack =
       Language::Parser::Expression::parse(domain, source, operand_cursor);
@@ -259,23 +279,12 @@ static auto parse_operand(
   return result;
 }
 
-static auto select_result_type(
-    const Language::Expression& receiver,
-    const Language::Expression& first) -> const Abstract& {
-  auto element = get_element_type(receiver);
-  if (!element || !is_integer(first)) {
-    return Invalid::get_invalid();
-  }
-
-  return *element;
-}
-
-auto Language::Access::Value::parse(
+auto Language::Access::Slice::parse(
     Memory::Allocator::Arena& domain,
     Monograph& source,
     Cursor& cursor,
     Expression& receiver) -> Core::Option<Expression&> {
-  // Expression selects Value only after seeing ValueAccessOp. Consuming it here
+  // Expression selects Slice only after seeing ValueAccessOp. Consuming it here
   // commits the transaction to this owner's complete postfix grammar.
   Token opening = cursor.consume();
   Code first_code = cursor.get_code();
@@ -330,7 +339,7 @@ auto Language::Access::Value::parse(
 
   if (!cursor.matches(Code::Type::BracketEnd)) {
     // No semantic operation exists until the closing token proves the complete
-    // authored Value. Recovery can therefore reject the tail without leaving a
+    // authored Slice. Recovery can therefore reject the tail without leaving a
     // partial graph owner.
     Span span = complete_postfix_span(cursor, opening);
     reject_syntax(cursor, span);
@@ -345,7 +354,7 @@ auto Language::Access::Value::parse(
       (range && (!second || !second->get_anchor()))) {
     cursor.create_expression_error(
         Span(opening, closing),
-        "Value access requires authored operand Anchors."_view);
+        "Slice access requires authored operand Anchors."_view);
     return {};
   }
 
@@ -358,123 +367,109 @@ auto Language::Access::Value::parse(
   return create_authored(domain, receiver, *first, anchor);
 }
 
-auto Language::Access::Value::create_authored(
+auto Language::Access::Slice::create_authored(
     Memory::Allocator::Arena& domain,
     Expression& receiver,
     Expression& index,
-    Anchor anchor) -> Value& {
-  Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2> inputs = {{
-    receiver,
-    index,
-  }};
-  return Expression::create_authored<Value>(
-      domain, anchor,
-      [&](auto source) -> Value { return Value(domain, inputs, source); });
+    Anchor anchor) -> Slice& {
+  return Expression::create_authored<Slice>(
+      domain, anchor, [&](auto source) -> Slice {
+        return Slice(domain, receiver, index, source);
+      });
 }
 
-auto Language::Access::Value::create_synthetic(
-    Memory::Allocator::Arena& domain,
-    Expression& receiver,
-    Expression& index) -> Value& {
-  Core::Static::Vector<Ttx::Concept::Reference<Expression>, 2> inputs = {{
-    receiver,
-    index,
-  }};
-  return Expression::create_synthetic<Value>(domain, [&](auto source) -> Value {
-    return Value(domain, inputs, source);
-  });
-}
-
-auto Language::Access::Value::create_authored(
+auto Language::Access::Slice::create_authored(
     Memory::Allocator::Arena& domain,
     Expression& receiver,
     Expression& start,
     Expression& count,
-    Anchor anchor) -> Value& {
-  Core::Static::Vector<Ttx::Concept::Reference<Expression>, 3> inputs = {{
-    receiver,
-    start,
-    count,
-  }};
-  return Expression::create_authored<Value>(
-      domain, anchor,
-      [&](auto source) -> Value { return Value(domain, inputs, source); });
+    Anchor anchor) -> Slice& {
+  return Expression::create_authored<Slice>(
+      domain, anchor, [&](auto source) -> Slice {
+        return Slice(domain, receiver, start, count, source);
+      });
 }
 
-auto Language::Access::Value::create_synthetic(
+Language::Access::Slice::Slice(
+    Memory::Allocator::Arena& domain,
+    Expression& receiver,
+    Expression& index,
+    Core::Option<Anchor> anchor)
+    : Expression(anchor), domain(domain), receiver(receiver), first(index) {}
+
+Language::Access::Slice::Slice(
     Memory::Allocator::Arena& domain,
     Expression& receiver,
     Expression& start,
-    Expression& count) -> Value& {
-  Core::Static::Vector<Ttx::Concept::Reference<Expression>, 3> inputs = {{
-    receiver,
-    start,
-    count,
-  }};
-  return Expression::create_synthetic<Value>(domain, [&](auto source) -> Value {
-    return Value(domain, inputs, source);
-  });
-}
-
-Language::Access::Value::Value(
-    Memory::Allocator::Arena& domain,
-    Core::View::Vector<Ttx::Concept::Reference<Expression>> inputs,
+    Expression& count,
     Core::Option<Anchor> anchor)
-    : Operation(domain, inputs, anchor),
+    : Expression(anchor),
       domain(domain),
-      range(inputs.get_size() == 3) {}
+      receiver(receiver),
+      first(start),
+      count(Ttx::Concept::Reference<Expression>(count)) {}
 
-auto Language::Access::Value::link(
+auto Language::Access::Slice::link(
     Tetrodotoxin::Language::Monograph& source,
     const Abstract& lexical_context,
     Core::Option<const Type&> access_scope) -> Bool {
-  if (!range) {
-    return Operation::link(source, lexical_context, access_scope);
+  Bool failed = !receiver.link(source, lexical_context, access_scope);
+  failed |= !first.link(source, lexical_context, access_scope);
+  if (count) {
+    failed |= !count->get().link(source, lexical_context, access_scope);
+  }
+  BAIL_IF(failed);
+
+  auto element = get_element_type(receiver);
+  if (!element || !is_integer(first) || (count && !is_integer(count->get()))) {
+    source.report(
+        get_anchor(), "Slice rejects the linked operand Types."_view,
+        "Use an indexable receiver and integer index, start, and count Expressions."_view);
+    return False;
+  }
+
+  if (element_type && &element_type->get() != &*element) {
+    source.report(
+        get_anchor(), "Slice cannot change its linked element Type."_view,
+        "Keep one exact element Type on this authored access."_view);
+    return False;
+  }
+  element_type = Reference<const Type>(*element);
+
+  if (!count) {
+    return Expression::link(source, lexical_context, access_scope);
   }
 
   // Range count determines the complete Pack shape and is therefore a link
   // fact, not a lowering-time payload detail. Start remains ordinary dynamic
   // input because it changes which values flow, never how many slots exist.
-  Bool failed = False;
-  for (Count index = 0; index < 3; index++) {
-    auto input = get_input(index);
-    if (!input) {
-      failed = True;
-      continue;
-    }
-    failed |= !input->link(source, lexical_context, access_scope);
-  }
-  BAIL_IF(failed);
+  Expression& count_expression = count->get();
 
-  auto receiver = get_input(0);
-  auto start = get_input(1);
-  auto count = get_input(2);
-  auto element =
-      receiver ? get_element_type(*receiver) : Core::Option<const Type&>{};
-  if (!receiver || !start || !count || !element || !is_integer(*start) ||
-      !is_integer(*count)) {
-    source.report(
-        get_anchor(), "Value range rejects the linked operand Types."_view,
-        "Use an indexable receiver and integer start and count Expressions."_view);
-    return False;
-  }
-
-  Core::Option<Expression&> folded_count;
+  Core::Option<Model::Pack&> folded_count;
   Core::Option<Expression::Error> fold_error;
-  count->fold().visit(
-      [&](const Core::Option<Expression&>& folded) { folded_count = folded; },
+  count_expression.fold().visit(
+      [&](const Core::Option<Model::Pack&>& folded) { folded_count = folded; },
       [&](const Expression::Error& error) { fold_error = error; });
   if (fold_error || !folded_count) {
     source.report(
-        count->get_anchor(),
-        "Value range count did not constant-fold during linking."_view,
+        count_expression.get_anchor(),
+        "Slice range count did not constant-fold during linking."_view,
+        "Supply one nonnegative integer Constant for the range count."_view);
+    return False;
+  }
+
+  auto folded_count_expression = select_scalar(*folded_count);
+  if (!folded_count_expression) {
+    source.report(
+        count_expression.get_anchor(),
+        "Slice range count did not fold to one scalar Constant."_view,
         "Supply one nonnegative integer Constant for the range count."_view);
     return False;
   }
 
   Core::Option<Count> selected_count;
   Core::Option<Expression::Error> count_error;
-  get_count(*folded_count, *count)
+  get_count(*folded_count_expression, count_expression)
       .visit(
           [&](const Core::Option<Count>& selected) {
             selected_count = selected;
@@ -482,54 +477,50 @@ auto Language::Access::Value::link(
           [&](const Expression::Error& error) { count_error = error; });
   if (count_error || !selected_count) {
     source.report(
-        count->get_anchor(),
-        "Value range count is outside the supported nonnegative range."_view,
+        count_expression.get_anchor(),
+        "Slice range count is outside the supported nonnegative range."_view,
         "Use a nonnegative integer Constant representable as Count."_view);
     return False;
   }
 
   if (range_layout) {
-    Bool changed = !range_element || &range_element->get() != &*element ||
-                   !range_count || *range_count != *selected_count;
+    Bool changed = !range_count || *range_count != *selected_count;
     if (changed) {
       source.report(
           get_anchor(),
-          "Value range cannot change its linked output Layout."_view,
+          "Slice range cannot change its linked output Layout."_view,
           "Keep one exact element Type and constant count for this access."_view);
       return False;
     }
     return True;
   }
 
-  range_element = Reference<const Type>(*element);
   range_count = *selected_count;
-  const auto& layout =
-      domain.construct<SliceLayout>(*this, *element, *selected_count);
+  const auto& layout = create_layout(domain, *this, *element, *selected_count);
   range_layout = layout;
   return True;
 }
 
-auto Language::Access::Value::get_type() const -> const Abstract& {
-  if (!range) {
-    return Operation::get_type();
-  }
-  if (!range_layout || !range_count || *range_count != 1 || !range_element) {
+auto Language::Access::Slice::get_type() const -> const Abstract& {
+  if (!element_type ||
+      (count && (!range_layout || !range_count || *range_count != 1))) {
     return Invalid::get_invalid();
   }
 
-  return range_element->get();
+  return element_type->get();
 }
 
-auto Language::Access::Value::get_layout() const -> const Layout& {
-  if (!range) {
+auto Language::Access::Slice::get_layout() const
+    -> const Ttx::Concept::Layout& {
+  if (!count) {
     return Expression::get_layout();
   }
 
   return *range_layout;
 }
 
-auto Language::Access::Value::resolve() const -> const Abstract& {
-  if (!range) {
+auto Language::Access::Slice::resolve() const -> const Abstract& {
+  if (!count) {
     return Expression::resolve();
   }
 
@@ -540,96 +531,145 @@ auto Language::Access::Value::resolve() const -> const Abstract& {
   return static_cast<const Ttx::Model::Pack&>(*this);
 }
 
-auto Language::Access::Value::fits(const Type& target) const -> Bool {
-  if (!range) {
+auto Language::Access::Slice::fits(const Type& target) const -> Bool {
+  if (!count) {
     return Expression::fits(target);
   }
 
-  // A range Value is not one element with a special carrier Type. Its complete
+  // A range Slice is not one element with a special carrier Type. Its complete
   // Pack must negotiate with the receiving descriptor so `Fixed[T, count]`,
   // structural Layouts, and the empty Layout all observe the same flow.
   return Model::Pack::fits(target);
 }
 
-auto Language::Access::Value::select_type(
-    Tetrodotoxin::Language::Monograph&) const -> Core::Option<const Type&> {
-  BAIL_IF(range);
-  auto receiver = get_input(0);
-  auto first = get_input(1);
-  if (!receiver || !first) {
-    return {};
+auto Language::Access::Slice::finalize() -> void {
+  receiver.finalize();
+  first.finalize();
+  if (count) {
+    count->get().finalize();
   }
-
-  return select_result_type(*receiver, *first).select<Type>();
+  Expression::finalize();
 }
 
-auto Language::Access::Value::evaluate_constants(
-    Memory::Allocator::Arena& domain)
-    -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-  if (range) {
-    // A range is a Pack of values rather than one Constant carrier. Folding
-    // individual selected values belongs to lowering once it consumes the
-    // Pack Layout and its slot indices.
-    return Core::Option<Constant&>{};
+auto Language::Access::Slice::evaluate()
+    -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
+  Core::Option<Model::Pack&> folded_receiver_pack;
+  auto receiver_fold = receiver.fold();
+  auto receiver_error = Core::Option<Expression::Error>{};
+  receiver_fold.visit(
+      [&](const Core::Option<Model::Pack&>& selected) {
+        folded_receiver_pack = selected;
+      },
+      [&](const Expression::Error& error) { receiver_error = error; });
+  if (receiver_error) {
+    return *receiver_error;
   }
 
-  auto authored_receiver = get_input(0);
-  auto authored_first = get_input(1);
-  auto receiver = get_folded_input(0);
-  auto first_expression = get_folded_input(1);
-  if (!authored_receiver || !authored_first || !receiver || !first_expression) {
-    return Expression::Error(Expression::Error::Type::InvalidInput, *this);
+  Core::Option<Model::Pack&> folded_first_pack;
+  auto first_fold = first.fold();
+  auto first_error = Core::Option<Expression::Error>{};
+  first_fold.visit(
+      [&](const Core::Option<Model::Pack&>& selected) {
+        folded_first_pack = selected;
+      },
+      [&](const Expression::Error& error) { first_error = error; });
+  if (first_error) {
+    return *first_error;
+  }
+  if (!folded_receiver_pack || !folded_first_pack) {
+    return Core::Option<Model::Pack&>{};
   }
 
-  auto element = get_element_type(*receiver);
+  auto folded_receiver = select_scalar(*folded_receiver_pack);
+  auto folded_first = select_scalar(*folded_first_pack);
+  if (!folded_receiver || !folded_first) {
+    return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
+  }
+
+  auto element = get_element_type(*folded_receiver);
   if (!element) {
     return Expression::Error(
         Expression::Error::Type::InvalidOperationType, *this);
   }
 
-  auto first = get_count(*first_expression, *authored_first);
-  return first.visit(
+  auto selected_index = get_count(*folded_first, first);
+  return selected_index.visit(
       [&](const Core::Option<Count>& index)
-          -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-        return receiver->visit<Constants::Bytes>(
+          -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
+        return folded_receiver->visit<Constants::Bytes>(
             [&](const Constants::Bytes& bytes)
-                -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
+                -> Utility::Result<
+                    Core::Option<Model::Pack&>, Expression::Error> {
               Core::View::Bytes value = bytes.get_value();
-              if (!index || *index >= value.get_size()) {
-                // No payload element exists, so the exact element Type decides
-                // whether safe selection has a value or a failure.
-                auto fallback =
-                    Library::Dialect::create_default(domain, *element);
-                if (!fallback) {
-                  return Expression::Error(
-                      Expression::Error::Type::InvalidConstant, *this);
+              if (!count) {
+                if (!index || *index >= value.get_size()) {
+                  // No payload element exists, so the exact element Type
+                  // decides whether safe selection has a value or a failure.
+                  auto fallback =
+                      Library::Dialect::create_default(domain, *element);
+                  if (!fallback) {
+                    return Expression::Error(
+                        Expression::Error::Type::InvalidConstant, *this);
+                  }
+
+                  return static_cast<Model::Pack&>(*fallback);
                 }
 
-                return *fallback;
+                auto byte_type = get_byte_type(*element);
+                if (!byte_type) {
+                  return Expression::Error(
+                      Expression::Error::Type::InvalidConstant, receiver);
+                }
+                Unsigned_64 selected = Unsigned_64(value.get_data()[*index]);
+                return static_cast<Model::Pack&>(
+                    Constants::Unsigned::create_synthetic(
+                        domain, *byte_type, selected));
               }
 
-              // Bytes exposes raw elements, but the result still carries the
-              // exact eight bit Unsigned Type selected during linking.
+              if (!range_count) {
+                return Expression::Error(
+                    Expression::Error::Type::InvalidConstant, *this);
+              }
+
               auto byte_type = get_byte_type(*element);
               if (!byte_type) {
                 return Expression::Error(
-                    Expression::Error::Type::InvalidConstant,
-                    *authored_receiver);
+                    Expression::Error::Type::InvalidConstant, receiver);
               }
 
-              Unsigned_64 selected = Unsigned_64(value.get_data()[*index]);
-              return Constants::Unsigned::create_synthetic(
-                  domain, *byte_type, selected);
+              // A ranged fold represents real selected payload values. Unlike
+              // scalar safe access, the range form has no per-slot defaulting
+              // rule. Keep an out-of-bounds constant range as authored flow
+              // for lowering instead of fabricating values or attempting an
+              // unbounded compile-time allocation.
+              if (!index || *index > value.get_size() ||
+                  *range_count > value.get_size() - *index) {
+                return Core::Option<Model::Pack&>{};
+              }
+
+              Memory::Managed::Vector<Reference<Model::Pack>> entries(domain);
+              entries.reset(*range_count);
+              for (Count offset = 0; offset < *range_count; offset++) {
+                Count position = *index + offset;
+                Unsigned_64 selected = Unsigned_64(value.get_data()[position]);
+                entries.insert(
+                    static_cast<Model::Pack&>(
+                        Constants::Unsigned::create_synthetic(
+                            domain, *byte_type, selected)));
+              }
+
+              return Model::Pack::create_folded(domain, entries.get_view());
             },
             [&](const Abstract&)
-                -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
+                -> Utility::Result<
+                    Core::Option<Model::Pack&>, Expression::Error> {
               // Bytes is the live Constant payload domain. Another legal
-              // Constant stays as Value until its payload owner exists.
-              return Core::Option<Constant&>{};
+              // Constant stays as Slice until its payload owner exists.
+              return Core::Option<Model::Pack&>{};
             });
       },
       [](const Expression::Error& error)
-          -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
+          -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
         return error;
       });
 }

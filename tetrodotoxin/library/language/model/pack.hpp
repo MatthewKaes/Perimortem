@@ -83,6 +83,14 @@ class Pack : public Ttx::Model::Pack {
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names = {},
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor = {}) -> Pack&;
 
+  // Constant evaluation composes already completed scalar Constant Packs.
+  // The resulting positional Pack owns no authored linking work and is
+  // immediately observable through the ordinary Pack contract.
+  static auto create_folded(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Pack>> entries)
+      -> Pack&;
+
  protected:
   constexpr Pack() = default;
 };

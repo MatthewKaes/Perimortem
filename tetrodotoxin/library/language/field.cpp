@@ -35,7 +35,7 @@ static auto parse_writability(
       writability = Language::Writability::Internal;
       break;
     case Code::Type::Const:
-      writability = Language::Writability::Init;
+      writability = Language::Writability::Constant;
       break;
     default:
       cursor.create_token_error(
@@ -253,6 +253,19 @@ auto Language::Field::link_initializer(
   return True;
 }
 
+auto Language::Field::link_constant(
+    Tetrodotoxin::Language::Monograph& source) const -> Bool {
+  if (writability != Writability::Constant || cache_constant()) {
+    return True;
+  }
+
+  source.report(
+      get_anchor(),
+      "Const Field initializer did not resolve to a compile-time value."_view,
+      "Use only fully linked constant Expressions in a const Field."_view);
+  return False;
+}
+
 auto Language::Field::validate_publication(
     Tetrodotoxin::Language::Monograph& source) const -> Bool {
   if (!get_definition().is_published()) {
@@ -326,4 +339,49 @@ auto Language::Field::get_initializer() const -> Option<const Model::Pack&> {
       [](const Model::Pack& selected) -> Option<const Model::Pack&> {
         return selected;
       });
+}
+
+auto Language::Field::get_constant() const -> Option<Model::Pack&> {
+  if (writability != Writability::Constant || !cache_constant()) {
+    return {};
+  }
+
+  return constant.visit(
+      []() -> Option<Model::Pack&> { return {}; },
+      [](const Reference<Model::Pack>& selected) -> Option<Model::Pack&> {
+        return selected.get();
+      });
+}
+
+auto Language::Field::cache_constant() const -> Bool {
+  if (constant_state == ConstantState::Folded) {
+    return True;
+  }
+  if (constant_state == ConstantState::Folding ||
+      constant_state == ConstantState::Failed) {
+    return False;
+  }
+
+  constant_state = ConstantState::Folding;
+  auto expression = initializer.visit(
+      []() -> Option<Expression&> { return {}; },
+      [](Model::Pack& selected) { return selected.select<Expression>(); });
+  if (!expression) {
+    constant_state = ConstantState::Failed;
+    return False;
+  }
+
+  expression->fold().visit(
+      [&](const Option<Model::Pack&>& folded) {
+        if (!folded) {
+          constant_state = ConstantState::Unresolved;
+          return;
+        }
+        constant = Reference<Model::Pack>(*folded);
+        constant_state = ConstantState::Folded;
+      },
+      [&](const Expression::Error&) {
+        constant_state = ConstantState::Failed;
+      });
+  return constant_state == ConstantState::Folded;
 }

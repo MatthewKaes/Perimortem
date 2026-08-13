@@ -8,7 +8,7 @@
 #include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/access/address.hpp"
-#include "tetrodotoxin/library/language/access/value.hpp"
+#include "tetrodotoxin/library/language/access/slice.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
@@ -226,8 +226,8 @@ PERIMORTEM_UNIT_TEST(
       parse_one(domain, *bounds_graph, "\"abc\":[9]"_view, bounds_errors);
   auto real = parse_one(domain, *real_graph, "\"abc\":[1.0]"_view, real_errors);
   ASSERT(bounds && real);
-  EXPECT(bounds->is<Library::Language::Access::Value>());
-  EXPECT(real->is<Library::Language::Access::Value>());
+  EXPECT(bounds->is<Library::Language::Access::Slice>());
+  EXPECT(real->is<Library::Language::Access::Slice>());
   EXPECT(bounds->link(*bounds_graph, context));
   EXPECT_NOT(real->link(*real_graph, context));
   ASSERT_EQ(real_graph->get_diagnostics().get_size(), Count(1));
@@ -246,7 +246,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, postfix_span) {
   auto value =
       parse_one(domain, *monograph, "\"abcd\":[1, 2]"_view, slice_errors);
   ASSERT(value);
-  EXPECT(value->is<Library::Language::Access::Value>());
+  EXPECT(value->is<Library::Language::Access::Slice>());
   EXPECT(matches_anchor(
       *value, "\"abcd\":[1, 2]"_view, ":["_view, "\"abcd\":[1, 2]"_view));
   EXPECT(slice_errors.is_empty());
@@ -377,7 +377,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, ordered_chain_links_after_grammar) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, embedded_source_stays_operation) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, embedded_source_stays_slice) {
   Allocator::Arena domain;
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
@@ -386,7 +386,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, embedded_source_stays_operation) {
   ASSERT(monograph);
   Errors errors;
   auto parsed = parse_one(domain, *monograph, "$[table]:[2, 4]"_view, errors);
-  ASSERT(parsed && parsed->is<Library::Language::Access::Value>());
+  ASSERT(parsed && parsed->is<Library::Language::Access::Slice>());
   EXPECT(observations.table_seen);
   EXPECT(matches_anchor(
       *parsed, "$[table]:[2, 4]"_view, ":["_view, "$[table]:[2, 4]"_view));

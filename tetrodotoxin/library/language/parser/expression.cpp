@@ -6,9 +6,9 @@
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
 #include "tetrodotoxin/library/language/access/index.hpp"
+#include "tetrodotoxin/library/language/access/slice.hpp"
 #include "tetrodotoxin/library/language/access/swizzle.hpp"
 #include "tetrodotoxin/library/language/access/type.hpp"
-#include "tetrodotoxin/library/language/access/value.hpp"
 #include "tetrodotoxin/library/language/identifier.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
@@ -36,7 +36,7 @@ using namespace Tetrodotoxin;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 
-// Prefix operators keep Value access inside their operand and stop before
+// Prefix operators keep Slice access inside their operand and stop before
 // multiplicative grammar, so concrete unary owners never replay either level.
 static constexpr Count prefix_precedence = 31;
 
@@ -78,7 +78,7 @@ static auto find_postfix(Code::Type code) -> Option<ReceiverParser> {
   case Code::Type::TypeAccessOp:
     return &Library::Language::Access::Type::parse;
   case Code::Type::ValueAccessOp:
-    return &Library::Language::Access::Value::parse;
+    return &Library::Language::Access::Slice::parse;
   default:
     return {};
   }
@@ -136,7 +136,7 @@ static auto parse_primary(
 
   if (cursor.matches(Code::Type::Type) ||
       cursor.matches(Code::Type::Addressable) ||
-      cursor.matches(Code::Type::Self)) {
+      cursor.matches(Code::Type::Self) || cursor.matches(Code::Type::Source)) {
     Token token = cursor.consume();
     return Library::Language::Identifier::create_authored(
         domain, token, cursor.get_source_text(), Anchor::create(Span(token)));

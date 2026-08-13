@@ -137,12 +137,12 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, constant_identity) {
   auto first_fold = first.fold();
   auto repeated_fold = first.fold();
   EXPECT(first_fold.visit(
-      [&](const Perimortem::Core::Option<Expression&>& selected) {
+      [&](const Perimortem::Core::Option<Model::Pack&>& selected) {
         return selected && &*selected == &first ? True : False;
       },
       [](const Expression::Error&) { return False; }));
   EXPECT(repeated_fold.visit(
-      [&](const Perimortem::Core::Option<Expression&>& selected) {
+      [&](const Perimortem::Core::Option<Model::Pack&>& selected) {
         return selected && &*selected == &first ? True : False;
       },
       [](const Expression::Error&) { return False; }));

@@ -118,12 +118,12 @@ class Expression : public Model::Pack {
 
   // Folding is a cached result of this exact Expression. The source node
   // and every authored edge remain available regardless of the selected
-  // Constant, dynamic result, or failure.
+  // constant Pack, dynamic result, or failure.
   auto fold() -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Expression&>, Error>;
+      Result<Perimortem::Core::Option<Model::Pack&>, Error>;
 
-  auto get_folded() -> Perimortem::Core::Option<Expression&>;
-  auto get_folded() const -> Perimortem::Core::Option<const Expression&>;
+  auto get_folded() -> Perimortem::Core::Option<Model::Pack&>;
+  auto get_folded() const -> Perimortem::Core::Option<const Model::Pack&>;
 
   constexpr auto get_anchor() const
       -> const Perimortem::Core::Option<Ttx::Lexical::Anchor>& {
@@ -184,14 +184,17 @@ class Expression : public Model::Pack {
   auto operator=(const Expression&) -> Expression& = delete;
   auto operator=(Expression&&) -> Expression& = delete;
 
-  virtual auto fold_uncached() -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Expression&>, Error>;
+  // Every Expression can be evaluated into an exact constant Pack. The default
+  // follows a selected const declaration result, while concrete computational
+  // owners override only the evaluation they uniquely own.
+  virtual auto evaluate() -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Model::Pack&>, Error>;
 
  private:
   Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor;
   Ttx::Model::Layouts::Ranged output_layout;
   static constexpr Ttx::Model::Layouts::Fluid empty_output;
-  Perimortem::Core::Static::Union<Expression&, Error> folded;
+  Perimortem::Core::Static::Union<Model::Pack&, Error> folded;
 };
 
 static_assert(__is_trivially_destructible(Expression::Error));

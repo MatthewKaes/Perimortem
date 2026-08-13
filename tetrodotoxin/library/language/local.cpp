@@ -28,7 +28,7 @@ auto Language::Local::interpret(
     break;
   case Code::Type::Const:
     transaction.consume();
-    writability = Writability::Init;
+    writability = Writability::Constant;
     break;
   default:
     return {};
@@ -72,6 +72,12 @@ auto Language::Local::interpret(
         BAIL_IF(!initializer);
       }
     }
+  }
+
+  if (writability == Writability::Constant && !initializer) {
+    transaction.create_token_error(
+        "Library const Locals require one compile-time initializer."_view);
+    return {};
   }
 
   Token terminator = transaction.require(
@@ -185,6 +191,7 @@ auto Language::Local::link(
     }
 
     type = Reference<const Type>(*inferred_type);
+    BAIL_IF(!link_constant(source));
     initializer_linked = True;
     return True;
   }
@@ -198,6 +205,7 @@ auto Language::Local::link(
     return False;
   }
 
+  BAIL_IF(!link_constant(source));
   initializer_linked = True;
   return True;
 }
@@ -218,4 +226,62 @@ auto Language::Local::finalize() -> void {
 auto Language::Local::resolve_context(Core::View::Bytes route) const
     -> const Abstract& {
   return host.resolve_context(route);
+}
+
+auto Language::Local::get_constant() const -> Core::Option<Model::Pack&> {
+  if (writability != Writability::Constant || !cache_constant()) {
+    return {};
+  }
+
+  return constant.visit(
+      []() -> Core::Option<Model::Pack&> { return {}; },
+      [](const Reference<Model::Pack>& selected) -> Core::Option<Model::Pack&> {
+        return selected.get();
+      });
+}
+
+auto Language::Local::link_constant(
+    Tetrodotoxin::Language::Monograph& source) const -> Bool {
+  if (writability != Writability::Constant || cache_constant()) {
+    return True;
+  }
+
+  source.report(
+      anchor,
+      "Const Local initializer did not resolve to a compile-time value."_view,
+      "Use only previously linked constant Expressions in a const Local."_view);
+  return False;
+}
+
+auto Language::Local::cache_constant() const -> Bool {
+  if (constant_state == ConstantState::Folded) {
+    return True;
+  }
+  if (constant_state == ConstantState::Folding ||
+      constant_state == ConstantState::Failed) {
+    return False;
+  }
+
+  constant_state = ConstantState::Folding;
+  auto expression = initializer.visit(
+      []() -> Core::Option<Expression&> { return {}; },
+      [](Model::Pack& selected) { return selected.select<Expression>(); });
+  if (!expression) {
+    constant_state = ConstantState::Failed;
+    return False;
+  }
+
+  expression->fold().visit(
+      [&](const Core::Option<Model::Pack&>& folded) {
+        if (!folded) {
+          constant_state = ConstantState::Unresolved;
+          return;
+        }
+        constant = Reference<Model::Pack>(*folded);
+        constant_state = ConstantState::Folded;
+      },
+      [&](const Expression::Error&) {
+        constant_state = ConstantState::Failed;
+      });
+  return constant_state == ConstantState::Folded;
 }

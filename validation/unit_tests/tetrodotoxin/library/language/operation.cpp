@@ -126,21 +126,21 @@ class TestOperation : public Operation {
 };
 
 static auto selects(
-    const Result<Option<Expression&>, Expression::Error>& result,
+    const Result<Option<Model::Pack&>, Expression::Error>& result,
     const Expression& expected) -> Bool {
   return result.visit(
-      [&](const Option<Expression&>& selected) {
+      [&](const Option<Model::Pack&>& selected) {
         return selected && &*selected == &expected ? True : False;
       },
       [](const Expression::Error&) { return False; });
 }
 
 static auto reports(
-    const Result<Option<Expression&>, Expression::Error>& result,
+    const Result<Option<Model::Pack&>, Expression::Error>& result,
     Expression::Error::Type expected,
     const Expression& expression) -> Bool {
   return result.visit(
-      [](const Option<Expression&>&) { return False; },
+      [](const Option<Model::Pack&>&) { return False; },
       [&](const Expression::Error& selected) {
         return selected.get_type() == expected &&
                        &selected.get_expression() == &expression
@@ -150,9 +150,9 @@ static auto reports(
 }
 
 static auto is_dynamic(
-    const Result<Option<Expression&>, Expression::Error>& result) -> Bool {
+    const Result<Option<Model::Pack&>, Expression::Error>& result) -> Bool {
   return result.visit(
-      [](const Option<Expression&>& selected) {
+      [](const Option<Model::Pack&>& selected) {
         return !selected ? True : False;
       },
       [](const Expression::Error&) { return False; });

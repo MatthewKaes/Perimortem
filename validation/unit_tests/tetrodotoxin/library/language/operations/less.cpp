@@ -72,14 +72,14 @@ class LessExpression : public Expression {
 };
 
 static auto selected(
-    const Result<Option<Expression&>, Expression::Error>& result)
+    const Result<Option<Model::Pack&>, Expression::Error>& result)
     -> Option<Expression&> {
   return result.visit(
-      [](const Option<Expression&>& folded) -> Option<Expression&> {
+      [](const Option<Model::Pack&>& folded) -> Option<Expression&> {
         return folded.visit(
             []() -> Option<Expression&> { return {}; },
-            [](Expression& selected) -> Option<Expression&> {
-              return selected;
+            [](Model::Pack& selected) -> Option<Expression&> {
+              return selected.select<Expression>();
             });
       },
       [](const Expression::Error&) -> Option<Expression&> { return {}; });

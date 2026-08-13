@@ -8,6 +8,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/block.hpp"
+#include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/writability.hpp"
@@ -65,7 +66,19 @@ class Local : public Ttx::Model::Addressable {
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
 
+  auto get_constant() const -> Perimortem::Core::Option<Model::Pack&>;
+
  private:
+  enum class ConstantState : Unsigned_8 {
+    Unresolved,
+    Folding,
+    Folded,
+    Failed,
+  };
+
+  auto link_constant(Tetrodotoxin::Language::Monograph& source) const -> Bool;
+  auto cache_constant() const -> Bool;
+
   constexpr Local(
       Block& host,
       Ttx::Lexical::Token name_token,
@@ -91,6 +104,9 @@ class Local : public Ttx::Model::Addressable {
   Perimortem::Core::Option<Model::Pack&> initializer;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       type;
+  mutable Perimortem::Core::Option<Ttx::Concept::Reference<Model::Pack>>
+      constant;
+  mutable ConstantState constant_state = ConstantState::Unresolved;
   Ttx::Lexical::Anchor anchor;
   Bool initializer_linked;
 };

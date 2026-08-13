@@ -23,27 +23,28 @@ Field inventory. The standard `Perimortem.Graphics` Package supplies Library
 Types such as `Image`, `Sprite`, point, size, and tone values that satisfy this
 contract.
 
-A private const Field initialized with `new` is hosted when its exact Object
+A private `state` Field initialized with `new` is hosted when its exact Object
 Type proves this contract. The Field and Object remain their real Library
 identities. Scene uses the Field's authored order and mutates the Object through
 its ordinary Library Layout. Graphics does not copy those Fields into a
 universal node record or ask Scene to author a second declaration form.
 
-The const binding makes the hosting edge stable. Aliases can still observe and
-mutate the same Object according to Library rules, but assigning an Object does
-not attach it to a second host. The hosting contract includes no implicit
-detach or reparent operation.
+The Field remains ordinary runtime state. Assignment changes the Object that a
+later submission observes through that Field. An alias may observe the same
+Object. Only a retained hosted Field creates a hosting edge.
 
-Every recursive hosting edge follows the same private const and `new` rule.
-Each hosted Object therefore has one owning edge by construction. Library
-rejects a mandatory construction cycle before any Scene instance is created.
+Every recursive hosting edge follows the same private `state` and `new` rule.
+Field identity and authored order define the traversal. The current Object
+value supplies the runtime graphics state. Library rejects a mandatory
+construction cycle before any Scene instance is created.
 
 ## Frame submission
 
 After one Scene update completes, Graphics collects the hosted subtree in stable
-Field order. Hosted Fields inside a hosted Object follow the same rule, so the
-real Object and Field relationships are also the retained tree. A second node
-hierarchy would lose the identity Scene and Library already preserve.
+Field order. Hosted Fields inside the current Object values follow the same
+rule. The resulting submission tree comes from the real Field relationships. A
+second semantic hierarchy would lose the identity Scene and Library already
+preserve.
 
 Visibility and transform compose from host to hosted value. An invisible host
 removes its complete subtree from the submission. Relative transforms are

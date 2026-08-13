@@ -220,6 +220,17 @@ PERIMORTEM_UNIT_TEST(InitializerTests, input_type_rejected) {
   EXPECT(rejects_link_without_publication(source));
 }
 
+PERIMORTEM_UNIT_TEST(InitializerTests, const_field_override_rejected) {
+  static constexpr View::Bytes source =
+      "// Const initializer ownership test.\n"
+      "dialect : Library;\n"
+      "public Session : object {\n"
+      "  public const value : Unsigned_64 = 1;\n"
+      "}\n"
+      "public invalid : Session = new(.value = 2);"_view;
+  EXPECT(rejects_link_without_publication(source));
+}
+
 PERIMORTEM_UNIT_TEST(InitializerTests, mandatory_cycle_rejected) {
   static constexpr View::Bytes source =
       "// Initializer cycle test.\n"

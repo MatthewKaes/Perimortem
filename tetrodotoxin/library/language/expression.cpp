@@ -4,6 +4,8 @@
 #include "tetrodotoxin/library/language/expression.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/local.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -86,88 +88,127 @@ auto Language::Expression::Error::get_name() const -> View::Bytes {
 }
 
 auto Language::Expression::fold() -> Perimortem::Utility::
-    Result<Perimortem::Core::Option<Expression&>, Error> {
+    Result<Perimortem::Core::Option<Language::Model::Pack&>, Error> {
   if (!folded.is_null()) {
     return folded.visit(
         []() -> Perimortem::Utility::Result<
-                 Perimortem::Core::Option<Expression&>, Error> {
-          return Perimortem::Core::Option<Expression&>{};
+                 Perimortem::Core::Option<Language::Model::Pack&>, Error> {
+          return Perimortem::Core::Option<Language::Model::Pack&>{};
         },
-        [](Expression& representation)
+        [](Language::Model::Pack& representation)
             -> Perimortem::Utility::Result<
-                Perimortem::Core::Option<Expression&>, Error> {
+                Perimortem::Core::Option<Language::Model::Pack&>, Error> {
           return representation;
         },
         [](const Error& error)
             -> Perimortem::Utility::Result<
-                Perimortem::Core::Option<Expression&>, Error> {
+                Perimortem::Core::Option<Language::Model::Pack&>, Error> {
           return error;
         });
   }
 
-  const Abstract& expression_type = get_type().resolve();
-  if (!expression_type.is<Type>()) {
-    return Perimortem::Core::Option<Expression&>{};
+  if (&resolve() == &Invalid::get_invalid()) {
+    return Perimortem::Core::Option<Language::Model::Pack&>{};
   }
 
-  auto result = fold_uncached();
+  auto result = evaluate();
   return result.visit(
-      [&](const Perimortem::Core::Option<Expression&>& selected)
+      [&](const Perimortem::Core::Option<Language::Model::Pack&>& selected)
           -> Perimortem::Utility::Result<
-              Perimortem::Core::Option<Expression&>, Error> {
+              Perimortem::Core::Option<Language::Model::Pack&>, Error> {
         if (!selected) {
-          return Perimortem::Core::Option<Expression&>{};
+          return Perimortem::Core::Option<Language::Model::Pack&>{};
         }
 
-        Expression& representation = *selected;
-        const Abstract& result_type = representation.get_type().resolve();
-        if (!representation.is<Constant>()) {
+        Language::Model::Pack& representation = *selected;
+        const Layout& representation_layout = representation.get_layout();
+        Bool constants = True;
+        for (Count index = 0; index < representation_layout.get_size();
+             index++) {
+          auto entry = representation_layout.get_abstract(index);
+          constants &= Bool(entry && entry->is<Constant>());
+        }
+        if (!constants) {
           Error error(Error::Type::InvalidConstant, *this);
           folded = error;
           return error;
         }
 
-        if (!result_type.is<Type>() || &expression_type != &result_type) {
+        const Layout& source_layout = get_layout();
+        Bool exact_shape =
+            source_layout.get_size() == representation_layout.get_size();
+        if (exact_shape && source_layout.get_size() == 1) {
+          const Abstract& expression_type = get_type().resolve();
+          const Abstract& result_type = representation.get_type().resolve();
+          exact_shape = expression_type.is<Type>() && result_type.is<Type>() &&
+                        &expression_type == &result_type;
+        } else if (exact_shape) {
+          // The authored Layout owns the output promise. A folded Pack may
+          // replace a repeated producer (such as one Slice identity) with its
+          // concrete Constant entries, so the reverse fit is not meaningful:
+          // it would ask those Constants to reproduce the source owner.
+          exact_shape = source_layout.fits(representation_layout);
+        }
+        if (!exact_shape) {
           Error error(Error::Type::ResultTypeMismatch, *this);
           folded = error;
           return error;
         }
 
         folded = representation;
-        return Perimortem::Core::Option<Expression&>(representation);
+        return Perimortem::Core::Option<Language::Model::Pack&>(representation);
       },
       [&](const Error& error)
           -> Perimortem::Utility::Result<
-              Perimortem::Core::Option<Expression&>, Error> {
+              Perimortem::Core::Option<Language::Model::Pack&>, Error> {
         folded = error;
         return error;
       });
 }
 
 auto Language::Expression::get_folded()
-    -> Perimortem::Core::Option<Expression&> {
+    -> Perimortem::Core::Option<Language::Model::Pack&> {
   return folded.visit(
-      []() -> Perimortem::Core::Option<Expression&> { return {}; },
-      [](Expression& representation) -> Perimortem::Core::Option<Expression&> {
+      []() -> Perimortem::Core::Option<Language::Model::Pack&> { return {}; },
+      [](Language::Model::Pack& representation)
+          -> Perimortem::Core::Option<Language::Model::Pack&> {
         return representation;
       },
-      [](const Error&) -> Perimortem::Core::Option<Expression&> { return {}; });
-}
-
-auto Language::Expression::get_folded() const
-    -> Perimortem::Core::Option<const Expression&> {
-  return folded.visit(
-      []() -> Perimortem::Core::Option<const Expression&> { return {}; },
-      [](const Expression& representation)
-          -> Perimortem::Core::Option<const Expression&> {
-        return representation;
-      },
-      [](const Error&) -> Perimortem::Core::Option<const Expression&> {
+      [](const Error&) -> Perimortem::Core::Option<Language::Model::Pack&> {
         return {};
       });
 }
 
-auto Language::Expression::fold_uncached() -> Perimortem::Utility::
-    Result<Perimortem::Core::Option<Expression&>, Error> {
-  return Perimortem::Core::Option<Expression&>{};
+auto Language::Expression::get_folded() const
+    -> Perimortem::Core::Option<const Language::Model::Pack&> {
+  return folded.visit(
+      []() -> Perimortem::Core::Option<const Language::Model::Pack&> {
+        return {};
+      },
+      [](const Language::Model::Pack& representation)
+          -> Perimortem::Core::Option<const Language::Model::Pack&> {
+        return representation;
+      },
+      [](const Error&)
+          -> Perimortem::Core::Option<const Language::Model::Pack&> {
+        return {};
+      });
+}
+
+auto Language::Expression::evaluate() -> Perimortem::Utility::
+    Result<Perimortem::Core::Option<Language::Model::Pack&>, Error> {
+  if (is<Constant>()) {
+    return static_cast<Language::Model::Pack&>(*this);
+  }
+
+  const Abstract& result = get_result();
+  return result.visit<Language::Field>(
+      [](const Language::Field& field) { return field.get_constant(); },
+      [](const Abstract& candidate) {
+        return candidate.visit<Language::Local>(
+            [](const Language::Local& local) { return local.get_constant(); },
+            [](const Abstract&) -> Option<Language::Model::Pack&> {
+              return {};
+            });
+      });
 }

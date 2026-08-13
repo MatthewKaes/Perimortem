@@ -67,7 +67,7 @@ They move complexity to the component that has enough information to own it.
 | Concrete semantic objects instead of one shared AST | A Dialect preserves the distinctions its language and tools actually use                  | Rich tooling must use that Dialect because the common TTX view is deliberately smaller                                                    |
 | Workspace local borrowed identity                   | Languages and consumers share one unambiguous object without copying or merging it        | References end with their Workspace and cannot become persistent handles                                                                  |
 | Interpretation, linking, and finalization barriers  | Forward references and recursive groups retain stable identity while they become complete | Consumers must respect publication and treat unanswered queries observed during construction as provisional                               |
-| Packs distinct from Layouts                         | Empty, scalar, named, and multi-value flow can remain live without an anonymous Type       | Dialects must retain producer identity separately from the descriptor used for fitting                                                      |
+| Packs distinct from Layouts                         | Empty, scalar, named, and multiple value flow can remain live without an anonymous Type    | Dialects must retain producer identity separately from the descriptor used for fitting                                                      |
 | Semantic Layout                                     | One language shape can feed CPU, GPU, interpreter, editor, and archive consumers          | Every backend must derive and validate its own physical layout                                                                            |
 | Typed Terminal products                             | Each output preserves the facts and validation contract its next consumer needs           | There is no generic product registry or common output object                                                                              |
 | Dialect owned Archive payloads                      | Source independent restoration can reconstruct equivalent observable language meaning     | A persistent Dialect must maintain and validate its reconstruction schema, while a Dialect used only from source needs no Archive payload |
@@ -94,22 +94,22 @@ qualifier, and the exact host that admits it. It remains part of the concrete
 semantic object rather than a generic declaration identity. The host supplies
 mutable transaction and access authority, not universal graph parentage or a
 canonical route. The concrete grammar owns legality and completes an authored
-Anchor; a synthetic Definition may carry a truthful owner-supplied Anchor
+Anchor. A synthetic Definition may carry a truthful Anchor supplied by its owner
 without fabricating Tokens.
 
 A concrete language may expose a completed authored Definition as
-identity-free Authorship. Library requires every Composite and Enumeration Type
+Authorship with no identity. Library requires every Composite and Enumeration Type
 to retain one Definition. Source, Structure, and Object follow that Type rule,
 while Field, Function, and authored Alias retain a Definition without changing
 their Addressable, Callable, or Alias categories. Definition contributes no
 second semantic identity or inheritance path.
 
-Every Library Monograph creates one Source Definition with reserved,
-non-emittable name `<source>`, opening Documentation, and Environment's exact
-source-envelope Anchor. It invents no Tokens and Source exposes no Authorship.
-Its host is the Monograph; ordinary members use their containing Composite.
-Import-created forwarding aliases remain synthetic TTX identities without
-Definitions.
+Every Library Monograph creates one Source Definition with the reserved name
+`<source>`, which cannot be emitted. The Definition retains the opening
+Documentation and Environment's exact source envelope Anchor. It invents no
+Tokens and Source exposes no Authorship. Its host is the Monograph. Ordinary
+members use their containing Composite. Forwarding aliases created by imports
+remain synthetic TTX identities without Definitions.
 
 Those concrete objects collectively form the shared semantic IR. The common
 part is TTX identity, category, resolution, and Layout rather than a universal
@@ -213,18 +213,18 @@ Tetrodotoxin syntax identifies the semantic question being asked:
 Every Library access evaluates the one Expression on its left. An Expression's
 exact semantic result is distinct from its output Type: the result preserves a
 selected Type or Addressable identity, while the output Type states which value
-operations apply. A Type-valued result uses the singleton `Descriptor` output
-Type without copying or wrapping the selected Type.
+operations apply. A result that selects a Type uses the singleton `Descriptor`
+output Type without copying or wrapping the selected Type.
 
 Postfix `::` is consequently a Library access Expression. Its receiver must
 produce an exact Type result, and the access produces the selected Type as its
-own result. Declaration positions instead retain an identity-free type
-reference: one contextual route with an optional Generic argument Layout. A
-Type entry may itself be another type reference, so materialization can be
-nested. Without an argument Layout, the route must resolve to a Type. With one,
+own result. Declaration positions instead retain a type reference with no
+identity. It contains one contextual route with an optional Generic argument
+Layout. A Type entry may itself be another type reference, so materialization
+can be nested. Without an argument Layout, the route must resolve to a Type. With one,
 the route must resolve to a Generic formula that materializes the exact Type
-during linking; an explicit empty Layout applies a zero-argument formula and is
-distinct from an omitted Layout. The route can cross Alias, Package, Monograph,
+during linking. An explicit empty Layout applies a formula with no arguments.
+It is distinct from an omitted Layout. The route can cross Alias, Package, Monograph,
 source root, Type, or another Abstract context after the relevant Type inventory
 exists. A declaration reference never becomes an Expression or pretends its
 intermediate contexts are Types.
@@ -234,18 +234,23 @@ spelling because the authored operator already identifies the query domain.
 Those Addressable, Callable, and Type spaces remain independent. A Composite
 rejects duplicate Callable spelling within one receiver role during
 registration, while admitting the same spelling once for Static and once for
-Self. Invocation therefore selects one registered Callable by name and role;
-it never constructs an overload set or defers ambiguity to call time.
+Self. Invocation therefore selects one registered Callable by name and role.
+It never constructs an overload set or defers ambiguity to call time.
 
-Address access asks the evaluated receiver Pack for its applicable named
-Layout. Scalar flow obtains that Layout through its output Type and identifies
-one semantic Addressable and its Type; named flow selects the real producer at
-that slot without inventing an aggregate Type. Callable access chooses
-Static when the evaluated receiver result is an exact Type and Self when the
-receiver is a typed value. A backend may materialize or eliminate a physical
-address without changing the Addressable identity. Likewise, a Function host
-grants access authority while an explicit receiver supplies the value used for
-Field selection.
+Address access selects one semantic Addressable and its Type. An Addressable
+receiver may select mutable instance storage relative to the receiver or a
+const Field owned by its Type. An exact Type receiver selects only const Fields.
+Those values complete during linking and never occupy the receiver's instance
+storage. An exact Source receiver selects mutable Static Fields with global
+construction and lifetime as well as const Fields. Arbitrary computed values do
+not provide mutable Address access. Selecting a const Field through its Type,
+an Addressable, or Source returns the same foldable identity. Named flow selects
+the real producer at its slot without inventing an aggregate Type. Callable
+access chooses Static when the evaluated receiver result is an exact Type and
+Self when the receiver is a typed value. A backend may materialize or eliminate
+a physical address without changing the Addressable identity. A Function host
+grants access authority while an explicit receiver supplies the Addressable or
+Source used for mutable Field selection.
 
 No access operator inspects an Alias target. Alias resolution may reveal the
 identity used by the requested category, but it does not transfer private
@@ -268,15 +273,17 @@ interfaces.
 
 A named descriptor slot uses `.name : Type`, while a named Pack slot uses
 `.name = expression`. Slot names remain independent from their source
-identities; fitting still returns the exact produced semantic object without
+identities. Fitting still returns the exact produced semantic object without
 renaming or wrapping it. This distinction also leaves declaration owners free
 to add a default with `.name : Type = expression` or infer one with
 `.name := expression` without confusing a descriptor with supplied flow.
 
-An empty or multi-value Pack remains flow and does not become an anonymous Type.
+An empty Pack or one with several values remains flow and does not become an
+anonymous Type.
 Atomic Types expose one exact terminal value entry. An empty Layout exposes
-none, so `Void`, `[]`, `()`, and other zero-value domains can fit across Dialect
-boundaries without a shared `Void` Type, but no Addressable can name them.
+none, so `Void`, `[]`, `()`, and other domains with no values can fit across
+Dialect boundaries without a shared `Void` Type, but no Addressable can name
+them.
 
 A compiler maps scalar abstract machine storage facts and derives target object
 layouts, ABI alignments, offsets, pointer forms, calling convention carriers,

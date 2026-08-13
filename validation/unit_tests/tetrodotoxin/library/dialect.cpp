@@ -13,10 +13,11 @@
 #include "perimortem/system/file.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
+#include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
+#include "tetrodotoxin/library/language/access/slice.hpp"
 #include "tetrodotoxin/library/language/access/swizzle.hpp"
-#include "tetrodotoxin/library/language/access/value.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
@@ -76,6 +77,31 @@ class EmptyRegistry : public Abstract {
   auto resolve_context(View::Bytes) const -> const Abstract& override {
     return Invalid::get_invalid();
   }
+};
+
+class EmbeddedResource final : public Tetrodotoxin::Language::Resource {
+ public:
+  constexpr auto get_value() const -> View::Bytes override {
+    return "0123456789ABCDEF"_view;
+  }
+};
+
+class ResourceRegistry final : public Abstract {
+ public:
+  constexpr auto get_name() const -> View::Bytes override {
+    return "ResourceRegistry"_view;
+  }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+    return route == "$[resource/hello.txt]"_view
+               ? static_cast<const Abstract&>(resource)
+               : static_cast<const Abstract&>(Invalid::get_invalid());
+  }
+
+ private:
+  EmbeddedResource resource;
 };
 
 class FutureType : public Type {
@@ -263,13 +289,19 @@ PERIMORTEM_UNIT_TEST(DialectTests, nested_missing_type_reports_authored_route) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, source_field_failures_are_reported) {
-  static constexpr Static::Vector<View::Bytes, 4> sources = {{
+  static constexpr Static::Vector<View::Bytes, 6> sources = {{
     "public broken : Missing;\npublic later : func = [] -> Void {}"_view,
     "public broken : Bool = absent;\npublic later : func = [] -> Void {}"_view,
     "public const broken : Bool = 1;\n"
     "public later : func = [] -> Void {}"_view,
     "public const broken : Unsigned_8 = 256;\n"
     "public later : func = [] -> Void {}"_view,
+    "public dynamic : Bool = false;\n"
+    "public const broken := dynamic;"_view,
+    "public Packet : struct {\n"
+    "  public dynamic : Bool = false;\n"
+    "  public const broken := dynamic;\n"
+    "}"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -698,7 +730,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, value_acceptance) {
+PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   static constexpr View::Bytes path =
       "validation/data/ttx/library/value_acceptance.ttx"_view;
   auto source = File::read(path);
@@ -741,16 +773,30 @@ PERIMORTEM_UNIT_TEST(DialectTests, value_acceptance) {
           .get_value(),
       Unsigned_64(5));
 
+  auto constant_offset = find_field(source_type, "constant_offset"_view);
+  ASSERT(constant_offset && constant_offset->get_initializer());
+  const auto& constant_offset_expression =
+      static_cast<const Language::Expression&>(
+          *constant_offset->get_initializer());
+  auto folded_offset = constant_offset_expression.get_folded();
+  ASSERT(folded_offset && folded_offset->is<Language::Constants::Unsigned>());
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*folded_offset)
+          .get_value(),
+      Unsigned_64(13));
+
   auto sequence = find_field(source_type, "sequence"_view);
   auto selected_byte = find_field(source_type, "selected_byte"_view);
   auto missing_byte = find_field(source_type, "missing_byte"_view);
   auto selected_slice = find_field(source_type, "selected_slice"_view);
   auto missing_slice = find_field(source_type, "missing_slice"_view);
+  auto constant_slice = find_field(source_type, "constant_slice"_view);
   ASSERT(sequence);
   ASSERT(selected_byte);
   ASSERT(missing_byte);
   ASSERT(selected_slice);
   ASSERT(missing_slice);
+  ASSERT(constant_slice && constant_slice->get_initializer());
   ASSERT(sequence->get_type().is<Language::Types::Range>());
   const auto& range =
       static_cast<const Language::Types::Range&>(sequence->get_type());
@@ -759,7 +805,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, value_acceptance) {
   EXPECT(&missing_byte->get_type() == &Dialect::get_unsigned_8());
   ASSERT(
       missing_byte->get_initializer() &&
-      missing_byte->get_initializer()->is<Language::Access::Value>());
+      missing_byte->get_initializer()->is<Language::Access::Slice>());
   const auto& default_expression = static_cast<const Language::Expression&>(
       *missing_byte->get_initializer());
   auto folded_default = default_expression.get_folded();
@@ -775,6 +821,31 @@ PERIMORTEM_UNIT_TEST(DialectTests, value_acceptance) {
   EXPECT(&slice_type.get_element_type() == &Dialect::get_unsigned_8());
   EXPECT_EQ(slice_type.get_extent(), Unsigned_64(2));
 
+  const auto& constant_slice_expression =
+      static_cast<const Language::Expression&>(
+          *constant_slice->get_initializer());
+  auto folded_constant_slice = constant_slice_expression.get_folded();
+  ASSERT(folded_constant_slice);
+  ASSERT_EQ(folded_constant_slice->get_layout().get_size(), Count(2));
+  auto constant_slice_first =
+      folded_constant_slice->get_layout().get_abstract(0);
+  auto constant_slice_second =
+      folded_constant_slice->get_layout().get_abstract(1);
+  ASSERT(
+      constant_slice_first &&
+      constant_slice_first->is<Language::Constants::Unsigned>());
+  ASSERT(
+      constant_slice_second &&
+      constant_slice_second->is<Language::Constants::Unsigned>());
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*constant_slice_first)
+          .get_value(),
+      Unsigned_64(0x0D));
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*constant_slice_second)
+          .get_value(),
+      Unsigned_64(0x0E));
+
   auto called = find_field(source_type, "called"_view);
   auto addressed = find_field(source_type, "addressed"_view);
   auto self_called = find_field(source_type, "self_called"_view);
@@ -788,7 +859,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, value_acceptance) {
       *addressed->get_initializer());
   const auto& self_call = static_cast<const Language::Access::Call&>(
       *self_called->get_initializer());
-  EXPECT(address.get_receiver().is<Language::Access::Call>());
+  EXPECT(address.get_receiver().get_result().is<Addressable>());
   EXPECT(&address.get_result() == &*width);
   ASSERT(self_call.get_callable());
   EXPECT(self_call.get_callable()->is_type_bound(packet));
@@ -830,6 +901,119 @@ PERIMORTEM_UNIT_TEST(DialectTests, value_acceptance) {
            .get_result() == &*width);
   EXPECT(reordered_swizzle.fits(pair));
   EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, resource_slice_folds_const_access) {
+  static constexpr View::Bytes source =
+      "public const offset : Unsigned_64 = 1;\n"
+      "public const size : Unsigned_64 = 2;\n"
+      "private folded : Fixed[Unsigned_8, 2] =\n"
+      "  $[resource/hello.txt]:[\n"
+      "    source.offset + 12,\n"
+      "    source.size\n"
+      "  ];"_view;
+  Allocator::Arena arena;
+  ResourceRegistry registry;
+  Dialect dialect;
+  Errors errors;
+  Tokenizer tokenizer(arena, source, "resource-slice-fold.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  auto interpreted = dialect.interpret(
+      arena, cursor, Documentation::get_empty(), Anchor::create(Span()),
+      registry);
+  ASSERT(interpreted && interpreted->is<Language::Monograph>());
+  auto& monograph = static_cast<Language::Monograph&>(*interpreted);
+  ASSERT(monograph.link());
+  ASSERT(monograph.finalize());
+  auto folded = find_field(monograph.get_source(), "folded"_view);
+  ASSERT(folded && folded->get_initializer());
+  const auto& slice =
+      static_cast<const Language::Expression&>(*folded->get_initializer());
+  auto constants = slice.get_folded();
+  ASSERT(constants);
+  ASSERT_EQ(constants->get_layout().get_size(), Count(2));
+  auto first = constants->get_layout().get_abstract(0);
+  auto second = constants->get_layout().get_abstract(1);
+  ASSERT(first && first->is<Language::Constants::Unsigned>());
+  ASSERT(second && second->is<Language::Constants::Unsigned>());
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*first).get_value(),
+      Unsigned_64('D'));
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*second).get_value(),
+      Unsigned_64('E'));
+  EXPECT(errors.is_empty());
+  EXPECT(monograph.get_diagnostics().is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, const_field_access_is_type_owned) {
+  static constexpr View::Bytes source =
+      "public Packet : struct {\n"
+      "  public const offset := base;\n"
+      "  public const base : Unsigned_64 = 1;\n"
+      "  public value : Unsigned_64;\n"
+      "}\n"
+      "private packet : Packet;\n"
+      "private from_type := Packet.offset + 12;\n"
+      "private from_address := packet.offset + 12;"_view;
+  Allocator::Arena arena;
+  ResourceRegistry registry;
+  Dialect dialect;
+  Errors errors;
+  Tokenizer tokenizer(arena, source, "instance-const-fold.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  auto interpreted = dialect.interpret(
+      arena, cursor, Documentation::get_empty(), Anchor::create(Span()),
+      registry);
+  ASSERT(interpreted && interpreted->is<Language::Monograph>());
+  auto& monograph = static_cast<Language::Monograph&>(*interpreted);
+  ASSERT(monograph.link());
+  const Abstract& packet_identity = monograph.resolve_context("Packet"_view);
+  ASSERT(packet_identity.is<Language::Types::Structure>());
+  const auto& packet =
+      static_cast<const Language::Types::Structure&>(packet_identity);
+  ASSERT_EQ(packet.get_layout().get_size(), Count(1));
+  auto instance_entry = packet.get_layout().get_abstract(0);
+  ASSERT(instance_entry);
+  EXPECT_TEXT(instance_entry->get_name(), "value"_view);
+  auto offset = find_field(packet, "offset"_view);
+  ASSERT(offset);
+  auto linked_constant = offset->get_constant();
+  ASSERT(linked_constant);
+  ASSERT(linked_constant->is<Language::Constants::Unsigned>());
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*linked_constant)
+          .get_value(),
+      Unsigned_64(1));
+
+  ASSERT(monograph.finalize());
+
+  auto from_type = find_field(monograph.get_source(), "from_type"_view);
+  auto from_address = find_field(monograph.get_source(), "from_address"_view);
+  ASSERT(from_type && from_type->get_initializer());
+  ASSERT(from_address && from_address->get_initializer());
+  auto type_expression =
+      from_type->get_initializer()->select<Language::Expression>();
+  auto address_expression =
+      from_address->get_initializer()->select<Language::Expression>();
+  ASSERT(type_expression);
+  ASSERT(address_expression);
+  auto type_constant = type_expression->get_folded();
+  auto address_constant = address_expression->get_folded();
+  ASSERT(type_constant && type_constant->is<Language::Constants::Unsigned>());
+  ASSERT(
+      address_constant &&
+      address_constant->is<Language::Constants::Unsigned>());
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*type_constant)
+          .get_value(),
+      Unsigned_64(13));
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*address_constant)
+          .get_value(),
+      Unsigned_64(13));
+  EXPECT(errors.is_empty());
+  EXPECT(monograph.get_diagnostics().is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, native_function_attribute_misuse) {

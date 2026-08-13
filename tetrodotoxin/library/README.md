@@ -28,7 +28,7 @@ Every Library access evaluates the one Expression on its left. An Expression
 exposes its exact semantic result separately from its output Type. Ordinary
 value operations use the output Type, while an Expression whose result is a
 semantic Type has the singleton `Descriptor` output Type. `Descriptor` does
-not wrap or copy the selected Type; the Expression result retains that exact
+not wrap or copy the selected Type. The Expression result retains that exact
 identity for the next access.
 
 Library uses punctuation to select separate semantic domains:
@@ -41,27 +41,29 @@ Library uses punctuation to select separate semantic domains:
 | `value.[names...]`                   | select and reorder named Pack values                           |
 | `access[index]`                      | produce one writable indexed address with the element Type    |
 | `value:[index]`                      | return an element value or its default                        |
-| `value:[start, count]`               | return a Ranged Pack with compile-time-known size              |
+| `value:[start, count]`               | return a Ranged Pack whose size is known during linking        |
 
 These domains never fall through to one another. A Field, Callable, and nested
 Type may share a spelling because the operator already states which category is
 being requested.
 
-A declaration that requires a Type retains an identity-free type route, not an
-access Expression. The route may carry one optional Generic argument Layout,
-and each Type entry may recursively contain another route. Without an argument
-Layout the route must select a Type; with one it must select a Generic formula
+A declaration that requires a Type retains a type route with no identity. It
+does not retain an access Expression. The route may carry one optional Generic
+argument Layout, and each Type entry may recursively contain another route.
+Without an argument
+Layout the route must select a Type. With one it must select a Generic formula
 that materializes the exact Type from those arguments. This keeps forward
 declaration routes delayed without manufacturing runtime value flow or
 conflating declaration qualification with postfix access.
 
 ### Address access
 
-`.` evaluates its receiver and asks the receiver Pack for its applicable named
-Layout. Scalar flow obtains that Layout from its output Type and selects one
-exact TTX Addressable. Named flow selects the real producer at that slot. The
-operation is not limited to Struct or Object declarations and creates no group
-Type merely to select produced flow.
+`.` evaluates its receiver and selects one exact TTX Addressable from that
+identity. An Addressable receiver can select mutable instance Fields and const
+Fields owned by its Type. An exact Type receiver can select only const Fields.
+An exact Source receiver can select its mutable Static Fields and its const
+Fields. Arbitrary computed values do not provide mutable member access. The
+operation creates no group Type.
 
 ```ttx
 packet.width
@@ -69,13 +71,20 @@ self.progress
 foreign.external_counter
 ```
 
-The selected Addressable identifies one semantic address and its Type. A
-compiler may realize it as a stack location, an offset from an inline Struct,
-an offset from an Object reference, or a folded value. Those choices do not
-change the source level selection.
+The selected mutable Addressable identifies one semantic address and its Type.
+A compiler may realize it as a stack location, an offset from an inline Struct,
+or an offset from an Object reference. A const Field instead identifies one
+value completed during linking. Selection through its Type, an Addressable
+instance, or Source returns that same foldable declaration value. It never
+creates storage relative to the receiver.
+
+Source cannot be instantiated, so its mutable Fields are Static values with
+global construction and lifetime. Structure and Object Type results expose
+only their const Field category. Mutable Fields require one exact Addressable
+receiver.
 
 The caller has private authority for every Composite in its Definition host
-chain. That chain authorizes members selected from an explicit receiver; it
+chain. That chain authorizes members selected from an explicit receiver. It
 does not supply an implicit receiver or create another lookup path. A hosted
 Function still writes `self.field` or selects the Field through another
 explicit value. A Static Function cannot read a host Field as a bare
@@ -99,7 +108,7 @@ own values. An ordinary value cannot use `::`, and `Descriptor` supplies no
 instance Layout for `.`.
 
 Contextual declaration routes through Alias, Package, Monograph, Library
-source, and Type objects remain identity-free references rather than
+source, and Type objects remain references with no identity. They do not become
 Expressions.
 
 Qualification preserves the original caller authority across every segment.
@@ -127,27 +136,28 @@ transfers private authority.
 
 Static and Self are properties of each Callable's parameter Layout. A Callable
 is Self exactly when parameter entry zero is the reserved `self` Addressable
-with the receiver's exact Type; otherwise it is Static. A Composite admits at
+with the receiver's exact Type. Otherwise it is Static. A Composite admits at
 most one Callable for each spelling and receiver role, rejecting a duplicate
 during registration. Static and Self Callables may share a spelling. The
 invocation therefore selects one registered Callable and only then fits its
-argument Pack against the remaining parameter entries; it never constructs an
-overload set or reports call-time ambiguity.
+argument Pack against the remaining parameter entries. It never constructs an
+overload set or reports ambiguity during a call.
 
 A Callable is not an Addressable and never appears in a value Layout. Callable,
 Addressable, and Type registration are independent spaces, so sharing a
 spelling across those categories creates no collision or fallback. The
 invocation is a Pack whose output follows the selected Callable's complete
-result Layout, including an empty or multi-entry Layout. A scalar consumer can
-use it only when that Pack proves one exact result Type. `->` introduces neither
+result Layout, including an empty Layout or one with several entries. A scalar
+consumer can use it only when that Pack proves one exact result Type. `->`
+introduces neither
 an implicit receiver nor a universal member resolver: `.`, `::`, and `->`
 continue to ask their distinct semantic questions.
 
 ## Packs and Layouts
 
 A Pack carries produced value flow. It retains the real producer identities and
-exposes one output Layout for directional fitting. A Layout is an identity-free
-descriptor: it promises the ordered shape accepted or exposed by a Type,
+exposes one output Layout for directional fitting. A Layout is a descriptor
+with no identity. It promises the ordered shape accepted or exposed by a Type,
 declaration, Function, or Pack. Producing several values therefore remains
 fluid Pack flow rather than materializing an anonymous aggregate Type.
 
@@ -189,11 +199,11 @@ producer without a renamed value or Alias. Keeping `:` for descriptors and `=`
 for Packs also reserves `.name : Type = expression` for an explicitly typed
 default and `.name := expression` for an inferred one.
 
-Both forms share empty, separator, trailing-comma, positional-versus-named, and
-duplicate-name rules, but they do not share one semantic owner. A Generic
-application accepts a Layout of Type references and literal Constants. A
+Both forms share rules for empty forms, separators, trailing commas, positional
+and named entries, and duplicate names. They do not share one semantic owner. A
+Generic application accepts a Layout of Type references and literal Constants. A
 Function signature accepts descriptor Types and parameter names. Parenthesized
-value flow accepts Packs. A Call requires those parentheses; another context
+value flow accepts Packs. A Call requires those parentheses. Another context
 may omit them when its grammar remains unambiguous.
 
 A receiving declaration or operation fits the Pack's complete output Layout
@@ -209,7 +219,7 @@ state dimensions : Fixed[Unsigned_64, 2] = packet.[width, height];
 
 The result is a Pack over the real selected producers. It becomes
 `Fixed[Unsigned_64, 2]` only because the receiving declaration deliberately
-materializes that Type; the swizzle itself creates no aggregate Type.
+materializes that Type. The swizzle itself creates no aggregate Type.
 
 Plain brackets are reference access on `Access[T]`. They never substitute a
 default address:
@@ -219,9 +229,9 @@ access[index]                 // optional element reference
 ```
 
 This form does not introduce a Library `Option` Type. It is an Expression whose
-one-value Pack produces a writable address with the exact element Type. Runtime
+Pack produces one writable address with the exact element Type. Runtime
 bounds determine whether that address is engaged. Assignment writes through an
-engaged address and leaves the receiver unchanged otherwise; a value consumer
+engaged address and leaves the receiver unchanged otherwise. A value consumer
 reads through the same address. Use `:[...]` when a missing element should
 instead produce the Type's default value.
 
@@ -239,7 +249,7 @@ bytes:[4, 16]
 
 The operands must still have integer Types. A scalar index that cannot represent
 a valid position selects the same safe default. A range count that does not
-constant-fold or cannot represent a supported nonnegative count is a semantic
+fold to a constant or cannot represent a supported nonnegative count is a semantic
 error, as is another operand Type.
 
 ## Built in Types
@@ -259,7 +269,7 @@ operation. Library does not silently widen, narrow, retag, or reinterpret a
 Constant to make an operation legal.
 
 Generic formulas describe reusable Type families. A formula is not itself a
-Type; applying its ordered arguments materializes one exact Type. Type arguments
+Type. Applying its ordered arguments materializes one exact Type. Type arguments
 may recursively apply another formula:
 
 ```ttx
@@ -270,12 +280,13 @@ Access[Unsigned_8]
 Range[Unsigned_64]
 ```
 
-`Fixed[T, extent]` requires its compile-time `extent` to be an exact
-`Unsigned_64` value. `View` is a borrowed contiguous view. `Access` additionally
+`Fixed[T, extent]` requires its `extent` to be an exact `Unsigned_64` value
+known during linking. `View` is a borrowed contiguous view. `Access` additionally
 carries the language's writable contiguous capability. `Range` describes a
-lazy ascending integer sequence. An explicit empty list applies a zero-argument
-formula; omitting the list instead requires the route to name a Type. Applying
-the same formula to the same semantic arguments returns the same Type identity.
+lazy ascending integer sequence. An explicit empty list applies a formula with
+no arguments. Omitting the list instead requires the route to name a Type.
+Applying the same formula to the same semantic arguments returns the same Type
+identity.
 
 ### Default values
 
@@ -290,8 +301,8 @@ from the storage chosen by a compiler.
 `Void`, Enumerations, Structs, Objects, `Fixed[T, count]`, and `Access[T]` have
 no implicit default. A missing `value:[index]` is therefore legal only when the
 exact element Type admits a default. A ranged selection instead requires one
-folded nonnegative count and produces exactly that many values; it has no
-missing-selection default. A Field initializer is an authored value and never
+folded nonnegative count and produces exactly that many values. It has no
+default for a missing selection. A Field initializer is an authored value and never
 defines a Type default for other declarations.
 
 ### Integer ranges
@@ -322,14 +333,18 @@ Composite owns member categories, Layout completion, and lifecycle barriers
 without becoming another declaration model.
 
 Each Monograph creates and retains its Source with one synthetic Definition.
-That Definition uses the reserved, non-emittable name `<source>`, exact opening
-Documentation, and truthful source-envelope Anchor supplied by Environment. It
+That Definition uses the reserved name `<source>`, which cannot be emitted. It
+also retains the exact opening Documentation and truthful source envelope
+Anchor supplied by Environment. It
 fabricates no authored Tokens, and Source exposes no authored Authorship. Its
 host is the owning Monograph and its Visibility is public.
 
-Top level Field declarations are Static Addressables owned by that Source. They
-retain the ordinary Field visibility, writability, Type, and initializer
-contracts, but never enter the source instance Layout. Root Functions may
+Top level mutable Field declarations are Static Addressables owned by that
+Source. They retain the ordinary Field visibility, mutation policy, Type, and
+initializer contracts. They have global construction and lifetime and never
+enter the empty Source instance Layout. Top level const Fields retain one value
+completed during linking and use no Source instance storage. A constant domain
+may still retain the memory needed to represent that value. Root Functions may
 resolve those exact identities as bare source names. Private Fields remain
 limited to their owning source context.
 
@@ -370,7 +385,7 @@ root Type without copying the prose or becoming a Type itself.
 The Library Monograph exposes its exact Source and installed Library Dialect
 directly, with no category scan or shadow source edge. A root Function's
 Definition host is the Source, which already reaches the Monograph that owns
-diagnostics, imports, and completion; the Function retains no duplicate source,
+diagnostics, imports, and completion. The Function retains no duplicate source,
 host, or parent edge.
 
 ## Definitions
@@ -405,28 +420,37 @@ Defined Types retain their Definition as part of the Type identity. Fields,
 Functions, and authored Aliases retain the same declaration facts while
 remaining solely Addressable, Callable, and Alias identities. Once its grammar
 is complete, an authored identity exposes the Definition's Documentation,
-complete Anchor, and publication decision as identity-free Authorship.
+complete Anchor, and publication decision as Authorship with no identity.
 
 Definition alone owns Library Visibility and authored lexical Tokens. Source's
-required synthetic Definition does not become Authorship. Import-created
-forwarding Aliases remain synthetic TTX Alias identities with no Definition.
+required synthetic Definition does not become Authorship. Forwarding Aliases
+created by imports remain synthetic TTX Alias identities with no Definition.
 
-Attributes do not choose the definition category and are never rejected merely
-because of that category. A consumer may interpret selected keys and leave all
+Attributes do not choose the definition category and are not rejected because
+of that category. A consumer may interpret selected keys and leave all
 others as authored facts. Repetition is likewise consumer policy rather than a
 shared parser error.
 
 ## Fields
 
-A Field is a TTX Addressable owned by one Composite. Structure and Object Fields
-enter the instance Layout, while Source Fields remain Static. Visibility and
-writability are independent.
+A Field is a TTX Addressable owned by one Composite. Mutable Structure and
+Object Fields enter the instance Layout. Mutable Source Fields remain Static. A
+const Field never enters the receiver's instance Layout. Its initializer must
+fold before the Abstract DAG is complete. Address access through its declaring
+Type, an Addressable instance, or Source selects the same immutable declaration
+value. Visibility and evaluation policy remain independent.
+
+A constant domain may retain memory for its completed representation. A
+default constructed Object is a valid const value only when linking can produce
+its complete immutable representation. The declaration
+`const object : SomeObject = new;` is legal only when default construction
+provides that proof during linking.
 
 A Field Type must expose at least one Layout entry because an Addressable names
 real value flow. `Void`, `Fixed[T, 0]`, and an empty Composite remain valid
-zero-value Types but cannot become Fields, named parameters, or `self`.
+Types with no values but cannot become Fields, named parameters, or `self`.
 An empty Composite can still own Static Functions and nested Types, which makes
-it a natural namespace without manufacturing a one-byte instance.
+it a natural namespace without manufacturing a value for compatibility.
 
 ```ttx
 public width : Unsigned_64 = 0;
@@ -444,19 +468,20 @@ Visibility controls selection:
 * `expose state` makes state readable externally while retaining internal write
   authority.
 
-Writability has three states:
+Evaluation policy has three states:
 
 * an ordinary Field is fully writable by callers that can select it
 * `state` is writable only when the caller's Definition host chain contains the
   declaring Type
-* `const` is writable only during initialization
+* `const` is never writable and must resolve completely at compile time
 
 Every view exposes the same Field identity. Visibility does not create a public
-copy, and writability does not change the underlying TTX Addressable.
+copy, and evaluation policy does not change the underlying TTX Addressable.
 
 A present initializer links through the Field in its containing Type's private
-context and must fit the declared Field Type. It remains one
-exact one-value Pack rather than a separate initializer inventory.
+context and must fit the declared Field Type. A const initializer must also
+fold completely during linking. It remains one exact Pack that produces one
+value rather than a separate initializer inventory.
 
 A declaration written as `name := expression` has no declared Type to fit. The
 Field retains the exact completed Type of that initializer without widening or
@@ -568,8 +593,8 @@ same integer value without becoming the same semantic identity.
 
 A Function declares one Named parameter Layout and one arbitrary result Layout
 followed by a body. `[]` is the empty parameter Layout. Every ordinary parameter
-uses `.name : Type`; only the reserved `self` entry may appear first without
-that spelling. A scalar Type is shorthand for a one-entry result Layout:
+uses `.name : Type`. Only the reserved `self` entry may appear first without
+that spelling. A scalar Type is shorthand for a result Layout with one entry:
 
 ```ttx
 public add : func = [
@@ -600,18 +625,19 @@ packet -> area()
 Static and Self Callables may share a name because their receiver roles
 distinguish the invocation. A Composite rejects a second Callable with the same
 name and role during registration, before any Call can observe the name. Both
-remain Callables reached only through `->`; the parameter Layout carries the
+remain Callables reached only through `->`. The parameter Layout carries the
 role without a second Callable category.
 
 ## Expressions and Constants
 
 Library expressions retain authored value dependencies and expose both their
 exact semantic result and output Type. The result preserves the identity
-selected by an access; the output Type states which value operations apply.
-Type-valued results use `Descriptor` as that output without replacing the
+selected by an access. The output Type states which value operations apply.
+Results that select a Type use `Descriptor` as that output without replacing the
 selected Type. Every Expression is also a Pack. Scalar expression consumers
 require one exact produced value and output Type, while calls, swizzles, and
-slices may preserve empty or multi-value output without inventing a group Type.
+slices may preserve empty output or output with several values without
+inventing a group Type.
 Constants cover Bytes, Bool, signed integers, unsigned integers, and real
 values.
 
@@ -639,10 +665,12 @@ source order. Lowering derives target blocks and branches only after the body is
 complete.
 
 A local `state` declaration creates one mutable Addressable. A local `const`
-declaration can be initialized once. An explicit Type receives and fits the
-initializer. An inferred local retains the initializer's exact completed Type
-under the same rules as an inferred Field. A local becomes visible after its
-declaration. A nested Block may shadow it with a different identity.
+declaration requires an initializer that folds completely during linking. It
+never creates mutable local storage or an assignment target. An explicit Type
+receives and fits the initializer. An inferred local retains the initializer's
+exact completed Type under the same rules as an inferred Field. A local becomes
+visible after its declaration. A nested Block may shadow it with a different
+identity.
 
 Assignment selects one exact writable Addressable. Compound assignment applies
 the corresponding exact Type operation before writing the result. Indexed
@@ -650,11 +678,11 @@ assignment writes only when its optional reference is engaged. No assignment
 falls through from Address access to Type or Callable lookup.
 
 `return` retains one Pack and fits its complete output Layout against the
-Function result Layout. `return;` and `return ();` supply empty flow;
-`return value;` supplies one value; positional and named parenthesized forms may
+Function result Layout. `return;` and `return ();` supply empty flow.
+`return value;` supplies one value. Positional and named parenthesized forms may
 supply several. Ordinary fallthrough is legal only for an empty result Layout.
 The Library `Void` Type, every other empty Type, `[]`, and `()` therefore agree
-as zero-value flow without becoming the same Type identity. A Function with a
+as flow with no values without becoming the same Type identity. A Function with a
 nonempty result must return on every reachable path.
 
 `if` and `while` consume a Pack and use its first produced value for the control
@@ -732,7 +760,7 @@ not decide whether another Function requests the same global name.
 Library lowering proves that every parameter and result Type has a complete C
 carrier for the selected target. Linker validates global symbol uniqueness over
 the complete target product before emitting native bytes. Function owns neither
-target carrier policy nor that product-wide symbol set.
+target carrier policy nor the symbol set for the complete product.
 
 A public Callable without `@abi` still participates in semantic lookup. The
 compiler gives any native carrier it needs a deterministic internal symbol

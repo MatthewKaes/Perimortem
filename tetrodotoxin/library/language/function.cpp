@@ -261,9 +261,9 @@ auto Language::Function::resolve_context(View::Bytes route) const
   const Type& host = get_host();
   return host.visit<Language::Types::Composite>(
       [&](const Language::Types::Composite& composite) -> const Abstract& {
-        // Only a Function hosted directly by Source receives bare Static
+        // Only a Function hosted directly by Source receives bare source
         // Addressables. A nested Composite grants access authority, but it
-        // never supplies an implicit receiver or leaks Source statics through
+        // never supplies an implicit receiver or leaks Source bindings through
         // the Definition host chain.
         // Signature linking uses the explicit Type resolver and never enters
         // this lexical surface. Source Addressables therefore need no lifecycle

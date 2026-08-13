@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/type.hpp"
 
@@ -37,6 +38,28 @@ static auto select_addressable(const Layout& layout, Core::View::Bytes name)
   return resolved.select<Addressable>();
 }
 
+static auto select_addressable(
+    const Language::Types::Composite& composite,
+    Core::View::Bytes name,
+    Bool constant_only = False) -> Core::Option<const Addressable&> {
+  Core::Option<const Addressable&> selected;
+  for (const Reference<Abstract>& candidate : composite.get_addressables()) {
+    if (candidate.get().get_name() != name) {
+      continue;
+    }
+
+    BAIL_IF(selected);
+    const Abstract& resolved = candidate.get().resolve();
+    auto field = resolved.select<Language::Field>();
+    if (constant_only && (!field || field->get_writability() !=
+                                        Language::Writability::Constant)) {
+      continue;
+    }
+    selected = resolved.select<Addressable>();
+  }
+  return selected;
+}
+
 auto Language::Access::Address::is_accessible(
     const Addressable& candidate,
     Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
@@ -48,8 +71,8 @@ auto Language::Access::Address::is_accessible(
                 return True;
               }
 
-              // The receiver Layout supplies the selected identity. Caller
-              // scope contributes only access authority, so it cannot invent
+              // The receiver identity supplies the selected Field category.
+              // Caller scope contributes only authority, so it cannot invent
               // a receiver or make an unrelated private Field readable.
               return access_scope.visit(
                   []() { return False; },
@@ -113,41 +136,52 @@ auto Language::Access::Address::link(
   BAIL_IF(!receiver.link(source, lexical_context, access_scope));
 
   auto source_anchor = get_anchor();
-  const Abstract& output_type = receiver.get_type();
-  auto receiver_type = output_type.select<Ttx::Model::Type>();
-  if (!receiver_type) {
-    receiver_type = output_type.resolve().select<Ttx::Model::Type>();
+  if (!name_token && addressable) {
+    // Swizzle owns selection from arbitrary value flow. Its synthetic Address
+    // already carries the exact selected Field, so it does not re-enter the
+    // authored `.` receiver rules.
+    BAIL_IF(!is_accessible(addressable->get(), access_scope));
+    return Expression::link(source, lexical_context, access_scope);
   }
 
-  return receiver_type.visit(
-      [&]() {
-        source.report(
-            source_anchor, "Address receiver did not produce one Type."_view,
-            "Use address access only on a value with a named Layout."_view);
-        return False;
-      },
-      [&](const Ttx::Model::Type& type) {
-        auto selected = select_addressable(type.get_layout(), name);
-        if (!selected || !is_accessible(*selected, access_scope)) {
-          source.report(
-              source_anchor,
-              "Address did not find one readable Addressable in the receiver "
-              "Layout."_view,
-              "Select one Addressable admitted by this receiver Type."_view);
-          return False;
-        }
+  Core::Option<const Addressable&> selected;
+  const Abstract& receiver_result = receiver.get_result();
+  auto source_type = receiver_result.select<Language::Types::Source>();
+  if (source_type) {
+    selected = select_addressable(*source_type, name);
+  } else if (
+      auto receiver_addressable = receiver_result.select<Addressable>()) {
+    const Abstract& output_type = receiver_addressable->get_type().resolve();
+    auto composite = output_type.select<Language::Types::Composite>();
+    selected = composite
+                   ? select_addressable(*composite, name)
+                   : select_addressable(
+                         receiver_addressable->get_type().get_layout(), name);
+  } else if (auto receiver_type = receiver_result.select<Ttx::Model::Type>()) {
+    auto composite = receiver_type->select<Language::Types::Composite>();
+    if (composite) {
+      selected = select_addressable(*composite, name, True);
+    }
+  }
 
-        if (addressable && &addressable->get() != &*selected) {
-          source.report(
-              source_anchor,
-              "Address cannot change its selected Addressable."_view,
-              "Keep one exact Addressable bound to this authored Token."_view);
-          return False;
-        }
+  if (!selected || !is_accessible(*selected, access_scope)) {
+    source.report(
+        source_anchor,
+        "Address did not find one readable Field for this receiver identity."_view,
+        "Use an Addressable for mutable Fields, a Type for const Fields, or "
+        "Source for either category."_view);
+    return False;
+  }
 
-        addressable = Reference<const Addressable>(*selected);
-        return Expression::link(source, lexical_context, access_scope);
-      });
+  if (addressable && &addressable->get() != &*selected) {
+    source.report(
+        source_anchor, "Address cannot change its selected Addressable."_view,
+        "Keep one exact Addressable bound to this authored Token."_view);
+    return False;
+  }
+
+  addressable = Reference<const Addressable>(*selected);
+  return Expression::link(source, lexical_context, access_scope);
 }
 
 auto Language::Access::Address::get_documentation() const

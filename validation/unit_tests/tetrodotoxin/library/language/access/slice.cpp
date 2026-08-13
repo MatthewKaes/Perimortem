@@ -1,7 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/access/value.hpp"
+#include "tetrodotoxin/library/language/access/slice.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -20,6 +20,7 @@
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/operation.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
@@ -37,10 +38,10 @@ using namespace Perimortem::Utility;
 using namespace Tetrodotoxin::Library::Language;
 using namespace Ttx::Concept;
 using namespace Validation;
-using Tetrodotoxin::Library::Language::Access::Value;
+using Tetrodotoxin::Library::Language::Access::Slice;
 
-static Harness LibraryValue = {
-  .name = "Tetrodotoxin::Library::Language::Access::Value"_view,
+static Harness LibrarySlice = {
+  .name = "Tetrodotoxin::Library::Language::Access::Slice"_view,
 };
 
 class ValueMonograph : public Tetrodotoxin::Language::Monograph {
@@ -72,8 +73,27 @@ static auto create_source(
   return static_cast<Monograph&>(*retained);
 }
 
-static auto link_operation(Operation& operation, Monograph& source) -> Bool {
-  return operation.link(source, Invalid::get_invalid());
+static auto link_expression(Expression& expression, Monograph& source) -> Bool {
+  return expression.link(source, Invalid::get_invalid());
+}
+
+static auto create_slice(
+    Allocator::Arena& domain,
+    Expression& receiver,
+    Expression& index) -> Slice& {
+  return Slice::create_authored(
+      domain, receiver, index,
+      Ttx::Lexical::Anchor::create(Ttx::Lexical::Span()));
+}
+
+static auto create_slice(
+    Allocator::Arena& domain,
+    Expression& receiver,
+    Expression& start,
+    Expression& count) -> Slice& {
+  return Slice::create_authored(
+      domain, receiver, start, count,
+      Ttx::Lexical::Anchor::create(Ttx::Lexical::Span()));
 }
 
 class ValueExpression : public Expression {
@@ -151,34 +171,42 @@ class ValueFoldOperation : public Operation {
 };
 
 static auto is_dynamic(
-    const Result<Option<Expression&>, Expression::Error>& result) -> Bool {
+    const Result<Option<Model::Pack&>, Expression::Error>& result) -> Bool {
   return result.visit(
-      [](const Option<Expression&>& selected) {
+      [](const Option<Model::Pack&>& selected) {
         return !selected ? True : False;
       },
       [](const Expression::Error&) { return False; });
 }
 
 static auto selected(
-    const Result<Option<Expression&>, Expression::Error>& result)
+    const Result<Option<Model::Pack&>, Expression::Error>& result)
     -> Option<Expression&> {
   return result.visit(
-      [](const Option<Expression&>& folded) -> Option<Expression&> {
+      [](const Option<Model::Pack&>& folded) -> Option<Expression&> {
         return folded.visit(
             []() -> Option<Expression&> { return {}; },
-            [](Expression& selected) -> Option<Expression&> {
-              return selected;
+            [](Model::Pack& selected) -> Option<Expression&> {
+              return selected.select<Expression>();
             });
       },
       [](const Expression::Error&) -> Option<Expression&> { return {}; });
 }
 
+static auto selected_pack(
+    const Result<Option<Model::Pack&>, Expression::Error>& result)
+    -> Option<Model::Pack&> {
+  return result.visit(
+      [](const Option<Model::Pack&>& folded) { return folded; },
+      [](const Expression::Error&) -> Option<Model::Pack&> { return {}; });
+}
+
 static auto reports(
-    const Result<Option<Expression&>, Expression::Error>& result,
+    const Result<Option<Model::Pack&>, Expression::Error>& result,
     Expression::Error::Type expected,
     const Expression& origin) -> Bool {
   return result.visit(
-      [](const Option<Expression&>&) { return False; },
+      [](const Option<Model::Pack&>&) { return False; },
       [&](const Expression::Error& error) {
         return error.get_type() == expected &&
                        &error.get_expression() == &origin
@@ -193,6 +221,15 @@ static auto get_unsigned(const Expression& expression) -> Option<Unsigned_64> {
         return selected.get_value();
       },
       [](const Abstract&) -> Option<Unsigned_64> { return {}; });
+}
+
+static auto get_unsigned(const Model::Pack& pack, Count index)
+    -> Option<Unsigned_64> {
+  auto entry = pack.get_layout().get_abstract(index);
+  BAIL_IF(!entry);
+  auto constant = entry->select<Constants::Unsigned>();
+  return constant ? Option<Unsigned_64>(constant->get_value())
+                  : Option<Unsigned_64>();
 }
 
 static auto get_signed(const Expression& expression) -> Option<Signed_64> {
@@ -211,7 +248,7 @@ static auto get_real(const Expression& expression) -> Option<Real_64> {
       [](const Abstract&) -> Option<Real_64> { return {}; });
 }
 
-static auto supplies_self(const Value& value, Count size) -> Bool {
+static auto supplies_self(const Slice& value, Count size) -> Bool {
   const Layout& layout = value.get_layout();
   BAIL_IF(layout.get_size() != size);
   for (Count index = 0; index < size; index++) {
@@ -221,7 +258,7 @@ static auto supplies_self(const Value& value, Count size) -> Bool {
   return True;
 }
 
-PERIMORTEM_UNIT_TEST(LibraryValue, receiver_type_selection) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type_selection) {
   Allocator::Arena domain;
   ValueMonograph context(domain);
   Tetrodotoxin::Library::Dialect dialect;
@@ -237,15 +274,17 @@ PERIMORTEM_UNIT_TEST(LibraryValue, receiver_type_selection) {
   ValueExpression view_receiver("view"_view, view);
   ValueExpression access_receiver("access"_view, access);
   ValueExpression index("index"_view, integer);
-  auto& fixed_index = Value::create_synthetic(domain, fixed_receiver, index);
-  auto& view_index = Value::create_synthetic(domain, view_receiver, index);
-  auto& access_index = Value::create_synthetic(domain, access_receiver, index);
+  auto& fixed_index = create_slice(domain, fixed_receiver, index);
+  auto& view_index = create_slice(domain, view_receiver, index);
+  auto& access_index = create_slice(domain, access_receiver, index);
 
   EXPECT(fixed_index.get_type().resolve().is<Invalid>());
-  EXPECT_NOT(fixed_index.get_anchor());
-  EXPECT(link_operation(fixed_index, source));
-  EXPECT(link_operation(view_index, source));
-  EXPECT(link_operation(access_index, source));
+  EXPECT(fixed_index.is<Expression>());
+  EXPECT_NOT(fixed_index.is<Operation>());
+  EXPECT(fixed_index.get_anchor());
+  EXPECT(link_expression(fixed_index, source));
+  EXPECT(link_expression(view_index, source));
+  EXPECT(link_expression(access_index, source));
 
   EXPECT(&fixed_index.get_type() == &element);
   EXPECT(&view_index.get_type() == &element);
@@ -255,7 +294,7 @@ PERIMORTEM_UNIT_TEST(LibraryValue, receiver_type_selection) {
   EXPECT(is_dynamic(access_index.fold()));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryValue, range_pack_shape) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, range_pack_shape) {
   Allocator::Arena domain;
   ValueMonograph context(domain);
   Tetrodotoxin::Library::Dialect dialect;
@@ -282,34 +321,28 @@ PERIMORTEM_UNIT_TEST(LibraryValue, range_pack_shape) {
   ValueFoldOperation size_operation(
       domain, fold_input, fixed_size, unsigned_integer);
   auto& fixed_dynamic =
-      Value::create_synthetic(domain, fixed_receiver, start, dynamic_size);
-  auto& view_dynamic =
-      Value::create_synthetic(domain, view_receiver, start, dynamic_size);
+      create_slice(domain, fixed_receiver, start, dynamic_size);
+  auto& view_dynamic = create_slice(domain, view_receiver, start, dynamic_size);
   auto& access_dynamic =
-      Value::create_synthetic(domain, access_receiver, start, dynamic_size);
-  auto& constant_size =
-      Value::create_synthetic(domain, fixed_receiver, start, fixed_size);
+      create_slice(domain, access_receiver, start, dynamic_size);
+  auto& constant_size = create_slice(domain, fixed_receiver, start, fixed_size);
   auto& folded_size =
-      Value::create_synthetic(domain, fixed_receiver, start, size_operation);
-  auto& view_size =
-      Value::create_synthetic(domain, view_receiver, start, fixed_size);
-  auto& access_size =
-      Value::create_synthetic(domain, access_receiver, start, fixed_size);
-  auto& single_size =
-      Value::create_synthetic(domain, fixed_receiver, start, fold_input);
-  auto& empty =
-      Value::create_synthetic(domain, fixed_receiver, start, empty_size);
+      create_slice(domain, fixed_receiver, start, size_operation);
+  auto& view_size = create_slice(domain, view_receiver, start, fixed_size);
+  auto& access_size = create_slice(domain, access_receiver, start, fixed_size);
+  auto& single_size = create_slice(domain, fixed_receiver, start, fold_input);
+  auto& empty = create_slice(domain, fixed_receiver, start, empty_size);
 
   EXPECT(fixed_dynamic.get_type().resolve().is<Invalid>());
-  EXPECT(!link_operation(fixed_dynamic, source));
-  EXPECT(!link_operation(view_dynamic, source));
-  EXPECT(!link_operation(access_dynamic, source));
-  EXPECT(link_operation(constant_size, source));
-  EXPECT(link_operation(folded_size, source));
-  EXPECT(link_operation(view_size, source));
-  EXPECT(link_operation(access_size, source));
-  EXPECT(link_operation(single_size, source));
-  EXPECT(link_operation(empty, source));
+  EXPECT(!link_expression(fixed_dynamic, source));
+  EXPECT(!link_expression(view_dynamic, source));
+  EXPECT(!link_expression(access_dynamic, source));
+  EXPECT(link_expression(constant_size, source));
+  EXPECT(link_expression(folded_size, source));
+  EXPECT(link_expression(view_size, source));
+  EXPECT(link_expression(access_size, source));
+  EXPECT(link_expression(single_size, source));
+  EXPECT(link_expression(empty, source));
 
   auto folded_result = folded_size.fold();
 
@@ -332,7 +365,7 @@ PERIMORTEM_UNIT_TEST(LibraryValue, range_pack_shape) {
   EXPECT(empty.get_layout().fits(no_values.get_layout()));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryValue, scalar_fold_and_range_provenance) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_fold_and_range_provenance) {
   Allocator::Arena domain;
   ValueMonograph context(domain);
   Tetrodotoxin::Library::Dialect dialect;
@@ -349,41 +382,54 @@ PERIMORTEM_UNIT_TEST(LibraryValue, scalar_fold_and_range_provenance) {
   auto& two = Constants::Unsigned::create_synthetic(domain, integer, 2);
   auto& four = Constants::Unsigned::create_synthetic(domain, integer, 4);
   auto& six = Constants::Unsigned::create_synthetic(domain, integer, 6);
-  auto& index = Value::create_synthetic(domain, bytes, one);
-  auto& full = Value::create_synthetic(domain, bytes, zero, six);
-  auto& interior = Value::create_synthetic(domain, bytes, one, four);
-  auto& empty = Value::create_synthetic(domain, bytes, two, zero);
-  auto& terminal_empty = Value::create_synthetic(domain, bytes, six, zero);
+  auto& index = create_slice(domain, bytes, one);
+  auto& full = create_slice(domain, bytes, zero, six);
+  auto& interior = create_slice(domain, bytes, one, four);
+  auto& empty = create_slice(domain, bytes, two, zero);
+  auto& terminal_empty = create_slice(domain, bytes, six, zero);
 
   EXPECT(index.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(index, source));
-  EXPECT(link_operation(full, source));
-  EXPECT(link_operation(interior, source));
-  EXPECT(link_operation(empty, source));
-  EXPECT(link_operation(terminal_empty, source));
+  EXPECT(link_expression(index, source));
+  EXPECT(link_expression(full, source));
+  EXPECT(link_expression(interior, source));
+  EXPECT(link_expression(empty, source));
+  EXPECT(link_expression(terminal_empty, source));
 
   auto indexed = selected(index.fold());
-  auto full_value = full.fold();
-  auto interior_value = interior.fold();
-  auto empty_value = empty.fold();
-  auto terminal_value = terminal_empty.fold();
+  auto full_value = selected_pack(full.fold());
+  auto interior_value = selected_pack(interior.fold());
+  auto empty_value = selected_pack(empty.fold());
+  auto terminal_value = selected_pack(terminal_empty.fold());
   auto indexed_byte = indexed ? get_unsigned(*indexed) : Option<Unsigned_64>();
 
   ASSERT(indexed);
   EXPECT(indexed->is<Constants::Unsigned>());
   EXPECT(indexed_byte && *indexed_byte == Unsigned_64('b'));
   EXPECT(&indexed->get_type() == &element);
-  EXPECT(is_dynamic(full_value));
-  EXPECT(is_dynamic(interior_value));
-  EXPECT(is_dynamic(empty_value));
-  EXPECT(is_dynamic(terminal_value));
+  ASSERT(full_value);
+  ASSERT(interior_value);
+  ASSERT(empty_value);
+  ASSERT(terminal_value);
+  EXPECT_EQ(full_value->get_layout().get_size(), 6);
+  EXPECT_EQ(interior_value->get_layout().get_size(), 4);
+  EXPECT_EQ(empty_value->get_layout().get_size(), 0);
+  EXPECT_EQ(terminal_value->get_layout().get_size(), 0);
+  auto full_first = get_unsigned(*full_value, 0);
+  auto full_last = get_unsigned(*full_value, 5);
+  auto interior_first = get_unsigned(*interior_value, 0);
+  auto interior_last = get_unsigned(*interior_value, 3);
+  ASSERT(full_first && full_last && interior_first && interior_last);
+  EXPECT_EQ(*full_first, Unsigned_64('a'));
+  EXPECT_EQ(*full_last, Unsigned_64('f'));
+  EXPECT_EQ(*interior_first, Unsigned_64('b'));
+  EXPECT_EQ(*interior_last, Unsigned_64('e'));
   EXPECT(supplies_self(full, 6));
   EXPECT(supplies_self(interior, 4));
   EXPECT(supplies_self(empty, 0));
   EXPECT(supplies_self(terminal_empty, 0));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryValue, partial_folding) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, partial_folding) {
   Allocator::Arena domain;
   ValueMonograph context(domain);
   Tetrodotoxin::Library::Dialect dialect;
@@ -400,19 +446,16 @@ PERIMORTEM_UNIT_TEST(LibraryValue, partial_folding) {
   auto& bytes = Constants::Bytes::create_synthetic(domain, fixed, "abcd"_view);
   auto& zero = Constants::Unsigned::create_synthetic(domain, integer, 0);
   auto& two = Constants::Unsigned::create_synthetic(domain, integer, 2);
-  auto& receiver_partial =
-      Value::create_synthetic(domain, dynamic_receiver, zero);
-  auto& index_partial = Value::create_synthetic(domain, bytes, dynamic_index);
-  auto& start_partial =
-      Value::create_synthetic(domain, bytes, dynamic_start, two);
-  auto& size_partial =
-      Value::create_synthetic(domain, bytes, zero, dynamic_size);
+  auto& receiver_partial = create_slice(domain, dynamic_receiver, zero);
+  auto& index_partial = create_slice(domain, bytes, dynamic_index);
+  auto& start_partial = create_slice(domain, bytes, dynamic_start, two);
+  auto& size_partial = create_slice(domain, bytes, zero, dynamic_size);
 
   EXPECT(receiver_partial.get_type().resolve().is<Invalid>());
-  EXPECT(link_operation(receiver_partial, source));
-  EXPECT(link_operation(index_partial, source));
-  EXPECT(link_operation(start_partial, source));
-  EXPECT(!link_operation(size_partial, source));
+  EXPECT(link_expression(receiver_partial, source));
+  EXPECT(link_expression(index_partial, source));
+  EXPECT(link_expression(start_partial, source));
+  EXPECT(!link_expression(size_partial, source));
 
   EXPECT(is_dynamic(receiver_partial.fold()));
   EXPECT(is_dynamic(index_partial.fold()));
@@ -424,7 +467,7 @@ PERIMORTEM_UNIT_TEST(LibraryValue, partial_folding) {
   EXPECT(size_partial.get_type().is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryValue, operand_rejection_and_safe_bounds) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, operand_rejection_and_safe_bounds) {
   Allocator::Arena domain;
   ValueMonograph context(domain);
   Tetrodotoxin::Library::Dialect dialect;
@@ -446,34 +489,33 @@ PERIMORTEM_UNIT_TEST(LibraryValue, operand_rejection_and_safe_bounds) {
   auto& negative =
       Constants::Signed::create_synthetic(domain, signed_integer, -1);
   auto& flag = Constants::True::create_synthetic(domain, flag_type);
-  auto& invalid_receiver = Value::create_synthetic(domain, flag, zero);
-  auto& invalid_operand = Value::create_synthetic(domain, bytes, flag);
-  auto& invalid_count = Value::create_synthetic(domain, bytes, zero, flag);
-  auto& negative_index = Value::create_synthetic(domain, bytes, negative);
-  auto& maximum_index = Value::create_synthetic(domain, bytes, maximum);
-  auto& maximum_range = Value::create_synthetic(domain, bytes, zero, maximum);
-  auto& negative_start = Value::create_synthetic(domain, bytes, negative, two);
-  auto& negative_size = Value::create_synthetic(domain, bytes, zero, negative);
-  auto& index_bounds = Value::create_synthetic(domain, bytes, three);
+  auto& invalid_receiver = create_slice(domain, flag, zero);
+  auto& invalid_operand = create_slice(domain, bytes, flag);
+  auto& invalid_count = create_slice(domain, bytes, zero, flag);
+  auto& negative_index = create_slice(domain, bytes, negative);
+  auto& maximum_index = create_slice(domain, bytes, maximum);
+  auto& maximum_range = create_slice(domain, bytes, zero, maximum);
+  auto& negative_start = create_slice(domain, bytes, negative, two);
+  auto& negative_size = create_slice(domain, bytes, zero, negative);
+  auto& index_bounds = create_slice(domain, bytes, three);
   ValueFoldOperation nested_index(domain, zero, three, integer);
-  auto& nested_index_bounds =
-      Value::create_synthetic(domain, bytes, nested_index);
-  auto& start_bounds = Value::create_synthetic(domain, bytes, four, zero);
-  auto& size_bounds = Value::create_synthetic(domain, bytes, two, two);
+  auto& nested_index_bounds = create_slice(domain, bytes, nested_index);
+  auto& start_bounds = create_slice(domain, bytes, four, zero);
+  auto& size_bounds = create_slice(domain, bytes, two, two);
 
   EXPECT(invalid_receiver.get_type().resolve().is<Invalid>());
-  EXPECT(!link_operation(invalid_receiver, source));
-  EXPECT(!link_operation(invalid_operand, source));
-  EXPECT(!link_operation(invalid_count, source));
-  EXPECT(link_operation(negative_index, source));
-  EXPECT(link_operation(maximum_index, source));
-  EXPECT(link_operation(maximum_range, source));
-  EXPECT(link_operation(negative_start, source));
-  EXPECT(!link_operation(negative_size, source));
-  EXPECT(link_operation(index_bounds, source));
-  EXPECT(link_operation(nested_index_bounds, source));
-  EXPECT(link_operation(start_bounds, source));
-  EXPECT(link_operation(size_bounds, source));
+  EXPECT(!link_expression(invalid_receiver, source));
+  EXPECT(!link_expression(invalid_operand, source));
+  EXPECT(!link_expression(invalid_count, source));
+  EXPECT(link_expression(negative_index, source));
+  EXPECT(link_expression(maximum_index, source));
+  EXPECT(link_expression(maximum_range, source));
+  EXPECT(link_expression(negative_start, source));
+  EXPECT(!link_expression(negative_size, source));
+  EXPECT(link_expression(index_bounds, source));
+  EXPECT(link_expression(nested_index_bounds, source));
+  EXPECT(link_expression(start_bounds, source));
+  EXPECT(link_expression(size_bounds, source));
 
   EXPECT(is_dynamic(invalid_receiver.fold()));
   EXPECT(is_dynamic(invalid_operand.fold()));
@@ -518,7 +560,7 @@ PERIMORTEM_UNIT_TEST(LibraryValue, operand_rejection_and_safe_bounds) {
   EXPECT(&invalid_count.get_type() == &Invalid::get_invalid());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryValue, scalar_defaults) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_defaults) {
   Allocator::Arena domain;
   ValueMonograph context(domain);
   Tetrodotoxin::Library::Dialect dialect;
@@ -539,13 +581,13 @@ PERIMORTEM_UNIT_TEST(LibraryValue, scalar_defaults) {
   auto& real_bytes =
       Constants::Bytes::create_synthetic(domain, real_values, {});
   auto& zero = Constants::Unsigned::create_synthetic(domain, index_type, 0);
-  auto& boolean_default = Value::create_synthetic(domain, boolean_bytes, zero);
-  auto& signed_default = Value::create_synthetic(domain, signed_bytes, zero);
-  auto& real_default = Value::create_synthetic(domain, real_bytes, zero);
+  auto& boolean_default = create_slice(domain, boolean_bytes, zero);
+  auto& signed_default = create_slice(domain, signed_bytes, zero);
+  auto& real_default = create_slice(domain, real_bytes, zero);
 
-  EXPECT(link_operation(boolean_default, source));
-  EXPECT(link_operation(signed_default, source));
-  EXPECT(link_operation(real_default, source));
+  EXPECT(link_expression(boolean_default, source));
+  EXPECT(link_expression(signed_default, source));
+  EXPECT(link_expression(real_default, source));
 
   auto boolean_value = selected(boolean_default.fold());
   auto signed_value = selected(signed_default.fold());
@@ -554,7 +596,9 @@ PERIMORTEM_UNIT_TEST(LibraryValue, scalar_defaults) {
       signed_value ? get_signed(*signed_value) : Option<Signed_64>();
   auto real_payload = real_value ? get_real(*real_value) : Option<Real_64>();
 
-  ASSERT(boolean_value && signed_payload && real_payload);
+  ASSERT(boolean_value);
+  ASSERT(signed_payload);
+  ASSERT(real_payload);
   EXPECT(boolean_value->is<Constants::False>());
   EXPECT(*signed_payload == 0);
   EXPECT(*real_payload == 0.0);
@@ -563,7 +607,7 @@ PERIMORTEM_UNIT_TEST(LibraryValue, scalar_defaults) {
   EXPECT(&real_value->get_type() == &real);
 }
 
-PERIMORTEM_UNIT_TEST(LibraryValue, unsupported_default_and_payload) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, unsupported_default_and_payload) {
   Allocator::Arena domain;
   ValueMonograph context(domain);
   Tetrodotoxin::Library::Dialect dialect;
@@ -580,13 +624,13 @@ PERIMORTEM_UNIT_TEST(LibraryValue, unsupported_default_and_payload) {
   auto& one = Constants::Unsigned::create_synthetic(domain, integer, 1);
   auto& negative =
       Constants::Signed::create_synthetic(domain, signed_integer, -1);
-  auto& missing = Value::create_synthetic(domain, bytes, one);
-  auto& unsupported = Value::create_synthetic(domain, opaque, zero);
-  auto& safe_range = Value::create_synthetic(domain, opaque, negative, one);
+  auto& missing = create_slice(domain, bytes, one);
+  auto& unsupported = create_slice(domain, opaque, zero);
+  auto& safe_range = create_slice(domain, opaque, negative, one);
 
-  EXPECT(link_operation(missing, source));
-  EXPECT(link_operation(unsupported, source));
-  EXPECT(link_operation(safe_range, source));
+  EXPECT(link_expression(missing, source));
+  EXPECT(link_expression(unsupported, source));
+  EXPECT(link_expression(safe_range, source));
 
   EXPECT(reports(
       missing.fold(), Expression::Error::Type::InvalidConstant, missing));
@@ -598,7 +642,7 @@ PERIMORTEM_UNIT_TEST(LibraryValue, unsupported_default_and_payload) {
   EXPECT(&unsupported.get_type() == &unsupported_element);
 }
 
-PERIMORTEM_UNIT_TEST(LibraryValue, child_failure_propagates) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, child_failure_propagates) {
   Allocator::Arena domain;
   ValueMonograph context(domain);
   Tetrodotoxin::Library::Dialect dialect;
@@ -612,9 +656,9 @@ PERIMORTEM_UNIT_TEST(LibraryValue, child_failure_propagates) {
   auto& zero = Constants::Unsigned::create_synthetic(domain, integer, 0);
   auto& one = Constants::Unsigned::create_synthetic(domain, integer, 1);
   ValueFoldOperation failing(domain, zero, one, integer, True);
-  auto& access = Value::create_synthetic(domain, bytes, failing);
+  auto& access = create_slice(domain, bytes, failing);
 
-  EXPECT(link_operation(access, source));
+  EXPECT(link_expression(access, source));
 
   auto direct = failing.fold();
   auto propagated = access.fold();

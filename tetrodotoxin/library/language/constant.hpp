@@ -52,11 +52,6 @@ class Constant : public Expression {
     return lhs_type.is<Ttx::Model::Type>() && rhs_type.is<Ttx::Model::Type>() &&
            &lhs_type == &rhs_type;
   }
-
-  auto fold_uncached() -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Expression&>, Error> override {
-    return Perimortem::Core::Option<Expression&>(*this);
-  }
 };
 
 }  // namespace Tetrodotoxin::Library::Language

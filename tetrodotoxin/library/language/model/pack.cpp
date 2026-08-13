@@ -13,47 +13,51 @@ using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-namespace {
-
-class Group;
-
-class GroupLayout final : public Layout {
- public:
-  struct Selection {
-    Count entry;
-    Count value;
-  };
-
-  constexpr GroupLayout(const Group& group) : group(group) {}
-
-  auto get_size() const -> Count override;
-  auto get_abstract(Count index) const
-      -> Core::Option<const Abstract&> override;
-  auto get_name(Count index) const -> Core::Option<Core::View::Bytes> override;
-  auto fits_entry(const Layout& target, Count source, Count target_index) const
-      -> Bool override;
-  auto fits_at(const Layout& target, Count target_offset) const
-      -> Bool override;
-  auto get_fitted_at(
-      const Layout& target,
-      Count target_offset,
-      Count target_index) const
-      -> Utility::Result<const Abstract&, Errors> override;
-
- private:
-  auto select(Count index) const -> Core::Option<Selection>;
-
-  const Group& group;
-};
-
 class Group final : public Language::Model::Pack {
  public:
+  class Layout final : public Ttx::Concept::Layout {
+   public:
+    struct Selection {
+      Count entry;
+      Count value;
+    };
+
+    constexpr Layout(const Group& group) : group(group) {}
+
+    auto get_size() const -> Count override;
+    auto get_abstract(Count index) const
+        -> Core::Option<const Abstract&> override;
+    auto get_name(Count index) const
+        -> Core::Option<Core::View::Bytes> override;
+    auto fits_entry(
+        const Ttx::Concept::Layout& target,
+        Count source,
+        Count target_index) const -> Bool override;
+    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
+        -> Bool override;
+    auto get_fitted_at(
+        const Ttx::Concept::Layout& target,
+        Count target_offset,
+        Count target_index) const
+        -> Utility::Result<const Abstract&, Errors> override;
+
+   private:
+    auto select(Count index) const -> Core::Option<Selection>;
+
+    const Group& group;
+  };
+
   Group(
       Memory::Allocator::Arena& domain,
       Core::View::Vector<Reference<Language::Model::Pack>> source_entries,
       Core::View::Vector<Core::View::Bytes> source_names,
-      Core::Option<Ttx::Lexical::Anchor> anchor)
-      : entries(domain), names(domain), anchor(anchor), layout(*this) {
+      Core::Option<Ttx::Lexical::Anchor> anchor,
+      Bool linked = False)
+      : entries(domain),
+        names(domain),
+        anchor(anchor),
+        layout(*this),
+        linked(linked) {
     entries.reset(source_entries.get_size());
     for (const Reference<Language::Model::Pack>& entry : source_entries) {
       entries.insert(entry);
@@ -101,7 +105,9 @@ class Group final : public Language::Model::Pack {
     return True;
   }
 
-  auto get_layout() const -> const Layout& override { return layout; }
+  auto get_layout() const -> const Ttx::Concept::Layout& override {
+    return layout;
+  }
 
   auto resolve() const -> const Abstract& override {
     return linked ? static_cast<const Language::Model::Pack&>(*this)
@@ -117,11 +123,11 @@ class Group final : public Language::Model::Pack {
   Memory::Managed::Vector<Reference<Language::Model::Pack>> entries;
   Memory::Managed::Vector<Core::View::Bytes> names;
   Core::Option<Ttx::Lexical::Anchor> anchor;
-  GroupLayout layout;
+  Layout layout;
   Bool linked = False;
 };
 
-auto GroupLayout::get_size() const -> Count {
+auto Group::Layout::get_size() const -> Count {
   if (!group.names.is_empty()) {
     return group.entries.get_size();
   }
@@ -133,7 +139,7 @@ auto GroupLayout::get_size() const -> Count {
   return size;
 }
 
-auto GroupLayout::select(Count index) const -> Core::Option<Selection> {
+auto Group::Layout::select(Count index) const -> Core::Option<Selection> {
   if (!group.names.is_empty()) {
     BAIL_IF(index >= group.entries.get_size());
     return Selection{index, 0};
@@ -150,7 +156,7 @@ auto GroupLayout::select(Count index) const -> Core::Option<Selection> {
   return {};
 }
 
-auto GroupLayout::get_abstract(Count index) const
+auto Group::Layout::get_abstract(Count index) const
     -> Core::Option<const Abstract&> {
   auto selected = select(index);
   BAIL_IF(!selected);
@@ -160,7 +166,7 @@ auto GroupLayout::get_abstract(Count index) const
       .get_abstract(selected->value);
 }
 
-auto GroupLayout::get_name(Count index) const
+auto Group::Layout::get_name(Count index) const
     -> Core::Option<Core::View::Bytes> {
   BAIL_IF(group.names.is_empty() || index >= group.names.get_size());
   return group.names.at(index);
@@ -180,8 +186,8 @@ static auto get_target_name(const Layout& target, Count index)
       });
 }
 
-auto GroupLayout::fits_entry(
-    const Layout& target,
+auto Group::Layout::fits_entry(
+    const Ttx::Concept::Layout& target,
     Count source,
     Count target_index) const -> Bool {
   BAIL_IF(source >= get_size() || target_index >= target.get_size());
@@ -199,8 +205,9 @@ auto GroupLayout::fits_entry(
       .fits_entry(target, selected->value, target_index);
 }
 
-auto GroupLayout::fits_at(const Layout& target, Count target_offset) const
-    -> Bool {
+auto Group::Layout::fits_at(
+    const Ttx::Concept::Layout& target,
+    Count target_offset) const -> Bool {
   BAIL_IF(!has_target_segment(target, target_offset));
 
   if (group.names.is_empty()) {
@@ -229,8 +236,8 @@ auto GroupLayout::fits_at(const Layout& target, Count target_offset) const
   return True;
 }
 
-auto GroupLayout::get_fitted_at(
-    const Layout& target,
+auto Group::Layout::get_fitted_at(
+    const Ttx::Concept::Layout& target,
     Count target_offset,
     Count target_index) const -> Utility::Result<const Abstract&, Errors> {
   if (target_index >= get_size()) {
@@ -274,8 +281,6 @@ auto GroupLayout::get_fitted_at(
               -> Utility::Result<const Abstract&, Errors> { return entry; });
 }
 
-}  // namespace
-
 auto Language::Model::Pack::get_type() const -> const Abstract& {
   const Layout& layout = get_layout();
   if (layout.get_size() != 1) {
@@ -289,10 +294,12 @@ auto Language::Model::Pack::get_type() const -> const Abstract& {
         if (pack) {
           return pack->get_type();
         }
+
         auto addressable = entry.select<Addressable>();
         if (addressable) {
           return addressable->get_type();
         }
+
         auto type = entry.select<Type>();
         return type ? static_cast<const Abstract&>(*type)
                     : static_cast<const Abstract&>(Invalid::get_invalid());
@@ -422,4 +429,12 @@ auto Language::Model::Pack::create_group(
     Core::View::Vector<Core::View::Bytes> names,
     Core::Option<Ttx::Lexical::Anchor> anchor) -> Pack& {
   return domain.construct<Group>(domain, entries, names, anchor);
+}
+
+auto Language::Model::Pack::create_folded(
+    Memory::Allocator::Arena& domain,
+    Core::View::Vector<Reference<Pack>> entries) -> Pack& {
+  return domain.construct<Group>(
+      domain, entries, Core::View::Vector<Core::View::Bytes>(),
+      Core::Option<Ttx::Lexical::Anchor>(), True);
 }

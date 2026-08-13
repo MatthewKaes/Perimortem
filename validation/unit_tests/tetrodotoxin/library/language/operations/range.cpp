@@ -75,7 +75,7 @@ class RangeExpression : public Expression {
 
 static auto fold_is_dynamic(Operations::Range& range) -> Bool {
   return range.fold().visit(
-      [](const Option<Expression&>& selected) { return Bool(!selected); },
+      [](const Option<Model::Pack&>& selected) { return Bool(!selected); },
       [](const Expression::Error&) { return False; });
 }
 

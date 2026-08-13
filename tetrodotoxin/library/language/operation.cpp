@@ -102,8 +102,8 @@ auto Language::Operation::finalize() -> void {
   Expression::finalize();
 }
 
-auto Language::Operation::fold_uncached()
-    -> Utility::Result<Core::Option<Expression&>, Expression::Error> {
+auto Language::Operation::evaluate()
+    -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
   Bool all_reached_folded = True;
   for (Count i = 0; i < inputs.get_size(); i++) {
     auto child_result = fold_input(i);
@@ -126,21 +126,20 @@ auto Language::Operation::fold_uncached()
   }
 
   if (!all_reached_folded) {
-    return Core::Option<Expression&>{};
+    return Core::Option<Model::Pack&>{};
   }
 
-  auto evaluated = evaluate_constants(domain);
-  return evaluated.visit(
-      [](const Core::Option<Constant&>& selected)
-          -> Utility::Result<Core::Option<Expression&>, Expression::Error> {
-        return selected.visit(
-            []() -> Core::Option<Expression&> { return {}; },
-            [](Constant& constant) -> Core::Option<Expression&> {
-              return constant;
+  return evaluate_constants(domain).visit(
+      [](const Core::Option<Constant&>& constant)
+          -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
+        return constant.visit(
+            []() -> Core::Option<Model::Pack&> { return {}; },
+            [](Constant& selected) -> Core::Option<Model::Pack&> {
+              return selected;
             });
       },
       [](const Expression::Error& error)
-          -> Utility::Result<Core::Option<Expression&>, Expression::Error> {
+          -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
         return error;
       });
 }
@@ -157,7 +156,26 @@ auto Language::Operation::fold_input(Count index)
     return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
-  return input->fold();
+  return input->fold().visit(
+      [](const Core::Option<Model::Pack&>& folded)
+          -> Utility::Result<Core::Option<Expression&>, Expression::Error> {
+        return folded.visit(
+            []() -> Utility::Result<
+                     Core::Option<Expression&>, Expression::Error> {
+              return Core::Option<Expression&>{};
+            },
+            [](Model::Pack& selected)
+                -> Utility::Result<
+                    Core::Option<Expression&>, Expression::Error> {
+              auto expression = selected.select<Expression>();
+              return expression ? Core::Option<Expression&>(*expression)
+                                : Core::Option<Expression&>{};
+            });
+      },
+      [](const Expression::Error& error)
+          -> Utility::Result<Core::Option<Expression&>, Expression::Error> {
+        return error;
+      });
 }
 
 auto Language::Operation::get_folded_input(Count index)
@@ -165,7 +183,9 @@ auto Language::Operation::get_folded_input(Count index)
   auto input = get_input(index);
   BAIL_IF(!input);
 
-  return input->get_folded();
+  auto folded = input->get_folded();
+  BAIL_IF(!folded);
+  return folded->select<Expression>();
 }
 
 auto Language::Operation::get_input(Count index) -> Core::Option<Expression&> {

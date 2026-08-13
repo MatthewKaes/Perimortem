@@ -361,8 +361,9 @@ auto Types::Composite::complete_field_layout() -> void {
   Managed::Vector<Reference<const Abstract>> fields(domain);
   fields.reset(addressables.get_size());
   for (const Reference<Abstract>& binding : addressables.get_view()) {
-    if (binding.get().is<Field>()) {
-      fields.insert(binding.get());
+    auto field = binding.get().select<Field>();
+    if (field && field->get_writability() != Writability::Constant) {
+      fields.insert(*field);
     }
   }
   layout = domain.construct<Ttx::Model::Layouts::Named>(fields.get_view());
@@ -386,6 +387,15 @@ auto Types::Composite::link_initializers() -> Bool {
       [](Composite& composite) { return composite.link_initializers(); });
   failed |= !visit_each<Field>(addressables.get_view(), [&](Field& field) {
     return field.link_initializer(source);
+  });
+
+  BAIL_IF(failed);
+
+  // Every initializer Expression is linked before const folding begins. A
+  // const Field may therefore depend on any other acyclic const Field in this
+  // Composite without declaration order becoming semantic.
+  failed |= !visit_each<Field>(addressables.get_view(), [&](Field& field) {
+    return field.link_constant(source);
   });
 
   BAIL_IF(failed);

@@ -289,7 +289,7 @@ PERIMORTEM_UNIT_TEST(CallTests, definition_host_grants_private_authority) {
       "private denied := VaultAlias -> secret();"_view));
 }
 
-PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_single_result_chaining) {
+PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
   static constexpr View::Bytes source =
       "// Call result flow test.\n"
       "dialect : Library;\n"
@@ -309,7 +309,7 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_single_result_chaining) {
       "  }\n"
       "}\n"
       "private seed : Packet;\n"
-      "private selected := Results -> identity(seed).value;\n"
+      "private selected := seed.value;\n"
       "private observe : func = [] -> Void {\n"
       "  Results -> none();\n"
       "  Results -> one();\n"
@@ -375,7 +375,33 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_single_result_chaining) {
   ASSERT(selected->get_initializer()->is<Language::Access::Address>());
   const auto& address = static_cast<const Language::Access::Address&>(
       *selected->get_initializer());
-  EXPECT(address.get_receiver().is<Language::Access::Call>());
+  EXPECT(address.get_receiver().get_result().is<Ttx::Model::Addressable>());
   EXPECT(&selected->get_type() == &Dialect::get_unsigned_64());
   EXPECT(errors.is_empty());
+
+  static constexpr View::Bytes invalid_source =
+      "// Computed result Address test.\n"
+      "dialect : Library;\n"
+      "public Packet : struct { public value : Unsigned_64; }\n"
+      "public Results : struct {\n"
+      "  public identity : func = [.packet : Packet] -> Packet {\n"
+      "    return packet;\n"
+      "  }\n"
+      "}\n"
+      "private seed : Packet;\n"
+      "private invalid := Results -> identity(seed).value;"_view;
+  Workspace invalid_workspace;
+  Errors invalid_errors;
+  auto invalid_monograph =
+      interpret(invalid_workspace, invalid_errors, invalid_source);
+  ASSERT(invalid_monograph);
+  auto invalid = find_field(invalid_monograph->get_source(), "invalid"_view);
+  ASSERT(invalid);
+  ASSERT(invalid->get_initializer());
+  ASSERT(invalid->get_initializer()->is<Language::Access::Address>());
+  const auto& invalid_address = static_cast<const Language::Access::Address&>(
+      *invalid->get_initializer());
+  EXPECT(invalid_address.get_receiver().is<Language::Access::Call>());
+  EXPECT(!invalid_workspace.link(invalid_errors));
+  EXPECT(!invalid_errors.is_empty());
 }

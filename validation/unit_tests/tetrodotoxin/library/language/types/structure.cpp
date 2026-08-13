@@ -211,8 +211,16 @@ PERIMORTEM_UNIT_TEST(StructureTests, independent_access_axes) {
   EXPECT(ordinary_private.get_writability() == Language::Writability::Full);
   EXPECT(state_exposed.get_writability() == Language::Writability::Internal);
   EXPECT(state_private.get_writability() == Language::Writability::Internal);
-  EXPECT(const_public.get_writability() == Language::Writability::Init);
-  EXPECT(const_private.get_writability() == Language::Writability::Init);
+  EXPECT(const_public.get_writability() == Language::Writability::Constant);
+  EXPECT(const_private.get_writability() == Language::Writability::Constant);
+  ASSERT_EQ(packet.get_layout().get_size(), Count(4));
+  for (Count index = 0; index < packet.get_layout().get_size(); index++) {
+    auto entry = packet.get_layout().get_abstract(index);
+    ASSERT(entry);
+    EXPECT(
+        entry->get_name() != "const_public"_view &&
+        entry->get_name() != "const_private"_view);
+  }
 
   EXPECT(errors.is_empty());
 }

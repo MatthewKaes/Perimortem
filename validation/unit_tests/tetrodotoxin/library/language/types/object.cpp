@@ -126,8 +126,16 @@ PERIMORTEM_UNIT_TEST(ObjectTests, field_writability) {
   EXPECT(closed.get_writability() == Language::Writability::Full);
   EXPECT(observed.get_writability() == Language::Writability::Internal);
   EXPECT(hidden_state.get_writability() == Language::Writability::Internal);
-  EXPECT(fixed.get_writability() == Language::Writability::Init);
-  EXPECT(hidden_const.get_writability() == Language::Writability::Init);
+  EXPECT(fixed.get_writability() == Language::Writability::Constant);
+  EXPECT(hidden_const.get_writability() == Language::Writability::Constant);
+  ASSERT_EQ(object.get_layout().get_size(), Count(4));
+  for (Count index = 0; index < object.get_layout().get_size(); index++) {
+    auto entry = object.get_layout().get_abstract(index);
+    ASSERT(entry);
+    EXPECT(
+        entry->get_name() != "fixed"_view &&
+        entry->get_name() != "hidden_const"_view);
+  }
   EXPECT(errors.is_empty());
 }
 

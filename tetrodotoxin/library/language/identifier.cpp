@@ -26,7 +26,9 @@ auto Language::Identifier::link(
     const Abstract& lexical_context,
     Core::Option<const Type&> access_scope) -> Bool {
   const Abstract& selected =
-      token.get_code() == Ttx::Lexical::Code::Type::Type
+      token.get_code() == Ttx::Lexical::Code::Type::Source
+          ? resolve_alias(source.resolve_context(name))
+      : token.get_code() == Ttx::Lexical::Code::Type::Type
           ? access_scope.visit(
                 [&]() -> const Abstract& {
                   return resolve_alias(lexical_context.resolve_context(name));

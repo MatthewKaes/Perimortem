@@ -92,12 +92,36 @@ PERIMORTEM_UNIT_TEST(TypeAccessTests, expression_result_drives_access) {
       "private value : Outer;\n"
       "private invalid := value::Nested;"_view;
   static constexpr View::Bytes descriptor_address =
-      "// A Type descriptor is not an instance value.\n"
+      "// A Structure Type descriptor does not prove static storage.\n"
       "dialect : Library;\n"
-      "public Packet : struct { public value : Bool; }\n"
+      "public Packet : struct { expose state value : Bool = false; }\n"
       "private invalid := Packet.value;"_view;
+  static constexpr View::Bytes object_descriptor_address =
+      "// An Object Type descriptor does not prove static storage.\n"
+      "dialect : Library;\n"
+      "public Packet : object { public value : Bool = false; }\n"
+      "private invalid := Packet.value;"_view;
+  static constexpr View::Bytes const_descriptor_address =
+      "// A Structure Type selects its compile-time const Field.\n"
+      "dialect : Library;\n"
+      "public Packet : struct { public const value : Bool = false; }\n"
+      "private selected := Packet.value;"_view;
+  static constexpr View::Bytes const_object_descriptor_address =
+      "// An Object Type selects its compile-time const Field.\n"
+      "dialect : Library;\n"
+      "public Packet : object { public const value : Bool = false; }\n"
+      "private selected := Packet.value;"_view;
+  static constexpr View::Bytes source_address =
+      "// Source Fields have unambiguous static storage.\n"
+      "dialect : Library;\n"
+      "public value : Bool = false;\n"
+      "private selected := source.value;"_view;
 
   EXPECT(links_library_source(accepted));
   EXPECT(rejects_library_link(value_qualification));
   EXPECT(rejects_library_link(descriptor_address));
+  EXPECT(rejects_library_link(object_descriptor_address));
+  EXPECT(links_library_source(const_descriptor_address));
+  EXPECT(links_library_source(const_object_descriptor_address));
+  EXPECT(links_library_source(source_address));
 }

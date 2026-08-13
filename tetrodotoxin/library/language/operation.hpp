@@ -77,8 +77,9 @@ class Operation : public Expression {
   virtual auto select_type(Tetrodotoxin::Language::Monograph& source) const
       -> Perimortem::Core::Option<const Ttx::Model::Type&> = 0;
 
-  auto fold_uncached() -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Expression&>, Expression::Error> override;
+  auto evaluate() -> Perimortem::Utility::Result<
+      Perimortem::Core::Option<Model::Pack&>,
+      Expression::Error> override;
 
  private:
   Perimortem::Memory::Allocator::Arena& domain;

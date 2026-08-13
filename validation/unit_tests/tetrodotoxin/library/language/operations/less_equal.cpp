@@ -135,25 +135,25 @@ class LessEqualFoldInput : public Operation {
 };
 
 static auto selected(
-    const Result<Option<Expression&>, Expression::Error>& result)
+    const Result<Option<Model::Pack&>, Expression::Error>& result)
     -> Option<Expression&> {
   return result.visit(
-      [](const Option<Expression&>& folded) -> Option<Expression&> {
+      [](const Option<Model::Pack&>& folded) -> Option<Expression&> {
         return folded.visit(
             []() -> Option<Expression&> { return {}; },
-            [](Expression& selected) -> Option<Expression&> {
-              return selected;
+            [](Model::Pack& selected) -> Option<Expression&> {
+              return selected.select<Expression>();
             });
       },
       [](const Expression::Error&) -> Option<Expression&> { return {}; });
 }
 
 static auto reports(
-    const Result<Option<Expression&>, Expression::Error>& result,
+    const Result<Option<Model::Pack&>, Expression::Error>& result,
     Expression::Error::Type expected,
     const Expression& origin) -> Bool {
   return result.visit(
-      [](const Option<Expression&>&) { return False; },
+      [](const Option<Model::Pack&>&) { return False; },
       [&](const Expression::Error& error) {
         return error.get_type() == expected &&
                        &error.get_expression() == &origin

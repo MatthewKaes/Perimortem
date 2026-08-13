@@ -14,151 +14,6 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-static auto select_result_type(const Abstract& result)
-    -> Core::Option<const Ttx::Model::Type&>;
-
-namespace {
-
-// The Callable result Layout describes what one invocation produces, while
-// this Layout preserves which invocation produced it. Fitting therefore
-// delegates to the immutable signature shape, but a successful fitted query
-// returns the Call rather than laundering value flow into a result Type. This
-// is Call's canonical output Layout, not a shadow inventory: it borrows the
-// Callable and retains no copied entries, names, or Types.
-class CallLayout final : public Layout {
- public:
-  constexpr CallLayout(
-      const Language::Access::Call& call,
-      const Callable& callable)
-      : call(call), callable(callable) {}
-
-  constexpr auto get_size() const -> Count override {
-    return callable.get_results().get_size();
-  }
-
-  constexpr auto get_abstract(Count index) const
-      -> Core::Option<const Abstract&> override {
-    BAIL_IF(index >= get_size());
-    return call;
-  }
-
-  constexpr auto get_name(Count index) const
-      -> Core::Option<Core::View::Bytes> override {
-    return callable.get_results().get_name(index);
-  }
-
-  auto fits_entry(const Layout& target, Count source_index, Count target_index)
-      const -> Bool override {
-    return callable.get_results().fits_entry(
-        target, source_index, target_index);
-  }
-
-  auto fits_at(const Layout& target, Count target_offset) const
-      -> Bool override {
-    return callable.get_results().fits_at(target, target_offset);
-  }
-
-  auto get_fitted_at(
-      const Layout& target,
-      Count target_offset,
-      Count target_index) const
-      -> Utility::Result<const Abstract&, Errors> override {
-    if (target_index >= get_size()) {
-      return Errors::IndexOutOfBounds;
-    }
-    if (!has_target_segment(target, target_offset)) {
-      return Errors::SizeMismatch;
-    }
-    if (!fits_at(target, target_offset)) {
-      return Errors::IncompatibleFit;
-    }
-    return call;
-  }
-
- private:
-  const Language::Access::Call& call;
-  const Callable& callable;
-};
-
-// Self input reflection composes the real receiver with the authored argument
-// Pack without creating another producer or copying either Layout. Static Calls
-// need no composition because their Type receiver contributes no runtime value.
-class SelfInputs final : public Layout {
- public:
-  constexpr SelfInputs(
-      const Language::Expression& receiver,
-      const Language::Model::Pack& arguments)
-      : receiver(receiver), arguments(arguments) {}
-
-  auto get_size() const -> Count override {
-    return 1 + arguments.get_layout().get_size();
-  }
-
-  auto get_abstract(Count index) const
-      -> Core::Option<const Abstract&> override {
-    if (index == 0) {
-      return receiver;
-    }
-    return arguments.get_layout().get_abstract(index - 1);
-  }
-
-  auto get_name(Count index) const -> Core::Option<Core::View::Bytes> override {
-    return index == 0 ? Core::Option<Core::View::Bytes>()
-                      : arguments.get_layout().get_name(index - 1);
-  }
-
-  auto fits_entry(const Layout& target, Count source, Count target_index) const
-      -> Bool override {
-    BAIL_IF(source >= get_size() || target_index >= target.get_size());
-    if (source != 0) {
-      return arguments.fits_entry(target, source - 1, target_index);
-    }
-
-    auto target_entry = target.get_abstract(target_index);
-    BAIL_IF(!target_entry);
-    return select_result_type(*target_entry)
-        .visit(
-            []() { return False; },
-            [&](const Ttx::Model::Type& type) { return receiver.fits(type); });
-  }
-
-  auto fits_at(const Layout& target, Count target_offset) const
-      -> Bool override {
-    BAIL_IF(
-        target_offset > target.get_size() ||
-        get_size() > target.get_size() - target_offset);
-    return fits_entry(target, 0, target_offset) &&
-           arguments.fits_at(target, target_offset + 1);
-  }
-
-  auto get_fitted_at(
-      const Layout& target,
-      Count target_offset,
-      Count target_index) const
-      -> Utility::Result<const Abstract&, Errors> override {
-    if (target_index >= get_size()) {
-      return Errors::IndexOutOfBounds;
-    }
-    if (target_offset > target.get_size() ||
-        get_size() > target.get_size() - target_offset) {
-      return Errors::SizeMismatch;
-    }
-    if (!fits_at(target, target_offset)) {
-      return Errors::IncompatibleFit;
-    }
-    return target_index == 0
-               ? Utility::Result<const Abstract&, Errors>(receiver)
-               : arguments.get_fitted_at(
-                     target, target_offset + 1, target_index - 1);
-  }
-
- private:
-  const Language::Expression& receiver;
-  const Language::Model::Pack& arguments;
-};
-
-}  // namespace
-
 static auto select_type(const Abstract& candidate)
     -> Core::Option<const Ttx::Model::Type&> {
   auto direct = candidate.select<Ttx::Model::Type>();
@@ -185,6 +40,165 @@ static auto select_result_type(const Abstract& result)
   addressable = resolved.select<Addressable>();
   return addressable ? select_type(addressable->get_type())
                      : select_type(resolved);
+}
+
+// The Callable result Layout describes what one invocation produces, while
+// this Layout preserves which invocation produced it. Fitting therefore
+// delegates to the immutable signature shape, but a successful fitted query
+// returns the Call rather than laundering value flow into a result Type. This
+// is Call's canonical output Layout, not a shadow inventory: it borrows the
+// Callable and retains no copied entries, names, or Types.
+static auto create_layout(
+    Memory::Allocator::Arena& domain,
+    const Language::Access::Call& call,
+    const Callable& callable) -> const Ttx::Concept::Layout& {
+  class Layout final : public Ttx::Concept::Layout {
+   public:
+    constexpr Layout(
+        const Language::Access::Call& call,
+        const Callable& callable)
+        : call(call), callable(callable) {}
+
+    constexpr auto get_size() const -> Count override {
+      return callable.get_results().get_size();
+    }
+
+    constexpr auto get_abstract(Count index) const
+        -> Core::Option<const Abstract&> override {
+      BAIL_IF(index >= get_size());
+      return call;
+    }
+
+    constexpr auto get_name(Count index) const
+        -> Core::Option<Core::View::Bytes> override {
+      return callable.get_results().get_name(index);
+    }
+
+    auto fits_entry(
+        const Ttx::Concept::Layout& target,
+        Count source_index,
+        Count target_index) const -> Bool override {
+      return callable.get_results().fits_entry(
+          target, source_index, target_index);
+    }
+
+    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
+        -> Bool override {
+      return callable.get_results().fits_at(target, target_offset);
+    }
+
+    auto get_fitted_at(
+        const Ttx::Concept::Layout& target,
+        Count target_offset,
+        Count target_index) const
+        -> Utility::Result<const Abstract&, Errors> override {
+      if (target_index >= get_size()) {
+        return Errors::IndexOutOfBounds;
+      }
+      if (!has_target_segment(target, target_offset)) {
+        return Errors::SizeMismatch;
+      }
+      if (!fits_at(target, target_offset)) {
+        return Errors::IncompatibleFit;
+      }
+      return call;
+    }
+
+   private:
+    const Language::Access::Call& call;
+    const Callable& callable;
+  };
+
+  return domain.construct<Layout>(call, callable);
+}
+
+// Self input reflection composes the real receiver with the authored argument
+// Pack without creating another producer or copying either Layout. Static Calls
+// need no composition because their Type receiver contributes no runtime value.
+static auto create_inputs(
+    Memory::Allocator::Arena& domain,
+    const Language::Expression& receiver,
+    const Language::Model::Pack& arguments) -> const Ttx::Concept::Layout& {
+  class Inputs final : public Ttx::Concept::Layout {
+   public:
+    constexpr Inputs(
+        const Language::Expression& receiver,
+        const Language::Model::Pack& arguments)
+        : receiver(receiver), arguments(arguments) {}
+
+    auto get_size() const -> Count override {
+      return 1 + arguments.get_layout().get_size();
+    }
+
+    auto get_abstract(Count index) const
+        -> Core::Option<const Abstract&> override {
+      if (index == 0) {
+        return receiver;
+      }
+      return arguments.get_layout().get_abstract(index - 1);
+    }
+
+    auto get_name(Count index) const
+        -> Core::Option<Core::View::Bytes> override {
+      return index == 0 ? Core::Option<Core::View::Bytes>()
+                        : arguments.get_layout().get_name(index - 1);
+    }
+
+    auto fits_entry(
+        const Ttx::Concept::Layout& target,
+        Count source,
+        Count target_index) const -> Bool override {
+      BAIL_IF(source >= get_size() || target_index >= target.get_size());
+      if (source != 0) {
+        return arguments.fits_entry(target, source - 1, target_index);
+      }
+
+      auto target_entry = target.get_abstract(target_index);
+      BAIL_IF(!target_entry);
+      return select_result_type(*target_entry)
+          .visit(
+              []() { return False; },
+              [&](const Ttx::Model::Type& type) {
+                return receiver.fits(type);
+              });
+    }
+
+    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
+        -> Bool override {
+      BAIL_IF(
+          target_offset > target.get_size() ||
+          get_size() > target.get_size() - target_offset);
+      return fits_entry(target, 0, target_offset) &&
+             arguments.fits_at(target, target_offset + 1);
+    }
+
+    auto get_fitted_at(
+        const Ttx::Concept::Layout& target,
+        Count target_offset,
+        Count target_index) const
+        -> Utility::Result<const Abstract&, Errors> override {
+      if (target_index >= get_size()) {
+        return Errors::IndexOutOfBounds;
+      }
+      if (target_offset > target.get_size() ||
+          get_size() > target.get_size() - target_offset) {
+        return Errors::SizeMismatch;
+      }
+      if (!fits_at(target, target_offset)) {
+        return Errors::IncompatibleFit;
+      }
+      return target_index == 0
+                 ? Utility::Result<const Abstract&, Errors>(receiver)
+                 : arguments.get_fitted_at(
+                       target, target_offset + 1, target_index - 1);
+    }
+
+   private:
+    const Language::Expression& receiver;
+    const Language::Model::Pack& arguments;
+  };
+
+  return domain.construct<Inputs>(receiver, arguments);
 }
 
 auto Language::Access::Call::parse(
@@ -293,11 +307,11 @@ auto Language::Access::Call::link(
     return False;
   }
 
-  const Layout& parameters = selected->get_parameters();
+  const Ttx::Concept::Layout& parameters = selected->get_parameters();
   Bool arguments_fit = arguments.fits(parameters);
   if (!static_type) {
     if (!inputs) {
-      inputs = domain.construct<SelfInputs>(receiver, arguments);
+      inputs = create_inputs(domain, receiver, arguments);
     }
     arguments_fit = inputs->fits(parameters);
   }
@@ -323,8 +337,8 @@ auto Language::Access::Call::link(
     return True;
   }
 
-  const Layout& retained_output =
-      domain.construct<CallLayout>(*this, *selected);
+  const Ttx::Concept::Layout& retained_output =
+      create_layout(domain, *this, *selected);
   callable = Reference<const Callable>(*selected);
   output = retained_output;
 
@@ -346,7 +360,7 @@ auto Language::Access::Call::get_type() const -> const Abstract& {
   if (!callable) {
     return Invalid::get_invalid();
   }
-  const Layout& results = callable->get().get_results();
+  const Ttx::Concept::Layout& results = callable->get().get_results();
   if (results.get_size() != 1) {
     return Invalid::get_invalid();
   }
@@ -362,7 +376,7 @@ auto Language::Access::Call::get_type() const -> const Abstract& {
       });
 }
 
-auto Language::Access::Call::get_layout() const -> const Layout& {
+auto Language::Access::Call::get_layout() const -> const Ttx::Concept::Layout& {
   return *output;
 }
 

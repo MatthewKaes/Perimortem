@@ -68,19 +68,19 @@ directory or filename.
 
 ## Hosted graphics state
 
-A Scene instance is the root of one owned graphics tree. An ordinary private
-const Field initialized with `new` is hosted when its exact Object Type proves
-the Graphics hosting contract:
+A Scene instance is the root of its hosted graphics state. A private `state`
+Field initialized with `new` is hosted when its exact Object Type proves the
+Graphics hosting contract:
 
 ```ttx
-private const top_icon : Graphics::Sprite = new;
-private const bottom_icon : Graphics::Sprite = new;
+private state top_icon : Graphics::Sprite = new;
+private state bottom_icon : Graphics::Sprite = new;
 ```
 
 The Fields are the real hosted identities. Scene does not create a second
 hosting declaration, node, or ordering table. It discovers hosted state from
 the exact Field Type and uses the Fields' authored order. Their nonnull Objects
-construct before `prepare`, which configures those existing values through
+construct before `prepare`, which configures those runtime values through
 ordinary Address access:
 
 ```ttx
@@ -91,21 +91,22 @@ self.top_icon.position = (.x = 200, .y = 100);
 An ordinary Scene helper may perform that configuration. Moving the writes
 into a Function does not move construction or hosting away from the Field.
 
-Hosted values follow the real Field relationships recursively. Visibility and
-transform compose through those relationships, while authored Field order and
-`z_index` determine stable draw order. Scene publishes render submission facts
-after update. Runtime submission lies outside Scene semantics and does not
-change the semantic identity of a hosted Field or its Object value.
+Hosted values follow the current Object values through the real Field
+relationships. Visibility and transform compose through those relationships.
+Authored Field order and `z_index` determine stable draw order. Scene publishes
+render submission facts after update. Runtime submission lies outside Scene
+semantics and does not change the semantic identity of a hosted Field.
 
-The const Field keeps the hosting edge stable while the Object's admitted
-Fields remain mutable. Another alias may observe the same Object, but ordinary
-assignment never creates, moves, or removes a hosting edge. Reparenting is not
-part of the Scene hosting contract.
+A hosted Field remains ordinary Scene state. Assignment may replace the Object
+reached through that Field. The next complete submission observes the new
+value through the same Field identity. Scene does not infer single assignment
+or ownership from the hosting relationship.
 
 `release` runs before the Scene instance relinquishes its hosted graphics
 roots. Library still makes Object reclamation timing and order unobservable. An
 Object Field whose Type does not prove the Graphics contract remains ordinary
-Scene state and is never submitted merely because it is an Object.
+Scene state. Graphics submission selects only Fields whose Type proves that
+contract.
 
 ## Time and input
 
@@ -122,11 +123,17 @@ Elapsed time is ordinary Scene state. Terminal and Headless applications can use
 the same lifecycle because the update Signature has no graphics specific
 argument.
 
-Process input is queried through a linked dependency rather than added to the
-Scene ABI:
+Process input is runtime Scene state. A Scene retains the current snapshot in a
+`state` Field:
 
 ```ttx
-const input := System -> get_input();
+private state input : System::Input = System -> get_input();
+```
+
+The update Callable refreshes that snapshot at the frame boundary:
+
+```ttx
+self.input = System -> get_input();
 ```
 
 ## Resources and submission

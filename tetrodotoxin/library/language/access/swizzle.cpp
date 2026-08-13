@@ -70,87 +70,92 @@ static auto select_named(const Layout& layout, Core::View::Bytes name)
   return selected;
 }
 
-namespace {
-
 // Direct Pack selection retains exactly two facts: the real receiver producer
 // and the selected source indices. The receiver continues to own value
 // identity and slot-local descriptor fitting. This identity-free Layout only
 // publishes the selected order and returns the original producer on reflection.
-class SelectionLayout final : public Layout {
- public:
-  constexpr SelectionLayout(
-      const Language::Model::Pack& receiver,
-      Core::View::Vector<Count> selections)
-      : receiver(receiver), selections(selections) {}
+static auto create_layout(
+    Memory::Allocator::Arena& domain,
+    const Language::Model::Pack& receiver,
+    Core::View::Vector<Count> selections) -> const Ttx::Concept::Layout& {
+  class Layout final : public Ttx::Concept::Layout {
+   public:
+    constexpr Layout(
+        const Language::Model::Pack& receiver,
+        Core::View::Vector<Count> selections)
+        : receiver(receiver), selections(selections) {}
 
-  constexpr auto get_size() const -> Count override {
-    return selections.get_size();
-  }
-
-  constexpr auto get_abstract(Count index) const
-      -> Core::Option<const Abstract&> override {
-    BAIL_IF(index >= get_size());
-    return receiver.get_layout().get_abstract(selections[index]);
-  }
-
-  auto fits_entry(const Layout& target, Count source_index, Count target_index)
-      const -> Bool override {
-    BAIL_IF(source_index >= get_size() || target_index >= target.get_size());
-    Count selected = selections[source_index];
-    auto source_name = receiver.get_layout().get_name(selected);
-    auto target_entry = target.get_abstract(target_index);
-    BAIL_IF(!source_name || !target_entry);
-
-    // Selection makes output positional, so lend the original source name to
-    // this one real target entry only while its descriptor is checked. These
-    // standard identity-free Layout values create no producer or retained
-    // mapping beside the selected source index.
-    Core::View::Bytes slot_names[] = {*source_name};
-    Ttx::Model::Layouts::Value target_value(*target_entry);
-    Ttx::Model::Layouts::Named target_slot(target_value, slot_names);
-    return receiver.fits_entry(target_slot, selected, 0);
-  }
-
-  auto fits_at(const Layout& target, Count target_offset) const
-      -> Bool override {
-    BAIL_IF(!has_target_segment(target, target_offset));
-    for (Count index = 0; index < get_size(); index++) {
-      BAIL_IF(!fits_entry(target, index, target_offset + index));
+    constexpr auto get_size() const -> Count override {
+      return selections.get_size();
     }
-    return True;
-  }
 
-  auto get_fitted_at(
-      const Layout& target,
-      Count target_offset,
-      Count target_index) const
-      -> Utility::Result<const Abstract&, Errors> override {
-    if (target_index >= get_size()) {
-      return Errors::IndexOutOfBounds;
+    constexpr auto get_abstract(Count index) const
+        -> Core::Option<const Abstract&> override {
+      BAIL_IF(index >= get_size());
+      return receiver.get_layout().get_abstract(selections[index]);
     }
-    if (!has_target_segment(target, target_offset)) {
-      return Errors::SizeMismatch;
-    }
-    if (!fits_at(target, target_offset)) {
-      return Errors::IncompatibleFit;
-    }
-    return get_abstract(target_index)
-        .visit(
-            []() -> Utility::Result<const Abstract&, Errors> {
-              return Errors::IncompatibleFit;
-            },
-            [](const Abstract& producer)
-                -> Utility::Result<const Abstract&, Errors> {
-              return producer;
-            });
-  }
 
- private:
-  const Language::Model::Pack& receiver;
-  Core::View::Vector<Count> selections;
-};
+    auto fits_entry(
+        const Ttx::Concept::Layout& target,
+        Count source_index,
+        Count target_index) const -> Bool override {
+      BAIL_IF(source_index >= get_size() || target_index >= target.get_size());
+      Count selected = selections[source_index];
+      auto source_name = receiver.get_layout().get_name(selected);
+      auto target_entry = target.get_abstract(target_index);
+      BAIL_IF(!source_name || !target_entry);
 
-}  // namespace
+      // Selection makes output positional, so lend the original source name to
+      // this one real target entry only while its descriptor is checked. These
+      // standard identity-free Layout values create no producer or retained
+      // mapping beside the selected source index.
+      Core::View::Bytes slot_names[] = {*source_name};
+      Ttx::Model::Layouts::Value target_value(*target_entry);
+      Ttx::Model::Layouts::Named target_slot(target_value, slot_names);
+      return receiver.fits_entry(target_slot, selected, 0);
+    }
+
+    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
+        -> Bool override {
+      BAIL_IF(!has_target_segment(target, target_offset));
+      for (Count index = 0; index < get_size(); index++) {
+        BAIL_IF(!fits_entry(target, index, target_offset + index));
+      }
+      return True;
+    }
+
+    auto get_fitted_at(
+        const Ttx::Concept::Layout& target,
+        Count target_offset,
+        Count target_index) const
+        -> Utility::Result<const Abstract&, Errors> override {
+      if (target_index >= get_size()) {
+        return Errors::IndexOutOfBounds;
+      }
+      if (!has_target_segment(target, target_offset)) {
+        return Errors::SizeMismatch;
+      }
+      if (!fits_at(target, target_offset)) {
+        return Errors::IncompatibleFit;
+      }
+      return get_abstract(target_index)
+          .visit(
+              []() -> Utility::Result<const Abstract&, Errors> {
+                return Errors::IncompatibleFit;
+              },
+              [](const Abstract& producer)
+                  -> Utility::Result<const Abstract&, Errors> {
+                return producer;
+              });
+    }
+
+   private:
+    const Language::Model::Pack& receiver;
+    Core::View::Vector<Count> selections;
+  };
+
+  return domain.construct<Layout>(receiver, selections);
+}
 
 auto Language::Access::Swizzle::parse(
     Memory::Allocator::Arena& domain,
@@ -205,7 +210,7 @@ auto Language::Access::Swizzle::link(
     Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
   BAIL_IF(!receiver.link(source, lexical_context, access_scope));
 
-  const Layout& receiver_layout = receiver.get_layout();
+  const Ttx::Concept::Layout& receiver_layout = receiver.get_layout();
   Bool direct_selection = names.is_empty() || is_named(receiver_layout);
   Memory::Managed::Vector<Count> selected_indices(domain);
   Memory::Managed::Vector<Reference<const Abstract>> candidates(domain);
@@ -293,7 +298,7 @@ auto Language::Access::Swizzle::link(
     for (Count selected : selected_indices.get_view()) {
       selections.insert(selected);
     }
-    output = domain.construct<SelectionLayout>(receiver, selections.get_view());
+    output = create_layout(domain, receiver, selections.get_view());
   } else {
     // Type-backed selection must evaluate a member relative to its scalar
     // receiver. These Address Expressions are the selected value producers,
@@ -341,7 +346,8 @@ auto Language::Access::Swizzle::get_type() const -> const Abstract& {
       });
 }
 
-auto Language::Access::Swizzle::get_layout() const -> const Layout& {
+auto Language::Access::Swizzle::get_layout() const
+    -> const Ttx::Concept::Layout& {
   return *output;
 }
 

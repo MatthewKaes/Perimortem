@@ -20,12 +20,13 @@ static auto select_accessible_field(
     -> Core::Option<const Language::Field&> {
   auto field = candidate.select<Language::Field>();
   BAIL_IF(
-      !field ||
+      !field || field->get_writability() == Language::Writability::Constant ||
       !Language::Access::Address::is_accessible(*field, access_scope));
 
   // Object construction consumes the target's real authored Field order, but
-  // shares Address's one publication and host-authority decision. It never
-  // reconstructs Visibility or retains another constructor member view.
+  // shares Address's one publication and host-authority decision. A const Field
+  // always uses its one declaration-owned initializer and therefore never
+  // enters the supplied construction Layout.
   return *field;
 }
 
