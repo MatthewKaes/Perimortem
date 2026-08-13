@@ -39,7 +39,10 @@ class Block : public Ttx::Concept::Abstract {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,
       Ttx::Model::Callable& function,
-      const Ttx::Model::Type& access_scope) -> Perimortem::Core::Option<Block&>;
+      const Ttx::Model::Type& access_scope,
+      Perimortem::Core::Option<
+          Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
+          enclosing_loop = {}) -> Perimortem::Core::Option<Block&>;
 
   Block(const Block&) = delete;
   Block(Block&&) = delete;
@@ -65,16 +68,31 @@ class Block : public Ttx::Concept::Abstract {
     return statements;
   }
 
+  constexpr auto get_enclosing_loop() const
+      -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> {
+    return enclosing_loop.visit(
+        []() -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> {
+          return {};
+        },
+        [](const Ttx::Concept::Reference<const Ttx::Concept::Abstract>& loop)
+            -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> {
+          return loop.get();
+        });
+  }
+
  private:
   Block(
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Abstract& lexical_context,
       Ttx::Model::Callable& function,
-      const Ttx::Model::Type& access_scope)
+      const Ttx::Model::Type& access_scope,
+      Perimortem::Core::Option<
+          Ttx::Concept::Reference<const Ttx::Concept::Abstract>> enclosing_loop)
       : lexical_context(lexical_context),
         function(function),
         access_scope(access_scope),
-        statements(domain) {}
+        statements(domain),
+        enclosing_loop(enclosing_loop) {}
 
   const Ttx::Concept::Abstract& lexical_context;
   Ttx::Model::Callable& function;
@@ -82,6 +100,9 @@ class Block : public Ttx::Concept::Abstract {
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       statements;
+  Perimortem::Core::Option<
+      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
+      enclosing_loop;
   Count visible_statement_count = 0;
   Ttx::Lexical::Anchor anchor = Ttx::Lexical::Anchor::create({});
   Bool linked = False;

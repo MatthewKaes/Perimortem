@@ -19,9 +19,16 @@
 #include "tetrodotoxin/library/language/access/slice.hpp"
 #include "tetrodotoxin/library/language/access/swizzle.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
+#include "tetrodotoxin/library/language/constants/flag.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/flow/assignment.hpp"
+#include "tetrodotoxin/library/language/flow/branch.hpp"
+#include "tetrodotoxin/library/language/flow/local.hpp"
+#include "tetrodotoxin/library/language/flow/loop_control.hpp"
+#include "tetrodotoxin/library/language/flow/match.hpp"
+#include "tetrodotoxin/library/language/flow/range_loop.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
@@ -900,6 +907,138 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
       &static_cast<const Language::Access::Address&>(*second_output)
            .get_result() == &*width);
   EXPECT(reordered_swizzle.fits(pair));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
+  static constexpr View::Bytes path =
+      "validation/data/ttx/library/executable_acceptance.ttx"_view;
+  auto source = File::read(path);
+  ASSERT(source);
+
+  Workspace workspace;
+  Errors errors;
+  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
+  auto interpreted = workspace.interpret_source(
+      errors, "ExecutableAcceptance"_view, path, *source);
+  ASSERT(interpreted && interpreted->is<Language::Monograph>());
+  auto& monograph = static_cast<Language::Monograph&>(*interpreted);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+  EXPECT(&workspace.resolve_context("ExecutableAcceptance"_view) == &monograph);
+
+  const auto& source_type = monograph.get_source();
+  auto execute = find_function(source_type, "execute"_view);
+  ASSERT(execute && execute->get_body());
+  const auto& parameters = execute->get_parameters();
+  auto flag = parameters.get_abstract(0);
+  ASSERT(flag);
+
+  // Block order is the executable source order. Keeping the complete owner
+  // inventory flat here also proves the Call remains the statement itself.
+  auto statements = execute->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(7));
+  ASSERT(statements.get_data()[0].get().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[1].get().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[2].get().is<Language::Access::Call>());
+  ASSERT(statements.get_data()[3].get().is<Language::Flow::Branch>());
+  ASSERT(statements.get_data()[4].get().is<Language::Flow::Branch>());
+  ASSERT(statements.get_data()[5].get().is<Language::Flow::RangeLoop>());
+  ASSERT(statements.get_data()[6].get().is<Language::Flow::Match>());
+
+  const auto& total =
+      static_cast<const Language::Flow::Local&>(statements.get_data()[0].get());
+  const auto& one =
+      static_cast<const Language::Flow::Local&>(statements.get_data()[1].get());
+  EXPECT_TEXT(total.get_name(), "total"_view);
+  EXPECT_TEXT(one.get_name(), "one"_view);
+  EXPECT(total.get_writability() == Language::Writability::Full);
+  EXPECT(one.get_writability() == Language::Writability::Constant);
+
+  const auto& call = static_cast<const Language::Access::Call&>(
+      statements.get_data()[2].get());
+  ASSERT(call.get_callable());
+  EXPECT_TEXT(call.get_callable()->get_name(), "tick"_view);
+  EXPECT_NOT(call.get_folded());
+
+  const auto& conditional = static_cast<const Language::Flow::Branch&>(
+      statements.get_data()[3].get());
+  EXPECT(conditional.get_kind() == Language::Flow::Branch::Kind::If);
+  ASSERT_EQ(conditional.get_body().get_statements().get_size(), Count(1));
+  ASSERT(conditional.get_body()
+             .get_statements()
+             .get_data()[0]
+             .get()
+             .is<Language::Flow::Assignment>());
+  ASSERT(conditional.get_alternate());
+  ASSERT_EQ(conditional.get_alternate()->get_statements().get_size(), Count(1));
+  ASSERT(conditional.get_alternate()
+             ->get_statements()
+             .get_data()[0]
+             .get()
+             .is<Language::Flow::Assignment>());
+
+  const auto& while_loop = static_cast<const Language::Flow::Branch&>(
+      statements.get_data()[4].get());
+  EXPECT(while_loop.get_kind() == Language::Flow::Branch::Kind::While);
+  auto while_statements = while_loop.get_body().get_statements();
+  ASSERT_EQ(while_statements.get_size(), Count(2));
+  ASSERT(while_statements.get_data()[0].get().is<Language::Flow::Assignment>());
+  const auto& broken = static_cast<const Language::Flow::LoopControl&>(
+      while_statements.get_data()[1].get());
+  EXPECT(broken.get_kind() == Language::Flow::LoopControl::Kind::Break);
+  EXPECT(&broken.get_target() == &while_loop);
+
+  // The nested Branch contributes lexical scope but does not replace the
+  // RangeLoop selected by continue. The retained edge stays on the real loop.
+  const auto& range_loop = static_cast<const Language::Flow::RangeLoop&>(
+      statements.get_data()[5].get());
+  auto range_statements = range_loop.get_body().get_statements();
+  ASSERT_EQ(range_statements.get_size(), Count(2));
+  const auto& range_branch = static_cast<const Language::Flow::Branch&>(
+      range_statements.get_data()[0].get());
+  const auto& continued = static_cast<const Language::Flow::LoopControl&>(
+      range_branch.get_body().get_statements().get_data()[0].get());
+  EXPECT(continued.get_kind() == Language::Flow::LoopControl::Kind::Continue);
+  EXPECT(&continued.get_target() == &range_loop);
+  ASSERT(range_statements.get_data()[1].get().is<Language::Flow::Assignment>());
+
+  // Exhaustive Flag cases make Match the Function terminal. Each Return stays
+  // inside its real case Block rather than becoming a copied result edge.
+  const auto& match =
+      static_cast<const Language::Flow::Match&>(statements.get_data()[6].get());
+  EXPECT(&match.get_input().get_result() == &*flag);
+  ASSERT_EQ(match.get_case_count(), Count(2));
+  auto first_case = match.get_case_constant(0);
+  auto second_case = match.get_case_constant(1);
+  ASSERT(first_case && first_case->is<Language::Constants::Flag>());
+  ASSERT(second_case && second_case->is<Language::Constants::Flag>());
+  EXPECT_NOT(
+      static_cast<const Language::Constants::Flag&>(*first_case).get_value());
+  EXPECT(
+      static_cast<const Language::Constants::Flag&>(*second_case).get_value());
+  ASSERT(match.get_case_body(0));
+  ASSERT(match.get_case_body(1));
+  ASSERT(match.get_case_body(0)
+             ->get_statements()
+             .get_data()[0]
+             .get()
+             .is<Language::Flow::Return>());
+  ASSERT(match.get_case_body(1)
+             ->get_statements()
+             .get_data()[0]
+             .get()
+             .is<Language::Flow::Return>());
+  EXPECT_NOT(match.get_default());
+  EXPECT_NOT(match.reaches_next_statement());
+  EXPECT_NOT(execute->get_body()->reaches_next_statement());
+
+  const Abstract& retained_match = match;
+  ASSERT(monograph.link());
+  ASSERT(monograph.finalize());
+  EXPECT(
+      &execute->get_body()->get_statements().get_data()[6].get() ==
+      &retained_match);
   EXPECT(errors.is_empty());
 }
 

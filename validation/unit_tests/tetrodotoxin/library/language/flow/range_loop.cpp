@@ -10,6 +10,7 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/flow/local.hpp"
+#include "tetrodotoxin/library/language/flow/loop_control.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
@@ -166,6 +167,32 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, loop_does_not_cover_function_result) {
       "  for [.entry : Unsigned_64] in 0...0 { return entry; }\n"
       "}"_view;
   EXPECT(rejects_link(source));
+}
+
+PERIMORTEM_UNIT_TEST(RangeLoopTests, body_control_targets_exact_loop) {
+  static constexpr View::Bytes source =
+      "// Range control.\n"
+      "dialect : Library;\n"
+      "public scan : func = [] -> Void {\n"
+      "  for [.entry : Unsigned_64] in 0...2 { break; }\n"
+      "  return;\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+
+  auto function = find_function(monograph->get_source(), "scan"_view);
+  ASSERT(function && function->get_body());
+  const auto& loop = static_cast<const Language::Flow::RangeLoop&>(
+      function->get_body()->get_statements().get_data()[0].get());
+  const auto& control = static_cast<const Language::Flow::LoopControl&>(
+      loop.get_body().get_statements().get_data()[0].get());
+  EXPECT(control.get_kind() == Language::Flow::LoopControl::Kind::Break);
+  EXPECT(&control.get_target() == &loop);
+  EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(RangeLoopTests, malformed_binding_is_rejected) {

@@ -8,6 +8,8 @@
 #include "tetrodotoxin/library/language/flow/assignment.hpp"
 #include "tetrodotoxin/library/language/flow/branch.hpp"
 #include "tetrodotoxin/library/language/flow/local.hpp"
+#include "tetrodotoxin/library/language/flow/loop_control.hpp"
+#include "tetrodotoxin/library/language/flow/match.hpp"
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
@@ -59,15 +61,27 @@ static auto link_statement(
   if (auto local = statement.select<Language::Flow::Local>()) {
     return local->link(source, access_scope);
   }
+
   if (auto assignment = statement.select<Language::Flow::Assignment>()) {
     return assignment->link(source, block, access_scope);
   }
+
   if (auto branch = statement.select<Language::Flow::Branch>()) {
     return branch->link(source, block, access_scope);
   }
+
   if (auto loop = statement.select<Language::Flow::RangeLoop>()) {
     return loop->link(source, access_scope);
   }
+
+  if (statement.is<Language::Flow::LoopControl>()) {
+    return True;
+  }
+
+  if (auto match = statement.select<Language::Flow::Match>()) {
+    return match->link(source, block, access_scope);
+  }
+
   if (auto returned = statement.select<Language::Flow::Return>()) {
     return returned->link(source, block, access_scope, function.get_results());
   }
@@ -97,6 +111,13 @@ static auto finalize_statement(Abstract& statement) -> void {
     loop->finalize();
     return;
   }
+  if (statement.is<Language::Flow::LoopControl>()) {
+    return;
+  }
+  if (auto match = statement.select<Language::Flow::Match>()) {
+    match->finalize();
+    return;
+  }
   if (auto returned = statement.select<Language::Flow::Return>()) {
     returned->finalize();
     return;
@@ -112,7 +133,8 @@ auto Language::Flow::Block::interpret(
     Cursor& cursor,
     const Abstract& lexical_context,
     Ttx::Model::Callable& function,
-    const Ttx::Model::Type& access_scope) -> Option<Block&> {
+    const Ttx::Model::Type& access_scope,
+    Option<Reference<const Abstract>> enclosing_loop) -> Option<Block&> {
   auto transaction = cursor.branch();
   Token opening = transaction.require(
       Code::Type::ScopeStart,
@@ -120,7 +142,8 @@ auto Language::Flow::Block::interpret(
   BAIL_IF(!opening);
 
   Block& block = domain.construct_from<Block>([&]() -> Block {
-    return Block(domain, lexical_context, function, access_scope);
+    return Block(
+        domain, lexical_context, function, access_scope, enclosing_loop);
   });
 
   Tetrodotoxin::Language::Parser::Comment::parse(transaction);
@@ -175,6 +198,26 @@ auto Language::Flow::Block::interpret(
       return block;
     }
 
+    if (transaction.matches(Code::Type::Break) ||
+        transaction.matches(Code::Type::Continue)) {
+      auto control = LoopControl::interpret(domain, transaction, block);
+      BAIL_IF(!control);
+
+      Tetrodotoxin::Language::Parser::Comment::parse(transaction);
+      if (!transaction.matches(Code::Type::ScopeEnd)) {
+        transaction.create_token_error(
+            "Library loop control must be the final body form."_view);
+        return {};
+      }
+
+      Token closing = transaction.consume();
+      block.anchor = Anchor::create(opening, Span(opening, closing));
+      block.statements.insert(*control);
+
+      cursor.join(transaction);
+      return block;
+    }
+
     auto branch = Branch::interpret(
         domain, source, transaction, block, function, access_scope);
     if (branch) {
@@ -194,6 +237,20 @@ auto Language::Flow::Block::interpret(
     if (range_loop) {
       block.statements.insert(*range_loop);
       Tetrodotoxin::Language::Parser::Comment::parse(transaction);
+      continue;
+    }
+
+    auto match = Match::interpret(
+        domain, source, transaction, block, function, access_scope);
+    if (match) {
+      block.statements.insert(*match);
+      Tetrodotoxin::Language::Parser::Comment::parse(transaction);
+      if (!match->reaches_next_statement() &&
+          !transaction.matches(Code::Type::ScopeEnd)) {
+        transaction.create_token_error(
+            "A terminal Library match must be the final body form."_view);
+        return {};
+      }
       continue;
     }
 
@@ -229,6 +286,15 @@ auto Language::Flow::Block::link(Tetrodotoxin::Language::Monograph& source)
     visible_statement_count = i;
     Abstract& statement = retained_statements.get_data()[i].get();
     failed |= !link_statement(statement, source, *this, access_scope, function);
+    auto match = statement.select<Match>();
+    if (match && !match->reaches_next_statement() &&
+        i + 1 < retained_statements.get_size()) {
+      source.report(
+          match->get_anchor(),
+          "A terminal Library match must be the final body form."_view,
+          "Remove unreachable statements after the complete case set."_view);
+      failed = True;
+    }
   }
   visible_statement_count = retained_statements.get_size();
 
@@ -255,11 +321,21 @@ auto Language::Flow::Block::reaches_next_statement() const -> Bool {
   return terminal.visit<Return>(
       [](const Return&) { return False; },
       [](const Abstract& not_return) {
-        return not_return.visit<Branch>(
-            [](const Branch& branch) {
-              return branch.reaches_next_statement();
-            },
-            [](const Abstract&) { return True; });
+        return not_return.visit<LoopControl>(
+            [](const LoopControl&) { return False; },
+            [](const Abstract& not_control) {
+              return not_control.visit<Match>(
+                  [](const Match& match) {
+                    return match.reaches_next_statement();
+                  },
+                  [](const Abstract& not_match) {
+                    return not_match.visit<Branch>(
+                        [](const Branch& branch) {
+                          return branch.reaches_next_statement();
+                        },
+                        [](const Abstract&) { return True; });
+                  });
+            });
       });
 }
 

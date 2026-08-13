@@ -83,7 +83,8 @@ auto Language::Flow::RangeLoop::interpret(
   });
 
   auto body = Block::interpret(
-      domain, source, transaction, loop, function, access_scope);
+      domain, source, transaction, loop, function, access_scope,
+      Reference<const Abstract>(loop));
   BAIL_IF(!body);
   loop.body = Reference<Block>(*body);
   loop.anchor = Anchor::create(*name, Span(opening, transaction.peek(-1)));

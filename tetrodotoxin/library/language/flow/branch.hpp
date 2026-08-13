@@ -69,7 +69,7 @@ class Branch : public Ttx::Concept::Abstract {
     return condition.get();
   }
 
-  constexpr auto get_body() const -> const Block& { return body.get(); }
+  constexpr auto get_body() const -> const Block& { return body->get(); }
 
   constexpr auto get_alternate() const
       -> Perimortem::Core::Option<const Block&> {
@@ -87,18 +87,12 @@ class Branch : public Ttx::Concept::Abstract {
   constexpr Branch(
       Kind kind,
       Model::Pack& condition,
-      Block& body,
-      Perimortem::Core::Option<Ttx::Concept::Reference<Block>> alternate,
       Ttx::Lexical::Anchor anchor)
-      : kind(kind),
-        condition(condition),
-        body(body),
-        alternate(alternate),
-        anchor(anchor) {}
+      : kind(kind), condition(condition), anchor(anchor) {}
 
   Kind kind;
   Ttx::Concept::Reference<Model::Pack> condition;
-  Ttx::Concept::Reference<Block> body;
+  Perimortem::Core::Option<Ttx::Concept::Reference<Block>> body;
   Perimortem::Core::Option<Ttx::Concept::Reference<Block>> alternate;
   Ttx::Lexical::Anchor anchor;
   Bool linked = False;

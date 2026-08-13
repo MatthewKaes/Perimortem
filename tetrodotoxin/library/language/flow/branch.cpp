@@ -48,11 +48,14 @@ auto Language::Flow::Branch::interpret(
   auto transaction = cursor.branch();
   Token opening = transaction.current();
   Kind kind;
-  if (transaction.matches(Code::Type::If)) {
+  switch (transaction.get_code().get_type()) {
+  case Code::Type::If:
     kind = Kind::If;
-  } else if (transaction.matches(Code::Type::While)) {
+    break;
+  case Code::Type::While:
     kind = Kind::While;
-  } else {
+    break;
+  default:
     return {};
   }
   transaction.consume();
@@ -60,25 +63,44 @@ auto Language::Flow::Branch::interpret(
   auto condition = Model::Parser::Pack::parse(domain, source, transaction);
   BAIL_IF(!condition);
 
-  auto body = Block::interpret(
-      domain, source, transaction, lexical_context, function, access_scope);
-  BAIL_IF(!body);
+  Branch& result = domain.construct_from<Branch>([&]() -> Branch {
+    return Branch(
+        kind, *condition,
+        Anchor::create(opening, Span(opening, transaction.peek(-1))));
+  });
 
-  Option<Reference<Block>> alternate;
+  // Propagate loop closures with each block depth.
+  // This gives us a free scope stack for loop control operations that doesn't
+  // need to be recaculated later.
+  Option<Reference<const Abstract>> enclosing_loop;
+  if (kind == Kind::While) {
+    enclosing_loop = Reference<const Abstract>(result);
+  } else {
+    auto inherited = lexical_context.get_enclosing_loop();
+    if (inherited) {
+      enclosing_loop = Reference<const Abstract>(*inherited);
+    }
+  }
+
+  auto body = Block::interpret(
+      domain, source, transaction, lexical_context, function, access_scope,
+      enclosing_loop);
+  BAIL_IF(!body);
+  result.body = Reference<Block>(*body);
+
+  // If we land on an else block for the following block then chain it as the
+  // alternative.
   if (kind == Kind::If && transaction.matches(Code::Type::Else)) {
     transaction.consume();
     auto parsed = Block::interpret(
-        domain, source, transaction, lexical_context, function, access_scope);
+        domain, source, transaction, lexical_context, function, access_scope,
+        enclosing_loop);
     BAIL_IF(!parsed);
-    alternate = Reference<Block>(*parsed);
+    result.alternate = Reference<Block>(*parsed);
   }
 
   Token closing = transaction.peek(-1);
-  Branch& result = domain.construct_from<Branch>([&]() -> Branch {
-    return Branch(
-        kind, *condition, *body, alternate,
-        Anchor::create(opening, Span(opening, closing)));
-  });
+  result.anchor = Anchor::create(opening, Span(opening, closing));
   cursor.join(transaction);
   return result;
 }
@@ -90,6 +112,7 @@ auto Language::Flow::Branch::link(
   if (linked) {
     return True;
   }
+  BAIL_IF(!body);
 
   Model::Pack& retained_condition = condition.get();
   BAIL_IF(!retained_condition.link(source, lexical_context, access_scope));
@@ -101,7 +124,7 @@ auto Language::Flow::Branch::link(
     return False;
   }
 
-  Bool failed = !body.get().link(source);
+  Bool failed = !body->get().link(source);
   alternate.visit(
       []() {},
       [&](Reference<Block>& selected) {
@@ -115,7 +138,8 @@ auto Language::Flow::Branch::link(
 
 auto Language::Flow::Branch::finalize() -> void {
   condition.get().finalize();
-  body.get().finalize();
+  body.visit(
+      []() {}, [](Reference<Block>& selected) { selected.get().finalize(); });
   alternate.visit(
       []() {}, [](Reference<Block>& selected) { selected.get().finalize(); });
 }
@@ -125,6 +149,6 @@ auto Language::Flow::Branch::reaches_next_statement() const -> Bool {
     return True;
   }
 
-  return body.get().reaches_next_statement() ||
+  return body->get().reaches_next_statement() ||
          alternate->get().reaches_next_statement();
 }

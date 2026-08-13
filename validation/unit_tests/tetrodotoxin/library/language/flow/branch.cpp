@@ -10,6 +10,7 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/flow/local.hpp"
+#include "tetrodotoxin/library/language/flow/loop_control.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
@@ -157,6 +158,34 @@ PERIMORTEM_UNIT_TEST(BranchTests, terminal_if_covers_function_result) {
   auto function = find_function(monograph->get_source(), "select"_view);
   ASSERT(function && function->get_body());
   EXPECT_NOT(function->get_body()->reaches_next_statement());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(BranchTests, while_body_targets_its_branch) {
+  static constexpr View::Bytes source =
+      "// While control.\n"
+      "dialect : Library;\n"
+      "public repeat : func = [] -> Void {\n"
+      "  while true { continue; }\n"
+      "  return;\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+
+  auto function = find_function(monograph->get_source(), "repeat"_view);
+  ASSERT(function && function->get_body());
+  auto statements = function->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(2));
+  const auto& loop = static_cast<const Language::Flow::Branch&>(
+      statements.get_data()[0].get());
+  const auto& control = static_cast<const Language::Flow::LoopControl&>(
+      loop.get_body().get_statements().get_data()[0].get());
+  EXPECT(&control.get_target() == &loop);
+  EXPECT(loop.reaches_next_statement());
   EXPECT(errors.is_empty());
 }
 
