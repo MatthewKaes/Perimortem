@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // Folding projects a product while every authored input and linked Type remain.
 class Multiply : public Operation {
  public:
-  BINARY_OP_CONTRACT(Multiply, 0x5c072da344144a09, 0x8b5fc8dd12d91e3a);
+  BINARY_OP_CONTRACT(Multiply);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

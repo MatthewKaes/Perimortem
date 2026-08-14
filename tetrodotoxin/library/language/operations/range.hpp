@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // shared signed or unsigned Type without claiming storage or iteration state.
 class Range : public Operation {
  public:
-  BINARY_OP_CONTRACT(Range, 0x3d8f2d5c47a849b1, 0x9f12e0c4a6b7315d);
+  BINARY_OP_CONTRACT(Range);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

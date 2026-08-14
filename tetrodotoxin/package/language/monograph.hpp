@@ -24,22 +24,28 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   Monograph(
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Documentation& documentation,
+      Tetrodotoxin::Language::Diagnostics& diagnostics,
       Perimortem::Core::View::Vector<Dependency> dependencies,
       Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans,
       Perimortem::Core::View::Vector<Source> sources);
 
  public:
-  TTX_CONTRACT(
-      Monograph,
-      Tetrodotoxin::Language::Monograph,
-      0x5f23a554d3745ebd,
-      0xe899f24ef18c3a52);
+  TTX_CONTRACT(Monograph, Tetrodotoxin::Language::Monograph);
 
   // Authored construction rejects an empty Source inventory or partial
   // provenance before any graph identity enters the Arena.
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Documentation& documentation,
+      Perimortem::Core::View::Vector<Dependency> dependencies,
+      Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans,
+      Perimortem::Core::View::Vector<Source> sources)
+      -> Perimortem::Core::Option<Monograph&>;
+
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Concept::Documentation& documentation,
+      Tetrodotoxin::Language::Diagnostics& diagnostics,
       Perimortem::Core::View::Vector<Dependency> dependencies,
       Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans,
       Perimortem::Core::View::Vector<Source> sources)

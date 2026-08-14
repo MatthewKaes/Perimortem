@@ -20,7 +20,7 @@ namespace Tetrodotoxin::Library::Language::Access {
 // a receiver base, while target generation owns its concrete representation.
 class Address : public Expression {
  public:
-  TTX_CONTRACT(Address, Expression, 0xdf9d470a5b024335, 0xb38fc893710f519e);
+  TTX_CONTRACT(Address, Expression);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

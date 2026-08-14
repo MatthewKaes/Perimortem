@@ -26,7 +26,7 @@ class Structure : public Composite {
       Ttx::Lexical::Token kind_token) -> Bool;
 
  public:
-  TTX_CONTRACT(Structure, Composite, 0xe3773c0325224200, 0xaeb9a3131139c16f);
+  TTX_CONTRACT(Structure, Composite);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

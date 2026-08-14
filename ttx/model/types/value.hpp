@@ -16,7 +16,7 @@ namespace Ttx::Model::Types {
 // Any further contextual resolution on the type terminates to `Invalid`.
 class Value : public Type {
  public:
-  TTX_CONTRACT(Value, Type, 0x0904f828ec2a489f, 0x978eb1f113cb771f);
+  TTX_CONTRACT(Value, Type);
 
   TTX_INVALID_CONTEXT;
 

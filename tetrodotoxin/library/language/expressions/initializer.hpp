@@ -24,7 +24,7 @@ namespace Tetrodotoxin::Library::Language::Expressions {
 // inventing a source Anchor.
 class Initializer : public Expression {
  public:
-  TTX_CONTRACT(Initializer, Expression, 0x921ccce2e4934c8d, 0x9d19d3434e18f49a);
+  TTX_CONTRACT(Initializer, Expression);
 
   static auto is_next(const Ttx::Lexical::Cursor& cursor) -> Bool;
 

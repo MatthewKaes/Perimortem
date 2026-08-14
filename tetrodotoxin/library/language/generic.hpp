@@ -33,11 +33,7 @@ class Generic : public Ttx::Concept::Abstract {
   using Argument = Perimortem::Core::Static::
       Union<const Ttx::Model::Type&, ::Unsigned_64, ::Signed_64, ::Bool>;
 
-  TTX_CONTRACT(
-      Generic,
-      Ttx::Concept::Abstract,
-      0x8fe47e7b2c394bd7,
-      0x9b3824546cc3bb50);
+  TTX_CONTRACT(Generic, Ttx::Concept::Abstract);
 
   virtual constexpr auto get_parameterization() const
       -> Perimortem::Core::View::Vector<Parameters> = 0;

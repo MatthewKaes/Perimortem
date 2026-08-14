@@ -16,7 +16,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // remain.
 class Divide : public Operation {
  public:
-  BINARY_OP_CONTRACT(Divide, 0xeacc7521628c4df8, 0x9b7b7aebb2410d47);
+  BINARY_OP_CONTRACT(Divide);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

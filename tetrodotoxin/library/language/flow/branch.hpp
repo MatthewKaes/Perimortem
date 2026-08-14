@@ -30,11 +30,7 @@ class Branch : public Ttx::Concept::Abstract {
     While,
   };
 
-  TTX_CONTRACT(
-      Branch,
-      Ttx::Concept::Abstract,
-      0x16adf868b8464eae,
-      0x878e16fdfe0260e7);
+  TTX_CONTRACT(Branch, Ttx::Concept::Abstract);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

@@ -26,7 +26,7 @@ class Source : public Composite {
       -> Bool override;
 
  public:
-  TTX_CONTRACT(Source, Composite, 0xa972070bd27746e0, 0x959dd29d7924aed4);
+  TTX_CONTRACT(Source, Composite);
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,

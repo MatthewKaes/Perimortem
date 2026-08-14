@@ -17,7 +17,7 @@ class Object : public Structure {
       Tetrodotoxin::Language::Definition& definition);
 
  public:
-  TTX_CONTRACT(Object, Structure, 0xed4871dfefaa4aee, 0xa13f79099ea383ab);
+  TTX_CONTRACT(Object, Structure);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

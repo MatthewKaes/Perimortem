@@ -24,7 +24,7 @@ namespace Tetrodotoxin::Library::Language {
 // evaluation without asking Parser to interpret semantic Types.
 class Operation : public Expression {
  public:
-  TTX_CONTRACT(Operation, Expression, 0x7b99d8819ace4f54, 0x84d44c33d0c23202);
+  TTX_CONTRACT(Operation, Expression);
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
 
@@ -93,8 +93,8 @@ class Operation : public Expression {
 
 // Binary Operations share their category proof, construction surface, and
 // canonical semantic name while keeping parsing and evaluation visible.
-#define BINARY_OP_CONTRACT(type, high, low)                                   \
-  TTX_CONTRACT(type, Operation, high, low);                                   \
+#define BINARY_OP_CONTRACT(type)                                              \
+  TTX_CONTRACT(type, Operation);                                              \
   static auto create_authored(                                                \
       Perimortem::Memory::Allocator::Arena& domain, Expression& left,         \
       Expression& right, Ttx::Lexical::Anchor anchor) -> type&;               \

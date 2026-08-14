@@ -12,7 +12,7 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // every resolved Flag Type regardless of the toolchain's chosen storage width.
 class Flag : public Constant {
  public:
-  TTX_CONTRACT(Flag, Constant, 0x09d395cb5fea4765, 0x897a36a658c2486a);
+  TTX_CONTRACT(Flag, Constant);
   using Value = Bool;
 
   static auto create_authored(

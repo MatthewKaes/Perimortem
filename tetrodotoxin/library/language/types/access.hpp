@@ -13,7 +13,7 @@ namespace Tetrodotoxin::Library::Language::Types {
 // edge while Materializations alone owns the Generic key that created it.
 class Access : public Contiguous {
  public:
-  TTX_CONTRACT(Access, Contiguous, 0x9297f2706d2e464e, 0x82d4b4fece93716d);
+  TTX_CONTRACT(Access, Contiguous);
 
   constexpr Access(
       Perimortem::Core::View::Bytes name,

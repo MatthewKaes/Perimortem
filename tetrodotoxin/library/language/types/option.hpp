@@ -29,11 +29,7 @@ class Option : public Ttx::Model::Type {
     Present,
   };
 
-  TTX_CONTRACT(
-      Option,
-      Ttx::Model::Type,
-      0xf7486cd0ca164540,
-      0x9be44ea151c5979f);
+  TTX_CONTRACT(Option, Ttx::Model::Type);
 
   constexpr Option(
       Perimortem::Core::View::Bytes name,

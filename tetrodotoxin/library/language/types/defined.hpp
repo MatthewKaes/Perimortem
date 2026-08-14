@@ -19,11 +19,7 @@ class Defined : public Ttx::Model::Type {
       : definition(definition) {}
 
  public:
-  TTX_CONTRACT(
-      Defined,
-      Ttx::Model::Type,
-      0x9d65310686cf4e6a,
-      0xa49952f036ba02c6);
+  TTX_CONTRACT(Defined, Ttx::Model::Type);
 
   constexpr auto get_definition() const
       -> const Tetrodotoxin::Language::Definition& {

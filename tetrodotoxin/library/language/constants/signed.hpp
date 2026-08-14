@@ -13,7 +13,7 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // for another Signed width.
 class Signed : public Constant {
  public:
-  TTX_CONTRACT(Signed, Constant, 0xb7e0f0e5d1b44874, 0x9361ac25cc53d15e);
+  TTX_CONTRACT(Signed, Constant);
   using Value = Signed_64;
 
   static auto create_authored(

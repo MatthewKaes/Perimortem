@@ -11,7 +11,7 @@ namespace Ttx::Model::Types {
 // negative integer values.
 class Signed : public Value {
  public:
-  TTX_CONTRACT(Signed, Value, 0xd6027af70ac64c12, 0x8a76a2ead91b2550);
+  TTX_CONTRACT(Signed, Value);
 };
 
 }  // namespace Ttx::Model::Types

@@ -70,11 +70,7 @@ class Group final : public Language::Model::Pack {
     }
   }
 
-  TTX_CONTRACT(
-      Group,
-      Language::Model::Pack,
-      0x878367a4aaf04e9f,
-      0xbb415be4c70a29db);
+  TTX_CONTRACT(Group, Language::Model::Pack);
 
   TTX_NAME("Pack"_view);
   TTX_EMPTY_DOCUMENTATION();

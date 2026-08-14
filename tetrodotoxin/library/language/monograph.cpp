@@ -40,9 +40,10 @@ Library::Language::Monograph::Monograph(
     Allocator::Arena& domain,
     const Documentation& documentation,
     const Anchor& source_anchor,
+    Tetrodotoxin::Language::Diagnostics& diagnostics,
     Library::Dialect& dialect,
     const Abstract& interpretation_context)
-    : Tetrodotoxin::Language::Monograph(domain, documentation),
+    : Tetrodotoxin::Language::Monograph(domain, documentation, diagnostics),
       dialect(dialect),
       interpretation_context(interpretation_context),
       imports(domain),
@@ -58,11 +59,13 @@ auto Library::Language::Monograph::create_authored(
     Allocator::Arena& domain,
     const Documentation& documentation,
     const Anchor& source_anchor,
+    Tetrodotoxin::Language::Diagnostics& diagnostics,
     Library::Dialect& dialect,
     const Abstract& interpretation_context) -> Monograph& {
   return domain.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
-        domain, documentation, source_anchor, dialect, interpretation_context);
+        domain, documentation, source_anchor, diagnostics, dialect,
+        interpretation_context);
   });
 }
 

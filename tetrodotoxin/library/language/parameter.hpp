@@ -22,11 +22,7 @@ class Layout;
 // Anchors and TypeReference syntax remain in the one canonical Layout slot.
 class Parameter : public Ttx::Model::Addressable {
  public:
-  TTX_CONTRACT(
-      Parameter,
-      Ttx::Model::Addressable,
-      0xd422d050fce343c0,
-      0xbc6efef9f6271d15);
+  TTX_CONTRACT(Parameter, Ttx::Model::Addressable);
 
   Parameter(const Parameter&) = delete;
   Parameter(Parameter&&) = delete;

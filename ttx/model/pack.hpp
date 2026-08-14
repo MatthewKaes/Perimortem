@@ -21,7 +21,7 @@ namespace Ttx::Model {
 // flow rather than an incomplete state.
 class Pack : public Concept::Abstract {
  public:
-  TTX_CONTRACT(Pack, Abstract, 0x92e661ffd93441bd, 0x8ee90c39ae58e6eb);
+  TTX_CONTRACT(Pack, Abstract);
 
   TTX_INVALID_CONTEXT;
 

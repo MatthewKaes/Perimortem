@@ -27,7 +27,7 @@ namespace Tetrodotoxin::Library::Language::Access {
 // eagerly materialized Type.
 class Swizzle : public Expression {
  public:
-  TTX_CONTRACT(Swizzle, Expression, 0xc43faea8e4984ac5, 0x81abdbb11a727513);
+  TTX_CONTRACT(Swizzle, Expression);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

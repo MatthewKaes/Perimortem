@@ -29,9 +29,11 @@ class Workspace : public Ttx::Concept::Abstract {
   ~Workspace() override;
 
   // Installs a distinct stateful Dialect under one exact authored name.
-  template <typename TargetDialect>
-  auto install_dialect(Perimortem::Core::View::Bytes name) -> Bool {
-    return dialects.install<TargetDialect>(name);
+  template <typename TargetDialect, typename... DependencyDialects>
+  auto install_dialect(
+      Perimortem::Core::View::Bytes name,
+      DependencyDialects&... dependencies) -> TargetDialect* {
+    return dialects.install<TargetDialect>(name, dependencies...);
   }
 
   // Interprets caller owned source bytes into the current staged range. Raw

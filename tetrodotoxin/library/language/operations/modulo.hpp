@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // linking. Folding projects a remainder without changing those authored facts.
 class Modulo : public Operation {
  public:
-  BINARY_OP_CONTRACT(Modulo, 0x1dd8ae1ea96e46c7, 0xb5187473008b0f44);
+  BINARY_OP_CONTRACT(Modulo);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

@@ -19,9 +19,24 @@ auto Package::Dialect::interpret(
     Cursor& cursor,
     const Documentation& documentation,
     const Anchor& source_anchor,
+    Abstract& interpretation_context)
+    -> Option<Tetrodotoxin::Language::Monograph&> {
+  auto& diagnostics =
+      domain.construct<Tetrodotoxin::Language::Diagnostics>(domain);
+  return interpret(
+      domain, cursor, documentation, source_anchor, diagnostics,
+      interpretation_context);
+}
+
+auto Package::Dialect::interpret(
+    Allocator::Arena& domain,
+    Cursor& cursor,
+    const Documentation& documentation,
+    const Anchor& source_anchor,
+    Tetrodotoxin::Language::Diagnostics& diagnostics,
     Abstract&) -> Option<Tetrodotoxin::Language::Monograph&> {
   // Package produces a Monograph rather than a synthetic source Type, so it
-  // has no semantic owner for the source-envelope Anchor.
+  // has no semantic owner for the source envelope Anchor.
   (void)source_anchor;
   Managed::Vector<Language::Dependency> dependencies(domain);
   Managed::Vector<Span> dependency_spans(domain);
@@ -139,7 +154,8 @@ auto Package::Dialect::interpret(
   // Both inventories grow in the same statement branch, but Monograph owns
   // the invariant so another authored producer cannot publish a partial pair.
   auto monograph = Language::Monograph::create_authored(
-      domain, documentation, dependencies, dependency_spans, sources);
+      domain, documentation, diagnostics, dependencies, dependency_spans,
+      sources);
   if (!monograph) {
     return {};
   }

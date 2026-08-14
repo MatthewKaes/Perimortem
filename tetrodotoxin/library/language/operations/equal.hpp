@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // edges, their selected Type identity, and the canonical Bool result.
 class Equal : public Operation {
  public:
-  BINARY_OP_CONTRACT(Equal, 0xe0adc31ba73f4e1c, 0xa1d2d2617811c039);
+  BINARY_OP_CONTRACT(Equal);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

@@ -27,11 +27,7 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // new aggregate Type for composed flow.
 class Local : public Ttx::Model::Addressable {
  public:
-  TTX_CONTRACT(
-      Local,
-      Ttx::Model::Addressable,
-      0xc75cb122b73143eb,
-      0xb16e86e34da225d2);
+  TTX_CONTRACT(Local, Ttx::Model::Addressable);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

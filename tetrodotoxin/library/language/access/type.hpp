@@ -22,7 +22,7 @@ namespace Tetrodotoxin::Library::Language::Access {
 // preserves the selected semantic Type for another access operation.
 class Type : public Expression {
  public:
-  TTX_CONTRACT(Type, Expression, 0x39c8cead0d1e4e63, 0xa25250161e7a57cc);
+  TTX_CONTRACT(Type, Expression);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

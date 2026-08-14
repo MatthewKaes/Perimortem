@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // authored input and Type identities intact.
 class Less : public Operation {
  public:
-  BINARY_OP_CONTRACT(Less, 0x09779870d7b74782, 0xa98e47508a40c078);
+  BINARY_OP_CONTRACT(Less);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

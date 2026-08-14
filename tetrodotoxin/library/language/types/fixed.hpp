@@ -14,7 +14,7 @@ namespace Tetrodotoxin::Library::Language::Types {
 // and element edge while Ranged exposes the repeated identity without copies.
 class Fixed : public Contiguous {
  public:
-  TTX_CONTRACT(Fixed, Contiguous, 0xf1d212690ed5471f, 0x8f47246bd80d2cbe);
+  TTX_CONTRACT(Fixed, Contiguous);
 
   Fixed(
       Perimortem::Core::View::Bytes name,

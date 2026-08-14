@@ -34,7 +34,7 @@ namespace Ttx::Model {
 // interval, as in Bytes[N], without allocating one semantic node per index.
 class Type : public Concept::Abstract {
  public:
-  TTX_CONTRACT(Type, Abstract, 0x94ee892e6e064e3b, 0x896512640a01b446);
+  TTX_CONTRACT(Type, Abstract);
 
   virtual constexpr auto get_layout() const -> const Concept::Layout& {
     return layout;

@@ -36,7 +36,7 @@ class Alias : public Authored<Ttx::Model::Alias> {
         target_reference(target_reference) {}
 
  public:
-  TTX_CONTRACT(Alias, Base, 0xeb6c21e679a3443f, 0x9f8f327b34eba32d);
+  TTX_CONTRACT(Alias, Base);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

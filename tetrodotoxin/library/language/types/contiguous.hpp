@@ -13,11 +13,7 @@ namespace Tetrodotoxin::Library::Language::Types {
 // subset used by Index.
 class Contiguous : public Ttx::Model::Type {
  public:
-  TTX_CONTRACT(
-      Contiguous,
-      Ttx::Model::Type,
-      0x783ec715f0094260,
-      0xbdb9ab8e051c6f9e);
+  TTX_CONTRACT(Contiguous, Ttx::Model::Type);
 
   virtual constexpr auto get_element_type() const
       -> const Ttx::Model::Type& = 0;

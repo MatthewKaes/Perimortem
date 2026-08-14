@@ -32,7 +32,7 @@ class Function : public Authored<Ttx::Model::Callable> {
       Tetrodotoxin::Language::Definition& definition);
 
  public:
-  TTX_CONTRACT(Function, Base, 0x6c76a9165a2640bf, 0xbbebc5e45cc6bd0f);
+  TTX_CONTRACT(Function, Base);
 
   static auto reserve(
       Perimortem::Memory::Allocator::Arena& domain,

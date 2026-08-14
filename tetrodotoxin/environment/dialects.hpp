@@ -12,6 +12,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/dialect.hpp"
+#include "ttx/concept/type_identity.hpp"
 
 namespace Tetrodotoxin::Environment {
 
@@ -23,15 +24,26 @@ class Dialects {
   explicit Dialects(Perimortem::Memory::Allocator::Arena& arena);
   ~Dialects();
 
-  template <typename TargetDialect>
-  auto install(Perimortem::Core::View::Bytes name) -> Bool {
-    if (installed.contains(name)) {
-      return false;
+  template <typename TargetDialect, typename... DependencyDialects>
+  auto install(
+      Perimortem::Core::View::Bytes name,
+      DependencyDialects&... dependencies) -> TargetDialect* {
+    Unsigned_64 type_identity =
+        Ttx::Concept::get_type_identity<TargetDialect>();
+    if (installed.contains(name) || contains_type(type_identity)) {
+      return nullptr;
+    }
+
+    Bool dependencies_installed =
+        (contains_instance(static_cast<Language::Dialect&>(dependencies)) &&
+         ...);
+    if (!dependencies_installed) {
+      return nullptr;
     }
 
     Perimortem::Core::View::Bytes retained_name = arena.proxy(name);
-    auto& dialect = arena.construct<TargetDialect>();
-    Installed retained(dialect);
+    auto& dialect = arena.construct<TargetDialect>(dependencies...);
+    Installed retained(dialect, type_identity);
 
     names.insert(retained_name);
     values.insert(retained);
@@ -39,7 +51,7 @@ class Dialects {
     // Map values are nonassignable references. The exact duplicate guard above
     // makes launder a construction operation rather than replacement policy.
     installed.launder(retained_name, dialect);
-    return true;
+    return &dialect;
   }
 
   auto find(Perimortem::Core::View::Bytes name)
@@ -50,12 +62,17 @@ class Dialects {
  private:
   class Installed {
    public:
-    explicit Installed(Language::Dialect& value);
+    Installed(Language::Dialect& value, Unsigned_64 type_identity);
     auto get() const -> Language::Dialect&;
+    auto get_type_identity() const -> Unsigned_64;
 
    private:
     Language::Dialect& value;
+    Unsigned_64 type_identity;
   };
+
+  auto contains_instance(const Language::Dialect& dialect) const -> Bool;
+  auto contains_type(Unsigned_64 type_identity) const -> Bool;
 
   Perimortem::Memory::Allocator::Arena& arena;
   Perimortem::Memory::Managed::Vector<Perimortem::Core::View::Bytes> names;

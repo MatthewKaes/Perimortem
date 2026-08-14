@@ -21,7 +21,7 @@ using namespace Tetrodotoxin::Library;
 
 class Payload final : public Addressable {
  public:
-  TTX_CONTRACT(Payload, Addressable, 0x43e392a908fd46ed, 0xaaf47238d64c7711);
+  TTX_CONTRACT(Payload, Addressable);
 
   constexpr Payload(View::Bytes name) : name(name) {}
 
@@ -50,11 +50,7 @@ class Payload final : public Addressable {
 
 class PatternContext final : public Abstract {
  public:
-  TTX_CONTRACT(
-      PatternContext,
-      Abstract,
-      0x9a56fc513b014505,
-      0x875d09107259fb90);
+  TTX_CONTRACT(PatternContext, Abstract);
 
   constexpr PatternContext(const Abstract& parent, Payload& payload)
       : parent(parent), payload(payload) {}

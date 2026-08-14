@@ -93,11 +93,7 @@ class InitializerValues final : public Language::Model::Pack {
     const InitializerValues& values;
   };
 
-  TTX_CONTRACT(
-      InitializerValues,
-      Language::Model::Pack,
-      0xcbd30af87c70472c,
-      0xa05533748abc2332);
+  TTX_CONTRACT(InitializerValues, Language::Model::Pack);
 
   InitializerValues(
       Memory::Allocator::Arena& domain,

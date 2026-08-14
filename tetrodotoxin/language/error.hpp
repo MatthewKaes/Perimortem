@@ -15,11 +15,7 @@ namespace Tetrodotoxin::Language {
 // Dialect contract.
 class Error : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(
-      Error,
-      Ttx::Concept::Abstract,
-      0xf29c0b68bd8648e1,
-      0x917717c7a0bf3622);
+  TTX_CONTRACT(Error, Ttx::Concept::Abstract);
 
   TTX_NAME("Error"_view);
 

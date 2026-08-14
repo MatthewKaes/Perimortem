@@ -31,7 +31,7 @@ namespace Ttx::Model {
 // and reject Alias cycles before publishing the completed graph.
 class Alias : public Concept::Abstract {
  public:
-  TTX_CONTRACT(Alias, Abstract, 0x58e8b4a115e9461a, 0x88a5767626d4a21a);
+  TTX_CONTRACT(Alias, Abstract);
 
   constexpr Alias(
       Perimortem::Core::View::Bytes name,

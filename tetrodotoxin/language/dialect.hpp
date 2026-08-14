@@ -36,6 +36,7 @@ class Dialect {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& doc,
       const Ttx::Lexical::Anchor& source_anchor,
+      Diagnostics& diagnostics,
       Ttx::Concept::Abstract& interpretation_context)
       -> Perimortem::Core::Option<Monograph&> = 0;
 

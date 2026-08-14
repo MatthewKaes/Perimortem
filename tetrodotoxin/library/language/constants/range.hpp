@@ -12,7 +12,7 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // fabricated element, storage view, or iterator identity.
 class Range : public Constant {
  public:
-  TTX_CONTRACT(Range, Constant, 0xda0eb0800c554c60, 0x91a04566787dd7de);
+  TTX_CONTRACT(Range, Constant);
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,

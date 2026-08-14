@@ -66,7 +66,7 @@ class Expression : public Model::Pack {
     const Expression& expression;
   };
 
-  TTX_CONTRACT(Expression, Model::Pack, 0xb9716e09506c45e3, 0x9537c9b4b327e108);
+  TTX_CONTRACT(Expression, Model::Pack);
 
   // Access operators own receiver traversal. An Expression never lends its
   // result or output Type as an implicit contextual lookup path.

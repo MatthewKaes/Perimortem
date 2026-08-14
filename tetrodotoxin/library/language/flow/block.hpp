@@ -27,11 +27,7 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // Layout, SSA edges, or target control flow.
 class Block : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(
-      Block,
-      Ttx::Concept::Abstract,
-      0x833edbf9ef0e42de,
-      0x82cdbc6fdf4e7805);
+  TTX_CONTRACT(Block, Ttx::Concept::Abstract);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

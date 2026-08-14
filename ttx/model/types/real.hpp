@@ -11,7 +11,7 @@ namespace Ttx::Model::Types {
 // precision Types supply their fixed name, representation, and documentation.
 class Real : public Value {
  public:
-  TTX_CONTRACT(Real, Value, 0xf83c87fdb02d4fe3, 0x929dae6e905f5dfa);
+  TTX_CONTRACT(Real, Value);
 };
 
 }  // namespace Ttx::Model::Types

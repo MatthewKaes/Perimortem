@@ -19,7 +19,7 @@ namespace Tetrodotoxin::Library::Language::Access {
 // separate bracket access form.
 class Slice : public Expression {
  public:
-  TTX_CONTRACT(Slice, Expression, 0x6beea0412c0b4d4e, 0x958a39337c8ced0f);
+  TTX_CONTRACT(Slice, Expression);
 
   // Consumes one complete value postfix for the supplied receiver. Recursive
   // operands use the Expression dispatcher while Slice owns the postfix

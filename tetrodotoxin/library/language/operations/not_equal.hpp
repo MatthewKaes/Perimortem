@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // operand edges, their selected Type identity, and the canonical Bool result.
 class NotEqual : public Operation {
  public:
-  BINARY_OP_CONTRACT(NotEqual, 0xa2c035278af343f7, 0xa088f67899453ad2);
+  BINARY_OP_CONTRACT(NotEqual);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

@@ -14,11 +14,7 @@ namespace Tetrodotoxin::Language {
 // satisfies that contract without another allocation.
 class Resource : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(
-      Resource,
-      Ttx::Concept::Abstract,
-      0x84042ad530164a0d,
-      0x91069bdadcb11168);
+  TTX_CONTRACT(Resource, Ttx::Concept::Abstract);
 
   TTX_NAME("Resource"_view);
 

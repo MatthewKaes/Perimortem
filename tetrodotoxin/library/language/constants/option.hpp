@@ -16,7 +16,7 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // its complete folded payload Pack without copying any producer identity.
 class Option : public Constant {
  public:
-  TTX_CONTRACT(Option, Constant, 0x834555dfcd514dd3, 0xa2696dd1cd4828a7);
+  TTX_CONTRACT(Option, Constant);
 
   static auto create_absent(
       Perimortem::Memory::Allocator::Arena& domain,

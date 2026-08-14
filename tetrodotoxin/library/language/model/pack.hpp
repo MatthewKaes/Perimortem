@@ -29,7 +29,7 @@ namespace Tetrodotoxin::Library::Language::Model {
 // sentinel.
 class Pack : public Ttx::Model::Pack {
  public:
-  TTX_CONTRACT(Pack, Ttx::Model::Pack, 0xa9a301f166674390, 0x990ea203734fbd91);
+  TTX_CONTRACT(Pack, Ttx::Model::Pack);
 
   virtual auto link(
       Tetrodotoxin::Language::Monograph& source,

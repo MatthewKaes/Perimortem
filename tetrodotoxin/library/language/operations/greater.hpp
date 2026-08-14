@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // authored input and Type identities intact.
 class Greater : public Operation {
  public:
-  BINARY_OP_CONTRACT(Greater, 0x37bb18072a5b4e59, 0x98bc1804a3795115);
+  BINARY_OP_CONTRACT(Greater);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

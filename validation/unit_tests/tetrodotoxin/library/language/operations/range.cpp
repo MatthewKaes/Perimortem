@@ -100,7 +100,8 @@ PERIMORTEM_UNIT_TEST(LibraryRange, exact_materialization) {
       Operations::Range::create_synthetic(domain, signed_start, signed_end);
 
   ASSERT(first.is<Operations::Range>());
-  EXPECT(first.implements(Operations::Range::contract_id));
+  EXPECT(
+      first.implements(Ttx::Concept::get_type_identity<Operations::Range>()));
   ASSERT(first.link(source, Invalid::get_invalid()));
   ASSERT(first.link(source, Invalid::get_invalid()));
   ASSERT(repeated.link(source, Invalid::get_invalid()));

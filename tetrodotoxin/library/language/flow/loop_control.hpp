@@ -25,11 +25,7 @@ class LoopControl : public Ttx::Concept::Abstract {
     Continue,
   };
 
-  TTX_CONTRACT(
-      LoopControl,
-      Ttx::Concept::Abstract,
-      0x518cfb22cbd14615,
-      0xa27ab45765388ee8);
+  TTX_CONTRACT(LoopControl, Ttx::Concept::Abstract);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

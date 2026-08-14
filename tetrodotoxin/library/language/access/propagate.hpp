@@ -16,7 +16,7 @@ namespace Tetrodotoxin::Library::Language::Access {
 // value while absence returns one empty Pack from the enclosing Function.
 class Propagate : public Expression {
  public:
-  TTX_CONTRACT(Propagate, Expression, 0x0b4ac4199464462b, 0xa46c7e6d32162cbd);
+  TTX_CONTRACT(Propagate, Expression);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

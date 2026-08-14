@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // right edge is reachable from the completed left value.
 class Or : public Operation {
  public:
-  BINARY_OP_CONTRACT(Or, 0x1079d66d00564cbd, 0x913b4a5b98aee4f8);
+  BINARY_OP_CONTRACT(Or);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

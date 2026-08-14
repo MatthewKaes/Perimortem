@@ -11,7 +11,7 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // fitting while category proof can still select the exact logical value.
 class False : public Flag {
  public:
-  TTX_CONTRACT(False, Flag, 0x07c1acb57a07401a, 0x803ffb29898ccb31);
+  TTX_CONTRACT(False, Flag);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

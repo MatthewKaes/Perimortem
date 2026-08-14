@@ -23,11 +23,7 @@ namespace Tetrodotoxin::Library::Language::Foreign {
 // their categories through distinct selectors.
 class Surface final : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(
-      Surface,
-      Ttx::Concept::Abstract,
-      0x9d133b9618154187,
-      0x8988ee0549692cf5);
+  TTX_CONTRACT(Surface, Ttx::Concept::Abstract);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,

@@ -26,11 +26,7 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // multi-value flow follow the same lifecycle without optional flow state.
 class Return : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(
-      Return,
-      Ttx::Concept::Abstract,
-      0xf235213054c548a0,
-      0xae72ff5b04315181);
+  TTX_CONTRACT(Return, Ttx::Concept::Abstract);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

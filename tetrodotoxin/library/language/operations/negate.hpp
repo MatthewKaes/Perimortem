@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // projects a value without changing that authored input or linked Type.
 class Negate : public Operation {
  public:
-  TTX_CONTRACT(Negate, Operation, 0x6f4344a6178e459c, 0x90190b4e89612fbd);
+  TTX_CONTRACT(Negate, Operation);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

@@ -7,9 +7,8 @@
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/language/diagnostic.hpp"
+#include "tetrodotoxin/language/diagnostics.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
 
@@ -26,6 +25,11 @@ class Monograph : public Ttx::Concept::Abstract {
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Documentation& documentation);
 
+  Monograph(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Concept::Documentation& documentation,
+      Diagnostics& diagnostics);
+
   Monograph(const Monograph&) = delete;
   Monograph(Monograph&&) = delete;
   auto operator=(const Monograph&) -> Monograph& = delete;
@@ -39,12 +43,12 @@ class Monograph : public Ttx::Concept::Abstract {
   virtual auto link() -> Bool;
   virtual auto finalize() -> Bool;
 
-  // The Monograph copies diagnostic text into its Arena before publishing the
-  // ordered fact. An authored failure supplies its exact Anchor while a
-  // synthetic or restored failure leaves that location absent. An Anchor with
-  // no valid Span is the same source free state, while an empty focus Token
-  // preserves a valid Span for presentation without carets. Environment
-  // remains responsible for attaching source bytes.
+  // The shared transaction copies diagnostic text into its Arena before
+  // publishing the ordered fact. An authored failure supplies its exact Anchor
+  // while a synthetic or restored failure leaves that location absent. An
+  // Anchor with no valid Span is the same source free state, while an empty
+  // focus Token preserves a valid Span for presentation without carets.
+  // Environment remains responsible for attaching source bytes.
   auto report(
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor,
       Perimortem::Core::View::Bytes message,
@@ -62,7 +66,7 @@ class Monograph : public Ttx::Concept::Abstract {
   const Ttx::Concept::Documentation& documentation;
 
  private:
-  Perimortem::Memory::Managed::Vector<Diagnostic> diagnostics;
+  Diagnostics& diagnostics;
 };
 
 }  // namespace Tetrodotoxin::Language

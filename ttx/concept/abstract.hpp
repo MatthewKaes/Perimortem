@@ -6,10 +6,9 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/option.hpp"
 
-#include "perimortem/system/uuid.hpp"
-
 #include "ttx/concept/authorship.hpp"
 #include "ttx/concept/documentation.hpp"
+#include "ttx/concept/type_identity.hpp"
 
 namespace Ttx::Concept {
 
@@ -37,23 +36,18 @@ namespace Ttx::Concept {
 class Abstract {
  public:
   using ClassCatagory = Abstract;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x67e0e29bc31340ef,
-    0xb8fae3b06a1a7be5,
-  };
 
   constexpr virtual ~Abstract() = default;
 
   // Proves a semantic contract without C++ RTTI or a central class registry.
-  // Derived contracts recognize their stable identifier and then delegate to
-  // their base contract. These identifiers describe interfaces only. Object
+  // Derived contracts recognize their live type identity and then delegate to
+  // their base contract. These identities describe interfaces only. Object
   // identity and durable names continue to come from the Abstract graph. A
   // native implementation may return true only for public C++ base contracts,
   // each represented by one unique accessible base subobject. This invariant
   // makes visitor dispatch well defined.
-  virtual constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool {
-    return requested == contract_id;
+  virtual constexpr auto implements(::Unsigned_64 requested) const -> Bool {
+    return requested == get_type_identity<Abstract>();
   }
 
   template <typename Requested>
@@ -64,7 +58,7 @@ class Abstract {
     static_assert(
         __is_same(Requested, typename Requested::ClassCatagory),
         "Only declared TTX contracts can be queried.");
-    return implements(Requested::contract_id);
+    return implements(get_type_identity<Requested>());
   }
 
   // Returns the proven contract as one borrowed reference. Absence preserves
@@ -175,14 +169,13 @@ class Abstract {
 
 }  // namespace Ttx::Concept
 
-// Keep each derived category declaration beside its stable identifier and
-// direct semantic base while preserving the shared proof implementation.
-#define TTX_CONTRACT(type, base, high, low)                           \
-  using ClassCatagory = type;                                         \
-  static constexpr Perimortem::System::Uuid contract_id{high, low};   \
-  constexpr auto implements(Perimortem::System::Uuid requested) const \
-      -> Bool override {                                              \
-    return requested == contract_id || base::implements(requested);   \
+// Keep each derived category declaration beside its direct semantic base while
+// preserving the shared live proof implementation.
+#define TTX_CONTRACT(type, base)                                              \
+  using ClassCatagory = type;                                                 \
+  constexpr auto implements(::Unsigned_64 requested) const -> Bool override { \
+    return requested == Ttx::Concept::get_type_identity<type>() ||            \
+           base::implements(requested);                                       \
   }
 
 // Compact exact implementations of Abstract's universal presentation slots.

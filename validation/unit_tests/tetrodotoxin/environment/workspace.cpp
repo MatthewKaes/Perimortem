@@ -103,6 +103,7 @@ class WorkspaceDialect : public Language::Dialect {
       Cursor& cursor,
       const Documentation& documentation,
       const Anchor& source_anchor,
+      Language::Diagnostics& diagnostics,
       Abstract& interpretation_context)
       -> Option<Language::Monograph&> override;
 
@@ -119,6 +120,8 @@ class WorkspaceDialect : public Language::Dialect {
   Bool alive = true;
 };
 
+class SecondaryWorkspaceDialect : public WorkspaceDialect {};
+
 class TracedPackageDialect : public Package::Dialect {
  public:
   TracedPackageDialect() : trace(*active_trace) {}
@@ -128,13 +131,15 @@ class TracedPackageDialect : public Package::Dialect {
       Cursor& cursor,
       const Documentation& documentation,
       const Anchor& source_anchor,
+      Language::Diagnostics& diagnostics,
       Abstract& interpretation_context)
       -> Option<Language::Monograph&> override {
     trace.package_interpretation_contexts[trace.package_interpretation_count] =
         &interpretation_context;
     trace.package_interpretation_count++;
     return Package::Dialect::interpret(
-        domain, cursor, documentation, source_anchor, interpretation_context);
+        domain, cursor, documentation, source_anchor, diagnostics,
+        interpretation_context);
   }
 
  private:
@@ -146,9 +151,12 @@ class ResourceMonograph : public Language::Monograph {
   ResourceMonograph(
       Allocator::Arena& domain,
       const Documentation& documentation,
+      Language::Diagnostics& diagnostics,
       WorkspaceTrace& trace,
       const Package::Language::Monograph& package)
-      : Monograph(domain, documentation), trace(trace), package(package) {}
+      : Monograph(domain, documentation, diagnostics),
+        trace(trace),
+        package(package) {}
 
   auto get_name() const -> View::Bytes override {
     return "ResourceConsumer"_view;
@@ -180,6 +188,7 @@ class ResourceDialect : public Language::Dialect {
       Cursor& cursor,
       const Documentation& documentation,
       const Anchor&,
+      Language::Diagnostics& diagnostics,
       Abstract& interpretation_context)
       -> Option<Language::Monograph&> override {
     if (!interpretation_context.is<Package::Language::Monograph>()) {
@@ -199,7 +208,7 @@ class ResourceDialect : public Language::Dialect {
     Cursor source_cursor(source_tokens, source_errors);
     auto interpreted = library.interpret(
         domain, source_cursor, Documentation::get_empty(),
-        Anchor::create(Span()), package);
+        Anchor::create(Span()), diagnostics, package);
     if (!interpreted || !source_errors.is_empty() ||
         !interpreted->is<Library::Language::Monograph>()) {
       return {};
@@ -233,7 +242,7 @@ class ResourceDialect : public Language::Dialect {
     trace.resource_results[7] = &package.resolve_context("Member"_view);
 
     return domain.construct<ResourceMonograph>(
-        domain, documentation, trace, package);
+        domain, documentation, diagnostics, trace, package);
   }
 
  private:
@@ -246,13 +255,14 @@ class WorkspaceMonograph : public Language::Monograph {
   WorkspaceMonograph(
       Allocator::Arena& domain,
       const Documentation& documentation,
+      Language::Diagnostics& diagnostics,
       WorkspaceDialect& host,
       WorkspaceTrace& trace,
       View::Bytes fact,
       View::Bytes diagnostic_path,
       Span fact_span,
       Count host_identity)
-      : Monograph(domain, documentation),
+      : Monograph(domain, documentation, diagnostics),
         trace(trace),
         fact(fact),
         diagnostic_path(diagnostic_path),
@@ -331,6 +341,7 @@ auto WorkspaceDialect::interpret(
     Cursor& cursor,
     const Documentation& documentation,
     const Anchor& source_anchor,
+    Language::Diagnostics& diagnostics,
     Abstract& interpretation_context) -> Option<Language::Monograph&> {
   View::Bytes fact = cursor.get_text();
   Token fact_token = cursor.current();
@@ -352,7 +363,7 @@ auto WorkspaceDialect::interpret(
 
   retained_state = fact;
   auto& monograph = domain.construct<WorkspaceMonograph>(
-      domain, documentation, *this, trace, fact, diagnostic_path,
+      domain, documentation, diagnostics, *this, trace, fact, diagnostic_path,
       Span(fact_token), identity);
   trace.monograph_constructions[identity]++;
   return monograph;
@@ -367,9 +378,10 @@ auto WorkspaceDialect::restore(Allocator::Arena& domain, View::Bytes payload)
   }
 
   View::Bytes retained_fact = domain.proxy(payload);
+  auto& diagnostics = domain.construct<Language::Diagnostics>(domain);
   auto& monograph = domain.construct<WorkspaceMonograph>(
-      domain, Documentation::get_empty(), *this, trace, retained_fact,
-      View::Bytes(), Span(), identity);
+      domain, Documentation::get_empty(), diagnostics, *this, trace,
+      retained_fact, View::Bytes(), Span(), identity);
   trace.monograph_constructions[identity]++;
   return monograph;
 }
@@ -728,7 +740,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, exact_dialect_installation) {
 
     {
       Dynamic::Bytes second_name("Beta"_view);
-      EXPECT(workspace.install_dialect<WorkspaceDialect>(second_name));
+      EXPECT(workspace.install_dialect<SecondaryWorkspaceDialect>(second_name));
     }
 
     EXPECT_EQ(trace.dialect_constructions, 2);
@@ -773,7 +785,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, unknown_diagnostic_wording) {
   {
     Environment::Workspace workspace;
     EXPECT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
-    EXPECT(workspace.install_dialect<WorkspaceDialect>("Beta"_view));
+    EXPECT(workspace.install_dialect<SecondaryWorkspaceDialect>("Beta"_view));
     EXPECT_TEXT(
         render_unknown(workspace),
         expected_unknown_diagnostic("Installed dialects: Alpha, Beta."_view));
@@ -1990,7 +2002,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, destruction_phases) {
     Environment::Workspace workspace;
     Errors errors;
     EXPECT(workspace.install_dialect<WorkspaceDialect>("Alpha"_view));
-    EXPECT(workspace.install_dialect<WorkspaceDialect>("Beta"_view));
+    EXPECT(workspace.install_dialect<SecondaryWorkspaceDialect>("Beta"_view));
     EXPECT(workspace.interpret_source(
         errors, "First"_view, "first.ttx"_view,
         "// First documentation\ndialect : Alpha;\nFirst"_view));

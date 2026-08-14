@@ -69,7 +69,7 @@ class Composite : public Defined {
   auto get_monograph() const -> const Tetrodotoxin::Language::Monograph&;
 
  public:
-  TTX_CONTRACT(Composite, Defined, 0x0282e7c7f8774a16, 0x89d2776428d5f650);
+  TTX_CONTRACT(Composite, Defined);
 
   Composite(const Composite&) = delete;
   Composite(Composite&&) = delete;

@@ -23,7 +23,7 @@ namespace Tetrodotoxin::Library::Language::Access {
 // signature rather than searching an overload set.
 class Call : public Expression {
  public:
-  TTX_CONTRACT(Call, Expression, 0x1bc2984aba944842, 0x9ed57eef00ed826f);
+  TTX_CONTRACT(Call, Expression);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

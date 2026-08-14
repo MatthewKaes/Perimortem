@@ -45,7 +45,7 @@ class Field : public Authored<Ttx::Model::Addressable> {
         initializer_linked(!initializer) {}
 
  public:
-  TTX_CONTRACT(Field, Base, 0xc6fc7cb2676b4bac, 0xa205fab02169b1ca);
+  TTX_CONTRACT(Field, Base);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

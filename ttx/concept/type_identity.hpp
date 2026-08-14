@@ -1,0 +1,26 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "perimortem/core/perimortem.hpp"
+
+namespace Ttx::Concept {
+
+// Returns one opaque identity for a C++ type in the current program. The local
+// static is shared by every translation unit that instantiates the same type,
+// while distinct specializations own distinct live objects. Encoding its
+// address as an integer keeps callers from treating the carrier as an object.
+// This identity ends with the process and must never enter a durable format.
+template <typename Target>
+inline auto get_type_identity() -> ::Unsigned_64 {
+  static_assert(
+      sizeof(__UINTPTR_TYPE__) <= sizeof(::Unsigned_64),
+      "A TTX type identity must retain every native pointer value.");
+
+  static const Unsigned_8 identity = 0;
+  return static_cast<::Unsigned_64>(
+      reinterpret_cast<__UINTPTR_TYPE__>(&identity));
+}
+
+}  // namespace Ttx::Concept

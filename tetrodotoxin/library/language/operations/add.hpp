@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // Folding projects a sum without changing those authored facts.
 class Add : public Operation {
  public:
-  BINARY_OP_CONTRACT(Add, 0x50ca487a954a45d4, 0xb9881ccf9dd76813);
+  BINARY_OP_CONTRACT(Add);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

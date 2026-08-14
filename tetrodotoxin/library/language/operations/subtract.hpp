@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // linking. Folding projects a difference without changing those authored facts.
 class Subtract : public Operation {
  public:
-  BINARY_OP_CONTRACT(Subtract, 0x44dabb02f2ff410c, 0x801b55602cc8e997);
+  BINARY_OP_CONTRACT(Subtract);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

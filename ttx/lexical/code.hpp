@@ -114,6 +114,7 @@ class Code {
     True,
     False,
     Return,
+    Emit,
     Resolve,
     Source,
     Dialect,

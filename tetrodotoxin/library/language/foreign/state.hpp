@@ -28,11 +28,7 @@ class Surface;
 class State final : public Ttx::Model::Addressable,
                     public Ttx::Concept::Authorship {
  public:
-  TTX_CONTRACT(
-      State,
-      Ttx::Model::Addressable,
-      0x76f7bf1d074e49cc,
-      0x9ddcc62c6196af4b);
+  TTX_CONTRACT(State, Ttx::Model::Addressable);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

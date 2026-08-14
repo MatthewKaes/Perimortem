@@ -22,7 +22,7 @@ namespace Tetrodotoxin::Library::Language::Access {
 // same indexed value without an Option Type or shadow Addressable identity.
 class Index : public Expression {
  public:
-  TTX_CONTRACT(Index, Expression, 0xaf085ce780ce4756, 0x8d2ac2399330c9a7);
+  TTX_CONTRACT(Index, Expression);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

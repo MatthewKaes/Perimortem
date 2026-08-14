@@ -25,6 +25,7 @@ class DefaultDialect : public Language::Dialect {
       Cursor&,
       const Documentation&,
       const Anchor&,
+      Language::Diagnostics&,
       Abstract&) -> Option<Language::Monograph&> override {
     return {};
   }
@@ -34,6 +35,9 @@ class DefaultMonograph : public Language::Monograph {
  public:
   DefaultMonograph(Allocator::Arena& domain)
       : Monograph(domain, Documentation::get_empty()) {}
+
+  DefaultMonograph(Allocator::Arena& domain, Language::Diagnostics& diagnostics)
+      : Monograph(domain, Documentation::get_empty(), diagnostics) {}
 
   auto get_name() const -> View::Bytes override { return "Default"_view; }
 
@@ -87,6 +91,40 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, ordered_diagnostics_are_stable) {
       Count(closing.get_offset()));
   EXPECT_TEXT(second.get_message(), "second"_view);
   EXPECT(second.get_hint().is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(LanguageDialect, shared_diagnostic_transaction) {
+  Allocator::Arena arena;
+  Language::Diagnostics outer_diagnostics(arena);
+  Language::Diagnostics isolated_diagnostics(arena);
+  DefaultMonograph outer(arena, outer_diagnostics);
+  DefaultMonograph child(arena, outer_diagnostics);
+  DefaultMonograph isolated(arena, isolated_diagnostics);
+  Token opening(4, 1, 5, 3, Code::Type::Addressable);
+
+  outer.report(Anchor::create(Span(opening)), "parse failure"_view);
+  child.report({}, "child link failure"_view, "child hint"_view);
+  outer.report({}, "finalize failure"_view);
+  isolated.report({}, "isolated failure"_view);
+
+  View::Vector<Language::Diagnostic> outer_values = outer.get_diagnostics();
+  View::Vector<Language::Diagnostic> child_values = child.get_diagnostics();
+  View::Vector<Language::Diagnostic> isolated_values =
+      isolated.get_diagnostics();
+  ASSERT_EQ(outer_values.get_size(), Count(3));
+  ASSERT_EQ(child_values.get_size(), Count(3));
+  ASSERT_EQ(isolated_values.get_size(), Count(1));
+  EXPECT(&outer_values.get_data()[0] == &child_values.get_data()[0]);
+  EXPECT(outer_values.get_data()[0].get_anchor());
+  EXPECT_NOT(outer_values.get_data()[1].get_anchor());
+  EXPECT_TEXT(outer_values.get_data()[0].get_message(), "parse failure"_view);
+  EXPECT_TEXT(
+      outer_values.get_data()[1].get_message(), "child link failure"_view);
+  EXPECT_TEXT(outer_values.get_data()[1].get_hint(), "child hint"_view);
+  EXPECT_TEXT(
+      outer_values.get_data()[2].get_message(), "finalize failure"_view);
+  EXPECT_TEXT(
+      isolated_values.get_data()[0].get_message(), "isolated failure"_view);
 }
 
 PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_default_persistence) {

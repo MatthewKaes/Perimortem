@@ -13,7 +13,7 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // to prove whether a narrower Unsigned target can represent it.
 class Unsigned : public Constant {
  public:
-  TTX_CONTRACT(Unsigned, Constant, 0xd48f7ac9d3454918, 0xb2b28b158d5034d8);
+  TTX_CONTRACT(Unsigned, Constant);
   using Value = Unsigned_64;
 
   static auto create_authored(

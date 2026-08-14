@@ -25,11 +25,7 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // without constructing another arithmetic Expression.
 class Assignment : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(
-      Assignment,
-      Ttx::Concept::Abstract,
-      0xd35ac749f95f45a1,
-      0x92d643f86ba1af35);
+  TTX_CONTRACT(Assignment, Ttx::Concept::Abstract);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

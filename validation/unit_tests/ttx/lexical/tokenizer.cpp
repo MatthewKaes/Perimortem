@@ -106,17 +106,18 @@ PERIMORTEM_UNIT_TEST(TtxLexical, reserved_keywords) {
   Tokenizer tokenizer(
       arena,
       "public private expose state const enum struct object using new from "
-      "@package_name @public"_view,
+      "emit emitter @package_name @public"_view,
       "Test.Package"_view);
 
   View::Vector<Token> tokens = tokenizer.get_tokens();
   View::Bytes source = tokenizer.get_source_text();
   const auto* token_data = tokens.get_data();
   static constexpr Code::Type expected[] = {
-    Code::Type::Public, Code::Type::Private, Code::Type::Expose,
-    Code::Type::State,  Code::Type::Const,   Code::Type::Enum,
-    Code::Type::Struct, Code::Type::Object,  Code::Type::Using,
-    Code::Type::New,    Code::Type::From,
+    Code::Type::Public,      Code::Type::Private, Code::Type::Expose,
+    Code::Type::State,       Code::Type::Const,   Code::Type::Enum,
+    Code::Type::Struct,      Code::Type::Object,  Code::Type::Using,
+    Code::Type::New,         Code::Type::From,    Code::Type::Emit,
+    Code::Type::Addressable,
   };
   static constexpr Count expected_size = sizeof(expected) / sizeof(*expected);
   ASSERT_EQ(tokens.get_size(), expected_size + 3);
@@ -144,6 +145,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
   EXPECT_TEXT(Lexicon::get_spelling(Token::Dialect), "dialect"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Resolve), "resolve"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Source), "source"_view);
+  EXPECT_TEXT(Lexicon::get_spelling(Token::Emit), "emit"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Expose), "expose"_view);
   for (Unsigned_8 value = 0; value <= static_cast<Unsigned_8>(Token::Const);
        value++) {
@@ -153,6 +155,10 @@ PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
   EXPECT(Lexicon::get_spelling(Token::Numeric).is_empty());
   EXPECT(
       Lexicon::get_keyword("public"_view, Token::Addressable) == Token::Public);
+  EXPECT(Lexicon::get_keyword("emit"_view, Token::Addressable) == Token::Emit);
+  EXPECT(
+      Lexicon::get_keyword("emitter"_view, Token::Addressable) ==
+      Token::Addressable);
   EXPECT(
       Lexicon::get_keyword("value"_view, Token::Addressable) ==
       Token::Addressable);
@@ -202,6 +208,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, spelling_validation) {
   EXPECT(Lexicon::validate(Token::Addressable, "local_name"_view));
   EXPECT_NOT(Lexicon::validate(Token::Addressable, "public"_view));
   EXPECT(Lexicon::validate(Token::Public, "public"_view));
+  EXPECT_NOT(Lexicon::validate(Token::Addressable, "emit"_view));
+  EXPECT(Lexicon::validate(Token::Emit, "emit"_view));
   EXPECT(Lexicon::validate(Token::Numeric, "123"_view));
   EXPECT_NOT(Lexicon::validate(Token::Numeric, "1.2"_view));
   EXPECT(Lexicon::validate(Token::Float, "1.25"_view));
@@ -234,6 +242,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, code_semantics) {
   EXPECT_TEXT(
       Code(Code::Type::QuestionOp).get_semantics(),
       "propagation operator"_view);
+  EXPECT_TEXT(Code(Code::Type::Emit).get_semantics(), "emission keyword"_view);
   EXPECT_TEXT(
       Code(Code::Type::Addressable).get_semantics(),
       "Addressable space name"_view);

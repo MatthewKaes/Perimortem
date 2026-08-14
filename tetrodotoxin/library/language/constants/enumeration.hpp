@@ -12,7 +12,7 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // The raw storage value remains independent from the optional case Aliases.
 class Enumeration : public Constant {
  public:
-  TTX_CONTRACT(Enumeration, Constant, 0x147a67f1d77b4404, 0x965b3dc1dd32b59f);
+  TTX_CONTRACT(Enumeration, Constant);
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,

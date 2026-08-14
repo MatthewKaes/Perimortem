@@ -24,6 +24,20 @@ auto Package::Language::Monograph::create_authored(
     View::Vector<Dependency> dependencies,
     View::Vector<Span> dependency_spans,
     View::Vector<Source> sources) -> Option<Monograph&> {
+  auto& diagnostics =
+      domain.construct<Tetrodotoxin::Language::Diagnostics>(domain);
+  return create_authored(
+      domain, documentation, diagnostics, dependencies, dependency_spans,
+      sources);
+}
+
+auto Package::Language::Monograph::create_authored(
+    Allocator::Arena& domain,
+    const Documentation& documentation,
+    Tetrodotoxin::Language::Diagnostics& diagnostics,
+    View::Vector<Dependency> dependencies,
+    View::Vector<Span> dependency_spans,
+    View::Vector<Source> sources) -> Option<Monograph&> {
   if (dependencies.get_size() != dependency_spans.get_size() ||
       sources.is_empty()) {
     return {};
@@ -31,7 +45,8 @@ auto Package::Language::Monograph::create_authored(
 
   return domain.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
-        domain, documentation, dependencies, dependency_spans, sources);
+        domain, documentation, diagnostics, dependencies, dependency_spans,
+        sources);
   });
 }
 
@@ -39,9 +54,11 @@ auto Package::Language::Monograph::create_synthetic(
     Allocator::Arena& domain,
     const Documentation& documentation,
     View::Vector<Dependency> dependencies) -> Monograph& {
+  auto& diagnostics =
+      domain.construct<Tetrodotoxin::Language::Diagnostics>(domain);
   Monograph& monograph = domain.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
-        domain, documentation, dependencies, View::Vector<Span>(),
+        domain, documentation, diagnostics, dependencies, View::Vector<Span>(),
         View::Vector<Source>());
   });
 
@@ -54,10 +71,11 @@ auto Package::Language::Monograph::create_synthetic(
 Package::Language::Monograph::Monograph(
     Allocator::Arena& domain,
     const Documentation& documentation,
+    Tetrodotoxin::Language::Diagnostics& diagnostics,
     View::Vector<Dependency> dependencies,
     View::Vector<Span> dependency_spans,
     View::Vector<Source> sources)
-    : Tetrodotoxin::Language::Monograph(domain, documentation),
+    : Tetrodotoxin::Language::Monograph(domain, documentation, diagnostics),
       dependencies(dependencies),
       dependency_spans(dependency_spans),
       sources(sources),

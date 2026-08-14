@@ -44,11 +44,7 @@ class Match : public Ttx::Concept::Abstract {
   };
 
  public:
-  TTX_CONTRACT(
-      Match,
-      Ttx::Concept::Abstract,
-      0x97002fb2d2fb41f8,
-      0x99126689dfa4e6bb);
+  TTX_CONTRACT(Match, Ttx::Concept::Abstract);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

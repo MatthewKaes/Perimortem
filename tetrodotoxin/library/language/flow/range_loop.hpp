@@ -27,11 +27,7 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // lookup.
 class RangeLoop : public Ttx::Model::Addressable {
  public:
-  TTX_CONTRACT(
-      RangeLoop,
-      Ttx::Model::Addressable,
-      0xae07402505604830,
-      0xb58a8c0ba90d89e9);
+  TTX_CONTRACT(RangeLoop, Ttx::Model::Addressable);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

@@ -22,20 +22,18 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Documentation& documentation,
       const Ttx::Lexical::Anchor& source_anchor,
+      Tetrodotoxin::Language::Diagnostics& diagnostics,
       Tetrodotoxin::Library::Dialect& dialect,
       const Ttx::Concept::Abstract& interpretation_context);
 
  public:
-  TTX_CONTRACT(
-      Monograph,
-      Tetrodotoxin::Language::Monograph,
-      0x4f5524bd23e84c30,
-      0x8d7a8798bf1a25d2);
+  TTX_CONTRACT(Monograph, Tetrodotoxin::Language::Monograph);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Documentation& documentation,
       const Ttx::Lexical::Anchor& source_anchor,
+      Tetrodotoxin::Language::Diagnostics& diagnostics,
       Tetrodotoxin::Library::Dialect& dialect,
       const Ttx::Concept::Abstract& interpretation_context) -> Monograph&;
 

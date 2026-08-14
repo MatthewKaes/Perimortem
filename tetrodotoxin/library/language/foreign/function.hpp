@@ -27,11 +27,7 @@ class Surface;
 class Function final : public Ttx::Model::Callable,
                        public Ttx::Concept::Authorship {
  public:
-  TTX_CONTRACT(
-      Function,
-      Ttx::Model::Callable,
-      0x7bf36544d5f14f68,
-      0xb4bd06e4f2d1af8a);
+  TTX_CONTRACT(Function, Ttx::Model::Callable);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

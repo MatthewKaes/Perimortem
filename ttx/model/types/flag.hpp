@@ -11,7 +11,7 @@ namespace Ttx::Model::Types {
 // Types supply their fixed name, representation, and documentation.
 class Flag : public Value {
  public:
-  TTX_CONTRACT(Flag, Value, 0xe473697ddb94453b, 0x8a4d310f695ed0cc);
+  TTX_CONTRACT(Flag, Value);
 };
 
 }  // namespace Ttx::Model::Types

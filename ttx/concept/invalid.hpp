@@ -23,7 +23,7 @@ namespace Ttx::Concept {
 // changes.
 class Invalid : public Abstract {
  public:
-  TTX_CONTRACT(Invalid, Abstract, 0x61aaefe33f534a6b, 0x8c39f04bd4a2f525);
+  TTX_CONTRACT(Invalid, Abstract);
 
   // Invalid has no object-specific state. Every semantic failure returns this
   // one binary-wide object so owners never store or construct failure state.

@@ -17,7 +17,7 @@ namespace Ttx::Model {
 //
 class Addressable : public Concept::Abstract {
  public:
-  TTX_CONTRACT(Addressable, Abstract, 0x3d308ace3cf44051, 0x9458c12c65d0d615);
+  TTX_CONTRACT(Addressable, Abstract);
 
   constexpr auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Concept::Abstract& override {

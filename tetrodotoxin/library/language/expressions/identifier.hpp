@@ -20,7 +20,7 @@ namespace Tetrodotoxin::Library::Language::Expressions {
 // keeps its ordinary value Type. Both remain opaque until link selects them.
 class Identifier : public Expression {
  public:
-  TTX_CONTRACT(Identifier, Expression, 0xd747288c3703480b, 0x9cd07fbc8a1a7a84);
+  TTX_CONTRACT(Identifier, Expression);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

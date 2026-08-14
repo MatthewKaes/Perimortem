@@ -57,6 +57,8 @@ auto Ttx::Lexical::Code::get_semantics() const
     return "conditional loop"_view;
   case Type::Return:
     return "return statement"_view;
+  case Type::Emit:
+    return "emission keyword"_view;
   case Type::Resolve:
     return "exact package resolution"_view;
   case Type::Source:

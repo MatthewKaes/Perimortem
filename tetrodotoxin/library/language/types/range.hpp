@@ -13,7 +13,7 @@ namespace Tetrodotoxin::Library::Language::Types {
 // without claiming contiguous storage, state, or ownership of its Generic key.
 class Range : public Ttx::Model::Type {
  public:
-  TTX_CONTRACT(Range, Ttx::Model::Type, 0x824db901761e4b83, 0xa54b4be20f4144b7);
+  TTX_CONTRACT(Range, Ttx::Model::Type);
 
   constexpr Range(
       Perimortem::Core::View::Bytes name,

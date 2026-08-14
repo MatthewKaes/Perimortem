@@ -40,7 +40,7 @@ class Enumeration : public Defined {
       TypeReference storage_reference);
 
  public:
-  TTX_CONTRACT(Enumeration, Defined, 0x1fa6d62be44749db, 0xa9e71e448fbf3c53);
+  TTX_CONTRACT(Enumeration, Defined);
 
   static auto interpret(
       Perimortem::Memory::Allocator::Arena& domain,

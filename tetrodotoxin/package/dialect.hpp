@@ -18,6 +18,15 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& doc,
       const Ttx::Lexical::Anchor& source_anchor,
+      Ttx::Concept::Abstract& interpretation_context)
+      -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&>;
+
+  auto interpret(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Documentation& doc,
+      const Ttx::Lexical::Anchor& source_anchor,
+      Tetrodotoxin::Language::Diagnostics& diagnostics,
       Ttx::Concept::Abstract&)
       -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
 };

@@ -19,7 +19,7 @@ namespace Ttx::Model {
 // contract. Callability alone does not imply an address to data.
 class Callable : public Concept::Abstract {
  public:
-  TTX_CONTRACT(Callable, Abstract, 0x01cc41c70a414b03, 0xacf5c601eccfd393);
+  TTX_CONTRACT(Callable, Abstract);
 
   virtual constexpr auto get_parameters() const -> const Concept::Layout& = 0;
   virtual constexpr auto get_results() const -> const Concept::Layout& = 0;

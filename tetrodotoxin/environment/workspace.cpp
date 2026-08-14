@@ -214,8 +214,10 @@ auto Environment::Workspace::interpret_retained_source(
   // Package members and direct sources can expose different contextual roots.
   // Pass that exact owner into this interpretation instead of making every
   // installed Dialect retain one universal source scope.
+  auto& diagnostics = arena.construct<Language::Diagnostics>(arena);
   Option<Language::Monograph&> interpreted = dialect->interpret(
-      arena, cursor, documentation, source_anchor, interpretation_context);
+      arena, cursor, documentation, source_anchor, diagnostics,
+      interpretation_context);
   BAIL_IF(!interpreted);
 
   // Retention owns lifetime and exact authored provenance. Package local

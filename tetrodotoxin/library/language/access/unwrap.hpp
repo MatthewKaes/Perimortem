@@ -17,7 +17,7 @@ namespace Tetrodotoxin::Library::Language::Access {
 // semantic default owned by that element Type.
 class Unwrap : public Expression {
  public:
-  TTX_CONTRACT(Unwrap, Expression, 0x5f5bef9335fa4e63, 0x8e12138ac84c9a36);
+  TTX_CONTRACT(Unwrap, Expression);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

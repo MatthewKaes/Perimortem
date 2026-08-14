@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // a value without changing that authored input or linked Type.
 class Not : public Operation {
  public:
-  TTX_CONTRACT(Not, Operation, 0x43149308999f46a0, 0x8530dac9156899bf);
+  TTX_CONTRACT(Not, Operation);
 
   static auto parse(
       Perimortem::Memory::Allocator::Arena& domain,

@@ -90,13 +90,29 @@ auto Library::Dialect::interpret(
     const Anchor& source_anchor,
     Abstract& interpretation_context)
     -> Option<Tetrodotoxin::Language::Monograph&> {
+  auto& diagnostics =
+      domain.construct<Tetrodotoxin::Language::Diagnostics>(domain);
+  return interpret(
+      domain, cursor, documentation, source_anchor, diagnostics,
+      interpretation_context);
+}
+
+auto Library::Dialect::interpret(
+    Allocator::Arena& domain,
+    Cursor& cursor,
+    const Documentation& documentation,
+    const Anchor& source_anchor,
+    Tetrodotoxin::Language::Diagnostics& diagnostics,
+    Abstract& interpretation_context)
+    -> Option<Tetrodotoxin::Language::Monograph&> {
   auto shared_materializations = materializations_for(domain, cursor);
   if (!shared_materializations) {
     return {};
   }
 
   auto& monograph = Library::Language::Monograph::create_authored(
-      domain, documentation, source_anchor, *this, interpretation_context);
+      domain, documentation, source_anchor, diagnostics, *this,
+      interpretation_context);
   Bool parsed = monograph.get_source().parse(cursor);
   if (!parsed) {
     return {};
