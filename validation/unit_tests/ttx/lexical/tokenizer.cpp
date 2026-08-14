@@ -78,16 +78,27 @@ PERIMORTEM_UNIT_TEST(TtxLexical, divide_before_greater) {
 
 PERIMORTEM_UNIT_TEST(TtxLexical, propagation_operator) {
   Allocator::Arena arena;
-  Tokenizer tokenizer(arena, "value?"_view, "Test.Package"_view);
+  Tokenizer tokenizer(arena, "value?\nnext?"_view, "Test.Package"_view);
 
   View::Vector<Token> tokens = tokenizer.get_tokens();
   View::Bytes source = tokenizer.get_source_text();
   const auto* token_data = tokens.get_data();
-  ASSERT_EQ(tokens.get_size(), Count(3));
+  ASSERT_EQ(tokens.get_size(), Count(5));
   EXPECT(token_data[0].get_code() == Code::Type::Addressable);
   EXPECT(token_data[1].get_code() == Code::Type::QuestionOp);
   EXPECT_TEXT(token_data[1].caculate_text(source), "?"_view);
-  EXPECT(token_data[2].get_code() == Code::Type::Terminal);
+  EXPECT_EQ(token_data[1].get_offset(), Unsigned_32(5));
+  EXPECT_EQ(token_data[1].get_line(), Unsigned_32(1));
+  EXPECT_EQ(token_data[1].get_column(), Unsigned_32(6));
+  EXPECT_EQ(token_data[1].get_size(), Unsigned_32(1));
+  EXPECT(token_data[2].get_code() == Code::Type::Addressable);
+  EXPECT(token_data[3].get_code() == Code::Type::QuestionOp);
+  EXPECT_TEXT(token_data[3].caculate_text(source), "?"_view);
+  EXPECT_EQ(token_data[3].get_offset(), Unsigned_32(11));
+  EXPECT_EQ(token_data[3].get_line(), Unsigned_32(2));
+  EXPECT_EQ(token_data[3].get_column(), Unsigned_32(5));
+  EXPECT_EQ(token_data[3].get_size(), Unsigned_32(1));
+  EXPECT(token_data[4].get_code() == Code::Type::Terminal);
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, reserved_keywords) {
@@ -207,6 +218,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, spelling_validation) {
   EXPECT(Lexicon::validate(Token::Comment, "// text"_view));
   EXPECT_NOT(Lexicon::validate(Token::Comment, "// line\n"_view));
   EXPECT(Lexicon::validate(Token::TypeAccessOp, "::"_view));
+  EXPECT(Lexicon::validate(Token::QuestionOp, "?"_view));
+  EXPECT_NOT(Lexicon::validate(Token::QuestionOp, "!"_view));
   EXPECT_NOT(Lexicon::validate(Token::Unknown, "?"_view));
 }
 
@@ -218,6 +231,9 @@ PERIMORTEM_UNIT_TEST(TtxLexical, code_semantics) {
       "public publication modifier"_view);
   EXPECT_TEXT(
       Code(Code::Type::Assign).get_semantics(), "assignment operator"_view);
+  EXPECT_TEXT(
+      Code(Code::Type::QuestionOp).get_semantics(),
+      "propagation operator"_view);
   EXPECT_TEXT(
       Code(Code::Type::Addressable).get_semantics(),
       "Addressable space name"_view);

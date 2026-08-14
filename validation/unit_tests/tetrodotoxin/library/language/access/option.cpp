@@ -6,20 +6,34 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/algorithm/search.hpp"
+
+#include "perimortem/memory/allocator/arena.hpp"
+
+#include "perimortem/system/file.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
+#include "tetrodotoxin/library/language/access/propagate.hpp"
 #include "tetrodotoxin/library/language/access/unwrap.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/flow/match.hpp"
+#include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
+using namespace Perimortem::System;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library;
@@ -58,6 +72,34 @@ static auto find_field(
   return {};
 }
 
+static auto find_function(
+    const Language::Types::Composite& composite,
+    View::Bytes name) -> Option<const Language::Function&> {
+  for (const Reference<Abstract>& candidate : composite.get_callables()) {
+    if (candidate.get().get_name() == name &&
+        candidate.get().is<Language::Function>()) {
+      return static_cast<const Language::Function&>(candidate.get());
+    }
+  }
+
+  return {};
+}
+
+static auto parse_expression(
+    Allocator::Arena& domain,
+    Language::Monograph& monograph,
+    Errors& errors,
+    View::Bytes source) -> Option<Language::Model::Pack&> {
+  Tokenizer tokenizer(domain, source, "option-expression.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  auto parsed = Language::Parser::Expression::parse(domain, monograph, cursor);
+  if (!parsed || !cursor.matches(Code::Type::Terminal)) {
+    return {};
+  }
+
+  return *parsed;
+}
+
 static auto rejects_link(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
@@ -65,6 +107,26 @@ static auto rejects_link(View::Bytes source) -> Bool {
   return monograph && !workspace.link(errors) && !errors.is_empty() &&
          &workspace.resolve_context("OptionAccessTest"_view) ==
              &Invalid::get_invalid();
+}
+
+static auto rejects_link(View::Bytes source, View::Bytes diagnostic) -> Bool {
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  BAIL_IF(!monograph || workspace.link(errors) || errors.is_empty());
+  BAIL_IF(
+      &workspace.resolve_context("OptionAccessTest"_view) !=
+      &Invalid::get_invalid());
+
+  Allocator::Arena render_arena;
+  for (Count index = 0; index < errors.get_size(); index++) {
+    auto rendered = errors.render_message(render_arena, index);
+    if (Algorithm::search(rendered, diagnostic) != Count(-1)) {
+      return True;
+    }
+  }
+
+  return False;
 }
 
 static auto select_unsigned(const Language::Model::Pack& pack)
@@ -152,16 +214,21 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, target_fit_and_unwrap) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_accepts_empty_result_flow) {
+PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_edges_and_folding) {
   static constexpr View::Bytes source =
       "// Option propagation.\n"
       "dialect : Library;\n"
       "public Maybe : alias = Option[Unsigned_64];\n"
+      "private Nested : alias = Option[Maybe];\n"
+      "private const absent : Maybe = ();\n"
+      "private const present : Maybe = 7;\n"
+      "private const nested_absent : Nested = ();\n"
       "public pass : func = [.value : Maybe] -> Maybe { return value?; }\n"
       "public stop : func = [.value : Maybe] -> [] {\n"
       "  state selected := value?;\n"
       "  return;\n"
       "}\n"
+      "public chain : func = [] -> [] { return; }\n"
       "public absent : func = [] -> Maybe { return; }\n"
       "public present : func = [] -> Maybe { return 9; }\n"
       "public assign : func = [] -> Maybe {\n"
@@ -176,13 +243,350 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_accepts_empty_result_flow) {
   ASSERT(monograph);
   ASSERT(workspace.link(errors));
   ASSERT(workspace.finalize(errors));
+
+  auto pass = find_function(monograph->get_source(), "pass"_view);
+  auto stop = find_function(monograph->get_source(), "stop"_view);
+  auto chain = find_function(monograph->get_source(), "chain"_view);
+  ASSERT(pass && pass->get_body());
+  ASSERT(stop && stop->get_body());
+  ASSERT(chain && chain->get_body());
+
+  // Parsing against completed Function bodies exposes the exact access graph
+  // without adding a test only query to Return or Local.
+  Allocator::Arena domain;
+  Errors expression_errors;
+  auto pass_pack =
+      parse_expression(domain, *monograph, expression_errors, "value?"_view);
+  auto stop_pack =
+      parse_expression(domain, *monograph, expression_errors, "value?"_view);
+  auto pass_propagate = pass_pack.visit(
+      []() -> Option<Language::Access::Propagate&> { return {}; },
+      [](Language::Model::Pack& selected) {
+        return selected.select<Language::Access::Propagate>();
+      });
+  auto stop_propagate = stop_pack.visit(
+      []() -> Option<Language::Access::Propagate&> { return {}; },
+      [](Language::Model::Pack& selected) {
+        return selected.select<Language::Access::Propagate>();
+      });
+  ASSERT(pass_propagate && stop_propagate);
+
+  const Language::Expression* pass_receiver = &pass_propagate->get_receiver();
+  const Language::Model::Pack* pass_empty = &pass_propagate->get_empty_return();
+  ASSERT(pass_propagate->link(*monograph, *pass->get_body(), pass->get_host()));
+  ASSERT(pass_propagate->link(*monograph, *pass->get_body(), pass->get_host()));
+  ASSERT(stop_propagate->link(*monograph, *stop->get_body(), stop->get_host()));
+  ASSERT(stop_propagate->link(*monograph, *stop->get_body(), stop->get_host()));
+  EXPECT(&pass_propagate->get_receiver() == pass_receiver);
+  EXPECT(&pass_propagate->get_empty_return() == pass_empty);
+  EXPECT(pass_propagate->get_empty_return().get_layout().is_empty());
+  EXPECT(stop_propagate->get_empty_return().get_layout().is_empty());
+  EXPECT(pass_propagate->get_empty_return().fits(pass->get_results()));
+  EXPECT(stop_propagate->get_empty_return().fits(stop->get_results()));
+  EXPECT(
+      &pass_propagate->get_empty_return().resolve() ==
+      &pass_propagate->get_empty_return());
+  auto option = pass_propagate->get_receiver()
+                    .get_type()
+                    .resolve()
+                    .select<Language::Types::Option>();
+  ASSERT(option);
+  EXPECT(&pass_propagate->get_type() == &option->get_element_type());
+  EXPECT(&stop_propagate->get_type() == &option->get_element_type());
+  pass_propagate->finalize();
+  pass_propagate->finalize();
+
+  Bool dynamic_fold_succeeded = False;
+  Option<Language::Model::Pack&> dynamic_folded;
+  pass_propagate->fold().visit(
+      [&](const Option<Language::Model::Pack&>& selected) {
+        dynamic_fold_succeeded = True;
+        dynamic_folded = selected;
+      },
+      [](const Language::Expression::Error&) {});
+  EXPECT(dynamic_fold_succeeded);
+  EXPECT_NOT(dynamic_folded);
+
+  // Presence can replace the node with exact element flow. Absence keeps the
+  // authored branch because an empty Pack cannot replace a one value output.
+  auto present_pack =
+      parse_expression(domain, *monograph, expression_errors, "present?"_view);
+  auto absent_pack =
+      parse_expression(domain, *monograph, expression_errors, "absent?"_view);
+  auto present_propagate = present_pack.visit(
+      []() -> Option<Language::Access::Propagate&> { return {}; },
+      [](Language::Model::Pack& selected) {
+        return selected.select<Language::Access::Propagate>();
+      });
+  auto absent_propagate = absent_pack.visit(
+      []() -> Option<Language::Access::Propagate&> { return {}; },
+      [](Language::Model::Pack& selected) {
+        return selected.select<Language::Access::Propagate>();
+      });
+  ASSERT(present_propagate && absent_propagate);
+  ASSERT(
+      present_propagate->link(*monograph, *pass->get_body(), pass->get_host()));
+  ASSERT(
+      absent_propagate->link(*monograph, *pass->get_body(), pass->get_host()));
+  present_propagate->finalize();
+  absent_propagate->finalize();
+
+  Bool present_fold_succeeded = False;
+  Option<Language::Model::Pack&> present_folded;
+  present_propagate->fold().visit(
+      [&](const Option<Language::Model::Pack&>& selected) {
+        present_fold_succeeded = True;
+        present_folded = selected;
+      },
+      [](const Language::Expression::Error&) {});
+  ASSERT(present_fold_succeeded && present_folded);
+  auto present_value = select_unsigned(*present_folded);
+  ASSERT(present_value);
+  EXPECT_EQ(present_value->get_value(), Unsigned_64(7));
+
+  Bool absent_fold_succeeded = False;
+  Option<Language::Model::Pack&> absent_folded;
+  absent_propagate->fold().visit(
+      [&](const Option<Language::Model::Pack&>& selected) {
+        absent_fold_succeeded = True;
+        absent_folded = selected;
+      },
+      [](const Language::Expression::Error&) {});
+  EXPECT(absent_fold_succeeded);
+  EXPECT_NOT(absent_folded);
+  EXPECT(absent_propagate->get_empty_return().get_layout().is_empty());
+  EXPECT(
+      &absent_propagate->get_empty_return().resolve() ==
+      &absent_propagate->get_empty_return());
+
+  // The outer unwrap retains Propagate as its receiver. An absent inner value
+  // leaves the chain unfolded instead of evaluating the right suffix.
+  auto chain_pack = parse_expression(
+      domain, *monograph, expression_errors, "nested_absent?!"_view);
+  auto unwrap = chain_pack.visit(
+      []() -> Option<Language::Access::Unwrap&> { return {}; },
+      [](Language::Model::Pack& selected) {
+        return selected.select<Language::Access::Unwrap>();
+      });
+  ASSERT(unwrap);
+  auto inner = unwrap->get_receiver().select<Language::Access::Propagate>();
+  ASSERT(inner);
+  EXPECT(&unwrap->get_receiver() == &*inner);
+  ASSERT(unwrap->link(*monograph, *chain->get_body(), chain->get_host()));
+  ASSERT(unwrap->link(*monograph, *chain->get_body(), chain->get_host()));
+  EXPECT(inner->get_empty_return().fits(chain->get_results()));
+  unwrap->finalize();
+  unwrap->finalize();
+
+  Bool chain_fold_succeeded = False;
+  Option<Language::Model::Pack&> chain_folded;
+  unwrap->fold().visit(
+      [&](const Option<Language::Model::Pack&>& selected) {
+        chain_fold_succeeded = True;
+        chain_folded = selected;
+      },
+      [](const Language::Expression::Error&) {});
+  EXPECT(chain_fold_succeeded);
+  EXPECT_NOT(chain_folded);
+
+  EXPECT(expression_errors.is_empty());
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(OptionAccessTests, invalid_elimination_is_rejected) {
-  static constexpr Static::Vector<View::Bytes, 7> sources = {{
-    "// Propagation result mismatch.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> Bool { return value?; }"_view,
+PERIMORTEM_UNIT_TEST(OptionAccessTests, production_option_fixture) {
+  static constexpr View::Bytes path =
+      "validation/data/ttx/library/option_acceptance.ttx"_view;
+  auto source = File::read(path);
+  ASSERT(source);
+
+  Workspace workspace;
+  Errors errors;
+  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
+  auto interpreted = workspace.interpret_source(
+      errors, "OptionAcceptance"_view, path, *source);
+  ASSERT(interpreted && interpreted->is<Language::Monograph>());
+  auto& monograph = static_cast<Language::Monograph&>(*interpreted);
+  EXPECT_TEXT(
+      monograph.get_documentation().get_line(0),
+      "Library Option acceptance."_view);
+
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+  EXPECT(&workspace.resolve_context("OptionAcceptance"_view) == &monograph);
+
+  const auto& source_type = monograph.get_source();
+  auto maybe = source_type.resolve_context("Maybe"_view)
+                   .resolve()
+                   .select<Language::Types::Option>();
+  auto session = source_type.resolve_context("Session"_view)
+                     .select<Language::Types::Object>();
+  ASSERT(maybe && session);
+  EXPECT(&maybe->get_element_type() == &Dialect::get_unsigned_64());
+
+  // Published Fields expose fitting and scalar defaults as retained Packs.
+  auto absent = find_field(source_type, "absent"_view);
+  auto present = find_field(source_type, "present"_view);
+  auto defaulted = find_field(source_type, "defaulted"_view);
+  auto selected = find_field(source_type, "selected"_view);
+  auto absent_session = find_field(source_type, "absent_session"_view);
+  auto first_session = find_field(source_type, "first_session"_view);
+  auto second_session = find_field(source_type, "second_session"_view);
+  ASSERT(absent && present && defaulted && selected);
+  ASSERT(absent_session && first_session && second_session);
+
+  auto absent_constant = absent->get_constant();
+  auto present_constant = present->get_constant();
+  auto absent_option = absent_constant.visit(
+      []() -> Option<Language::Constants::Option&> { return {}; },
+      [](Language::Model::Pack& value) {
+        return value.select<Language::Constants::Option>();
+      });
+  auto present_option = present_constant.visit(
+      []() -> Option<Language::Constants::Option&> { return {}; },
+      [](Language::Model::Pack& value) {
+        return value.select<Language::Constants::Option>();
+      });
+  ASSERT(absent_option && present_option);
+  EXPECT(absent_option->get_kind() == Language::Types::Option::Kind::Absent);
+  EXPECT_NOT(absent_option->get_payload());
+  EXPECT(present_option->get_kind() == Language::Types::Option::Kind::Present);
+  auto present_payload = present_option->get_payload();
+  ASSERT(present_payload);
+  auto present_value = select_unsigned(*present_payload);
+  ASSERT(present_value);
+  EXPECT_EQ(present_value->get_value(), Unsigned_64(7));
+
+  auto defaulted_constant = defaulted->get_constant();
+  auto selected_constant = selected->get_constant();
+  ASSERT(defaulted_constant && selected_constant);
+  auto defaulted_value = select_unsigned(*defaulted_constant);
+  auto selected_value = select_unsigned(*selected_constant);
+  ASSERT(defaulted_value && selected_value);
+  EXPECT_EQ(defaulted_value->get_value(), Unsigned_64(0));
+  EXPECT_EQ(selected_value->get_value(), Unsigned_64(7));
+
+  auto absent_session_constant = absent_session->get_constant();
+  auto session_option = absent_session_constant.visit(
+      []() -> Option<Language::Constants::Option&> { return {}; },
+      [](Language::Model::Pack& value) {
+        return value.select<Language::Constants::Option>();
+      });
+  ASSERT(session_option);
+  EXPECT(session_option->get_kind() == Language::Types::Option::Kind::Absent);
+  EXPECT(&session_option->get_type().get_element_type() == &*session);
+  EXPECT(&first_session->get_type() == &*session);
+  EXPECT(&second_session->get_type() == &*session);
+
+  // Each authored unwrap keeps its own expression identity while both
+  // receivers select the one absent Option Field.
+  auto first_authored = first_session->get_initializer();
+  auto second_authored = second_session->get_initializer();
+  auto first_unwrap = first_authored.visit(
+      []() -> Option<const Language::Access::Unwrap&> { return {}; },
+      [](const Language::Model::Pack& value) {
+        return value.select<Language::Access::Unwrap>();
+      });
+  auto second_unwrap = second_authored.visit(
+      []() -> Option<const Language::Access::Unwrap&> { return {}; },
+      [](const Language::Model::Pack& value) {
+        return value.select<Language::Access::Unwrap>();
+      });
+  ASSERT(first_unwrap && second_unwrap);
+  EXPECT(&*first_unwrap != &*second_unwrap);
+  EXPECT(&first_unwrap->get_type() == &*session);
+  EXPECT(&second_unwrap->get_type() == &*session);
+  EXPECT(&first_unwrap->get_receiver().get_result() == &*absent_session);
+  EXPECT(&second_unwrap->get_receiver().get_result() == &*absent_session);
+
+  // Object defaults allocate independent Initializer and state Pack graphs
+  // for each request.
+  Allocator::Arena default_domain;
+  auto first_default = Dialect::create_default(default_domain, *session);
+  auto second_default = Dialect::create_default(default_domain, *session);
+  ASSERT(first_default && second_default);
+  EXPECT(&*first_default != &*second_default);
+  auto first_initializer =
+      first_default->select<Language::Expressions::Initializer>();
+  auto second_initializer =
+      second_default->select<Language::Expressions::Initializer>();
+  ASSERT(first_initializer && second_initializer);
+  EXPECT(&first_initializer->get_type() == &*session);
+  EXPECT(&second_initializer->get_type() == &*session);
+  auto first_values = first_initializer->get_completed_values();
+  auto second_values = second_initializer->get_completed_values();
+  ASSERT(first_values && second_values);
+  EXPECT(&*first_values != &*second_values);
+  ASSERT_EQ(first_values->get_layout().get_size(), Count(1));
+  ASSERT_EQ(second_values->get_layout().get_size(), Count(1));
+  auto first_count = first_values->get_layout().get_abstract(0);
+  auto second_count = second_values->get_layout().get_abstract(0);
+  ASSERT(first_count && second_count);
+  EXPECT(&*first_count != &*second_count);
+
+  // Published Callables retain both propagation result shapes and the complete
+  // Option match split.
+  auto propagate = find_function(source_type, "propagate"_view);
+  auto stop = find_function(source_type, "stop"_view);
+  auto choose = find_function(source_type, "choose"_view);
+  ASSERT(propagate && stop && choose && choose->get_body());
+  ASSERT_EQ(propagate->get_results().get_size(), Count(1));
+  EXPECT(stop->get_results().is_empty());
+  auto propagated_result = propagate->get_results().get_abstract(0);
+  ASSERT(propagated_result);
+  EXPECT(&propagated_result->resolve() == &*maybe);
+
+  auto statements = choose->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(1));
+  auto match = statements.get_data()[0].get().select<Language::Flow::Match>();
+  ASSERT(match);
+  ASSERT_EQ(match->get_case_count(), Count(1));
+  auto case_kind = match->get_case_kind(0);
+  ASSERT(case_kind);
+  EXPECT(*case_kind == Language::Flow::Match::CaseKind::Value);
+  auto payload = match->get_case_payload(0);
+  ASSERT(payload);
+  EXPECT(&payload->get_type() == &Dialect::get_unsigned_64());
+  ASSERT(match->get_case_body(0));
+  ASSERT(match->get_default());
+
+  const Language::Field* retained_first = &*first_session;
+  const Language::Flow::Match* retained_match = &*match;
+  ASSERT(monograph.link());
+  ASSERT(monograph.finalize());
+  auto repeated_first = find_field(source_type, "first_session"_view);
+  ASSERT(repeated_first);
+  EXPECT(&*repeated_first == retained_first);
+  auto repeated_choose = find_function(source_type, "choose"_view);
+  ASSERT(repeated_choose && repeated_choose->get_body());
+  auto repeated_match = repeated_choose->get_body()
+                            ->get_statements()
+                            .get_data()[0]
+                            .get()
+                            .select<Language::Flow::Match>();
+  ASSERT(repeated_match);
+  EXPECT(&*repeated_match == retained_match);
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_rejections_are_exact) {
+  static constexpr Static::Vector<View::Bytes, 3> sources = {{
     "// Propagation receiver mismatch.\ndialect : Library; private invalid : func = [.value : Bool] -> [] { state selected := value?; return; }"_view,
+    "// Propagation result mismatch.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> Unsigned_64 { return value?; }"_view,
+    "// Propagation multi result.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [Option[Unsigned_64], Option[Unsigned_64]] { return (value?, value); }"_view,
+  }};
+  static constexpr Static::Vector<View::Bytes, 3> diagnostics = {{
+    "Postfix `?` requires one Option value."_view,
+    "Postfix `?` cannot return empty flow from this Function."_view,
+    "Postfix `?` cannot return empty flow from this Function."_view,
+  }};
+
+  for (Count index = 0; index < sources.get_size(); index++) {
+    EXPECT(rejects_link(sources[index], diagnostics[index]));
+  }
+}
+
+PERIMORTEM_UNIT_TEST(OptionAccessTests, invalid_elimination_is_rejected) {
+  static constexpr Static::Vector<View::Bytes, 5> sources = {{
     "// Unwrap receiver mismatch.\ndialect : Library; private invalid : func = [.value : Bool] -> Bool { return value!; }"_view,
     "// Option slice.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> Unsigned_64 { return value:[0]; }"_view,
     "// Some constructor.\ndialect : Library; private Maybe : alias = Option[Unsigned_64]; private invalid := Maybe -> some(1);"_view,
