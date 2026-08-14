@@ -12,6 +12,7 @@
 
 #include "perimortem/utility/result.hpp"
 
+#include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
@@ -20,6 +21,9 @@
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/expressions/initializer.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/operation.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
@@ -267,7 +271,7 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type_selection) {
   auto& source = *retained_source;
   const auto& element = Tetrodotoxin::Library::Dialect::get_unsigned_8();
   Types::Signed_64 integer;
-  Types::Fixed fixed("Fixed[Unsigned_8,0]"_view, element, 0);
+  Types::Fixed fixed("Fixed[Unsigned_8,1]"_view, element, 1);
   Types::View view("View[Unsigned_8]"_view, element);
   Types::Access access("Access[Unsigned_8]"_view, element);
   ValueExpression fixed_receiver("fixed"_view, fixed);
@@ -360,9 +364,8 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, range_pack_shape) {
   EXPECT(supplies_self(single_size, 1));
   EXPECT(supplies_self(empty, 0));
   Types::Fixed four_values("Fixed[Unsigned_8,4]"_view, element, 4);
-  Types::Fixed no_values("Fixed[Unsigned_8,0]"_view, element, 0);
   EXPECT(constant_size.get_layout().fits(four_values.get_layout()));
-  EXPECT(empty.get_layout().fits(no_values.get_layout()));
+  EXPECT(empty.get_layout().is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_fold_and_range_provenance) {
@@ -571,9 +574,9 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_defaults) {
   const auto& signed_integer = Tetrodotoxin::Library::Dialect::get_signed_64();
   const auto& real = Tetrodotoxin::Library::Dialect::get_real_64();
   const auto& index_type = Tetrodotoxin::Library::Dialect::get_unsigned_64();
-  Types::Fixed booleans("Fixed[Bool,0]"_view, boolean, 0);
-  Types::Fixed signed_values("Fixed[Signed_64,0]"_view, signed_integer, 0);
-  Types::Fixed real_values("Fixed[Real_64,0]"_view, real, 0);
+  Types::Fixed booleans("Fixed[Bool,1]"_view, boolean, 1);
+  Types::Fixed signed_values("Fixed[Signed_64,1]"_view, signed_integer, 1);
+  Types::Fixed real_values("Fixed[Real_64,1]"_view, real, 1);
   auto& boolean_bytes =
       Constants::Bytes::create_synthetic(domain, booleans, {});
   auto& signed_bytes =

@@ -11,9 +11,7 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
-#include "tetrodotoxin/library/language/types/access.hpp"
-#include "tetrodotoxin/library/language/types/fixed.hpp"
-#include "tetrodotoxin/library/language/types/view.hpp"
+#include "tetrodotoxin/library/language/types/contiguous.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/model/addressable.hpp"
@@ -54,31 +52,6 @@ static auto reject_operand(Cursor& cursor, Span postfix_span, Span operand_span)
          << operand_span.caculate_text(cursor.get_source_text())
          << "` could not be parsed as a complete Expression."_view;
   report.get_hint() << "Use a complete scalar or byte Expression."_view;
-}
-
-static auto get_element_type(const Language::Expression& receiver)
-    -> Core::Option<const Type&> {
-  const Abstract& type = receiver.get_type().resolve();
-  return type.visit<Language::Types::Fixed>(
-      [](const Language::Types::Fixed& fixed) -> Core::Option<const Type&> {
-        return fixed.get_element_type();
-      },
-      [](const Abstract& type) {
-        return type.visit<Language::Types::View>(
-            [](const Language::Types::View& view) -> Core::Option<const Type&> {
-              return view.get_element_type();
-            },
-            [](const Abstract& type) {
-              return type.visit<Language::Types::Access>(
-                  [](const Language::Types::Access& access)
-                      -> Core::Option<const Type&> {
-                    return access.get_element_type();
-                  },
-                  [](const Abstract&) -> Core::Option<const Type&> {
-                    return {};
-                  });
-            });
-      });
 }
 
 static auto get_byte_type(const Type& type)
@@ -176,7 +149,7 @@ static auto select_required_type(const Abstract& candidate)
 
 // A slice is homogeneous value flow, but the repeated source is still the one
 // Slice expression that performs selection. Keeping this Layout subordinate to
-// Slice avoids teaching host-neutral Ranged how a Library Expression fits a
+// Slice avoids teaching host neutral Ranged how a Library Expression fits a
 // required element Type, and avoids fabricating one proxy identity per slot.
 static auto create_layout(
     Memory::Allocator::Arena& domain,
@@ -308,7 +281,7 @@ auto Language::Access::Slice::parse(
     return {};
   }
 
-  // A comma changes element selection into ranged Pack flow. A one-entry range
+  // A comma changes element selection into ranged Pack flow. A single entry
   // retains that authored range shape even though scalar reflection can expose
   // its one element Type.
   Bool range = cursor.matches(Code::Type::PackingOp);
@@ -420,28 +393,31 @@ auto Language::Access::Slice::link(
   }
   BAIL_IF(failed);
 
-  auto element = get_element_type(receiver);
-  if (!element || !is_integer(first) || (count && !is_integer(count->get()))) {
+  auto contiguous =
+      receiver.get_type().resolve().select<Language::Types::Contiguous>();
+  if (!contiguous || !is_integer(first) ||
+      (count && !is_integer(count->get()))) {
     source.report(
         get_anchor(), "Slice rejects the linked operand Types."_view,
         "Use an indexable receiver and integer index, start, and count Expressions."_view);
     return False;
   }
 
-  if (element_type && &element_type->get() != &*element) {
+  const Type& element = contiguous->get_element_type();
+  if (element_type && &element_type->get() != &element) {
     source.report(
         get_anchor(), "Slice cannot change its linked element Type."_view,
         "Keep one exact element Type on this authored access."_view);
     return False;
   }
-  element_type = Reference<const Type>(*element);
+  element_type = Reference<const Type>(element);
 
   if (!count) {
     return Expression::link(source, lexical_context, access_scope);
   }
 
   // Range count determines the complete Pack shape and is therefore a link
-  // fact, not a lowering-time payload detail. Start remains ordinary dynamic
+  // fact, not a lowering payload detail. Start remains ordinary dynamic
   // input because it changes which values flow, never how many slots exist.
   Expression& count_expression = count->get();
 
@@ -496,7 +472,7 @@ auto Language::Access::Slice::link(
   }
 
   range_count = *selected_count;
-  const auto& layout = create_layout(domain, *this, *element, *selected_count);
+  const auto& layout = create_layout(domain, *this, element, *selected_count);
   range_layout = layout;
   return True;
 }
@@ -586,11 +562,11 @@ auto Language::Access::Slice::evaluate()
     return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
   }
 
-  auto element = get_element_type(*folded_receiver);
-  if (!element) {
+  if (!element_type) {
     return Expression::Error(
         Expression::Error::Type::InvalidOperationType, *this);
   }
+  const Type& element = element_type->get();
 
   auto selected_index = get_count(*folded_first, first);
   return selected_index.visit(
@@ -604,18 +580,28 @@ auto Language::Access::Slice::evaluate()
               if (!count) {
                 if (!index || *index >= value.get_size()) {
                   // No payload element exists, so the exact element Type
-                  // decides whether safe selection has a value or a failure.
+                  // decides whether safe selection has a value or a
+                  // failure.
                   auto fallback =
-                      Library::Dialect::create_default(domain, *element);
+                      Library::Dialect::create_default(domain, element);
                   if (!fallback) {
                     return Expression::Error(
                         Expression::Error::Type::InvalidConstant, *this);
                   }
 
-                  return static_cast<Model::Pack&>(*fallback);
+                  const Layout& fallback_layout = fallback->get_layout();
+                  for (Count position = 0;
+                       position < fallback_layout.get_size(); position++) {
+                    auto fallback_value =
+                        fallback_layout.get_abstract(position);
+                    if (!fallback_value || !fallback_value->is<Constant>()) {
+                      return Core::Option<Model::Pack&>{};
+                    }
+                  }
+                  return *fallback;
                 }
 
-                auto byte_type = get_byte_type(*element);
+                auto byte_type = get_byte_type(element);
                 if (!byte_type) {
                   return Expression::Error(
                       Expression::Error::Type::InvalidConstant, receiver);
@@ -631,17 +617,17 @@ auto Language::Access::Slice::evaluate()
                     Expression::Error::Type::InvalidConstant, *this);
               }
 
-              auto byte_type = get_byte_type(*element);
+              auto byte_type = get_byte_type(element);
               if (!byte_type) {
                 return Expression::Error(
                     Expression::Error::Type::InvalidConstant, receiver);
               }
 
-              // A ranged fold represents real selected payload values. Unlike
-              // scalar safe access, the range form has no per-slot defaulting
-              // rule. Keep an out-of-bounds constant range as authored flow
-              // for lowering instead of fabricating values or attempting an
-              // unbounded compile-time allocation.
+              // A ranged fold represents real selected payload values.
+              // Unlike scalar safe access, the range form has no default
+              // per slot. Keep an out of bounds constant range as
+              // authored flow for lowering instead of fabricating values
+              // or attempting an unbounded allocation during compilation.
               if (!index || *index > value.get_size() ||
                   *range_count > value.get_size() - *index) {
                 return Core::Option<Model::Pack&>{};

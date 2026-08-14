@@ -17,8 +17,10 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/option.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/model/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library;
@@ -182,7 +184,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, case_blocks_inherit_the_nearest_loop) {
   static constexpr View::Bytes source =
       "// Match loop control.\n"
       "dialect : Library;\n"
-      "public run : func = [] -> Void {\n"
+      "public run : func = [] -> [] {\n"
       "  while true {\n"
       "    match true {\n"
       "      case false : { continue; }\n"
@@ -213,6 +215,80 @@ PERIMORTEM_UNIT_TEST(MatchTests, case_blocks_inherit_the_nearest_loop) {
   EXPECT(&continued.get_target() == &loop);
   EXPECT(&broken.get_target() == &loop);
   EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(MatchTests, option_patterns_are_exact_and_branch_local) {
+  static constexpr View::Bytes source =
+      "// Option match graph.\n"
+      "dialect : Library;\n"
+      "public Maybe : alias = Option[Unsigned_64];\n"
+      "public choose : func = [.value : Maybe] -> Unsigned_64 {\n"
+      "  match value {\n"
+      "    case item : { return item; }\n"
+      "    case _ : { return 0; }\n"
+      "  }\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+  ASSERT(workspace.link(errors));
+  ASSERT(workspace.finalize(errors));
+
+  auto choose = find_function(monograph->get_source(), "choose"_view);
+  ASSERT(choose && choose->get_body());
+  const auto& first = static_cast<const Language::Flow::Match&>(
+      choose->get_body()->get_statements().get_data()[0].get());
+
+  ASSERT_EQ(first.get_case_count(), Count(1));
+  ASSERT(first.get_case_kind(0));
+  EXPECT(*first.get_case_kind(0) == Language::Flow::Match::CaseKind::Value);
+
+  auto payload = first.get_case_payload(0);
+  ASSERT(payload);
+  EXPECT(&payload->get_type() == &Dialect::get_unsigned_64());
+  ASSERT(first.get_case_body(0));
+  ASSERT(first.get_default());
+  EXPECT(&first.get_case_body(0)->resolve_context("item"_view) == &*payload);
+  EXPECT(
+      &first.get_default()->resolve_context("item"_view) ==
+      &Invalid::get_invalid());
+  EXPECT_NOT(first.get_case_constant(0));
+  EXPECT_NOT(first.reaches_next_statement());
+
+  const Abstract& retained_input = first.get_input();
+  const Ttx::Model::Addressable& retained_payload = *payload;
+  ASSERT(monograph->link());
+  ASSERT(monograph->finalize());
+  EXPECT(&first.get_input() == &retained_input);
+  EXPECT(&*first.get_case_payload(0) == &retained_payload);
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(MatchTests, constructor_patterns_are_rejected) {
+  static constexpr Static::Vector<View::Bytes, 3> sources = {{
+    "// Empty constructor.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case some() : {} case _ : {} } return; }"_view,
+    "// Payload constructor.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case some(item) : {} case _ : {} } return; }"_view,
+    "// Missing close.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case some(item : {} case _ : {} } return; }"_view,
+  }};
+
+  for (Count index = 0; index < sources.get_size(); index++) {
+    EXPECT(rejects_interpretation(sources[index]));
+  }
+}
+
+PERIMORTEM_UNIT_TEST(MatchTests, invalid_option_case_sets_are_rejected) {
+  static constexpr Static::Vector<View::Bytes, 5> sources = {{
+    "// Missing absent case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case item : {} } return; }"_view,
+    "// Missing value case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case _ : {} } return; }"_view,
+    "// Duplicate value case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case first : {} case second : {} case _ : {} } return; }"_view,
+    "// Constant value case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case 7 : {} case _ : {} } return; }"_view,
+    "// Empty element Type.\ndialect : Library; public Empty : struct {} private invalid : func = [.value : Option[Empty]] -> [] { return; }"_view,
+  }};
+
+  for (Count index = 0; index < sources.get_size(); index++) {
+    EXPECT(rejects_link(sources[index]));
+  }
 }
 
 PERIMORTEM_UNIT_TEST(MatchTests, pack_inputs_and_cases_are_rejected) {

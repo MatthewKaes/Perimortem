@@ -11,15 +11,17 @@
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Expressions {
 
-// Initializer is the authored `new` signal for one declaration that already
-// supplies an Object Type. It retains supplied values in source order while
-// the Object and its Fields remain the only initialization shape.
+// Initializer owns one aggregate initialization operation. Authored `new[Type]`
+// carries its exact Object Type while the receiving declaration owns
+// publication. Synthetic defaults retain an exact aggregate Type without
+// inventing a source Anchor.
 class Initializer : public Expression {
  public:
   TTX_CONTRACT(Initializer, Expression, 0x921ccce2e4934c8d, 0x9d19d3434e18f49a);
@@ -30,6 +32,14 @@ class Initializer : public Expression {
       Perimortem::Memory::Allocator::Arena& domain,
       Monograph& source,
       Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Initializer&>;
+
+  // Synthetic aggregate defaults retain their exact target Type and one real
+  // child Pack per completed element or state Field.
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Model::Type& type,
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Model::Pack>>
+          values) -> Initializer&;
 
   Initializer(const Initializer&) = delete;
   Initializer(Initializer&&) = delete;
@@ -45,6 +55,8 @@ class Initializer : public Expression {
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
 
+  auto fits(const Ttx::Model::Type& target) const -> Bool override;
+
   auto link(
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Concept::Abstract& lexical_context,
@@ -53,9 +65,13 @@ class Initializer : public Expression {
 
   auto finalize() -> void override;
 
+  auto get_completed_values() const
+      -> Perimortem::Core::Option<const Model::Pack&>;
+
  private:
   Initializer(
       Perimortem::Memory::Allocator::Arena& domain,
+      Perimortem::Core::Option<TypeReference> target_reference,
       Model::Pack& arguments,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 
@@ -64,6 +80,11 @@ class Initializer : public Expression {
       const Types::Object& target,
       const Field& field) const -> Bool;
 
+  auto select_supplied(
+      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope,
+      const Types::Object& target,
+      const Field& field) const -> Perimortem::Core::Option<const Model::Pack&>;
+
   auto has_mandatory_cycle(
       Perimortem::Core::Option<const Ttx::Model::Type&> access_scope,
       const Types::Object& target,
@@ -71,9 +92,12 @@ class Initializer : public Expression {
           Ttx::Concept::Reference<const Types::Object>> path) const -> Bool;
 
   Perimortem::Memory::Allocator::Arena& domain;
+  Perimortem::Core::Option<TypeReference> target_reference;
   Model::Pack& arguments;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Types::Object>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
       expected_type;
+  Perimortem::Core::Option<Ttx::Concept::Reference<Model::Pack>>
+      completed_values;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Expressions

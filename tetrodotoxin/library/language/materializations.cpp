@@ -12,6 +12,10 @@
 #include "tetrodotoxin/library/language/constants/flag.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/types/contiguous.hpp"
+#include "tetrodotoxin/library/language/types/fixed.hpp"
+#include "tetrodotoxin/library/language/types/option.hpp"
+#include "tetrodotoxin/library/language/types/range.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/alias.hpp"
 
@@ -88,6 +92,34 @@ static auto normalize_argument(
   return {};
 }
 
+static auto is_admissible_value_type(const Ttx::Model::Type& type) -> Bool {
+  if (&type.resolve() != &type || type.get_layout().is_empty()) {
+    return False;
+  }
+
+  auto option = type.select<Language::Types::Option>();
+  if (option) {
+    return is_admissible_value_type(option->get_element_type());
+  }
+
+  auto fixed = type.select<Language::Types::Fixed>();
+  if (fixed && fixed->get_extent() == 0) {
+    return False;
+  }
+
+  auto contiguous = type.select<Language::Types::Contiguous>();
+  if (contiguous) {
+    return is_admissible_value_type(contiguous->get_element_type());
+  }
+
+  auto range = type.select<Language::Types::Range>();
+  if (range) {
+    return is_admissible_value_type(range->get_element_type());
+  }
+
+  return True;
+}
+
 auto Language::Materializations::Key::hash() const -> Unsigned_64 {
   Unsigned_64 value = Core::Hash(&formula).get_value();
   value = Core::Hash(arguments.get_size()).Rehash(value);
@@ -119,8 +151,8 @@ auto Language::Materializations::materialize(
   auto parameters = generic.get_parameterization();
   BAIL_IF(parameters.get_size() != argument_layout.get_size());
 
-  // Fitting is a query. Only a newly published key enters the Arena below;
-  // retries and cache hits must not accumulate transient normalization state.
+  // Fitting is a query. Only a newly published key enters the Arena below.
+  // Retries and cache hits must not accumulate transient normalization state.
   Memory::Dynamic::Vector<Generic::Argument> arguments(parameters.get_size());
   const auto* parameter_data = parameters.get_data();
   for (Count i = 0; i < parameters.get_size(); i++) {
@@ -144,7 +176,7 @@ auto Language::Materializations::materialize(
       parameters.get_size() != arguments.get_size());
 
   // A key contains exact semantic facts. A directly selected Type may still
-  // be completing its owner-defined Layout; formulas retain that stable
+  // be completing the Layout defined by its owner. Formulas retain that stable
   // identity and must not demand facts that linking has not reached yet.
   const auto* parameter_data = parameters.get_data();
   const auto* argument_data = arguments.get_data();
@@ -202,4 +234,16 @@ auto Language::Materializations::materialize(
   entries.insert(
       retained_key, Ttx::Concept::Reference<const Ttx::Model::Type>(result));
   return result;
+}
+
+auto Language::Materializations::find_invalid_value_type() const
+    -> Core::Option<const Ttx::Model::Type&> {
+  for (Count index = 0; index < entries.get_size(); index++) {
+    const auto* entry = entries.get_entry(index);
+    if (entry != nullptr && !is_admissible_value_type(entry->value.get())) {
+      return entry->value.get();
+    }
+  }
+
+  return {};
 }

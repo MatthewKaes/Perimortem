@@ -58,8 +58,9 @@ class Layout final : public Ttx::Concept::Layout {
   auto operator=(Layout&&) -> Layout& = delete;
 
   // Both paths resolve the same authored TypeReference facts. Parameters
-  // materialize a real Addressable for each nonempty Type; results retain the
-  // selected Type directly and allow an empty Type to contribute zero values.
+  // materialize a real Addressable while results retain the selected Type
+  // directly. Every authored Type slot must provide a value. Only `[]` carries
+  // an empty descriptor.
   auto link_parameters(
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Model::Type& host) -> Bool;
@@ -74,8 +75,6 @@ class Layout final : public Ttx::Concept::Layout {
       -> const Ttx::Concept::Abstract&;
 
   // Publication remains beside the authored routes and final edges it checks.
-  // Empty Type slots are included even though they contribute no visible TTX
-  // Layout entry.
   auto validate_publication(
       Tetrodotoxin::Language::Monograph& source,
       const Ttx::Model::Type& host) const -> Bool;
@@ -150,7 +149,7 @@ class Layout final : public Ttx::Concept::Layout {
       Bool parameters) -> Bool;
 
   auto is_named() const -> Bool;
-  auto get_visible_slot(Count index) const -> const Slot*;
+  auto get_slot(Count index) const -> const Slot*;
   auto fits_value(
       const Ttx::Concept::Layout& target,
       Count source_index,

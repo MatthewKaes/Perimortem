@@ -305,9 +305,9 @@ to add a default with `.name : Type = expression` or infer one with
 An empty Pack or one with several values remains flow and does not become an
 anonymous Type.
 Atomic Types expose one exact terminal value entry. An empty Layout exposes
-none, so `Void`, `[]`, `()`, and other domains with no values can fit across
-Dialect boundaries without a shared `Void` Type, but no Addressable can name
-them.
+none, so `()` can fit `[]` across Dialect boundaries without a Type identity.
+A Type with an empty Layout may retain contextual facts, but it cannot enter
+value flow and no Addressable can name it.
 
 A compiler maps scalar abstract machine storage facts and derives target object
 layouts, ABI alignments, offsets, pointer forms, calling convention carriers,

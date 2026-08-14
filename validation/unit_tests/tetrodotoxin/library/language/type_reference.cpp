@@ -79,9 +79,9 @@ PERIMORTEM_UNIT_TEST(
       "  public nested : View[Fixed[Unsigned_8, 4,],];\n"
       "  public repeated : View[Fixed[Unsigned_8, 4]];\n"
       "}\n"
-      "public Later : struct { public ready : Bool; }\n"
+      "public Later : struct { public state ready : Bool; }\n"
       "public Node : struct {\n"
-      "  public ready : Bool;\n"
+      "  public state ready : Bool;\n"
       "  public children : View[Node];\n"
       "}"_view;
   Workspace workspace;
@@ -131,7 +131,7 @@ PERIMORTEM_UNIT_TEST(
   const Type* nested_type = &nested->get_type();
   const Type* children_type = &children->get_type();
 
-  // Re-entering the transaction observes completed phases. Materializations and
+  // Repeating the transaction observes completed phases. Materializations and
   // each declaration retain the exact Types selected by the first pass.
   ASSERT(monograph->link());
   catalog = select_structure(root, "Catalog"_view);
@@ -166,7 +166,7 @@ PERIMORTEM_UNIT_TEST(
       "public Container : struct {\n"
       "  public NestedAlias : alias = Later;\n"
       "}\n"
-      "public Later : struct { public ready : Bool; }"_view;
+      "public Later : struct { public state ready : Bool; }"_view;
   Workspace workspace;
   Errors errors;
   auto monograph =

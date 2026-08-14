@@ -66,7 +66,7 @@ public broad_entry : func = [
   state dimensions : Fixed[Unsigned_64, 2] = packet.[width, height];
   state negative : Signed_64 = -1;
   state accepted : Bool = ready and limit > 0;
-  state session : Session = new;
+  state session : Session = new[Session];
 
   if (accepted) {
     local = Packet -> identity(limit);
@@ -107,7 +107,7 @@ public broad_entry : func = [
   return observed_total;
 }
 
-public reset : func = [] -> Void {
+public reset : func = [] -> [] {
   observed_total = 0;
   return;
 }

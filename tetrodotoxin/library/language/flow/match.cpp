@@ -5,8 +5,11 @@
 
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/constants/flag.hpp"
+#include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/language/types/option.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/model/addressable.hpp"
 #include "ttx/model/types/flag.hpp"
 
 using namespace Perimortem::Core;
@@ -15,6 +18,63 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
+
+class Payload final : public Addressable {
+ public:
+  TTX_CONTRACT(Payload, Addressable, 0x43e392a908fd46ed, 0xaaf47238d64c7711);
+
+  constexpr Payload(View::Bytes name) : name(name) {}
+
+  TTX_NAME(name);
+  TTX_EMPTY_DOCUMENTATION();
+
+  auto bind(const Type& selected) -> Bool {
+    if (type && &type->get() != &selected) {
+      return False;
+    }
+    type = Reference<const Type>(selected);
+    return True;
+  }
+
+  auto resolve() const -> const Abstract& override {
+    return type ? static_cast<const Abstract&>(*this)
+                : static_cast<const Abstract&>(Invalid::get_invalid());
+  }
+
+  auto get_type() const -> const Type& override { return type->get(); }
+
+ private:
+  View::Bytes name;
+  Option<Reference<const Type>> type;
+};
+
+class PatternContext final : public Abstract {
+ public:
+  TTX_CONTRACT(
+      PatternContext,
+      Abstract,
+      0x9a56fc513b014505,
+      0x875d09107259fb90);
+
+  constexpr PatternContext(const Abstract& parent, Payload& payload)
+      : parent(parent), payload(payload) {}
+
+  TTX_NAME("Option pattern"_view);
+  TTX_EMPTY_DOCUMENTATION();
+
+  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+    if (route == payload.get_name() &&
+        &payload.resolve() != &Invalid::get_invalid()) {
+      return payload;
+    }
+
+    return parent.resolve_context(route);
+  }
+
+ private:
+  const Abstract& parent;
+  Payload& payload;
+};
 
 auto Language::Flow::Match::interpret(
     Allocator::Arena& domain,
@@ -90,6 +150,41 @@ auto Language::Flow::Match::interpret(
       continue;
     }
 
+    if (transaction.matches(Code::Type::Addressable) &&
+        transaction.peek(1).get_code().get_type() == Code::Type::Define) {
+      // The payload context borrows its parent and exposes one private binding
+      // only after Option linking proves this case is elimination. Until then
+      // the same token remains a normal Identifier Constant candidate.
+      Token value_token = transaction.consume();
+      View::Bytes value_name = domain.proxy(
+          value_token.caculate_text(transaction.get_source_text()));
+      auto& binding = domain.construct<Payload>(value_name);
+      auto& context =
+          domain.construct<PatternContext>(lexical_context, binding);
+      auto& expression = Expressions::Identifier::create_authored(
+          domain, value_token, transaction.get_source_text(),
+          Anchor::create(Span(value_token)));
+
+      BAIL_IF(!transaction.require(
+          Code::Type::Define,
+          "Library match cases require `:` before their Block."_view));
+      auto body = Block::interpret(
+          domain, source, transaction, context, function, access_scope,
+          enclosing_loop);
+      BAIL_IF(!body);
+      result.cases.insert(
+          Case{
+            .kind = Match::CaseKind::Value,
+            .expression = Reference<Expression>(expression),
+            .body = Reference<Block>(*body),
+            .payload = Reference<Addressable>(binding),
+            .anchor = Anchor::create(Span(value_token)),
+            .constant = {},
+          });
+      Tetrodotoxin::Language::Parser::Comment::parse(transaction);
+      continue;
+    }
+
     Token expression_opening = transaction.current();
     auto case_pack = Parser::Expression::parse(domain, source, transaction);
     BAIL_IF(!case_pack);
@@ -111,8 +206,13 @@ auto Language::Flow::Match::interpret(
     BAIL_IF(!body);
     result.cases.insert(
         Case{
+          .kind = Match::CaseKind::Constant,
           .expression = Reference<Expression>(*expression),
           .body = Reference<Block>(*body),
+          .payload = {},
+          .anchor = expression->get_anchor().visit(
+              [&]() { return Anchor::create(Span(expression_opening)); },
+              [](Anchor selected) { return selected; }),
           .constant = {},
         });
     Tetrodotoxin::Language::Parser::Comment::parse(transaction);
@@ -144,13 +244,62 @@ auto Language::Flow::Match::link(
     return False;
   }
 
+  Bool failed = False;
+  auto option_type = input_type->select<Language::Types::Option>();
+  if (option_type) {
+    // Option elimination owns exactly one branch local payload and one absent
+    // branch. The input Type never becomes an empty Layout in either case.
+    if (cases.get_size() != 1 || !default_body) {
+      source.report(
+          anchor, "Option match requires one value case and one `_` case."_view,
+          "Bind the present value first and keep `_` as the final absent branch."_view);
+      failed = True;
+    }
+
+    for (Count index = 0; index < cases.get_size(); index++) {
+      Case& entry = cases[index];
+      if (entry.kind != CaseKind::Value || !entry.payload) {
+        source.report(
+            entry.anchor,
+            "Option match value case requires one local name."_view,
+            "Use `case value:` to bind the exact payload."_view);
+        failed = True;
+        continue;
+      }
+
+      auto binding = entry.payload->get().select<Payload>();
+      if (!binding || !binding->bind(option_type->get_element_type())) {
+        source.report(
+            entry.anchor,
+            "Option match payload selected a different Type."_view,
+            "Repeat linking with the same completed Option Type."_view);
+        failed = True;
+        continue;
+      }
+
+      failed |= !entry.body.get().link(source);
+    }
+
+    default_body.visit(
+        []() {},
+        [&](Reference<Block>& selected) {
+          failed |= !selected.get().link(source);
+        });
+    BAIL_IF(failed);
+
+    complete_coverage = True;
+    linked = True;
+    return True;
+  }
+
   // Case Expressions settle before bodies so every Constant and duplicate is
   // known before Match publishes any control coverage. The authored Expression
   // remains the fold owner while Match retains only the resulting exact value.
-  Bool failed = False;
   for (Count index = 0; index < cases.get_size(); index++) {
     Case& entry = cases[index];
-    Expression& expression = entry.expression.get();
+    entry.kind = CaseKind::Constant;
+
+    Expression& expression = entry.expression->get();
     Bool case_failed = !expression.link(source, lexical_context, access_scope);
     if (!case_failed) {
       const Abstract& case_type = expression.get_type().resolve();
@@ -245,7 +394,9 @@ auto Language::Flow::Match::finalize() -> void {
   input.get().finalize();
   for (Count index = 0; index < cases.get_size(); index++) {
     Case& entry = cases[index];
-    entry.expression.get().finalize();
+    entry.expression.visit(
+        []() {},
+        [](Reference<Expression>& selected) { selected.get().finalize(); });
     entry.body.get().finalize();
   }
   default_body.visit(
@@ -279,6 +430,28 @@ auto Language::Flow::Match::get_case_constant(Count index) const
   return cases.get_view().get_data()[index].constant.visit(
       []() -> Option<const Constant&> { return {}; },
       [](const Reference<const Constant>& selected) -> Option<const Constant&> {
+        return selected.get();
+      });
+}
+
+auto Language::Flow::Match::get_case_kind(Count index) const
+    -> Option<CaseKind> {
+  if (index >= cases.get_size()) {
+    return {};
+  }
+
+  return cases.get_view().get_data()[index].kind;
+}
+
+auto Language::Flow::Match::get_case_payload(Count index) const
+    -> Option<const Addressable&> {
+  if (index >= cases.get_size()) {
+    return {};
+  }
+
+  return cases.get_view().get_data()[index].payload.visit(
+      []() -> Option<const Addressable&> { return {}; },
+      [](const Reference<Addressable>& selected) -> Option<const Addressable&> {
         return selected.get();
       });
 }

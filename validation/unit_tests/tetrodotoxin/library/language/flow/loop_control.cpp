@@ -76,7 +76,7 @@ PERIMORTEM_UNIT_TEST(LoopControlTests, nearest_loop_identity) {
   static constexpr View::Bytes source =
       "// Loop control graph.\n"
       "dialect : Library;\n"
-      "public run : func = [] -> Void {\n"
+      "public run : func = [] -> [] {\n"
       "  while true {\n"
       "    if true { continue; }\n"
       "    break;\n"

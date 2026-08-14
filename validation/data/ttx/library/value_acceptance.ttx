@@ -15,8 +15,6 @@ public Pair : struct {
   public state second : Unsigned_64;
 }
 
-public Empty : struct {}
-
 public const slice_offset : Unsigned_64 = 1;
 
 public SliceParameters : struct {
@@ -61,7 +59,7 @@ private constant_slice : Fixed[Unsigned_8, 2] =
 private called := Factory -> add(2, 3);
 private addressed := packet.width;
 private self_called := packet -> total();
-private empty : func = [] -> Empty {
+private empty : func = [] -> [] {
   return packet.[];
 }
 private single : Unsigned_64 = packet.[width];

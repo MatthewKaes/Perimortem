@@ -230,7 +230,7 @@ Parser rejection, failed Layout fitting, archive corruption, and backend
 failure remain results of their owning operations. They do not create substitute
 semantic identities.
 
-## Pack is value flow; Layout is semantic shape
+## Pack is value flow and Layout is semantic shape
 
 Pack and Layout deliberately answer different questions. A Pack identifies one
 producer and the values it supplies. A Layout has no semantic identity and
@@ -243,9 +243,9 @@ several positional, named, ranged, or composed values. One expression is
 already a one-value Pack; grouping it does not create another semantic object.
 A multi-value Pack remains untyped as a group until a receiving declaration or
 operation deliberately materializes one Type. Its individual produced values
-retain their exact semantic identities throughout fitting. A language's `Void`
-result and an explicit empty grouping both expose an empty Layout, so
-cross-language empty flow needs no shared `Void` Type identity.
+retain their exact semantic identities throughout fitting. An explicit empty
+grouping exposes an empty Layout, so cross-language empty flow needs no Type
+identity.
 
 The common source convention reinforces the distinction: parentheses group
 supplied Pack values and brackets describe required Layout entries. A named
@@ -280,10 +280,10 @@ compiler derives and validates those facts for its own Terminal. That extra work
 is the price of keeping the graph target neutral.
 
 An empty Layout is a valid zero-value shape and fits another empty Layout. An
-empty Pack exposes that shape without requiring one shared Void Type identity.
+empty Pack exposes that shape without requiring a Type identity.
 Atomic Types cannot launder that shape because their Value Layout contains
-their own exact identity. A zero-value Type may still own contextual or Static
-facts, but no Addressable can name an absent value.
+their own exact identity. A Type with an empty Layout may still own contextual
+or Static facts, but it cannot enter value flow and no Addressable can name it.
 
 ## Semantic defaults
 

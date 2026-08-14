@@ -48,6 +48,10 @@ class Call : public Expression {
   auto get_callable() const
       -> Perimortem::Core::Option<const Ttx::Model::Callable&>;
 
+  constexpr auto get_arguments() const -> const Language::Model::Pack& {
+    return arguments;
+  }
+
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
 
   constexpr auto get_name_token() const -> Ttx::Lexical::Token {

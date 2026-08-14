@@ -183,7 +183,7 @@ auto Language::Flow::Assignment::link(
   }
 
   if (operation == Code::Type::Assign) {
-    if (!source.fits(*target_type)) {
+    if (!source.fits_into(*target_type)) {
       monograph.report(
           anchor,
           "Assignment source Pack does not fit the target Type Layout."_view,

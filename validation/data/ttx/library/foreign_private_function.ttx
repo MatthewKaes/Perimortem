@@ -2,5 +2,5 @@
 dialect : Library;
 
 foreign "C" {
-  private func hidden[] -> Void;
+  private func hidden[] -> [];
 }

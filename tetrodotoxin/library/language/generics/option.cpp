@@ -1,0 +1,36 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#include "tetrodotoxin/library/language/generics/option.hpp"
+
+#include "perimortem/memory/managed/bytes.hpp"
+
+#include "tetrodotoxin/library/language/types/option.hpp"
+#include "ttx/concept/invalid.hpp"
+
+using namespace Tetrodotoxin::Library::Language;
+
+auto Generics::Option::create(
+    Perimortem::Core::View::Vector<Argument> arguments,
+    Perimortem::Memory::Allocator::Arena& arena) const
+    -> Perimortem::Core::Option<const Ttx::Model::Type&> {
+  if (arguments.get_size() != 1) {
+    return {};
+  }
+
+  const Ttx::Model::Type* element =
+      arguments.get_data()[0].find<const Ttx::Model::Type&>();
+  if (element == nullptr) {
+    return {};
+  }
+  const auto& resolved = element->resolve();
+  if (&resolved == element && element->get_layout().is_empty()) {
+    return {};
+  }
+
+  Perimortem::Memory::Managed::Bytes name(arena, get_name());
+  name.concat("["_view);
+  name.concat(element->get_name());
+  name.concat("]"_view);
+  return arena.construct<Types::Option>(name.get_view(), *element);
+}

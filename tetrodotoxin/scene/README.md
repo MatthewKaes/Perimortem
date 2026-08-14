@@ -116,12 +116,12 @@ does not become the Scene's identity.
 ## Hosted graphics state
 
 A Scene instance is the root of its hosted graphics state. A private `state`
-Field initialized with `new` is hosted when its Object Type supports the
-Graphics hosting contract:
+Field initialized with `new[ObjectType]` is hosted when its Object Type supports
+the Graphics hosting contract:
 
 ```ttx
-private state top_icon : Graphics::Sprite = new;
-private state bottom_icon : Graphics::Sprite = new;
+private state top_icon : Graphics::Sprite = new[Graphics::Sprite];
+private state bottom_icon : Graphics::Sprite = new[Graphics::Sprite];
 ```
 
 These Fields are the real hosted objects. Scene does not build a second node

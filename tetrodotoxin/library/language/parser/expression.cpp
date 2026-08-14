@@ -6,9 +6,11 @@
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
 #include "tetrodotoxin/library/language/access/index.hpp"
+#include "tetrodotoxin/library/language/access/propagate.hpp"
 #include "tetrodotoxin/library/language/access/slice.hpp"
 #include "tetrodotoxin/library/language/access/swizzle.hpp"
 #include "tetrodotoxin/library/language/access/type.hpp"
+#include "tetrodotoxin/library/language/access/unwrap.hpp"
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
@@ -79,6 +81,10 @@ static auto find_postfix(Code::Type code) -> Option<ReceiverParser> {
     return &Library::Language::Access::Type::parse;
   case Code::Type::ValueAccessOp:
     return &Library::Language::Access::Slice::parse;
+  case Code::Type::NotOp:
+    return &Library::Language::Access::Unwrap::parse;
+  case Code::Type::QuestionOp:
+    return &Library::Language::Access::Propagate::parse;
   default:
     return {};
   }

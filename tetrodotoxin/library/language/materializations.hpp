@@ -44,6 +44,9 @@ class Materializations {
 
   auto get_size() const -> Count { return entries.get_size(); }
 
+  auto find_invalid_value_type() const
+      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
+
  private:
   class Key {
    public:

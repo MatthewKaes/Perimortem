@@ -23,10 +23,10 @@ namespace Tetrodotoxin::Library::Language {
 
 // Expression is the Abstract contract for one evaluatable source node.
 // Expression identity remains distinct from Type identity so two values of the
-// same Type remain distinct facts in the semantic DAG. Most Expressions produce
-// one value. An owner such as Call may retain a complete empty or multi-result
-// Layout while get_type() exposes a scalar Type only when exactly one result is
-// available.
+// same Type remain distinct facts in the semantic DAG. Scalar Expressions
+// produce one value. An owner such as Call may retain a complete empty or
+// multi-result Layout while get_type() exposes a scalar Type only when exactly
+// one result is available.
 //
 // Authored Expressions retain one lexical Anchor containing their complete
 // Span and the independent Token a diagnostic should emphasize. Synthetic
@@ -87,10 +87,9 @@ class Expression : public Model::Pack {
   virtual constexpr auto get_type() const
       -> const Ttx::Concept::Abstract& override = 0;
 
-  // An ordinary Expression produces either one value of its exact output Type
-  // or no values when that Type is deliberately empty. Owners such as Call,
-  // Swizzle, and Slice override this query when they produce complete
-  // multi-value flow without inventing an aggregate Type.
+  // An ordinary Expression produces one value of its exact output Type. Owners
+  // such as Call, Swizzle, and Slice override this query when they produce
+  // complete multi-value flow without inventing an aggregate Type.
   auto get_layout() const -> const Ttx::Concept::Layout& override;
 
   // A linked Expression is a completed Pack. Multi-result owners override
@@ -132,7 +131,7 @@ class Expression : public Model::Pack {
 
   // Ordinary expressions supply the complete Layout of their output Type.
   // Atomic Types retain their own exact identity as one terminal value while
-  // structural and empty Types expose their real shapes. Constant domains may
+  // structural Types expose their real shapes. Constant domains may
   // extend this rule when their value proves a contextual conversion safe.
   constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
     auto source_type = get_type().select<Ttx::Model::Type>();
@@ -141,9 +140,8 @@ class Expression : public Model::Pack {
     }
 
     // Scalar Expressions compare their exact output Type, including
-    // Constant-owned contextual conversions. Empty and multi-value
-    // Expressions have no scalar Type; their Pack Layout is the complete
-    // value-flow contract and must negotiate with the receiving Type instead.
+    // Constant owned contextual conversions. Multi value Packs have no scalar
+    // Type and negotiate through their complete flow Layout instead.
     return source_type ? source_type->get_layout().fits(target.get_layout())
                        : Model::Pack::fits(target);
   }
@@ -193,7 +191,6 @@ class Expression : public Model::Pack {
  private:
   Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor;
   Ttx::Model::Layouts::Ranged output_layout;
-  static constexpr Ttx::Model::Layouts::Fluid empty_output;
   Perimortem::Core::Static::Union<Model::Pack&, Error> folded;
 };
 

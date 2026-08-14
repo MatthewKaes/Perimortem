@@ -80,6 +80,7 @@ class Local : public Ttx::Model::Addressable {
   auto cache_constant() const -> Bool;
 
   constexpr Local(
+      Perimortem::Memory::Allocator::Arena& domain,
       Block& host,
       Ttx::Lexical::Token name_token,
       Perimortem::Core::View::Bytes name,
@@ -87,7 +88,8 @@ class Local : public Ttx::Model::Addressable {
       Perimortem::Core::Option<TypeReference> type_reference,
       Perimortem::Core::Option<Model::Pack&> initializer,
       Ttx::Lexical::Anchor anchor)
-      : host(host),
+      : domain(domain),
+        host(host),
         name_token(name_token),
         name(name),
         writability(writability),
@@ -96,6 +98,7 @@ class Local : public Ttx::Model::Addressable {
         anchor(anchor),
         initializer_linked(!initializer) {}
 
+  Perimortem::Memory::Allocator::Arena& domain;
   Block& host;
   Ttx::Lexical::Token name_token;
   Perimortem::Core::View::Bytes name;

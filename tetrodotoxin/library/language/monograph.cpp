@@ -169,8 +169,8 @@ auto Library::Language::Monograph::link_imports() -> Bool {
         target_package->get_members();
 
     // A Package member Alias is opaque except for resolution. Only an exact
-    // Library Monograph result grants access to its Source; unrelated member
-    // contexts are never probed for a source-shaped route.
+    // Library Monograph result grants access to its Source. Unrelated member
+    // contexts are never probed for a Source route.
     for (Count member_index = 0; member_index < members.get_size();
          member_index++) {
       const Alias& member = members.get_data()[member_index].get();
@@ -264,7 +264,7 @@ auto Library::Language::Monograph::link_imports() -> Bool {
 
   BAIL_IF(failed);
 
-  // The complete phase preflight makes these category-directed binds
+  // The complete phase preflight makes these category specific binds
   // infallible. Alias construction therefore publishes directly without a
   // second staged identity collection.
   for (Count i = 0; i < candidates.get_size(); i++) {
@@ -312,8 +312,8 @@ auto Library::Language::Monograph::link() -> Bool {
     }
     if (contains(active_dependencies, monograph)) {
       // Import cycles have no strict dependency order. Keeping the first
-      // authored edge as the break point still lets direct declarations settle;
-      // an actual Alias cycle is rejected by the Alias owner during Type link.
+      // authored edge as the break point still lets direct declarations settle.
+      // An actual Alias cycle is rejected by the Alias owner during Type link.
       return True;
     }
 
@@ -344,7 +344,7 @@ auto Library::Language::Monograph::link() -> Bool {
     return monograph.get_source().link_types();
   }));
 
-  // A Field initializer may invoke a later-authored Callable. Signatures depend
+  // A Field initializer may invoke a Callable authored later. Signatures depend
   // only on completed declaration Types, so the complete closure settles them
   // before any Field Expression attempts selection or argument fitting.
   BAIL_IF(!complete_phase([](Monograph& monograph) {
@@ -354,6 +354,16 @@ auto Library::Language::Monograph::link() -> Bool {
   BAIL_IF(!complete_phase([](Monograph& monograph) {
     return monograph.get_source().link_fields();
   }));
+
+  auto invalid_materialization =
+      get_materializations().find_invalid_value_type();
+  if (invalid_materialization) {
+    report(
+        get_source().get_anchor(),
+        "Library Generic materialized an invalid value Type."_view,
+        "Use a nonempty element Type and a positive Fixed extent."_view);
+    return False;
+  }
 
   // Provider Fields become exact only after every imported Type route is
   // available. Replaying the import transaction here adds those new exact

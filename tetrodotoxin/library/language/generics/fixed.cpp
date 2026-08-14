@@ -8,6 +8,7 @@
 #include "perimortem/serialization/stream/textual.hpp"
 
 #include "tetrodotoxin/library/language/types/fixed.hpp"
+#include "ttx/concept/invalid.hpp"
 
 using namespace Tetrodotoxin::Library::Language;
 
@@ -23,7 +24,11 @@ auto Generics::Fixed::create(
   const Ttx::Model::Type* element =
       argument_data[0].find<const Ttx::Model::Type&>();
   const ::Unsigned_64* extent = argument_data[1].find<::Unsigned_64>();
-  if (element == nullptr || extent == nullptr) {
+  if (element == nullptr || extent == nullptr || *extent == 0) {
+    return {};
+  }
+  const auto& resolved = element->resolve();
+  if (&resolved == element && element->get_layout().is_empty()) {
     return {};
   }
 

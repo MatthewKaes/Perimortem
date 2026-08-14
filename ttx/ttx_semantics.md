@@ -174,22 +174,22 @@ the completed graph.
 ## Type and Value
 
 Type is an Abstract that represents a semantic domain. Once resolution
-succeeds, each Type exposes one complete Layout. An empty Layout is a valid
-zero-value shape. It fits every other empty Layout without creating a shared
-Type identity.
+succeeds, each Type exposes one complete Layout. A Type admitted to ordinary
+value flow has at least one Layout entry. A Type with an empty Layout may own
+contextual or Static facts, but it cannot be instantiated, produced, or named
+by an Addressable. Empty Layouts fit without creating a shared Type identity.
 
-Every completed concrete Type that its owning language admits to ordinary
-value flow has one total semantic default. The concrete language owns the
+Every completed concrete Type admitted to ordinary value flow has one total
+semantic default. The concrete language owns the
 default value and the operation that materializes it. TTX does not infer that
 value from an all-zero target representation, add a default query to Type, or
 require different Types with equivalent defaults to share identity. A Type
 used only as an internal compile-time descriptor need not be admitted to
 ordinary value flow.
 
-For a Type with an empty Layout, the default is empty value flow. That does not
-make every default an empty Layout. An empty View, for example, is one value of
-the exact View Type and therefore still contributes that Type to its Pack's
-Layout.
+An empty Layout has no value to default. An empty View is different because it
+is one value of the exact View Type and still contributes that Type to its
+Pack's Layout.
 
 Value is a leaf Type used for scalar bit interpretations. Its contextual
 resolution always returns Invalid. Value provides bit width and abstract
@@ -233,10 +233,10 @@ A Pack may supply zero, one, or several values. It may expose positional, named,
 ranged, or composed output shape. One ordinary value-producing expression is
 already a one-value Pack; grouping that expression does not create a second
 semantic identity. An empty Pack exposes an empty Layout. A concrete language's
-`Void` result and an explicit empty grouping agree through that Layout without
-requiring one shared `Void` Type identity. A multi-value Pack remains value flow
-until a receiving contract fits it and an owning language deliberately
-materializes a Type.
+empty result and an explicit empty grouping agree through that Layout without
+requiring a Type identity. A multi-value Pack remains value flow until a
+receiving contract fits it and an owning language deliberately materializes a
+Type.
 
 The common delimiter shapes keep value flow and required shape visually
 distinct: parentheses group produced Packs while brackets describe Layouts.
@@ -389,8 +389,8 @@ offsets, or treat a backend Type as the original semantic Type.
 7. Alias preserves local identity while redirecting represented identity.
 8. Value has no contextual subdomains.
 9. An atomic Type exposes itself as one terminal Value Layout entry.
-   Addressable reaches one Type with a nonempty Layout, and Callable supplies
-   complete parameter and result Layouts.
+   Every Type admitted to value flow has a nonempty Layout, Addressable reaches
+   one such Type, and Callable supplies complete parameter and result Layouts.
 10. Pack preserves produced value-flow identity and exposes one complete output
     Layout without acquiring Type identity.
 11. Type, Pack, Addressable, Callable, and Layout remain independent contracts.

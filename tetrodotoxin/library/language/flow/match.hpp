@@ -16,20 +16,30 @@
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/model/addressable.hpp"
 #include "ttx/model/callable.hpp"
 #include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Flow {
 
-// Match owns one authored value selection. It evaluates one scalar input and
-// compares folded Constant cases in source order. Every selected body is a real
-// nested Block, so the first equal case is the complete control destination and
-// cannot fall through into another case.
+// Match owns one authored value selection. Constant cases compare one folded
+// scalar domain. An Option uses one branch local value case for presence and
+// the final discard case for absence. A selected body never falls through.
 class Match : public Ttx::Concept::Abstract {
+ public:
+  enum class CaseKind : Unsigned_8 {
+    Constant,
+    Value,
+  };
+
  private:
   struct Case {
-    Ttx::Concept::Reference<Expression> expression;
+    CaseKind kind;
+    Perimortem::Core::Option<Ttx::Concept::Reference<Expression>> expression;
     Ttx::Concept::Reference<Block> body;
+    Perimortem::Core::Option<Ttx::Concept::Reference<Ttx::Model::Addressable>>
+        payload;
+    Ttx::Lexical::Anchor anchor;
     Perimortem::Core::Option<Ttx::Concept::Reference<const Constant>> constant;
   };
 
@@ -72,6 +82,11 @@ class Match : public Ttx::Concept::Abstract {
 
   auto get_case_constant(Count index) const
       -> Perimortem::Core::Option<const Constant&>;
+
+  auto get_case_kind(Count index) const -> Perimortem::Core::Option<CaseKind>;
+
+  auto get_case_payload(Count index) const
+      -> Perimortem::Core::Option<const Ttx::Model::Addressable&>;
 
   auto get_case_body(Count index) const
       -> Perimortem::Core::Option<const Block&>;

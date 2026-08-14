@@ -138,6 +138,8 @@ auto Ttx::Lexical::Code::get_semantics() const
     return "safe value access operator"_view;
   case Type::NotOp:
     return "logical negation operator"_view;
+  case Type::QuestionOp:
+    return "propagation operator"_view;
   case Type::Discard:
     return "discard value"_view;
 

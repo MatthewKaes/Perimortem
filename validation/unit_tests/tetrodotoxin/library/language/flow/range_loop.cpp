@@ -173,7 +173,7 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, body_control_targets_exact_loop) {
   static constexpr View::Bytes source =
       "// Range control.\n"
       "dialect : Library;\n"
-      "public scan : func = [] -> Void {\n"
+      "public scan : func = [] -> [] {\n"
       "  for [.entry : Unsigned_64] in 0...2 { break; }\n"
       "  return;\n"
       "}"_view;

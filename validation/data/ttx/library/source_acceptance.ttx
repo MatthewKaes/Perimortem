@@ -34,7 +34,7 @@ public Session : object {
 
 @initializer
 @abi("C")
-public session : Session = new(.id = 7);
+public session : Session = new[Session](.id = 7);
 
 @abi("C")
 @symbol("source_acceptance")

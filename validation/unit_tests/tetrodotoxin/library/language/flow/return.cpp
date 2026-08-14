@@ -81,15 +81,14 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
   static constexpr View::Bytes source =
       "// Return Layout flow.\n"
       "dialect : Library;\n"
-      "public Empty : struct {}\n"
       "public Packet : struct {\n"
       "  public state number : Unsigned_64; public state flag : Bool;\n"
       "}\n"
       "public Flow : struct {\n"
-      "  public bare_void : func = [] -> Void { return; }\n"
+      "  public bare_result : func = [] -> [] { return; }\n"
       "  public explicit_empty : func = [] -> [] { return (); }\n"
       "  public fallthrough : func = [] -> [] {}\n"
-      "  public bare_empty : func = [] -> Empty { return; }\n"
+      "  public bare_empty : func = [] -> [] { return; }\n"
       "  public scalar : func = [] -> Bool { return true; }\n"
       "  public grouped_scalar : func = [] -> Bool { return (true); }\n"
       "  public grouped_pair : func = [.packet : Packet] -> "
@@ -106,7 +105,7 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
       "  public called : func = [.packet : Packet] -> [Unsigned_64, Bool] {\n"
       "    return Flow -> pair(packet);\n"
       "  }\n"
-      "  public empty_swizzle : func = [.packet : Packet] -> Empty {\n"
+      "  public empty_swizzle : func = [.packet : Packet] -> [] {\n"
       "    return packet.[];\n"
       "  }\n"
       "}"_view;
@@ -121,7 +120,7 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
   ASSERT(flow_identity.is<Language::Types::Structure>());
   const auto& flow =
       static_cast<const Language::Types::Structure&>(flow_identity);
-  auto bare_void = find_function(flow, "bare_void"_view);
+  auto bare_result = find_function(flow, "bare_result"_view);
   auto explicit_empty = find_function(flow, "explicit_empty"_view);
   auto fallthrough = find_function(flow, "fallthrough"_view);
   auto bare_empty = find_function(flow, "bare_empty"_view);
@@ -132,11 +131,11 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
   auto pair = find_function(flow, "pair"_view);
   auto called = find_function(flow, "called"_view);
   auto empty_swizzle = find_function(flow, "empty_swizzle"_view);
-  ASSERT(bare_void && explicit_empty && fallthrough && bare_empty && scalar);
+  ASSERT(bare_result && explicit_empty && fallthrough && bare_empty && scalar);
   ASSERT(grouped_scalar && grouped_pair && named_pair && pair && called);
   ASSERT(empty_swizzle);
 
-  auto void_return = find_return(*bare_void);
+  auto bare_return = find_return(*bare_result);
   auto explicit_return = find_return(*explicit_empty);
   auto empty_return = find_return(*bare_empty);
   auto scalar_return = find_return(*scalar);
@@ -146,16 +145,16 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
   auto pair_return = find_return(*pair);
   auto called_return = find_return(*called);
   auto swizzle_return = find_return(*empty_swizzle);
-  ASSERT(void_return && explicit_return && empty_return && scalar_return);
+  ASSERT(bare_return && explicit_return && empty_return && scalar_return);
   ASSERT(grouped_scalar_return && grouped_pair_return && named_pair_return);
   ASSERT(pair_return && called_return && swizzle_return);
   EXPECT(
-      void_return->get_anchor().get_span().caculate_text(source) ==
+      bare_return->get_anchor().get_span().caculate_text(source) ==
       "return;"_view);
-  EXPECT(bare_void->get_results().is_empty());
+  EXPECT(bare_result->get_results().is_empty());
   EXPECT(explicit_empty->get_results().is_empty());
   EXPECT(bare_empty->get_results().is_empty());
-  EXPECT(bare_void->get_results().fits(explicit_empty->get_results()));
+  EXPECT(bare_result->get_results().fits(explicit_empty->get_results()));
   EXPECT(explicit_empty->get_results().fits(bare_empty->get_results()));
   ASSERT(fallthrough->get_body());
   EXPECT(fallthrough->get_body()->get_statements().is_empty());

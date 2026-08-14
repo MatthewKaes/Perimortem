@@ -32,11 +32,13 @@ class Field : public Authored<Ttx::Model::Addressable> {
 
  private:
   constexpr Field(
+      Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition,
       Writability writability,
       Perimortem::Core::Option<TypeReference> type_reference,
       Perimortem::Core::Option<Model::Pack&> initializer)
       : Base(definition),
+        domain(domain),
         writability(writability),
         type_reference(type_reference),
         initializer(initializer),
@@ -132,6 +134,7 @@ class Field : public Authored<Ttx::Model::Addressable> {
 
   auto cache_constant() const -> Bool;
 
+  Perimortem::Memory::Allocator::Arena& domain;
   Writability writability;
   Perimortem::Core::Option<TypeReference> type_reference;
   Perimortem::Core::Option<Model::Pack&> initializer;

@@ -11,9 +11,11 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/generics/access.hpp"
 #include "tetrodotoxin/library/language/generics/fixed.hpp"
+#include "tetrodotoxin/library/language/generics/option.hpp"
 #include "tetrodotoxin/library/language/generics/view.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
+#include "tetrodotoxin/library/language/types/option.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -273,6 +275,7 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, concrete_formulas) {
   Generics::Access access;
   Generics::View view;
   Generics::Fixed fixed;
+  Generics::Option option;
   const Static::Vector<Generic::Argument, 1> element_argument = {
     {Generic::Argument(element)},
   };
@@ -284,13 +287,16 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, concrete_formulas) {
   auto access_type = materializations.materialize(access, element_argument);
   auto view_type = materializations.materialize(view, element_argument);
   auto fixed_type = materializations.materialize(fixed, fixed_arguments);
+  auto option_type = materializations.materialize(option, element_argument);
 
   ASSERT(access_type);
   ASSERT(view_type);
   ASSERT(fixed_type);
+  ASSERT(option_type);
   EXPECT(access_type->is<Types::Access>());
   EXPECT(view_type->is<Types::View>());
   EXPECT(fixed_type->is<Types::Fixed>());
+  EXPECT(option_type->is<Types::Option>());
   EXPECT(access_type->visit<Types::Access>(
       [&element](const Types::Access& selected) {
         return &selected.get_element_type() == &element ? True : False;
@@ -309,7 +315,37 @@ PERIMORTEM_UNIT_TEST(LibraryMaterializations, concrete_formulas) {
                    : False;
       },
       [](const Abstract&) { return False; }));
-  EXPECT_EQ(materializations.get_size(), Count(3));
+  EXPECT(option_type->visit<Types::Option>(
+      [&element](const Types::Option& selected) {
+        return &selected.get_element_type() == &element ? True : False;
+      },
+      [](const Abstract&) { return False; }));
+  EXPECT_EQ(materializations.get_size(), Count(4));
+}
+
+PERIMORTEM_UNIT_TEST(LibraryMaterializations, option_exact_type_key) {
+  Allocator::Arena arena;
+  Materializations materializations(arena);
+  Generics::Option option;
+  MaterializedType first_element;
+  IncompleteType second_element;
+  const Static::Vector<Generic::Argument, 1> first_arguments = {{
+    Generic::Argument(first_element),
+  }};
+  const Static::Vector<Generic::Argument, 1> second_arguments = {{
+    Generic::Argument(second_element),
+  }};
+
+  auto first = materializations.materialize(option, first_arguments);
+  auto repeated = materializations.materialize(option, first_arguments);
+  auto second = materializations.materialize(option, second_arguments);
+
+  ASSERT(first);
+  ASSERT(repeated);
+  ASSERT(second);
+  EXPECT(&*first == &*repeated);
+  EXPECT(&*first != &*second);
+  EXPECT_EQ(materializations.get_size(), Count(2));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryMaterializations, exact_key) {

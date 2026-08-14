@@ -3,10 +3,12 @@
 
 #include "tetrodotoxin/library/language/field.hpp"
 
+#include "tetrodotoxin/library/language/constants/option.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/option.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -89,13 +91,13 @@ auto Language::Field::interpret(
   if (transaction.matches(Code::Type::Assign)) {
     transaction.consume();
     if (Expressions::Initializer::is_next(transaction)) {
-      transaction.create_token_error(
-          "An inferred Library Field cannot use `new`."_view,
-          "Name one exact Object Type before initialization begins."_view);
-      return {};
+      auto object_initializer =
+          Expressions::Initializer::parse(domain, source, transaction);
+      BAIL_IF(!object_initializer);
+      initializer = *object_initializer;
+    } else {
+      initializer = Model::Parser::Pack::parse(domain, source, transaction);
     }
-
-    initializer = Model::Parser::Pack::parse(domain, source, transaction);
     BAIL_IF(!initializer);
   } else {
     auto authored_type = TypeReference::parse(source, transaction);
@@ -127,7 +129,7 @@ auto Language::Field::interpret(
 
   BAIL_IF(!definition.complete(definition.get_name_token(), terminator));
   Field& field = domain.construct_from<Field>([&]() -> Field {
-    return Field(definition, *writability, type, initializer);
+    return Field(domain, definition, *writability, type, initializer);
   });
   cursor.join(transaction);
   return field;
@@ -240,7 +242,7 @@ auto Language::Field::link_initializer(
     return True;
   }
 
-  if (!selected_initializer->fits(type->get())) {
+  if (!selected_initializer->fits_into(type->get())) {
     monograph.report(
         get_anchor(),
         "Field initializer Pack does not fit the declared Field Type's "
@@ -364,6 +366,17 @@ auto Language::Field::cache_constant() const -> Bool {
   }
 
   constant_state = ConstantState::Folding;
+  auto option = get_type().select<Language::Types::Option>();
+  if (option && initializer) {
+    auto fitted = Language::Constants::Option::create_fitted(
+        domain, *option, *initializer);
+    if (fitted) {
+      constant = Reference<Model::Pack>(*fitted);
+      constant_state = ConstantState::Folded;
+      return True;
+    }
+  }
+
   auto expression = initializer.visit(
       []() -> Option<Expression&> { return {}; },
       [](Model::Pack& selected) { return selected.select<Expression>(); });

@@ -61,7 +61,7 @@ lifecycle = Program {
 The selected Callable has an empty parameter Layout and an empty result Layout.
 Static means the call has no implicit Self value. App still retains the exact
 source and Callable selected by the declaration. It does not require the
-Callable's language to publish a concrete `Void` Type.
+Callable's language to publish a zero-value Type.
 
 Generated platform entry code invokes it once. The Function may have any
 authored name, and the source file may have any Package member name. App does

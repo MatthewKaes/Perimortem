@@ -80,6 +80,10 @@ class Block : public Ttx::Concept::Abstract {
         });
   }
 
+  constexpr auto get_function_results() const -> const Ttx::Concept::Layout& {
+    return function.get_results();
+  }
+
  private:
   Block(
       Perimortem::Memory::Allocator::Arena& domain,

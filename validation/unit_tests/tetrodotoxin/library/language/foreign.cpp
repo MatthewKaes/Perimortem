@@ -174,13 +174,13 @@ PERIMORTEM_UNIT_TEST(ForeignTests, authored_rejections_are_atomic) {
     "// Private State.\ndialect : Library;\nforeign \"C\" { private state "
     "value : Unsigned_64; }"_view,
     "// Private Function.\ndialect : Library;\nforeign \"C\" { private func "
-    "call[] -> Void; }"_view,
+    "call[] -> []; }"_view,
     "// Exposed Function.\ndialect : Library;\nforeign \"C\" { expose func "
-    "call[] -> Void; }"_view,
+    "call[] -> []; }"_view,
     "// Receiver.\ndialect : Library;\nforeign \"C\" { public func call[self] "
-    "-> Void; }"_view,
+    "-> []; }"_view,
     "// Body.\ndialect : Library;\nforeign \"C\" { public func call[] -> "
-    "Void {} }"_view,
+    "[] {} }"_view,
     "// Duplicate.\ndialect : Library;\nforeign \"C\" { public state value : "
     "Unsigned_64; public state value : Unsigned_64; }"_view,
   }};
@@ -192,10 +192,10 @@ PERIMORTEM_UNIT_TEST(ForeignTests, authored_rejections_are_atomic) {
 
 PERIMORTEM_UNIT_TEST(ForeignTests, link_rejections_keep_source_unpublished) {
   static constexpr Static::Vector<View::Bytes, 8> rejected = {{
-    "// Empty State.\ndialect : Library;\nforeign \"C\" { public state value "
-    ": Void; }"_view,
+    "// Empty State.\ndialect : Library;\npublic Empty : struct {} foreign "
+    "\"C\" { public state value : Empty; }"_view,
     "// Exposed write.\ndialect : Library;\nforeign \"C\" { expose state value "
-    ": Unsigned_64; } public write : func = [] -> Void { foreign.value = 1; "
+    ": Unsigned_64; } public write : func = [] -> [] { foreign.value = 1; "
     "return; }"_view,
     "// Missing State.\ndialect : Library;\nforeign \"C\" {} public read : "
     "func "
@@ -204,16 +204,16 @@ PERIMORTEM_UNIT_TEST(ForeignTests, link_rejections_keep_source_unpublished) {
     "\"C\" "
     "{} public read : func = [] -> Unsigned_64 { return foreign.missing; }"_view,
     "// Missing Function.\ndialect : Library;\nforeign \"C\" {} public call : "
-    "func = [] -> Void { foreign -> missing(); return; }"_view,
+    "func = [] -> [] { foreign -> missing(); return; }"_view,
     "// Arguments.\ndialect : Library;\nforeign \"C\" { public func use[.value "
-    ": Unsigned_64] -> Void; } public call : func = [] -> Void { foreign -> "
+    ": Unsigned_64] -> []; } public call : func = [] -> [] { foreign -> "
     "use(false); return; }"_view,
     "// Dot mismatch.\ndialect : Library;\nforeign \"C\" { public func "
     "shared[] "
-    "-> Void; } public read : func = [] -> Void { return foreign.shared; }"_view,
+    "-> []; } public read : func = [] -> [] { return foreign.shared; }"_view,
     "// Arrow mismatch.\ndialect : Library;\nforeign \"C\" { public state "
     "shared : "
-    "Unsigned_64; } public call : func = [] -> Void { foreign -> shared(); "
+    "Unsigned_64; } public call : func = [] -> [] { foreign -> shared(); "
     "return; }"_view,
   }};
 

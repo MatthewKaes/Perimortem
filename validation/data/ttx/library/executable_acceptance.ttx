@@ -2,7 +2,7 @@
 dialect : Library;
 
 public Worker : struct {
-  public tick : func = [] -> Void { return; }
+  public tick : func = [] -> [] { return; }
 }
 
 public execute : func = [

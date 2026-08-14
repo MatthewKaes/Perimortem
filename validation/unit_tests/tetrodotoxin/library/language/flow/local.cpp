@@ -88,7 +88,7 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
       "  const fixed : Bool = false;\n"
       "  const inferred := fixed;\n"
       "  state copied := fixed;\n"
-      "  state created : Packet = new;\n"
+      "  state created := new[Packet];\n"
       "  state positional : Pair = (true, false);\n"
       "  state named : Pair = (.right = false, .left = true);\n"
       "  return inferred;\n"
@@ -184,9 +184,9 @@ PERIMORTEM_UNIT_TEST(LocalTests, inference_requires_one_scalar_value) {
 
 PERIMORTEM_UNIT_TEST(LocalTests, malformed_declarations_are_atomic) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
-    "// Duplicate Local.\ndialect : Library; private invalid : func = [] -> Void { state value : Bool; const value := true; }"_view,
-    "// Inferred construction.\ndialect : Library; private invalid : func = [] -> Void { state value := new; }"_view,
-    "// Missing const value.\ndialect : Library; private invalid : func = [] -> Void { const value : Bool; }"_view,
+    "// Duplicate Local.\ndialect : Library; private invalid : func = [] -> [] { state value : Bool; const value := true; }"_view,
+    "// Inferred construction.\ndialect : Library; private invalid : func = [] -> [] { state value := new; }"_view,
+    "// Missing const value.\ndialect : Library; private invalid : func = [] -> [] { const value : Bool; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -197,9 +197,9 @@ PERIMORTEM_UNIT_TEST(LocalTests, malformed_declarations_are_atomic) {
 PERIMORTEM_UNIT_TEST(LocalTests, invalid_type_flow_is_not_published) {
   static constexpr Static::Vector<View::Bytes, 5> sources = {{
     "// Forward Local.\ndialect : Library; private invalid : func = [] -> Bool { const first := later; const later : Bool = true; return first; }"_view,
-    "// Mismatched Local.\ndialect : Library; private invalid : func = [] -> Void { state value : Bool = 1; }"_view,
-    "// Empty Local.\ndialect : Library; private invalid : func = [] -> Void { state value : Void; }"_view,
-    "// Incomplete structural Pack.\ndialect : Library; public Pair : struct { public left : Bool; public right : Bool; } private invalid : func = [] -> Void { state value : Pair = (.left = true); }"_view,
+    "// Mismatched Local.\ndialect : Library; private invalid : func = [] -> [] { state value : Bool = 1; }"_view,
+    "// Empty Local.\ndialect : Library; public Empty : struct {} private invalid : func = [] -> [] { state value : Empty; }"_view,
+    "// Incomplete structural Pack.\ndialect : Library; public Pair : struct { public left : Bool; public right : Bool; } private invalid : func = [] -> [] { state value : Pair = (.left = true); }"_view,
     "// Dynamic const Local.\ndialect : Library; private invalid : func = [] -> Bool { state mutable : Bool = true; const value := mutable; return value; }"_view,
   }};
 

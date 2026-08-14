@@ -145,8 +145,8 @@ Each remaining TTX file isolates one source condition:
 | [`foreign_exposed_function.ttx`](foreign_exposed_function.ttx) | Foreign applies data-only exposed visibility to a Callable |
 | [`foreign_exposed_write.ttx`](foreign_exposed_write.ttx) | Library attempts to write an exposed Foreign State |
 | [`duplicate_name.ttx`](duplicate_name.ttx) | two root declarations use the same name in one category |
-| [`new_without_expected_type.ttx`](new_without_expected_type.ttx) | `new` appears in an inferred declaration without an expected Object Type |
-| [`bare_return.ttx`](bare_return.ttx) | bare `return;` appears with an empty Layout result rather than concrete `Void` |
+| [`bare_new.ttx`](bare_new.ttx) | bare `new` omits its required Object Type |
+| [`bare_return.ttx`](bare_return.ttx) | bare `return;` appears with an empty result Layout |
 | [`dialect_led_callable.ttx`](dialect_led_callable.ttx) | a Library source uses a Scene-style lifecycle role declaration |
 
 These files preserve the authored distinction being tested without serving as a

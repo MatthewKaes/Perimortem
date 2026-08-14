@@ -37,7 +37,8 @@ Library uses punctuation to select separate semantic domains:
 | `access[index]`                      | produce one writable indexed address with the element Type    |
 | `value:[index]`                      | return an element value or its default                        |
 | `value:[start, count]`               | return a Ranged Pack whose size is known during linking        |
-| `option?`                            | unwrap `some` or return `empty` from the enclosing Function    |
+| `option!`                            | return the payload or a fresh element default                  |
+| `option?`                            | continue with the payload or return empty flow                 |
 
 These domains never fall through to one another. A Field, Callable, and nested
 Type may share a spelling because the operator already states which category is
@@ -202,8 +203,8 @@ value flow accepts Packs. A Call requires those parentheses. Another context
 may omit them when its grammar remains unambiguous.
 
 A receiving declaration or operation fits the Pack's complete output Layout
-directionally against the descriptor it requires. Empty `Void`, `()`, and `[]`
-agree through that fitting without becoming one Type or one Pack identity.
+directionally against the descriptor it requires. `()` fits `[]` without
+becoming a Type or sharing Pack identity.
 
 Swizzle selects named Addressables and returns their values as one reordered
 positional Pack:
@@ -256,8 +257,8 @@ Library provides these scalar families:
 * `Unsigned_8`, `Unsigned_16`, `Unsigned_32`, and `Unsigned_64`
 * `Real_32` and `Real_64`
 
-Library also names `Void` as its empty result Type. `Void` is not a scalar and
-has no value entry.
+Library has no zero-value Type. An authored `[]` is the empty result Layout and
+an empty Composite is a Static namespace rather than an instantiable value.
 
 Scalar operations require the exact resolved Type identity expected by that
 operation. Library does not silently widen, narrow, retag, or reinterpret a
@@ -276,21 +277,31 @@ Range[Unsigned_64]
 Option[View[Unsigned_8]]
 ```
 
-`Fixed[T, extent]` requires its `extent` to be an exact `Unsigned_64` value
-known during linking. `View` is a borrowed contiguous view. `Access`
-additionally carries the language's writable contiguous capability. `Range`
-describes a lazy ascending integer sequence. `Option[T]` represents a value that
-may be absent in an otherwise nonnullable language. It is either `empty` or
-`some` with one `T` value. An explicit empty list applies a formula with no arguments.
+`Fixed[T, extent]` requires its `extent` to be a positive exact `Unsigned_64`
+value known during linking. Every generated container Type requires an element
+Type with a nonempty Layout. `View` is a borrowed contiguous view.
+`Access` additionally carries the language's writable contiguous capability.
+`Range` describes a lazy ascending integer sequence. `Option[T]` represents a
+value that may be absent in an otherwise nonnullable language. The Option Type
+always has a nonempty Layout. Its state either carries one exact `T` or carries
+no payload. An explicit empty list applies a formula with no arguments.
 Omitting the list instead requires the route to name a Type. Applying the same
 formula to the same semantic arguments returns the same Type identity.
 
-`Option[T]` exposes exact Static construction Callables:
+Option construction belongs to target fitting:
 
 ```ttx
-Option[Result] -> empty()
-Option[Result] -> some(result)
+state absent : Option[Result] = ();
+state present : Option[Result] = result;
 ```
+
+The empty Pack creates the state with no payload. A Pack accepted by `T` creates
+the state that carries its value. Option has no `some` or `empty` construction
+Callables.
+
+This is Pack fitting rather than Layout fitting. `[]` does not fit
+`Option[T]`, and Option never acquires an empty Layout. Its absent state can
+produce `()` only through the flow control owned by postfix `?`.
 
 Option is a built-in Library Generic Type. It does not make Objects nullable and
 it is not supplied by a standard Package. A user-defined operation that may fail
@@ -299,7 +310,7 @@ never publishes a partly initialized value.
 
 ### Default values
 
-Every Library Type that can appear in source has a default value. The language
+Every Library Type admitted to value flow has a default value. The language
 defines that value independently of the storage chosen by a compiler:
 
 - `Bool` is false and numeric Types use zero.
@@ -307,29 +318,29 @@ defines that value independently of the storage chosen by a compiler:
   zero.
 - `View[T]` and `Access[T]` use empty read-only and writable views respectively.
 - `Range[T]` uses the empty range.
-- `Option[T]` uses `empty` without constructing `T`.
+- `Option[T]` uses the state with no payload and does not construct `T`.
 - `Fixed[T, count]` contains `count` default `T` values.
 - A Structure initializes state Fields in source order from each Field's
   authored initializer when present and otherwise from that Field Type's
   default.
 - An Object default is one new nonnull Object initialized by the same Field
   rules.
-- `Void` and another valid zero-value Type use empty Pack flow.
 - An Alias uses the default of the Type it represents.
 
 `Descriptor` belongs to compile-time Type selection and cannot be used as an
 ordinary source value. Library also rejects a chain of defaults that would have
-to construct itself forever. `Option[T]` breaks such a chain because its empty
+to construct itself forever. `Option[T]` breaks such a chain because its absent
 default does not construct `T`.
 
 Cleared memory may make initialization faster, but it does not define these
 defaults. Every initializer required by the Type still runs. An empty
 `View[Unsigned_8]` is still one View value rather than a Pack with no values.
 
-A missing scalar `value:[index]` returns the element Type's default. For an
-Option, `option:[0]` returns its stored value when present and creates a default
-`T` when empty. Reading an empty `Option[ObjectType]` more than once can therefore
-create a different Object each time. The Option itself stays empty. A ranged
+A missing scalar `value:[index]` returns the element Type's default. Slice
+operates only on Types that provide contiguous storage. Postfix `option!`
+returns its payload when present and creates a default `T` otherwise. Applying
+it to an Option of an Object Type more than once can therefore create a
+different Object each time. The Option itself does not change. A ranged
 selection still returns exactly its declared count and does not fill missing
 entries with defaults.
 
@@ -492,12 +503,13 @@ remain independent.
 A constant domain may retain memory for its completed representation. A
 default constructed Object is a valid const value only when linking can produce
 its complete immutable representation. The declaration
-`const object : SomeObject = new;` is legal only when default construction
+`const object : SomeObject = new[SomeObject];` is legal only when construction
 provides that proof during linking.
 
 A Field Type must expose at least one Layout entry because an Addressable names
-real value flow. `Void`, `Fixed[T, 0]`, and an empty Composite remain valid
-Types with no values but cannot become Fields, named parameters, or `self`.
+real value flow. `Fixed[T, 0]` and a Generic application with an empty element
+Type are invalid. An empty Composite remains a valid contextual Type but cannot
+become a Field, named parameter, Function result entry, or `self`.
 An empty Composite can still own Static Functions and nested Types, which makes
 it a natural namespace without manufacturing a value for compatibility.
 
@@ -536,8 +548,8 @@ value rather than a separate initializer inventory.
 
 A declaration written as `name := expression` has no declared Type to fit. The
 Field retains the exact completed Type of that initializer without widening or
-retagging it. `new` cannot be used here because Object initialization requires
-a declared Object Type before initialization begins.
+retagging it. `new[ObjectType]` carries its exact result Type, so an inferred
+declaration may use it.
 
 ## Structs
 
@@ -601,26 +613,28 @@ source-visible lifetime operations.
 ### Object initialization
 
 Inline Struct values use positional or named values and are checked against the
-declaration that receives them. Object initialization uses `new` only where the
-receiving declaration already names the Object Type:
+declaration that receives them. Object initialization spells its exact
+nonempty Object Type in `new[ObjectType]`:
 
 ```ttx
-state session : Session = new;
-state configured : Session = new(.progress = 4);
+state session : Session = new[Session];
+state configured := new[Session](.progress = 4);
 ```
 
 The declaration creates one private Object, initializes its Fields in source
 order, and makes the nonnull reference visible only when initialization is
-complete. `state session := new;` is invalid because `new` needs the declared
-Type. Calls and returns can carry an Object that already exists, but they do not
-infer the Type of a new Object.
+complete. Bare `new` is invalid. The explicit Type makes inferred declarations
+unambiguous while construction remains a declaration initializer rather than a
+general expression. An Object Type with an empty Layout cannot be constructed.
 
-The arguments to `new` can name public and exposed state Fields. Code hosted by
-the Object Type can also name its private state Fields. Unknown, repeated, or
-inaccessible names are errors, as are Static or const Fields. A state Field not
-supplied by `new` uses its own initializer when present and otherwise its Type's
-default. Static Fields are initialized separately and are never inputs to
-`new`.
+The arguments to `new[ObjectType]` can name public and exposed state Fields.
+Code hosted by the Object Type can also name its private state Fields. Unknown,
+repeated, or inaccessible names are errors, as are Static or const Fields. A
+state Field not supplied by `new[ObjectType]` uses its own initializer when
+present and otherwise its Type's default. Static Fields are initialized
+separately and are never inputs to construction. Omitting the argument list
+requests those defaults. An explicit empty argument list is invalid, so `()`
+never becomes a default initialization marker.
 
 Arguments are evaluated in source order. The Object then initializes each state
 Field once in its declared order. It uses the supplied value first, then the
@@ -631,9 +645,9 @@ language defaults still determine the finished values.
 
 A chain of Structure or Object defaults must eventually end. Library rejects a
 cycle while completing the program instead of discovering it during runtime
-initialization. An `Option[T]` Field breaks the cycle because its default is
-empty. Construction that can reject input belongs in a Static factory returning
-`Option[T]`, not in `new`.
+initialization. An `Option[T]` Field breaks the cycle because its default has no
+payload. Construction that can reject input belongs in a Static factory
+returning `Option[T]`, not in `new`.
 
 ## Enumerations
 
@@ -709,27 +723,30 @@ values.
 Arithmetic and comparison operate on exact compatible scalar Types. The
 keyword forms `and` and `or` alone own short-circuit Boolean semantics. The
 host-neutral `&` and `|` Tokens remain reserved for future bitwise operators and
-are not alternate spellings of those Library Operations. Unary `!` accepts
-Bool. Unary `-` accepts signed integer and real domains. Integer overflow and
-division by zero are semantic failures in their owning operation. Safe
+are not alternate spellings of those Library Operations. Prefix `!value`
+accepts Bool. Postfix `option!` accepts `Option[T]` and produces exact `T`,
+using the Type default when the Option has no payload. Unary `-` accepts signed
+integer and real domains. Integer overflow and division by zero are semantic
+failures in their owning operation. Safe
 `:[...]` selection uses a default value instead of publishing a bounds failure.
 
 Postfix `?` makes a chain of fallible operations concise without introducing
-nullable values or truthiness. Its left side must be `Option[T]`. A `some(value)`
-continues the chain with `value`. An `empty` stops immediately and returns
-`empty` from the enclosing Function. Nothing to the right is evaluated.
+nullable values or truthiness. Its left side must be `Option[T]`. A present
+payload continues the chain as exact `T`. A state with no payload returns an
+empty Pack from the enclosing Function and evaluates nothing to the right.
 
-The Function must return one scalar `Option[R]`. Successful values are not
-wrapped automatically, so a successful return still uses
-`Option[R] -> some(value)` explicitly:
+The enclosing Function must accept that empty flow. Its result is either `[]`
+or one `Option[R]`. An empty Pack fits the latter as absence, while a successful
+`R` Pack fits it as presence:
 
 ```ttx
-const parsed : Parsed = source? -> parse()?;
-return Option[Output] -> some(parsed -> finish());
+state parsed := Parser -> parse(source)?;
+return parsed -> finish();
 ```
 
-Postfix `?` is defined only for that single-result form. Propagation from a
-Function with several results is reserved for future language support.
+The same operator works as an early return in a Function with result `[]` when
+the successful value is consumed before the final `return;`. Propagation into
+a Function with several result entries is reserved for future language support.
 
 Binary `+` accepts exact signed, unsigned, or real operands and returns that
 same Type. It does not concatenate Bytes or Views. An output owner that accepts
@@ -765,9 +782,9 @@ falls through from Address access to Type or Callable lookup.
 Function result Layout. `return;` and `return ();` supply empty flow.
 `return value;` supplies one value. Positional and named parenthesized forms may
 supply several. Ordinary fallthrough is legal only for an empty result Layout.
-The Library `Void` Type, every other empty Type, `[]`, and `()` therefore agree
-as flow with no values without becoming the same Type identity. A Function with a
-nonempty result must return on every reachable path.
+`()` fits `[]` directly. It also fits a single `Option[T]` result by creating
+the state with no payload. A Function with a nonempty result must return on
+every reachable path.
 
 `if` and `while` consume a Pack and use its first produced value for the control
 decision. That value's Type must satisfy the Flag contract. Parentheses may be
@@ -782,23 +799,24 @@ runs and there is no fallthrough. `_` is the final default case. It may be
 omitted only when Library can prove that the preceding cases cover the complete
 input domain.
 
-An `Option[T]` input instead admits exhaustive `some` and `empty` patterns:
+An `Option[T]` input instead admits one value binding and one final discard
+case:
 
 ```ttx
 match value {
-  case some(item): {
+  case item: {
     item -> consume();
   }
-  case empty: {
+  case _: {
   }
 }
 ```
 
-`some(item)` makes the stored `T` available only inside that branch. When `T`
-has an empty Layout, the pattern is written `case some:` without a name. The
-`empty` branch has no stored value. General runtime Type patterns require a real
-sum or dynamic-Type domain. They are not meaningful for ordinary values that
-already have one known static Type.
+The first case makes the stored `T` available only inside that branch. The
+discard case observes the state with no payload and introduces no binding.
+Option element Types always have nonempty Layouts. General runtime Type patterns
+require a real sum or dynamic-Type domain. They are not meaningful for ordinary
+values that already have one known static Type.
 
 An invocation statement must be a complete Callable invocation. Its effects
 run in source order and the statement discards its result Pack.

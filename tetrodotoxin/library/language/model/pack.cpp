@@ -5,6 +5,7 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/library/language/types/option.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/concept/reference.hpp"
 
@@ -350,7 +351,7 @@ auto Language::Model::Pack::fits_entry(
                   -> Core::Option<const Language::Model::Pack&> {
                 return entry.select<Language::Model::Pack>();
               });
-  return producer ? producer->fits(*target_type) : False;
+  return producer ? producer->fits_into(*target_type) : False;
 }
 
 auto Language::Model::Pack::fits_at(const Layout& target, Count target_offset)
@@ -375,7 +376,20 @@ auto Language::Model::Pack::fits_at(const Layout& target, Count target_offset)
 }
 
 auto Language::Model::Pack::fits(const Layout& target) const -> Bool {
-  return get_layout().get_size() == target.get_size() && fits_at(target, 0);
+  if (get_layout().get_size() == target.get_size() && fits_at(target, 0)) {
+    return True;
+  }
+
+  BAIL_IF(target.get_size() != 1);
+  auto target_entry = target.get_abstract(0);
+  BAIL_IF(!target_entry);
+  auto target_type = select_target_type(*target_entry);
+  auto option = target_type.visit(
+      []() -> Core::Option<const Language::Types::Option&> { return {}; },
+      [](const Type& selected) {
+        return selected.select<Language::Types::Option>();
+      });
+  return option && option->accepts(*this);
 }
 
 auto Language::Model::Pack::get_fitted_at(
@@ -413,6 +427,15 @@ auto Language::Model::Pack::get_fitted_at(
 
 auto Language::Model::Pack::fits(const Type& target) const -> Bool {
   return fits(target.get_layout());
+}
+
+auto Language::Model::Pack::fits_into(const Type& target) const -> Bool {
+  if (fits(target)) {
+    return True;
+  }
+
+  auto option = target.select<Language::Types::Option>();
+  return option && option->accepts(*this);
 }
 
 auto Language::Model::Pack::create_empty(

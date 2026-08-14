@@ -34,7 +34,8 @@ static auto interpret_source(Workspace& workspace, Errors& errors)
       errors, "LayoutModelTest"_view, "layout-model.ttx"_view,
       "// Authored Layout model test.\n"
       "dialect : Library;\n"
-      "public Box : struct { public state value : Bool; }"_view);
+      "public Box : struct { public state value : Bool; }\n"
+      "public Empty : struct {}"_view);
   BAIL_IF(!interpreted || !interpreted->is<Language::Monograph>());
   return static_cast<Language::Monograph&>(*interpreted);
 }
@@ -91,7 +92,7 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, owns_parameter_entries) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_types_remain_zero_value_flow) {
+PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_layout_is_explicit_flow) {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret_source(workspace, errors);
@@ -100,32 +101,35 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_types_remain_zero_value_flow) {
   Allocator::Arena arena;
   Errors parse_errors;
   auto empty = parse_layout(arena, *monograph, parse_errors, "[]"_view);
-  auto authored_void =
-      parse_layout(arena, *monograph, parse_errors, "Void"_view);
-  auto named = parse_layout(
-      arena, *monograph, parse_errors,
-      "[.nothing : Void, .value : Bool,]"_view);
-  ASSERT(empty && authored_void && named);
+  auto repeated = parse_layout(arena, *monograph, parse_errors, "[]"_view);
+  ASSERT(empty && repeated);
 
   EXPECT(empty->is_linked());
-  EXPECT_NOT(authored_void->is_linked());
-  EXPECT_NOT(named->is_linked());
-  ASSERT(authored_void->link_types(*monograph, monograph->get_source()));
-  ASSERT(named->link_types(*monograph, monograph->get_source()));
-
+  EXPECT(repeated->is_linked());
   EXPECT(empty->is_empty());
-  EXPECT(authored_void->is_empty());
-  EXPECT(empty->fits(*authored_void));
-  EXPECT(authored_void->fits(*empty));
-
-  ASSERT_EQ(named->get_size(), Count(1));
-  ASSERT(named->get_name(0));
-  EXPECT_TEXT(*named->get_name(0), "value"_view);
-  ASSERT(named->get_abstract(0));
-  EXPECT(&*named->get_abstract(0) == &Dialect::get_bool());
-  EXPECT(&named->resolve_named("nothing"_view) == &Invalid::get_invalid());
+  EXPECT(repeated->is_empty());
+  EXPECT(empty->fits(*repeated));
+  EXPECT(repeated->fits(*empty));
   EXPECT(parse_errors.is_empty());
   EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_type_entries_are_rejected) {
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret_source(workspace, errors);
+  ASSERT(monograph);
+
+  Allocator::Arena arena;
+  Errors parse_errors;
+  auto named = parse_layout(
+      arena, *monograph, parse_errors,
+      "[.nothing : Empty, .value : Bool,]"_view);
+  ASSERT(named);
+  EXPECT_NOT(named->is_linked());
+  EXPECT_NOT(named->link_types(*monograph, monograph->get_source()));
+  EXPECT(parse_errors.is_empty());
+  EXPECT_NOT(monograph->get_diagnostics().is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting_preserves_real_edges) {

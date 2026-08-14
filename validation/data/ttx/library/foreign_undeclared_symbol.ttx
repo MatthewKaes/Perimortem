@@ -2,10 +2,10 @@
 dialect : Library;
 
 foreign "C" {
-  public func known[] -> Void;
+  public func known[] -> [];
 }
 
-public consume : func = [] -> Void {
+public consume : func = [] -> [] {
   foreign -> missing();
   return;
 }

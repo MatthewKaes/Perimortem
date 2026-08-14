@@ -402,6 +402,10 @@ auto Tokenizer::parse() -> void {
 
       break;
 
+    case '?':
+      parse_simple<Code::Type::QuestionOp>(ctx);
+      break;
+
     case ':':
       if (ctx.peek_ahead(1) == '[') {
         parse_simple<Code::Type::ValueAccessOp>(ctx);

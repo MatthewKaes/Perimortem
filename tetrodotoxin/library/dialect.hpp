@@ -6,8 +6,8 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/language/dialect.hpp"
-#include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/types/descriptor.hpp"
 #include "ttx/model/type.hpp"
 #include "ttx/model/types/flag.hpp"
@@ -44,7 +44,7 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
   static auto create_default(
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Model::Type& type)
-      -> Perimortem::Core::Option<Language::Constant&>;
+      -> Perimortem::Core::Option<Language::Model::Pack&>;
 
   // Library scalar identities are binary wide rather than installed Dialect
   // state. Typed access keeps semantic checks out of the authored name path.
@@ -59,7 +59,6 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
   static auto get_signed_64() -> const Ttx::Model::Types::Signed&;
   static auto get_real_32() -> const Ttx::Model::Types::Real&;
   static auto get_real_64() -> const Ttx::Model::Types::Real&;
-  static auto get_void() -> const Ttx::Model::Type&;
   static auto get_descriptor() -> const Language::Types::Descriptor&;
 
  private:

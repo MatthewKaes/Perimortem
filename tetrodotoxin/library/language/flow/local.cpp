@@ -3,9 +3,11 @@
 
 #include "tetrodotoxin/library/language/flow/local.hpp"
 
+#include "tetrodotoxin/library/language/constants/option.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/option.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -47,13 +49,13 @@ auto Language::Flow::Local::interpret(
   if (transaction.matches(Code::Type::Assign)) {
     transaction.consume();
     if (Expressions::Initializer::is_next(transaction)) {
-      transaction.create_token_error(
-          "An inferred Library Local cannot use `new`."_view,
-          "Name one exact Object Type before initialization begins."_view);
-      return {};
+      auto object_initializer =
+          Expressions::Initializer::parse(domain, source, transaction);
+      BAIL_IF(!object_initializer);
+      initializer = *object_initializer;
+    } else {
+      initializer = Model::Parser::Pack::parse(domain, source, transaction);
     }
-
-    initializer = Model::Parser::Pack::parse(domain, source, transaction);
     BAIL_IF(!initializer);
   } else {
     auto declared_type = TypeReference::parse(source, transaction);
@@ -90,7 +92,8 @@ auto Language::Flow::Local::interpret(
   Anchor anchor = Anchor::create(name, Span(evaluation, terminator));
   Local& local = domain.construct_from<Local>([&]() -> Local {
     return Local(
-        host, name, spelling, writability, type_reference, initializer, anchor);
+        domain, host, name, spelling, writability, type_reference, initializer,
+        anchor);
   });
   cursor.join(transaction);
   return local;
@@ -128,7 +131,7 @@ auto Language::Flow::Local::link(
       source.report(
           type_reference->get_anchor(),
           "Local cannot bind an empty Type Layout."_view,
-          "Keep the empty Type as flow or choose a Type with one value leaf."_view);
+          "Choose a Type with one value leaf or remove the Local."_view);
       return False;
     }
     if (type && &type->get() != &*selected_type) {
@@ -159,10 +162,10 @@ auto Language::Flow::Local::link(
     return True;
   }
 
-  // Local stays the receiving Addressable for typed construction while Block
-  // supplies only declarations that precede this statement. The Function host
-  // travels separately so lexical shadowing never grants member access.
-  BAIL_IF(!selected_initializer->link(source, *this, access_scope));
+  // Block supplies the declarations that precede this Local and the enclosing
+  // Function result contract used by flow operators. The Function host travels
+  // separately so lexical shadowing never grants member access.
+  BAIL_IF(!selected_initializer->link(source, host, access_scope));
 
   if (!type) {
     if (selected_initializer->get_layout().get_size() != 1) {
@@ -196,7 +199,7 @@ auto Language::Flow::Local::link(
     return True;
   }
 
-  if (!selected_initializer->fits(type->get())) {
+  if (!selected_initializer->fits_into(type->get())) {
     source.report(
         anchor,
         "Local initializer Pack does not fit the declared Type Layout."_view,
@@ -263,6 +266,17 @@ auto Language::Flow::Local::cache_constant() const -> Bool {
   }
 
   constant_state = ConstantState::Folding;
+  auto option = get_type().select<Language::Types::Option>();
+  if (option && initializer) {
+    auto fitted = Language::Constants::Option::create_fitted(
+        domain, *option, *initializer);
+    if (fitted) {
+      constant = Reference<Model::Pack>(*fitted);
+      constant_state = ConstantState::Folded;
+      return True;
+    }
+  }
+
   auto expression = initializer.visit(
       []() -> Core::Option<Expression&> { return {}; },
       [](Model::Pack& selected) { return selected.select<Expression>(); });

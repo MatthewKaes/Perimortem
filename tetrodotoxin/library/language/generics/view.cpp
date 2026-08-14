@@ -6,6 +6,7 @@
 #include "perimortem/memory/managed/bytes.hpp"
 
 #include "tetrodotoxin/library/language/types/view.hpp"
+#include "ttx/concept/invalid.hpp"
 
 using namespace Tetrodotoxin::Library::Language;
 
@@ -20,6 +21,10 @@ auto Generics::View::create(
   const Ttx::Model::Type* element =
       arguments.get_data()[0].find<const Ttx::Model::Type&>();
   if (element == nullptr) {
+    return {};
+  }
+  const auto& resolved = element->resolve();
+  if (&resolved == element && element->get_layout().is_empty()) {
     return {};
   }
 

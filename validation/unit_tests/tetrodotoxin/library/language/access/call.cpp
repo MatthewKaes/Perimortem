@@ -310,7 +310,7 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
       "}\n"
       "private seed : Packet;\n"
       "private selected := seed.value;\n"
-      "private observe : func = [] -> Void {\n"
+      "private observe : func = [] -> [] {\n"
       "  Results -> none();\n"
       "  Results -> one();\n"
       "  Results -> many(seed);\n"

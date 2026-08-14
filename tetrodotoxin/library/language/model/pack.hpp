@@ -65,6 +65,12 @@ class Pack : public Ttx::Model::Pack {
   // let one-entry grouped flow ignore the rest of a structural Type Layout.
   virtual auto fits(const Ttx::Model::Type& target) const -> Bool;
 
+  // Receiving a Pack is a target negotiation. Ordinary source fitting runs
+  // first, then a concrete target Type may admit another complete flow shape.
+  // Option uses this boundary to turn no values into absence and element flow
+  // into presence without changing the source Pack or its Layout.
+  auto fits_into(const Ttx::Model::Type& target) const -> Bool;
+
   // Finalization visits the real child Packs in evaluation order. It does not
   // imply that empty or multi-value flow can be constant-folded into one value.
   virtual auto finalize() -> void = 0;

@@ -76,6 +76,20 @@ PERIMORTEM_UNIT_TEST(TtxLexical, divide_before_greater) {
   EXPECT(token_data[13].get_code() == Code::Type::Terminal);
 }
 
+PERIMORTEM_UNIT_TEST(TtxLexical, propagation_operator) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(arena, "value?"_view, "Test.Package"_view);
+
+  View::Vector<Token> tokens = tokenizer.get_tokens();
+  View::Bytes source = tokenizer.get_source_text();
+  const auto* token_data = tokens.get_data();
+  ASSERT_EQ(tokens.get_size(), Count(3));
+  EXPECT(token_data[0].get_code() == Code::Type::Addressable);
+  EXPECT(token_data[1].get_code() == Code::Type::QuestionOp);
+  EXPECT_TEXT(token_data[1].caculate_text(source), "?"_view);
+  EXPECT(token_data[2].get_code() == Code::Type::Terminal);
+}
+
 PERIMORTEM_UNIT_TEST(TtxLexical, reserved_keywords) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
@@ -115,6 +129,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
   EXPECT_TEXT(Lexicon::get_spelling(Token::SwizzleOp), ".["_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::ValueAccessOp), ":["_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::CallOp), "->"_view);
+  EXPECT_TEXT(Lexicon::get_spelling(Token::QuestionOp), "?"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Dialect), "dialect"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Resolve), "resolve"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Source), "source"_view);

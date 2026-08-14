@@ -15,10 +15,10 @@ The standard `Perimortem.Graphics` Package provides Types such as `Image` and
 `Sprite` that support it.
 
 Scene hosts one of these objects through a private `state` Field initialized
-with `new`:
+with `new[ObjectType]`:
 
 ```ttx
-private state icon : Graphics::Sprite = new;
+private state icon : Graphics::Sprite = new[Graphics::Sprite];
 ```
 
 The Field remains an ordinary Library Field. Scene changes the Sprite through

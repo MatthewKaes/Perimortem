@@ -191,16 +191,16 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_statement_grammar) {
 
 PERIMORTEM_UNIT_TEST(LibraryImports, exact_identity_and_exclusions) {
   static constexpr View::Bytes first_source =
-      "public first : func = [] -> Void {}\n"
-      "private hidden : func = [] -> Void {}"_view;
+      "public first : func = [] -> [] {}\n"
+      "private hidden : func = [] -> [] {}"_view;
   static constexpr View::Bytes second_source =
-      "public second : func = [] -> Void {}"_view;
+      "public second : func = [] -> [] {}"_view;
   static constexpr View::Bytes dependency_source =
-      "public dependency_only : func = [] -> Void {}"_view;
+      "public dependency_only : func = [] -> [] {}"_view;
   static constexpr View::Bytes importer_source =
-      "private local_private : func = [] -> Void {}\n"
+      "private local_private : func = [] -> [] {}\n"
       "using Runtime::Core;\n"
-      "public local_public : func = [] -> Void {}"_view;
+      "public local_public : func = [] -> [] {}"_view;
 
   Allocator::Arena arena;
   ImportRegistry registry;
@@ -381,7 +381,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_field_keeps_provider_identity) {
       "private Consumer : struct {\n"
       "  public accept : func = [.value : Unsigned_8] -> [] {}\n"
       "}\n"
-      "private consumer : func = [] -> Void {\n"
+      "private consumer : func = [] -> [] {\n"
       "  Consumer -> accept(provided);\n"
       "}"_view;
   Allocator::Arena arena;
@@ -475,7 +475,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_field_collision_is_transactional) {
   auto importer = interpret_library(
       arena, library_dialect, context,
       "using Core;\npublic repeated : Bool;\n"
-      "public later : func = [] -> Void {}"_view);
+      "public later : func = [] -> [] {}"_view);
   ASSERT(importer);
 
   // Retained provider Fields preflight the Addressable category before either
@@ -508,7 +508,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, source_field_collision_is_transactional) {
   EXPECT(diagnostic_matches(
       *importer, 0,
       "using Core;\npublic repeated : Bool;\n"
-      "public later : func = [] -> Void {}"_view,
+      "public later : func = [] -> [] {}"_view,
       "using Core;"_view,
       "Imported Static binding collides with its source category."_view));
 }
@@ -520,7 +520,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
   Package::Dialect package_dialect;
   auto upstream = interpret_library(
       arena, library_dialect, registry,
-      "public upstream : func = [] -> Void {}"_view);
+      "public upstream : func = [] -> [] {}"_view);
   ASSERT(upstream);
 
   // Provider linking can install an Alias before its target links. Settle the
@@ -539,7 +539,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
   ASSERT(provider_dependency_bound);
   auto provider = interpret_library(
       arena, library_dialect, provider_context,
-      "using Upstream;\npublic direct : func = [] -> Void {}"_view);
+      "using Upstream;\npublic direct : func = [] -> [] {}"_view);
   ASSERT(provider);
   Bool provider_completed = provider->link();
   ASSERT(provider_completed);
@@ -594,7 +594,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, provider_import_is_not_reexported) {
   ASSERT(importer_dependency_bound);
   auto importer = interpret_library(
       arena, library_dialect, importer_context,
-      "using Provider;\nprivate consumer : func = [] -> Void {}"_view);
+      "using Provider;\nprivate consumer : func = [] -> [] {}"_view);
   ASSERT(importer);
   Bool importer_completed = importer->link();
   ASSERT(importer_completed);
@@ -672,11 +672,11 @@ PERIMORTEM_UNIT_TEST(LibraryImports, category_collisions_are_atomic) {
     Package::Dialect package_dialect;
     auto first = interpret_library(
         arena, library_dialect, registry,
-        "public unique : func = [] -> Void {}\n"
-        "public repeated : func = [] -> Void {}"_view);
+        "public unique : func = [] -> [] {}\n"
+        "public repeated : func = [] -> [] {}"_view);
     auto second = interpret_library(
         arena, library_dialect, registry,
-        "public repeated : func = [] -> Void {}"_view);
+        "public repeated : func = [] -> [] {}"_view);
     ASSERT(first && second);
     ASSERT(first->link());
     ASSERT(second->link());
@@ -718,7 +718,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, category_collisions_are_atomic) {
     Package::Dialect package_dialect;
     auto provider = interpret_library(
         arena, library_dialect, registry,
-        "public only : func = [] -> Void {}"_view);
+        "public only : func = [] -> [] {}"_view);
     ASSERT(provider);
     Package::Language::Monograph& target =
         create_package(arena, package_dialect);
@@ -789,7 +789,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     Library::Dialect library_dialect;
     auto importer = interpret_library(
         arena, library_dialect, registry,
-        "using Core;\npublic local : func = [] -> Void {}"_view);
+        "using Core;\npublic local : func = [] -> [] {}"_view);
     ASSERT(importer);
     const auto& importer_source = importer->get_source();
     auto authored = importer_source.get_callables();
@@ -811,7 +811,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     ASSERT(candidate_iterator == candidates.end());
     ASSERT_EQ(importer->get_diagnostics().get_size(), Count(1));
     EXPECT(diagnostic_matches(
-        *importer, 0, "using Core;\npublic local : func = [] -> Void {}"_view,
+        *importer, 0, "using Core;\npublic local : func = [] -> [] {}"_view,
         "using Core;"_view,
         "Library Import source context is not a Package Monograph."_view));
   }
@@ -823,7 +823,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     Package::Dialect package_dialect;
     auto provider = interpret_library(
         arena, library_dialect, registry,
-        "public staged : func = [] -> Void {}"_view);
+        "public staged : func = [] -> [] {}"_view);
     ASSERT(provider);
     Package::Language::Monograph& target =
         create_package(arena, package_dialect);
@@ -857,7 +857,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
     Package::Dialect package_dialect;
     auto provider = interpret_library(
         arena, library_dialect, registry,
-        "public staged : func = [] -> Void {}"_view);
+        "public staged : func = [] -> [] {}"_view);
     ASSERT(provider);
     Package::Language::Monograph& target =
         create_package(arena, package_dialect);
@@ -887,14 +887,14 @@ PERIMORTEM_UNIT_TEST(LibraryImports, invalid_targets_are_atomic) {
 
 PERIMORTEM_UNIT_TEST(LibraryImports, retry_preserves_local_alias) {
   static constexpr View::Bytes source =
-      "using Core;\nprivate consumer : func = [] -> Void {}"_view;
+      "using Core;\nprivate consumer : func = [] -> [] {}"_view;
   Allocator::Arena arena;
   ImportRegistry registry;
   Library::Dialect library_dialect;
   Package::Dialect package_dialect;
   auto provider = interpret_library(
       arena, library_dialect, registry,
-      "public ready : func = [] -> Void {}"_view);
+      "public ready : func = [] -> [] {}"_view);
   ASSERT(provider);
   ASSERT(provider->link());
 
@@ -957,7 +957,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, retry_preserves_local_alias) {
 
 PERIMORTEM_UNIT_TEST(LibraryImports, private_type_alias_cannot_escape) {
   static constexpr View::Bytes source =
-      "using Core;\npublic publish : func = [.value : Shared] -> Void {}"_view;
+      "using Core;\npublic publish : func = [.value : Shared] -> [] {}"_view;
   Allocator::Arena arena;
   ImportRegistry registry;
   Library::Dialect library_dialect;
@@ -1207,7 +1207,7 @@ PERIMORTEM_UNIT_TEST(
       "public Domain : struct {\n"
       "  public Mode : enum[Unsigned_8] { ready = 1; }\n"
       "}\n"
-      "public provided : func = [] -> Void {}\n"_view);
+      "public provided : func = [] -> [] {}\n"_view);
   Bool importer_written = package.write(
       "main.ttx"_view,
       "// Importing Library\n"

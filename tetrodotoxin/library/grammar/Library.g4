@@ -63,7 +63,11 @@ declarationInitializer
     ;
 
 objectInitializer
-    : NEW parenthesizedPack?
+    : NEW BRACKET_START typeReference BRACKET_END objectInitializerArguments?
+    ;
+
+objectInitializerArguments
+    : PACKING_START (namedPackEntries | positionalPackEntries) PACK? PACKING_END
     ;
 
 functionDefinition
@@ -106,14 +110,7 @@ matchStatement
     ;
 
 matchCase
-    : CASE (DISCARD | optionBindingPattern | expression) DEFINE block
-    ;
-
-// `some` and `empty` remain contextual Library spellings carried by
-// ADDRESSABLE Tokens. The semantic Match owner admits only `some(name)`,
-// unbound `some`, and `empty` when the input has exact Type Option[T].
-optionBindingPattern
-    : addressableName PACKING_START addressableName PACKING_END
+    : CASE (DISCARD | expression) DEFINE block
     ;
 
 returnStatement
@@ -207,6 +204,7 @@ postfixSuffix
     | BRACKET_START expression BRACKET_END
     | SWIZZLE swizzleSelection? BRACKET_END
     | VALUE_ACCESS expression (PACK expression)? BRACKET_END
+    | NOT
     | QUESTION
     ;
 

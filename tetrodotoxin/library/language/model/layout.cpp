@@ -33,7 +33,7 @@ static auto select_entry_type(const Abstract& entry) -> Option<const Type&> {
 
 static auto resolves_for_fitting(const Abstract& entry) -> const Abstract& {
   // Authored Layouts retain direct Type and Parameter edges before every Type
-  // necessarily resolves. Those identities are already canonical; resolving
+  // necessarily resolves. Those identities are already canonical. Resolving
   // first would collapse distinct staged Types to the shared Invalid object.
   if (entry.is<Type>()) {
     return entry;
@@ -199,6 +199,19 @@ auto Language::Model::Layout::link(
       type = &*selected_type;
     }
 
+    if (type->get_layout().is_empty()) {
+      source.report(
+          slot.get_type_anchor(),
+          parameters
+              ? "Function parameter cannot bind an empty Type Layout."_view
+              : "Function result cannot name an empty Type Layout."_view,
+          parameters
+              ? "Remove the parameter or use a Type with one value leaf."_view
+              : "Write `[]` when the Function produces no values."_view);
+      failed = True;
+      continue;
+    }
+
     if (!parameters) {
       if (slot.edge) {
         if (&slot.edge->get() != type) {
@@ -211,15 +224,6 @@ auto Language::Model::Layout::link(
       } else {
         slot.edge = Reference<const Abstract>(*type);
       }
-      continue;
-    }
-
-    if (type->get_layout().is_empty()) {
-      source.report(
-          slot.get_type_anchor(),
-          "Function parameter cannot bind an empty Type Layout."_view,
-          "Remove the parameter or use a Type with one value leaf."_view);
-      failed = True;
       continue;
     }
 
@@ -336,43 +340,17 @@ auto Language::Model::Layout::is_named() const -> Bool {
   return slots.is_empty() || !slots.at(0).name.is_empty();
 }
 
-auto Language::Model::Layout::get_visible_slot(Count index) const
-    -> const Slot* {
-  Count visible = 0;
-  for (Count i = 0; i < slots.get_size(); i++) {
-    const Slot& slot = slots.at(i);
-    // TTX Layout queries have the same lifecycle precondition as
-    // Addressable::get_type: the owning staged object must first link. The
-    // required dereference deliberately cannot turn an absent edge into an
-    // empty Layout.
-    auto type = select_entry_type(slot.edge->get());
-    if (!type || type->get_layout().is_empty()) {
-      continue;
-    }
-
-    if (visible == index) {
-      return &slot;
-    }
-    visible++;
-  }
-
-  return nullptr;
+auto Language::Model::Layout::get_slot(Count index) const -> const Slot* {
+  return index < slots.get_size() ? &slots.at(index) : nullptr;
 }
 
 auto Language::Model::Layout::get_size() const -> Count {
-  Count size = 0;
-  for (Count i = 0; i < slots.get_size(); i++) {
-    auto type = select_entry_type(slots.at(i).edge->get());
-    if (type && !type->get_layout().is_empty()) {
-      size++;
-    }
-  }
-  return size;
+  return slots.get_size();
 }
 
 auto Language::Model::Layout::get_abstract(Count index) const
     -> Option<const Abstract&> {
-  const Slot* slot = get_visible_slot(index);
+  const Slot* slot = get_slot(index);
   BAIL_IF(slot == nullptr || !slot->edge);
   return slot->edge->get();
 }
@@ -381,7 +359,7 @@ auto Language::Model::Layout::get_name(Count index) const
     -> Option<View::Bytes> {
   BAIL_IF(!is_named());
 
-  const Slot* slot = get_visible_slot(index);
+  const Slot* slot = get_slot(index);
   BAIL_IF(slot == nullptr || slot->name.is_empty());
   return slot->name;
 }

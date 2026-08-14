@@ -273,7 +273,7 @@ static auto find_function(
 PERIMORTEM_UNIT_TEST(DialectTests, nested_missing_type_reports_authored_route) {
   static constexpr View::Bytes source =
       "public Packet : struct { public missing : Missing; }\n"
-      "public later : func = [] -> Void {}"_view;
+      "public later : func = [] -> [] {}"_view;
   Allocator::Arena arena;
   EmptyRegistry registry;
   Dialect dialect;
@@ -300,12 +300,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, nested_missing_type_reports_authored_route) {
 
 PERIMORTEM_UNIT_TEST(DialectTests, source_field_failures_are_reported) {
   static constexpr Static::Vector<View::Bytes, 6> sources = {{
-    "public broken : Missing;\npublic later : func = [] -> Void {}"_view,
-    "public broken : Bool = absent;\npublic later : func = [] -> Void {}"_view,
+    "public broken : Missing;\npublic later : func = [] -> [] {}"_view,
+    "public broken : Bool = absent;\npublic later : func = [] -> [] {}"_view,
     "public const broken : Bool = 1;\n"
-    "public later : func = [] -> Void {}"_view,
+    "public later : func = [] -> [] {}"_view,
     "public const broken : Unsigned_8 = 256;\n"
-    "public later : func = [] -> Void {}"_view,
+    "public later : func = [] -> [] {}"_view,
     "public dynamic : Bool = false;\n"
     "public const broken := dynamic;"_view,
     "public Packet : struct {\n"
@@ -336,7 +336,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, top_level_self_is_rejected_at_registration) {
   EXPECT(rejects_library_source(
       "// Top level Self registration.\n"
       "dialect : Library;\n"
-      "public invalid : func = [self] -> Void {}"_view));
+      "public invalid : func = [self] -> [] {}"_view));
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, source_rejects_instance_state) {
@@ -462,7 +462,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
     Rejection{
       "validation/data/ttx/library/dialect_led_callable.ttx"_view,
       "Definitions require one authored visibility before their name."_view,
-      "Library legacy[] -> Void {"_view,
+      "Library legacy[] -> [] {"_view,
     },
     {
       "validation/data/ttx/library/duplicate_name.ttx"_view,
@@ -476,8 +476,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
       "private C : foreign {"_view,
     },
     {
-      "validation/data/ttx/library/new_without_expected_type.ttx"_view,
-      "An inferred Library Field cannot use `new`."_view,
+      "validation/data/ttx/library/bare_new.ttx"_view,
+      "Library `new` requires `[` before its Object Type."_view,
       "private inferred := new;"_view,
     },
     {
@@ -493,7 +493,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
     {
       "validation/data/ttx/library/foreign_with_body.ttx"_view,
       "Foreign Function declarations cannot contain an authored body."_view,
-      "public func illegal_definition[] -> Void {"_view,
+      "public func illegal_definition[] -> [] {"_view,
     },
     {
       "validation/data/ttx/library/foreign_const.ttx"_view,
@@ -508,12 +508,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
     {
       "validation/data/ttx/library/foreign_private_function.ttx"_view,
       "Private Foreign Functions are unreachable from their parent Library."_view,
-      "private func hidden[] -> Void;"_view,
+      "private func hidden[] -> [];"_view,
     },
     {
       "validation/data/ttx/library/foreign_exposed_function.ttx"_view,
       "Foreign Functions do not accept `expose` visibility."_view,
-      "expose func visible[] -> Void;"_view,
+      "expose func visible[] -> [];"_view,
     },
     {
       "validation/data/ttx/library/foreign_exposed_write.ttx"_view,

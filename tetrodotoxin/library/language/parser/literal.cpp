@@ -17,6 +17,7 @@
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/generics/fixed.hpp"
+#include "tetrodotoxin/library/language/generics/view.hpp"
 #include "ttx/lexical/lexicon.hpp"
 
 using namespace Perimortem::Core;
@@ -32,6 +33,22 @@ static auto materialize_bytes_type(
     Cursor& cursor,
     Span span,
     Count size) -> Option<const Type&> {
+  if (size == 0) {
+    Static::Vector<Library::Language::Generic::Argument, 1> arguments = {{
+      Library::Language::Generic::Argument(Library::Dialect::get_unsigned_8()),
+    }};
+    auto materialized = materializations.materialize(
+        Library::Language::Generics::View::get_formula(), arguments.get_view());
+    if (!materialized) {
+      cursor.create_expression_error(
+          span,
+          "Library could not materialize `View[Unsigned_8]` for this empty "
+          "Bytes literal."_view,
+          "Check that View and canonical Unsigned_8 are available."_view);
+    }
+    return materialized;
+  }
+
   // Keep the max array length the same as what the Bibliotheca can manage.
   constexpr Unsigned_64 max_extent = Unsigned_64(1) << 36;
   if (size > Count(max_extent)) {

@@ -27,7 +27,9 @@ namespace Ttx::Model {
 //
 // Once Type resolution succeeds, get_layout() returns its Layout shape. An
 // atomic Type uses one Value leaf containing its exact identity. A structural
-// or deliberately empty Type overrides that leaf with its real shape. A
+// Type overrides that leaf with its real shape. A completed Type admitted to
+// value flow always has at least one entry. A structural Type with no entries
+// remains a contextual namespace and cannot be instantiated or produced. A
 // homogeneous Ranged layout can expose one repeated Type across a compact
 // interval, as in Bytes[N], without allocating one semantic node per index.
 class Type : public Concept::Abstract {

@@ -374,8 +374,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, missing_type_rejected) {
 
 PERIMORTEM_UNIT_TEST(StructureTests, empty_types_are_static_only) {
   static constexpr Static::Vector<View::Bytes, 5> rejected = {{
-    "// Void Addressable.\ndialect : Library; private invalid : Void;"_view,
-    "// Empty Fixed Addressable.\ndialect : Library; private invalid := 0x[];"_view,
+    "// Empty Option element.\ndialect : Library; private Empty : struct {} private invalid : Option[Empty];"_view,
+    "// Zero Fixed extent.\ndialect : Library; private invalid : Fixed[Bool, 0];"_view,
     "// Empty Composite Addressable.\ndialect : Library; private Empty : struct {} private invalid : Empty;"_view,
     "// Empty Self receiver.\ndialect : Library; public Empty : struct { public invalid : func = [self] -> [] {} }"_view,
     "// Empty named parameter.\ndialect : Library; private Empty : struct {} private invalid : func = [.value : Empty] -> [] {}"_view,
@@ -390,7 +390,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, empty_types_are_static_only) {
       "// Empty Types retain only Static bindings.\n"
       "dialect : Library;\n"
       "public Empty : struct { public create : func = [] -> [] {} }\n"
-      "private void_result : func = [] -> Void {}\n"
+      "private first_empty_result : func = [] -> [] {}\n"
       "private empty_result : func = [] -> [] {}"_view;
   Workspace workspace;
   Errors errors;
@@ -413,7 +413,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, empty_types_are_static_only) {
   auto callables = monograph->get_source().get_callables();
   ASSERT(callables != callables.end());
   ASSERT((*callables).get().is<Language::Function>());
-  const auto& void_result =
+  const auto& first_empty_result =
       static_cast<const Language::Function&>((*callables).get());
   ++callables;
   ASSERT(callables != monograph->get_source().get_callables().end());
@@ -422,16 +422,16 @@ PERIMORTEM_UNIT_TEST(StructureTests, empty_types_are_static_only) {
       static_cast<const Language::Function&>((*callables).get());
   ++callables;
   EXPECT(callables == monograph->get_source().get_callables().end());
-  EXPECT(void_result.get_results().is_empty());
+  EXPECT(first_empty_result.get_results().is_empty());
   EXPECT(empty_result.get_results().is_empty());
-  EXPECT(void_result.get_results().fits(empty_result.get_results()));
-  EXPECT(empty_result.get_results().fits(void_result.get_results()));
+  EXPECT(first_empty_result.get_results().fits(empty_result.get_results()));
+  EXPECT(empty_result.get_results().fits(first_empty_result.get_results()));
 
   const auto& scalar = Dialect::get_unsigned_8();
   ASSERT_EQ(scalar.get_layout().get_size(), Count(1));
   EXPECT(&*scalar.get_layout().get_abstract(0) == &scalar);
-  EXPECT_NOT(void_result.get_results().fits(scalar.get_layout()));
-  EXPECT_NOT(scalar.get_layout().fits(void_result.get_results()));
+  EXPECT_NOT(first_empty_result.get_results().fits(scalar.get_layout()));
+  EXPECT_NOT(scalar.get_layout().fits(first_empty_result.get_results()));
   EXPECT(errors.is_empty());
 }
 

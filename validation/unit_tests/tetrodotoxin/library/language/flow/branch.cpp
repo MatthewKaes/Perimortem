@@ -165,7 +165,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, while_body_targets_its_branch) {
   static constexpr View::Bytes source =
       "// While control.\n"
       "dialect : Library;\n"
-      "public repeat : func = [] -> Void {\n"
+      "public repeat : func = [] -> [] {\n"
       "  while true { continue; }\n"
       "  return;\n"
       "}"_view;

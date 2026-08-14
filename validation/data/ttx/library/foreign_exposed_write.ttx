@@ -5,7 +5,7 @@ foreign "C" {
   expose state observed : Unsigned_64;
 }
 
-public write : func = [] -> Void {
+public write : func = [] -> [] {
   foreign.observed = 1;
   return;
 }

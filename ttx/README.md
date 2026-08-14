@@ -94,9 +94,8 @@ A Pack preserves the identity of produced value flow without turning that flow
 into a Type. It may supply no values, one value, or several positional, named,
 ranged, or composed values. One ordinary value-producing expression is already
 a Pack, while a multi-value Pack remains fluid until a receiving contract
-chooses to materialize a Type. A language's `Void` result and `()` both
-supply an empty Layout, so they interoperate without a universal `Void` Type
-identity.
+chooses to materialize a Type. `()` supplies an empty Layout and fits `[]`
+without inventing a zero-value Type identity.
 
 The common source shapes make that direction visible. Parentheses group values
 that are being supplied, while brackets describe values that are required:
@@ -131,13 +130,16 @@ five common forms:
 Layouts describe promised semantic shape and how supplied values fit it. Layout
 decorators preserve the fitting rules of the source that owns each entry. A
 leaf Type contributes its own one-entry Value Layout, while an empty Layout
-describes no value and fits every other empty Layout. An Addressable therefore
-requires a Type with at least one Layout entry. Scalar Values separately define
-abstract machine width and storage requirements. Target object layout, field
-offsets, registers, address spaces, pointer forms, and runtime storage belong to
-the consumer that chooses a physical representation.
+describes no value and fits every other empty Layout. A Type with that shape
+can retain contextual or Static facts, but it cannot enter value flow. An
+Addressable therefore requires a Type with at least one Layout entry. Scalar
+Values separately define abstract machine width and storage requirements.
+Target object layout, field offsets, registers, address spaces, pointer forms,
+and runtime storage belong to the consumer that chooses a physical
+representation.
 
-Every concrete Type that a language allows as an ordinary value has a default.
+Every concrete Type that a language allows as an ordinary value has a nonempty
+Layout and a default.
 That language defines and creates the value. TTX does not infer it from cleared
 memory or provide one universal default object. An empty View is still one View
 value, while an empty Layout means that no value was produced.

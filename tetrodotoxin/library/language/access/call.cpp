@@ -271,9 +271,9 @@ auto Language::Access::Call::link(
   if (!foreign && !target) {
     source.report(
         get_anchor(),
-        "Library invocation receiver did not produce one Composite Type."_view,
-        "Invoke through a Type result for Static access or a typed value for "
-        "Self access."_view);
+        "Library invocation receiver did not produce one Callable Type."_view,
+        "Invoke through a Type result for Static access or a Composite value "
+        "for Self access."_view);
     return False;
   }
 
@@ -346,8 +346,7 @@ auto Language::Access::Call::link(
 
   if (callable) {
     // Repeated linking may revalidate the surrounding graph, but this
-    // invocation's
-    // successfully published producer Layout remains the original object.
+    // invocation keeps its successfully published producer Layout.
     return True;
   }
 
@@ -405,7 +404,7 @@ auto Language::Access::Call::resolve() const -> const Abstract& {
 auto Language::Access::Call::finalize() -> void {
   // Receiver and argument Pack are the complete evaluation inputs owned by
   // this invocation. A Call retained directly by a Block is the effect itself.
-  // discarded result flow must not turn that effectful Call into a fold
+  // Discarded result flow must not turn that effectful Call into a fold
   // request.
   receiver.finalize();
   arguments.finalize();

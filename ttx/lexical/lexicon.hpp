@@ -205,6 +205,8 @@ class Lexicon {
       return ","_view;
     case Code::Type::NotOp:
       return "!"_view;
+    case Code::Type::QuestionOp:
+      return "?"_view;
     case Code::Type::RangeOp:
       return "..."_view;
     case Code::Type::Discard:

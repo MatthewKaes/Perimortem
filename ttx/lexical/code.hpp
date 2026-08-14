@@ -82,6 +82,7 @@ class Code {
     ValueAccessOp,  // :[
     PackingOp,      // ,
     NotOp,          // !
+    QuestionOp,     // ?
     RangeOp,        // ...
     Define,         // :
     TypeAccessOp,   // ::

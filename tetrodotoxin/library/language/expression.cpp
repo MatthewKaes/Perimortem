@@ -12,8 +12,6 @@ using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-constexpr Ttx::Model::Layouts::Fluid Language::Expression::empty_output;
-
 static auto select_output_type(const Abstract& candidate)
     -> Option<const Type&> {
   auto direct = candidate.select<Type>();
@@ -29,13 +27,16 @@ auto Language::Expression::get_layout() const -> const Layout& {
     __builtin_trap();
   }
 
-  return type->get_layout().is_empty()
-             ? static_cast<const Layout&>(empty_output)
-             : static_cast<const Layout&>(output_layout);
+  if (type->get_layout().is_empty()) {
+    __builtin_trap();
+  }
+
+  return output_layout;
 }
 
 auto Language::Expression::resolve() const -> const Abstract& {
-  if (!select_output_type(get_type())) {
+  auto type = select_output_type(get_type());
+  if (!type || type->get_layout().is_empty()) {
     return Invalid::get_invalid();
   }
 
@@ -56,13 +57,14 @@ auto Language::Expression::link(
   // Type still resolves Invalid until its own Layout is complete. Expression
   // linking retains that real output edge. It does not make unrelated Type
   // completion a prerequisite for selecting the value's domain.
-  if (get_type().is<Type>() || get_type().resolve().is<Type>()) {
+  auto type = select_output_type(get_type());
+  if (type && !type->get_layout().is_empty()) {
     return True;
   }
 
   source.report(
-      source_anchor, "Expression did not resolve one exact Type."_view,
-      "Complete its semantic inputs before finalization."_view);
+      source_anchor, "Expression did not resolve one nonempty Type."_view,
+      "Complete its semantic inputs or keep empty output as Pack flow."_view);
   return False;
 }
 
