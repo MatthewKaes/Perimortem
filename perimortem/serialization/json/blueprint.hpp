@@ -7,15 +7,12 @@
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/static/union.hpp"
 
+#include "perimortem/serialization/json/node.hpp"
+
 namespace Perimortem::Serialization::Json {
 
-// Blueprint can reference an existing Node without requiring its definition.
-// The complete type remains owned by node.hpp.
-class Node;
-
-// Describes a temporary JSON tree for Node::construct. Construction
-// materializes its values as managed Nodes in an Arena with a single owning
-// lifetime.
+// Describes a temporary JSON tree which materializes its values as managed
+// Nodes in an Arena with a single owning lifetime.
 //
 // Stack-provided scalars, objects, arrays, and existing Nodes are supported.
 // The value Union keeps each payload paired with its type without exposing a
@@ -25,7 +22,7 @@ class Blueprint {
   using Value = Core::Static::Union<
       Core::View::Bytes,
       Core::View::Vector<Blueprint>,
-      const Node*,
+      Node,
       Signed_64,
       Real_64,
       Bool>;
@@ -40,7 +37,7 @@ class Blueprint {
   Blueprint(Real_64 real) : value(real) {}
   Blueprint(Real_32 real) : Blueprint(Real_64(real)) {}
   Blueprint(Bool flag) : value(flag) {}
-  Blueprint(const Node& node) : value(&node) {}
+  Blueprint(const Node& node) : value(node) {}
 
   Blueprint(Core::View::Bytes member_name, Core::View::Bytes text)
       : name(member_name), value(text) {}
@@ -55,7 +52,7 @@ class Blueprint {
   Blueprint(Core::View::Bytes member_name, Bool flag)
       : name(member_name), value(flag) {}
   Blueprint(Core::View::Bytes member_name, const Node& node)
-      : name(member_name), value(&node) {}
+      : name(member_name), value(node) {}
 
   static auto empty_array(Core::View::Bytes member_name = {}) -> Blueprint {
     return Blueprint(member_name, nullptr, 0);
@@ -70,6 +67,11 @@ class Blueprint {
       : value(Core::View::Vector<Blueprint>(children)) {}
 
   constexpr auto get_name() const -> Core::View::Bytes { return name; }
+
+  // Recursively materializes the temporary tree into the caller's arena.
+  // Named children become object members and unnamed children become array
+  // elements.
+  auto construct(Memory::Allocator::Arena& arena) const -> Node;
 
   template <typename... Cases>
   auto visit(Cases... cases) const -> decltype(auto) {

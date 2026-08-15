@@ -221,53 +221,6 @@ auto Json::Node::is_object() const -> Bool {
   return (NodeState)data.state == NodeState::Object;
 }
 
-auto Json::Node::construct(
-    Allocator::Arena& arena,
-    const Json::Blueprint* entries,
-    Count count) -> Node {
-  // Named children become objects while unnamed children become arrays.
-  const Bool is_object = count != 0 && !entries[0].get_name().is_empty();
-  if (is_object) {
-    Managed::Vector<Json::Node::Member> members(arena);
-    for (Count i = 0; i < count; i++) {
-      members.insert(
-          Json::Node::Member(
-              entries[i].get_name(), Json::Node::construct(arena, entries[i])));
-    }
-
-    Json::Node result;
-    result.set(members);
-    return result;
-  }
-
-  Managed::Vector<Json::Node> nodes(arena);
-  for (Count i = 0; i < count; i++) {
-    nodes.insert(Json::Node::construct(arena, entries[i]));
-  }
-
-  Json::Node result;
-  result.set(nodes.get_view());
-  return result;
-}
-
-auto Json::Node::construct(Allocator::Arena& arena, const Json::Blueprint& root)
-    -> Node {
-  return root.visit(
-      []() { return Json::Node(); },
-      [](View::Bytes text) { return Json::Node(text); },
-      [](Signed_64 number) { return Json::Node(number); },
-      [](Real_64 real) { return Json::Node(real); },
-      [](Bool flag) { return Json::Node(flag); },
-      [&](View::Vector<Json::Blueprint> compound) {
-        return Json::Node::construct(
-            arena, compound.get_data(), compound.get_size());
-      },
-      [](const Json::Node* node) {
-        // Existing Nodes must outlive construction.
-        return *node;
-      });
-}
-
 auto Json::Node::parse(
     Allocator::Arena& arena,
     View::Bytes source,

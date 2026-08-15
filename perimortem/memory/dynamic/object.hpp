@@ -40,10 +40,11 @@ class Object {
   ~Object() { release(); }
 
   auto operator=(const Object& rhs) -> Object& {
-    if (rhs.value != value) {
-      release();
+    if (rhs.value == value) {
+      return *this;
     }
 
+    release();
     value = rhs.value;
     Core::Bibliotheca::reserve(Core::Data::cast<Unsigned_8>(value));
     return *this;

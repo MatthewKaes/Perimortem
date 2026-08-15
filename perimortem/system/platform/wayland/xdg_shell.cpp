@@ -28,9 +28,12 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "perimortem/system/platform/wayland/xdg_shell.hpp"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "wayland-util.h"
 
@@ -44,9 +47,6 @@
 #define WL_PRIVATE
 #endif
 
-extern const struct wl_interface wl_output_interface;
-extern const struct wl_interface wl_seat_interface;
-extern const struct wl_interface wl_surface_interface;
 extern const struct wl_interface xdg_popup_interface;
 extern const struct wl_interface xdg_positioner_interface;
 extern const struct wl_interface xdg_surface_interface;
@@ -172,3 +172,193 @@ static const struct wl_message xdg_popup_events[] = {
 extern WL_PRIVATE const struct wl_interface xdg_popup_interface = {
   "xdg_popup", 7, 3, xdg_popup_requests, 3, xdg_popup_events,
 };
+
+using namespace Perimortem::System;
+
+Platform::Wayland::XdgShell::~XdgShell() {
+  destroy();
+}
+
+auto Platform::Wayland::XdgShell::recognizes(const char* interface) -> Bool {
+  return strcmp(interface, xdg_wm_base_interface.name) == 0;
+}
+
+auto Platform::Wayland::XdgShell::bind(wl_registry* registry, uint32_t name)
+    -> Bool {
+  if (wm_base) {
+    return True;
+  }
+
+  wm_base = static_cast<wl_proxy*>(
+      wl_registry_bind(registry, name, &xdg_wm_base_interface, 1));
+  if (!wm_base) {
+    return False;
+  }
+
+  static ListenerFunction listener[] = {
+    reinterpret_cast<ListenerFunction>(&Platform::Wayland::XdgShell::on_ping),
+  };
+  if (wl_proxy_add_listener(wm_base, listener, this) != 0) {
+    wl_proxy_marshal_flags(
+        wm_base, 0, nullptr, wl_proxy_get_version(wm_base),
+        WL_MARSHAL_FLAG_DESTROY);
+    wm_base = nullptr;
+    return False;
+  }
+
+  return True;
+}
+
+auto Platform::Wayland::XdgShell::create_toplevel(
+    wl_surface* wayland_surface,
+    const char* title,
+    const char* application_id,
+    Events new_events) -> Bool {
+  if (!wm_base || surface || toplevel) {
+    return False;
+  }
+
+  events = new_events;
+  this->wayland_surface = wayland_surface;
+  surface = wl_proxy_marshal_flags(
+      wm_base, 2, &xdg_surface_interface, wl_proxy_get_version(wm_base), 0,
+      nullptr, wayland_surface);
+  if (!surface) {
+    events = {};
+    this->wayland_surface = nullptr;
+    return False;
+  }
+
+  static ListenerFunction surface_listener[] = {
+    reinterpret_cast<ListenerFunction>(
+        &Platform::Wayland::XdgShell::on_surface_configure),
+  };
+  if (wl_proxy_add_listener(surface, surface_listener, this) != 0) {
+    wl_proxy_marshal_flags(
+        surface, 0, nullptr, wl_proxy_get_version(surface),
+        WL_MARSHAL_FLAG_DESTROY);
+    surface = nullptr;
+    events = {};
+    this->wayland_surface = nullptr;
+    return False;
+  }
+
+  toplevel = wl_proxy_marshal_flags(
+      surface, 1, &xdg_toplevel_interface, wl_proxy_get_version(surface), 0,
+      nullptr);
+  if (!toplevel) {
+    wl_proxy_marshal_flags(
+        surface, 0, nullptr, wl_proxy_get_version(surface),
+        WL_MARSHAL_FLAG_DESTROY);
+    surface = nullptr;
+    events = {};
+    this->wayland_surface = nullptr;
+    return False;
+  }
+
+  static ListenerFunction toplevel_listener[] = {
+    reinterpret_cast<ListenerFunction>(
+        &Platform::Wayland::XdgShell::on_toplevel_configure),
+    reinterpret_cast<ListenerFunction>(
+        &Platform::Wayland::XdgShell::on_toplevel_close),
+    reinterpret_cast<ListenerFunction>(
+        &Platform::Wayland::XdgShell::on_toplevel_configure_bounds),
+    reinterpret_cast<ListenerFunction>(
+        &Platform::Wayland::XdgShell::on_toplevel_wm_capabilities),
+  };
+  if (wl_proxy_add_listener(toplevel, toplevel_listener, this) != 0) {
+    wl_proxy_marshal_flags(
+        toplevel, 0, nullptr, wl_proxy_get_version(toplevel),
+        WL_MARSHAL_FLAG_DESTROY);
+    toplevel = nullptr;
+    wl_proxy_marshal_flags(
+        surface, 0, nullptr, wl_proxy_get_version(surface),
+        WL_MARSHAL_FLAG_DESTROY);
+    surface = nullptr;
+    events = {};
+    this->wayland_surface = nullptr;
+    return False;
+  }
+
+  wl_proxy_marshal_flags(
+      toplevel, 2, nullptr, wl_proxy_get_version(toplevel), 0, title);
+  wl_proxy_marshal_flags(
+      toplevel, 3, nullptr, wl_proxy_get_version(toplevel), 0, application_id);
+  return True;
+}
+
+auto Platform::Wayland::XdgShell::destroy() -> void {
+  if (toplevel) {
+    wl_proxy_marshal_flags(
+        toplevel, 0, nullptr, wl_proxy_get_version(toplevel),
+        WL_MARSHAL_FLAG_DESTROY);
+    toplevel = nullptr;
+  }
+
+  if (surface) {
+    wl_proxy_marshal_flags(
+        surface, 0, nullptr, wl_proxy_get_version(surface),
+        WL_MARSHAL_FLAG_DESTROY);
+    surface = nullptr;
+  }
+
+  if (wm_base) {
+    wl_proxy_marshal_flags(
+        wm_base, 0, nullptr, wl_proxy_get_version(wm_base),
+        WL_MARSHAL_FLAG_DESTROY);
+    wm_base = nullptr;
+  }
+
+  events = {};
+  wayland_surface = nullptr;
+}
+
+auto Platform::Wayland::XdgShell::on_ping(
+    void*,
+    wl_proxy* shell,
+    uint32_t serial) -> void {
+  wl_proxy_marshal_flags(
+      shell, 3, nullptr, wl_proxy_get_version(shell), 0, serial);
+}
+
+auto Platform::Wayland::XdgShell::on_surface_configure(
+    void* data,
+    wl_proxy* shell_surface,
+    uint32_t serial) -> void {
+  wl_proxy_marshal_flags(
+      shell_surface, 4, nullptr, wl_proxy_get_version(shell_surface), 0,
+      serial);
+  auto* shell = static_cast<Platform::Wayland::XdgShell*>(data);
+  wl_surface_commit(shell->wayland_surface);
+}
+
+auto Platform::Wayland::XdgShell::on_toplevel_configure(
+    void* data,
+    wl_proxy*,
+    int32_t width,
+    int32_t height,
+    wl_array*) -> void {
+  auto* shell = static_cast<Platform::Wayland::XdgShell*>(data);
+  if (shell->events.configure) {
+    shell->events.configure(shell->events.context, width, height);
+  }
+}
+
+auto Platform::Wayland::XdgShell::on_toplevel_close(void* data, wl_proxy*)
+    -> void {
+  auto* shell = static_cast<Platform::Wayland::XdgShell*>(data);
+  if (shell->events.close) {
+    shell->events.close(shell->events.context);
+  }
+}
+
+auto Platform::Wayland::XdgShell::on_toplevel_configure_bounds(
+    void*,
+    wl_proxy*,
+    int32_t,
+    int32_t) -> void {}
+
+auto Platform::Wayland::XdgShell::on_toplevel_wm_capabilities(
+    void*,
+    wl_proxy*,
+    wl_array*) -> void {}

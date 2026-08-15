@@ -1,9 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-// Wayland's generated C headers can indirectly include libstdc++ <new> on this
-// toolchain. Keep them before Perimortem headers so perimortem.hpp sees the
-// standard-library guard and does not provide its placement-new stub.
+// Wayland's C headers can indirectly include libstdc++ <new> on this toolchain.
+// Keep them before Perimortem headers so perimortem.hpp sees the standard-
+// library guard and does not provide its placement-new stub.
 // clang-format off
 #include <errno.h>
 #include <poll.h>
@@ -15,20 +15,6 @@
 // clang-format on
 
 using namespace Perimortem::System;
-
-const xdg_wm_base_listener Platform::Wayland::Window::wm_base_listener = {
-  Platform::Wayland::Window::on_wm_base_ping};
-
-const xdg_surface_listener Platform::Wayland::Window::xdg_surface_events = {
-  Platform::Wayland::Window::on_xdg_surface_configure,
-};
-
-const xdg_toplevel_listener Platform::Wayland::Window::toplevel_listener = {
-  Platform::Wayland::Window::on_toplevel_configure,
-  Platform::Wayland::Window::on_toplevel_close,
-  Platform::Wayland::Window::on_toplevel_configure_bounds,
-  Platform::Wayland::Window::on_toplevel_wm_capabilities,
-};
 
 const wl_surface_listener Platform::Wayland::Window::surface_listener = {
   Platform::Wayland::Window::on_surface_enter,
@@ -60,13 +46,16 @@ Platform::Wayland::Window::Window(
   surface = wl_compositor_create_surface(compositor);
   wl_surface_add_listener(surface, &surface_listener, this);
 
-  shell_surface = xdg_wm_base_get_xdg_surface(wm_base, surface);
-  xdg_surface_add_listener(shell_surface, &xdg_surface_events, this);
-
-  toplevel = xdg_surface_get_toplevel(shell_surface);
-  xdg_toplevel_add_listener(toplevel, &toplevel_listener, this);
-  xdg_toplevel_set_title(toplevel, title);
-  xdg_toplevel_set_app_id(toplevel, "perimortem");
+  if (!shell.create_toplevel(
+          surface, title, "perimortem",
+          {
+            this,
+            &Platform::Wayland::Window::on_shell_configure,
+            &Platform::Wayland::Window::on_shell_close,
+          })) {
+    close_requested = True;
+    return;
+  }
 
   wl_surface_commit(surface);
   wl_display_roundtrip(display);
@@ -165,24 +154,11 @@ auto Platform::Wayland::Window::get_surface() const -> wl_surface* {
 }
 
 auto Platform::Wayland::Window::destroy() -> void {
-  if (toplevel) {
-    xdg_toplevel_destroy(toplevel);
-    toplevel = nullptr;
-  }
-
-  if (shell_surface) {
-    xdg_surface_destroy(shell_surface);
-    shell_surface = nullptr;
-  }
+  shell.destroy();
 
   if (surface) {
     wl_surface_destroy(surface);
     surface = nullptr;
-  }
-
-  if (wm_base) {
-    xdg_wm_base_destroy(wm_base);
-    wm_base = nullptr;
   }
 
   if (compositor) {
@@ -201,28 +177,10 @@ auto Platform::Wayland::Window::destroy() -> void {
   }
 }
 
-auto Platform::Wayland::Window::on_wm_base_ping(
-    void*,
-    xdg_wm_base* wm_base,
-    uint32_t serial) -> void {
-  xdg_wm_base_pong(wm_base, serial);
-}
-
-auto Platform::Wayland::Window::on_xdg_surface_configure(
+auto Platform::Wayland::Window::on_shell_configure(
     void* data,
-    xdg_surface* surface,
-    uint32_t serial) -> void {
-  auto* window = static_cast<Platform::Wayland::Window*>(data);
-  xdg_surface_ack_configure(surface, serial);
-  wl_surface_commit(window->surface);
-}
-
-auto Platform::Wayland::Window::on_toplevel_configure(
-    void* data,
-    xdg_toplevel*,
     int32_t width,
-    int32_t height,
-    wl_array*) -> void {
+    int32_t height) -> void {
   auto* window = static_cast<Platform::Wayland::Window*>(data);
   auto new_width =
       width > 0 ? static_cast<Unsigned_32>(width) : window->initial_width;
@@ -236,21 +194,9 @@ auto Platform::Wayland::Window::on_toplevel_configure(
   }
 }
 
-auto Platform::Wayland::Window::on_toplevel_close(void* data, xdg_toplevel*)
-    -> void {
+auto Platform::Wayland::Window::on_shell_close(void* data) -> void {
   static_cast<Platform::Wayland::Window*>(data)->close_requested = True;
 }
-
-auto Platform::Wayland::Window::on_toplevel_configure_bounds(
-    void*,
-    xdg_toplevel*,
-    int32_t,
-    int32_t) -> void {}
-
-auto Platform::Wayland::Window::on_toplevel_wm_capabilities(
-    void*,
-    xdg_toplevel*,
-    wl_array*) -> void {}
 
 auto Platform::Wayland::Window::on_surface_enter(void*, wl_surface*, wl_output*)
     -> void {}
@@ -284,11 +230,10 @@ auto Platform::Wayland::Window::on_registry_global(
   if (strcmp(interface, wl_compositor_interface.name) == 0) {
     window->compositor = static_cast<wl_compositor*>(
         wl_registry_bind(registry, name, &wl_compositor_interface, 6));
-  } else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
-    window->wm_base = static_cast<xdg_wm_base*>(
-        wl_registry_bind(registry, name, &xdg_wm_base_interface, 1));
-    xdg_wm_base_add_listener(
-        window->wm_base, &Platform::Wayland::Window::wm_base_listener, window);
+  } else if (
+      Platform::Wayland::XdgShell::recognizes(interface) &&
+      !window->shell.bind(registry, name)) {
+    window->close_requested = True;
   }
 }
 

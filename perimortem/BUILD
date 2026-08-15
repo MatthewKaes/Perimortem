@@ -155,35 +155,28 @@ cc_library(
 )
 
 cc_library(
-    name = "xdg_shell_protocol",
-    srcs = ["system/platform/wayland/xdg_shell.cpp"],
-    hdrs = ["system/platform/wayland/xdg_shell.hpp"],
-    # Generated protocol code; suppress strict-warning enforcement.
-    copts = ["-Wno-error"],
-    includes = ["."],
-    linkopts = ["-lwayland-client"],
-)
-
-cc_library(
-    name = "platform",
-    srcs = glob(
-        [
-            "system/platform/wayland/*.cpp",
-        ],
-        exclude = [
-            "system/platform/wayland/xdg_shell.cpp",
-        ],
-    ),
-    hdrs = [
-        "system/window.hpp",
-    ] + glob([
+    name = "wayland",
+    srcs = glob([
+        "system/platform/wayland/*.cpp",
+    ]),
+    hdrs = glob([
         "system/platform/wayland/*.hpp",
     ]),
     includes = ["."],
     linkopts = ["-lwayland-client"],
+    deps = [":core"],
+)
+
+cc_library(
+    name = "platform",
+    srcs = [],
+    hdrs = [
+        "system/window.hpp",
+    ],
+    includes = ["."],
     deps = [
         ":core",
-        ":xdg_shell_protocol",
+        ":wayland",
     ],
 )
 
@@ -191,6 +184,7 @@ cc_library(
     name = "serialization",
     srcs = [
         "serialization/base64.cpp",
+        "serialization/json/blueprint.cpp",
         "serialization/json/node.cpp",
         "serialization/stream/binary.cpp",
         "serialization/stream/textual.cpp",
