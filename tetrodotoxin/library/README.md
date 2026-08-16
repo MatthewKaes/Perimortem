@@ -232,22 +232,31 @@ Plain brackets are reference access on `Access[T]`. They never substitute a
 default address:
 
 ```ttx
-access[index]                 // optional element reference
+access[index]
+access[start, count]
 ```
 
-This form does not introduce a Library `Option` Type. It is an Expression whose
-Pack produces one writable address with the exact element Type. Runtime
-bounds determine whether that address is engaged. Assignment writes through an
-engaged address and leaves the receiver unchanged otherwise. A value consumer
-reads through the same address. Use `:[...]` when a missing element should
-instead produce the Type's default value.
+This form does not introduce a Library `Option` Type. A scalar selection is an
+Expression whose Pack produces one writable address with the exact element
+Type. Runtime bounds determine whether that address is engaged. Assignment
+writes through an engaged address and leaves the receiver unchanged otherwise.
+A ranged selection produces one writable Ranged target with exactly `count`
+element slots. Its bounds decision is atomic: either the complete interval is
+engaged and assignment writes every supplied value in order, or no value is
+written. The receiving target owns complete-Pack compatibility, so Assignment
+does not inspect Index, Slice, View, Fixed, or another concrete carrier.
+`+=` and `-=` remain scalar operations. Use `:[...]` when missing elements
+should instead produce defaults.
 
 Colon bracket value access selects values. A missing scalar element yields its
 Type default. A ranged selection requires its count to fold during linking to
 one supported nonnegative integer and returns a Ranged Pack with exactly that
-many element values. It does not materialize `Fixed`, `View`, or an anonymous
-aggregate Type merely to carry the range. Neither form preserves writable
-`Access` in its result:
+many element values. Each position performs the same bounds decision as scalar
+selection and produces the exact element Type default when missing. This is
+equivalent to lowering `View::Bytes::operator[]` for each selected index rather
+than clipping the requested interval. It does not materialize `Fixed`, `View`,
+or an anonymous aggregate Type merely to carry the range. Neither form
+preserves writable `Access` in its result:
 
 ```ttx
 bytes:[4]
@@ -394,13 +403,14 @@ Cleared memory may make initialization faster, but it does not define these
 defaults. Every initializer required by the Type still runs. An empty
 `View[Unsigned_8]` is still one View value rather than a Pack with no values.
 
-A missing scalar `value:[index]` returns the element Type's default. Slice
-operates only on Types that provide contiguous storage. Postfix `option!`
-returns its payload when present and asks the same Type protocol for a default
-`T` otherwise. Applying it to an Option of an Object Type more than once can
-therefore create a different Object each time. The Option itself does not
-change. A ranged selection still returns exactly its declared count and does
-not fill missing entries with defaults.
+A missing scalar `value:[index]` returns the element Type's default. Every slot
+of `value:[start, count]` applies that same rule independently, so the result
+always contains exactly `count` values even when the requested interval crosses
+either bound. Slice operates only on Types that provide contiguous storage.
+Postfix `option!` returns its payload when present and asks the same Type
+protocol for a default `T` otherwise. Applying it to an Option of an Object Type
+more than once can therefore create a different Object each time. The Option
+itself does not change.
 
 ### Integer ranges
 
@@ -848,11 +858,14 @@ available to tools.
 
 A Function body is a Library semantic object, not a lowered control flow graph.
 Each Block retains an ordered sequence of identity-free Statement records. A
-Statement keeps the exact Local, Pack, control owner, or nested Block together
-with its one leading source-backed Documentation and the fixed lifecycle
-operations selected by grammar. It never becomes another Abstract, copies the
-owner's facts, or requires Block to inspect every concrete statement category.
-Lowering derives target blocks and branches only after the body is complete.
+Statement keeps one borrowed root together with its one leading source-backed
+Documentation and the fixed lifecycle operations selected by grammar. For an
+expression Statement, that root is the complete outermost Pack returned by the
+Expression parser. Otherwise it is the exact Local, control owner, or nested
+Block selected by grammar. Statement never becomes another Abstract, copies
+the root's facts, or requires Block to inspect every concrete statement
+category. Lowering derives target blocks and branches only after the body is
+complete.
 
 Statement processing preserves the Library transaction stages. Parsing chooses
 and retains the exact owner. Linking visits those owners in source order, makes
@@ -874,7 +887,7 @@ nested Block rather than fabricating a control-flow owner.
 `=`, `+=`, and `-=` are distinct lowest-precedence Library Expression
 operators selected by unambiguous TTX Tokens. They parse right-associatively
 after the complete tighter expression on their left and ask that exact
-Expression for one writable Type. Assignment writes the complete right Pack.
+Expression for explicit write authority over the complete right Pack.
 AddAssignment and SubtractAssignment each own their exact scalar
 read-modify-write rule rather than being modes of Assignment or hidden nested
 arithmetic Expressions. Indexed writes occur only when the selected optional

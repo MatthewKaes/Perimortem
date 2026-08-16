@@ -615,11 +615,13 @@ auto Language::Access::Slice::evaluate()
                     Expression::Error::Type::InvalidConstant, receiver);
               }
 
-              // A ranged fold represents real selected payload values.
-              // Unlike scalar safe access, the range form has no default
-              // per slot. Keep an out of bounds constant range as
-              // authored flow for lowering instead of fabricating values
-              // or attempting an unbounded allocation during compilation.
+              // The retained range promises exactly range_count outputs, so
+              // clipping would change its semantic Layout. Folding currently
+              // stops at a missing slot until the range path applies the same
+              // exact Type default query as scalar Slice for each position.
+              // Lowering must make that bounds decision per position as well,
+              // matching View::Bytes element access rather than treating the
+              // complete range as one optional reference.
               if (!index || *index > value.get_size() ||
                   *range_count > value.get_size() - *index) {
                 return Core::Option<Model::Pack&>{};

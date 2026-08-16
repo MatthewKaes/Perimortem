@@ -202,7 +202,7 @@ postfixSuffix
     : ADDRESS addressableName
     | CALL addressableName parenthesizedPack
     | TYPE_ACCESS typeName
-    | BRACKET_START expression BRACKET_END
+    | BRACKET_START expression (PACK expression)? BRACKET_END
     | SWIZZLE swizzleSelection? BRACKET_END
     | VALUE_ACCESS expression (PACK expression)? BRACKET_END
     | NOT

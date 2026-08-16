@@ -14,7 +14,7 @@
 
 namespace Tetrodotoxin::Library::Language {
 
-// Statement is one retained source-order membership, not another semantic
+// Statement is one retained membership in source order, not another semantic
 // identity. Its root is the complete outermost Pack returned for an expression
 // Statement, or the exact declaration, control owner, or nested Block selected
 // by grammar. That borrowed object remains the only Abstract in the graph. A
@@ -23,7 +23,7 @@ namespace Tetrodotoxin::Library::Language {
 //
 // Leading Documentation belongs here because it describes participation in an
 // executable sequence. The underlying semantic owner need not counterfeit a
-// declaration merely to retain that source-backed presentation fact.
+// declaration merely to retain that presentation fact backed by source.
 class Statement {
  private:
   class Continue {
