@@ -52,6 +52,23 @@ PERIMORTEM_UNIT_TEST(TtxLexical, access_operators) {
   EXPECT(token_data[20].get_code() == Code::Type::AddressOp);
 }
 
+PERIMORTEM_UNIT_TEST(TtxLexical, assignment_operators_are_complete_tokens) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(
+      arena, "left = right += add -= subtract"_view, "Test.ttx"_view);
+
+  View::Vector<Token> tokens = tokenizer.get_tokens();
+  View::Bytes source = tokenizer.get_source_text();
+  ASSERT_EQ(tokens.get_size(), Count(8));
+
+  EXPECT(tokens.get_data()[1].get_code() == Code::Type::Assign);
+  EXPECT_TEXT(tokens.get_data()[1].caculate_text(source), "="_view);
+  EXPECT(tokens.get_data()[3].get_code() == Code::Type::AddAssign);
+  EXPECT_TEXT(tokens.get_data()[3].caculate_text(source), "+="_view);
+  EXPECT(tokens.get_data()[5].get_code() == Code::Type::SubAssign);
+  EXPECT_TEXT(tokens.get_data()[5].caculate_text(source), "-="_view);
+}
+
 PERIMORTEM_UNIT_TEST(TtxLexical, divide_before_greater) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
@@ -329,46 +346,6 @@ PERIMORTEM_UNIT_TEST(TtxLexical, cursor_completed_span) {
   EXPECT(!cursor.peek(1));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, cursor_join) {
-  Allocator::Arena arena;
-  Errors errors;
-  Tokenizer tokenizer(arena, "first second"_view, "source.ttx"_view);
-  Cursor cursor(tokenizer, errors);
-  auto branch = cursor.branch();
-
-  branch.consume();
-  EXPECT_TEXT(
-      cursor.current().caculate_text(cursor.get_source_text()), "first"_view);
-  EXPECT_TEXT(
-      branch.current().caculate_text(branch.get_source_text()), "second"_view);
-
-  cursor.join(branch);
-  EXPECT_TEXT(
-      cursor.current().caculate_text(cursor.get_source_text()), "second"_view);
-}
-
-PERIMORTEM_UNIT_TEST(TtxLexical, cursor_diagnostic_branch) {
-  Allocator::Arena arena;
-  Errors published_errors;
-  Errors branch_errors;
-  Tokenizer tokenizer(arena, "first second"_view, "test.ttx"_view);
-  Cursor cursor(tokenizer, published_errors);
-
-  cursor.consume();
-  auto branch = cursor.branch(branch_errors);
-  branch.create_token_error("Provisional failure."_view);
-  branch.consume();
-
-  EXPECT(published_errors.is_empty());
-  EXPECT_EQ(branch_errors.get_size(), Count(1));
-  EXPECT_TEXT(
-      cursor.current().caculate_text(cursor.get_source_text()), "second"_view);
-  EXPECT(branch.matches(Code::Type::Terminal));
-
-  cursor.join(branch);
-  EXPECT(cursor.matches(Code::Type::Terminal));
-}
-
 PERIMORTEM_UNIT_TEST(TtxLexical, require_success) {
   Allocator::Arena arena;
   Errors errors;
@@ -396,6 +373,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, require_error) {
 
   EXPECT_NOT(required.is_valid());
   ASSERT_EQ(errors.get_size(), Count(1));
+  EXPECT_EQ(cursor.get_error_count(), Count(1));
   EXPECT(Algorithm::search(rendered, "Expected type."_view) != Count(-1));
   EXPECT(
       Algorithm::search(
@@ -712,42 +690,6 @@ PERIMORTEM_UNIT_TEST(TtxLexical, external_anchor_omits_caret) {
   EXPECT(Algorithm::search(outside, "anchor.ttx:1:1"_view) != Count(-1));
   EXPECT(Algorithm::search(outside, "5 + true"_view) != Count(-1));
   EXPECT(Algorithm::search(outside, "^"_view) == Count(-1));
-}
-
-PERIMORTEM_UNIT_TEST(TtxLexical, keyword_bail) {
-  static constexpr View::Bytes generated =
-      "Expected `expected` but got `actual`."_view;
-  Allocator::Arena render_arena;
-  Errors errors;
-
-  {
-    Allocator::Arena arena;
-    Tokenizer tokenizer(arena, "actual;"_view, "default.ttx"_view);
-    Cursor cursor(tokenizer, errors);
-    EXPECT(cursor.bail("expected"_view));
-  }
-
-  {
-    Allocator::Arena arena;
-    Tokenizer tokenizer(arena, "actual;"_view, "custom.ttx"_view);
-    Cursor cursor(tokenizer, errors);
-    EXPECT(cursor.bail("expected"_view, "Custom keyword failure."_view));
-  }
-
-  View::Bytes default_message = errors.render_message(render_arena, 0);
-  View::Bytes custom_message = errors.render_message(render_arena, 1);
-
-  ASSERT_EQ(errors.get_size(), Count(2));
-  EXPECT(
-      Algorithm::search(default_message, "default.ttx:1:1"_view) != Count(-1));
-  EXPECT(Algorithm::search(default_message, generated) != Count(-1));
-  EXPECT(Algorithm::search(default_message, "Note: "_view) == Count(-1));
-  EXPECT(Algorithm::search(custom_message, "custom.ttx:1:1"_view) != Count(-1));
-  EXPECT(
-      Algorithm::search(custom_message, "Custom keyword failure."_view) !=
-      Count(-1));
-  EXPECT(Algorithm::search(custom_message, "Note: "_view) != Count(-1));
-  EXPECT(Algorithm::search(custom_message, generated) != Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, retained_source_name) {

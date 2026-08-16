@@ -8,7 +8,6 @@
 
 #include "tetrodotoxin/language/error.hpp"
 #include "tetrodotoxin/language/resource.hpp"
-#include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/flag.hpp"
@@ -18,6 +17,7 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/generics/fixed.hpp"
 #include "tetrodotoxin/library/language/generics/view.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "ttx/lexical/lexicon.hpp"
 
 using namespace Perimortem::Core;
@@ -29,24 +29,34 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
 static auto materialize_bytes_type(
-    Library::Language::Materializations& materializations,
+    const Abstract& context,
     Cursor& cursor,
     Span span,
-    Count size) -> Option<const Type&> {
+    Count size) -> Option<const Library::Language::Model::Type&> {
   if (size == 0) {
+    auto byte = context.resolve_context("Unsigned_8"_view)
+                    .select<Library::Language::Model::Type>();
+    auto generic = context.resolve_context("View"_view)
+                       .select<Library::Language::Generic>();
+    BAIL_IF(!byte || !generic);
     Static::Vector<Library::Language::Generic::Argument, 1> arguments = {{
-      Library::Language::Generic::Argument(Library::Dialect::get_unsigned_8()),
+      Library::Language::Generic::Argument(*byte),
     }};
-    auto materialized = materializations.materialize(
-        Library::Language::Generics::View::get_formula(), arguments.get_view());
-    if (!materialized) {
-      cursor.create_expression_error(
-          span,
-          "Library could not materialize `View[Unsigned_8]` for this empty "
-          "Bytes literal."_view,
-          "Check that View and canonical Unsigned_8 are available."_view);
-    }
-    return materialized;
+    return generic->materialize(arguments.get_view())
+        .visit(
+            [](const Library::Language::Model::Type& type)
+                -> Option<const Library::Language::Model::Type&> {
+              return type;
+            },
+            [&](const Library::Language::Generic::Failure&)
+                -> Option<const Library::Language::Model::Type&> {
+              cursor.create_expression_error(
+                  span,
+                  "Library could not materialize `View[Unsigned_8]` for this "
+                  "empty Bytes literal."_view,
+                  "Check that View and canonical Unsigned_8 are available."_view);
+              return {};
+            });
   }
 
   // Keep the max array length the same as what the Bibliotheca can manage.
@@ -58,34 +68,40 @@ static auto materialize_bytes_type(
     return {};
   }
 
+  auto byte = context.resolve_context("Unsigned_8"_view)
+                  .select<Library::Language::Model::Type>();
+  auto generic = context.resolve_context("Fixed"_view)
+                     .select<Library::Language::Generic>();
+  BAIL_IF(!byte || !generic);
   Static::Vector<Library::Language::Generic::Argument, 2> arguments = {{
-    Library::Language::Generic::Argument(Library::Dialect::get_unsigned_8()),
+    Library::Language::Generic::Argument(*byte),
     Library::Language::Generic::Argument(Unsigned_64(size)),
   }};
-  auto materialized = materializations.materialize(
-      Library::Language::Generics::Fixed::get_formula(), arguments.get_view());
-  if (!materialized) {
-    auto report = cursor.create_report(span);
-    report << "Library could not materialize `Fixed[Unsigned_8, "_view
-           << Unsigned_64(size) << "]` for this Bytes literal."_view;
-    report.get_hint()
-        << "Check that Fixed and canonical Unsigned_8 are available."_view;
-  }
-
-  return materialized;
+  return generic->materialize(arguments.get_view())
+      .visit(
+          [](const Library::Language::Model::Type& type)
+              -> Option<const Library::Language::Model::Type&> { return type; },
+          [&](const Library::Language::Generic::Failure&)
+              -> Option<const Library::Language::Model::Type&> {
+            auto report = cursor.create_report(span);
+            report << "Library could not materialize `Fixed[Unsigned_8, "_view
+                   << Unsigned_64(size) << "]` for this Bytes literal."_view;
+            report.get_hint()
+                << "Check that Fixed and canonical Unsigned_8 are available."_view;
+            return {};
+          });
 }
 
 static auto construct_retained_bytes(
     Allocator::Arena& domain,
-    Library::Language::Materializations& materializations,
+    const Abstract& context,
     Cursor& cursor,
     Span span,
     View::Bytes value) -> Option<Library::Language::Constant&> {
-  auto type =
-      materialize_bytes_type(materializations, cursor, span, value.get_size());
+  auto type = materialize_bytes_type(context, cursor, span, value.get_size());
   return type.visit(
       []() -> Option<Library::Language::Constant&> { return {}; },
-      [&](const Ttx::Model::Type& type)
+      [&](const Library::Language::Model::Type& type)
           -> Option<Library::Language::Constant&> {
         Anchor anchor = Anchor::create(span.get_start(), span);
 
@@ -97,7 +113,7 @@ static auto construct_retained_bytes(
 
 static auto parse_quoted(
     Allocator::Arena& domain,
-    Library::Language::Materializations& materializations,
+    const Abstract& context,
     Cursor& cursor) -> Option<Library::Language::Constant&> {
   Span literal_span(cursor.current());
   View::Bytes text = literal_span.caculate_text(cursor.get_source_text());
@@ -113,7 +129,7 @@ static auto parse_quoted(
     }
   }
 
-  auto decoded = domain.allocate(decoded_size);
+  auto decoded = cursor.get_arena().allocate(decoded_size);
   auto* decoded_data = decoded.get_data();
   Count output = 0;
   for (Count i = 0; i < payload.get_size(); i++) {
@@ -126,13 +142,13 @@ static auto parse_quoted(
   }
 
   return construct_retained_bytes(
-      domain, materializations, cursor, literal_span,
+      domain, context, cursor, literal_span,
       View::Bytes(decoded.get_data(), decoded.get_size()));
 }
 
 static auto parse_byte_array(
     Allocator::Arena& domain,
-    Library::Language::Materializations& materializations,
+    const Abstract& context,
     Cursor& cursor) -> Option<Library::Language::Constant&> {
   Span literal_span(cursor.current());
   View::Bytes text = literal_span.caculate_text(cursor.get_source_text());
@@ -163,7 +179,7 @@ static auto parse_byte_array(
     return {};
   }
 
-  auto decoded = domain.allocate(digits / 2);
+  auto decoded = cursor.get_arena().allocate(digits / 2);
   auto* decoded_data = decoded.get_data();
   Count nibble = 0;
   Unsigned_8 byte = 0;
@@ -182,13 +198,13 @@ static auto parse_byte_array(
   }
 
   return construct_retained_bytes(
-      domain, materializations, cursor, literal_span,
+      domain, context, cursor, literal_span,
       View::Bytes(decoded.get_data(), decoded.get_size()));
 }
 
 static auto parse_embedded(
     Allocator::Arena& domain,
-    Library::Language::Materializations& materializations,
+    const Abstract& context,
     Cursor& cursor,
     const Abstract& source_context) -> Option<Library::Language::Constant&> {
   Span literal_span(cursor.current());
@@ -216,29 +232,36 @@ static auto parse_embedded(
   // Resource keeps its backing stable for the caller domain. Borrow it directly
   // so same domain imports retain one allocation for the semantic island.
   return construct_retained_bytes(
-      domain, materializations, cursor, literal_span, retained);
+      domain, context, cursor, literal_span, retained);
 }
 
 // Tokenization has already selected the Flag domain. Literal therefore uses
 // the Code directly and introduces no second truth spelling policy.
-static auto parse_flag(Allocator::Arena& domain, Cursor& cursor)
-    -> Option<Library::Language::Constant&> {
+static auto parse_flag(
+    Allocator::Arena& domain,
+    const Abstract& context,
+    Cursor& cursor) -> Option<Library::Language::Constant&> {
   Token token = cursor.consume();
   Anchor anchor = Anchor::create(token, Span(token));
 
-  const auto& type = Library::Dialect::get_bool();
+  auto type =
+      context.resolve_context("Bool"_view)
+          .select<Tetrodotoxin::Library::Language::Model::Types::Flag>();
+  BAIL_IF(!type);
   if (token.get_code() == Code::Type::True) {
     return Library::Language::Constants::True::create_authored(
-        domain, type, anchor);
+        domain, *type, anchor);
   }
 
   return Library::Language::Constants::False::create_authored(
-      domain, type, anchor);
+      domain, *type, anchor);
 }
 
 template <Count radix>
-static auto parse_unsigned(Allocator::Arena& domain, Cursor& cursor)
-    -> Option<Library::Language::Constant&> {
+static auto parse_unsigned(
+    Allocator::Arena& domain,
+    const Abstract& context,
+    Cursor& cursor) -> Option<Library::Language::Constant&> {
   Span literal_text(cursor.current());
   Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text())
                              .slice(radix == 16 ? 2 : 0));
@@ -252,17 +275,23 @@ static auto parse_unsigned(Allocator::Arena& domain, Cursor& cursor)
     return {};
   }
 
-  // Consumption follows complete validation so failure leaves the transaction
-  // at the literal that needs the diagnostic.
+  // Consumption follows complete validation so failure leaves the Cursor at
+  // the literal that needs the diagnostic.
   Anchor anchor = Anchor::create(literal_text.get_start(), literal_text);
 
   cursor.consume();
+  auto type =
+      context.resolve_context("Unsigned_64"_view)
+          .select<Tetrodotoxin::Library::Language::Model::Types::Unsigned>();
+  BAIL_IF(!type);
   return Library::Language::Constants::Unsigned::create_authored(
-      domain, Library::Dialect::get_unsigned_64(), value, anchor);
+      domain, *type, value, anchor);
 }
 
-static auto parse_signed(Allocator::Arena& domain, Cursor& cursor)
-    -> Option<Library::Language::Constant&> {
+static auto parse_signed(
+    Allocator::Arena& domain,
+    const Abstract& context,
+    Cursor& cursor) -> Option<Library::Language::Constant&> {
   Span literal_text(cursor.current(), cursor.peek(1));
   Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text()));
 
@@ -275,18 +304,24 @@ static auto parse_signed(Allocator::Arena& domain, Cursor& cursor)
     return {};
   }
 
-  // Both Tokens become durable progress only after the complete value parses.
+  // Both Tokens advance only after the complete value parses.
   Anchor anchor = Anchor::create(literal_text.get_start(), literal_text);
 
   cursor.consume();
   cursor.consume();
+  auto type =
+      context.resolve_context("Signed_64"_view)
+          .select<Tetrodotoxin::Library::Language::Model::Types::Signed>();
+  BAIL_IF(!type);
   return Library::Language::Constants::Signed::create_authored(
-      domain, Library::Dialect::get_signed_64(), value, anchor);
+      domain, *type, value, anchor);
 }
 
 template <Signed_64 token_width>
-static auto parse_real(Allocator::Arena& domain, Cursor& cursor)
-    -> Option<Library::Language::Constant&> {
+static auto parse_real(
+    Allocator::Arena& domain,
+    const Abstract& context,
+    Cursor& cursor) -> Option<Library::Language::Constant&> {
   Span literal_text(cursor.current(), cursor.peek(token_width - 1));
   Reader::Textual reader(literal_text.caculate_text(cursor.get_source_text()));
 
@@ -300,32 +335,35 @@ static auto parse_real(Allocator::Arena& domain, Cursor& cursor)
   }
 
   // A negative Real owns its sign Token too. Consume the exact lexical width
-  // only after validation preserves one atomic literal transaction.
+  // only after validation proves one complete authored Constant.
   Anchor anchor = Anchor::create(literal_text.get_start(), literal_text);
 
   for (Signed_64 i = 0; i < token_width; i++) {
     cursor.consume();
   }
 
+  auto type =
+      context.resolve_context("Real_64"_view)
+          .select<Tetrodotoxin::Library::Language::Model::Types::Real>();
+  BAIL_IF(!type);
   return Library::Language::Constants::Real::create_authored(
-      domain, Library::Dialect::get_real_64(), value, anchor);
+      domain, *type, value, anchor);
 }
 
 auto Library::Language::Parser::Literal::parse(
-    Allocator::Arena& domain,
-    Library::Language::Monograph& source,
+    const Abstract& context,
     Cursor& cursor) -> Option<Constant&> {
-  auto& materializations = source.get_materializations();
-  const Abstract& source_context = source.get_interpretation_context();
+  Allocator::Arena& domain = cursor.get_arena();
+  const Abstract& source_context = context;
 
   // A leading subtraction spelling admits only signed decimal and Real
   // literals. Without it the ordinary unsigned parser keeps its full domain.
   if (cursor.matches(Code::Type::SubOp)) {
     switch (cursor.peek(1).get_code().get_type()) {
     case Code::Type::Numeric:
-      return parse_signed(domain, cursor);
+      return parse_signed(domain, context, cursor);
     case Code::Type::Float:
-      return parse_real<2>(domain, cursor);
+      return parse_real<2>(domain, context, cursor);
     default:
       cursor.create_expression_error(
           Span(cursor.current(), cursor.peek(1)),
@@ -335,24 +373,25 @@ auto Library::Language::Parser::Literal::parse(
     }
   }
 
-  // The probe changes no caller state or durable parser fact. The helpers keep
-  // the original transaction so a signed value retains its complete Span.
+  // Literal selection observes the current Token without consuming a second
+  // grammar path. Each concrete helper advances the same Cursor so a signed
+  // value retains its complete Span and one diagnostic stream.
   switch (cursor.get_code().get_type()) {
   case Code::Type::String:
-    return parse_quoted(domain, materializations, cursor);
+    return parse_quoted(domain, context, cursor);
   case Code::Type::Bytes:
-    return parse_byte_array(domain, materializations, cursor);
+    return parse_byte_array(domain, context, cursor);
   case Code::Type::True:
   case Code::Type::False:
-    return parse_flag(domain, cursor);
+    return parse_flag(domain, context, cursor);
   case Code::Type::Numeric:
-    return parse_unsigned<10>(domain, cursor);
+    return parse_unsigned<10>(domain, context, cursor);
   case Code::Type::Hex:
-    return parse_unsigned<16>(domain, cursor);
+    return parse_unsigned<16>(domain, context, cursor);
   case Code::Type::Float:
-    return parse_real<1>(domain, cursor);
+    return parse_real<1>(domain, context, cursor);
   case Code::Type::Embedded:
-    return parse_embedded(domain, materializations, cursor, source_context);
+    return parse_embedded(domain, context, cursor, source_context);
   default:
     cursor.create_token_error(
         "Library literal parser requires a supported literal operand."_view,

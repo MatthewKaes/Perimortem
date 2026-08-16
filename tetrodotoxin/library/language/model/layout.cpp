@@ -4,9 +4,8 @@
 #include "tetrodotoxin/library/language/model/layout.hpp"
 
 #include "tetrodotoxin/library/language/model/parser/layout.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/parameter.hpp"
-#include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/addressable.hpp"
 
@@ -69,29 +68,27 @@ static auto get_slot_name(const Ttx::Concept::Layout& layout, Count index)
 }
 
 auto Language::Model::Layout::interpret_parameters(
-    Allocator::Arena& domain,
-    Monograph& source,
-    Cursor& cursor) -> Option<Layout&> {
-  return interpret(domain, source, cursor, True);
-}
-
-auto Language::Model::Layout::interpret(
-    Allocator::Arena& domain,
-    Monograph& source,
-    Cursor& cursor) -> Option<Layout&> {
-  return interpret(domain, source, cursor, False);
-}
-
-auto Language::Model::Layout::interpret(
-    Allocator::Arena& domain,
-    Monograph& source,
     Cursor& cursor,
+    const Abstract& host) -> Option<Layout&> {
+  return interpret(cursor, host, True);
+}
+
+auto Language::Model::Layout::interpret(Cursor& cursor, const Abstract& host)
+    -> Option<Layout&> {
+  return interpret(cursor, host, False);
+}
+
+auto Language::Model::Layout::interpret(
+    Cursor& cursor,
+    const Abstract& host,
     Bool parameters) -> Option<Layout&> {
-  auto transaction = cursor.branch();
-  Token opening = transaction.current();
+  // Parser::Layout owns the bracket and separator grammar. This owner retains
+  // delayed Type routes so declaration order does not become a parse rule.
+  Allocator::Arena& domain = cursor.get_arena();
+  Token opening = cursor.current();
   Managed::Vector<Slot> slots(domain);
   auto closing = Parser::Layout::parse(
-      transaction,
+      cursor,
       [&](Cursor& entry, Count index, Option<Token> name_token) -> Bool {
         if (entry.matches(Code::Type::Self)) {
           if (!parameters || index != 0 || !name_token ||
@@ -113,14 +110,13 @@ auto Language::Model::Layout::interpret(
         }
 
         Token slot_opening = name_token ? entry.peek(-3) : entry.current();
-        auto type = TypeReference::parse(source, entry);
+        auto type = TypeReference::parse(host, entry);
         BAIL_IF(!type);
 
         View::Bytes name;
         Anchor slot_anchor = type->get_anchor();
         if (name_token) {
-          name =
-              domain.proxy(name_token->caculate_text(entry.get_source_text()));
+          name = name_token->caculate_text(entry.get_source_text());
           slot_anchor = Anchor::create(
               *name_token,
               Span(slot_opening, type->get_anchor().get_span().get_end()));
@@ -132,7 +128,7 @@ auto Language::Model::Layout::interpret(
   BAIL_IF(!closing);
 
   if (parameters && !slots.is_empty() && slots.at(0).name.is_empty()) {
-    transaction.create_expression_error(
+    cursor.create_expression_error(
         slots.at(0).anchor,
         "Library Function parameters require one Named Layout."_view,
         "Use `[]` for no parameters or name every entry as `.name : Type`."_view);
@@ -142,41 +138,37 @@ auto Language::Model::Layout::interpret(
   Anchor anchor = Anchor::create(opening, Span(opening, *closing));
   Layout& layout = domain.construct_from<Layout>(
       [&]() -> Layout { return Layout(domain, slots, anchor); });
-  cursor.join(transaction);
   return layout;
 }
 
 auto Language::Model::Layout::link_parameters(
-    Tetrodotoxin::Language::Monograph& source,
-    const Type& host) -> Bool {
-  return link(source, host, True);
+    Ttx::Lexical::Cursor& cursor,
+    const Abstract& host) -> Bool {
+  return link(cursor, host, True);
 }
 
 auto Language::Model::Layout::link_types(
-    Tetrodotoxin::Language::Monograph& source,
-    const Type& host) -> Bool {
-  return link(source, host, False);
+    Ttx::Lexical::Cursor& cursor,
+    const Abstract& host) -> Bool {
+  return link(cursor, host, False);
 }
 
 auto Language::Model::Layout::link(
-    Tetrodotoxin::Language::Monograph& source,
-    const Type& host,
+    Ttx::Lexical::Cursor& cursor,
+    const Abstract& host,
     Bool parameters) -> Bool {
-  auto context = host.select<Language::Types::Composite>();
-  if (!context) {
-    source.report(
-        anchor, "Library Layout requires one exact Composite host Type."_view,
-        "Retain the descriptor on the Composite that owns its declaration."_view);
-    return False;
-  }
-
+  // Linking settles every slot before exposing the Layout. Parameter Layouts
+  // replace their authored slot with one real Parameter identity while result
+  // Layouts retain the selected Type itself.
   Bool failed = False;
   for (Count i = 0; i < slots.get_size(); i++) {
     Slot& slot = slots[i];
     const Type* type = nullptr;
     if (!slot.type_reference) {
+      // Self is derived from the exact host because its reserved spelling is a
+      // receiver role rather than a route that another context may intercept.
       if (!parameters || i != 0 || slot.name != "self"_view) {
-        source.report(
+        cursor.create_expression_error(
             slot.anchor,
             "Only a leading Function parameter may derive its Type from "
             "`self`."_view,
@@ -184,12 +176,23 @@ auto Language::Model::Layout::link(
         failed = True;
         continue;
       }
-      type = &host;
+      auto host_type = host.select<Type>();
+      if (!host_type) {
+        cursor.create_expression_error(
+            slot.anchor, "Library `self` requires one exact host Type."_view);
+        failed = True;
+        continue;
+      }
+      type = &*host_type;
     } else {
-      const Abstract& selected = context->resolve_type(*slot.type_reference);
-      auto selected_type = selected.select<Type>();
+      auto selected = slot.type_reference->resolve_authored(cursor, host);
+      if (!selected) {
+        failed = True;
+        continue;
+      }
+      auto selected_type = selected->select<Type>();
       if (!selected_type) {
-        source.report(
+        cursor.create_expression_error(
             slot.get_type_anchor(),
             "Library Layout Type route did not resolve to one stable Type."_view,
             "Publish the named Type in this logical context before linking."_view);
@@ -200,7 +203,7 @@ auto Language::Model::Layout::link(
     }
 
     if (type->get_layout().is_empty()) {
-      source.report(
+      cursor.create_expression_error(
           slot.get_type_anchor(),
           parameters
               ? "Function parameter cannot bind an empty Type Layout."_view
@@ -213,9 +216,11 @@ auto Language::Model::Layout::link(
     }
 
     if (!parameters) {
+      // Repeated phase entry may observe the same identity but must never move
+      // an already published slot to a newly selected Type.
       if (slot.edge) {
         if (&slot.edge->get() != type) {
-          source.report(
+          cursor.create_expression_error(
               slot.get_type_anchor(),
               "Repeated Layout linking selected a different Type identity."_view,
               "Preserve the original resolved Type edge across completion."_view);
@@ -230,7 +235,7 @@ auto Language::Model::Layout::link(
     if (slot.edge) {
       auto parameter = slot.edge->get().select<Language::Parameter>();
       if (!parameter || &parameter->get_type() != type) {
-        source.report(
+        cursor.create_expression_error(
             slot.get_type_anchor(),
             "Repeated parameter linking selected a different semantic edge."_view,
             "Preserve the original Parameter and resolved Type identity."_view);
@@ -242,7 +247,7 @@ auto Language::Model::Layout::link(
     auto parameter =
         Language::Parameter::create_authored(domain, slot.name, *type);
     if (!parameter) {
-      source.report(
+      cursor.create_expression_error(
           slot.anchor,
           "Function parameter could not retain its authored Layout entry."_view,
           "Use one named nonempty Type for each Function parameter."_view);
@@ -273,13 +278,13 @@ auto Language::Model::Layout::resolve_named(View::Bytes route) const
 }
 
 auto Language::Model::Layout::validate_publication(
-    Tetrodotoxin::Language::Monograph& source,
-    const Type& host) const -> Bool {
-  auto context = host.select<Language::Types::Composite>();
+    Ttx::Lexical::Cursor& cursor,
+    const Abstract& host) const -> Bool {
+  auto context = host.select<Language::Model::Type>();
   if (!is_linked() || !context) {
-    source.report(
+    cursor.create_expression_error(
         anchor,
-        "A published Function requires one linked Composite Layout."_view,
+        "A published Function requires one linked Library Type context."_view,
         "Link every authored Layout entry on its exact Function host before "
         "publication."_view);
     return False;
@@ -290,7 +295,7 @@ auto Language::Model::Layout::validate_publication(
     const Slot& slot = slots.at(i);
     auto type = select_entry_type(slot.edge->get());
     if (!type) {
-      source.report(
+      cursor.create_expression_error(
           slot.get_type_anchor(),
           "A published Function Layout retains an invalid semantic entry."_view,
           "Retain the exact Parameter or Type selected during linking."_view);
@@ -298,15 +303,22 @@ auto Language::Model::Layout::validate_publication(
       continue;
     }
 
+    // Publication repeats the authored query through the host's public graph.
+    // A private Type remains usable locally but cannot leak through a readable
+    // Function signature merely because linking retained its identity.
     Bool reachable = slot.type_reference.visit(
         [&]() {
           return Bool(i == 0 && slot.name == "self"_view && &*type == &host);
         },
         [&](const TypeReference& reference) {
-          return Bool(&context->resolve_exported_type(reference) == &*type);
+          const Abstract* selected = nullptr;
+          reference.resolve(*context).visit(
+              [&](const Abstract& resolved) { selected = &resolved; },
+              [](const TypeReference::Failure&) {});
+          return Bool(selected != nullptr && &selected->resolve() == &*type);
         });
     if (!reachable) {
-      source.report(
+      cursor.create_expression_error(
           slot.get_type_anchor(),
           "Externally readable Function publishes an unreachable Type "
           "route."_view,
@@ -409,6 +421,9 @@ auto Language::Model::Layout::fits_at(
   BAIL_IF(!has_target_segment(target, target_offset));
 
   if (!is_named()) {
+    // Positional Layouts preserve authored order. Named Layouts instead match
+    // within one equal sized target segment so names may reorder without
+    // reaching outside the receiving declaration's boundary.
     for (Count i = 0; i < get_size(); i++) {
       BAIL_IF(!fits_value(target, i, target_offset + i));
     }

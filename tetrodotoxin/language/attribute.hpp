@@ -12,8 +12,9 @@
 
 namespace Tetrodotoxin::Language {
 
-// Attribute is one authored optional prefix fact. It retains the exact scalar
-// value and source Anchor while its consumer owns the meaning of the key.
+// Attribute is one authored optional prefix fact. Its key and source shaped
+// value storage remain in the Cursor's transaction Arena with the source bytes
+// and Anchor, while its consumer owns the meaning of the key.
 class Attribute {
  public:
   using Value = Perimortem::Core::Static::Union<

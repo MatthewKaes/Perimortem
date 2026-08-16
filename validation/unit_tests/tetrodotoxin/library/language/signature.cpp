@@ -14,6 +14,7 @@
 #include "tetrodotoxin/library/language/parameter.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -61,7 +62,7 @@ PERIMORTEM_UNIT_TEST(SignatureTests, named_parameters_and_direct_results) {
       "dialect : Library;\n"
       "public inspect : func = [.input : Bool,] -> [\n"
       "    .count : Unsigned_64, .accepted : Bool,\n"
-      "  ] {}"_view;
+      "  ] { return (.count = 0, .accepted = false); }"_view;
   Workspace workspace;
   Ttx::Lexical::Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -70,7 +71,6 @@ PERIMORTEM_UNIT_TEST(SignatureTests, named_parameters_and_direct_results) {
   auto function = find_function(monograph->get_source(), "inspect"_view);
   ASSERT(function);
 
-  ASSERT(function->link_signature(*monograph));
   const Layout& parameters = function->get_parameters();
   const Layout& results = function->get_results();
 
@@ -80,14 +80,18 @@ PERIMORTEM_UNIT_TEST(SignatureTests, named_parameters_and_direct_results) {
   auto parameter = parameters.get_abstract(0);
   ASSERT(parameter && parameter->is<Language::Parameter>());
   const auto& input = static_cast<const Language::Parameter&>(*parameter);
-  EXPECT(&input.get_type() == &Dialect::get_bool());
+  EXPECT(&input.get_type() == &monograph->resolve_context("Bool"_view));
 
   ASSERT_EQ(results.get_size(), Count(2));
   ASSERT(results.get_name(0) && results.get_name(1));
   EXPECT_TEXT(*results.get_name(0), "count"_view);
   EXPECT_TEXT(*results.get_name(1), "accepted"_view);
-  EXPECT(&*results.get_abstract(0) == &Dialect::get_unsigned_64());
-  EXPECT(&*results.get_abstract(1) == &Dialect::get_bool());
+  EXPECT(
+      &*results.get_abstract(0) ==
+      &monograph->resolve_context("Unsigned_64"_view));
+  EXPECT(
+      &*results.get_abstract(1) ==
+      &monograph->resolve_context("Bool"_view));
   EXPECT(results.get_abstract(0)->is<Ttx::Model::Type>());
   EXPECT(results.get_abstract(1)->is<Ttx::Model::Type>());
 

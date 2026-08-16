@@ -22,10 +22,12 @@ namespace Tetrodotoxin::Language {
 // complete their Anchor after the concrete grammar succeeds. Synthetic
 // definitions retain the same semantic contract without fabricating lexical
 // evidence.
-class Definition : public Ttx::Concept::Authorship {
+class Definition {
  public:
-  static auto parse(Ttx::Lexical::Cursor& cursor, Ttx::Concept::Abstract& host)
-      -> Perimortem::Core::Option<Definition&>;
+  static auto parse(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Documentation& documentation,
+      Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Definition&>;
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -35,12 +37,29 @@ class Definition : public Ttx::Concept::Authorship {
       Visibility visibility,
       Ttx::Lexical::Anchor anchor) -> Definition&;
 
+  // Creates one complete Definition after a concrete grammar has accepted its
+  // exact authored form. This keeps alternate declaration orders in their
+  // concrete language without copying common declaration facts into the
+  // resulting semantic identity.
+  static auto create_authored(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Documentation& documentation,
+      Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Vector<Attribute> attributes,
+      Perimortem::Core::View::Vector<Ttx::Lexical::Token> modifiers,
+      Visibility visibility,
+      Ttx::Lexical::Token visibility_token,
+      Perimortem::Core::View::Bytes name,
+      Ttx::Lexical::Token name_token,
+      Ttx::Lexical::Token qualifier,
+      Ttx::Lexical::Anchor anchor) -> Definition&;
+
   // Completes one authored declaration with its concrete grammar range. A
   // rejected or repeated completion leaves the original source fact intact.
   auto complete(Ttx::Lexical::Token focus, Ttx::Lexical::Token closing) -> Bool;
 
   constexpr auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
+      -> const Ttx::Concept::Documentation& {
     return documentation;
   }
 
@@ -73,15 +92,7 @@ class Definition : public Ttx::Concept::Authorship {
 
   constexpr auto is_complete() const -> Bool { return anchor_complete; }
 
-  constexpr auto get_authorship() const
-      -> Perimortem::Core::Option<const Ttx::Concept::Authorship&> {
-    if (!is_authored() || !is_complete()) {
-      return {};
-    }
-    return *this;
-  }
-
-  constexpr auto is_published() const -> Bool override {
+  constexpr auto is_published() const -> Bool {
     return visibility != Visibility::Private;
   }
 
@@ -97,9 +108,7 @@ class Definition : public Ttx::Concept::Authorship {
     return qualifier;
   }
 
-  constexpr auto get_anchor() const -> Ttx::Lexical::Anchor override {
-    return anchor;
-  }
+  constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
 
   constexpr auto get_name_anchor() const -> Ttx::Lexical::Anchor {
     return Ttx::Lexical::Anchor::create(Ttx::Lexical::Span(name_token));

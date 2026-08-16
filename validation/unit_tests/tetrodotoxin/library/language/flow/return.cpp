@@ -15,6 +15,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -46,7 +47,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  return monograph && !workspace.link(errors) && !errors.is_empty();
+  return !monograph && !errors.is_empty();
 }
 
 static auto find_function(
@@ -67,8 +68,8 @@ static auto find_return(const Language::Function& function)
     -> Option<const Language::Flow::Return&> {
   auto body = function.get_body();
   BAIL_IF(!body);
-  for (const Reference<Abstract>& statement : body->get_statements()) {
-    auto returned = statement.get().select<Language::Flow::Return>();
+  for (const Language::Statement& statement : body->get_statements()) {
+    auto returned = statement.get_abstract().select<Language::Flow::Return>();
     if (returned) {
       return *returned;
     }
@@ -113,8 +114,6 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const Abstract& flow_identity = monograph->resolve_context("Flow"_view);
   ASSERT(flow_identity.is<Language::Types::Structure>());
@@ -166,8 +165,11 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
   EXPECT_EQ(called->get_results().get_size(), Count(2));
   EXPECT(empty_swizzle->get_results().is_empty());
 
-  ASSERT(monograph->link());
-  ASSERT(monograph->finalize());
+  Perimortem::Memory::Allocator::Arena transaction;
+  Tokenizer tokenizer(transaction, source, "return.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  ASSERT(monograph->link(cursor));
+  ASSERT(monograph->finalize(cursor));
   EXPECT(&*find_return(*scalar) == &*scalar_return);
   EXPECT(errors.is_empty());
 }

@@ -34,12 +34,12 @@ class Operation : public Expression {
   }
 
   auto link(
-      Tetrodotoxin::Language::Monograph& source,
+      Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,
-      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool override;
 
-  auto finalize() -> void override;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
  protected:
   Operation(
@@ -50,8 +50,8 @@ class Operation : public Expression {
 
   // Current Operations are scalar: Parser proves that each operand Pack is
   // the exact Expression retained here. This vector is the canonical ordered
-  // evaluation inventory. A future operation over genuine multi-value flow
-  // must own that Pack shape rather than flatten it into this scalar contract.
+  // evaluation inventory. A future operation over flow with several values must
+  // own that Pack shape rather than flatten it into this scalar contract.
   auto get_input(Count index) -> Perimortem::Core::Option<Expression&>;
   auto get_input(Count index) const
       -> Perimortem::Core::Option<const Expression&>;
@@ -71,11 +71,10 @@ class Operation : public Expression {
   virtual auto reaches_next_input(Count folded_input, const Expression& folded)
       const -> Bool;
 
-  // Type selection runs during link, where the source Monograph is the real
-  // transaction host. Operations that materialize a Type ask that concrete
-  // source for its capability instead of retaining a parser-time cache edge.
-  virtual auto select_type(Tetrodotoxin::Language::Monograph& source) const
-      -> Perimortem::Core::Option<const Ttx::Model::Type&> = 0;
+  // Type selection runs during link, where the exact lexical context and every
+  // input edge have completed.
+  virtual auto select_type(const Ttx::Concept::Abstract& context) const
+      -> Perimortem::Core::Option<const Model::Type&> = 0;
 
   auto evaluate() -> Perimortem::Utility::Result<
       Perimortem::Core::Option<Model::Pack&>,
@@ -85,7 +84,7 @@ class Operation : public Expression {
   Perimortem::Memory::Allocator::Arena& domain;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Expression>>
       inputs;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       result_type;
 };
 

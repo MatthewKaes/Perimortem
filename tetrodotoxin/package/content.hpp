@@ -7,9 +7,9 @@
 
 namespace Tetrodotoxin::Package {
 
-// Storage retains its normalized diagnostic path beside the bytes in the
-// Workspace Arena. Both views outlive the opened root so source and resource
-// consumers keep observing the same successful read.
+// Storage retains its normalized diagnostic path beside the bytes for the
+// opened acquisition transaction. Semantic graph owners copy any view they
+// keep beyond that transaction.
 class Content {
  public:
   constexpr Content(

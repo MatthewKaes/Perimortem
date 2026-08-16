@@ -8,12 +8,11 @@
 #include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/generic.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
 #include "tetrodotoxin/library/language/model/parser/layout.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/parser/literal.hpp"
-#include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/alias.hpp"
@@ -32,62 +31,25 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
       [](const Abstract& direct) -> const Abstract& { return direct; });
 }
 
-static auto resolve_type_reference(
-    const Language::TypeReference& reference,
-    const Abstract& root,
-    Core::Option<const Ttx::Model::Type&> caller_scope) -> const Abstract& {
-  Reference<const Abstract> selected(resolve_alias(root));
-  for (Count i = 1; i < reference.get_size(); i++) {
-    if (selected.get().is<Invalid>()) {
-      return selected.get();
-    }
-
-    Core::View::Bytes name = reference.get_name(i);
-    const Abstract& next = selected.get().visit<Language::Types::Composite>(
-        [&](const Language::Types::Composite& composite) -> const Abstract& {
-          return caller_scope.visit(
-              [&]() -> const Abstract& {
-                return composite.resolve_context(name);
-              },
-              [&](const Ttx::Model::Type& caller) -> const Abstract& {
-                return composite.resolve_type(name, caller);
-              });
-        },
-        [&](const Abstract& context) -> const Abstract& {
-          return context.resolve_context(name);
-        });
-
-    // Alias is deliberately opaque to TypeReference. Resolution is its only
-    // semantic operation, and therefore the only way a qualified edge can
-    // reveal the identity that owns the following segment.
-    selected = Reference<const Abstract>(resolve_alias(next));
-  }
-
-  return selected.get();
-}
-
-auto Language::TypeReference::parse(
-    Tetrodotoxin::Language::Monograph& source,
-    Cursor& cursor) -> Core::Option<TypeReference> {
-  auto library_source = source.select<Language::Monograph>();
-  BAIL_IF(!library_source);
-
-  auto transaction = cursor.branch();
-  auto route = parse_route(transaction);
+auto Language::TypeReference::parse(const Abstract& context, Cursor& cursor)
+    -> Core::Option<TypeReference> {
+  // Dispatch has already selected a Type edge, so malformed arguments reject
+  // that declaration instead of making the same spelling available to a
+  // competing production.
+  auto& domain = cursor.get_arena();
+  auto route = parse_route(cursor);
   BAIL_IF(!route);
 
-  if (!transaction.matches(Code::Type::BracketStart)) {
-    cursor.join(transaction);
+  if (!cursor.matches(Code::Type::BracketStart)) {
     return *route;
   }
 
-  auto& domain = transaction.get_arena();
   Memory::Managed::Vector<Argument> arguments(domain);
   auto closing = Model::Parser::Layout::parse_entries(
-      transaction, Code::Type::BracketStart, Code::Type::BracketEnd,
+      cursor, Code::Type::BracketStart, Code::Type::BracketEnd,
       [&](Cursor& entry, Count) -> Bool {
         if (entry.matches(Code::Type::Type)) {
-          auto nested = parse(source, entry);
+          auto nested = parse(context, entry);
           BAIL_IF(!nested);
 
           // A nested route is retained once in the same Arena as this authored
@@ -119,7 +81,7 @@ auto Language::TypeReference::parse(
         // Literal owns the complete concrete literal grammar and diagnostics.
         // TypeReference only distinguishes that real semantic edge from a
         // nested delayed Type route.
-        auto literal = Parser::Literal::parse(domain, *library_source, entry);
+        auto literal = Parser::Literal::parse(context, entry);
         BAIL_IF(!literal);
         arguments.insert(Argument(*literal));
         return True;
@@ -127,30 +89,19 @@ auto Language::TypeReference::parse(
   BAIL_IF(!closing);
 
   TypeReference completed(
-      route->tokens, route->names,
+      route->route,
       Anchor::create(
           route->get_anchor().get_token(),
           Span(route->get_anchor().get_token(), *closing)),
       arguments.get_view());
-  cursor.join(transaction);
   return completed;
 }
 
 auto Language::TypeReference::parse_route(Cursor& cursor)
     -> Core::Option<TypeReference> {
-  auto& domain = cursor.get_arena();
-  Memory::Managed::Vector<Token> tokens(domain);
-  Memory::Managed::Vector<Core::View::Bytes> names(domain);
-
   Token first = cursor.require(
       Code::Type::Type, "Library Type reference requires one Type name."_view);
   BAIL_IF(!first);
-
-  auto retain = [&](Token token) {
-    tokens.insert(token);
-    names.insert(domain.proxy(token.caculate_text(cursor.get_source_text())));
-  };
-  retain(first);
 
   Token last = first;
   while (cursor.matches(Code::Type::TypeAccessOp)) {
@@ -178,27 +129,59 @@ auto Language::TypeReference::parse_route(Cursor& cursor)
       return {};
     }
 
-    retain(segment);
     last = segment;
   }
 
+  Count start = first.get_offset();
+  Count end = Count(last.get_offset()) + Count(last.get_size());
   return TypeReference(
-      tokens.get_view(), names.get_view(),
+      cursor.get_source_text().slice(start, end - start),
       Anchor::create(first, Span(first, last)));
+}
+
+auto Language::TypeReference::get_size() const -> Count {
+  if (route.is_empty()) {
+    return 0;
+  }
+
+  Count segments = 1;
+  for (Count index = 0; index + 1 < route.get_size(); index++) {
+    if (route[index] == ':' && route[index + 1] == ':') {
+      segments++;
+      index++;
+    }
+  }
+  return segments;
+}
+
+auto Language::TypeReference::get_name(Count requested) const
+    -> Core::View::Bytes {
+  Count segment = 0;
+  Count start = 0;
+  for (Count index = 0; index <= route.get_size(); index++) {
+    Bool end = index == route.get_size();
+    Bool separator = !end && index + 1 < route.get_size() &&
+                     route[index] == ':' && route[index + 1] == ':';
+    if (!end && !separator) {
+      continue;
+    }
+    if (segment == requested) {
+      return route.slice(start, index - start);
+    }
+    if (end) {
+      return {};
+    }
+    segment++;
+    index++;
+    start = index + 1;
+  }
+
+  return {};
 }
 
 auto Language::TypeReference::matches_route(const TypeReference& other) const
     -> Bool {
-  if (get_size() != other.get_size()) {
-    return False;
-  }
-
-  for (Count i = 0; i < get_size(); i++) {
-    if (get_name(i) != other.get_name(i)) {
-      return False;
-    }
-  }
-  return True;
+  return route == other.route;
 }
 
 auto Language::TypeReference::get_argument_reference(Count index) const
@@ -210,103 +193,208 @@ auto Language::TypeReference::get_argument_reference(Count index) const
   return *reference;
 }
 
-auto Language::TypeReference::resolve_route(const Abstract& context) const
-    -> const Abstract& {
-  const Abstract& root = resolve_alias(context.resolve_context(get_root()));
-  return resolve_type_reference(*this, root, {});
-}
-
-auto Language::TypeReference::resolve_route_from(const Abstract& root) const
-    -> const Abstract& {
-  return resolve_type_reference(*this, root, {});
-}
-
-auto Language::TypeReference::resolve_route_from(
-    const Abstract& root,
-    const Ttx::Model::Type& caller_scope) const -> const Abstract& {
-  return resolve_type_reference(*this, root, caller_scope);
-}
-
-auto Language::TypeReference::resolve_selected(
-    const Abstract& selected,
-    const Ttx::Model::Type& caller_scope,
-    Bool exported) const -> const Abstract& {
-  if (!arguments) {
-    return selected.visit<Ttx::Model::Type>(
-        [](const Ttx::Model::Type& type) -> const Abstract& { return type; },
-        [](const Abstract&) -> const Abstract& {
-          return Invalid::get_invalid();
-        });
+static auto map_failure(
+    Anchor anchor,
+    const Language::Generic::Failure& failure)
+    -> Language::TypeReference::Failure {
+  using GenericFailure = Language::Generic::Failure;
+  using ReferenceFailure = Language::TypeReference::Failure;
+  switch (failure.get_type()) {
+  case GenericFailure::Type::Unavailable:
+    return ReferenceFailure(ReferenceFailure::Type::Unavailable, anchor);
+  case GenericFailure::Type::Arity:
+    return ReferenceFailure(ReferenceFailure::Type::Arity, anchor);
+  case GenericFailure::Type::Parameter:
+    return ReferenceFailure(
+        ReferenceFailure::Type::Parameter, anchor, failure.get_argument());
+  case GenericFailure::Type::Recursive:
+    return ReferenceFailure(ReferenceFailure::Type::Recursive, anchor);
+  case GenericFailure::Type::Formula:
+    return ReferenceFailure(ReferenceFailure::Type::Formula, anchor);
   }
 
-  return selected.visit<Generic>(
-      [&](const Generic& generic) -> const Abstract& {
-        auto scope = caller_scope.select<Types::Composite>();
-        if (!scope) {
-          return Invalid::get_invalid();
-        }
+  return ReferenceFailure(ReferenceFailure::Type::Formula, anchor);
+}
 
-        // Resolution needs one transient real Layout. Materializations copies
-        // the normalized semantic key into its Arena before this local storage
-        // leaves; TypeReference retains neither a cache nor a mutable link
-        // buffer. Every nested route keeps the original caller authority.
-        Memory::Dynamic::Vector<Reference<const Abstract>> linked(
-            arguments->get_size());
-        const auto* argument_data = arguments->get_data();
-        for (Count i = 0; i < arguments->get_size(); i++) {
-          const Argument& argument = argument_data[i];
+auto Language::TypeReference::resolve_with_root(
+    const Abstract& context,
+    Root root) const -> Resolution {
+  // Lexical authority applies only to the unqualified root. Every explicit
+  // suffix is an ordinary public context query on the identity just selected.
+  const Abstract* selected = &context.resolve_context(get_root());
+  if (root == Root::Lexical) {
+    auto type = context.select<Language::Model::Type>();
+    if (type) {
+      selected = &type->resolve_lexical_context(get_root());
+    }
+  }
+  selected = &resolve_alias(*selected);
+  if (selected->is<Invalid>()) {
+    return Failure(Failure::Type::Route, anchor, 0);
+  }
+
+  for (Count i = 1; i < get_size(); i++) {
+    // TypeReference performs the explicit Alias resolution required before a
+    // selected target may receive the next ordinary context query.
+    selected = &resolve_alias(selected->resolve_context(get_name(i)));
+    if (selected->is<Invalid>()) {
+      return Failure(Failure::Type::Route, anchor, i);
+    }
+  }
+
+  if (!arguments) {
+    return *selected;
+  }
+
+  auto generic = selected->select<Generic>();
+  if (!generic) {
+    return Failure(Failure::Type::Generic, anchor);
+  }
+
+  // Resolution needs one transient real Layout. Generic copies its normalized
+  // semantic key into its own Arena before this local storage leaves. Nested
+  // routes use the same root policy so arguments cannot acquire extra access.
+  Memory::Dynamic::Vector<Reference<const Abstract>> linked(
+      arguments->get_size());
+  const auto* argument_data = arguments->get_data();
+  for (Count i = 0; i < arguments->get_size(); i++) {
+    const Argument& argument = argument_data[i];
+    const TypeReference* reference = argument.find<const TypeReference&>();
+    if (reference != nullptr) {
+      const Abstract* nested = nullptr;
+      Core::Option<Failure> nested_failure;
+      reference->resolve_with_root(context, root)
+          .visit(
+              [&](const Abstract& resolved) {
+                nested = &resolve_alias(resolved);
+              },
+              [&](const Failure& failure) { nested_failure = failure; });
+      if (nested_failure) {
+        return *nested_failure;
+      }
+      if (nested == nullptr || !nested->is<Language::Model::Type>()) {
+        return Failure(Failure::Type::Argument, anchor, i);
+      }
+      linked.insert(*nested);
+      continue;
+    }
+
+    const Abstract* literal = argument.find<const Abstract&>();
+    if (literal == nullptr) {
+      return Failure(Failure::Type::Argument, anchor, i);
+    }
+    linked.insert(*literal);
+  }
+
+  Ttx::Model::Layouts::Fluid layout(linked.get_view());
+  return generic->materialize(layout).visit(
+      [](const Language::Model::Type& type) -> Resolution { return type; },
+      [&](const Generic::Failure& failure) -> Resolution {
+        // Generic owns source free formula failures. TypeReference maps the
+        // parameter index back to authored syntax because it owns those
+        // Anchors.
+        Anchor failure_anchor = anchor;
+        Count index = failure.get_argument();
+        if (failure.get_type() == Generic::Failure::Type::Parameter &&
+            index < arguments->get_size()) {
+          const Argument& argument = arguments->get_data()[index];
           const TypeReference* reference =
               argument.find<const TypeReference&>();
           if (reference != nullptr) {
-            const Abstract& nested =
-                exported ? scope->resolve_exported_type(*reference)
-                         : scope->resolve_type(*reference);
-            const Abstract& resolved = resolve_alias(nested);
-            if (!resolved.is<Ttx::Model::Type>()) {
-              return Invalid::get_invalid();
+            failure_anchor = reference->get_anchor();
+          } else {
+            const Abstract* literal = argument.find<const Abstract&>();
+            auto expression = literal == nullptr
+                                  ? Core::Option<const Expression&>()
+                                  : literal->select<Expression>();
+            if (expression && expression->get_anchor()) {
+              failure_anchor = *expression->get_anchor();
             }
-            linked.insert(resolved);
-            continue;
           }
-
-          const Abstract* literal = argument.find<const Abstract&>();
-          if (literal == nullptr) {
-            return Invalid::get_invalid();
-          }
-          linked.insert(*literal);
         }
-
-        Ttx::Model::Layouts::Fluid layout(linked.get_view());
-        const Abstract* host = &caller_scope;
-        while (auto composite = host->select<Types::Composite>()) {
-          host = &composite->get_host();
-        }
-
-        auto library_source = host->select<Language::Monograph>();
-        if (!library_source) {
-          return Invalid::get_invalid();
-        }
-        auto& materializations = library_source->get_materializations();
-        auto materialized = materializations.materialize(generic, layout);
-        return materialized.visit(
-            []() -> const Abstract& { return Invalid::get_invalid(); },
-            [](const Ttx::Model::Type& type) -> const Abstract& {
-              return type;
-            });
-      },
-      [](const Abstract&) -> const Abstract& {
-        return Invalid::get_invalid();
+        return map_failure(failure_anchor, failure);
       });
 }
 
-auto Language::TypeReference::resolve_type(
-    const Abstract& selected,
-    const Ttx::Model::Type& caller_scope) const -> const Abstract& {
-  return resolve_selected(selected, caller_scope, False);
+auto Language::TypeReference::resolve(const Abstract& context) const
+    -> Resolution {
+  return resolve_with_root(context, Root::Context);
 }
 
-auto Language::TypeReference::resolve_exported_type(
-    const Abstract& selected,
-    const Ttx::Model::Type& caller_scope) const -> const Abstract& {
-  return resolve_selected(selected, caller_scope, True);
+auto Language::TypeReference::resolve_lexical(const Abstract& context) const
+    -> Resolution {
+  return resolve_with_root(context, Root::Lexical);
+}
+
+auto Language::TypeReference::resolve_authored(
+    Cursor& cursor,
+    const Abstract& context) const -> Core::Option<const Abstract&> {
+  Core::Option<const Abstract&> selected;
+  resolve_lexical(context).visit(
+      [&](const Abstract& resolved) { selected = resolved; },
+      [&](const Failure& failure) { report(cursor, failure); });
+  return selected;
+}
+
+auto Language::TypeReference::report(Cursor& cursor, const Failure& failure)
+    const -> void {
+  switch (failure.get_type()) {
+  case Failure::Type::Route: {
+    auto report = cursor.create_report(failure.get_anchor());
+    report << "Library route segment "_view
+           << Unsigned_64(failure.get_index() + 1)
+           << " did not resolve in its selected context."_view;
+    report.get_hint()
+        << "Publish that exact name before linking this declaration."_view;
+    return;
+  }
+  case Failure::Type::Argument: {
+    auto report = cursor.create_report(failure.get_anchor());
+    report << "Library Generic argument "_view
+           << Unsigned_64(failure.get_index() + 1)
+           << " did not resolve to one Library Type."_view;
+    report.get_hint()
+        << "Use a Type route or one literal accepted by this Generic."_view;
+    return;
+  }
+  case Failure::Type::Generic:
+    cursor.create_expression_error(
+        failure.get_anchor(),
+        "Library Type arguments require a Generic at the route terminal."_view,
+        "Remove the arguments or select one named Generic."_view);
+    return;
+  case Failure::Type::Unavailable:
+    cursor.create_expression_error(
+        failure.get_anchor(),
+        "Library Generic is not ready for materialization."_view,
+        "Complete the selected Generic before applying arguments."_view);
+    return;
+  case Failure::Type::Arity:
+    cursor.create_expression_error(
+        failure.get_anchor(),
+        "Library Generic application has the wrong number of arguments."_view,
+        "Supply exactly the parameters declared by the selected Generic."_view);
+    return;
+  case Failure::Type::Parameter: {
+    auto report = cursor.create_report(failure.get_anchor());
+    report << "Library Generic argument "_view
+           << Unsigned_64(failure.get_index() + 1)
+           << " does not satisfy its parameter category."_view;
+    report.get_hint()
+        << "Use the Type or scalar Constant category required at this position."_view;
+    return;
+  }
+  case Failure::Type::Recursive:
+    cursor.create_expression_error(
+        failure.get_anchor(),
+        "Library Generic application is recursively self dependent."_view,
+        "Break the materialization cycle with one already completed Type."_view);
+    return;
+  case Failure::Type::Formula:
+    cursor.create_expression_error(
+        failure.get_anchor(),
+        "Library Generic rejected this argument combination."_view,
+        "Use values admitted by the selected Generic formula."_view);
+    return;
+  }
 }

@@ -5,8 +5,6 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
@@ -17,6 +15,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library;
@@ -74,8 +73,6 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const Abstract& packet_identity =
       monograph->get_source().resolve_context("Packet"_view);
@@ -98,8 +95,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
 
   auto statements = populated.get_statements();
   ASSERT_EQ(statements.get_size(), Count(2));
-  const Abstract& first = statements.get_data()[0].get();
-  const Abstract& second = statements.get_data()[1].get();
+  const Abstract& first = statements.get_data()[0].get_abstract();
+  const Abstract& second = statements.get_data()[1].get_abstract();
   EXPECT(&first != &second);
   ASSERT(first.is<Language::Access::Call>());
   ASSERT(second.is<Language::Flow::Return>());
@@ -115,34 +112,90 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
   ASSERT(parameter);
   EXPECT(&populated.resolve_context("input"_view) == &*parameter);
 
-  ASSERT(monograph->link());
-  ASSERT(monograph->finalize());
+  Perimortem::Memory::Allocator::Arena transaction;
+  Tokenizer tokenizer(transaction, source, "block.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  ASSERT(monograph->link(cursor));
+  ASSERT(monograph->finalize(cursor));
   auto repeated = populated.get_statements();
   ASSERT_EQ(repeated.get_size(), Count(2));
-  EXPECT(&repeated.get_data()[0].get() == &first);
-  EXPECT(&repeated.get_data()[1].get() == &second);
+  EXPECT(&repeated.get_data()[0].get_abstract() == &first);
+  EXPECT(&repeated.get_data()[1].get_abstract() == &second);
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(BlockTests, non_invocations_are_not_statements) {
-  static constexpr Static::Vector<View::Bytes, 6> sources = {{
-    "// Constant statement.\ndialect : Library; private invalid : func = [] -> [] { true; }"_view,
-    "// Operation statement.\ndialect : Library; private invalid : func = [] -> [] { 1 + 2; }"_view,
-    "// Address statement.\ndialect : Library; public Packet : struct { public value : Bool; } private packet : Packet; private invalid : func = [] -> [] { packet.value; }"_view,
-    "// Type statement.\ndialect : Library; private invalid : func = [] -> [] { Bool; }"_view,
-    "// Composed invocation Pack.\ndialect : Library; private Packet : struct { private touch : func = [] -> [] {} } private invalid : func = [] -> [] { (Packet -> touch(), Packet -> touch()); }"_view,
-    "// Named invocation Pack.\ndialect : Library; private Packet : struct { private touch : func = [] -> [] {} } private invalid : func = [] -> [] { (.result = Packet -> touch()); }"_view,
-  }};
+PERIMORTEM_UNIT_TEST(BlockTests, free_expressions_are_statements) {
+  static constexpr View::Bytes source =
+      "// Free expressions.\n"
+      "dialect : Library;\n"
+      "public Packet : struct { public state value : Bool; }\n"
+      "private packet : Packet;\n"
+      "private run : func = [] -> [] {\n"
+      "  true;\n"
+      "  1 + 2;\n"
+      "  packet.value;\n"
+      "  Bool;\n"
+      "  return;\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
 
-  for (Count i = 0; i < sources.get_size(); i++) {
-    Workspace workspace;
-    Errors errors;
-    EXPECT_NOT(interpret(workspace, errors, sources[i]));
-    EXPECT_NOT(errors.is_empty());
-    EXPECT(
-        &workspace.resolve_context("BlockTest"_view) ==
-        &Invalid::get_invalid());
+  auto run = find_function(monograph->get_source(), "run"_view);
+  ASSERT(run && run->get_body());
+  auto statements = run->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(5));
+  for (Count index = 0; index < 4; index++) {
+    EXPECT(statements.get_data()[index]
+               .get_abstract()
+               .is<Language::Model::Pack>());
   }
+  EXPECT(statements.get_data()[4].get_abstract().is<Language::Flow::Return>());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(BlockTests, nested_block_and_documentation_are_retained) {
+  static constexpr View::Bytes source =
+      "// Nested Block.\n"
+      "dialect : Library;\n"
+      "private run : func = [] -> [] {\n"
+      "  // Nested execution scope.\n"
+      "  {\n"
+      "    // Discarded value.\n"
+      "    true;\n"
+      "  }\n"
+      "  return;\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  auto run = find_function(monograph->get_source(), "run"_view);
+  ASSERT(run && run->get_body());
+  auto statements = run->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(2));
+  const Language::Statement& nested_statement = statements.get_data()[0];
+  auto nested = nested_statement.get_abstract().select<Language::Flow::Block>();
+  ASSERT(nested);
+  EXPECT_EQ(nested_statement.get_documentation().line_count(), Count(1));
+  EXPECT_TEXT(
+      nested_statement.get_documentation().get_line(0),
+      "Nested execution scope."_view);
+
+  auto nested_statements = nested->get_statements();
+  ASSERT_EQ(nested_statements.get_size(), Count(1));
+  EXPECT(nested_statements.get_data()[0]
+             .get_abstract()
+             .is<Language::Model::Pack>());
+  EXPECT_EQ(
+      nested_statements.get_data()[0].get_documentation().line_count(),
+      Count(1));
+  EXPECT_TEXT(
+      nested_statements.get_data()[0].get_documentation().get_line(0),
+      "Discarded value."_view);
+  EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(BlockTests, failed_scope_is_not_published) {

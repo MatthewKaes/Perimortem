@@ -219,6 +219,14 @@ auto Process::run(const Request& request) -> Observation {
   }
 
   if (child == 0) {
+    if (input_pipe.input < 0 || output_pipe.output < 0 ||
+        error_pipe.output < 0) {
+      close_pipe(input_pipe);
+      close_pipe(output_pipe);
+      close_pipe(error_pipe);
+      _exit(126);
+    }
+
     Signed_32 input_ready = dup2(input_pipe.input, STDIN_FILENO);
     Signed_32 output_ready = dup2(output_pipe.output, STDOUT_FILENO);
     Signed_32 error_ready = dup2(error_pipe.output, STDERR_FILENO);

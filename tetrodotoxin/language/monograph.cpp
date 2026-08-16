@@ -13,33 +13,35 @@ Language::Monograph::~Monograph() {}
 
 Language::Monograph::Monograph(
     Allocator::Arena& domain,
-    const Documentation& documentation)
-    : Monograph(
-          domain,
-          documentation,
-          domain.construct<Language::Diagnostics>(domain)) {}
-
-Language::Monograph::Monograph(
-    Allocator::Arena& domain,
+    const Abstract& language,
     const Documentation& documentation,
-    Language::Diagnostics& diagnostics)
-    : domain(domain), documentation(documentation), diagnostics(diagnostics) {}
+    Abstract& context)
+    : domain(domain),
+      documentation(documentation),
+      context(context),
+      language(language) {}
 
-auto Language::Monograph::link() -> Bool {
+auto Language::Monograph::get_layer(const Abstract& requested) const
+    -> Option<const Monograph&> {
+  if (&requested == &language) {
+    return *this;
+  }
+
+  return {};
+}
+
+auto Language::Monograph::link(Cursor&) -> Bool {
   return True;
 }
 
-auto Language::Monograph::finalize() -> Bool {
+auto Language::Monograph::finalize(Cursor&) -> Bool {
   return True;
 }
 
-auto Language::Monograph::report(
-    Perimortem::Core::Option<Anchor> anchor,
-    View::Bytes message,
-    View::Bytes hint) -> void {
-  diagnostics.report(anchor, message, hint);
-}
-
-auto Language::Monograph::get_diagnostics() const -> View::Vector<Diagnostic> {
-  return diagnostics.get_values();
+auto Language::Monograph::resolve_context(View::Bytes route) const
+    -> const Abstract& {
+  // A base Monograph contributes no synthetic lookup surface. Concrete roots
+  // answer their own names first and use this boundary only for the borrowed
+  // outer context supplied by the source transaction.
+  return context.resolve_context(route);
 }

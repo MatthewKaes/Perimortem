@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/access/slice.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/option.hpp"
@@ -48,37 +49,14 @@ static Harness LibrarySlice = {
   .name = "Tetrodotoxin::Library::Language::Access::Slice"_view,
 };
 
-class ValueMonograph : public Tetrodotoxin::Language::Monograph {
- public:
-  ValueMonograph(Allocator::Arena& domain)
-      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
-
-  constexpr auto get_name() const -> View::Bytes override {
-    return "ValueMonograph"_view;
-  }
-
-  constexpr auto resolve_context(View::Bytes) const
-      -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
-};
-
-static auto create_source(
+static auto link_expression(
     Allocator::Arena& domain,
-    Tetrodotoxin::Library::Dialect& dialect,
-    Abstract& context) -> Option<Monograph&> {
+    Expression& expression,
+    const Abstract& context) -> Bool {
   Ttx::Lexical::Errors errors;
-  Ttx::Lexical::Tokenizer tokenizer(domain, {}, "value-source.ttx"_view);
+  Ttx::Lexical::Tokenizer tokenizer(domain, {}, "slice-expression.ttx"_view);
   Ttx::Lexical::Cursor cursor(tokenizer, errors);
-  auto retained = dialect.interpret(
-      domain, cursor, Documentation::get_empty(),
-      Ttx::Lexical::Anchor::create({}), context);
-  BAIL_IF(!retained || !errors.is_empty() || !retained->is<Monograph>());
-  return static_cast<Monograph&>(*retained);
-}
-
-static auto link_expression(Expression& expression, Monograph& source) -> Bool {
-  return expression.link(source, Invalid::get_invalid());
+  return expression.link(cursor, context);
 }
 
 static auto create_slice(
@@ -118,10 +96,9 @@ class ValueExpression : public Expression {
 
 class ValueConstant : public Constant {
  public:
-  explicit ValueConstant(const Ttx::Model::Type& type)
-      : Constant({}), type(type) {}
+  explicit ValueConstant(const Model::Type& type) : Constant({}), type(type) {}
 
-  constexpr auto get_type() const -> const Ttx::Model::Type& override {
+  constexpr auto get_type() const -> const Model::Type& override {
     return type;
   }
   constexpr auto equals(const Constant& rhs) const -> Bool override {
@@ -129,7 +106,7 @@ class ValueConstant : public Constant {
   }
 
  private:
-  const Ttx::Model::Type& type;
+  const Model::Type& type;
 };
 
 class ValueFoldOperation : public Operation {
@@ -138,7 +115,7 @@ class ValueFoldOperation : public Operation {
       Allocator::Arena& domain,
       Expression& input,
       Constant& result,
-      const Ttx::Model::Type& type,
+      const Model::Type& type,
       Bool fails = False)
       : Operation(
             domain,
@@ -163,14 +140,14 @@ class ValueFoldOperation : public Operation {
     return result;
   }
 
-  auto select_type(Tetrodotoxin::Language::Monograph&) const
-      -> Option<const Ttx::Model::Type&> override {
+  auto select_type(const Abstract&) const
+      -> Option<const Model::Type&> override {
     return type;
   }
 
  private:
   Constant& result;
-  const Ttx::Model::Type& type;
+  const Model::Type& type;
   Bool fails;
 };
 
@@ -264,12 +241,9 @@ static auto supplies_self(const Slice& value, Count size) -> Bool {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type_selection) {
   Allocator::Arena domain;
-  ValueMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  auto retained_source = create_source(domain, dialect, context);
-  ASSERT(retained_source);
-  auto& source = *retained_source;
-  const auto& element = Tetrodotoxin::Library::Dialect::get_unsigned_8();
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
+  const auto& element = resolve_library_unsigned(source, "Unsigned_8"_view);
   Types::Signed_64 integer;
   Types::Fixed fixed("Fixed[Unsigned_8,1]"_view, element, 1);
   Types::View view("View[Unsigned_8]"_view, element);
@@ -286,9 +260,9 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type_selection) {
   EXPECT(fixed_index.is<Expression>());
   EXPECT_NOT(fixed_index.is<Operation>());
   EXPECT(fixed_index.get_anchor());
-  EXPECT(link_expression(fixed_index, source));
-  EXPECT(link_expression(view_index, source));
-  EXPECT(link_expression(access_index, source));
+  EXPECT(link_expression(domain, fixed_index, source));
+  EXPECT(link_expression(domain, view_index, source));
+  EXPECT(link_expression(domain, access_index, source));
 
   EXPECT(&fixed_index.get_type() == &element);
   EXPECT(&view_index.get_type() == &element);
@@ -300,11 +274,8 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type_selection) {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, range_pack_shape) {
   Allocator::Arena domain;
-  ValueMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  auto retained_source = create_source(domain, dialect, context);
-  ASSERT(retained_source);
-  auto& source = *retained_source;
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 element;
   Types::Signed_64 integer;
   Types::Unsigned_64 unsigned_integer;
@@ -338,15 +309,15 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, range_pack_shape) {
   auto& empty = create_slice(domain, fixed_receiver, start, empty_size);
 
   EXPECT(fixed_dynamic.get_type().resolve().is<Invalid>());
-  EXPECT(!link_expression(fixed_dynamic, source));
-  EXPECT(!link_expression(view_dynamic, source));
-  EXPECT(!link_expression(access_dynamic, source));
-  EXPECT(link_expression(constant_size, source));
-  EXPECT(link_expression(folded_size, source));
-  EXPECT(link_expression(view_size, source));
-  EXPECT(link_expression(access_size, source));
-  EXPECT(link_expression(single_size, source));
-  EXPECT(link_expression(empty, source));
+  EXPECT(!link_expression(domain, fixed_dynamic, source));
+  EXPECT(!link_expression(domain, view_dynamic, source));
+  EXPECT(!link_expression(domain, access_dynamic, source));
+  EXPECT(link_expression(domain, constant_size, source));
+  EXPECT(link_expression(domain, folded_size, source));
+  EXPECT(link_expression(domain, view_size, source));
+  EXPECT(link_expression(domain, access_size, source));
+  EXPECT(link_expression(domain, single_size, source));
+  EXPECT(link_expression(domain, empty, source));
 
   auto folded_result = folded_size.fold();
 
@@ -370,12 +341,9 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, range_pack_shape) {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_fold_and_range_provenance) {
   Allocator::Arena domain;
-  ValueMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  auto retained_source = create_source(domain, dialect, context);
-  ASSERT(retained_source);
-  auto& source = *retained_source;
-  const auto& element = Tetrodotoxin::Library::Dialect::get_unsigned_8();
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
+  const auto& element = resolve_library_unsigned(source, "Unsigned_8"_view);
   Types::Unsigned_64 integer;
   Types::Fixed bytes_type("Fixed[Unsigned_8,6]"_view, element, 6);
   auto& bytes =
@@ -392,11 +360,11 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_fold_and_range_provenance) {
   auto& terminal_empty = create_slice(domain, bytes, six, zero);
 
   EXPECT(index.get_type().resolve().is<Invalid>());
-  EXPECT(link_expression(index, source));
-  EXPECT(link_expression(full, source));
-  EXPECT(link_expression(interior, source));
-  EXPECT(link_expression(empty, source));
-  EXPECT(link_expression(terminal_empty, source));
+  EXPECT(link_expression(domain, index, source));
+  EXPECT(link_expression(domain, full, source));
+  EXPECT(link_expression(domain, interior, source));
+  EXPECT(link_expression(domain, empty, source));
+  EXPECT(link_expression(domain, terminal_empty, source));
 
   auto indexed = selected(index.fold());
   auto full_value = selected_pack(full.fold());
@@ -434,11 +402,8 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_fold_and_range_provenance) {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, partial_folding) {
   Allocator::Arena domain;
-  ValueMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  auto retained_source = create_source(domain, dialect, context);
-  ASSERT(retained_source);
-  auto& source = *retained_source;
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 element;
   Types::Unsigned_64 integer;
   Types::Fixed fixed("Fixed[Unsigned_8,4]"_view, element, 4);
@@ -455,10 +420,10 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, partial_folding) {
   auto& size_partial = create_slice(domain, bytes, zero, dynamic_size);
 
   EXPECT(receiver_partial.get_type().resolve().is<Invalid>());
-  EXPECT(link_expression(receiver_partial, source));
-  EXPECT(link_expression(index_partial, source));
-  EXPECT(link_expression(start_partial, source));
-  EXPECT(!link_expression(size_partial, source));
+  EXPECT(link_expression(domain, receiver_partial, source));
+  EXPECT(link_expression(domain, index_partial, source));
+  EXPECT(link_expression(domain, start_partial, source));
+  EXPECT(!link_expression(domain, size_partial, source));
 
   EXPECT(is_dynamic(receiver_partial.fold()));
   EXPECT(is_dynamic(index_partial.fold()));
@@ -472,12 +437,9 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, partial_folding) {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, operand_rejection_and_safe_bounds) {
   Allocator::Arena domain;
-  ValueMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  auto retained_source = create_source(domain, dialect, context);
-  ASSERT(retained_source);
-  auto& source = *retained_source;
-  const auto& element = Tetrodotoxin::Library::Dialect::get_unsigned_8();
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
+  const auto& element = resolve_library_unsigned(source, "Unsigned_8"_view);
   Types::Unsigned_64 integer;
   Types::Signed_64 signed_integer;
   Types::Boolean flag_type;
@@ -507,18 +469,18 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, operand_rejection_and_safe_bounds) {
   auto& size_bounds = create_slice(domain, bytes, two, two);
 
   EXPECT(invalid_receiver.get_type().resolve().is<Invalid>());
-  EXPECT(!link_expression(invalid_receiver, source));
-  EXPECT(!link_expression(invalid_operand, source));
-  EXPECT(!link_expression(invalid_count, source));
-  EXPECT(link_expression(negative_index, source));
-  EXPECT(link_expression(maximum_index, source));
-  EXPECT(link_expression(maximum_range, source));
-  EXPECT(link_expression(negative_start, source));
-  EXPECT(!link_expression(negative_size, source));
-  EXPECT(link_expression(index_bounds, source));
-  EXPECT(link_expression(nested_index_bounds, source));
-  EXPECT(link_expression(start_bounds, source));
-  EXPECT(link_expression(size_bounds, source));
+  EXPECT(!link_expression(domain, invalid_receiver, source));
+  EXPECT(!link_expression(domain, invalid_operand, source));
+  EXPECT(!link_expression(domain, invalid_count, source));
+  EXPECT(link_expression(domain, negative_index, source));
+  EXPECT(link_expression(domain, maximum_index, source));
+  EXPECT(link_expression(domain, maximum_range, source));
+  EXPECT(link_expression(domain, negative_start, source));
+  EXPECT(!link_expression(domain, negative_size, source));
+  EXPECT(link_expression(domain, index_bounds, source));
+  EXPECT(link_expression(domain, nested_index_bounds, source));
+  EXPECT(link_expression(domain, start_bounds, source));
+  EXPECT(link_expression(domain, size_bounds, source));
 
   EXPECT(is_dynamic(invalid_receiver.fold()));
   EXPECT(is_dynamic(invalid_operand.fold()));
@@ -565,15 +527,12 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, operand_rejection_and_safe_bounds) {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_defaults) {
   Allocator::Arena domain;
-  ValueMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  auto retained_source = create_source(domain, dialect, context);
-  ASSERT(retained_source);
-  auto& source = *retained_source;
-  const auto& boolean = Tetrodotoxin::Library::Dialect::get_bool();
-  const auto& signed_integer = Tetrodotoxin::Library::Dialect::get_signed_64();
-  const auto& real = Tetrodotoxin::Library::Dialect::get_real_64();
-  const auto& index_type = Tetrodotoxin::Library::Dialect::get_unsigned_64();
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
+  const auto& boolean = resolve_library_flag(source);
+  const auto& signed_integer = resolve_library_signed(source, "Signed_64"_view);
+  const auto& real = resolve_library_real(source, "Real_64"_view);
+  const auto& index_type = resolve_library_unsigned(source, "Unsigned_64"_view);
   Types::Fixed booleans("Fixed[Bool,1]"_view, boolean, 1);
   Types::Fixed signed_values("Fixed[Signed_64,1]"_view, signed_integer, 1);
   Types::Fixed real_values("Fixed[Real_64,1]"_view, real, 1);
@@ -588,9 +547,9 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_defaults) {
   auto& signed_default = create_slice(domain, signed_bytes, zero);
   auto& real_default = create_slice(domain, real_bytes, zero);
 
-  EXPECT(link_expression(boolean_default, source));
-  EXPECT(link_expression(signed_default, source));
-  EXPECT(link_expression(real_default, source));
+  EXPECT(link_expression(domain, boolean_default, source));
+  EXPECT(link_expression(domain, signed_default, source));
+  EXPECT(link_expression(domain, real_default, source));
 
   auto boolean_value = selected(boolean_default.fold());
   auto signed_value = selected(signed_default.fold());
@@ -612,14 +571,11 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_defaults) {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, unsupported_default_and_payload) {
   Allocator::Arena domain;
-  ValueMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  auto retained_source = create_source(domain, dialect, context);
-  ASSERT(retained_source);
-  auto& source = *retained_source;
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 unsupported_element;
-  const auto& integer = Tetrodotoxin::Library::Dialect::get_unsigned_64();
-  const auto& signed_integer = Tetrodotoxin::Library::Dialect::get_signed_64();
+  const auto& integer = resolve_library_unsigned(source, "Unsigned_64"_view);
+  const auto& signed_integer = resolve_library_signed(source, "Signed_64"_view);
   Types::Fixed fixed("Fixed[Unsigned_8,1]"_view, unsupported_element, 1);
   auto& bytes = Constants::Bytes::create_synthetic(domain, fixed, "a"_view);
   ValueConstant opaque(fixed);
@@ -631,12 +587,15 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, unsupported_default_and_payload) {
   auto& unsupported = create_slice(domain, opaque, zero);
   auto& safe_range = create_slice(domain, opaque, negative, one);
 
-  EXPECT(link_expression(missing, source));
-  EXPECT(link_expression(unsupported, source));
-  EXPECT(link_expression(safe_range, source));
+  EXPECT(link_expression(domain, missing, source));
+  EXPECT(link_expression(domain, unsupported, source));
+  EXPECT(link_expression(domain, safe_range, source));
 
-  EXPECT(reports(
-      missing.fold(), Expression::Error::Type::InvalidConstant, missing));
+  auto missing_value = selected(missing.fold());
+  ASSERT(missing_value);
+  EXPECT(missing_value->is<Constants::Unsigned>());
+  EXPECT(get_unsigned(*missing_value) == Option<Unsigned_64>(0));
+  EXPECT(&missing_value->get_type() == &unsupported_element);
   EXPECT(is_dynamic(unsupported.fold()));
   EXPECT(is_dynamic(safe_range.fold()));
   EXPECT(supplies_self(safe_range, 1));
@@ -647,13 +606,10 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, unsupported_default_and_payload) {
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, child_failure_propagates) {
   Allocator::Arena domain;
-  ValueMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  auto retained_source = create_source(domain, dialect, context);
-  ASSERT(retained_source);
-  auto& source = *retained_source;
-  const auto& element = Tetrodotoxin::Library::Dialect::get_unsigned_8();
-  const auto& integer = Tetrodotoxin::Library::Dialect::get_unsigned_64();
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
+  const auto& element = resolve_library_unsigned(source, "Unsigned_8"_view);
+  const auto& integer = resolve_library_unsigned(source, "Unsigned_64"_view);
   Types::Fixed fixed("Fixed[Unsigned_8,1]"_view, element, 1);
   auto& bytes = Constants::Bytes::create_synthetic(domain, fixed, "a"_view);
   auto& zero = Constants::Unsigned::create_synthetic(domain, integer, 0);
@@ -661,7 +617,7 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, child_failure_propagates) {
   ValueFoldOperation failing(domain, zero, one, integer, True);
   auto& access = create_slice(domain, bytes, failing);
 
-  EXPECT(link_expression(access, source));
+  EXPECT(link_expression(domain, access, source));
 
   auto direct = failing.fold();
   auto propagated = access.fold();

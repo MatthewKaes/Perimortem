@@ -9,21 +9,19 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "tetrodotoxin/library/language/types/defined.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/alias.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
 // Enumeration is one authored Library Type whose cases are named immutable
 // values. It keeps source facts private until one exact integer storage Type
 // and every Alias backed Constant are complete.
-class Enumeration : public Defined {
+class Enumeration : public Model::Type {
  private:
   struct SourceCase {
     Perimortem::Core::View::Bytes name;
@@ -40,11 +38,9 @@ class Enumeration : public Defined {
       TypeReference storage_reference);
 
  public:
-  TTX_CONTRACT(Enumeration, Defined);
+  TTX_CONTRACT(Enumeration, Model::Type);
 
   static auto interpret(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Language::Definition& definition)
       -> Perimortem::Core::Option<Enumeration&>;
@@ -54,18 +50,38 @@ class Enumeration : public Defined {
   auto operator=(const Enumeration&) -> Enumeration& = delete;
   auto operator=(Enumeration&&) -> Enumeration& = delete;
 
-  auto link_storage(Tetrodotoxin::Language::Monograph& source) -> Bool;
-  auto finalize(Tetrodotoxin::Language::Monograph& source) -> Bool;
+  constexpr auto get_definition() const
+      -> const Tetrodotoxin::Language::Definition& {
+    return definition;
+  }
+
+  constexpr auto get_host() -> Ttx::Concept::Abstract& {
+    return definition.get_host();
+  }
+
+  constexpr auto get_host() const -> const Ttx::Concept::Abstract& {
+    return definition.get_host();
+  }
+
+  constexpr auto get_anchor() const -> Ttx::Lexical::Anchor {
+    return definition.get_anchor();
+  }
+
+  TTX_NAME(definition.get_name());
+  TTX_DOCUMENTATION(definition.get_documentation());
+
+  auto link_types(Ttx::Lexical::Cursor& cursor) -> Bool override;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_layout() const -> const Ttx::Concept::Layout& override;
+  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
 
-  auto get_storage_type() const
-      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
+  auto get_storage_type() const -> Perimortem::Core::Option<const Model::Type&>;
 
   auto get_cases() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<const Ttx::Model::Alias>>;
@@ -77,10 +93,11 @@ class Enumeration : public Defined {
     Finalized,
   };
 
+  Tetrodotoxin::Language::Definition& definition;
   Perimortem::Memory::Allocator::Arena& domain;
   TypeReference storage_reference;
   Perimortem::Memory::Managed::Vector<SourceCase> source_cases;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       storage_type;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Model::Alias>>

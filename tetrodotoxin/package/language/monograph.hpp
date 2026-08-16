@@ -6,48 +6,67 @@
 #include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/package/language/dependency.hpp"
 #include "tetrodotoxin/package/language/source.hpp"
 #include "tetrodotoxin/package/resources.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/span.hpp"
 #include "ttx/model/alias.hpp"
 
 namespace Tetrodotoxin::Package::Language {
 
-// Owns the exact Package local Alias scope after manifest interpretation or
-// Archive restoration. Member lookup and ordered enumeration borrow the same
-// Arena identities.
+// Describes one exact Package local Alias scope after manifest interpretation
+// or Archive restoration. Member lookup and ordered enumeration borrow the
+// Workspace owned Monographs they map.
 class Monograph : public Tetrodotoxin::Language::Monograph {
  private:
+  // A qualified Package name is a real chain of graph contexts. Scope owns
+  // one segment table. It never flattens `A::B` into a second lookup language.
+  class Scope : public Ttx::Concept::Abstract {
+   public:
+    Scope(
+        Perimortem::Memory::Allocator::Arena& arena,
+        Perimortem::Core::View::Bytes name)
+        : arena(arena), name(name), bindings(arena) {}
+
+    TTX_CONTRACT(Scope, Ttx::Concept::Abstract);
+    TTX_NAME(name);
+    TTX_EMPTY_DOCUMENTATION();
+
+    auto bind(const Parser::Name& route, const Ttx::Concept::Abstract& target)
+        -> Perimortem::Core::Option<Ttx::Model::Alias&>;
+
+    auto resolve_context(Perimortem::Core::View::Bytes name) const
+        -> const Ttx::Concept::Abstract& override;
+
+   private:
+    Perimortem::Memory::Allocator::Arena& arena;
+    Perimortem::Core::View::Bytes name;
+    Perimortem::Memory::Managed::
+        Map<Perimortem::Core::View::Bytes, Ttx::Concept::Abstract&>
+            bindings;
+  };
+
   Monograph(
-      Perimortem::Memory::Allocator::Arena& domain,
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Ttx::Concept::Abstract& language,
       const Ttx::Concept::Documentation& documentation,
-      Tetrodotoxin::Language::Diagnostics& diagnostics,
+      Ttx::Concept::Abstract& context,
       Perimortem::Core::View::Vector<Dependency> dependencies,
-      Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans,
       Perimortem::Core::View::Vector<Source> sources);
 
  public:
   TTX_CONTRACT(Monograph, Tetrodotoxin::Language::Monograph);
 
-  // Authored construction rejects an empty Source inventory or partial
-  // provenance before any graph identity enters the Arena.
+  // Authored construction rejects an empty Source inventory before any graph
+  // identity enters the Arena.
   static auto create_authored(
-      Perimortem::Memory::Allocator::Arena& domain,
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Ttx::Concept::Abstract& language,
       const Ttx::Concept::Documentation& documentation,
+      Ttx::Concept::Abstract& context,
       Perimortem::Core::View::Vector<Dependency> dependencies,
-      Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans,
-      Perimortem::Core::View::Vector<Source> sources)
-      -> Perimortem::Core::Option<Monograph&>;
-
-  static auto create_authored(
-      Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Concept::Documentation& documentation,
-      Tetrodotoxin::Language::Diagnostics& diagnostics,
-      Perimortem::Core::View::Vector<Dependency> dependencies,
-      Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans,
       Perimortem::Core::View::Vector<Source> sources)
       -> Perimortem::Core::Option<Monograph&>;
 
@@ -55,19 +74,20 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   // this operation records that absence directly instead of asking callers to
   // infer it from a vector length.
   static auto create_synthetic(
-      Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Concept::Documentation& documentation,
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Ttx::Concept::Abstract& language,
+      Ttx::Concept::Abstract& context,
       Perimortem::Core::View::Vector<Dependency> dependencies) -> Monograph&;
 
-  // Member names and targets must already belong to the Monograph Arena.
   // Authored Packages accept their declared Source names while source free
-  // Packages accept the member inventory validated by Archive Reader.
+  // Packages accept the member inventory validated by Archive Reader. The
+  // Workspace that assembles the Package owns every referenced Monograph.
   auto bind_member(
-      Perimortem::Core::View::Bytes local_name,
+      const Parser::Name& local_name,
       const Tetrodotoxin::Language::Monograph& member) -> Bool;
 
-  // The request must belong to this Monograph and the completed Package root
-  // must already share its Arena lifetime.
+  // The request must belong to this Monograph. The Package records only the
+  // exact borrowed mapping selected by its Workspace.
   auto bind_dependency(const Dependency& dependency, const Monograph& package)
       -> Bool;
 
@@ -78,30 +98,18 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
   auto get_dependencies() const -> Perimortem::Core::View::Vector<Dependency>;
 
-  auto get_dependency_spans() const
-      -> Perimortem::Core::View::Vector<Ttx::Lexical::Span>;
-
   auto get_sources() const -> Perimortem::Core::View::Vector<Source>;
-
-  auto get_members() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Alias>>;
 
   auto get_resources() -> Tetrodotoxin::Package::Resources&;
   auto get_resources() const -> const Tetrodotoxin::Package::Resources&;
 
  private:
-  // The Map selects every exact local edge while the Vector preserves only
-  // successful member order. Both borrow the same Arena identities.
-  Perimortem::Core::View::Vector<Dependency> dependencies;
-  Perimortem::Core::View::Vector<Ttx::Lexical::Span> dependency_spans;
-  Perimortem::Core::View::Vector<Source> sources;
-  Tetrodotoxin::Package::Resources& resources;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Alias>>
-      members;
-  Perimortem::Memory::Managed::
-      Map<Perimortem::Core::View::Bytes, Ttx::Model::Alias&>
-          bindings;
+  // Scope is the complete borrowed mapping table. It never participates in
+  // the lifetime of the Workspace owned identities it selects.
+  Perimortem::Memory::Managed::Vector<Dependency> dependencies;
+  Perimortem::Memory::Managed::Vector<Source> sources;
+  mutable Tetrodotoxin::Package::Resources resources;
+  Scope scope;
 };
 
 }  // namespace Tetrodotoxin::Package::Language

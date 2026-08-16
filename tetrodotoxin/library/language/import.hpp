@@ -7,20 +7,34 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/type_reference.hpp"
+#include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// Import retains one exact Type access authored by a Library source. Package
-// contexts expose each segment while Library owns declaration expansion.
+// Import retains one exact contextual route authored by a Library source. At
+// link the selected object becomes one borrowed fallback context for that
+// source. Import never expands declarations or constructs forwarding edges.
 class Import {
  public:
-  constexpr Import(TypeReference type_reference, Ttx::Lexical::Span span)
-      : type_reference(type_reference), span(span) {}
+  constexpr Import(
+      const Ttx::Concept::Documentation& documentation,
+      TypeReference type_reference,
+      Ttx::Lexical::Span span)
+      : documentation(documentation),
+        type_reference(type_reference),
+        span(span) {}
 
   // Consumes one complete using statement and retains its route and extent.
-  static auto parse(Ttx::Lexical::Cursor& cursor)
+  static auto parse(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Documentation& documentation)
       -> Perimortem::Core::Option<Import>;
+
+  constexpr auto get_documentation() const
+      -> const Ttx::Concept::Documentation& {
+    return documentation;
+  }
 
   constexpr auto matches(const Import& other) const -> Bool {
     return type_reference.matches_route(other.type_reference);
@@ -33,6 +47,7 @@ class Import {
   constexpr auto get_span() const -> Ttx::Lexical::Span { return span; }
 
  private:
+  const Ttx::Concept::Documentation& documentation;
   TypeReference type_reference;
   Ttx::Lexical::Span span;
 };

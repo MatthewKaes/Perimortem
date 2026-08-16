@@ -5,12 +5,14 @@
 
 #include "validation/unit_test.hpp"
 
+#include "tetrodotoxin/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
@@ -18,14 +20,13 @@ using namespace Validation;
 
 class DefaultDialect : public Language::Dialect {
  public:
-  DefaultDialect() = default;
+  DefaultDialect(View::Bytes name = "Default"_view)
+      : Language::Dialect(name) {}
 
   auto interpret(
-      Allocator::Arena&,
       Cursor&,
       const Documentation&,
       const Anchor&,
-      Language::Diagnostics&,
       Abstract&) -> Option<Language::Monograph&> override {
     return {};
   }
@@ -33,25 +34,42 @@ class DefaultDialect : public Language::Dialect {
 
 class DefaultMonograph : public Language::Monograph {
  public:
-  DefaultMonograph(Allocator::Arena& domain)
-      : Monograph(domain, Documentation::get_empty()) {}
-
-  DefaultMonograph(Allocator::Arena& domain, Language::Diagnostics& diagnostics)
-      : Monograph(domain, Documentation::get_empty(), diagnostics) {}
+  DefaultMonograph(
+      Allocator::Arena& arena,
+      const Language::Dialect& dialect,
+      Abstract& context)
+      : Monograph(
+            arena,
+            dialect,
+            Documentation::get_empty(),
+            context) {}
 
   auto get_name() const -> View::Bytes override { return "Default"_view; }
+};
 
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
+class Context final : public Abstract {
+ public:
+  TTX_CONTRACT(Context, Abstract);
+
+  auto get_name() const -> View::Bytes override { return "Context"_view; }
+
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+
+  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+    if (route == "provided"_view) {
+      return *this;
+    }
     return Invalid::get_invalid();
   }
 };
 
-class EmptyEncodingDialect : public DefaultDialect {
+class EmptyEncodingDialect final : public DefaultDialect {
  public:
-  EmptyEncodingDialect() = default;
+  EmptyEncodingDialect() : DefaultDialect("EmptyEncoding"_view) {}
 
-  auto encode(const Language::Monograph&) const
-      -> Option<Dynamic::Bytes> override {
+  auto encode(const Abstract&) const -> Option<Dynamic::Bytes> override {
     return Dynamic::Bytes();
   }
 };
@@ -60,84 +78,25 @@ static Harness LanguageDialect = {
   .name = "Tetrodotoxin::Language::Dialect"_view,
 };
 
-PERIMORTEM_UNIT_TEST(LanguageDialect, ordered_diagnostics_are_stable) {
-  Unsigned_8 message[] = {'f', 'i', 'r', 's', 't'};
-  Unsigned_8 hint[] = {'h', 'i', 'n', 't'};
-  Allocator::Arena arena;
-  DefaultMonograph monograph(arena);
-  Token opening(2, 1, 2, 1, Code::Type::Addressable);
-  Token closing(8, 1, 8, 1, Code::Type::Addressable);
-  Span span(opening, closing);
-
-  monograph.report(
-      Anchor::create(opening, span), View::Bytes(message), View::Bytes(hint));
-  message[0] = 'x';
-  hint[0] = 'x';
-  monograph.report(Anchor::create(Span(closing)), "second"_view);
-
-  View::Vector<Language::Diagnostic> diagnostics = monograph.get_diagnostics();
-  ASSERT_EQ(diagnostics.get_size(), Count(2));
-  const Language::Diagnostic& first = diagnostics.get_data()[0];
-  const Language::Diagnostic& second = diagnostics.get_data()[1];
-  ASSERT(first.get_anchor());
-  ASSERT(second.get_anchor());
-  EXPECT_EQ(first.get_anchor()->get_token().get_offset(), opening.get_offset());
-  EXPECT_EQ(first.get_anchor()->get_span().get_offset(), span.get_offset());
-  EXPECT_EQ(first.get_anchor()->get_span().get_size(), span.get_size());
-  EXPECT_TEXT(first.get_message(), "first"_view);
-  EXPECT_TEXT(first.get_hint(), "hint"_view);
-  EXPECT_EQ(
-      second.get_anchor()->get_span().get_offset(),
-      Count(closing.get_offset()));
-  EXPECT_TEXT(second.get_message(), "second"_view);
-  EXPECT(second.get_hint().is_empty());
-}
-
-PERIMORTEM_UNIT_TEST(LanguageDialect, shared_diagnostic_transaction) {
-  Allocator::Arena arena;
-  Language::Diagnostics outer_diagnostics(arena);
-  Language::Diagnostics isolated_diagnostics(arena);
-  DefaultMonograph outer(arena, outer_diagnostics);
-  DefaultMonograph child(arena, outer_diagnostics);
-  DefaultMonograph isolated(arena, isolated_diagnostics);
-  Token opening(4, 1, 5, 3, Code::Type::Addressable);
-
-  outer.report(Anchor::create(Span(opening)), "parse failure"_view);
-  child.report({}, "child link failure"_view, "child hint"_view);
-  outer.report({}, "finalize failure"_view);
-  isolated.report({}, "isolated failure"_view);
-
-  View::Vector<Language::Diagnostic> outer_values = outer.get_diagnostics();
-  View::Vector<Language::Diagnostic> child_values = child.get_diagnostics();
-  View::Vector<Language::Diagnostic> isolated_values =
-      isolated.get_diagnostics();
-  ASSERT_EQ(outer_values.get_size(), Count(3));
-  ASSERT_EQ(child_values.get_size(), Count(3));
-  ASSERT_EQ(isolated_values.get_size(), Count(1));
-  EXPECT(&outer_values.get_data()[0] == &child_values.get_data()[0]);
-  EXPECT(outer_values.get_data()[0].get_anchor());
-  EXPECT_NOT(outer_values.get_data()[1].get_anchor());
-  EXPECT_TEXT(outer_values.get_data()[0].get_message(), "parse failure"_view);
-  EXPECT_TEXT(
-      outer_values.get_data()[1].get_message(), "child link failure"_view);
-  EXPECT_TEXT(outer_values.get_data()[1].get_hint(), "child hint"_view);
-  EXPECT_TEXT(
-      outer_values.get_data()[2].get_message(), "finalize failure"_view);
-  EXPECT_TEXT(
-      isolated_values.get_data()[0].get_message(), "isolated failure"_view);
-}
-
-PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_default_persistence) {
+PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_defaults) {
   Allocator::Arena arena;
   DefaultDialect dialect;
-  DefaultMonograph monograph(arena);
+  Context context;
+  DefaultMonograph monograph(arena, dialect, context);
   EmptyEncodingDialect empty_dialect;
-  DefaultMonograph empty_monograph(arena);
+  DefaultMonograph empty_monograph(arena, empty_dialect, context);
+  Errors errors;
+  Tokenizer tokenizer(arena, {}, "default.ttx"_view);
+  Cursor cursor(tokenizer, errors);
 
-  const Bool linked = monograph.link();
-  const Bool finalized = monograph.finalize();
+  const Bool linked = monograph.link(cursor);
+  const Bool finalized = monograph.finalize(cursor);
   auto unsupported = dialect.encode(monograph);
-  auto missing = dialect.restore(arena, "unsupported"_view);
+  auto missing = dialect.restore(
+      arena,
+      "unsupported"_view,
+      Documentation::get_empty(),
+      context);
   auto empty = empty_dialect.encode(empty_monograph);
   Bool successful_empty = empty.visit(
       []() { return False; },
@@ -148,8 +107,37 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_default_persistence) {
   EXPECT(linked);
   EXPECT(finalized);
   EXPECT_NOT(monograph.is<Ttx::Model::Type>());
-  EXPECT(&monograph.resolve_context("source"_view) == &Invalid::get_invalid());
   EXPECT_NOT(unsupported);
   EXPECT_NOT(missing);
   EXPECT(successful_empty);
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(LanguageDialect, exact_layer_identity) {
+  Allocator::Arena arena;
+  DefaultDialect installed("Installed"_view);
+  DefaultDialect same_type("SameType"_view);
+  Context context;
+  DefaultMonograph monograph(arena, installed, context);
+
+  auto selected = monograph.get_layer(installed);
+  auto rejected = monograph.get_layer(same_type);
+
+  ASSERT(selected);
+  EXPECT(&*selected == &monograph);
+  EXPECT(&monograph.get_language() == &installed);
+  EXPECT_NOT(rejected);
+}
+
+PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_context_is_the_parent_query) {
+  Allocator::Arena arena;
+  DefaultDialect installed("Installed"_view);
+  Context context;
+  DefaultMonograph monograph(arena, installed, context);
+
+  EXPECT(installed.is<Language::Dialect>());
+  EXPECT(&monograph.get_language() == &installed);
+  EXPECT(&monograph.resolve_context("provided"_view) == &context);
+  EXPECT(
+      &monograph.resolve_context("missing"_view) == &Invalid::get_invalid());
 }

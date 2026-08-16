@@ -4,65 +4,80 @@
 #include "tetrodotoxin/library/language/expression.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
-#include "tetrodotoxin/library/language/field.hpp"
-#include "tetrodotoxin/library/language/flow/local.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
-using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
 static auto select_output_type(const Abstract& candidate)
-    -> Option<const Type&> {
-  auto direct = candidate.select<Type>();
-  return direct ? direct : candidate.resolve().select<Type>();
+    -> Option<const Language::Model::Type&> {
+  auto direct = candidate.select<Language::Model::Type>();
+  return direct ? direct : candidate.resolve().select<Language::Model::Type>();
 }
 
+static auto select_value_type(const Abstract& candidate)
+    -> Option<const Language::Model::Type&> {
+  auto type = select_output_type(candidate);
+  BAIL_IF(!type || type->get_layout().is_empty());
+  return *type;
+}
+
+static constexpr Ttx::Model::Layouts::Fluid empty_expression_layout;
+
 auto Language::Expression::get_layout() const -> const Layout& {
-  auto type = select_output_type(get_type());
-  if (!type) {
-    // Layout observation is legal only after resolve() proves this Pack. An
-    // empty Layout is completed zero value flow, so returning it here would
-    // silently turn an incomplete Expression into a valid empty producer.
-    __builtin_trap();
+  auto type = select_value_type(get_type());
+  // Layout inspection is total even when this Expression has no value output.
+  // Pack resolution remains the separate admission proof, so this empty shape
+  // cannot fit storage or masquerade as completed zero value flow.
+  if (!type || type->get_layout().is_empty()) {
+    return empty_expression_layout;
   }
-
-  if (type->get_layout().is_empty()) {
-    __builtin_trap();
-  }
-
   return output_layout;
 }
 
 auto Language::Expression::resolve() const -> const Abstract& {
-  auto type = select_output_type(get_type());
-  if (!type || type->get_layout().is_empty()) {
+  auto type = select_value_type(get_type());
+  if (!type) {
     return Invalid::get_invalid();
   }
 
   return static_cast<const Language::Model::Pack&>(*this);
 }
 
-auto Language::Expression::finalize() -> void {
+auto Language::Expression::get_value_type(Count index) const
+    -> const Abstract& {
+  if (index != 0) {
+    return Invalid::get_invalid();
+  }
+  return select_value_type(get_type())
+      .visit(
+          []() -> const Abstract& { return Invalid::get_invalid(); },
+          [](const Language::Model::Type& type) -> const Abstract& {
+            return type;
+          });
+}
+
+auto Language::Expression::finalize(Ttx::Lexical::Cursor&) -> void {
   fold();
 }
 
 auto Language::Expression::link(
-    Tetrodotoxin::Language::Monograph& source,
+    Ttx::Lexical::Cursor& cursor,
     const Abstract&,
-    Option<const Type&>) -> Bool {
+    Option<const Abstract&>) -> Bool {
   auto source_anchor = get_anchor();
 
-  // A declaration pass may already expose one exact Composite Type while that
-  // Type still resolves Invalid until its own Layout is complete. Expression
-  // linking retains that real output edge. It does not make unrelated Type
-  // completion a prerequisite for selecting the value's domain.
-  auto type = select_output_type(get_type());
-  if (type && !type->get_layout().is_empty()) {
+  // A declaration Type's identity and immutable Layout are available before
+  // its recursive closure settles. Admitting that exact edge here preserves
+  // forward references while the Monograph barrier still prevents an invalid
+  // Type or Expression from escaping the source transaction.
+  auto type = select_value_type(get_type());
+  if (type) {
     return True;
   }
 
-  source.report(
+  cursor.create_expression_error(
       source_anchor, "Expression did not resolve one nonempty Type."_view,
       "Complete its semantic inputs or keep empty output as Pack flow."_view);
   return False;
@@ -142,7 +157,8 @@ auto Language::Expression::fold() -> Perimortem::Utility::
         if (exact_shape && source_layout.get_size() == 1) {
           const Abstract& expression_type = get_type().resolve();
           const Abstract& result_type = representation.get_type().resolve();
-          exact_shape = expression_type.is<Type>() && result_type.is<Type>() &&
+          exact_shape = expression_type.is<Language::Model::Type>() &&
+                        result_type.is<Language::Model::Type>() &&
                         &expression_type == &result_type;
         } else if (exact_shape) {
           // The authored Layout owns the output promise. A folded Pack may
@@ -166,6 +182,16 @@ auto Language::Expression::fold() -> Perimortem::Utility::
         folded = error;
         return error;
       });
+}
+
+auto Language::Expression::get_write_type(
+    const Language::Model::Type& access_scope) const
+    -> Option<const Language::Model::Type&> {
+  auto addressable =
+      get_result().resolve().select<Language::Model::Addressable>();
+  return addressable && addressable->permits_write_from(access_scope)
+             ? Option<const Language::Model::Type&>(addressable->get_type())
+             : Option<const Language::Model::Type&>();
 }
 
 auto Language::Expression::get_folded()
@@ -204,15 +230,7 @@ auto Language::Expression::evaluate() -> Perimortem::Utility::
   }
 
   const Abstract& result = get_result();
-  return result.visit<Language::Field>(
-      [](const Language::Field& field) { return field.get_constant(); },
-      [](const Abstract& candidate) {
-        return candidate.visit<Language::Flow::Local>(
-            [](const Language::Flow::Local& local) {
-              return local.get_constant();
-            },
-            [](const Abstract&) -> Option<Language::Model::Pack&> {
-              return {};
-            });
-      });
+  auto addressable = result.resolve().select<Language::Model::Addressable>();
+  return addressable ? addressable->get_constant()
+                     : Option<Language::Model::Pack&>();
 }

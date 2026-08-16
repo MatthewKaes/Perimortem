@@ -1,0 +1,233 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/option.hpp"
+
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/vector.hpp"
+
+#include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/language/signature.hpp"
+#include "tetrodotoxin/library/language/type_reference.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/reference.hpp"
+#include "ttx/lexical/anchor.hpp"
+#include "ttx/lexical/cursor.hpp"
+
+namespace Tetrodotoxin::Library::Language {
+
+// Foreign is the one external declaration context owned by a Library Source.
+// It keeps block grammar, ABI agreement, lookup, and closure together while
+// the parent Source remains the lexical context for declaration Type routes.
+class Foreign final : public Ttx::Concept::Abstract {
+ public:
+  // State Types settle before Function signatures may consume them. Finalize is
+  // a publication barrier only because bodyless declarations add no later graph
+  // identities or evaluation work.
+  enum class Stage : Unsigned_8 {
+    Authored,
+    TypesLinked,
+    CallablesLinked,
+    Finalized,
+  };
+
+  // State is one external data declaration. Its Definition is hosted by the
+  // Foreign context while its delayed Type route falls through to the Source.
+  class State final : public Model::Addressable {
+   public:
+    TTX_CONTRACT(State, Model::Addressable);
+
+    static auto interpret(
+        Foreign& host,
+        Ttx::Lexical::Cursor& cursor,
+        const Ttx::Concept::Documentation& documentation,
+        Perimortem::Core::View::Bytes abi) -> Perimortem::Core::Option<State&>;
+
+    State(const State&) = delete;
+    State(State&&) = delete;
+    auto operator=(const State&) -> State& = delete;
+    auto operator=(State&&) -> State& = delete;
+
+    auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
+
+    TTX_DOCUMENTATION(get_definition().get_documentation());
+    TTX_NAME(definition.get_name());
+
+    constexpr auto get_definition() const
+        -> const Tetrodotoxin::Language::Definition& {
+      return definition;
+    }
+
+    constexpr auto get_anchor() const -> Ttx::Lexical::Anchor {
+      return definition.get_anchor();
+    }
+
+    auto resolve() const -> const Ttx::Concept::Abstract& override;
+
+    constexpr auto get_type() const -> const Model::Type& override {
+      return type->get();
+    }
+
+    constexpr auto permits_write_from(const Model::Type&) const
+        -> Bool override {
+      return get_definition().get_visibility() ==
+             Tetrodotoxin::Language::Visibility::Public;
+    }
+
+    constexpr auto get_type_reference() const -> const TypeReference& {
+      return type_reference;
+    }
+
+    constexpr auto get_abi() const -> Perimortem::Core::View::Bytes {
+      return abi;
+    }
+
+   private:
+    constexpr State(
+        Tetrodotoxin::Language::Definition& definition,
+        TypeReference type_reference,
+        Perimortem::Core::View::Bytes abi)
+        : definition(definition), type_reference(type_reference), abi(abi) {}
+
+    Tetrodotoxin::Language::Definition& definition;
+    TypeReference type_reference;
+    Perimortem::Core::View::Bytes abi;
+    Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>> type;
+  };
+
+  // Function is one bodyless external Callable. Target owners consume the
+  // retained ABI and symbol without making Foreign own native representation.
+  class Function final : public Model::Callable {
+   public:
+    TTX_CONTRACT(Function, Model::Callable);
+
+    static auto interpret(
+        Foreign& host,
+        Ttx::Lexical::Cursor& cursor,
+        const Ttx::Concept::Documentation& documentation,
+        Perimortem::Core::View::Bytes abi)
+        -> Perimortem::Core::Option<Function&>;
+
+    Function(const Function&) = delete;
+    Function(Function&&) = delete;
+    auto operator=(const Function&) -> Function& = delete;
+    auto operator=(Function&&) -> Function& = delete;
+
+    auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
+
+    TTX_DOCUMENTATION(get_definition().get_documentation());
+    TTX_NAME(definition.get_name());
+
+    constexpr auto get_definition() const
+        -> const Tetrodotoxin::Language::Definition& {
+      return definition;
+    }
+
+    constexpr auto get_anchor() const -> Ttx::Lexical::Anchor {
+      return definition.get_anchor();
+    }
+
+    auto resolve() const -> const Ttx::Concept::Abstract& override;
+
+    auto resolve_context(Perimortem::Core::View::Bytes) const
+        -> const Ttx::Concept::Abstract& override;
+
+    constexpr auto get_parameters() const
+        -> const Ttx::Concept::Layout& override {
+      return signature.get_parameters();
+    }
+
+    constexpr auto get_results() const -> const Ttx::Concept::Layout& override {
+      return signature.get_results();
+    }
+
+    constexpr auto get_abi() const -> Perimortem::Core::View::Bytes {
+      return abi;
+    }
+
+    constexpr auto get_symbol() const -> Perimortem::Core::View::Bytes {
+      return get_definition().get_name();
+    }
+
+   private:
+    constexpr Function(
+        Tetrodotoxin::Language::Definition& definition,
+        Signature& signature,
+        Perimortem::Core::View::Bytes abi)
+        : definition(definition), signature(signature), abi(abi) {}
+
+    Tetrodotoxin::Language::Definition& definition;
+    Signature& signature;
+    Perimortem::Core::View::Bytes abi;
+    Bool linked = False;
+  };
+
+  Foreign(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Ttx::Concept::Abstract& parent);
+
+  Foreign(const Foreign&) = delete;
+  Foreign(Foreign&&) = delete;
+  auto operator=(const Foreign&) -> Foreign& = delete;
+  auto operator=(Foreign&&) -> Foreign& = delete;
+
+  TTX_CONTRACT(Foreign, Ttx::Concept::Abstract);
+  TTX_NAME("foreign"_view);
+  TTX_DOCUMENTATION(*documentation);
+
+  auto parse(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Documentation& block_documentation) -> Bool;
+
+  auto link_types(Ttx::Lexical::Cursor& cursor) -> Bool;
+  auto link_callables(Ttx::Lexical::Cursor& cursor) -> Bool;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool;
+
+  constexpr auto is_authored() const -> Bool { return Bool(abi); }
+
+  constexpr auto get_stage() const -> Stage { return stage; }
+
+  constexpr auto get_abi() const
+      -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> {
+    return abi;
+  }
+
+  constexpr auto get_states() const { return states.get_view(); }
+
+  constexpr auto get_functions() const { return functions.get_view(); }
+
+  auto resolve() const -> const Ttx::Concept::Abstract& override;
+
+  auto resolve_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto resolve_access(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto resolve_call(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+ private:
+  auto retain_documentation(
+      const Ttx::Concept::Documentation& block_documentation) -> void;
+
+  Perimortem::Memory::Allocator::Arena& domain;
+  Ttx::Concept::Abstract& parent;
+  const Ttx::Concept::Documentation* documentation;
+  Perimortem::Core::Option<Perimortem::Core::View::Bytes> abi;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<State>> states;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Function>>
+      functions;
+  Stage stage = Stage::Authored;
+};
+
+}  // namespace Tetrodotoxin::Library::Language

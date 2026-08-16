@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/operations/multiply.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -23,6 +24,8 @@
 #include "tetrodotoxin/library/language/types/unsigned_64.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -35,25 +38,13 @@ static Harness LibraryMultiply = {
   .name = "Tetrodotoxin::Library::Language::Operations::Multiply"_view,
 };
 
-class MultiplyMonograph : public Tetrodotoxin::Language::Monograph {
- public:
-  MultiplyMonograph(Allocator::Arena& domain)
-      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
-
-  constexpr auto get_name() const -> View::Bytes override {
-    return "MultiplyMonograph"_view;
-  }
-
-  constexpr auto resolve_context(View::Bytes) const
-      -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
-};
-
-static auto link_operation(
-    Operation& operation,
-    Tetrodotoxin::Language::Monograph& source) -> Bool {
-  return operation.link(source, Invalid::get_invalid());
+static auto link_operation(Operation& operation, const Abstract& context)
+    -> Bool {
+  Allocator::Arena transaction;
+  Ttx::Lexical::Errors errors;
+  Ttx::Lexical::Tokenizer tokenizer(transaction, {}, "<operation>"_view);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  return operation.link(cursor, context);
 }
 
 class MultiplyExpression : public Expression {
@@ -78,7 +69,7 @@ class MultiplyFoldInput : public Operation {
       Allocator::Arena& domain,
       Expression& input,
       Constant& result,
-      const Ttx::Model::Type& type)
+      const Model::Type& type)
       : Operation(
             domain,
             Static::Vector<Reference<Expression>, 1>{{input}},
@@ -99,14 +90,14 @@ class MultiplyFoldInput : public Operation {
     return result;
   }
 
-  auto select_type(Tetrodotoxin::Language::Monograph&) const
-      -> Option<const Ttx::Model::Type&> override {
+  auto select_type(const Abstract&) const
+      -> Option<const Model::Type&> override {
     return type;
   }
 
  private:
   Constant& result;
-  const Ttx::Model::Type& type;
+  const Model::Type& type;
   Count evaluations = 0;
 };
 
@@ -164,14 +155,15 @@ static auto get_real(const Expression& expression) -> Option<Real_64> {
 
 PERIMORTEM_UNIT_TEST(LibraryMultiply, type_selection) {
   Allocator::Arena domain;
-  MultiplyMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
   Types::Unsigned_64 unsigned_64;
   Types::Boolean boolean;
   Types::Fixed bytes_type(
       "Fixed[Unsigned_8,1]"_view,
-      Tetrodotoxin::Library::Dialect::get_unsigned_8(), 1);
+      resolve_library_unsigned(source, "Unsigned_8"_view), 1);
   MultiplyExpression left("left"_view, unsigned_8);
   MultiplyExpression same("same"_view, unsigned_8);
   MultiplyExpression other("other"_view, unsigned_16);
@@ -219,7 +211,8 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, type_selection) {
 
 PERIMORTEM_UNIT_TEST(LibraryMultiply, checked_integer_widths) {
   Allocator::Arena domain;
-  MultiplyMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 unsigned_type;
   Types::Signed_8 signed_type;
   auto& fifteen =
@@ -288,7 +281,8 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, checked_integer_widths) {
 
 PERIMORTEM_UNIT_TEST(LibraryMultiply, ieee_real_domains) {
   Allocator::Arena domain;
-  MultiplyMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
   auto& narrow_left =
@@ -342,7 +336,8 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, ieee_real_domains) {
 
 PERIMORTEM_UNIT_TEST(LibraryMultiply, recursive_exact_is_idempotent) {
   Allocator::Arena domain;
-  MultiplyMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 selected_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
   auto& folded =

@@ -6,6 +6,15 @@ Generic containers. Packages, applications, Scenes, tools, and native compilers
 all work with those same language objects instead of translating them through a
 separate intermediate model.
 
+Every Library Type follows one language-owned Type protocol that refines the
+host-neutral TTX Type contract once. Library's Value, Flag, Real, Signed, and
+Unsigned families, composite Types, Generic materializations, access policy,
+and default construction all branch beneath that protocol. Library
+Addressables similarly refine the TTX Addressable edge once so an instance can
+ask its exact Library Type a Self question. TTX retains the common identities,
+Layouts, Packs, Addressables, and Callables without acquiring Library's scalar
+or receiver rules.
+
 Canonical grammar reference: [Library.g4](grammar/Library.g4).
 
 ```ttx
@@ -21,17 +30,16 @@ public twice : func = [.value : Unsigned_64] -> Unsigned_64 {
 
 Every Library access evaluates the one Expression on its left. An Expression
 exposes its exact semantic result separately from its output Type. Ordinary
-value operations use the output Type, while an Expression whose result is a
-semantic Type has the singleton `Descriptor` output Type. `Descriptor` does
-not wrap or copy the selected Type. The Expression result retains that exact
-identity for the next access.
+value operations use the output Type, which always proves the Library Type
+protocol. An Expression whose result is a semantic Type retains that identity
+for the next access but has no value output Type and cannot enter Pack flow.
 
 Library uses punctuation to select separate semantic domains:
 
 | Syntax                               | Meaning                                                       |
 | ------------------------------------ | ------------------------------------------------------------- |
 | `expression.name`                    | select one named value from the receiver Pack's Layout        |
-| `expression::Type`                   | produce one exact Type result with `Descriptor` output        |
+| `expression::Type`                   | produce one exact Type result with no value output            |
 | `receiver -> callable(arguments...)` | fit one argument Pack and invoke one Callable                  |
 | `value.[names...]`                   | select and reorder named Pack values                           |
 | `access[index]`                      | produce one writable indexed address with the element Type    |
@@ -47,19 +55,23 @@ being requested.
 A declaration that requires a Type retains a type route with no identity. It
 does not retain an access Expression. The route may carry one optional Generic
 argument Layout, and each Type entry may recursively contain another route.
-Without an argument Layout, the route must select a Type. With one, it must
-select a Generic formula that creates the Type from those arguments. The route
-can stay unresolved until linking without pretending to be a runtime value or
-postfix access expression.
+Without an argument Layout, the terminal route must select a Library Type. With
+one, it must select a Generic formula that creates a Library Type from those
+arguments. Intermediate Package, Monograph, Alias, source, and other Abstract
+contexts need not pretend to be Types. The route can stay unresolved until
+linking without pretending to be a runtime value or postfix access expression.
 
 ### Address access
 
 `.` evaluates its receiver and selects one exact TTX Addressable from that
-identity. An Addressable receiver can select state Fields and const Fields owned
-by its Type. An exact Type receiver can select ordinary Static Fields and const
-Fields. An exact Source receiver can select its ordinary Static Fields and const
-Fields. Arbitrary computed values do not provide mutable member access. The
-operation creates no group Type.
+identity. A Library Addressable forwards the explicit query to its exact
+Library Type as Self, while an exact Library Type makes the corresponding
+Static query. These are Library protocol rules, not behavior inherited from TTX
+Type or Addressable. An Addressable receiver can select state Fields and const
+Fields owned by its Type. An exact Type receiver can select ordinary Static
+Fields and const Fields. An exact Source receiver can select its ordinary
+Static Fields and const Fields. Arbitrary computed values do not provide
+mutable member access. The operation creates no group Type.
 
 ```ttx
 packet.width
@@ -97,11 +109,10 @@ Option[Graphics::Image]
 ```
 
 It evaluates its receiver, requires that receiver's exact semantic result to be
-a Type, and selects one Type from that context. The access result is the exact
-selected Type and its output Type is `Descriptor`, so another `::` or a Static
-invocation can use the result without treating the selected Type as one of its
-own values. An ordinary value cannot use `::`, and `Descriptor` supplies no
-instance Layout for `.`.
+a Library Type, and selects one Library Type from that context. The access
+result is the exact selected Type with no value output, so another `::` or a
+Static invocation can use the result without treating the selected Type as one
+of its own values. An ordinary value cannot use `::`.
 
 Contextual declaration routes through Alias, Package, Monograph, Library
 source, and Type objects remain references with no identity. They do not become
@@ -123,12 +134,12 @@ System::Terminal -> write_line(message)
 ```
 
 An invocation evaluates one receiver Expression and retains one parenthesized
-argument Pack. An exact Type result selects the Static Callable registered on
-that Composite. A typed value receiver uses its output Type to select the
-registered Self Callable. The caller's Definition host chain remains unchanged
-while making that selection: it admits the receiver's private surface only when
-that exact Composite is already in the chain. Resolving an Alias never
-transfers private authority.
+argument Pack. An exact Library Type result selects the Static Callable
+registered on that Composite. A typed value receiver asks its output Library
+Type for the registered Self Callable. The caller's Definition host chain
+remains unchanged while making that selection: it admits the receiver's private
+surface only when that exact Composite is already in the chain. Resolving an
+Alias never transfers private authority.
 
 Static and Self are properties of each Callable's parameter Layout. A Callable
 is Self exactly when parameter entry zero is the reserved `self` Addressable
@@ -257,6 +268,16 @@ Library provides these scalar families:
 * `Unsigned_8`, `Unsigned_16`, `Unsigned_32`, and `Unsigned_64`
 * `Real_32` and `Real_64`
 
+These are Library refinements of its one Type protocol. `Bool` proves the
+Library Flag contract, and the integer and real families prove Library Signed,
+Unsigned, and Real contracts. TTX does not define those scalar categories or
+make another Dialect's Type participate in Library operations.
+
+A Flag Type interprets the first completed value in a Pack as active or
+inactive. `Bool` supplies Library's standard Flag Layout and Constant
+representation, but control flow and logical operations query the Flag
+protocol. They do not select `Bool` or inspect its storage.
+
 Library has no zero-value Type. An authored `[]` is the empty result Layout and
 an empty Composite is a Static namespace rather than an instantiable value.
 
@@ -265,8 +286,9 @@ operation. Library does not silently widen, narrow, retag, or reinterpret a
 Constant to make an operation legal.
 
 Generic formulas describe reusable Type families. A formula is not itself a
-Type. Applying its ordered arguments materializes one exact Type. Type arguments
-may recursively apply another formula:
+Type. Applying its ordered arguments materializes one exact Library Type. Type
+arguments must themselves resolve to Library Types and may recursively apply
+another formula:
 
 ```ttx
 Fixed[Unsigned_8, 64]
@@ -288,6 +310,17 @@ no payload. An explicit empty list applies a formula with no arguments.
 Omitting the list instead requires the route to name a Type. Applying the same
 formula to the same semantic arguments returns the same Type identity.
 
+Each Library root Generic owns its canonical materialized identities in that
+root's source transaction Arena. The Monograph reaches them through its root
+vocabulary and releases the whole graph with that Arena. Materialization
+therefore owns no source, parser, diagnostic, or general interpretation
+context, and the installed Dialect retains no semantic identity cache.
+
+Generic rejection is a typed, source-free result owned by the formula. The
+authored TypeReference maps that result to the exact retained argument Anchor
+and reports it through the operation Cursor. Silent resolution is reserved for
+Alias fixed-point probing; every committed consumer uses the reporting path.
+
 Option construction belongs to target fitting:
 
 ```ttx
@@ -298,6 +331,12 @@ state present : Option[Result] = result;
 The empty Pack creates the state with no payload. A Pack accepted by `T` creates
 the state that carries its value. Option has no `some` or `empty` construction
 Callables.
+
+The receiving Library Type owns both admission and any value construction that
+admission requires. Pack asks that protocol and never inspects Option or another
+concrete target. Ordinary Types retain exact Layout fitting, while Option extends
+the same query with its absent and present states. Adding another target
+conversion therefore changes only the Type that defines it.
 
 This is Pack fitting rather than Layout fitting. `[]` does not fit
 `Option[T]`, and Option never acquires an empty Layout. Its absent state can
@@ -310,8 +349,25 @@ never publishes a partly initialized value.
 
 ### Default values
 
-Every Library Type admitted to value flow has a default value. The language
-defines that value independently of the storage chosen by a compiler:
+Every completed Library Type admitted to value flow owns one total default
+construction operation. The exact Type implements that operation; no central
+kind switch, visitor, semantic Default object, Monograph path, or copied Type
+inventory decides on its behalf. The caller supplies only the transaction Arena
+where that Type creates its Pack.
+
+`new[T]` with no argument list asks that exact Type for the same default used by
+an omitted Field value, a missing scalar slice element, and postfix `option!`:
+
+```ttx
+state count := new[Unsigned_32];
+state block := new[Fixed[Unsigned_8, 8]];
+state session := new[Session];
+```
+
+The selected Type must be source-admissible and have a nonempty Layout. Bare
+`new` is invalid. An explicit empty argument list is also invalid, so `()` does
+not become a second spelling for default construction. The language defines
+each default independently of the storage chosen by a compiler:
 
 - `Bool` is false and numeric Types use zero.
 - An Enumeration uses its underlying zero value even when no case names
@@ -325,12 +381,14 @@ defines that value independently of the storage chosen by a compiler:
   default.
 - An Object default is one new nonnull Object initialized by the same Field
   rules.
-- An Alias uses the default of the Type it represents.
+- A route ending in an Alias resolves it first and asks the represented Library
+  Type; Alias itself owns no default behavior.
 
-`Descriptor` belongs to compile-time Type selection and cannot be used as an
-ordinary source value. Library also rejects a chain of defaults that would have
-to construct itself forever. `Option[T]` breaks such a chain because its absent
-default does not construct `T`.
+Type selection remains outside value flow. `Descriptor` is consequently an
+ordinary source name rather than a reserved internal Type. Before construction,
+Library asks each completed value Layout whether its real Type and Addressable
+edges reach terminal leaves. `Option[T]` breaks such a recursive shape because
+its absent state is a terminal value and does not expose `T` in that Layout.
 
 Cleared memory may make initialization faster, but it does not define these
 defaults. Every initializer required by the Type still runs. An empty
@@ -338,18 +396,18 @@ defaults. Every initializer required by the Type still runs. An empty
 
 A missing scalar `value:[index]` returns the element Type's default. Slice
 operates only on Types that provide contiguous storage. Postfix `option!`
-returns its payload when present and creates a default `T` otherwise. Applying
-it to an Option of an Object Type more than once can therefore create a
-different Object each time. The Option itself does not change. A ranged
-selection still returns exactly its declared count and does not fill missing
-entries with defaults.
+returns its payload when present and asks the same Type protocol for a default
+`T` otherwise. Applying it to an Option of an Object Type more than once can
+therefore create a different Object each time. The Option itself does not
+change. A ranged selection still returns exactly its declared count and does
+not fill missing entries with defaults.
 
 ### Integer ranges
 
 `start...end` constructs `Range[T]` when both endpoints have the same exact
-signed or unsigned integer Type `T`. The sequence is half open and advances by
-one, so it contains `start` and stops before `end`. It is empty when `start` is
-not less than `end`.
+Library Signed or Unsigned integer Type `T`. The sequence is half open and
+advances by one, so it contains `start` and stops before `end`. It is empty when
+`start` is not less than `end`.
 
 A Range is lazy value flow rather than contiguous storage. It does not become a
 `View`, an `Access`, or an anonymous aggregate Type. Library does not widen the
@@ -366,16 +424,23 @@ lookup forwards only its externally visible Static entries.
 Every Composite and Enumeration is a defined Type and retains exactly one
 Definition. Source, Structure, and Object follow that same rule, while Fields,
 Functions, and authored Aliases retain Definitions without changing their TTX
-categories. A Definition contributes authorship and host authority to the real
+categories. A Definition contributes source facts and host authority to the real
 semantic identity and never becomes a competing declaration identity or graph.
 Composite owns member categories, Layout completion, and lifecycle barriers
 without becoming another declaration model.
+
+Those barriers query the real Library Type, Addressable, and Callable retained
+in each category. Enumeration, nested Composite, Field, and Function own their
+phase work, while immediate or generated identities answer with no delayed
+work. Composite therefore preserves one closure order without enumerating every
+concrete declaration kind. Instance Layout contribution and recursive Layout
+termination follow the same owner rule.
 
 Each Monograph creates and retains its Source with one generated Definition.
 That Definition uses the reserved name `<source>`, which cannot be emitted. It
 also retains the exact opening Documentation and truthful source envelope
 Anchor supplied by Environment. It
-fabricates no authored Tokens, and Source exposes no authored Authorship. Its
+fabricates no authored Tokens. Its
 host is the owning Monograph and its Visibility is public.
 
 Top level mutable Field declarations are Static Addressables owned by that
@@ -413,9 +478,19 @@ Field adopts the exact completed Type of its initializer, while an explicit
 Field fits its initializer against its declared Type. All Fields and
 initializers settle before Function bodies.
 
-Library owns the grammar that applies to a complete source. `using` selects
-Package members through the Monograph and installs Aliases owned by the
-importer in the Source without adding another declaration model.
+Library owns the grammar that applies to a complete source. `using` resolves one
+authored route during linking and retains the exact selected object as a
+borrowed Source fallback context. It creates no Alias, Definition, copied
+declaration, binding inventory, or provider closure.
+
+Source parses the possible leading Comment once before selecting each root
+declaration form. The selected Import, Definition, or Foreign owner retains that
+same Documentation rather than probing and reparsing the prefix. Source also
+owns the one Foreign context for its transaction. Repeated same ABI blocks merge
+atomically into that identity. Exact repeated State or Callable declarations
+keep their first identity, while a changed declaration fails the later block.
+State and Callable names remain separate query categories, and neither category
+is copied into Monograph vocabulary.
 
 The Source retains the exact Documentation that opens the Library source.
 A Package member Alias can therefore route through `source` to one documented
@@ -424,8 +499,9 @@ root Type without copying the prose or becoming a Type itself.
 The Library Monograph exposes its exact Source and installed Library Dialect
 directly, with no category scan or shadow source edge. A root Function's
 Definition host is the Source, which already reaches the Monograph that owns
-diagnostics, imports, and completion. The Function retains no duplicate source,
-host, or parent edge.
+intrinsic vocabulary. Source owns imports and completion and publishes textual
+errors through its transaction Cursor. The Function retains no duplicate
+source, host, or parent edge.
 
 ### Embedded Library layers
 
@@ -475,13 +551,12 @@ not a universal parent link or an implicit receiver.
 Defined Types retain their Definition as part of the Type identity. Fields,
 Functions, and authored Aliases retain the same declaration facts while
 remaining solely Addressable, Callable, and Alias identities. Once its grammar
-is complete, an authored identity exposes the Definition's Documentation,
-complete Anchor, and publication decision as Authorship with no identity.
+is complete, its concrete Library owner exposes the complete Definition.
+Consumers do not recover a lossy declaration projection through Abstract.
 
 Definition owns Library Visibility and the authored Tokens. Source uses a
 generated Definition and does not pretend to have authored declaration text.
-Forwarding Aliases created by imports are generated TTX Aliases without a
-Definition.
+Imports create no forwarding identities or declarations.
 
 Attributes do not choose the definition category and are not rejected because
 of that category. A consumer may interpret selected keys and leave all
@@ -548,8 +623,8 @@ value rather than a separate initializer inventory.
 
 A declaration written as `name := expression` has no declared Type to fit. The
 Field retains the exact completed Type of that initializer without widening or
-retagging it. `new[ObjectType]` carries its exact result Type, so an inferred
-declaration may use it.
+retagging it. `new[T]` carries its exact result Type, so an inferred declaration
+may use any source-admissible Library default.
 
 ## Structs
 
@@ -593,8 +668,11 @@ public Session : object {
 }
 ```
 
-An Object value is a nonnull managed reference. Assignment, parameter passing,
-and return all preserve that reference, so every alias sees the same mutations.
+An Object value is a nonnull managed reference. Assignment asks its completed
+target Expression for a writable Type instead of classifying syntax or storage
+owners. Ordinary targets delegate that authority to their real Addressable,
+while Index answers for its explicit writable address result. Parameter passing
+and return preserve the Object reference, so every alias sees the same mutations.
 Object uses the same Fields, Functions, Layout, Visibility, and Writability as a
 Structure instead of defining a second member system.
 
@@ -610,22 +688,24 @@ into a new identity, transfer its complete Realm, or use separately shared
 read-only storage. These choices do not change the Library Type or add
 source-visible lifetime operations.
 
-### Object initialization
+### Object initialization arguments
 
 Inline Struct values use positional or named values and are checked against the
-declaration that receives them. Object initialization spells its exact
-nonempty Object Type in `new[ObjectType]`:
+declaration that receives them. An Object uses the common `new[T]` default when
+its argument list is omitted and additionally admits one nonempty named Pack to
+replace selected state Field defaults:
 
 ```ttx
 state session : Session = new[Session];
 state configured := new[Session](.progress = 4);
 ```
 
-The declaration creates one private Object, initializes its Fields in source
-order, and makes the nonnull reference visible only when initialization is
-complete. Bare `new` is invalid. The explicit Type makes inferred declarations
-unambiguous while construction remains a declaration initializer rather than a
-general expression. An Object Type with an empty Layout cannot be constructed.
+The selected Object Type creates one private Object, initializes its Fields in
+source order, and returns one completed Pack to the receiving declaration. The
+nonnull reference becomes visible only when initialization is complete. The
+explicit Type keeps inferred declarations unambiguous. Generic Initializer and
+default code never inspect Composite Fields. Object alone owns the named
+argument specialization through the common Library Type construction query.
 
 The arguments to `new[ObjectType]` can name public and exposed state Fields.
 Code hosted by the Object Type can also name its private state Fields. Unknown,
@@ -633,8 +713,7 @@ repeated, or inaccessible names are errors, as are Static or const Fields. A
 state Field not supplied by `new[ObjectType]` uses its own initializer when
 present and otherwise its Type's default. Static Fields are initialized
 separately and are never inputs to construction. Omitting the argument list
-requests those defaults. An explicit empty argument list is invalid, so `()`
-never becomes a default initialization marker.
+requests the same Object default described above.
 
 Arguments are evaluated in source order. The Object then initializes each state
 Field once in its declared order. It uses the supplied value first, then the
@@ -651,8 +730,8 @@ returning `Option[T]`, not in `new`.
 
 ## Enumerations
 
-An Enumeration selects an exact signed or unsigned storage Type and declares
-named integer cases:
+An Enumeration selects an exact Library Signed or Unsigned storage Type and
+declares named integer cases:
 
 ```ttx
 public Mode : enum[Unsigned_8] {
@@ -711,23 +790,30 @@ role without a second Callable category.
 
 Library expressions retain authored value dependencies and expose both their
 exact semantic result and output Type. The result preserves the identity
-selected by an access. The output Type states which value operations apply.
-Results that select a Type use `Descriptor` as that output without replacing the
-selected Type. Every Expression is also a Pack. Scalar expression consumers
-require one exact produced value and output Type, while calls, swizzles, and
-slices may preserve empty output or output with several values without
-inventing a group Type.
+selected by an access. The output Type states which value operations apply, and
+a selected Type has no value output. Every Expression implements the Pack
+contract, so its Layout remains safe to inspect. A Type result exposes an empty
+inspection shape but resolves Invalid as value flow. Only a Pack that resolves
+to itself supplies an empty Layout as completed zero-value flow. Scalar
+expression consumers require one exact produced value and output Type, while
+calls, swizzles, and slices may preserve empty output or output with several
+values without inventing a group Type.
+`Pack::get_value_type(index)` derives each output Type from the real producer at
+that position. Calls and composed Packs map the index through their retained
+producer structure. A raw Type identity remains a descriptor or contextual
+query result and never proves that a value was produced.
 Constants cover Bytes, Bool, signed integers, unsigned integers, and real
 values.
 
 Arithmetic and comparison operate on exact compatible scalar Types. The
-keyword forms `and` and `or` alone own short-circuit Boolean semantics. The
-host-neutral `&` and `|` Tokens remain reserved for future bitwise operators and
-are not alternate spellings of those Library Operations. Prefix `!value`
-accepts Bool. Postfix `option!` accepts `Option[T]` and produces exact `T`,
-using the Type default when the Option has no payload. Unary `-` accepts signed
-integer and real domains. Integer overflow and division by zero are semantic
-failures in their owning operation. Safe
+keyword forms `and` and `or` alone own short circuit Flag semantics and require
+matching exact Flag Types. The host neutral `&` and `|` Tokens remain reserved
+for future bitwise operators and are not alternate spellings of those Library
+Operations. Prefix `!value` accepts a Flag and preserves its exact Type. Postfix
+`option!` accepts `Option[T]` and produces exact `T`, using the Type default when
+the Option has no payload. Unary `-` accepts signed integer and real domains.
+Integer overflow and division by zero are semantic failures in their owning
+operation. Safe
 `:[...]` selection uses a default value instead of publishing a bounds failure.
 
 Postfix `?` makes a chain of fallible operations concise without introducing
@@ -761,9 +847,20 @@ available to tools.
 ## Statements and control flow
 
 A Function body is a Library semantic object, not a lowered control flow graph.
-It retains Blocks, local Addressables, effects, and control relationships in
-source order. Lowering derives target blocks and branches only after the body is
-complete.
+Each Block retains an ordered sequence of identity-free Statement records. A
+Statement keeps the exact Local, Pack, control owner, or nested Block together
+with its one leading source-backed Documentation and the fixed lifecycle
+operations selected by grammar. It never becomes another Abstract, copies the
+owner's facts, or requires Block to inspect every concrete statement category.
+Lowering derives target blocks and branches only after the body is complete.
+
+Statement processing preserves the Library transaction stages. Parsing chooses
+and retains the exact owner. Linking visits those owners in source order, makes
+only preceding Local declarations visible, and validates reachability.
+Finalization visits the same records in the same order without rediscovering
+their concrete kinds. `Flow::Scope` carries only the enclosing Function result
+Layout, member-access Type, and nearest loop fact needed across those owners;
+it does not shadow Block state or become another semantic graph.
 
 A local `state` declaration creates one mutable Addressable. A local `const`
 declaration requires an initializer that folds completely during linking. It
@@ -771,12 +868,24 @@ never creates mutable local storage or an assignment target. An explicit Type
 receives and fits the initializer. An inferred local retains the initializer's
 exact completed Type under the same rules as an inferred Field. A local becomes
 visible after its declaration. A nested Block may shadow it with a different
-identity.
+identity. A standalone `{ ... }` is itself one Statement and retains that exact
+nested Block rather than fabricating a control-flow owner.
 
-Assignment selects one exact writable Addressable. Compound assignment applies
-the corresponding exact Type operation before writing the result. Indexed
-assignment writes only when its optional reference is engaged. No assignment
-falls through from Address access to Type or Callable lookup.
+`=`, `+=`, and `-=` are distinct lowest-precedence Library Expression
+operators selected by unambiguous TTX Tokens. They parse right-associatively
+after the complete tighter expression on their left and ask that exact
+Expression for one writable Type. Assignment writes the complete right Pack.
+AddAssignment and SubtractAssignment each own their exact scalar
+read-modify-write rule rather than being modes of Assignment or hidden nested
+arithmetic Expressions. Indexed writes occur only when the selected optional
+reference is engaged. No write falls through from Address access to Type or
+Callable lookup.
+
+Each write operator produces completed empty flow because it records an effect,
+not a new value. It can therefore occupy an ordinary expression Statement
+without a special Block parse path, but it cannot feed another operator. For
+example, `a = b = value` has the conventional right-associated parse and is
+rejected because the inner Assignment supplies no value to the outer one.
 
 `return` retains one Pack and fits its complete output Layout against the
 Function result Layout. `return;` and `return ();` supply empty flow.
@@ -787,11 +896,14 @@ the state with no payload. A Function with a nonempty result must return on
 every reachable path.
 
 `if` and `while` consume a Pack and use its first produced value for the control
-decision. That value's Type must satisfy the Flag contract. Parentheses may be
-omitted when the Pack is otherwise unambiguous, and additional produced values
-do not change which entry controls the branch. `for` consumes one `Range[T]`
-and fits its loop binding Layout against the Range entry. `break` and `continue`
-target the nearest enclosing loop and are illegal outside one.
+decision. That value's Type must satisfy the Library Flag contract, which alone
+interprets the completed value as active or inactive. Parentheses may be omitted
+when the Pack is otherwise unambiguous, and additional produced values do not
+change which entry controls the branch. `for` consumes one `Range[T]` and fits
+its loop binding Layout against the Range entry. `break` and `continue` target
+the nearest enclosing loop and are illegal outside one. An `else if` retains
+its exact Branch as a Statement, including its leading Documentation, rather
+than acquiring synthetic braces or a second alternate representation.
 
 `match` evaluates its input once and compares cases in source order. An ordinary
 case must fold to a Constant with the input's exact Type. The first equal case
@@ -818,23 +930,33 @@ Option element Types always have nonempty Layouts. General runtime Type patterns
 require a real sum or dynamic-Type domain. They are not meaningful for ordinary
 values that already have one known static Type.
 
-An invocation statement must be a complete Callable invocation. Its effects
-run in source order and the statement discards its result Pack.
-A pure arithmetic, comparison, or access expression is not a statement merely
-because it is followed by an end marker.
+Any complete Pack or Expression followed by `;` is a Statement. Block
+membership discards that output after preserving its semantic identity and
+source order, so Calls, pure expressions, and assignment use one path instead
+of requiring an invocation-only statement category.
 
 ## Imports and resources
 
-`using` imports the exposed Static surface selected through a Package context:
+`using` adds the selected object as a contextual fallback for the current
+source:
 
 ```ttx
 using Core;
 using Graphics::Utilities;
 ```
 
-The route follows ordinary `::` contextual access. Package supplies its exact
-member contexts. Library imports eligible public declarations without creating
-a second Package path model.
+The route follows ordinary `::` contextual access one name at a time. Alias
+selection resolves to its target before the next query. Once the route is
+complete, unresolved `resolve_context`, `resolve_access`, and `resolve_call`
+queries fall through to that exact borrowed context. Library never enumerates
+or copies its declarations, constructs forwarding Aliases, or requires the
+selected object to be a Package or Library Monograph.
+
+Linking asks every admitted fallback about each locally declared name and
+rejects a second answer. If multiple fallback contexts answer some other later
+query with different identities, that query resolves to Invalid. Language
+extensions therefore compose as localized query contexts without a shared
+registry or imported declaration table.
 
 An embedded operand asks the exact source Package for retained bytes:
 
@@ -848,19 +970,17 @@ Library interprets a successful Resource as a Bytes Constant. Package retains
 path confinement and acquisition policy. Library never opens Package storage
 directly.
 
-A Library Monograph completes the exact closure of Library providers reached
-through its admitted imports. Every reachable declaration Type settles before
-every reachable Callable signature. Those signatures settle before any Field
-or initializer expression, and all Fields and initializers settle before any
-Function body in that closure begins. Source discovery order therefore cannot
-change the completed graph.
+A Library Monograph completes only its own source. Package and Environment
+barriers ensure that a context selected by `using` is already complete; using
+never discovers, links, finalizes, or owns a provider closure.
 
-## Native publication
+## Attributes and native publication
 
 Semantic publication and native publication answer different questions. A
 public Callable can be selected by another Monograph without promising an
-unmangled platform symbol. Library recognizes two Function Attributes when a
-native ABI surface is required:
+unmangled platform symbol. Function keeps every authored Attribute as ordered
+source data and assigns no Attribute a Library wide meaning. A native compiler
+may consume requests such as:
 
 ```ttx
 @abi("C")
@@ -870,18 +990,19 @@ public library_native : func = [] -> Unsigned_64 {
 }
 ```
 
-`@abi("C")` is legal only on a public Static Function. `@symbol` supplies its
-exact requested external spelling and is legal only with `@abi`. Function
-interprets those two keys, rejects repeated or malformed requests for either,
-and retains every other Attribute without assigning it native meaning. The same
-key on another definition is that definition consumer's concern. Function does
-not decide whether another Function requests the same global name.
+The consumer decides whether `abi` or `symbol` is relevant, which values and
+repetitions it supports, and whether the Function's visibility, receiver shape,
+and target representation satisfy that request. Function does not preconfirm
+those choices because another compiler or an embedding Dialect may assign the
+same authored facts different policy. Unknown keys remain available to future
+consumers without changing Function.
 
-The Library compiler checks that every parameter and result Type has a valid C
-representation for the selected target. Linker checks that exported symbol
-names are unique before it emits native bytes. A Function records its own
-request, but it does not decide either target representation or whole-program
-symbol policy.
+When a Library CPU compiler chooses to honor a C ABI request, it checks that
+every parameter and result Type has a valid C representation for the selected
+target and rejects any unsupported local request at that consumption boundary.
+Linker checks that the resulting exported symbol names are unique before it
+emits native bytes. Function decides neither target representation nor
+whole-program symbol policy.
 
 A public Callable without `@abi` is still available to language lookup. The
 compiler gives it a stable internal symbol when native code needs one. Private

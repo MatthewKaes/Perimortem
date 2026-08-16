@@ -7,27 +7,18 @@
 
 namespace Tetrodotoxin::Package {
 
-// Dialect owns Package body transaction policy and constructs one durable
-// Package Monograph from complete Dependency and Source values.
+// Dialect parses one Package description table and constructs its semantic
+// root. Workspace owns source acquisition, completion, and lifetime.
 class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
-  constexpr Dialect() = default;
+  Dialect(Perimortem::Core::View::Bytes name = "Package"_view)
+      : Tetrodotoxin::Language::Dialect(name) {}
 
   auto interpret(
-      Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Documentation& doc,
+      const Ttx::Concept::Documentation& documentation,
       const Ttx::Lexical::Anchor& source_anchor,
-      Ttx::Concept::Abstract& interpretation_context)
-      -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&>;
-
-  auto interpret(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Documentation& doc,
-      const Ttx::Lexical::Anchor& source_anchor,
-      Tetrodotoxin::Language::Diagnostics& diagnostics,
-      Ttx::Concept::Abstract&)
+      Ttx::Concept::Abstract& context)
       -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
 };
 

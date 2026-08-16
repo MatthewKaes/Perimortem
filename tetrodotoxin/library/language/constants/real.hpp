@@ -4,12 +4,12 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/constant.hpp"
-#include "ttx/model/types/real.hpp"
+#include "tetrodotoxin/library/language/model/types/real.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
-// Real is an evaluated floating-point Constant. Source decimal text may remain
-// a Dialect-owned literal Expression until a receiving Type selects a format,
+// Real is an evaluated floating point Constant. Source decimal text may remain
+// a Dialect owned literal Expression until a receiving Type selects a format,
 // so constructing this contract never silently narrows an exact source literal.
 // NaN values compare as one semantic value so Constant equality remains an
 // equivalence relation suitable for Generic materialization keys.
@@ -20,7 +20,7 @@ class Real : public Constant {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Model::Types::Real& type,
+      const Tetrodotoxin::Library::Language::Model::Types::Real& type,
       Value value,
       Ttx::Lexical::Anchor anchor) -> Real& {
     return Expression::create_authored<Real>(
@@ -30,13 +30,14 @@ class Real : public Constant {
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Model::Types::Real& type,
+      const Tetrodotoxin::Library::Language::Model::Types::Real& type,
       Value value) -> Real& {
     return Expression::create_synthetic<Real>(
         domain, [&](auto source) -> Real { return Real(type, value, source); });
   }
 
-  constexpr auto get_type() const -> const Ttx::Model::Types::Real& override {
+  constexpr auto get_type() const
+      -> const Tetrodotoxin::Library::Language::Model::Types::Real& override {
     return type;
   }
 
@@ -62,19 +63,21 @@ class Real : public Constant {
   constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
     const Ttx::Concept::Abstract& source_type = get_type().resolve();
     const Ttx::Concept::Abstract& target_type = target.resolve();
-    return source_type.is<Ttx::Model::Types::Real>() &&
-           target_type.is<Ttx::Model::Types::Real>() &&
+    return source_type
+               .is<Tetrodotoxin::Library::Language::Model::Types::Real>() &&
+           target_type
+               .is<Tetrodotoxin::Library::Language::Model::Types::Real>() &&
            &source_type == &target_type;
   }
 
  private:
   constexpr Real(
-      const Ttx::Model::Types::Real& type,
+      const Tetrodotoxin::Library::Language::Model::Types::Real& type,
       Value value,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Constant(anchor), type(type), value(value) {}
 
-  const Ttx::Model::Types::Real& type;
+  const Tetrodotoxin::Library::Language::Model::Types::Real& type;
   Value value;
 };
 

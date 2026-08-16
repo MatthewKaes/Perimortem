@@ -16,14 +16,6 @@
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/type.hpp"
 
-namespace Tetrodotoxin::Language {
-class Monograph;
-}
-
-namespace Tetrodotoxin::Library::Language {
-class Monograph;
-}
-
 namespace Tetrodotoxin::Library::Language::Model {
 
 // Layout is one authored Library descriptor and its eventual TTX Layout. Each
@@ -34,23 +26,21 @@ namespace Tetrodotoxin::Library::Language::Model {
 //
 // A nonempty authored Layout becomes observable through the TTX Layout
 // contract only after every slot links. Empty `[]` is complete immediately.
-// Function resolution enforces that boundary; pre-link registration derives
+// Function resolution enforces that boundary. Registration before link derives
 // receiver role from declares_self() without pretending an unresolved shape is
 // empty value flow.
 class Layout final : public Ttx::Concept::Layout {
  public:
   // Function parameters require an empty or Named Layout and alone admit a
   // leading reserved `self` entry. Results and other descriptor consumers use
-  // the general positional-or-Named form.
+  // the general positional or Named form.
   static auto interpret_parameters(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
-      Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Layout&>;
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Layout&>;
 
   static auto interpret(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
-      Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Layout&>;
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Layout&>;
 
   Layout(const Layout&) = delete;
   Layout(Layout&&) = delete;
@@ -62,12 +52,12 @@ class Layout final : public Ttx::Concept::Layout {
   // directly. Every authored Type slot must provide a value. Only `[]` carries
   // an empty descriptor.
   auto link_parameters(
-      Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Model::Type& host) -> Bool;
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& host) -> Bool;
 
   auto link_types(
-      Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Model::Type& host) -> Bool;
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& host) -> Bool;
 
   // Named lookup returns the exact semantic entry retained by this Layout.
   // Positional, incomplete, or missing selections resolve Invalid.
@@ -76,8 +66,8 @@ class Layout final : public Ttx::Concept::Layout {
 
   // Publication remains beside the authored routes and final edges it checks.
   auto validate_publication(
-      Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Model::Type& host) const -> Bool;
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& host) const -> Bool;
 
   auto declares_self() const -> Bool;
   auto is_linked() const -> Bool;
@@ -138,14 +128,13 @@ class Layout final : public Ttx::Concept::Layout {
       : domain(domain), slots(slots), anchor(anchor) {}
 
   static auto interpret(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& host,
       Bool parameters) -> Perimortem::Core::Option<Layout&>;
 
   auto link(
-      Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Model::Type& host,
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& host,
       Bool parameters) -> Bool;
 
   auto is_named() const -> Bool;

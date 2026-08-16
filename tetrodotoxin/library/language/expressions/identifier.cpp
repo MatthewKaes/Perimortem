@@ -3,10 +3,7 @@
 
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 
-#include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/language/foreign/surface.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/alias.hpp"
 
@@ -24,46 +21,21 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
 }
 
 auto Language::Expressions::Identifier::link(
-    Tetrodotoxin::Language::Monograph& source,
+    Ttx::Lexical::Cursor& cursor,
     const Abstract& lexical_context,
-    Core::Option<const Type&> access_scope) -> Bool {
-  // The reserved Foreign spelling selects the one Source owned namespace
-  // identity directly. Lexical context cannot substitute an ambient binding
-  // or turn the Surface into a value Type.
+    Core::Option<const Abstract&> access_scope) -> Bool {
+  (void)token;
+  (void)access_scope;
+  const Abstract& candidate =
+      resolve_alias(lexical_context.resolve_context(name));
   const Abstract& selected =
-      name == "foreign"_view
-          ? static_cast<const Abstract&>(
-                static_cast<const Language::Monograph&>(source)
-                    .get_source()
-                    .get_foreign())
-      : token.get_code() == Ttx::Lexical::Code::Type::Source
-          ? resolve_alias(source.resolve_context(name))
-      : token.get_code() == Ttx::Lexical::Code::Type::Type
-          ? access_scope.visit(
-                [&]() -> const Abstract& {
-                  return resolve_alias(lexical_context.resolve_context(name));
-                },
-                [&](const Type& caller) -> const Abstract& {
-                  return caller.visit<Language::Types::Composite>(
-                      [&](const Language::Types::Composite& composite)
-                          -> const Abstract& {
-                        return resolve_alias(
-                            composite.resolve_type_root(name, caller));
-                      },
-                      [&](const Abstract&) -> const Abstract& {
-                        return resolve_alias(
-                            lexical_context.resolve_context(name));
-                      });
-                })
-          : resolve_alias(lexical_context.resolve_context(name));
+      candidate.is<Language::Model::Type>() ? candidate : candidate.resolve();
   auto source_anchor = get_anchor();
 
-  if (!selected.is<Type>() && !selected.is<Addressable>() &&
-      !selected.is<Language::Foreign::Surface>()) {
-    source.report(
+  if (selected.is<Invalid>()) {
+    cursor.create_expression_error(
         source_anchor,
-        "Expression Identifier did not resolve to a Type, Addressable, or "
-        "Foreign surface."_view,
+        "Expression Identifier did not resolve in its lexical context."_view,
         "Publish the named semantic object before linking this use."_view);
     return False;
   }
@@ -71,7 +43,7 @@ auto Language::Expressions::Identifier::link(
   // A later pass may fill an unresolved name, but a successful edge is
   // permanent. Repeating the same exact link remains harmless.
   if (result && &result->get() != &selected) {
-    source.report(
+    cursor.create_expression_error(
         source_anchor,
         "Expression Identifier cannot change its linked result."_view,
         "Keep one exact semantic object bound to this authored Token."_view);
@@ -94,16 +66,15 @@ auto Language::Expressions::Identifier::get_documentation() const
 auto Language::Expressions::Identifier::get_type() const -> const Abstract& {
   return result.visit(
       []() -> const Abstract& { return Invalid::get_invalid(); },
-      [](const Reference<const Abstract>& selected) -> const Abstract& {
-        return selected.get().visit<Type>(
-            [](const Type&) -> const Abstract& {
-              return Dialect::get_descriptor();
+      [&](const Reference<const Abstract>& selected) -> const Abstract& {
+        return selected.get().visit<Language::Model::Type>(
+            [](const Language::Model::Type&) -> const Abstract& {
+              return Invalid::get_invalid();
             },
             [](const Abstract& addressable) -> const Abstract& {
-              return addressable.visit<Addressable>(
-                  [](const Addressable& selected) -> const Abstract& {
-                    return selected.get_type();
-                  },
+              return addressable.visit<Language::Model::Addressable>(
+                  [](const Language::Model::Addressable& selected)
+                      -> const Abstract& { return selected.get_type(); },
                   [](const Abstract&) -> const Abstract& {
                     return Invalid::get_invalid();
                   });

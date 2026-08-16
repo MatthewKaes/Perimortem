@@ -3,18 +3,20 @@
 
 #pragma once
 
+#include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "ttx/model/documentations/comment.hpp"
-#include "ttx/model/types/signed.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Signed_8 is the standard eight-bit Signed Type.
-class Signed_8 : public Ttx::Model::Types::Signed {
+// Signed_8 is the standard eight bit Signed Type.
+class Signed_8 : public Model::Types::Signed {
  public:
   TTX_NAME("Signed_8"_view);
 
   TTX_DOCUMENTATION(documentation);
 
+  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
   constexpr auto get_width() const -> Count override { return 8; }
   constexpr auto get_size() const -> Count override {
     return sizeof(::Signed_8);

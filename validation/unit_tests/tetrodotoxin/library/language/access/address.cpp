@@ -57,8 +57,6 @@ PERIMORTEM_UNIT_TEST(AddressTests, descendant_private_authority) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
   EXPECT(errors.is_empty());
 }
 
@@ -77,8 +75,7 @@ PERIMORTEM_UNIT_TEST(AddressTests, sibling_private_denied) {
   Environment::Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-  EXPECT_NOT(workspace.link(errors));
+  EXPECT_NOT(monograph);
   EXPECT_NOT(errors.is_empty());
 }
 
@@ -102,8 +99,6 @@ PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage_categories) {
   Errors errors;
   auto monograph = interpret(workspace, errors, accepted);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const auto& source = monograph->get_source();
   const auto& data = static_cast<const Library::Language::Types::Composite&>(
@@ -119,10 +114,11 @@ PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage_categories) {
   ASSERT(layout_state);
   EXPECT(&*layout_state == &state_identity);
   EXPECT(
-      &data.resolve_lexical_addressable("static_value"_view, data) ==
-      &static_identity);
+      &data.resolve_type_access(
+          data, "static_value"_view,
+          Library::Language::Model::Type::Access::Static) == &static_identity);
   EXPECT(
-      &data.resolve_lexical_addressable("instance_value"_view, data) ==
+      &data.resolve_context("instance_value"_view) ==
       &Ttx::Concept::Invalid::get_invalid());
   EXPECT(errors.is_empty());
 
@@ -135,8 +131,7 @@ PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage_categories) {
     Errors rejected_errors;
     auto rejected_monograph =
         interpret(rejected_workspace, rejected_errors, rejected[index]);
-    ASSERT(rejected_monograph);
-    EXPECT_NOT(rejected_workspace.link(rejected_errors));
+    EXPECT_NOT(rejected_monograph);
     EXPECT_NOT(rejected_errors.is_empty());
   }
 }

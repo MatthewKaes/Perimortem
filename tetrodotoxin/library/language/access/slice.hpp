@@ -13,8 +13,8 @@
 namespace Tetrodotoxin::Library::Language::Access {
 
 // Slice is the safe indexed element or contiguous range access. Element access
-// supplies one scalar value. Range access supplies a fixed-size Pack whose real
-// producer remains this Slice expression; it does not eagerly materialize a
+// supplies one scalar value. Range access supplies a fixed size Pack whose real
+// producer remains this Slice expression. It does not eagerly materialize a
 // View or anonymous aggregate Type. Writable reference selection belongs to the
 // separate bracket access form.
 class Slice : public Expression {
@@ -25,8 +25,7 @@ class Slice : public Expression {
   // operands use the Expression dispatcher while Slice owns the postfix
   // grammar recovery and construction of one authored Expression.
   static auto parse(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
+      const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor,
       Expression& receiver) -> Perimortem::Core::Option<Expression&>;
 
@@ -45,16 +44,16 @@ class Slice : public Expression {
   TTX_EMPTY_DOCUMENTATION();
 
   auto link(
-      Tetrodotoxin::Language::Monograph& source,
+      Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,
-      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool override;
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_layout() const -> const Ttx::Concept::Layout& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto fits(const Ttx::Model::Type& target) const -> Bool override;
-  auto finalize() -> void override;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
  protected:
   auto evaluate() -> Perimortem::Utility::Result<
@@ -78,8 +77,9 @@ class Slice : public Expression {
   Expression& receiver;
   Expression& first;
   Perimortem::Core::Option<Ttx::Concept::Reference<Expression>> count;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       element_type;
+  Perimortem::Core::Option<Ttx::Concept::Reference<Model::Pack>> fallback;
   Perimortem::Core::Option<Count> range_count;
   Perimortem::Core::Option<const Ttx::Concept::Layout&> range_layout;
 };

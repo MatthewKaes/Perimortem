@@ -8,25 +8,58 @@
 #include "perimortem/core/static/union.hpp"
 #include "perimortem/core/option.hpp"
 
-#include "tetrodotoxin/language/monograph.hpp"
+#include "perimortem/utility/result.hpp"
+
+#include "tetrodotoxin/library/language/generic.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// TypeReference is one authored, identity-free Type route with an optional
-// Generic argument shape. The Anchor keeps exact lexical evidence while every
-// segment retains its exact Token and an Arena-stable spelling. Tokens remain
-// the authored diagnostic evidence; spellings exist only because delayed link
-// cannot recover text from a Token after the source Cursor has gone away.
-// Nested TypeReferences and literal identities remain source facts until the
-// declaration owner links the shape.
+// TypeReference is one authored Type route with no semantic identity and an
+// optional Generic argument shape. The Anchor keeps exact lexical evidence
+// while every route remains one source view. Linking splits that spelling only
+// to issue the next contextual query. It does not build a parallel path graph
+// or preselect a semantic category for any intermediate segment. The source
+// transaction Arena remains alive with its completed graph, so delayed linking
+// does not copy the spelling. Nested TypeReferences and literal identities
+// remain source facts until the declaration owner links the shape.
 class TypeReference {
  public:
+  class Failure {
+   public:
+    enum class Type : Unsigned_8 {
+      Route,
+      Argument,
+      Generic,
+      Unavailable,
+      Arity,
+      Parameter,
+      Recursive,
+      Formula,
+    };
+
+    constexpr Failure(Type type, Ttx::Lexical::Anchor anchor, Count index = 0)
+        : type(type), anchor(anchor), index(index) {}
+
+    constexpr auto get_type() const -> Type { return type; }
+
+    constexpr auto get_index() const -> Count { return index; }
+
+    constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
+
+   private:
+    Type type;
+    Ttx::Lexical::Anchor anchor;
+    Count index;
+  };
+
+  using Resolution =
+      Perimortem::Utility::Result<const Ttx::Concept::Abstract&, Failure>;
+
   static auto parse(
-      Tetrodotoxin::Language::Monograph& source,
+      const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<TypeReference>;
 
   // Consumes only a qualified Type route. Owners whose grammar excludes
@@ -35,15 +68,9 @@ class TypeReference {
   static auto parse_route(Ttx::Lexical::Cursor& cursor)
       -> Perimortem::Core::Option<TypeReference>;
 
-  constexpr auto get_size() const -> Count { return names.get_size(); }
+  auto get_size() const -> Count;
 
-  constexpr auto get_name(Count index) const -> Perimortem::Core::View::Bytes {
-    return names.get_data()[index];
-  }
-
-  constexpr auto get_token(Count index) const -> Ttx::Lexical::Token {
-    return tokens.get_data()[index];
-  }
+  auto get_name(Count index) const -> Perimortem::Core::View::Bytes;
 
   constexpr auto get_root() const -> Perimortem::Core::View::Bytes {
     return get_name(0);
@@ -61,63 +88,58 @@ class TypeReference {
 
   // Alias completion recursively advances only nested authored routes. Literal
   // arguments are already stable semantic identities and remain private to the
-  // read-only materialization operation.
+  // materialization query that cannot mutate the literal.
   auto get_argument_reference(Count index) const
       -> Perimortem::Core::Option<const TypeReference&>;
 
-  // Route-only owners compare the exact contextual spelling they retained.
-  // Generic application is deliberately excluded because Materializations,
-  // not authored syntax comparison, owns semantic argument identity.
+  // Owners with only a route compare the exact contextual spelling they
+  // retained. Generic application is deliberately excluded because the selected
+  // Generic, not authored syntax comparison, owns semantic argument identity.
   auto matches_route(const TypeReference& other) const -> Bool;
 
-  auto resolve_route(const Ttx::Concept::Abstract& context) const
-      -> const Ttx::Concept::Abstract&;
+  // Ordinary resolution asks the supplied graph context for the root and every
+  // selected identity for its next segment. It carries no declaration
+  // authority, so publication can replay an authored route exactly as an
+  // external consumer would observe it.
+  auto resolve(const Ttx::Concept::Abstract& context) const -> Resolution;
 
-  auto resolve_route_from(const Ttx::Concept::Abstract& root) const
-      -> const Ttx::Concept::Abstract&;
+  // Alias completion has no Cursor but still begins at its actual declaration
+  // host. Only that first name receives lexical lookup. Every explicit suffix
+  // remains an ordinary query on the identity selected before it.
+  auto resolve_lexical(const Ttx::Concept::Abstract& context) const
+      -> Resolution;
 
-  // Qualification preserves the original caller scope. Alias resolution may
-  // redirect an edge, but it never transfers private authority to the target.
-  auto resolve_route_from(
-      const Ttx::Concept::Abstract& root,
-      const Ttx::Model::Type& caller_scope) const
-      -> const Ttx::Concept::Abstract&;
+  // Committed declaration owners publish the typed failure immediately.
+  // Alias closure alone uses source free resolution while forward targets may
+  // still settle during the same Type barrier.
+  auto resolve_authored(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& context) const
+      -> Perimortem::Core::Option<const Ttx::Concept::Abstract&>;
 
-  // The selected route terminal and argument presence decide the complete
-  // declaration result. A bare route must already be a Type; an applied route
-  // must be a Generic whose real argument Layout fits its parameter contract.
-  auto resolve_type(
-      const Ttx::Concept::Abstract& selected,
-      const Ttx::Model::Type& caller_scope) const
-      -> const Ttx::Concept::Abstract&;
-
-  // Publication resolves nested arguments through the same exported policy
-  // as the outer route. Generic application never lets a private argument hide
-  // behind a publicly named materialized Type.
-  auto resolve_exported_type(
-      const Ttx::Concept::Abstract& selected,
-      const Ttx::Model::Type& caller_scope) const
-      -> const Ttx::Concept::Abstract&;
+  auto report(Ttx::Lexical::Cursor& cursor, const Failure& failure) const
+      -> void;
 
  private:
+  enum class Root : Unsigned_8 {
+    Context,
+    Lexical,
+  };
+
   using Argument = Perimortem::Core::Static::
       Union<const TypeReference&, const Ttx::Concept::Abstract&>;
 
+  auto resolve_with_root(const Ttx::Concept::Abstract& context, Root root) const
+      -> Resolution;
+
   constexpr TypeReference(
-      Perimortem::Core::View::Vector<Ttx::Lexical::Token> tokens,
-      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names,
+      Perimortem::Core::View::Bytes route,
       Ttx::Lexical::Anchor anchor,
       Perimortem::Core::Option<Perimortem::Core::View::Vector<Argument>>
           arguments = {})
-      : tokens(tokens), names(names), anchor(anchor), arguments(arguments) {}
+      : route(route), anchor(anchor), arguments(arguments) {}
 
-  auto resolve_selected(
-      const Ttx::Concept::Abstract& selected,
-      const Ttx::Model::Type& caller_scope,
-      Bool exported) const -> const Ttx::Concept::Abstract&;
-
-  Perimortem::Core::View::Vector<Ttx::Lexical::Token> tokens;
-  Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names;
+  Perimortem::Core::View::Bytes route;
   Ttx::Lexical::Anchor anchor;
   Perimortem::Core::Option<Perimortem::Core::View::Vector<Argument>> arguments;
 };

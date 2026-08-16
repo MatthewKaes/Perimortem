@@ -8,16 +8,13 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/flow/block.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Flow {
 
@@ -25,29 +22,25 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // The binding is a read only Addressable whose exact Type must match the Range
 // element Type. Its body resolves that identity through ordinary lexical
 // lookup.
-class RangeLoop : public Ttx::Model::Addressable {
+class RangeLoop : public Model::Addressable {
  public:
-  TTX_CONTRACT(RangeLoop, Ttx::Model::Addressable);
+  TTX_CONTRACT(RangeLoop, Model::Addressable);
 
   static auto interpret(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
       Block& lexical_context,
-      Ttx::Model::Callable& function,
-      const Ttx::Model::Type& access_scope)
-      -> Perimortem::Core::Option<RangeLoop&>;
+      Model::Callable& function,
+      const Model::Type& access_scope) -> Perimortem::Core::Option<RangeLoop&>;
 
   RangeLoop(const RangeLoop&) = delete;
   RangeLoop(RangeLoop&&) = delete;
   auto operator=(const RangeLoop&) -> RangeLoop& = delete;
   auto operator=(RangeLoop&&) -> RangeLoop& = delete;
 
-  auto link(
-      Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Model::Type& access_scope) -> Bool;
+  auto link(Ttx::Lexical::Cursor& cursor, const Model::Type& access_scope)
+      -> Bool;
 
-  auto finalize() -> void;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
 
   TTX_NAME(name);
   TTX_EMPTY_DOCUMENTATION();
@@ -57,7 +50,7 @@ class RangeLoop : public Ttx::Model::Addressable {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  constexpr auto get_type() const -> const Ttx::Model::Type& override {
+  constexpr auto get_type() const -> const Model::Type& override {
     return type->get();
   }
 
@@ -88,8 +81,7 @@ class RangeLoop : public Ttx::Model::Addressable {
   TypeReference type_reference;
   Ttx::Concept::Reference<Model::Pack> range;
   Perimortem::Core::Option<Ttx::Concept::Reference<Block>> body;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
-      type;
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>> type;
   Ttx::Lexical::Anchor anchor;
   Bool linked = False;
 };

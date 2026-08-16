@@ -17,6 +17,7 @@
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library;
@@ -61,7 +62,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  return monograph && !workspace.link(errors) && !errors.is_empty();
+  return !monograph && !errors.is_empty();
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
@@ -93,22 +94,20 @@ PERIMORTEM_UNIT_TEST(BranchTests, retained_blocks_and_condition_pack) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto function = find_function(monograph->get_source(), "run"_view);
   ASSERT(function && function->get_body());
   auto statements = function->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(4));
-  ASSERT(statements.get_data()[0].get().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[1].get().is<Language::Flow::Branch>());
-  ASSERT(statements.get_data()[2].get().is<Language::Flow::Branch>());
-  ASSERT(statements.get_data()[3].get().is<Language::Flow::Return>());
+  ASSERT(statements.get_data()[0].get_abstract().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[1].get_abstract().is<Language::Flow::Branch>());
+  ASSERT(statements.get_data()[2].get_abstract().is<Language::Flow::Branch>());
+  ASSERT(statements.get_data()[3].get_abstract().is<Language::Flow::Return>());
 
   const auto& conditional = static_cast<const Language::Flow::Branch&>(
-      statements.get_data()[1].get());
+      statements.get_data()[1].get_abstract());
   const auto& loop = static_cast<const Language::Flow::Branch&>(
-      statements.get_data()[2].get());
+      statements.get_data()[2].get_abstract());
   EXPECT(conditional.get_kind() == Language::Flow::Branch::Kind::If);
   EXPECT(loop.get_kind() == Language::Flow::Branch::Kind::While);
   EXPECT_EQ(conditional.get_condition().get_layout().get_size(), Count(2));
@@ -122,18 +121,26 @@ PERIMORTEM_UNIT_TEST(BranchTests, retained_blocks_and_condition_pack) {
       "    outer = 2;\n"
       "  }"_view);
 
-  const Abstract& outer = statements.get_data()[0].get();
+  const Abstract& outer = statements.get_data()[0].get_abstract();
   const Abstract& shadowed =
       conditional.get_body().resolve_context("outer"_view);
   EXPECT(&shadowed != &outer);
   EXPECT(shadowed.is<Language::Flow::Local>());
-  EXPECT(&conditional.get_alternate()->resolve_context("outer"_view) == &outer);
+  auto alternate = conditional.get_alternate()
+                       ->get_abstract()
+                       .select<Language::Flow::Block>();
+  ASSERT(alternate);
+  EXPECT(&alternate->resolve_context("outer"_view) == &outer);
 
-  const Abstract& retained = statements.get_data()[1].get();
-  ASSERT(monograph->link());
-  ASSERT(monograph->finalize());
+  const Abstract& retained = statements.get_data()[1].get_abstract();
+  Perimortem::Memory::Allocator::Arena transaction;
+  Tokenizer tokenizer(transaction, source, "branch.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  ASSERT(monograph->link(cursor));
+  ASSERT(monograph->finalize(cursor));
   EXPECT(
-      &function->get_body()->get_statements().get_data()[1].get() == &retained);
+      &function->get_body()->get_statements().get_data()[1].get_abstract() ==
+      &retained);
   EXPECT(errors.is_empty());
 }
 
@@ -152,12 +159,40 @@ PERIMORTEM_UNIT_TEST(BranchTests, terminal_if_covers_function_result) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto function = find_function(monograph->get_source(), "select"_view);
   ASSERT(function && function->get_body());
   EXPECT_NOT(function->get_body()->reaches_next_statement());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(BranchTests, else_if_retains_the_selected_statement) {
+  static constexpr View::Bytes source =
+      "// Else if statement.\n"
+      "dialect : Library;\n"
+      "public select : func = [.first : Bool, .second : Bool] -> Unsigned_64 "
+      "{\n"
+      "  if first { return 1; }\n"
+      "  else if second { return 2; }\n"
+      "  else { return 3; }\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  auto function = find_function(monograph->get_source(), "select"_view);
+  ASSERT(function && function->get_body());
+  auto statements = function->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(1));
+  auto first =
+      statements.get_data()[0].get_abstract().select<Language::Flow::Branch>();
+  ASSERT(first && first->get_alternate());
+  auto second =
+      first->get_alternate()->get_abstract().select<Language::Flow::Branch>();
+  ASSERT(second && second->get_alternate());
+  EXPECT(second->get_alternate()->get_abstract().is<Language::Flow::Block>());
+  EXPECT_NOT(first->reaches_next_statement());
   EXPECT(errors.is_empty());
 }
 
@@ -173,17 +208,15 @@ PERIMORTEM_UNIT_TEST(BranchTests, while_body_targets_its_branch) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto function = find_function(monograph->get_source(), "repeat"_view);
   ASSERT(function && function->get_body());
   auto statements = function->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(2));
   const auto& loop = static_cast<const Language::Flow::Branch&>(
-      statements.get_data()[0].get());
+      statements.get_data()[0].get_abstract());
   const auto& control = static_cast<const Language::Flow::LoopControl&>(
-      loop.get_body().get_statements().get_data()[0].get());
+      loop.get_body().get_statements().get_data()[0].get_abstract());
   EXPECT(&control.get_target() == &loop);
   EXPECT(loop.reaches_next_statement());
   EXPECT(errors.is_empty());
@@ -202,10 +235,11 @@ PERIMORTEM_UNIT_TEST(BranchTests, incomplete_result_paths_are_rejected) {
 }
 
 PERIMORTEM_UNIT_TEST(BranchTests, first_condition_value_must_be_flag) {
-  static constexpr Static::Vector<View::Bytes, 3> sources = {{
+  static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Empty condition.\ndialect : Library; private invalid : func = [] -> [] { if () {} return; }"_view,
     "// Numeric condition.\ndialect : Library; private invalid : func = [] -> [] { if 1 {} return; }"_view,
     "// Later Flag.\ndialect : Library; private invalid : func = [] -> [] { while (1, true) {} return; }"_view,
+    "// Type is not a value.\ndialect : Library; private invalid : func = [] -> [] { if Bool {} return; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {

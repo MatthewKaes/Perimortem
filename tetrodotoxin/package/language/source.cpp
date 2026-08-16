@@ -9,7 +9,6 @@
 #include "ttx/lexical/lexicon.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 using namespace Ttx::Lexical;
@@ -36,12 +35,7 @@ static auto parse_quoted_path(Cursor& cursor, Token& token)
   return text.slice(1, text.get_size() - 2);
 }
 
-auto Package::Language::Source::parse(
-    Allocator::Arena& domain,
-    Cursor& cursor,
-    Span& span) -> Option<Source> {
-  span = Span();
-
+auto Package::Language::Source::parse(Cursor& cursor) -> Option<Source> {
   Token source = cursor.require(
       Code::Type::Source, "Expected a Package `source` statement."_view);
   if (!source) {
@@ -49,8 +43,8 @@ auto Package::Language::Source::parse(
     return {};
   }
 
-  View::Bytes local_name = Parser::Name::parse_semantic(cursor);
-  if (local_name.is_empty()) {
+  auto local_name = Parser::Name::parse_semantic(cursor);
+  if (!local_name) {
     cursor.recover_to_statement();
     return {};
   }
@@ -88,7 +82,8 @@ auto Package::Language::Source::parse(
     return {};
   }
 
-  View::Bytes durable_path = domain.proxy(normalized_path.get_view());
-  span = Span(source, consumed_end_statement);
-  return Source(local_name, durable_path);
+  View::Bytes durable_path =
+      cursor.get_arena().proxy(normalized_path.get_view());
+  return Source(
+      *local_name, durable_path, Span(source, consumed_end_statement));
 }

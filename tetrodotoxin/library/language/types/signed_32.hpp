@@ -3,18 +3,20 @@
 
 #pragma once
 
+#include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "ttx/model/documentations/comment.hpp"
-#include "ttx/model/types/signed.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Signed_32 is the standard thirty-two-bit Signed Type.
-class Signed_32 : public Ttx::Model::Types::Signed {
+// Signed_32 is the standard thirty two bit Signed Type.
+class Signed_32 : public Model::Types::Signed {
  public:
   TTX_NAME("Signed_32"_view);
 
   TTX_DOCUMENTATION(documentation);
 
+  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
   constexpr auto get_width() const -> Count override { return 32; }
   constexpr auto get_size() const -> Count override {
     return sizeof(::Signed_32);

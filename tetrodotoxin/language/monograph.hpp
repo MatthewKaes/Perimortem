@@ -3,32 +3,29 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/language/diagnostics.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
+#include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Language {
 
-// Monograph is the retained semantic root produced by one source or restored
-// payload. Concrete facts and completion diagnostics share its Arena lifetime
-// without retaining a parser or an installed Dialect.
+// Monograph is the semantic root produced in one source Arena. Workspace owns
+// that Arena and retains it only after the complete source succeeds.
 class Monograph : public Ttx::Concept::Abstract {
  public:
+  TTX_CONTRACT(Monograph, Ttx::Concept::Abstract);
+
   virtual ~Monograph() = 0;
 
   Monograph(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Concept::Documentation& documentation);
-
-  Monograph(
-      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Concept::Abstract& language,
       const Ttx::Concept::Documentation& documentation,
-      Diagnostics& diagnostics);
+      Ttx::Concept::Abstract& context);
 
   Monograph(const Monograph&) = delete;
   Monograph(Monograph&&) = delete;
@@ -37,36 +34,39 @@ class Monograph : public Ttx::Concept::Abstract {
 
   TTX_DOCUMENTATION(documentation);
 
-  // Linking may connect declarations only after every source has established
-  // its stable graph identities. Finalization then validates those completed
-  // edges without combining the two ordered Workspace barriers.
-  virtual auto link() -> Bool;
-  virtual auto finalize() -> Bool;
+  constexpr auto get_language() const -> const Ttx::Concept::Abstract& {
+    return language;
+  }
 
-  // The shared transaction copies diagnostic text into its Arena before
-  // publishing the ordered fact. An authored failure supplies its exact Anchor
-  // while a synthetic or restored failure leaves that location absent. An
-  // Anchor with no valid Span is the same source free state, while an empty
-  // focus Token preserves a valid Span for presentation without carets.
-  // Environment remains responsible for attaching source bytes.
-  auto report(
-      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor,
-      Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void;
+  // Layer selection compares an installed Abstract context by exact live
+  // identity. Contract type identities and authored names never participate.
+  virtual auto get_layer(const Ttx::Concept::Abstract& requested) const
+      -> Perimortem::Core::Option<const Monograph&>;
 
-  auto get_diagnostics() const -> Perimortem::Core::View::Vector<Diagnostic>;
+  // Linking may connect declarations only after every source in the enclosing
+  // transaction has established its stable graph identities. Finalization then
+  // validates those completed edges in the transaction's second barrier.
+  virtual auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
+  virtual auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool;
+
+  auto resolve_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
 
  protected:
   // Concrete facts remain in the same lifetime domain as their Monograph so
   // graph edges never outlive their storage.
   Perimortem::Memory::Allocator::Arena& domain;
 
-  // The opening Documentation remains attached to the semantic root because
-  // later owners may need it after the parser transaction has ended.
+  // Parsed Documentation already belongs to the retained source Arena.
   const Ttx::Concept::Documentation& documentation;
 
+  // The outer semantic context is borrowed for unresolved root queries. It is
+  // neither transaction storage nor an Interpretation layer, and Monograph
+  // never owns or mirrors its bindings.
+  Ttx::Concept::Abstract& context;
+
  private:
-  Diagnostics& diagnostics;
+  const Ttx::Concept::Abstract& language;
 };
 
 }  // namespace Tetrodotoxin::Language

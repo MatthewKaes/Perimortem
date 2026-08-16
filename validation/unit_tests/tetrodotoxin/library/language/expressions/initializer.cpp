@@ -7,6 +7,8 @@
 
 #include "perimortem/core/algorithm/search.hpp"
 
+#include "perimortem/memory/allocator/arena.hpp"
+
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
@@ -67,7 +69,7 @@ static auto rejects_link_without_publication(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  if (!monograph || workspace.link(errors) || errors.is_empty()) {
+  if (monograph || errors.is_empty()) {
     return False;
   }
 
@@ -79,7 +81,88 @@ static Harness InitializerTests = {
   .name = "Tetrodotoxin::Library::Language::Expressions::Initializer"_view,
 };
 
-PERIMORTEM_UNIT_TEST(InitializerTests, omitted_and_supplied) {
+static auto is_four_zero_values(
+    const Language::Model::Pack& value,
+    const Language::Model::Type& type) -> Bool {
+  if (!value.is<Language::Expressions::Initializer>()) {
+    return False;
+  }
+
+  const auto& initializer =
+      static_cast<const Language::Expressions::Initializer&>(value);
+  auto completed = initializer.get_completed_values();
+  if (&initializer.get_type() != &type || !completed ||
+      completed->get_layout().get_size() != Count(4)) {
+    return False;
+  }
+
+  for (Count index = 0; index < Count(4); index++) {
+    auto entry = completed->get_layout().get_abstract(index);
+    if (!entry || !entry->is<Language::Constants::Unsigned>() ||
+        static_cast<const Language::Constants::Unsigned&>(*entry).get_value() !=
+            Unsigned_64(0)) {
+      return False;
+    }
+  }
+
+  return True;
+}
+
+PERIMORTEM_UNIT_TEST(InitializerTests, non_object_omission_uses_type_default) {
+  static constexpr View::Bytes source =
+      "// Non Object default construction.\n"
+      "dialect : Library;\n"
+      "public scalar : Unsigned_32 = new[Unsigned_32];\n"
+      "public bytes : Fixed[Unsigned_8, 4] = "
+      "new[Fixed[Unsigned_8, 4]];"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  const auto& scalar = static_cast<const Language::Field&>(
+      monograph->get_source().resolve_context("scalar"_view));
+  const auto& bytes = static_cast<const Language::Field&>(
+      monograph->get_source().resolve_context("bytes"_view));
+  auto authored_scalar = scalar.get_initializer();
+  auto authored_bytes = bytes.get_initializer();
+  ASSERT(authored_scalar && authored_bytes);
+
+  Perimortem::Memory::Allocator::Arena direct_values;
+  auto direct_scalar = scalar.get_type().create_default(direct_values);
+  auto direct_bytes = bytes.get_type().create_default(direct_values);
+  ASSERT(direct_scalar && direct_bytes);
+  ASSERT(authored_scalar->is<Language::Expressions::Initializer>());
+  ASSERT(direct_scalar->is<Language::Constants::Unsigned>());
+  const auto& authored_initializer =
+      static_cast<const Language::Expressions::Initializer&>(*authored_scalar);
+  auto authored_value = authored_initializer.get_completed_values();
+  ASSERT(authored_value && authored_value->is<Language::Constants::Unsigned>());
+  const auto& authored_unsigned =
+      static_cast<const Language::Constants::Unsigned&>(*authored_value);
+  const auto& direct_unsigned =
+      static_cast<const Language::Constants::Unsigned&>(*direct_scalar);
+  EXPECT(&authored_unsigned.get_type() == &scalar.get_type());
+  EXPECT(&direct_unsigned.get_type() == &scalar.get_type());
+  EXPECT_EQ(authored_unsigned.get_value(), Unsigned_64(0));
+  EXPECT_EQ(direct_unsigned.get_value(), Unsigned_64(0));
+  EXPECT(is_four_zero_values(*authored_bytes, bytes.get_type()));
+  EXPECT(is_four_zero_values(*direct_bytes, bytes.get_type()));
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(InitializerTests, non_object_supplied_values_rejected) {
+  static constexpr View::Bytes source =
+      "// Non Object supplied construction.\n"
+      "dialect : Library;\n"
+      "public invalid : Unsigned_32 = "
+      "new[Unsigned_32](.value = 1);"_view;
+  EXPECT(rejects_interpretation(
+      source,
+      "Selected Type does not accept supplied initializer values."_view));
+}
+
+PERIMORTEM_UNIT_TEST(InitializerTests, object_omission_and_supplied_arguments) {
   static constexpr View::Bytes source =
       "// Initializer test.\n"
       "dialect : Library;\n"
@@ -92,14 +175,11 @@ PERIMORTEM_UNIT_TEST(InitializerTests, omitted_and_supplied) {
       "}\n"
       "public empty : Defaults = new[Defaults];\n"
       "public configured : Required = "
-      "new[Required](.second = true, .first = 4,);\n"
-      "public positional : Required = new[Required](5, true);"_view;
+      "new[Required](.second = true, .first = 4,);"_view;
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const auto& source_type = monograph->get_source();
   const auto& defaults = static_cast<const Language::Types::Object&>(
@@ -110,39 +190,26 @@ PERIMORTEM_UNIT_TEST(InitializerTests, omitted_and_supplied) {
       source_type.resolve_context("empty"_view));
   const auto& configured_field = static_cast<const Language::Field&>(
       source_type.resolve_context("configured"_view));
-  const auto& positional_field = static_cast<const Language::Field&>(
-      source_type.resolve_context("positional"_view));
   auto empty_initializer = empty_field.get_initializer();
   auto configured_initializer = configured_field.get_initializer();
-  auto positional_initializer = positional_field.get_initializer();
   ASSERT(empty_initializer);
   ASSERT(configured_initializer);
-  ASSERT(positional_initializer);
   ASSERT(empty_initializer->is<Language::Expressions::Initializer>());
   ASSERT(configured_initializer->is<Language::Expressions::Initializer>());
-  ASSERT(positional_initializer->is<Language::Expressions::Initializer>());
   const auto& empty = static_cast<const Language::Expressions::Initializer&>(
       *empty_initializer);
   const auto& configured =
       static_cast<const Language::Expressions::Initializer&>(
           *configured_initializer);
-  const auto& positional =
-      static_cast<const Language::Expressions::Initializer&>(
-          *positional_initializer);
   EXPECT(&empty.get_type() == &defaults);
   EXPECT(&configured.get_type() == &required);
-  EXPECT(&positional.get_type() == &required);
 
   ASSERT(empty.get_completed_values());
   ASSERT(configured.get_completed_values());
-  ASSERT(positional.get_completed_values());
   EXPECT_EQ(empty.get_completed_values()->get_layout().get_size(), Count(1));
   const Layout& configured_values =
       configured.get_completed_values()->get_layout();
-  const Layout& positional_values =
-      positional.get_completed_values()->get_layout();
   ASSERT_EQ(configured_values.get_size(), Count(3));
-  ASSERT_EQ(positional_values.get_size(), Count(3));
   auto configured_first = configured_values.get_abstract(0);
   auto configured_hidden = configured_values.get_abstract(1);
   auto configured_second = configured_values.get_abstract(2);
@@ -157,21 +224,17 @@ PERIMORTEM_UNIT_TEST(InitializerTests, omitted_and_supplied) {
       static_cast<const Language::Constants::Unsigned&>(*configured_first)
           .get_value(),
       Unsigned_64(4));
-  auto positional_first = positional_values.get_abstract(0);
-  auto positional_hidden = positional_values.get_abstract(1);
-  auto positional_second = positional_values.get_abstract(2);
-  ASSERT(
-      positional_first &&
-      positional_first->is<Language::Constants::Unsigned>());
-  ASSERT(
-      positional_hidden && positional_hidden->is<Language::Constants::False>());
-  ASSERT(
-      positional_second && positional_second->is<Language::Constants::True>());
-  EXPECT_EQ(
-      static_cast<const Language::Constants::Unsigned&>(*positional_first)
-          .get_value(),
-      Unsigned_64(5));
   EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(InitializerTests, positional_object_arguments_rejected) {
+  static constexpr View::Bytes source =
+      "// Positional Object initializer test.\n"
+      "dialect : Library;\n"
+      "public Session : object { public state value : Unsigned_64; }\n"
+      "public invalid : Session = new[Session](5);"_view;
+  EXPECT(rejects_interpretation(
+      source, "Object initializer inputs must name state Fields."_view));
 }
 
 PERIMORTEM_UNIT_TEST(InitializerTests, descendant_private_field) {
@@ -188,8 +251,6 @@ PERIMORTEM_UNIT_TEST(InitializerTests, descendant_private_field) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
   EXPECT(errors.is_empty());
 }
 
@@ -203,8 +264,6 @@ PERIMORTEM_UNIT_TEST(InitializerTests, inferred_carries_object_type) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const auto& source_type = monograph->get_source();
   const Abstract& session = source_type.resolve_context("Session"_view);
@@ -254,15 +313,14 @@ PERIMORTEM_UNIT_TEST(InitializerTests, duplicate_name_rejected) {
       source, "Duplicate name in one Library Pack."_view));
 }
 
-PERIMORTEM_UNIT_TEST(InitializerTests, mixed_pack_rejected) {
+PERIMORTEM_UNIT_TEST(InitializerTests, mixed_pack_rejected_as_positional) {
   static constexpr View::Bytes source =
       "// Mixed initializer Layout test.\n"
       "dialect : Library;\n"
       "public Session : object { public state value : Unsigned_64; }\n"
       "public invalid : Session = new[Session](1, .value = 2);"_view;
   EXPECT(rejects_interpretation(
-      source,
-      "Positional and named entries cannot share one Library Pack."_view));
+      source, "Object initializer inputs must name state Fields."_view));
 }
 
 PERIMORTEM_UNIT_TEST(InitializerTests, omission_uses_type_default) {
@@ -275,8 +333,6 @@ PERIMORTEM_UNIT_TEST(InitializerTests, omission_uses_type_default) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const auto& created = static_cast<const Language::Field&>(
       monograph->get_source().resolve_context("created"_view));
@@ -318,8 +374,6 @@ PERIMORTEM_UNIT_TEST(InitializerTests, nested_defaults) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const Abstract& inner = monograph->get_source().resolve_context("Inner"_view);
   const auto& created = static_cast<const Language::Field&>(
@@ -392,8 +446,6 @@ PERIMORTEM_UNIT_TEST(InitializerTests, mandatory_cycle_rejected) {
   Errors errors;
   auto monograph = interpret(workspace, errors, optional);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
   const auto& valid = static_cast<const Language::Field&>(
       monograph->get_source().resolve_context("valid"_view));
   auto initializer = valid.get_initializer();

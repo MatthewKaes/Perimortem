@@ -19,8 +19,8 @@
 namespace Tetrodotoxin::Library::Language::Access {
 
 // Swizzle selects and reorders named values from one receiver Pack. A named
-// Pack contributes the real producer retained at each selected source index;
-// one multi-result producer may therefore supply several distinct slots. A
+// Pack contributes the real producer retained at each selected source index.
+// One producer with several results may therefore supply distinct slots. A
 // scalar Expression may instead contribute the named Addressables of its
 // output Type, in which case each selected slot is a real Address Expression
 // bound to that receiver. The result is positional Pack flow and never an
@@ -30,17 +30,16 @@ class Swizzle : public Expression {
   TTX_CONTRACT(Swizzle, Expression);
 
   static auto parse(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
+      const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor,
       Language::Model::Pack& receiver,
       Ttx::Lexical::Span receiver_span)
       -> Perimortem::Core::Option<Expression&>;
 
   auto link(
-      Tetrodotoxin::Language::Monograph& source,
+      Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,
-      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool override;
 
   TTX_NAME("Swizzle"_view);
@@ -49,7 +48,7 @@ class Swizzle : public Expression {
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_layout() const -> const Ttx::Concept::Layout& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
-  auto finalize() -> void override;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
   constexpr auto get_receiver() const -> const Language::Model::Pack& {
     return receiver;

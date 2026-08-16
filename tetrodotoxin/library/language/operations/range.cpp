@@ -4,11 +4,10 @@
 #include "tetrodotoxin/library/language/operations/range.hpp"
 
 #include "tetrodotoxin/library/language/generics/range.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/model/types/signed.hpp"
+#include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/types/signed.hpp"
-#include "ttx/model/types/unsigned.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -17,26 +16,24 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
 auto Language::Operations::Range::parse(
-    Memory::Allocator::Arena& domain,
-    Monograph& source,
+    const Abstract& context,
     Cursor& cursor,
     Model::Pack& left,
     Span left_span) -> Core::Option<Expression&> {
-  auto transaction = cursor.branch();
-  Token opening = transaction.consume();
-  Token right_start = transaction.current();
+  Token opening = cursor.consume();
+  Token right_start = cursor.current();
   auto right = Language::Parser::Expression::parse_operand(
-      domain, source, transaction, Code::Type::RangeOp);
-  Span span(opening, transaction.peek(-1));
+      context, cursor, Code::Type::RangeOp);
+  Span span(opening, cursor.peek(-1));
   if (!right) {
-    transaction.create_expression_error(
+    cursor.create_expression_error(
         span, "Range has a malformed right endpoint."_view,
         "Use one complete integer Expression after `...`."_view);
     return {};
   }
-  if (transaction.matches(Code::Type::RangeOp)) {
-    transaction.create_expression_error(
-        Span(opening, transaction.current()),
+  if (cursor.matches(Code::Type::RangeOp)) {
+    cursor.create_expression_error(
+        Span(opening, cursor.current()),
         "Range accepts exactly two endpoints."_view,
         "Finish one Range before starting another Expression."_view);
     return {};
@@ -44,9 +41,9 @@ auto Language::Operations::Range::parse(
 
   auto left_expression = left.select<Expression>();
   auto right_expression = right->select<Expression>();
-  Span right_span(right_start, transaction.peek(-1));
+  Span right_span(right_start, cursor.peek(-1));
   if (!left_expression || !right_expression) {
-    transaction.create_expression_error(
+    cursor.create_expression_error(
         Anchor::create(opening, left_span, right_span),
         "Library Range requires one Expression from each endpoint Pack."_view,
         "Use one unlabelled integer value for each Range endpoint."_view);
@@ -54,17 +51,16 @@ auto Language::Operations::Range::parse(
   }
 
   Anchor anchor = Anchor::create(opening, left_span, right_span);
-  Range& range =
-      create_authored(domain, *left_expression, *right_expression, anchor);
-  cursor.join(transaction);
+  Range& range = create_authored(
+      cursor.get_arena(), *left_expression, *right_expression, anchor);
   return range;
 }
 
 TTX_BINARY_OP(Range);
 
 auto Language::Operations::Range::select_type(
-    Tetrodotoxin::Language::Monograph& source) const
-    -> Core::Option<const Type&> {
+    const Ttx::Concept::Abstract& context) const
+    -> Core::Option<const Language::Model::Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right) {
@@ -73,21 +69,26 @@ auto Language::Operations::Range::select_type(
 
   const Abstract& left_type = left->get_type().resolve();
   const Abstract& right_type = right->get_type().resolve();
-  auto element = left_type.select<Type>();
+  auto element = left_type.select<Language::Model::Type>();
   if (!element || &left_type != &right_type ||
-      (!left_type.is<Ttx::Model::Types::Signed>() &&
-       !left_type.is<Ttx::Model::Types::Unsigned>())) {
+      (!left_type.is<Tetrodotoxin::Library::Language::Model::Types::Signed>() &&
+       !left_type
+            .is<Tetrodotoxin::Library::Language::Model::Types::Unsigned>())) {
     return {};
   }
 
   Core::Static::Vector<Generic::Argument, 1> arguments = {{
     Generic::Argument(*element),
   }};
-  // Range construction consumes the graph transaction hosted by the concrete
-  // Library source. Parser and Operation retain no second capability edge.
-  auto& library_source = static_cast<Language::Monograph&>(source);
-  return library_source.get_materializations().materialize(
-      Generics::Range::get_formula(), arguments.get_view());
+  const Abstract& selected = context.resolve_context(Generics::Range::name);
+  auto generic = selected.select<Generic>();
+  BAIL_IF(!generic);
+  return generic->materialize(arguments.get_view())
+      .visit(
+          [](const Language::Model::Type& type)
+              -> Core::Option<const Language::Model::Type&> { return type; },
+          [](const Generic::Failure&)
+              -> Core::Option<const Language::Model::Type&> { return {}; });
 }
 
 auto Language::Operations::Range::evaluate_constants(Memory::Allocator::Arena&)

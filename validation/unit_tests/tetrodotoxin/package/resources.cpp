@@ -21,6 +21,8 @@
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -111,8 +113,12 @@ class TemporaryResources {
 
 class ScopeMember : public Language::Monograph {
  public:
-  ScopeMember(Allocator::Arena& domain, View::Bytes name)
-      : Monograph(domain, Documentation::get_empty()), name(name) {}
+  ScopeMember(
+      Allocator::Arena& arena,
+      Language::Dialect& dialect,
+      View::Bytes name)
+      : Monograph(arena, dialect, Documentation::get_empty(), dialect),
+        name(name) {}
 
   auto get_name() const -> View::Bytes override { return name; }
 
@@ -277,15 +283,22 @@ PERIMORTEM_UNIT_TEST(PackageResources, monograph_dispatch) {
     Package::Language::Source("Qualified::Member"_view, "qualified.ttx"_view),
   };
   Allocator::Arena arena;
+  Package::Dialect dialect;
+  Errors errors;
+  Tokenizer tokenizer(arena, {}, "package-resources.ttx"_view);
+  Cursor cursor(tokenizer, errors);
   auto root_result = Package::Language::Monograph::create_authored(
-      arena, Documentation::get_empty(), {}, {}, sources);
+      arena, dialect, Documentation::get_empty(), dialect, {}, sources);
   ASSERT(root_result);
   auto& root = *root_result;
-  auto& member = arena.construct<ScopeMember>(arena, "Member value"_view);
-  auto& shadow = arena.construct<ScopeMember>(arena, "Shadow value"_view);
+  auto& member =
+      arena.construct<ScopeMember>(arena, dialect, "Member value"_view);
+  auto& shadow =
+      arena.construct<ScopeMember>(arena, dialect, "Shadow value"_view);
   auto& partial_member =
-      arena.construct<ScopeMember>(arena, "Partial value"_view);
-  auto& qualified = arena.construct<ScopeMember>(arena, "Qualified value"_view);
+      arena.construct<ScopeMember>(arena, dialect, "Partial value"_view);
+  auto& qualified =
+      arena.construct<ScopeMember>(arena, dialect, "Qualified value"_view);
   ASSERT(root.bind_member("Member"_view, member));
   ASSERT(root.bind_member(complete, shadow));
   ASSERT(root.bind_member(partial, partial_member));
@@ -293,11 +306,15 @@ PERIMORTEM_UNIT_TEST(PackageResources, monograph_dispatch) {
 
   const Abstract& member_edge = root.resolve_context("Member"_view);
   const Abstract& partial_edge = root.resolve_context(partial);
+  const Abstract& qualified_scope = root.resolve_context("Qualified"_view);
   const Abstract& qualified_edge =
-      root.resolve_context("Qualified::Member"_view);
+      qualified_scope.resolve_context("Member"_view);
   EXPECT(&member_edge.resolve() == &member);
   EXPECT(&partial_edge.resolve() == &partial_member);
   EXPECT(&qualified_edge.resolve() == &qualified);
+  EXPECT(
+      &root.resolve_context("Qualified::Member"_view) ==
+      &Invalid::get_invalid());
   EXPECT(&root.resolve_context(complete) == &Invalid::get_invalid());
   EXPECT(
       &root.resolve_context("$[resources/table.bin"_view) ==
@@ -305,8 +322,6 @@ PERIMORTEM_UNIT_TEST(PackageResources, monograph_dispatch) {
   EXPECT(
       &root.resolve_context("resources/table.bin"_view) ==
       &Invalid::get_invalid());
-  ASSERT_EQ(root.get_members().get_size(), Count(4));
-
   auto storage = Package::Storage::open(
       arena, "validation/data/ttx/package_resources"_view);
   ASSERT(storage);
@@ -318,7 +333,7 @@ PERIMORTEM_UNIT_TEST(PackageResources, monograph_dispatch) {
   EXPECT(&root.resolve_context(complete) == &resource);
 
   auto& source_free = Package::Language::Monograph::create_synthetic(
-      arena, Documentation::get_empty(), {});
+      arena, dialect, dialect, {});
   EXPECT_NOT(source_free.get_resources().connect(*storage));
   EXPECT(&source_free.resolve_context(complete) == &Invalid::get_invalid());
 }

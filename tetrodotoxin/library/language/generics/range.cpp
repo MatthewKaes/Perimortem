@@ -5,24 +5,25 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
+#include "tetrodotoxin/library/language/model/types/signed.hpp"
+#include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
-#include "ttx/model/types/signed.hpp"
-#include "ttx/model/types/unsigned.hpp"
 
 using namespace Tetrodotoxin::Library::Language;
 
-auto Generics::Range::create(
-    Perimortem::Core::View::Vector<Argument> arguments,
-    Perimortem::Memory::Allocator::Arena& arena) const
-    -> Perimortem::Core::Option<const Ttx::Model::Type&> {
+auto Generics::Range::create(Perimortem::Core::View::Vector<Argument> arguments)
+    const -> Perimortem::Core::Option<const Language::Model::Type&> {
+  auto& arena = get_domain();
   if (arguments.get_size() != 1) {
     return {};
   }
 
-  const Ttx::Model::Type* element =
-      arguments.get_data()[0].find<const Ttx::Model::Type&>();
-  if (element == nullptr || (!element->is<Ttx::Model::Types::Signed>() &&
-                             !element->is<Ttx::Model::Types::Unsigned>())) {
+  const Language::Model::Type* element =
+      arguments.get_data()[0].find<const Language::Model::Type&>();
+  if (element == nullptr ||
+      (!element->is<Tetrodotoxin::Library::Language::Model::Types::Signed>() &&
+       !element
+            ->is<Tetrodotoxin::Library::Language::Model::Types::Unsigned>())) {
     return {};
   }
 

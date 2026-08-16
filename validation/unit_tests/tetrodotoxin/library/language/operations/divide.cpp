@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/operations/divide.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -38,25 +39,13 @@ static Harness LibraryDivide = {
   .name = "Tetrodotoxin::Library::Language::Operations::Divide"_view,
 };
 
-class DivideMonograph : public Tetrodotoxin::Language::Monograph {
- public:
-  DivideMonograph(Allocator::Arena& domain)
-      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
-
-  constexpr auto get_name() const -> View::Bytes override {
-    return "DivideMonograph"_view;
-  }
-
-  constexpr auto resolve_context(View::Bytes) const
-      -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
-};
-
-static auto link_operation(
-    Operation& operation,
-    Tetrodotoxin::Language::Monograph& source) -> Bool {
-  return operation.link(source, Invalid::get_invalid());
+static auto link_operation(Operation& operation, const Abstract& context)
+    -> Bool {
+  Allocator::Arena transaction;
+  Errors errors;
+  Tokenizer tokenizer(transaction, {}, "<operation>"_view);
+  Cursor cursor(tokenizer, errors);
+  return operation.link(cursor, context);
 }
 
 class DivideExpression : public Expression {
@@ -95,7 +84,7 @@ class DivideFoldInput : public Operation {
       Allocator::Arena& domain,
       Expression& input,
       Constant& result,
-      const Ttx::Model::Type& type,
+      const Model::Type& type,
       Bool fails = False)
       : Operation(
             domain,
@@ -122,14 +111,14 @@ class DivideFoldInput : public Operation {
     return result;
   }
 
-  auto select_type(Tetrodotoxin::Language::Monograph&) const
-      -> Option<const Ttx::Model::Type&> override {
+  auto select_type(const Abstract&) const
+      -> Option<const Model::Type&> override {
     return type;
   }
 
  private:
   Constant& result;
-  const Ttx::Model::Type& type;
+  const Model::Type& type;
   Bool fails;
   Count evaluations = 0;
 };
@@ -180,7 +169,8 @@ static auto value_is(const Expression& expression, value_type expected)
 
 PERIMORTEM_UNIT_TEST(LibraryDivide, type_selection) {
   Allocator::Arena domain;
-  DivideMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Signed_8 signed_8;
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
@@ -188,7 +178,7 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, type_selection) {
   Types::Boolean boolean;
   Types::Fixed bytes_type(
       "Fixed[Unsigned_8,1]"_view,
-      Tetrodotoxin::Library::Dialect::get_unsigned_8(), 1);
+      resolve_library_unsigned(source, "Unsigned_8"_view), 1);
   DivideUnresolvedType unresolved_type;
   DivideExpression signed_left("signed left"_view, signed_8);
   DivideExpression signed_right("signed right"_view, signed_8);
@@ -244,7 +234,8 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, type_selection) {
 
 PERIMORTEM_UNIT_TEST(LibraryDivide, integer_quotients) {
   Allocator::Arena domain;
-  DivideMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Signed_8 signed_type;
   Types::Unsigned_8 unsigned_type;
   auto& positive = Constants::Signed::create_synthetic(domain, signed_type, 7);
@@ -358,7 +349,8 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, integer_quotients) {
 
 PERIMORTEM_UNIT_TEST(LibraryDivide, ieee_domains) {
   Allocator::Arena domain;
-  DivideMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
   auto& narrow_seven = Constants::Real::create_synthetic(domain, real_32, 7.0);
@@ -442,16 +434,8 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, ieee_domains) {
 
 PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   Allocator::Arena domain;
-  DivideMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  Errors host_errors;
-  Tokenizer host_tokens(domain, {}, "divide-source.ttx"_view);
-  Cursor host_cursor(host_tokens, host_errors);
-  auto retained_source = dialect.interpret(
-      domain, host_cursor, Documentation::get_empty(), Anchor::create(Span()),
-      context);
-  ASSERT(retained_source && retained_source->is<Monograph>());
-  auto& source = static_cast<Monograph&>(*retained_source);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 selected_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
   auto& folded =
@@ -479,7 +463,8 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   EXPECT(reports(
       failure.fold(), Expression::Error::Type::InvalidConstant, failing));
 
-  const auto& parser_type = Tetrodotoxin::Library::Dialect::get_unsigned_64();
+  const auto& parser_type =
+      resolve_library_unsigned(source, "Unsigned_64"_view);
   Errors success_errors;
   Tokenizer success_tokens(domain, "24 / 2"_view, "divide.ttx"_view);
   Cursor success_cursor(success_tokens, success_errors);
@@ -489,7 +474,7 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   auto& success_left = Constants::Unsigned::create_authored(
       domain, parser_type, 24, success_left_anchor);
   auto parsed = Operations::Divide::parse(
-      domain, source, success_cursor, success_left, Span(success_left_token));
+      source, success_cursor, success_left, Span(success_left_token));
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "24 / true"_view, "divide.ttx"_view);
   Cursor failure_cursor(failure_tokens, failure_errors);
@@ -499,14 +484,14 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   auto& failure_left = Constants::Unsigned::create_authored(
       domain, parser_type, 24, failure_left_anchor);
   auto rejected = Operations::Divide::parse(
-      domain, source, failure_cursor, failure_left, Span(failure_left_token));
+      source, failure_cursor, failure_left, Span(failure_left_token));
 
   ASSERT(parsed);
   EXPECT(parsed->is<Operations::Divide>());
   EXPECT(parsed->get_type().resolve().is<Invalid>());
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
-  EXPECT(parsed->link(source, Invalid::get_invalid()));
+  EXPECT(parsed->link(success_cursor, source));
 
   auto parsed_fold = parsed->visit<Operation>(
       [&](Operation& operation) { return selected(operation.fold()); },
@@ -524,13 +509,7 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   EXPECT(rejected->get_type().resolve().is<Invalid>());
   EXPECT(failure_cursor.matches(Code::Type::Terminal));
   EXPECT(failure_errors.is_empty());
-  EXPECT_NOT(rejected->link(source, Invalid::get_invalid()));
+  EXPECT_NOT(rejected->link(failure_cursor, source));
   EXPECT(rejected->get_type().resolve().is<Invalid>());
-
-  auto diagnostics = source.get_diagnostics();
-  ASSERT(diagnostics.get_size() == 1);
-  ASSERT(diagnostics.get_data()[0].get_anchor());
-  EXPECT(
-      diagnostics.get_data()[0].get_anchor()->get_span().get_size() ==
-      Count(9));
+  EXPECT_EQ(failure_errors.get_size(), Count(1));
 }

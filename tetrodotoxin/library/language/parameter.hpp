@@ -8,21 +8,17 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "ttx/model/addressable.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-namespace Model {
-class Layout;
-}
-
 // Parameter is one named Function input Addressable. It is the real entry in
 // the linked parameter Layout and borrows that owner's stable authored name.
-// Its exact Type is the only semantic fact added when the Layout links; source
+// Its exact Type is the only semantic fact added when the Layout links. Source
 // Anchors and TypeReference syntax remain in the one canonical Layout slot.
-class Parameter : public Ttx::Model::Addressable {
+class Parameter : public Model::Addressable {
  public:
-  TTX_CONTRACT(Parameter, Ttx::Model::Addressable);
+  TTX_CONTRACT(Parameter, Model::Addressable);
 
   Parameter(const Parameter&) = delete;
   Parameter(Parameter&&) = delete;
@@ -33,23 +29,24 @@ class Parameter : public Ttx::Model::Addressable {
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
-  auto get_type() const -> const Ttx::Model::Type& override;
+  auto get_type() const -> const Model::Type& override;
 
- private:
-  friend class Model::Layout;
-
+  // Parameter validates and creates its own exact semantic identity. Layout
+  // retains the result as its canonical linked entry but receives no private
+  // construction authority over Parameter.
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Perimortem::Core::View::Bytes& name,
-      const Ttx::Model::Type& type) -> Perimortem::Core::Option<Parameter&>;
+      Perimortem::Core::View::Bytes name,
+      const Model::Type& type) -> Perimortem::Core::Option<Parameter&>;
 
+ private:
   constexpr Parameter(
-      const Perimortem::Core::View::Bytes& name,
-      const Ttx::Model::Type& type)
+      Perimortem::Core::View::Bytes name,
+      const Model::Type& type)
       : name(name), type(type) {}
 
-  const Perimortem::Core::View::Bytes& name;
-  const Ttx::Model::Type& type;
+  Perimortem::Core::View::Bytes name;
+  const Model::Type& type;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

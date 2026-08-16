@@ -6,23 +6,28 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/algorithm/search.hpp"
+
+#include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
+#include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/language/parser/dialect.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/types/enumeration.hpp"
-#include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
@@ -34,14 +39,26 @@ static auto find_return(const Language::Function& function)
     -> Option<const Language::Flow::Return&> {
   auto body = function.get_body();
   BAIL_IF(!body);
-  for (const Reference<Abstract>& statement : body->get_statements()) {
-    auto returned = statement.get().select<Language::Flow::Return>();
+  for (const Language::Statement& statement : body->get_statements()) {
+    auto returned = statement.get_abstract().select<Language::Flow::Return>();
     if (returned) {
       return *returned;
     }
   }
 
   return {};
+}
+
+static auto has_diagnostic(const Errors& errors, View::Bytes fragment) -> Bool {
+  Allocator::Arena rendered;
+  for (Count index = 0; index < errors.get_size(); index++) {
+    if (Algorithm::search(errors.render_message(rendered, index), fragment) !=
+        Count(-1)) {
+      return True;
+    }
+  }
+
+  return False;
 }
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
@@ -59,6 +76,39 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
   return static_cast<Language::Monograph&>(*interpreted);
 }
 
+static auto parse_authored(
+    Allocator::Arena& lexical,
+    Dialect& dialect,
+    Workspace& context,
+    Errors& errors,
+    View::Bytes source) -> Option<Language::Monograph&> {
+  Tokenizer tokenizer(lexical, source, "structure.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  if (!cursor.matches(Code::Type::Comment)) {
+    return {};
+  }
+
+  Token source_opening = cursor.current();
+  const Documentation& documentation =
+      Tetrodotoxin::Language::Parser::Comment::parse(cursor);
+  Token dialect_declaration = cursor.current();
+  if (Tetrodotoxin::Language::Parser::Dialect::parse(cursor) !=
+      "Library"_view) {
+    return {};
+  }
+
+  Anchor source_anchor = Anchor::create(
+      dialect_declaration, Span(source_opening, cursor.peek(-1)));
+  auto monograph =
+      dialect.interpret(cursor, documentation, source_anchor, context);
+  if (!monograph || !cursor.matches(Code::Type::Terminal) ||
+      !monograph->is<Language::Monograph>() || !errors.is_empty()) {
+    return {};
+  }
+
+  return static_cast<Language::Monograph&>(*monograph);
+}
+
 static auto rejects_interpretation(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
@@ -69,24 +119,40 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
 static auto rejects_link(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
-  auto monograph = interpret(workspace, errors, source);
+  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
+  BAIL_IF(!dialect);
+  Allocator::Arena lexical;
+  auto monograph = parse_authored(lexical, *dialect, workspace, errors, source);
   if (!monograph) {
     return False;
   }
 
-  Bool linked = workspace.link(errors);
+  Allocator::Arena completion;
+  Tokenizer tokenizer(completion, source, "structure.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  Bool linked = monograph->link(cursor);
   return !linked && !errors.is_empty();
 }
 
 static auto rejects_finalize(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  if (!monograph || !workspace.link(errors)) {
+  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
+  BAIL_IF(!dialect);
+  Allocator::Arena lexical;
+  auto monograph = parse_authored(lexical, *dialect, workspace, errors, source);
+  if (!monograph) {
     return False;
   }
 
-  Bool finalized = workspace.finalize(errors);
+  Allocator::Arena completion;
+  Tokenizer tokenizer(completion, source, "structure.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  if (!monograph->link(cursor)) {
+    return False;
+  }
+
+  Bool finalized = monograph->finalize(cursor);
   return !finalized && !errors.is_empty();
 }
 
@@ -110,15 +176,19 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
       "public Selected : alias = Packet::Visible;"_view;
   Workspace workspace;
   Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-  const auto& source_type = monograph->get_source();
+  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
+  ASSERT(dialect);
+  Allocator::Arena lexical;
+  auto owner = parse_authored(lexical, *dialect, workspace, errors, source);
+  ASSERT(owner);
+  auto& monograph = *owner;
+  const auto& source_type = monograph.get_source();
   auto types = source_type.get_types();
   ASSERT(types != types.end());
   const Abstract& hidden = (*types).get();
-  const Abstract& packet_identity = monograph->resolve_context("Packet"_view);
+  const Abstract& packet_identity = monograph.resolve_context("Packet"_view);
   const Abstract& selected_identity =
-      monograph->resolve_context("Selected"_view);
+      monograph.resolve_context("Selected"_view);
   ASSERT(hidden.is<Language::Types::Structure>());
   ASSERT(packet_identity.is<Language::Types::Structure>());
   ASSERT(selected_identity.is<Alias>());
@@ -128,8 +198,11 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   ASSERT(visible_identity.is<Alias>());
   const auto& visible = static_cast<const Alias&>(visible_identity);
 
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
+  Allocator::Arena completion;
+  Tokenizer tokenizer(completion, source, "structure.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  ASSERT(monograph.link(cursor));
+  ASSERT(monograph.finalize(cursor));
   EXPECT(&visible.resolve() == &hidden);
   EXPECT_EQ(visible.get_documentation().line_count(), Count(2));
   EXPECT_TEXT(
@@ -144,7 +217,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   ++type_bindings;
   ASSERT(type_bindings != type_bindings.end());
   ASSERT((*type_bindings).get().is<Alias>());
-  EXPECT(&(*type_bindings).get().resolve() == &Dialect::get_bool());
+  EXPECT(
+      &(*type_bindings).get().resolve() ==
+      &monograph.resolve_context("Bool"_view));
 
   EXPECT(&selected_identity.resolve() == &hidden);
   auto fields = packet.get_addressables();
@@ -155,8 +230,67 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   ASSERT(fields != fields.end());
   const auto& flag_field = static_cast<const Language::Field&>((*fields).get());
   EXPECT(&hidden_field.get_type() == &hidden);
-  EXPECT(&flag_field.get_type() == &Dialect::get_bool());
+  EXPECT(&flag_field.get_type() == &monograph.resolve_context("Bool"_view));
   EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(StructureTests, contextual_type_routes_keep_locality) {
+  static constexpr View::Bytes source =
+      "// Context route test.\n"
+      "dialect : Library;\n"
+      "public Outer : struct {\n"
+      "  private Hidden : struct { private state value : Bool; }\n"
+      "  public Visible : alias = Hidden;\n"
+      "  public Inner : struct {\n"
+      "    public Leaf : struct { private state value : Bool; }\n"
+      "  }\n"
+      "  private state direct : Hidden;\n"
+      "  public state redirected : Visible;\n"
+      "  private state qualified : Outer::Inner::Leaf;\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  const auto& outer = static_cast<const Language::Types::Structure&>(
+      monograph->resolve_context("Outer"_view));
+  EXPECT(&outer.resolve_context("Hidden"_view) == &Invalid::get_invalid());
+  const Abstract& visible = outer.resolve_context("Visible"_view);
+  ASSERT(visible.is<Alias>());
+  EXPECT(&visible.resolve_context("value"_view) == &Invalid::get_invalid());
+
+  const Abstract& inner = outer.resolve_context("Inner"_view);
+  ASSERT(inner.is<Language::Types::Structure>());
+  const Abstract& leaf = inner.resolve_context("Leaf"_view);
+  ASSERT(leaf.is<Language::Types::Structure>());
+
+  auto fields = outer.get_addressables();
+  ASSERT(fields != fields.end());
+  const auto& direct = static_cast<const Language::Field&>((*fields).get());
+  ++fields;
+  ASSERT(fields != fields.end());
+  const auto& redirected = static_cast<const Language::Field&>((*fields).get());
+  ++fields;
+  ASSERT(fields != fields.end());
+  const auto& qualified = static_cast<const Language::Field&>((*fields).get());
+  EXPECT(&direct.get_type() == &visible.resolve());
+  EXPECT(&redirected.get_type() == &visible.resolve());
+  EXPECT(&qualified.get_type() == &leaf);
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(
+    StructureTests,
+    qualified_routes_do_not_carry_private_authority) {
+  static constexpr View::Bytes source =
+      "// Qualified private route test.\n"
+      "dialect : Library;\n"
+      "public Outer : struct {\n"
+      "  private Hidden : struct { private state value : Bool; }\n"
+      "  private state invalid : Outer::Hidden;\n"
+      "}"_view;
+  EXPECT(rejects_link(source));
 }
 
 PERIMORTEM_UNIT_TEST(StructureTests, independent_access_axes) {
@@ -176,8 +310,6 @@ PERIMORTEM_UNIT_TEST(StructureTests, independent_access_axes) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const Abstract& selected = monograph->resolve_context("Packet"_view);
   ASSERT(selected.is<Language::Types::Structure>());
@@ -220,9 +352,15 @@ PERIMORTEM_UNIT_TEST(StructureTests, independent_access_axes) {
   EXPECT(const_public.get_writability() == Language::Writability::Constant);
   EXPECT(const_private.get_writability() == Language::Writability::Constant);
   ASSERT_EQ(packet.get_layout().get_size(), Count(3));
-  EXPECT(&*packet.get_layout().get_abstract(0) == &state_public);
-  EXPECT(&*packet.get_layout().get_abstract(1) == &state_exposed);
-  EXPECT(&*packet.get_layout().get_abstract(2) == &state_private);
+  auto public_layout_field = packet.get_layout().get_abstract(0);
+  auto exposed_layout_field = packet.get_layout().get_abstract(1);
+  auto private_layout_field = packet.get_layout().get_abstract(2);
+  ASSERT(public_layout_field);
+  ASSERT(exposed_layout_field);
+  ASSERT(private_layout_field);
+  EXPECT(&*public_layout_field == &state_public);
+  EXPECT(&*exposed_layout_field == &state_exposed);
+  EXPECT(&*private_layout_field == &state_private);
 
   EXPECT(errors.is_empty());
 }
@@ -244,8 +382,6 @@ PERIMORTEM_UNIT_TEST(StructureTests, declaration_reorder) {
     Errors errors;
     auto monograph = interpret(workspace, errors, sources[i]);
     ASSERT(monograph);
-    ASSERT(workspace.link(errors));
-    ASSERT(workspace.finalize(errors));
 
     const Abstract& first = monograph->resolve_context("First"_view);
     const Abstract& second = monograph->resolve_context("Second"_view);
@@ -278,8 +414,6 @@ PERIMORTEM_UNIT_TEST(StructureTests, category_names_coexist) {
     Errors errors;
     auto monograph = interpret(workspace, errors, accepted[i]);
     ASSERT(monograph);
-    ASSERT(workspace.link(errors));
-    ASSERT(workspace.finalize(errors));
     EXPECT(errors.is_empty());
   }
 
@@ -317,8 +451,6 @@ PERIMORTEM_UNIT_TEST(StructureTests, explicit_self_field_access) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const Abstract& selected = monograph->resolve_context("Packet"_view);
   ASSERT(selected.is<Language::Types::Structure>());
@@ -336,13 +468,17 @@ PERIMORTEM_UNIT_TEST(StructureTests, explicit_self_field_access) {
       returned->get_anchor().get_span().caculate_text(source),
       "return self.value;"_view);
   ASSERT_EQ(read.get_results().get_size(), Count(1));
-  EXPECT(&*read.get_results().get_abstract(0) == &Dialect::get_bool());
+  auto result_type = read.get_results().get_abstract(0);
+  ASSERT(result_type);
+  EXPECT(&*result_type == &monograph->resolve_context("Bool"_view));
   const Abstract& receiver = read.resolve_context("self"_view);
   auto receiver_result = receiver.select<Addressable>();
   ASSERT(receiver_result);
   EXPECT_TEXT(receiver_result->get_name(), "self"_view);
   EXPECT(&receiver_result->get_type() == &packet);
-  EXPECT(&*packet.get_layout().get_abstract(0) == &field_identity);
+  auto layout_field = packet.get_layout().get_abstract(0);
+  ASSERT(layout_field);
+  EXPECT(&*layout_field == &field_identity);
   EXPECT(errors.is_empty());
 }
 
@@ -396,8 +532,6 @@ PERIMORTEM_UNIT_TEST(StructureTests, empty_types_are_static_only) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const Abstract& empty_identity = monograph->resolve_context("Empty"_view);
   ASSERT(empty_identity.is<Language::Types::Structure>());
@@ -427,9 +561,12 @@ PERIMORTEM_UNIT_TEST(StructureTests, empty_types_are_static_only) {
   EXPECT(first_empty_result.get_results().fits(empty_result.get_results()));
   EXPECT(empty_result.get_results().fits(first_empty_result.get_results()));
 
-  const auto& scalar = Dialect::get_unsigned_8();
+  const auto& scalar = static_cast<const Ttx::Model::Type&>(
+      monograph->resolve_context("Unsigned_8"_view));
   ASSERT_EQ(scalar.get_layout().get_size(), Count(1));
-  EXPECT(&*scalar.get_layout().get_abstract(0) == &scalar);
+  auto scalar_layout_type = scalar.get_layout().get_abstract(0);
+  ASSERT(scalar_layout_type);
+  EXPECT(&*scalar_layout_type == &scalar);
   EXPECT_NOT(first_empty_result.get_results().fits(scalar.get_layout()));
   EXPECT_NOT(scalar.get_layout().fits(first_empty_result.get_results()));
   EXPECT(errors.is_empty());
@@ -483,8 +620,6 @@ PERIMORTEM_UNIT_TEST(StructureTests, private_exposure_retained_locally) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
   const auto& source_type = monograph->get_source();
   auto types = source_type.get_types();
   auto source_callables = source_type.get_callables();
@@ -528,9 +663,13 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
       "}"_view;
   Workspace workspace;
   Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-  const Abstract& selected = monograph->resolve_context("Packet"_view);
+  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
+  ASSERT(dialect);
+  Allocator::Arena lexical;
+  auto owner = parse_authored(lexical, *dialect, workspace, errors, source);
+  ASSERT(owner);
+  auto& monograph = *owner;
+  const Abstract& selected = monograph.resolve_context("Packet"_view);
   ASSERT(selected.is<Language::Types::Structure>());
   const auto& packet = static_cast<const Language::Types::Structure&>(selected);
   auto authored_fields = packet.get_addressables();
@@ -552,15 +691,21 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
   ASSERT(copy_initializer);
   ASSERT(narrow_initializer);
 
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
+  Allocator::Arena completion;
+  Tokenizer tokenizer(completion, source, "structure.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  ASSERT(monograph.link(cursor));
+  ASSERT(monograph.finalize(cursor));
 
-  ASSERT(exact.get_initializer());
-  ASSERT(copy.get_initializer());
-  ASSERT(narrow.get_initializer());
-  EXPECT(&*exact.get_initializer() == &*exact_initializer);
-  EXPECT(&*copy.get_initializer() == &*copy_initializer);
-  EXPECT(&*narrow.get_initializer() == &*narrow_initializer);
+  auto retained_exact_initializer = exact.get_initializer();
+  auto retained_copy_initializer = copy.get_initializer();
+  auto retained_narrow_initializer = narrow.get_initializer();
+  ASSERT(retained_exact_initializer);
+  ASSERT(retained_copy_initializer);
+  ASSERT(retained_narrow_initializer);
+  EXPECT(&*retained_exact_initializer == &*exact_initializer);
+  EXPECT(&*retained_copy_initializer == &*copy_initializer);
+  EXPECT(&*retained_narrow_initializer == &*narrow_initializer);
   ASSERT(copy_initializer->is<Language::Expressions::Identifier>());
   const auto& identifier =
       static_cast<const Language::Expressions::Identifier&>(*copy_initializer);
@@ -580,9 +725,13 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
       "}"_view;
   Workspace workspace;
   Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-  const auto& source_type = monograph->get_source();
+  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
+  ASSERT(dialect);
+  Allocator::Arena lexical;
+  auto owner = parse_authored(lexical, *dialect, workspace, errors, source);
+  ASSERT(owner);
+  auto& monograph = *owner;
+  const auto& source_type = monograph.get_source();
   auto types = source_type.get_types();
   auto type = types.begin();
   ASSERT(type != types.end());
@@ -592,7 +741,10 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
   ++type;
   EXPECT(type == types.end());
 
-  ASSERT(workspace.link(errors));
+  Allocator::Arena completion;
+  Tokenizer tokenizer(completion, source, "structure.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  ASSERT(monograph.link(cursor));
   auto source_fields = source_type.get_addressables();
   auto packet_fields = packet.get_addressables();
   auto source_field = source_fields.begin();
@@ -615,20 +767,21 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
   ++packet_field;
   EXPECT(packet_field == packet_fields.end());
   EXPECT(&root_copy.get_type() == &root.get_type());
-  EXPECT(&root.get_type() == &Dialect::get_bool());
+  EXPECT(&root.get_type() == &monograph.resolve_context("Bool"_view));
   EXPECT(&scalar_copy.get_type() == &scalar.get_type());
-  EXPECT(&scalar.get_type() == &Dialect::get_unsigned_64());
-  ASSERT(root_copy.get_initializer());
-  ASSERT(root_copy.get_initializer()->is<Language::Expressions::Identifier>());
+  EXPECT(&scalar.get_type() == &monograph.resolve_context("Unsigned_64"_view));
+  auto root_copy_initializer = root_copy.get_initializer();
+  ASSERT(root_copy_initializer);
+  ASSERT(root_copy_initializer->is<Language::Expressions::Identifier>());
   const auto& root_identifier =
       static_cast<const Language::Expressions::Identifier&>(
-          *root_copy.get_initializer());
+          *root_copy_initializer);
   EXPECT(&root_identifier.get_result() == &root);
 
   const Language::Field* source_identity = &root_copy;
   const Language::Field* nested_identity = &scalar_copy;
-  ASSERT(monograph->link());
-  ASSERT(monograph->link());
+  ASSERT(monograph.link(cursor));
+  ASSERT(monograph.link(cursor));
   auto retained_source_fields = source_type.get_addressables();
   auto retained_source_field = retained_source_fields.begin();
   ASSERT(retained_source_field != retained_source_fields.end());
@@ -645,7 +798,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
   EXPECT(&(*retained_packet_field).get() == nested_identity);
   ++retained_packet_field;
   EXPECT(retained_packet_field == retained_packet_fields.end());
-  ASSERT(workspace.finalize(errors));
+  ASSERT(monograph.finalize(cursor));
   EXPECT(errors.is_empty());
 }
 
@@ -658,10 +811,18 @@ PERIMORTEM_UNIT_TEST(StructureTests, inference_failure_rolls_back) {
   for (Count i = 0; i < sources.get_size(); i++) {
     Workspace workspace;
     Errors errors;
-    auto monograph = interpret(workspace, errors, sources[i]);
-    ASSERT(monograph);
-    const auto& source_type = monograph->get_source();
-    EXPECT_NOT(workspace.link(errors));
+    auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
+    ASSERT(dialect);
+    Allocator::Arena lexical;
+    auto owner =
+        parse_authored(lexical, *dialect, workspace, errors, sources[i]);
+    ASSERT(owner);
+    auto& monograph = *owner;
+    const auto& source_type = monograph.get_source();
+    Allocator::Arena completion;
+    Tokenizer tokenizer(completion, sources[i], "structure.ttx"_view);
+    Cursor cursor(tokenizer, errors);
+    EXPECT_NOT(monograph.link(cursor));
     auto fields = source_type.get_addressables();
     auto field = fields.begin();
     ASSERT(field != fields.end());
@@ -669,7 +830,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inference_failure_rolls_back) {
     ++field;
     EXPECT(field == fields.end());
     EXPECT(&identity->resolve() == &Invalid::get_invalid());
-    EXPECT_NOT(workspace.link(errors));
+    EXPECT_NOT(monograph.link(cursor));
     auto retained_fields = source_type.get_addressables();
     auto retained_field = retained_fields.begin();
     ASSERT(retained_field != retained_fields.end());
@@ -689,10 +850,17 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_public_type_reachability) {
       "public revealed := seed;"_view;
   Workspace workspace;
   Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  const auto& source_type = monograph->get_source();
+  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
+  ASSERT(dialect);
+  Allocator::Arena lexical;
+  auto owner = parse_authored(lexical, *dialect, workspace, errors, source);
+  ASSERT(owner);
+  auto& monograph = *owner;
+  Allocator::Arena completion;
+  Tokenizer tokenizer(completion, source, "structure.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  ASSERT(monograph.link(cursor));
+  const auto& source_type = monograph.get_source();
   auto fields = source_type.get_addressables();
   auto field = fields.begin();
   ASSERT(field != fields.end());
@@ -700,13 +868,10 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_public_type_reachability) {
   ASSERT(field != fields.end());
   ++field;
   EXPECT(field == fields.end());
-  EXPECT_NOT(workspace.finalize(errors));
-  auto diagnostics = monograph->get_diagnostics();
-  ASSERT_EQ(diagnostics.get_size(), Count(1));
-  EXPECT_TEXT(
-      diagnostics.get_data()[0].get_message(),
-      "Externally readable Field publishes an unreachable Type."_view);
-  EXPECT_NOT(errors.is_empty());
+  EXPECT_NOT(monograph.finalize(cursor));
+  ASSERT_EQ(errors.get_size(), Count(1));
+  EXPECT(has_diagnostic(
+      errors, "Externally readable Field publishes an unreachable Type."_view));
 }
 
 PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
@@ -718,9 +883,14 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
   for (Count i = 0; i < sources.get_size(); i++) {
     Workspace workspace;
     Errors errors;
-    auto monograph = interpret(workspace, errors, sources[i]);
-    ASSERT(monograph);
-    const auto& source_type = monograph->get_source();
+    auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
+    ASSERT(dialect);
+    Allocator::Arena lexical;
+    auto owner =
+        parse_authored(lexical, *dialect, workspace, errors, sources[i]);
+    ASSERT(owner);
+    auto& monograph = *owner;
+    const auto& source_type = monograph.get_source();
     auto types = source_type.get_types();
     auto type = types.begin();
     ASSERT(type != types.end());
@@ -739,7 +909,10 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
     auto authored_initializer = authored_field.get_initializer();
     ASSERT(authored_initializer);
 
-    EXPECT_NOT(workspace.link(errors));
+    Allocator::Arena completion;
+    Tokenizer tokenizer(completion, sources[i], "structure.ttx"_view);
+    Cursor cursor(tokenizer, errors);
+    EXPECT_NOT(monograph.link(cursor));
     auto fields = packet.get_addressables();
     auto field_selection = fields.begin();
     ASSERT(field_selection != fields.end());
@@ -747,24 +920,20 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
         static_cast<const Language::Field&>((*field_selection).get());
     ++field_selection;
     EXPECT(field_selection == fields.end());
-    ASSERT(retained_field.get_initializer());
-    EXPECT(&*retained_field.get_initializer() == &*authored_initializer);
-    auto diagnostics = monograph->get_diagnostics();
-    ASSERT_EQ(diagnostics.get_size(), Count(1));
-    ASSERT(diagnostics.get_data()[0].get_anchor());
-    EXPECT_TEXT(
-        diagnostics.get_data()[0].get_anchor()->get_span().caculate_text(
-            sources[i]),
-        i == 0 ? "private value : Unsigned_8 = false;"_view
-               : "private value : Unsigned_8 = 256;"_view);
-    EXPECT_TEXT(
-        diagnostics.get_data()[0].get_message(),
+    auto retained_initializer = retained_field.get_initializer();
+    ASSERT(retained_initializer);
+    EXPECT(&*retained_initializer == &*authored_initializer);
+    ASSERT_EQ(errors.get_size(), Count(1));
+    EXPECT(has_diagnostic(
+        errors, i == 0 ? "private value : Unsigned_8 = false;"_view
+                       : "private value : Unsigned_8 = 256;"_view));
+    EXPECT(has_diagnostic(
+        errors,
         "Field initializer Pack does not fit the declared Field Type's "
-        "Layout."_view);
-    EXPECT_TEXT(
-        diagnostics.get_data()[0].get_hint(),
+        "Layout."_view));
+    EXPECT(has_diagnostic(
+        errors,
         "Supply the complete value flow accepted by the declared Field "
-        "Type."_view);
-    EXPECT_NOT(errors.is_empty());
+        "Type."_view));
   }
 }

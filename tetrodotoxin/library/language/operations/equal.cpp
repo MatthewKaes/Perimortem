@@ -3,20 +3,13 @@
 
 #include "tetrodotoxin/library/language/operations/equal.hpp"
 
-#include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
-#include "tetrodotoxin/library/language/constants/flag.hpp"
-#include "tetrodotoxin/library/language/constants/real.hpp"
-#include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
-#include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/model/types/flag.hpp"
+#include "tetrodotoxin/library/language/model/types/value.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/types/flag.hpp"
-#include "ttx/model/types/real.hpp"
-#include "ttx/model/types/signed.hpp"
-#include "ttx/model/types/unsigned.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -29,11 +22,13 @@ static auto select_operand_type(
     const Language::Expression& right) -> const Abstract& {
   const Abstract& left_resolved = left.get_type().resolve();
   const Abstract& right_resolved = right.get_type().resolve();
-  if (!left_resolved.is<Type>() || &left_resolved != &right_resolved) {
+  if (!left_resolved.is<Language::Model::Type>() ||
+      &left_resolved != &right_resolved) {
     return Invalid::get_invalid();
   }
 
-  if (left_resolved.is<Ttx::Model::Types::Value>() ||
+  if (left_resolved
+          .is<Tetrodotoxin::Library::Language::Model::Types::Value>() ||
       (left.is<Language::Constants::Bytes>() &&
        right.is<Language::Constants::Bytes>())) {
     return left_resolved;
@@ -44,57 +39,47 @@ static auto select_operand_type(
   return Invalid::get_invalid();
 }
 
-static auto make_result(Memory::Allocator::Arena& domain, Bool value)
-    -> Language::Constant& {
+static auto make_result(
+    Memory::Allocator::Arena& domain,
+    const Tetrodotoxin::Library::Language::Model::Types::Flag& type,
+    Bool value) -> Language::Constant& {
   if (value) {
-    return Language::Constants::True::create_synthetic(
-        domain, Dialect::get_bool());
+    return Language::Constants::True::create_synthetic(domain, type);
   }
 
-  return Language::Constants::False::create_synthetic(
-      domain, Dialect::get_bool());
+  return Language::Constants::False::create_synthetic(domain, type);
 }
 
-static auto matches_domain(
-    const Language::Expression& expression,
-    const Abstract& selected) -> Bool {
-  if (selected.is<Ttx::Model::Types::Signed>()) {
-    return expression.is<Language::Constants::Signed>();
+static auto accepts_constant(
+    const Abstract& selected,
+    const Language::Constant& constant) -> Bool {
+  auto scalar =
+      selected.select<Tetrodotoxin::Library::Language::Model::Types::Value>();
+  if (scalar) {
+    return scalar->accepts_constant(constant);
   }
 
-  if (selected.is<Ttx::Model::Types::Unsigned>()) {
-    return expression.is<Language::Constants::Unsigned>();
-  }
-
-  if (selected.is<Ttx::Model::Types::Real>()) {
-    return expression.is<Language::Constants::Real>();
-  }
-
-  if (selected.is<Ttx::Model::Types::Flag>()) {
-    return expression.is<Language::Constants::Flag>();
-  }
-
-  return expression.is<Language::Constants::Bytes>();
+  return constant.is<Language::Constants::Bytes>() &&
+         &constant.get_type().resolve() == &selected;
 }
 
-TTX_TRANSACTIONAL_BINARY_PARSE(
-    Equal,
-    CmpOp,
-    "Equal has a malformed right operand."_view,
-    "Use a complete scalar or Bytes Expression after `==`."_view);
+TTX_BINARY_PARSE(Equal, CmpOp);
 
 TTX_BINARY_OP(Equal);
 
 auto Language::Operations::Equal::select_type(
-    Tetrodotoxin::Language::Monograph&) const -> Core::Option<const Type&> {
+    const Ttx::Concept::Abstract& context) const
+    -> Core::Option<const Language::Model::Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right ||
-      !select_operand_type(*left, *right).resolve().is<Type>()) {
+      !select_operand_type(*left, *right)
+           .resolve()
+           .is<Language::Model::Type>()) {
     return {};
   }
 
-  return Dialect::get_bool();
+  return context.resolve_context("Bool"_view).select<Language::Model::Type>();
 }
 
 auto Language::Operations::Equal::evaluate_constants(
@@ -104,25 +89,28 @@ auto Language::Operations::Equal::evaluate_constants(
   auto authored_right = get_input(1);
   auto left = get_folded_input(0);
   auto right = get_folded_input(1);
-  if (!authored_left || !authored_right || !left || !right) {
+  auto result_type =
+      get_type().select<Tetrodotoxin::Library::Language::Model::Types::Flag>();
+  if (!authored_left || !authored_right || !left || !right || !result_type) {
     return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
-  const Abstract& selected = left->get_type().resolve();
+  const Abstract& selected =
+      select_operand_type(*authored_left, *authored_right);
 
-  // Constant owns each payload comparison and exact Type identity. Equal only
-  // proves that the completed inputs still belong to the selected domain.
+  // The scalar Type proves its own Constant carrier. Bytes remains the one
+  // complete non scalar Constant domain admitted by this operator.
   auto left_value = left->select<Constant>();
   auto right_value = right->select<Constant>();
-  if (!left_value || !matches_domain(*left, selected)) {
+  if (!left_value || !accepts_constant(selected, *left_value)) {
     return Expression::Error(
         Expression::Error::Type::InvalidConstant, *authored_left);
   }
 
-  if (!right_value || !matches_domain(*right, selected)) {
+  if (!right_value || !accepts_constant(selected, *right_value)) {
     return Expression::Error(
         Expression::Error::Type::InvalidConstant, *authored_right);
   }
 
-  return make_result(domain, *left_value == *right_value);
+  return make_result(domain, *result_type, *left_value == *right_value);
 }

@@ -39,8 +39,8 @@ static auto find_return(const Language::Function& function)
     -> Option<const Language::Flow::Return&> {
   auto body = function.get_body();
   BAIL_IF(!body);
-  for (const Reference<Abstract>& statement : body->get_statements()) {
-    auto returned = statement.get().select<Language::Flow::Return>();
+  for (const Language::Statement& statement : body->get_statements()) {
+    auto returned = statement.get_abstract().select<Language::Flow::Return>();
     if (returned) {
       return *returned;
     }
@@ -69,7 +69,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  return monograph && !workspace.link(errors) && !errors.is_empty();
+  return !monograph && !errors.is_empty();
 }
 
 static auto find_field(
@@ -143,8 +143,6 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const Abstract& packet_identity =
       monograph->get_source().resolve_context("Packet"_view);
@@ -161,14 +159,13 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
   ASSERT(gather);
   auto gather_return = find_return(*gather);
   ASSERT(gather_return);
+  const Abstract& unsigned_64 = monograph->resolve_context("Unsigned_64"_view);
   EXPECT_TEXT(
       gather_return->get_anchor().get_span().caculate_text(source),
       "return self.[secret, height];"_view);
   ASSERT_EQ(gather->get_results().get_size(), Count(2));
-  EXPECT(
-      &*gather->get_results().get_abstract(0) == &Dialect::get_unsigned_64());
-  EXPECT(
-      &*gather->get_results().get_abstract(1) == &Dialect::get_unsigned_64());
+  EXPECT(&*gather->get_results().get_abstract(0) == &unsigned_64);
+  EXPECT(&*gather->get_results().get_abstract(1) == &unsigned_64);
 
   auto empty = find_function(monograph->get_source(), "empty"_view);
   auto single = find_field(monograph->get_source(), "single"_view);
@@ -195,7 +192,7 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
 
   ASSERT_EQ(single_swizzle.get_layout().get_size(), Count(1));
   EXPECT(is_projection(single_swizzle, 0, *width));
-  EXPECT(&single_swizzle.get_type() == &Dialect::get_unsigned_64());
+  EXPECT(&single_swizzle.get_type() == &unsigned_64);
   EXPECT(single_swizzle.fits(single->get_type()));
   ASSERT_EQ(dimensions_swizzle.get_layout().get_size(), Count(2));
   EXPECT(is_projection(dimensions_swizzle, 0, *height));
@@ -203,7 +200,8 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
   EXPECT(&dimensions_swizzle.get_type() == &Invalid::get_invalid());
   EXPECT(dimensions_swizzle.fits(dimensions->get_type()));
   Language::Types::Fixed fixed_pair(
-      "Fixed[Unsigned_64, 2]"_view, Dialect::get_unsigned_64(), 2);
+      "Fixed[Unsigned_64, 2]"_view,
+      static_cast<const Language::Model::Type&>(unsigned_64), 2);
   EXPECT(dimensions_swizzle.fits(fixed_pair));
 
   ASSERT(chained->get_initializer()->is<Language::Operations::Add>());
@@ -225,8 +223,6 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, named_pack_reorders_real_producers) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto left = find_field(monograph->get_source(), "left"_view);
   auto right = find_field(monograph->get_source(), "right"_view);
@@ -290,8 +286,6 @@ PERIMORTEM_UNIT_TEST(
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto reordered = find_field(monograph->get_source(), "reordered"_view);
   auto selected = find_field(monograph->get_source(), "selected"_view);

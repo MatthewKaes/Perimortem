@@ -32,10 +32,8 @@ static auto parse_quoted_version(Cursor& cursor, Token& token)
   return text.slice(1, text.get_size() - 2);
 }
 
-auto Package::Language::Dependency::parse(Cursor& cursor, Span& span)
+auto Package::Language::Dependency::parse(Cursor& cursor)
     -> Option<Dependency> {
-  span = Span();
-
   Token resolve = cursor.require(
       Code::Type::Resolve, "Expected a Package `resolve` statement."_view);
   if (!resolve) {
@@ -45,8 +43,8 @@ auto Package::Language::Dependency::parse(Cursor& cursor, Span& span)
 
   // Both names borrow their exact authored bytes. Their distinct grammar
   // owners preserve that identity while the span remains only coordinates.
-  View::Bytes local_name = Parser::Name::parse_semantic(cursor);
-  if (local_name.is_empty()) {
+  auto local_name = Parser::Name::parse_semantic(cursor);
+  if (!local_name) {
     cursor.recover_to_statement();
     return {};
   }
@@ -99,6 +97,7 @@ auto Package::Language::Dependency::parse(Cursor& cursor, Span& span)
     return {};
   }
 
-  span = Span(resolve, consumed_end_statement);
-  return Dependency(local_name, package_name, version);
+  return Dependency(
+      *local_name, package_name, version,
+      Span(resolve, consumed_end_statement));
 }

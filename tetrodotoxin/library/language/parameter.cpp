@@ -8,8 +8,8 @@ using namespace Tetrodotoxin::Library;
 
 auto Language::Parameter::create_authored(
     Perimortem::Memory::Allocator::Arena& domain,
-    const Perimortem::Core::View::Bytes& name,
-    const Ttx::Model::Type& type) -> Perimortem::Core::Option<Parameter&> {
+    Perimortem::Core::View::Bytes name,
+    const Language::Model::Type& type) -> Perimortem::Core::Option<Parameter&> {
   if (name.is_empty() || type.get_layout().is_empty()) {
     return {};
   }
@@ -22,6 +22,6 @@ auto Language::Parameter::get_documentation() const -> const Documentation& {
   return Documentation::get_empty();
 }
 
-auto Language::Parameter::get_type() const -> const Ttx::Model::Type& {
+auto Language::Parameter::get_type() const -> const Language::Model::Type& {
   return type;
 }

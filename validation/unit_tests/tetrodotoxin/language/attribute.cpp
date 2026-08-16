@@ -64,7 +64,7 @@ PERIMORTEM_UNIT_TEST(AttributeTests, scalar_prefix) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(AttributeTests, malformed_prefix_is_atomic) {
+PERIMORTEM_UNIT_TEST(AttributeTests, malformed_prefix_fails) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(
@@ -74,11 +74,10 @@ PERIMORTEM_UNIT_TEST(AttributeTests, malformed_prefix_is_atomic) {
   auto attributes = Attribute::parse(cursor);
 
   EXPECT(attributes.is_empty());
-  EXPECT(cursor.matches(Code::Type::Attribute));
   EXPECT(!errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(AttributeTests, empty_key_is_atomic) {
+PERIMORTEM_UNIT_TEST(AttributeTests, empty_key_fails) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "@"_view, "<empty attribute>"_view);
@@ -87,11 +86,10 @@ PERIMORTEM_UNIT_TEST(AttributeTests, empty_key_is_atomic) {
   auto attributes = Attribute::parse(cursor);
 
   EXPECT(attributes.is_empty());
-  EXPECT(cursor.matches(Code::Type::Attribute));
   EXPECT(!errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(AttributeTests, separated_key_is_atomic) {
+PERIMORTEM_UNIT_TEST(AttributeTests, separated_key_fails) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "@ Value"_view, "<separated attribute>"_view);
@@ -100,11 +98,10 @@ PERIMORTEM_UNIT_TEST(AttributeTests, separated_key_is_atomic) {
   auto attributes = Attribute::parse(cursor);
 
   EXPECT(attributes.is_empty());
-  EXPECT(cursor.matches(Code::Type::Attribute));
   EXPECT(!errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(AttributeTests, malformed_string_is_atomic) {
+PERIMORTEM_UNIT_TEST(AttributeTests, malformed_string_fails) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(
@@ -114,6 +111,5 @@ PERIMORTEM_UNIT_TEST(AttributeTests, malformed_string_is_atomic) {
   auto attributes = Attribute::parse(cursor);
 
   EXPECT(attributes.is_empty());
-  EXPECT(cursor.matches(Code::Type::Attribute));
   EXPECT(!errors.is_empty());
 }

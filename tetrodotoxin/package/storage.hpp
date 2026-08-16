@@ -22,10 +22,9 @@ namespace Tetrodotoxin::Package {
 // or resource read by its normalized logical route.
 //
 // Package::Language::Source owns the semantic name and authored route. Storage
-// resolves only that route into a diagnostic path and bytes. It constructs
-// Content in the Workspace Arena so staged Source and resource consumers
-// retain stable views for the semantic island lifetime, even after Storage
-// closes its root.
+// resolves only that route into a diagnostic path and bytes. Content remains
+// valid for this opened acquisition transaction. A semantic consumer copies
+// any retained view into its own graph domain before Storage closes.
 //
 // The cache belongs to this opened Package storage only. Storage never
 // interprets content or derives semantic identity from a route.

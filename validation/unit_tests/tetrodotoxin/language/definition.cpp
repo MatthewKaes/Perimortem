@@ -7,7 +7,9 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
+#include "tetrodotoxin/language/parser/comment.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -19,10 +21,20 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Validation;
 
+class DefinitionDialect : public Dialect {
+ public:
+  DefinitionDialect() : Dialect("Definition"_view) {}
+
+  auto interpret(Cursor&, const Documentation&, const Anchor&, Abstract&)
+      -> Option<Monograph&> override {
+    return {};
+  }
+};
+
 class DefinitionHost : public Monograph {
  public:
-  DefinitionHost(Allocator::Arena& domain)
-      : Monograph(domain, Documentation::get_empty()) {}
+  DefinitionHost(Allocator::Arena& arena, Dialect& dialect)
+      : Monograph(arena, dialect, Documentation::get_empty(), dialect) {}
 
   constexpr auto get_name() const -> View::Bytes override {
     return "DefinitionHost"_view;
@@ -42,12 +54,17 @@ PERIMORTEM_UNIT_TEST(DefinitionTests, complete_prefix) {
       "// Shared definition.\n"
       "@first @first(2) public state worker : func = [] -> [] {}"_view;
   Allocator::Arena arena;
-  DefinitionHost host(arena);
+  DefinitionDialect dialect;
+  DefinitionHost host(arena, dialect);
   Errors errors;
-  Tokenizer tokenizer(arena, source, "<definition>"_view);
-  Cursor cursor(tokenizer, errors);
+  View::Bytes retained_source = arena.proxy(source);
+  View::Bytes retained_path = arena.proxy("<definition>"_view);
+  Tokenizer& tokenizer =
+      arena.construct<Tokenizer>(arena, retained_source, retained_path);
+  Cursor& cursor = arena.construct<Cursor>(tokenizer, errors);
 
-  auto definition = Definition::parse(cursor, host);
+  const Documentation& documentation = Parser::Comment::parse(cursor);
+  auto definition = Definition::parse(cursor, documentation, host);
 
   ASSERT(definition);
   EXPECT_TEXT(definition->get_name(), "worker"_view);
@@ -80,14 +97,18 @@ PERIMORTEM_UNIT_TEST(DefinitionTests, complete_prefix) {
 
 PERIMORTEM_UNIT_TEST(DefinitionTests, type_qualifier) {
   Allocator::Arena arena;
-  DefinitionHost host(arena);
+  DefinitionDialect dialect;
+  DefinitionHost host(arena, dialect);
   Errors errors;
-  Tokenizer tokenizer(
-      arena, "private value : Unsigned_64 = 1;"_view,
-      "<typed definition>"_view);
-  Cursor cursor(tokenizer, errors);
+  View::Bytes retained_source =
+      arena.proxy("private value : Unsigned_64 = 1;"_view);
+  View::Bytes retained_path = arena.proxy("<typed definition>"_view);
+  Tokenizer& tokenizer =
+      arena.construct<Tokenizer>(arena, retained_source, retained_path);
+  Cursor& cursor = arena.construct<Cursor>(tokenizer, errors);
 
-  auto definition = Definition::parse(cursor, host);
+  const Documentation& documentation = Parser::Comment::parse(cursor);
+  auto definition = Definition::parse(cursor, documentation, host);
 
   ASSERT(definition);
   EXPECT_TEXT(definition->get_name(), "value"_view);
@@ -97,18 +118,21 @@ PERIMORTEM_UNIT_TEST(DefinitionTests, type_qualifier) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(DefinitionTests, malformed_is_atomic) {
+PERIMORTEM_UNIT_TEST(DefinitionTests, malformed_prefix_fails) {
   Allocator::Arena arena;
-  DefinitionHost host(arena);
+  DefinitionDialect dialect;
+  DefinitionHost host(arena, dialect);
   Errors errors;
-  Tokenizer tokenizer(
-      arena, "@note public private value : Unsigned_64 = 1;"_view,
-      "<malformed definition>"_view);
-  Cursor cursor(tokenizer, errors);
+  View::Bytes retained_source =
+      arena.proxy("@note public private value : Unsigned_64 = 1;"_view);
+  View::Bytes retained_path = arena.proxy("<malformed definition>"_view);
+  Tokenizer& tokenizer =
+      arena.construct<Tokenizer>(arena, retained_source, retained_path);
+  Cursor& cursor = arena.construct<Cursor>(tokenizer, errors);
 
-  auto definition = Definition::parse(cursor, host);
+  const Documentation& documentation = Parser::Comment::parse(cursor);
+  auto definition = Definition::parse(cursor, documentation, host);
 
   EXPECT(!definition);
-  EXPECT(cursor.matches(Code::Type::Attribute));
   EXPECT(!errors.is_empty());
 }

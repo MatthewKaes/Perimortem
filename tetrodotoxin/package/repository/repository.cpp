@@ -508,6 +508,12 @@ auto Package::Repository::Repository::select_native(
   return archive_selection.visit(
       [&](const Package::Archive::Archive& archive) -> Selection {
         auto selected = find_input(inputs, identity, version);
+        // Repository inputs are immutable, so Archive success proves this
+        // declaration. Keep the proof local because native validation cannot
+        // accept a missing owner.
+        if (!selected) {
+          return SelectionError::NotDeclared;
+        }
 
         // Native declarations are one complete physical representation of the
         // Archive artifact inventory. Validation stays here so semantic cache

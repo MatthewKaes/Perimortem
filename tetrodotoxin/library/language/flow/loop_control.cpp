@@ -9,29 +9,30 @@ using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library;
 
 auto Language::Flow::LoopControl::interpret(
-    Allocator::Arena& domain,
     Cursor& cursor,
     const Block& lexical_context) -> Option<LoopControl&> {
-  auto transaction = cursor.branch();
-  Token opening = transaction.current();
+  Allocator::Arena& domain = cursor.get_arena();
+  Token opening = cursor.current();
   Kind kind;
-  if (transaction.matches(Code::Type::Break)) {
+  if (cursor.matches(Code::Type::Break)) {
     kind = Kind::Break;
-  } else if (transaction.matches(Code::Type::Continue)) {
+  } else if (cursor.matches(Code::Type::Continue)) {
     kind = Kind::Continue;
   } else {
+    cursor.create_token_error(
+        "Library loop control requires `break` or `continue`."_view);
     return {};
   }
-  transaction.consume();
+  cursor.consume();
 
   auto target = lexical_context.get_enclosing_loop();
   if (!target) {
-    transaction.create_token_error(
+    cursor.create_token_error(
         opening, "Library loop control requires one enclosing loop."_view);
     return {};
   }
 
-  Token closing = transaction.require(
+  Token closing = cursor.require(
       Code::Type::EndStatement,
       "Library loop control requires one terminating `;`."_view);
   BAIL_IF(!closing);
@@ -41,6 +42,5 @@ auto Language::Flow::LoopControl::interpret(
         return LoopControl(
             kind, *target, Anchor::create(opening, Span(opening, closing)));
       });
-  cursor.join(transaction);
   return result;
 }

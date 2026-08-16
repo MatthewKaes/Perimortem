@@ -34,8 +34,8 @@ static auto find_call(const Language::Function& function)
     -> Option<const Language::Access::Call&> {
   auto body = function.get_body();
   BAIL_IF(!body);
-  for (const Reference<Abstract>& statement : body->get_statements()) {
-    auto call = statement.get().select<Language::Access::Call>();
+  for (const Language::Statement& statement : body->get_statements()) {
+    auto call = statement.get_abstract().select<Language::Access::Call>();
     if (call) {
       return *call;
     }
@@ -63,7 +63,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  if (!monograph || workspace.link(errors) || errors.is_empty()) {
+  if (monograph || errors.is_empty()) {
     return False;
   }
 
@@ -140,8 +140,6 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const Abstract& packet_identity =
       monograph->get_source().resolve_context("Packet"_view);
@@ -168,12 +166,23 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
   ASSERT(positional_call.get_callable());
   ASSERT(named_call.get_callable());
   ASSERT(self_call->get_callable());
+  auto self_entry = invoke->get_parameters().get_abstract(0);
+  ASSERT(self_entry);
+  auto self = self_entry->select<Language::Model::Addressable>();
+  ASSERT(self);
+  const Abstract& unsigned_64 = monograph->resolve_context("Unsigned_64"_view);
+  const Abstract& boolean = monograph->resolve_context("Bool"_view);
+  EXPECT(&self->resolve_context("Packet"_view) == &Invalid::get_invalid());
+  EXPECT(&self->resolve_access(packet, "positional"_view) == &*positional);
+  EXPECT(
+      &self->resolve_call(packet, "choose"_view) ==
+      &*self_call->get_callable());
   EXPECT_NOT(positional_call.get_callable()->is_type_bound());
   EXPECT(self_call->get_callable()->is_type_bound(packet));
-  EXPECT(&positional->get_type() == &Dialect::get_unsigned_64());
-  EXPECT(&named->get_type() == &Dialect::get_unsigned_64());
-  EXPECT(&positional_call.get_type() == &Dialect::get_unsigned_64());
-  EXPECT(&self_call->get_type() == &Dialect::get_bool());
+  EXPECT(&positional->get_type() == &unsigned_64);
+  EXPECT(&named->get_type() == &unsigned_64);
+  EXPECT(&positional_call.get_type() == &unsigned_64);
+  EXPECT(&self_call->get_type() == &boolean);
 
   const Abstract& first_identity =
       monograph->get_source().resolve_context("First"_view);
@@ -260,8 +269,6 @@ PERIMORTEM_UNIT_TEST(CallTests, definition_host_grants_private_authority) {
   Errors errors;
   auto monograph = interpret(workspace, errors, accepted);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const Abstract& vault_identity =
       monograph->get_source().resolve_context("Vault"_view);
@@ -276,8 +283,9 @@ PERIMORTEM_UNIT_TEST(CallTests, definition_host_grants_private_authority) {
   auto public_alias = find_field(monograph->get_source(), "public_alias"_view);
   ASSERT(observed);
   ASSERT(public_alias);
-  EXPECT(&observed->get_type() == &Dialect::get_bool());
-  EXPECT(&public_alias->get_type() == &Dialect::get_bool());
+  const Abstract& boolean = monograph->resolve_context("Bool"_view);
+  EXPECT(&observed->get_type() == &boolean);
+  EXPECT(&public_alias->get_type() == &boolean);
   EXPECT(errors.is_empty());
 
   EXPECT(rejects_link(
@@ -321,8 +329,6 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto observe = find_function(monograph->get_source(), "observe"_view);
   ASSERT(observe);
@@ -331,25 +337,31 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
   auto statements = body->get_statements();
   ASSERT_EQ(statements.get_size(), Count(5));
   for (Count i = 0; i < statements.get_size(); i++) {
-    ASSERT(statements.get_data()[i].get().is<Language::Access::Call>());
+    ASSERT(
+        statements.get_data()[i].get_abstract().is<Language::Access::Call>());
   }
 
   const auto& none = static_cast<const Language::Access::Call&>(
-      statements.get_data()[0].get());
+      statements.get_data()[0].get_abstract());
   const auto& one = static_cast<const Language::Access::Call&>(
-      statements.get_data()[1].get());
+      statements.get_data()[1].get_abstract());
   const auto& many = static_cast<const Language::Access::Call&>(
-      statements.get_data()[2].get());
+      statements.get_data()[2].get_abstract());
   const auto& self_none = static_cast<const Language::Access::Call&>(
-      statements.get_data()[3].get());
+      statements.get_data()[3].get_abstract());
   const auto& self_one = static_cast<const Language::Access::Call&>(
-      statements.get_data()[4].get());
+      statements.get_data()[4].get_abstract());
   EXPECT(none.get_layout().is_empty());
   EXPECT(&none.get_type() == &Invalid::get_invalid());
   EXPECT_EQ(one.get_layout().get_size(), Count(1));
-  EXPECT(&one.get_type() == &Dialect::get_bool());
+  EXPECT(&one.get_type() == &monograph->resolve_context("Bool"_view));
   EXPECT_EQ(many.get_layout().get_size(), Count(2));
   EXPECT(&many.get_type() == &Invalid::get_invalid());
+  EXPECT(
+      &many.get_value_type(0) ==
+      &monograph->resolve_context("Unsigned_64"_view));
+  EXPECT(&many.get_value_type(1) == &monograph->resolve_context("Bool"_view));
+  EXPECT(&many.get_value_type(2) == &Invalid::get_invalid());
   EXPECT(self_none.get_layout().is_empty());
   EXPECT_EQ(self_one.get_layout().get_size(), Count(1));
   ASSERT(self_none.get_callable());
@@ -376,7 +388,8 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
   const auto& address = static_cast<const Language::Access::Address&>(
       *selected->get_initializer());
   EXPECT(address.get_receiver().get_result().is<Ttx::Model::Addressable>());
-  EXPECT(&selected->get_type() == &Dialect::get_unsigned_64());
+  EXPECT(
+      &selected->get_type() == &monograph->resolve_context("Unsigned_64"_view));
   EXPECT(errors.is_empty());
 
   static constexpr View::Bytes invalid_source =
@@ -394,14 +407,9 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
   Errors invalid_errors;
   auto invalid_monograph =
       interpret(invalid_workspace, invalid_errors, invalid_source);
-  ASSERT(invalid_monograph);
-  auto invalid = find_field(invalid_monograph->get_source(), "invalid"_view);
-  ASSERT(invalid);
-  ASSERT(invalid->get_initializer());
-  ASSERT(invalid->get_initializer()->is<Language::Access::Address>());
-  const auto& invalid_address = static_cast<const Language::Access::Address&>(
-      *invalid->get_initializer());
-  EXPECT(invalid_address.get_receiver().is<Language::Access::Call>());
-  EXPECT(!invalid_workspace.link(invalid_errors));
+  EXPECT_NOT(invalid_monograph);
+  EXPECT(
+      &invalid_workspace.resolve_context("CallTest"_view) ==
+      &Invalid::get_invalid());
   EXPECT(!invalid_errors.is_empty());
 }

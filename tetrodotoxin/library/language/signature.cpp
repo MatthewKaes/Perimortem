@@ -10,46 +10,37 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Signature::interpret(
-    Allocator::Arena& domain,
-    Monograph& source,
-    Cursor& cursor) -> Option<Signature&> {
-  auto transaction = cursor.branch();
+auto Language::Signature::interpret(Cursor& cursor, const Abstract& host)
+    -> Option<Signature&> {
+  Allocator::Arena& domain = cursor.get_arena();
 
-  auto parameters = Language::Model::Layout::interpret_parameters(
-      domain, source, transaction);
+  auto parameters = Language::Model::Layout::interpret_parameters(cursor, host);
   BAIL_IF(!parameters);
 
-  BAIL_IF(!transaction.require(
+  BAIL_IF(!cursor.require(
       Code::Type::CallOp,
       "Library Function parameters require `->` before the result "
       "Layout."_view));
 
-  auto results =
-      Language::Model::Layout::interpret(domain, source, transaction);
+  auto results = Language::Model::Layout::interpret(cursor, host);
   BAIL_IF(!results);
 
   Signature& signature = domain.construct_from<Signature>(
-      [&]() -> Signature { return Signature(*parameters, *results); });
-  cursor.join(transaction);
+      [&]() -> Signature { return Signature(host, *parameters, *results); });
   return signature;
 }
 
-auto Language::Signature::link(
-    Tetrodotoxin::Language::Monograph& source,
-    const Type& host) -> Bool {
+auto Language::Signature::link(Cursor& cursor) -> Bool {
   // Both models run so one malformed parameter cannot hide an independent
   // result diagnostic. Each model owns idempotence for its exact staged edges.
-  Bool parameters_linked = parameters.link_parameters(source, host);
-  Bool results_linked = results.link_types(source, host);
+  Bool parameters_linked = parameters.link_parameters(cursor, host);
+  Bool results_linked = results.link_types(cursor, host);
   return parameters_linked && results_linked;
 }
 
-auto Language::Signature::validate_publication(
-    Tetrodotoxin::Language::Monograph& source,
-    const Type& host) const -> Bool {
-  Bool parameters_valid = parameters.validate_publication(source, host);
-  Bool results_valid = results.validate_publication(source, host);
+auto Language::Signature::validate_publication(Cursor& cursor) const -> Bool {
+  Bool parameters_valid = parameters.validate_publication(cursor, host);
+  Bool results_valid = results.validate_publication(cursor, host);
   return parameters_valid && results_valid;
 }
 

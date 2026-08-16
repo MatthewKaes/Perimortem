@@ -19,47 +19,30 @@ static auto is_resource_route(View::Bytes route) -> Bool {
 }
 
 auto Package::Language::Monograph::create_authored(
-    Allocator::Arena& domain,
+    Allocator::Arena& arena,
+    const Abstract& language,
     const Documentation& documentation,
+    Abstract& context,
     View::Vector<Dependency> dependencies,
-    View::Vector<Span> dependency_spans,
     View::Vector<Source> sources) -> Option<Monograph&> {
-  auto& diagnostics =
-      domain.construct<Tetrodotoxin::Language::Diagnostics>(domain);
-  return create_authored(
-      domain, documentation, diagnostics, dependencies, dependency_spans,
-      sources);
-}
-
-auto Package::Language::Monograph::create_authored(
-    Allocator::Arena& domain,
-    const Documentation& documentation,
-    Tetrodotoxin::Language::Diagnostics& diagnostics,
-    View::Vector<Dependency> dependencies,
-    View::Vector<Span> dependency_spans,
-    View::Vector<Source> sources) -> Option<Monograph&> {
-  if (dependencies.get_size() != dependency_spans.get_size() ||
-      sources.is_empty()) {
+  if (sources.is_empty()) {
     return {};
   }
 
-  return domain.construct_from<Monograph>([&]() -> Monograph {
+  return arena.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
-        domain, documentation, diagnostics, dependencies, dependency_spans,
-        sources);
+        arena, language, documentation, context, dependencies, sources);
   });
 }
 
 auto Package::Language::Monograph::create_synthetic(
-    Allocator::Arena& domain,
-    const Documentation& documentation,
+    Allocator::Arena& arena,
+    const Abstract& language,
+    Abstract& context,
     View::Vector<Dependency> dependencies) -> Monograph& {
-  auto& diagnostics =
-      domain.construct<Tetrodotoxin::Language::Diagnostics>(domain);
-  Monograph& monograph = domain.construct_from<Monograph>([&]() -> Monograph {
+  Monograph& monograph = arena.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
-        domain, documentation, diagnostics, dependencies, View::Vector<Span>(),
-        View::Vector<Source>());
+        arena, language, Documentation::get_empty(), context, dependencies, {});
   });
 
   // Restored Packages have no authored route acquisition phase. Seal before
@@ -68,65 +51,120 @@ auto Package::Language::Monograph::create_synthetic(
   return monograph;
 }
 
+static auto retain_dependencies(
+    Managed::Vector<Package::Language::Dependency>& retained,
+    View::Vector<Package::Language::Dependency> source) -> void {
+  for (const Package::Language::Dependency& dependency : source) {
+    retained.insert(dependency);
+  }
+}
+
+static auto retain_sources(
+    Managed::Vector<Package::Language::Source>& retained,
+    View::Vector<Package::Language::Source> source) -> void {
+  for (const Package::Language::Source& authored : source) {
+    retained.insert(authored);
+  }
+}
+
 Package::Language::Monograph::Monograph(
-    Allocator::Arena& domain,
+    Allocator::Arena& arena,
+    const Abstract& language,
     const Documentation& documentation,
-    Tetrodotoxin::Language::Diagnostics& diagnostics,
-    View::Vector<Dependency> dependencies,
-    View::Vector<Span> dependency_spans,
-    View::Vector<Source> sources)
-    : Tetrodotoxin::Language::Monograph(domain, documentation, diagnostics),
-      dependencies(dependencies),
-      dependency_spans(dependency_spans),
-      sources(sources),
-      resources(domain.construct<Package::Resources>(domain)),
-      members(domain),
-      bindings(domain) {}
+    Abstract& context,
+    View::Vector<Dependency> authored_dependencies,
+    View::Vector<Source> authored_sources)
+    : Tetrodotoxin::Language::Monograph(
+          arena,
+          language,
+          documentation,
+          context),
+      dependencies(domain),
+      sources(domain),
+      resources(domain),
+      scope(domain, "Package"_view) {
+  retain_dependencies(dependencies, authored_dependencies);
+  retain_sources(sources, authored_sources);
+}
+
+auto Package::Language::Monograph::Scope::bind(
+    const Parser::Name& route,
+    const Abstract& target) -> Option<Alias&> {
+  BAIL_IF(route.get_size() == 0);
+
+  Scope* selected = this;
+  for (Count index = 0; index + 1 < route.get_size(); index++) {
+    View::Bytes segment = route.get_segment(index);
+    auto existing = selected->bindings.find(segment);
+    if (existing) {
+      auto nested = existing->value.select<Scope>();
+      BAIL_IF(!nested);
+      selected = &*nested;
+      continue;
+    }
+
+    Scope& nested = arena.construct<Scope>(arena, segment);
+    selected->bindings.launder(segment, nested);
+    selected = &nested;
+  }
+
+  View::Bytes leaf = route.get_segment(route.get_size() - 1);
+  BAIL_IF(leaf.is_empty() || selected->bindings.contains(leaf));
+  Alias& alias = arena.construct<Alias>(leaf, target);
+  selected->bindings.launder(leaf, alias);
+  return alias;
+}
+
+auto Package::Language::Monograph::Scope::resolve_context(
+    View::Bytes selected_name) const -> const Abstract& {
+  return bindings.visit(
+      selected_name,
+      [](const Abstract& selected) -> const Abstract& { return selected; },
+      []() -> const Abstract& { return Invalid::get_invalid(); });
+}
 
 auto Package::Language::Monograph::bind_member(
-    View::Bytes local_name,
+    const Parser::Name& local_name,
     const Tetrodotoxin::Language::Monograph& member) -> Bool {
   // Every rejection happens before either inventory changes, so exact lookup
   // and member order preserve the first completed edge.
-  if (local_name.is_empty() ||
-      dependencies.contains([&](const Dependency& dependency) {
-        return dependency.get_local_name() == local_name;
+  if (local_name.get_size() == 0 ||
+      dependencies.get_view().contains([&](const Dependency& dependency) {
+        return dependency.get_local_name() == local_name.get_view();
       }) ||
-      (!sources.is_empty() && !sources.contains([&](const Source& source) {
-        return source.get_local_name() == local_name;
-      })) ||
-      &member == this || bindings.contains(local_name)) {
+      (!sources.is_empty() &&
+       !sources.get_view().contains([&](const Source& source) {
+         return source.get_local_name() == local_name.get_view();
+       })) ||
+      &member == this) {
     return False;
   }
 
-  Alias& alias = domain.construct<Alias>(local_name, member);
-  bindings.launder(local_name, alias);
-  members.insert(alias);
+  auto alias = scope.bind(local_name, member);
+  BAIL_IF(!alias);
   return True;
 }
 
 auto Package::Language::Monograph::bind_dependency(
     const Dependency& dependency,
     const Monograph& package) -> Bool {
-  const View::Bytes local_name = dependency.get_local_name();
+  const Parser::Name& local_name = dependency.get_local_route();
 
   // A caller cannot manufacture another alias spelling for a retained request.
   // Source inventory checks happen before construction so staging order never
   // decides which cross kind meaning survives.
-  if (local_name.is_empty() ||
-      !dependencies.contains([&](const Dependency& retained) {
+  if (local_name.get_size() == 0 ||
+      !dependencies.get_view().contains([&](const Dependency& retained) {
         return &retained == &dependency;
       }) ||
-      sources.contains([&](const Source& source) {
-        return source.get_local_name() == local_name;
+      sources.get_view().contains([&](const Source& source) {
+        return source.get_local_name() == local_name.get_view();
       }) ||
-      &package == this || bindings.contains(local_name)) {
+      &package == this) {
     return False;
   }
 
-  Alias& alias = domain.construct<Alias>(local_name, package);
-  bindings.launder(local_name, alias);
-  return True;
+  return Bool(scope.bind(local_name, package));
 }
 
 auto Package::Language::Monograph::resolve_context(View::Bytes route) const
@@ -138,9 +176,12 @@ auto Package::Language::Monograph::resolve_context(View::Bytes route) const
     return resources.resolve(route.slice(2, route.get_size() - 3));
   }
 
-  return bindings.visit(
-      route, [](const Alias& selected) -> const Abstract& { return selected; },
-      []() -> const Abstract& { return Invalid::get_invalid(); });
+  const Abstract& local = scope.resolve_context(route);
+  if (!local.is<Invalid>()) {
+    return local;
+  }
+
+  return Tetrodotoxin::Language::Monograph::resolve_context(route);
 }
 
 auto Package::Language::Monograph::get_name() const -> View::Bytes {
@@ -152,18 +193,8 @@ auto Package::Language::Monograph::get_dependencies() const
   return dependencies;
 }
 
-auto Package::Language::Monograph::get_dependency_spans() const
-    -> View::Vector<Span> {
-  return dependency_spans;
-}
-
 auto Package::Language::Monograph::get_sources() const -> View::Vector<Source> {
   return sources;
-}
-
-auto Package::Language::Monograph::get_members() const
-    -> View::Vector<Reference<const Alias>> {
-  return members;
 }
 
 auto Package::Language::Monograph::get_resources() -> Package::Resources& {

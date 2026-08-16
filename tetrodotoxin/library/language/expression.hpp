@@ -12,6 +12,7 @@
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -25,8 +26,8 @@ namespace Tetrodotoxin::Library::Language {
 // Expression identity remains distinct from Type identity so two values of the
 // same Type remain distinct facts in the semantic DAG. Scalar Expressions
 // produce one value. An owner such as Call may retain a complete empty or
-// multi-result Layout while get_type() exposes a scalar Type only when exactly
-// one result is available.
+// multiple result Layout while get_type() exposes a scalar Type only when
+// exactly one result is available.
 //
 // Authored Expressions retain one lexical Anchor containing their complete
 // Span and the independent Token a diagnostic should emphasize. Synthetic
@@ -35,7 +36,7 @@ namespace Tetrodotoxin::Library::Language {
 //
 // get_type() returns the one scalar Type produced by the expression or Invalid
 // when the source owner cannot establish exactly one. Concrete owners retain
-// their real evaluation edges; Expression does not reconstruct those edges as
+// their real evaluation edges. Expression does not reconstruct those edges as
 // a second generic input Layout. Library owns parsing, operator legality,
 // executable bodies, and value fitting.
 class Expression : public Model::Pack {
@@ -76,43 +77,55 @@ class Expression : public Model::Pack {
   }
 
   // The result is the exact semantic object produced by this node. Ordinary
-  // value Expressions produce themselves; access nodes override this only
+  // value Expressions produce themselves. Access nodes override this only
   // when evaluation selects an existing Type or Addressable identity. Keeping
-  // result identity separate from get_type() lets Type-valued expressions use
-  // Descriptor without losing the selected Type required by later access.
+  // result identity separate from get_type() lets Type valued expressions
+  // remain available to later access without inventing a value output.
   virtual constexpr auto get_result() const -> const Ttx::Concept::Abstract& {
     return *this;
   }
 
+  // Assignment asks the completed expression for its writable value Type.
+  // Ordinary access results delegate authority to their real Addressable.
+  // Expressions such as Index may override the query when their semantics
+  // deliberately provide a writable address without another identity.
+  virtual auto get_write_type(const Model::Type& access_scope) const
+      -> Perimortem::Core::Option<const Model::Type&>;
+
   virtual constexpr auto get_type() const
       -> const Ttx::Concept::Abstract& override = 0;
 
-  // An ordinary Expression produces one value of its exact output Type. Owners
-  // such as Call, Swizzle, and Slice override this query when they produce
-  // complete multi-value flow without inventing an aggregate Type.
+  auto get_value_type(Count index) const
+      -> const Ttx::Concept::Abstract& override;
+
+  // Layout inspection is total. An ordinary value Expression exposes one
+  // entry while a Type valued or incomplete Expression exposes an empty shape
+  // and still resolves Invalid. Owners such as Call, Swizzle, and Slice
+  // override this query when they produce complete empty or multiple value
+  // flow without inventing an aggregate Type.
   auto get_layout() const -> const Ttx::Concept::Layout& override;
 
-  // A linked Expression is a completed Pack. Multi-result owners override
+  // A linked Expression is a completed Pack. Multiple result owners override
   // this when their completion is not represented by one scalar Type edge.
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
   // Expression finalization preserves this exact node and only computes its
   // optional Constant representation. Grouped Packs override the same Library
   // lifecycle by visiting their real child producers in source order.
-  auto finalize() -> void override;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
   // Linking enriches this exact source node after every declaration identity
   // is available. Constants already carry complete Types, while Identifier
   // and Operation owners attach their existing graph edges without replacing
-  // the authored Expression. Lexical context owns name and shadowing order;
+  // the authored Expression. Lexical context owns name and shadowing order.
   // access scope carries only the host Type authority used by explicit member
   // and construction access. Keeping those facts separate prevents hosting
   // from becoming an implicit receiver. An absent scope represents an unhosted
   // query and grants no private access.
   auto link(
-      Tetrodotoxin::Language::Monograph& source,
+      Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,
-      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool override;
 
   // Folding is a cached result of this exact Expression. The source node
@@ -129,14 +142,25 @@ class Expression : public Model::Pack {
     return anchor;
   }
 
+  // An empty inspection shape is not produced flow until resolve() proves this
+  // exact Pack. Keeping the check here prevents direct fitting from admitting
+  // a Type result through an empty target Layout.
+  auto fits(const Ttx::Concept::Layout& target) const -> Bool override {
+    return &resolve() == this && Model::Pack::fits(target);
+  }
+
   // Ordinary expressions supply the complete Layout of their output Type.
   // Atomic Types retain their own exact identity as one terminal value while
-  // structural Types expose their real shapes. Constant domains may
-  // extend this rule when their value proves a contextual conversion safe.
-  constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
-    auto source_type = get_type().select<Ttx::Model::Type>();
+  // structural Types expose their real shapes. Constant domains may extend
+  // this rule when their value proves a contextual conversion safe.
+  auto fits(const Ttx::Model::Type& target) const -> Bool override {
+    if (&resolve() != this) {
+      return False;
+    }
+
+    auto source_type = get_type().select<Model::Type>();
     if (!source_type) {
-      source_type = get_type().resolve().select<Ttx::Model::Type>();
+      source_type = get_type().resolve().select<Model::Type>();
     }
 
     // Scalar Expressions compare their exact output Type, including
@@ -148,8 +172,8 @@ class Expression : public Model::Pack {
 
  protected:
   // Concrete owners supply the builder because only their factory may use the
-  // private constructor. Expression selects source context and the Arena
-  // begins the object's lifetime once at its final address.
+  // private constructor. The optional Anchor records whether source authored
+  // the node while Arena begins its lifetime once at the final address.
   template <typename type, typename builder_type>
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -182,9 +206,10 @@ class Expression : public Model::Pack {
   auto operator=(const Expression&) -> Expression& = delete;
   auto operator=(Expression&&) -> Expression& = delete;
 
-  // Every Expression can be evaluated into an exact constant Pack. The default
-  // follows a selected const declaration result, while concrete computational
-  // owners override only the evaluation they uniquely own.
+  // Evaluation attempts to expose one immutable Pack. Absence means the value
+  // remains dynamic, while Error records a semantic failure. The default
+  // follows a selected const declaration and computational owners override
+  // their fold.
   virtual auto evaluate() -> Perimortem::Utility::
       Result<Perimortem::Core::Option<Model::Pack&>, Error>;
 

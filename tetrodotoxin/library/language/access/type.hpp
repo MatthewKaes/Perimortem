@@ -8,32 +8,30 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
 
 // Type is one postfix `:: Name` Expression. It retains the receiver and exact
 // authored Token without binding during parsing. Linking evaluates the
 // receiver result, requires a semantic Type, and selects the next Type through
-// that owner's context. Its value Type is Descriptor while get_result()
-// preserves the selected semantic Type for another access operation.
+// that owner's context. The selected Type remains available through
+// get_result() for another access operation but produces no runtime value.
 class Type : public Expression {
  public:
   TTX_CONTRACT(Type, Expression);
 
   static auto parse(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
+      const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor,
       Expression& receiver) -> Perimortem::Core::Option<Expression&>;
 
   auto link(
-      Tetrodotoxin::Language::Monograph& source,
+      Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,
-      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool override;
 
   TTX_NAME(name);
@@ -41,7 +39,7 @@ class Type : public Expression {
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_result() const -> const Ttx::Concept::Abstract& override;
-  auto finalize() -> void override;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
   constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
@@ -57,8 +55,7 @@ class Type : public Expression {
   Expression& receiver;
   Ttx::Lexical::Token token;
   Perimortem::Core::View::Bytes name;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
-      selected;
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>> selected;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

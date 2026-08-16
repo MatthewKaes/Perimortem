@@ -8,7 +8,9 @@ using namespace Perimortem::Utility;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 
-auto Library::Language::Import::parse(Cursor& cursor) -> Option<Import> {
+auto Library::Language::Import::parse(
+    Cursor& cursor,
+    const Ttx::Concept::Documentation& documentation) -> Option<Import> {
   Token opening = cursor.require(
       Code::Type::Using, "Library Imports require `using`."_view);
   if (!opening) {
@@ -22,8 +24,8 @@ auto Library::Language::Import::parse(Cursor& cursor) -> Option<Import> {
     return {};
   }
 
-  // The exact Tokens and stable segment spellings survive the parser. Waiting
-  // for the terminator keeps malformed trailing syntax out of durable state.
+  // The exact retained source route survives with the transaction. Waiting for
+  // the terminator keeps malformed trailing syntax out of durable state.
   Token terminator = cursor.require(
       Code::Type::EndStatement,
       "Library Imports require one terminating `;`."_view);
@@ -32,5 +34,5 @@ auto Library::Language::Import::parse(Cursor& cursor) -> Option<Import> {
     return {};
   }
 
-  return Import(*type_reference, Span(opening, terminator));
+  return Import(documentation, *type_reference, Span(opening, terminator));
 }

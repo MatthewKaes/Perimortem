@@ -14,6 +14,25 @@ namespace Tetrodotoxin::Library::Language::Types {
 // Structure is one authored inline value Composite. Definition remains the
 // single source for its name, Documentation, Attributes, modifiers, and kind.
 class Structure : public Composite {
+ public:
+  TTX_CONTRACT(Structure, Composite);
+
+  static auto interpret(
+      Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Language::Definition& definition)
+      -> Perimortem::Core::Option<Structure&>;
+
+  Structure(const Structure&) = delete;
+  Structure(Structure&&) = delete;
+  auto operator=(const Structure&) -> Structure& = delete;
+  auto operator=(Structure&&) -> Structure& = delete;
+
+  auto resolve_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
+
  protected:
   Structure(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -24,20 +43,6 @@ class Structure : public Composite {
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Language::Definition& definition,
       Ttx::Lexical::Token kind_token) -> Bool;
-
- public:
-  TTX_CONTRACT(Structure, Composite);
-
-  static auto interpret(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition)
-      -> Perimortem::Core::Option<Structure&>;
-
-  Structure(const Structure&) = delete;
-  Structure(Structure&&) = delete;
-  auto operator=(const Structure&) -> Structure& = delete;
-  auto operator=(Structure&&) -> Structure& = delete;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Types

@@ -1,15 +1,14 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
+#include "tetrodotoxin/library/language/foreign.hpp"
+
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/language/foreign/function.hpp"
-#include "tetrodotoxin/library/language/foreign/state.hpp"
-#include "tetrodotoxin/library/language/foreign/surface.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -58,7 +57,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return Bool(
-      monograph && !workspace.link(errors) && !errors.is_empty() &&
+      !monograph && !errors.is_empty() &&
       &workspace.resolve_context("ForeignTest"_view) ==
           &Invalid::get_invalid());
 }
@@ -67,76 +66,105 @@ PERIMORTEM_UNIT_TEST(ForeignTests, source_identity_and_lifecycle) {
   static constexpr View::Bytes source =
       "// Foreign source identity.\n"
       "dialect : Library;\n"
-      "foreign \"C\" {}\n"
+      "// Primary Foreign context.\n"
       "foreign \"C\" {\n"
       "  // Shared State category.\n"
       "  public state shared : Unsigned_64;\n"
       "  expose state observed : Unsigned_64;\n"
       "  public state buffer : Fixed[Unsigned_8, 4];\n"
       "  // Shared Callable category.\n"
-      "  public func shared[.value : Unsigned_64] -> Unsigned_64;\n"
+      "  public func transform[.value : Unsigned_64] -> Unsigned_64;\n"
       "  public func notify[] -> [];\n"
+      "}\n"
+      "// Extended Foreign context.\n"
+      "foreign \"C\" {\n"
+      "  public state shared : Unsigned_64;\n"
       "}\n"_view;
 
   Environment::Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  auto& surface = monograph->get_source().get_foreign();
-  ASSERT(surface.get_abi());
-  EXPECT(*surface.get_abi() == "C"_view);
-  EXPECT(&surface.resolve() == &surface);
-  EXPECT(&surface.resolve_context("shared"_view) == &Invalid::get_invalid());
+  const Library::Language::Foreign& foreign =
+      monograph->get_source().get_foreign();
+  ASSERT(foreign.get_abi());
+  EXPECT(*foreign.get_abi() == "C"_view);
+  EXPECT_TEXT(
+      foreign.get_documentation().get_line(0), "Primary Foreign context."_view);
+  EXPECT_TEXT(
+      foreign.get_documentation().get_line(1),
+      "Extended Foreign context."_view);
+  EXPECT(&monograph->resolve_context("foreign"_view) == &foreign);
+  EXPECT(&monograph->get_source().resolve_context("foreign"_view) == &foreign);
+  EXPECT(monograph->resolve_context("shared"_view).is<Invalid>());
 
-  ASSERT(workspace.link(errors));
-  ASSERT(monograph->link());
-  ASSERT(workspace.finalize(errors));
-  ASSERT(monograph->finalize());
+  const Abstract& shared_identity =
+      foreign.resolve_access(foreign, "shared"_view);
+  const Abstract& observed_identity =
+      foreign.resolve_access(foreign, "observed"_view);
+  const Abstract& buffer_identity =
+      foreign.resolve_access(foreign, "buffer"_view);
+  const Abstract& transform_identity =
+      foreign.resolve_call(foreign, "transform"_view);
+  const Abstract& notify_identity =
+      foreign.resolve_call(foreign, "notify"_view);
+  EXPECT_EQ(foreign.get_states().get_size(), Count(3));
+  EXPECT_EQ(foreign.get_functions().get_size(), Count(2));
+
+  ASSERT(shared_identity.is<Library::Language::Foreign::State>());
+  ASSERT(observed_identity.is<Library::Language::Foreign::State>());
+  ASSERT(buffer_identity.is<Library::Language::Foreign::State>());
+  ASSERT(transform_identity.is<Library::Language::Foreign::Function>());
+  ASSERT(notify_identity.is<Library::Language::Foreign::Function>());
+  const auto& shared_state =
+      static_cast<const Library::Language::Foreign::State&>(shared_identity);
+  const auto& observed =
+      static_cast<const Library::Language::Foreign::State&>(observed_identity);
+  const auto& buffer =
+      static_cast<const Library::Language::Foreign::State&>(buffer_identity);
+  const auto& transform =
+      static_cast<const Library::Language::Foreign::Function&>(
+          transform_identity);
+  const auto& notify =
+      static_cast<const Library::Language::Foreign::Function&>(notify_identity);
 
   EXPECT(
-      &monograph->get_source().resolve_context("shared"_view) ==
-      &Invalid::get_invalid());
-  Count state_count = 0;
-  for (const Reference<Abstract>& state : surface.get_states()) {
-    EXPECT(state.get().is<Library::Language::Foreign::State>());
-    state_count++;
-  }
-  Count function_count = 0;
-  for (const Reference<Abstract>& function : surface.get_functions()) {
-    EXPECT(function.get().is<Library::Language::Foreign::Function>());
-    function_count++;
-  }
-  EXPECT_EQ(state_count, Count(3));
-  EXPECT_EQ(function_count, Count(2));
+      &shared_state.get_type() ==
+      &monograph->resolve_context("Unsigned_64"_view));
+  const auto& state_definition = shared_state.get_definition();
+  EXPECT(state_definition.get_visibility() == Visibility::Public);
+  EXPECT(observed.get_definition().get_visibility() == Visibility::Exposed);
+  EXPECT(state_definition.is_authored());
+  EXPECT(state_definition.is_complete());
+  EXPECT(&state_definition.get_host() == &foreign);
+  EXPECT_TEXT(
+      state_definition.get_documentation().get_line(0),
+      "Shared State category."_view);
+  EXPECT_TEXT(
+      state_definition.get_anchor().get_span().caculate_text(source),
+      "public state shared : Unsigned_64;"_view);
+  EXPECT(buffer.get_type().is<Library::Language::Types::Fixed>());
+  EXPECT(buffer.get_type_reference().has_arguments());
+  EXPECT(shared_state.get_abi() == "C"_view);
 
-  auto shared_state = surface.select_state("shared"_view);
-  auto observed = surface.select_state("observed"_view);
-  auto buffer = surface.select_state("buffer"_view);
-  auto shared_function = surface.select_function("shared"_view);
-  auto notify = surface.select_function("notify"_view);
-  ASSERT(shared_state);
-  ASSERT(observed);
-  ASSERT(buffer);
-  ASSERT(shared_function);
-  ASSERT(notify);
-
-  EXPECT(&shared_state->get_type() == &Library::Dialect::get_unsigned_64());
-  EXPECT(shared_state->get_visibility() == Visibility::Public);
-  EXPECT(observed->get_visibility() == Visibility::Exposed);
-  EXPECT(buffer->get_type().is<Library::Language::Types::Fixed>());
-  EXPECT(buffer->get_type_reference().has_arguments());
-  EXPECT(shared_state->get_abi() == "C"_view);
-  ASSERT(shared_state->get_authorship());
-  EXPECT(shared_state->get_authorship()->is_published());
-
-  EXPECT(shared_function->get_abi() == "C"_view);
-  EXPECT(shared_function->get_symbol() == "shared"_view);
-  EXPECT_EQ(shared_function->get_parameters().get_size(), Count(1));
-  EXPECT_EQ(shared_function->get_results().get_size(), Count(1));
-  EXPECT_EQ(notify->get_parameters().get_size(), Count(0));
-  EXPECT_EQ(notify->get_results().get_size(), Count(0));
-  EXPECT_NOT(shared_function->is_type_bound());
-  ASSERT(shared_function->get_authorship());
+  EXPECT(transform.get_abi() == "C"_view);
+  EXPECT(transform.get_symbol() == "transform"_view);
+  const auto& function_definition = transform.get_definition();
+  EXPECT(function_definition.get_visibility() == Visibility::Public);
+  EXPECT(function_definition.is_authored());
+  EXPECT(function_definition.is_complete());
+  EXPECT(&function_definition.get_host() == &foreign);
+  EXPECT_TEXT(
+      function_definition.get_documentation().get_line(0),
+      "Shared Callable category."_view);
+  EXPECT_TEXT(
+      function_definition.get_anchor().get_span().caculate_text(source),
+      "public func transform[.value : Unsigned_64] -> Unsigned_64;"_view);
+  EXPECT_EQ(transform.get_parameters().get_size(), Count(1));
+  EXPECT_EQ(transform.get_results().get_size(), Count(1));
+  EXPECT_EQ(notify.get_parameters().get_size(), Count(0));
+  EXPECT_EQ(notify.get_results().get_size(), Count(0));
+  EXPECT_NOT(transform.is_type_bound());
   EXPECT(errors.is_empty());
 }
 
@@ -144,6 +172,7 @@ PERIMORTEM_UNIT_TEST(ForeignTests, access_invocation_and_category_separation) {
   static constexpr View::Bytes source =
       "// Foreign access integration.\n"
       "dialect : Library;\n"
+      "public shared : Unsigned_64 = 7;\n"
       "foreign \"C\" {\n"
       "  expose state input : Unsigned_64;\n"
       "  public state output : Unsigned_64;\n"
@@ -161,8 +190,17 @@ PERIMORTEM_UNIT_TEST(ForeignTests, access_invocation_and_category_separation) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
+  const Library::Language::Foreign& foreign =
+      monograph->get_source().get_foreign();
+  const Abstract& root_shared = monograph->resolve_context("shared"_view);
+  const Abstract& state_shared = foreign.resolve_access(foreign, "shared"_view);
+  const Abstract& function_shared =
+      foreign.resolve_call(foreign, "shared"_view);
+  EXPECT(!root_shared.is<Invalid>());
+  EXPECT(state_shared.is<Library::Language::Foreign::State>());
+  EXPECT(function_shared.is<Library::Language::Foreign::Function>());
+  EXPECT(&root_shared != &state_shared);
+  EXPECT(&state_shared != &function_shared);
   EXPECT(errors.is_empty());
 }
 
@@ -181,8 +219,8 @@ PERIMORTEM_UNIT_TEST(ForeignTests, authored_rejections_are_atomic) {
     "-> []; }"_view,
     "// Body.\ndialect : Library;\nforeign \"C\" { public func call[] -> "
     "[] {} }"_view,
-    "// Duplicate.\ndialect : Library;\nforeign \"C\" { public state value : "
-    "Unsigned_64; public state value : Unsigned_64; }"_view,
+    "// Conflict.\ndialect : Library;\nforeign \"C\" { public state value : "
+    "Unsigned_64; public state value : Bool; }"_view,
   }};
 
   for (Count i = 0; i < rejected.get_size(); i++) {

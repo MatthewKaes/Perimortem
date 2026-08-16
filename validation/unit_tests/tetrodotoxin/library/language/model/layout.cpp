@@ -42,7 +42,7 @@ static auto interpret_source(Workspace& workspace, Errors& errors)
 
 static auto parse_layout(
     Allocator::Arena& arena,
-    Language::Monograph& source,
+    const Abstract& context,
     Errors& errors,
     View::Bytes text,
     Bool parameters = False) -> Option<Language::Model::Layout&> {
@@ -50,8 +50,8 @@ static auto parse_layout(
   Cursor cursor(tokenizer, errors);
   auto layout =
       parameters
-          ? Language::Model::Layout::interpret_parameters(arena, source, cursor)
-          : Language::Model::Layout::interpret(arena, source, cursor);
+          ? Language::Model::Layout::interpret_parameters(cursor, context)
+          : Language::Model::Layout::interpret(cursor, context);
   BAIL_IF(!layout || !cursor.matches(Code::Type::Terminal));
   return *layout;
 }
@@ -70,10 +70,13 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, owns_parameter_entries) {
   auto layout = parse_layout(
       arena, *monograph, parse_errors, "[self, .input : Bool,]"_view, True);
   ASSERT(layout);
+  Tokenizer link_tokens(
+      arena, "[self, .input : Bool,]"_view, "authored-layout.ttx"_view);
+  Cursor link_cursor(link_tokens, parse_errors);
   EXPECT(layout->declares_self());
   EXPECT_NOT(layout->is_linked());
   ASSERT(layout->link_parameters(
-      *monograph, static_cast<const Ttx::Model::Type&>(box)));
+      link_cursor, static_cast<const Ttx::Model::Type&>(box)));
 
   ASSERT_EQ(layout->get_size(), Count(2));
   ASSERT(layout->get_name(0) && layout->get_name(1));
@@ -87,7 +90,7 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, owns_parameter_entries) {
   EXPECT(&static_cast<const Language::Parameter&>(self).get_type() == &box);
   EXPECT(
       &static_cast<const Language::Parameter&>(input).get_type() ==
-      &Dialect::get_bool());
+      &monograph->resolve_context("Bool"_view));
   EXPECT(parse_errors.is_empty());
   EXPECT(errors.is_empty());
 }
@@ -126,10 +129,13 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_type_entries_are_rejected) {
       arena, *monograph, parse_errors,
       "[.nothing : Empty, .value : Bool,]"_view);
   ASSERT(named);
+  Tokenizer link_tokens(
+      arena, "[.nothing : Empty, .value : Bool,]"_view,
+      "authored-layout.ttx"_view);
+  Cursor link_cursor(link_tokens, parse_errors);
   EXPECT_NOT(named->is_linked());
-  EXPECT_NOT(named->link_types(*monograph, monograph->get_source()));
-  EXPECT(parse_errors.is_empty());
-  EXPECT_NOT(monograph->get_diagnostics().is_empty());
+  EXPECT_NOT(named->link_types(link_cursor, monograph->get_source()));
+  EXPECT_NOT(parse_errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting_preserves_real_edges) {
@@ -147,20 +153,31 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting_preserves_real_edges) {
       arena, *monograph, parse_errors,
       "[.count : Unsigned_64, .flag : Bool]"_view);
   ASSERT(source && reordered);
-  ASSERT(source->link_types(*monograph, monograph->get_source()));
-  ASSERT(reordered->link_types(*monograph, monograph->get_source()));
+  Tokenizer source_tokens(
+      arena, "[.flag : Bool, .count : Unsigned_64]"_view,
+      "authored-layout.ttx"_view);
+  Cursor source_cursor(source_tokens, parse_errors);
+  Tokenizer reordered_tokens(
+      arena, "[.count : Unsigned_64, .flag : Bool]"_view,
+      "authored-layout.ttx"_view);
+  Cursor reordered_cursor(reordered_tokens, parse_errors);
+  ASSERT(source->link_types(source_cursor, monograph->get_source()));
+  ASSERT(reordered->link_types(reordered_cursor, monograph->get_source()));
 
   EXPECT(source->fits(*reordered));
   auto count = source->get_fitted(*reordered, 0);
   auto flag = source->get_fitted(*reordered, 1);
+  const Abstract& unsigned_64 =
+      monograph->resolve_context("Unsigned_64"_view);
+  const Abstract& boolean = monograph->resolve_context("Bool"_view);
   EXPECT(count.visit(
-      [](const Abstract& selected) -> Bool {
-        return Bool(&selected == &Dialect::get_unsigned_64());
+      [&](const Abstract& selected) -> Bool {
+        return Bool(&selected == &unsigned_64);
       },
       [](Ttx::Concept::Layout::Errors) { return False; }));
   EXPECT(flag.visit(
-      [](const Abstract& selected) -> Bool {
-        return Bool(&selected == &Dialect::get_bool());
+      [&](const Abstract& selected) -> Bool {
+        return Bool(&selected == &boolean);
       },
       [](Ttx::Concept::Layout::Errors) { return False; }));
   EXPECT(parse_errors.is_empty());

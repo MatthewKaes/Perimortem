@@ -69,8 +69,8 @@ class Layout {
         });
   }
 
-  // Identity-free owners with a restricted entry language, such as Generic
-  // arguments, reuse only the delimiter transaction. They therefore do not
+  // Identity free owners with a restricted entry language, such as Generic
+  // arguments, reuse only the delimiter grammar. They therefore do not
   // accidentally accept the named descriptor grammar above.
   template <typename consume_type>
   static auto parse_entries(

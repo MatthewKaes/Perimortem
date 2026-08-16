@@ -3,10 +3,9 @@
 
 #include "tetrodotoxin/library/language/flow/branch.hpp"
 
+#include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
-#include "ttx/concept/invalid.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/types/flag.hpp"
+#include "tetrodotoxin/library/language/model/types/flag.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -15,40 +14,22 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-static auto select_condition_type(const Language::Model::Pack& condition)
-    -> const Abstract& {
-  const Layout& layout = condition.get_layout();
-  auto first = layout.get_abstract(0);
-  if (!first) {
-    return Invalid::get_invalid();
-  }
-
-  auto pack = first->select<Language::Model::Pack>();
-  if (pack) {
-    return pack->get_type();
-  }
-
-  auto addressable = first->select<Addressable>();
-  if (addressable) {
-    return addressable->get_type();
-  }
-
-  auto type = first->select<Type>();
-  return type ? static_cast<const Abstract&>(*type)
-              : static_cast<const Abstract&>(Invalid::get_invalid());
+static auto select_condition_flag(const Language::Model::Pack& condition)
+    -> Option<const Language::Model::Types::Flag&> {
+  return condition.get_value_type(0)
+      .resolve()
+      .select<Language::Model::Types::Flag>();
 }
 
 auto Language::Flow::Branch::interpret(
-    Allocator::Arena& domain,
-    Monograph& source,
     Cursor& cursor,
     Block& lexical_context,
-    Callable& function,
-    const Type& access_scope) -> Option<Branch&> {
-  auto transaction = cursor.branch();
-  Token opening = transaction.current();
+    Language::Model::Callable& function,
+    const Language::Model::Type& access_scope) -> Option<Branch&> {
+  Allocator::Arena& domain = cursor.get_arena();
+  Token opening = cursor.current();
   Kind kind;
-  switch (transaction.get_code().get_type()) {
+  switch (cursor.get_code().get_type()) {
   case Code::Type::If:
     kind = Kind::If;
     break;
@@ -56,22 +37,24 @@ auto Language::Flow::Branch::interpret(
     kind = Kind::While;
     break;
   default:
+    cursor.create_token_error(
+        "Library branches require the `if` or `while` keyword."_view);
     return {};
   }
-  transaction.consume();
+  cursor.consume();
 
-  auto condition = Model::Parser::Pack::parse(domain, source, transaction);
+  auto condition = Model::Parser::Pack::parse(lexical_context, cursor);
   BAIL_IF(!condition);
 
   Branch& result = domain.construct_from<Branch>([&]() -> Branch {
     return Branch(
         kind, *condition,
-        Anchor::create(opening, Span(opening, transaction.peek(-1))));
+        Anchor::create(opening, Span(opening, cursor.peek(-1))));
   });
 
-  // Propagate loop closures with each block depth.
-  // This gives us a free scope stack for loop control operations that doesn't
-  // need to be recaculated later.
+  // Loop control binds to the exact enclosing owner while syntax still exposes
+  // the scope stack. A while body selects this Branch; an if body inherits the
+  // nearest loop. Linking therefore never reconstructs lexical ancestry.
   Option<Reference<const Abstract>> enclosing_loop;
   if (kind == Kind::While) {
     enclosing_loop = Reference<const Abstract>(result);
@@ -83,52 +66,90 @@ auto Language::Flow::Branch::interpret(
   }
 
   auto body = Block::interpret(
-      domain, source, transaction, lexical_context, function, access_scope,
-      enclosing_loop);
+      cursor, lexical_context, function, access_scope, enclosing_loop);
   BAIL_IF(!body);
   result.body = Reference<Block>(*body);
 
-  // If we land on an else block for the following block then chain it as the
-  // alternative.
-  if (kind == Kind::If && transaction.matches(Code::Type::Else)) {
-    transaction.consume();
-    auto parsed = Block::interpret(
-        domain, source, transaction, lexical_context, function, access_scope,
-        enclosing_loop);
-    BAIL_IF(!parsed);
-    result.alternate = Reference<Block>(*parsed);
+  // Else retains its exact Statement so `else if` remains a Branch rather than
+  // acquiring fabricated braces or a second control identity.
+  if (kind == Kind::If && cursor.matches(Code::Type::Else)) {
+    cursor.consume();
+    const Documentation& documentation =
+        Tetrodotoxin::Language::Parser::Comment::parse(cursor);
+    if (cursor.matches(Code::Type::If)) {
+      auto parsed =
+          Branch::interpret(cursor, lexical_context, function, access_scope);
+      BAIL_IF(!parsed);
+      result.alternate = Statement::create(
+          *parsed, documentation, parsed->get_anchor(),
+          [](Branch& selected, Cursor& operation_cursor, Scope& scope) {
+            return selected.link(
+                operation_cursor, scope, scope.get_access_scope());
+          },
+          [](Branch& selected, Cursor& operation_cursor) {
+            selected.finalize(operation_cursor);
+          },
+          [](const Branch& selected) {
+            return selected.reaches_next_statement();
+          });
+    } else if (cursor.matches(Code::Type::ScopeStart)) {
+      auto parsed = Block::interpret(
+          cursor, lexical_context, function, access_scope, enclosing_loop);
+      BAIL_IF(!parsed);
+      result.alternate = Statement::create(
+          *parsed, documentation, parsed->get_anchor(),
+          [](Block& selected, Cursor& operation_cursor, Scope&) {
+            return selected.link(operation_cursor);
+          },
+          [](Block& selected, Cursor& operation_cursor) {
+            selected.finalize(operation_cursor);
+          },
+          [](const Block& selected) {
+            return selected.reaches_next_statement();
+          });
+    } else {
+      cursor.create_token_error(
+          "Library `else` requires one nested `if` or Block."_view);
+      return {};
+    }
   }
 
-  Token closing = transaction.peek(-1);
+  Token closing = cursor.peek(-1);
   result.anchor = Anchor::create(opening, Span(opening, closing));
-  cursor.join(transaction);
   return result;
 }
 
 auto Language::Flow::Branch::link(
-    Tetrodotoxin::Language::Monograph& source,
-    const Abstract& lexical_context,
-    const Type& access_scope) -> Bool {
+    Ttx::Lexical::Cursor& cursor,
+    Scope& lexical_context,
+    const Language::Model::Type& access_scope) -> Bool {
   if (linked) {
     return True;
   }
   BAIL_IF(!body);
 
   Model::Pack& retained_condition = condition.get();
-  BAIL_IF(!retained_condition.link(source, lexical_context, access_scope));
-  const Abstract& condition_type = select_condition_type(retained_condition);
-  if (!condition_type.resolve().is<Ttx::Model::Types::Flag>()) {
-    source.report(
+  BAIL_IF(!retained_condition.link(cursor, lexical_context, access_scope));
+  // Branch observes value flow rather than the exact identities used by
+  // postfix access. Prove that distinction before selecting the leading Flag.
+  if (&retained_condition.resolve() != &retained_condition) {
+    cursor.create_expression_error(
+        anchor, "Branch condition did not produce value flow."_view,
+        "Use a Type result only as an access receiver."_view);
+    return False;
+  }
+  if (!select_condition_flag(retained_condition)) {
+    cursor.create_expression_error(
         anchor, "Branch condition must produce a Flag as its first value."_view,
         "Keep any additional Pack values after one leading Flag value."_view);
     return False;
   }
 
-  Bool failed = !body->get().link(source);
+  Bool failed = !body->get().link(cursor);
   alternate.visit(
       []() {},
-      [&](Reference<Block>& selected) {
-        failed |= !selected.get().link(source);
+      [&](Statement& selected) {
+        failed |= !selected.link(cursor, lexical_context);
       });
   BAIL_IF(failed);
 
@@ -136,12 +157,13 @@ auto Language::Flow::Branch::link(
   return True;
 }
 
-auto Language::Flow::Branch::finalize() -> void {
-  condition.get().finalize();
+auto Language::Flow::Branch::finalize(Cursor& cursor) -> void {
+  condition.get().finalize(cursor);
   body.visit(
-      []() {}, [](Reference<Block>& selected) { selected.get().finalize(); });
+      []() {},
+      [&](Reference<Block>& selected) { selected.get().finalize(cursor); });
   alternate.visit(
-      []() {}, [](Reference<Block>& selected) { selected.get().finalize(); });
+      []() {}, [&](Statement& selected) { selected.finalize(cursor); });
 }
 
 auto Language::Flow::Branch::reaches_next_statement() const -> Bool {
@@ -149,6 +171,5 @@ auto Language::Flow::Branch::reaches_next_statement() const -> Bool {
     return True;
   }
 
-  return body->get().reaches_next_statement() ||
-         alternate->get().reaches_next_statement();
+  return body->get().reaches_next_statement() || alternate->reaches_next();
 }

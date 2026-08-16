@@ -10,29 +10,31 @@
 namespace Tetrodotoxin::Library::Language::Types {
 
 // Access is one writable contiguous storage Type. It retains the exact element
-// edge while Materializations alone owns the Generic key that created it.
+// edge while its Generic owns the canonical materialization key.
 class Access : public Contiguous {
  public:
   TTX_CONTRACT(Access, Contiguous);
 
   constexpr Access(
       Perimortem::Core::View::Bytes name,
-      const Ttx::Model::Type& element)
+      const Model::Type& element)
       : name(name), element(element) {}
 
   TTX_NAME(name);
 
   TTX_DOCUMENTATION(documentation);
 
+  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
   TTX_CONSTEXPR_INVALID_CONTEXT;
 
-  constexpr auto get_element_type() const -> const Ttx::Model::Type& override {
+  constexpr auto get_element_type() const -> const Model::Type& override {
     return element;
   }
 
  private:
   Perimortem::Core::View::Bytes name;
-  const Ttx::Model::Type& element;
+  const Model::Type& element;
   static constexpr Ttx::Model::Documentations::Comment documentation{
     "Provides writable access to contiguous values."_view,
   };

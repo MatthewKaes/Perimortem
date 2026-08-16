@@ -6,7 +6,6 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/option.hpp"
 
-#include "ttx/concept/authorship.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/concept/type_identity.hpp"
 
@@ -27,12 +26,12 @@ namespace Ttx::Concept {
 // of constructing parallel path or schema representations. Useful hierarchy
 // emerges from the virtual contracts implemented by each Abstract.
 //
-// A route is only the borrowed source bytes that remain to be resolved. The
-// queried Abstract owns the grammar, lookup structure, and slicing appropriate
-// to its context. This keeps the base independent of allocation and global
-// state. The surface is restricted rather than closed: additions must be
-// fundamental to every semantic object, not conveniences for one derived
-// contract.
+// A contextual query receives one borrowed, unqualified name. The concrete
+// grammar operator owns punctuation and asks each selected Abstract about the
+// next name. The queried Abstract owns only the lookup structure appropriate to
+// its context. This keeps the base independent of allocation and global state.
+// The surface is restricted rather than closed: additions must be fundamental
+// to every semantic object, not conveniences for one derived contract.
 class Abstract {
  public:
   using ClassCatagory = Abstract;
@@ -111,18 +110,9 @@ class Abstract {
     return mismatch_visitor(*this);
   }
 
-  // Returns the exact identity-free source fact retained by this Abstract.
-  // Synthetic identities have no authorship and return absence. The authored
-  // source owner supplies provenance and decides whether it is published;
-  // Abstract assigns no visibility model to that decision.
-  virtual constexpr auto get_authorship() const
-      -> Perimortem::Core::Option<const Authorship&> {
-    return {};
-  }
-
   // Gets the name of this Abstract.
   // If a canonical name is required then first call `resolve()`:
-  // `canonical_name = abstract.resolve().get_name();`
+  // `canonical_name = abstract.resolve().get_name()`
   virtual constexpr auto get_name() const -> Perimortem::Core::View::Bytes = 0;
 
   // Returns the Abstract represented by this name. Alias uses this query to
@@ -133,27 +123,32 @@ class Abstract {
   // `&abstract.resolve() == &abstract.resolve().resolve()`.
   virtual constexpr auto resolve() const -> const Abstract& { return *this; }
 
-  // Resolves the borrowed route inside this Abstract's context. Implementations
-  // decide how much of the route to consume and which Abstract receives the
-  // remaining suffix if any.
+  // Resolves one name inside this Abstract's context. Concrete language
+  // operators own route punctuation and ask the selected Abstract about the
+  // next name one step at a time. `Name::Name2` is therefore two ordered
+  // queries, never one flattened map key or a request for Abstract to parse
+  // another language's operator.
   //
-  // An Abstract can also completely change the context, but typically a resolve
-  // in a context should consume the entire route or forward a slice.
-  //
-  // Abstracts might optimize route resolution, so this:
-  // `abstract.resolve_context("Name").resolve_context("Name2");`
-  // might return the same resulting Abstract as this:
-  // `abstract.resolve_context("Name::Name2");`
-  //
-  // Neither partitioning is required to be optimized or equivalent. An empty
-  // route is not required to behave like `resolve()`. A context may forward an
-  // unchanged route while changing context, but valid DAG construction must
-  // still guarantee that resolution terminates.
+  // An empty name is not required to behave like `resolve()`. A context may
+  // forward an unchanged name while changing context, but valid DAG
+  // construction must still guarantee that resolution terminates.
   //
   // For an unchanged DAG, repeating the same ordered resolution chain from the
   // same starting Abstract returns the same final Abstract identity.
   virtual constexpr auto resolve_context(
-      Perimortem::Core::View::Bytes route) const -> const Abstract& = 0;
+      Perimortem::Core::View::Bytes name) const -> const Abstract& = 0;
+
+  // Resolves an Addressable or Callable selected by an explicit receiver.
+  // These queries keep operator intent separate from lexical name resolution.
+  // The selected Abstract and concrete language decide routing and authority.
+  // TTX does not assign receiver roles, storage, visibility, or member policy.
+  virtual auto resolve_access(
+      const Abstract& host,
+      Perimortem::Core::View::Bytes name) const -> const Abstract&;
+
+  virtual auto resolve_call(
+      const Abstract& host,
+      Perimortem::Core::View::Bytes name) const -> const Abstract&;
 
   // Returns the documentation visible at this exact Abstract. The concrete
   // object may own authored prose, expose a generated comment, forward another

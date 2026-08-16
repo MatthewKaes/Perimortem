@@ -54,7 +54,7 @@ carries forward and where it chooses a different boundary.
 | --- | --- | --- |
 | **Primary role.** LLVM IR represents a lowered program for optimization and code generation | Both provide a focused vocabulary between producers and consumers | TTX represents semantic identity and applicability before a concrete lowering has been chosen |
 | **Type identity.** LLVM Types belong to an LLVM context and describe values admitted by the lowered program | Both make identity meaningful within an owning live context | A TTX Type is the exact object constructed by its language owner. Equal structure or equal Layout never creates Type identity |
-| **Physical layout.** LLVM DataLayout gives target size and alignment meaning to IR Types | Both require target specific information before typed input becomes a physical machine representation | TTX Layout answers semantic fitting only. Scalar Values define abstract machine width and storage requirements. Target object layout, offsets, registers, address spaces, pointer forms, and calling conventions belong to the Terminal producer |
+| **Physical layout.** LLVM DataLayout gives target size and alignment meaning to IR Types | Both require target specific information before typed input becomes a physical machine representation | TTX Layout answers semantic fitting only. Concrete languages define scalar families and abstract machine storage requirements. Target object layout, offsets, registers, address spaces, pointer forms, and calling conventions belong to the Terminal producer |
 | **Composition.** LLVM links lowered modules and definitions | Both let independently constructed parts meet through explicit contracts | TTX connects owner constructed identities while their richer language semantics are still live in one graph |
 | **Transformation.** LLVM passes intentionally replace instructions and values | Both allow later stages to derive more specific facts | A successful TTX identity remains stable while later phases connect it, complete it, and answer richer queries |
 | **Extension model.** LLVM extends its program model through instructions, intrinsics, metadata, passes, and targets | Both keep specialized facts with specialized producers and consumers | TTX concrete languages retain their complete models behind a closed shared semantic vocabulary |
@@ -117,21 +117,15 @@ Abstract
 ├── Invalid
 ├── Alias
 ├── Type
-│   └── Value
-│       ├── Flag
-│       ├── Real
-│       ├── Signed
-│       └── Unsigned
 ├── Addressable
 ├── Pack
 └── Callable
 ```
 
-`Authorship`, `Documentation`, `Layout`, and `Reference` are supporting values.
-They describe or connect identities without acquiring another semantic
-identity. An optional Authorship edge preserves the exact authored
-Documentation and Anchor plus the concrete language's publication outcome. It
-does not impose a shared visibility model.
+`Documentation`, `Layout`, and `Reference` are supporting values. They describe
+or connect identities without acquiring another semantic identity. Complete
+declaration structure, source provenance, visibility, and publication remain
+facts of each concrete language owner rather than a lossy Abstract projection.
 
 The graph is not a tree of declarations. One Type may be reached through a
 Package Alias, a source Alias, a Generic materialization, and a direct local
@@ -150,9 +144,9 @@ must use the contracts exposed by its owner. TTX offers no synchronized member
 record or cloned Type graph for a consumer that wants a different shape.
 
 Category selection proves a contract on the original identity without creating
-a wrapper, clone, registry entry, or second identity. Cross-category source
-authorship remains an identity-free observation of the exact retained source
-fact rather than another selectable semantic contract.
+a wrapper, clone, registry entry, or second identity. A consumer that needs
+source or declaration facts proves the concrete owner and inspects the complete
+value retained there rather than asking every Abstract for a shared fragment.
 
 ## Reference and graph lifetime
 
@@ -181,21 +175,34 @@ addresses.
 
 ## Owner directed contextual resolution
 
-`resolve()` follows represented identity. `resolve_context(route)` asks the
-receiving Abstract to interpret a borrowed route in its own domain. A result
-may answer another contextual query, so a route can cross Package, Monograph,
-source, and Type contexts without converting those contexts into one common
-category. Alias remains opaque to contextual lookup: the caller resolves it
-before asking the selected identity to interpret another route.
+`resolve()` follows represented identity. `resolve_context(name)` asks the
+receiving Abstract to interpret one borrowed name in its own domain. The
+concrete operator splits qualified syntax and asks each selected result about
+the next name, so a route can cross Package, Monograph, source, and Type
+contexts without flattening those contexts into one key or converting them
+into one common category. Alias remains opaque to contextual lookup: the
+caller resolves it before asking the selected identity to interpret the next
+name.
+
+Context lookup does not stand in for explicit receiver access. Address and call
+operators issue `resolve_access(host, name)` and `resolve_call(host, name)` with
+the original caller authority. These hooks are shared because a concrete query
+may cross an arbitrary Abstract context. Their interpretation is not shared:
+TTX Type and Addressable impose no receiver role, forwarding behavior,
+visibility policy, or member inventory. The concrete language refines those
+contracts when it needs such behavior. Type qualification remains ordinary
+one-name contextual resolution rather than a second host-neutral Type lookup.
+Each query returns the original selected identity or Invalid without searching
+a different category domain.
 
 The caller owns the expected contract and proves the returned identity against
 the semantic category it needs. Route spelling does not infer a Type,
 Addressable, Callable, or another category on the caller's behalf.
 
-This lets one route cross several concrete contexts without requiring a
-universal member table, overload set, scope object, or collision domain. The
-receiving owner interprets the route it recognizes, and the concrete language
-assigns meaning to the operator that initiated the query.
+This lets one qualified spelling cross several concrete contexts without
+requiring a universal member table, overload set, scope object, or collision
+domain. The receiving owner interprets the one name it recognizes, and the
+concrete language assigns meaning to the operator that initiated the query.
 
 The cost is deliberate locality. Contextual resolution is not a global search
 service, so a caller cannot rely on unrelated domains or a registry to repair
@@ -210,10 +217,10 @@ it. An incomplete total query returns the shared `Invalid` object. Completion
 may make that unanswered query valid, while every successful identity remains
 stable.
 
-A staged Pack follows the same rule. It resolves to Invalid until its complete
-output Layout is known. Once Pack resolution succeeds, that Layout is total and
-stable. Empty Layout cannot represent this intermediate state because it is the
-complete descriptor for valid zero-value flow.
+A staged Pack follows the same rule. Its Layout query is total and may expose an
+empty shape while the Pack resolves to Invalid. Only a Pack that resolves to
+itself supplies that empty Layout as valid zero-value flow. Once resolution
+succeeds, the Layout is stable.
 
 This supports recursive declarations and source groups without adding an
 Incomplete Layout or a universal publication bit to every Abstract. The
@@ -283,7 +290,7 @@ An empty Layout is a valid zero-value shape and fits another empty Layout. An
 empty Pack exposes that shape without requiring a Type identity.
 Atomic Types cannot launder that shape because their Value Layout contains
 their own exact identity. A Type with an empty Layout may still own contextual
-or Static facts, but it cannot enter value flow and no Addressable can name it.
+facts, but it cannot enter value flow and no Addressable can name it.
 
 ## Semantic defaults
 
@@ -297,7 +304,9 @@ The distinction matters for composite and managed values. A target may obtain
 cleared storage, but a language default may still require recursive Field
 initialization or allocation of a fresh nonnull identity. Conversely, the
 default of an optional value may be empty without constructing its payload.
-Completion rejects a mandatory recursive default graph that cannot terminate.
+Completion rejects a recursive value Layout whose real Type and Addressable
+edges cannot reach terminal leaves. Default construction therefore needs no
+second recursion transaction.
 
 Default value and empty Layout are also independent. A View with no elements
 is still one exact View value, so the Pack carrying it has a one-entry Layout.

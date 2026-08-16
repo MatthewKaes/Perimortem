@@ -4,12 +4,11 @@
 #include "tetrodotoxin/library/language/access/swizzle.hpp"
 
 #include "tetrodotoxin/library/language/access/address.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/addressable.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/layouts/value.hpp"
-#include "ttx/model/type.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -17,31 +16,14 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
-static auto select_type(const Abstract& output) -> Core::Option<const Type&> {
-  auto direct = output.select<Type>();
+static auto select_type(const Abstract& output)
+    -> Core::Option<const Language::Model::Type&> {
+  auto direct = output.select<Language::Model::Type>();
   if (direct) {
     return direct;
   }
 
-  return output.resolve().select<Type>();
-}
-
-static auto select_addressable(const Layout& layout, Core::View::Bytes name)
-    -> Core::Option<const Addressable&> {
-  Core::Option<const Abstract&> selected;
-  for (Count index = 0; index < layout.get_size(); index++) {
-    auto entry = layout.get_abstract(index);
-    if (!entry || entry->get_name() != name) {
-      continue;
-    }
-
-    BAIL_IF(selected);
-    selected = *entry;
-  }
-
-  BAIL_IF(!selected || name.is_empty());
-  auto direct = selected->select<Addressable>();
-  return direct ? direct : selected->resolve().select<Addressable>();
+  return output.resolve().select<Language::Model::Type>();
 }
 
 static auto is_named(const Layout& layout) -> Bool {
@@ -72,7 +54,7 @@ static auto select_named(const Layout& layout, Core::View::Bytes name)
 
 // Direct Pack selection retains exactly two facts: the real receiver producer
 // and the selected source indices. The receiver continues to own value
-// identity and slot-local descriptor fitting. This identity-free Layout only
+// identity and local slot descriptor fitting. This identity free Layout only
 // publishes the selected order and returns the original producer on reflection.
 static auto create_layout(
     Memory::Allocator::Arena& domain,
@@ -107,7 +89,7 @@ static auto create_layout(
 
       // Selection makes output positional, so lend the original source name to
       // this one real target entry only while its descriptor is checked. These
-      // standard identity-free Layout values create no producer or retained
+      // standard identity free Layout values create no producer or retained
       // mapping beside the selected source index.
       Core::View::Bytes slot_names[] = {*source_name};
       Ttx::Model::Layouts::Value target_value(*target_entry);
@@ -158,38 +140,37 @@ static auto create_layout(
 }
 
 auto Language::Access::Swizzle::parse(
-    Memory::Allocator::Arena& domain,
-    Language::Monograph&,
+    const Abstract&,
     Cursor& cursor,
     Language::Model::Pack& receiver,
     Span receiver_span) -> Core::Option<Expression&> {
-  auto transaction = cursor.branch();
-  Token opening = transaction.consume();
+  Memory::Allocator::Arena& domain = cursor.get_arena();
+  Token opening = cursor.consume();
   Memory::Managed::Vector<Token> tokens(domain);
   Memory::Managed::Vector<Core::View::Bytes> names(domain);
 
-  // Tokens retain the exact authored selections while stable spellings support
-  // lookup after the parsing Cursor and its source view leave this transaction.
-  while (!transaction.matches(Code::Type::BracketEnd)) {
-    Token name = transaction.require(
+  // The source Arena retains the bytes with this semantic graph, so
+  // each delayed lookup can keep the exact authored spelling as a borrowed
+  // view.
+  while (!cursor.matches(Code::Type::BracketEnd)) {
+    Token name = cursor.require(
         Code::Type::Addressable,
         "Swizzle requires an addressable name or one closing bracket."_view);
     BAIL_IF(!name);
 
     tokens.insert(name);
-    names.insert(
-        domain.proxy(name.caculate_text(transaction.get_source_text())));
-    if (!transaction.matches(Code::Type::PackingOp)) {
+    names.insert(name.caculate_text(cursor.get_source_text()));
+    if (!cursor.matches(Code::Type::PackingOp)) {
       break;
     }
 
-    transaction.consume();
-    if (transaction.matches(Code::Type::BracketEnd)) {
+    cursor.consume();
+    if (cursor.matches(Code::Type::BracketEnd)) {
       break;
     }
   }
 
-  Token closing = transaction.require(
+  Token closing = cursor.require(
       Code::Type::BracketEnd,
       "Swizzle requires one closing bracket after its selected names."_view);
   BAIL_IF(!closing);
@@ -200,30 +181,38 @@ auto Language::Access::Swizzle::parse(
         return Swizzle(
             domain, receiver, tokens.get_view(), names.get_view(), source);
       });
-  cursor.join(transaction);
   return swizzle;
 }
 
 auto Language::Access::Swizzle::link(
-    Tetrodotoxin::Language::Monograph& source,
+    Ttx::Lexical::Cursor& cursor,
     const Abstract& lexical_context,
-    Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
-  BAIL_IF(!receiver.link(source, lexical_context, access_scope));
+    Core::Option<const Abstract&> access_scope) -> Bool {
+  BAIL_IF(!receiver.link(cursor, lexical_context, access_scope));
+  // Swizzle exists only for value selection. Type access remains available to
+  // its own postfix operator without lending a fabricated Layout here.
+  if (&receiver.resolve() != &receiver) {
+    cursor.create_expression_error(
+        get_anchor(), "Swizzle receiver did not produce value flow."_view,
+        "Use Type results only with contextual Type access."_view);
+    return False;
+  }
 
   const Ttx::Concept::Layout& receiver_layout = receiver.get_layout();
   Bool direct_selection = names.is_empty() || is_named(receiver_layout);
+  auto receiver_expression = receiver.select<Expression>();
   Memory::Managed::Vector<Count> selected_indices(domain);
   Memory::Managed::Vector<Reference<const Abstract>> candidates(domain);
 
   if (direct_selection) {
     // A named Pack's Layout carries its authored slot names independently from
     // producer identity. The source indices must survive selection because a
-    // multi-result producer such as Call can occupy several differently typed
+    // producer with several results such as Call can occupy differently typed
     // slots while remaining one exact Abstract.
     for (Core::View::Bytes name : names) {
       auto selected = select_named(receiver_layout, name);
       if (!selected) {
-        source.report(
+        cursor.create_expression_error(
             get_anchor(),
             "Swizzle did not find one producer for every named Pack slot."_view,
             "Select exact names published by the receiver Pack Layout."_view);
@@ -232,14 +221,13 @@ auto Language::Access::Swizzle::link(
       selected_indices.insert(*selected);
     }
   } else {
-    auto receiver_expression = receiver.select<Expression>();
     auto receiver_type = receiver_expression.visit(
-        []() -> Core::Option<const Ttx::Model::Type&> { return {}; },
+        []() -> Core::Option<const Language::Model::Type&> { return {}; },
         [](Expression& expression) {
           return select_type(expression.get_type());
         });
     if (!receiver_expression || !receiver_type) {
-      source.report(
+      cursor.create_expression_error(
           get_anchor(),
           "Swizzle receiver did not expose a named Pack or one Type."_view,
           "Select names from named Pack flow or a typed scalar value."_view);
@@ -247,11 +235,18 @@ auto Language::Access::Swizzle::link(
     }
 
     // The receiver Type's real Layout owns the candidate set. Caller scope
-    // only filters authority and never supplies another receiver or lookup.
+    // only supplies authority to the Type's exact Self access query.
+    const Abstract& host = access_scope.visit(
+        [&]() -> const Abstract& { return lexical_context; },
+        [](const Abstract& selected) -> const Abstract& { return selected; });
     for (Core::View::Bytes name : names) {
-      auto candidate = select_addressable(receiver_type->get_layout(), name);
-      if (!candidate || !Address::is_accessible(*candidate, access_scope)) {
-        source.report(
+      auto candidate = receiver_type
+                           ->resolve_type_access(
+                               host, name, Language::Model::Type::Access::Self)
+                           .resolve()
+                           .select<Language::Model::Addressable>();
+      if (!candidate) {
+        cursor.create_expression_error(
             get_anchor(),
             "Swizzle did not find one readable Addressable for every name."_view,
             "Select exact names admitted by the receiver Type Layout."_view);
@@ -280,7 +275,7 @@ auto Language::Access::Swizzle::link(
       }
     }
     if (changed) {
-      source.report(
+      cursor.create_expression_error(
           get_anchor(),
           "Swizzle cannot change one of its selected values."_view,
           "Keep each authored name bound to the same source slot and exact "
@@ -300,16 +295,16 @@ auto Language::Access::Swizzle::link(
     }
     output = create_layout(domain, receiver, selections.get_view());
   } else {
-    // Type-backed selection must evaluate a member relative to its scalar
+    // Type based selection must evaluate a member relative to its scalar
     // receiver. These Address Expressions are the selected value producers,
     // not copied Field identities or an aggregate result carrier.
-    Expression& receiver_expression = *receiver.select<Expression>();
+    Expression& selected_receiver = *receiver_expression;
     for (const Reference<const Abstract>& candidate : candidates.get_view()) {
-      const Addressable& addressable =
-          static_cast<const Addressable&>(candidate.get());
+      const Language::Model::Addressable& addressable =
+          static_cast<const Language::Model::Addressable&>(candidate.get());
       Address& projection =
-          Address::create_synthetic(domain, receiver_expression, addressable);
-      BAIL_IF(!projection.link(source, lexical_context, access_scope));
+          Address::create_synthetic(domain, selected_receiver, addressable);
+      BAIL_IF(!projection.link(cursor, lexical_context, access_scope));
       created.insert(projection);
     }
 
@@ -359,9 +354,9 @@ auto Language::Access::Swizzle::resolve() const -> const Abstract& {
   return static_cast<const Ttx::Model::Pack&>(*this);
 }
 
-auto Language::Access::Swizzle::finalize() -> void {
-  // Swizzle evaluates its receiver once. Type-backed projection Expressions
-  // describe selected members; they are not another evaluation inventory.
-  receiver.finalize();
-  Expression::finalize();
+auto Language::Access::Swizzle::finalize(Cursor& cursor) -> void {
+  // Swizzle evaluates its receiver once. Type based projection Expressions
+  // describe selected members without creating another evaluation inventory.
+  receiver.finalize(cursor);
+  Expression::finalize(cursor);
 }

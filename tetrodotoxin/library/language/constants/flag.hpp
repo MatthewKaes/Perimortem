@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/constant.hpp"
-#include "ttx/model/types/flag.hpp"
+#include "tetrodotoxin/library/language/model/types/flag.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
@@ -17,7 +17,7 @@ class Flag : public Constant {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Model::Types::Flag& type,
+      const Tetrodotoxin::Library::Language::Model::Types::Flag& type,
       Value value,
       Ttx::Lexical::Anchor anchor) -> Flag& {
     return Expression::create_authored<Flag>(
@@ -27,13 +27,13 @@ class Flag : public Constant {
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Model::Types::Flag& type,
+      const Tetrodotoxin::Library::Language::Model::Types::Flag& type,
       Value value) -> Flag& {
     return Expression::create_synthetic<Flag>(
         domain, [&](auto source) -> Flag { return Flag(type, value, source); });
   }
 
-  constexpr auto get_type() const -> const Ttx::Model::Types::Flag& override {
+  constexpr auto get_type() const -> const Tetrodotoxin::Library::Language::Model::Types::Flag& override {
     return type;
   }
 
@@ -50,19 +50,19 @@ class Flag : public Constant {
   }
 
   constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
-    return get_type().resolve().is<Ttx::Model::Types::Flag>() &&
-           target.resolve().is<Ttx::Model::Types::Flag>();
+    return get_type().resolve().is<Tetrodotoxin::Library::Language::Model::Types::Flag>() &&
+           target.resolve().is<Tetrodotoxin::Library::Language::Model::Types::Flag>();
   }
 
  protected:
   constexpr Flag(
-      const Ttx::Model::Types::Flag& type,
+      const Tetrodotoxin::Library::Language::Model::Types::Flag& type,
       Value value,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Constant(anchor), type(type), value(value) {}
 
  private:
-  const Ttx::Model::Types::Flag& type;
+  const Tetrodotoxin::Library::Language::Model::Types::Flag& type;
   Value value;
 };
 

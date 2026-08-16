@@ -19,8 +19,7 @@ class Divide : public Operation {
   BINARY_OP_CONTRACT(Divide);
 
   static auto parse(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
+      const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor,
       Model::Pack& left,
       Ttx::Lexical::Span left_span) -> Perimortem::Core::Option<Expression&>;
@@ -30,8 +29,8 @@ class Divide : public Operation {
       -> Perimortem::Utility::Result<
           Perimortem::Core::Option<Constant&>,
           Expression::Error> override;
-  auto select_type(Tetrodotoxin::Language::Monograph& source) const
-      -> Perimortem::Core::Option<const Ttx::Model::Type&> override;
+  auto select_type(const Ttx::Concept::Abstract& context) const
+      -> Perimortem::Core::Option<const Model::Type&> override;
 
  private:
   Divide(

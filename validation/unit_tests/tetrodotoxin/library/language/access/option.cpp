@@ -22,6 +22,7 @@
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/flow/match.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
@@ -87,12 +88,9 @@ static auto find_function(
 
 static auto parse_expression(
     Allocator::Arena& domain,
-    Language::Monograph& monograph,
-    Errors& errors,
-    View::Bytes source) -> Option<Language::Model::Pack&> {
-  Tokenizer tokenizer(domain, source, "option-expression.ttx"_view);
-  Cursor cursor(tokenizer, errors);
-  auto parsed = Language::Parser::Expression::parse(domain, monograph, cursor);
+    const Abstract& context,
+    Cursor& cursor) -> Option<Language::Model::Pack&> {
+  auto parsed = Language::Parser::Expression::parse(context, cursor);
   if (!parsed || !cursor.matches(Code::Type::Terminal)) {
     return {};
   }
@@ -104,7 +102,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  return monograph && !workspace.link(errors) && !errors.is_empty() &&
+  return !monograph && !errors.is_empty() &&
          &workspace.resolve_context("OptionAccessTest"_view) ==
              &Invalid::get_invalid();
 }
@@ -113,7 +111,7 @@ static auto rejects_link(View::Bytes source, View::Bytes diagnostic) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  BAIL_IF(!monograph || workspace.link(errors) || errors.is_empty());
+  BAIL_IF(monograph || errors.is_empty());
   BAIL_IF(
       &workspace.resolve_context("OptionAccessTest"_view) !=
       &Invalid::get_invalid());
@@ -144,6 +142,51 @@ static auto select_unsigned(const Language::Model::Pack& pack)
       });
 }
 
+PERIMORTEM_UNIT_TEST(OptionAccessTests, receiving_type_owns_target_fit) {
+  static constexpr View::Bytes source =
+      "// Receiving Type policy.\n"
+      "dialect : Library;\n"
+      "public Maybe : alias = Option[Unsigned_64];\n"
+      "private const present : Maybe = 7;"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  auto maybe = monograph->resolve_context("Maybe"_view)
+                   .resolve()
+                   .select<Language::Types::Option>();
+  ASSERT(maybe);
+  auto element =
+      maybe->get_element_type().select<Language::Model::Types::Unsigned>();
+  ASSERT(element);
+
+  Allocator::Arena fitted_arena;
+  auto& empty = Language::Model::Pack::create_folded(
+      fitted_arena, View::Vector<Reference<Language::Model::Pack>>());
+  auto& value = Language::Constants::Unsigned::create_synthetic(
+      fitted_arena, *element, Unsigned_64(7));
+
+  EXPECT(empty.fits_into(*maybe));
+  EXPECT(value.fits_into(*maybe));
+  EXPECT(element->accepts(value));
+  EXPECT_NOT(element->create_fitted(fitted_arena, value));
+
+  auto absent = maybe->create_fitted(fitted_arena, empty);
+  auto present = maybe->create_fitted(fitted_arena, value);
+  ASSERT(absent && present);
+  auto absent_option = absent->select<Language::Constants::Option>();
+  auto present_option = present->select<Language::Constants::Option>();
+  ASSERT(absent_option && present_option);
+  EXPECT(absent_option->get_kind() == Language::Types::Option::Kind::Absent);
+  EXPECT_NOT(absent_option->get_payload());
+  EXPECT(present_option->get_kind() == Language::Types::Option::Kind::Present);
+  auto payload = present_option->get_payload();
+  ASSERT(payload);
+  EXPECT(&*payload == &value);
+  EXPECT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(OptionAccessTests, target_fit_and_unwrap) {
   static constexpr View::Bytes source =
       "// Option target fitting and unwrap.\n"
@@ -164,8 +207,6 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, target_fit_and_unwrap) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const auto& source_type = monograph->get_source();
   auto absent = find_field(source_type, "absent"_view);
@@ -241,8 +282,6 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_edges_and_folding) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto pass = find_function(monograph->get_source(), "pass"_view);
   auto stop = find_function(monograph->get_source(), "stop"_view);
@@ -255,10 +294,12 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_edges_and_folding) {
   // without adding a test only query to Return or Local.
   Allocator::Arena domain;
   Errors expression_errors;
-  auto pass_pack =
-      parse_expression(domain, *monograph, expression_errors, "value?"_view);
-  auto stop_pack =
-      parse_expression(domain, *monograph, expression_errors, "value?"_view);
+  Tokenizer pass_tokenizer(domain, "value?"_view, "option-expression.ttx"_view);
+  Cursor pass_cursor(pass_tokenizer, expression_errors);
+  Tokenizer stop_tokenizer(domain, "value?"_view, "option-expression.ttx"_view);
+  Cursor stop_cursor(stop_tokenizer, expression_errors);
+  auto pass_pack = parse_expression(domain, *monograph, pass_cursor);
+  auto stop_pack = parse_expression(domain, *monograph, stop_cursor);
   auto pass_propagate = pass_pack.visit(
       []() -> Option<Language::Access::Propagate&> { return {}; },
       [](Language::Model::Pack& selected) {
@@ -273,10 +314,14 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_edges_and_folding) {
 
   const Language::Expression* pass_receiver = &pass_propagate->get_receiver();
   const Language::Model::Pack* pass_empty = &pass_propagate->get_empty_return();
-  ASSERT(pass_propagate->link(*monograph, *pass->get_body(), pass->get_host()));
-  ASSERT(pass_propagate->link(*monograph, *pass->get_body(), pass->get_host()));
-  ASSERT(stop_propagate->link(*monograph, *stop->get_body(), stop->get_host()));
-  ASSERT(stop_propagate->link(*monograph, *stop->get_body(), stop->get_host()));
+  ASSERT(
+      pass_propagate->link(pass_cursor, *pass->get_body(), pass->get_host()));
+  ASSERT(
+      pass_propagate->link(pass_cursor, *pass->get_body(), pass->get_host()));
+  ASSERT(
+      stop_propagate->link(stop_cursor, *stop->get_body(), stop->get_host()));
+  ASSERT(
+      stop_propagate->link(stop_cursor, *stop->get_body(), stop->get_host()));
   EXPECT(&pass_propagate->get_receiver() == pass_receiver);
   EXPECT(&pass_propagate->get_empty_return() == pass_empty);
   EXPECT(pass_propagate->get_empty_return().get_layout().is_empty());
@@ -293,8 +338,8 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_edges_and_folding) {
   ASSERT(option);
   EXPECT(&pass_propagate->get_type() == &option->get_element_type());
   EXPECT(&stop_propagate->get_type() == &option->get_element_type());
-  pass_propagate->finalize();
-  pass_propagate->finalize();
+  pass_propagate->finalize(pass_cursor);
+  pass_propagate->finalize(pass_cursor);
 
   Bool dynamic_fold_succeeded = False;
   Option<Language::Model::Pack&> dynamic_folded;
@@ -309,10 +354,14 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_edges_and_folding) {
 
   // Presence can replace the node with exact element flow. Absence keeps the
   // authored branch because an empty Pack cannot replace a one value output.
-  auto present_pack =
-      parse_expression(domain, *monograph, expression_errors, "present?"_view);
-  auto absent_pack =
-      parse_expression(domain, *monograph, expression_errors, "absent?"_view);
+  Tokenizer present_tokenizer(
+      domain, "present?"_view, "option-expression.ttx"_view);
+  Cursor present_cursor(present_tokenizer, expression_errors);
+  Tokenizer absent_tokenizer(
+      domain, "absent?"_view, "option-expression.ttx"_view);
+  Cursor absent_cursor(absent_tokenizer, expression_errors);
+  auto present_pack = parse_expression(domain, *monograph, present_cursor);
+  auto absent_pack = parse_expression(domain, *monograph, absent_cursor);
   auto present_propagate = present_pack.visit(
       []() -> Option<Language::Access::Propagate&> { return {}; },
       [](Language::Model::Pack& selected) {
@@ -324,12 +373,12 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_edges_and_folding) {
         return selected.select<Language::Access::Propagate>();
       });
   ASSERT(present_propagate && absent_propagate);
-  ASSERT(
-      present_propagate->link(*monograph, *pass->get_body(), pass->get_host()));
-  ASSERT(
-      absent_propagate->link(*monograph, *pass->get_body(), pass->get_host()));
-  present_propagate->finalize();
-  absent_propagate->finalize();
+  ASSERT(present_propagate->link(
+      present_cursor, *pass->get_body(), pass->get_host()));
+  ASSERT(absent_propagate->link(
+      absent_cursor, *pass->get_body(), pass->get_host()));
+  present_propagate->finalize(present_cursor);
+  absent_propagate->finalize(absent_cursor);
 
   Bool present_fold_succeeded = False;
   Option<Language::Model::Pack&> present_folded;
@@ -361,8 +410,10 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_edges_and_folding) {
 
   // The outer unwrap retains Propagate as its receiver. An absent inner value
   // leaves the chain unfolded instead of evaluating the right suffix.
-  auto chain_pack = parse_expression(
-      domain, *monograph, expression_errors, "nested_absent?!"_view);
+  Tokenizer chain_tokenizer(
+      domain, "nested_absent?!"_view, "option-expression.ttx"_view);
+  Cursor chain_cursor(chain_tokenizer, expression_errors);
+  auto chain_pack = parse_expression(domain, *monograph, chain_cursor);
   auto unwrap = chain_pack.visit(
       []() -> Option<Language::Access::Unwrap&> { return {}; },
       [](Language::Model::Pack& selected) {
@@ -372,11 +423,11 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_edges_and_folding) {
   auto inner = unwrap->get_receiver().select<Language::Access::Propagate>();
   ASSERT(inner);
   EXPECT(&unwrap->get_receiver() == &*inner);
-  ASSERT(unwrap->link(*monograph, *chain->get_body(), chain->get_host()));
-  ASSERT(unwrap->link(*monograph, *chain->get_body(), chain->get_host()));
+  ASSERT(unwrap->link(chain_cursor, *chain->get_body(), chain->get_host()));
+  ASSERT(unwrap->link(chain_cursor, *chain->get_body(), chain->get_host()));
   EXPECT(inner->get_empty_return().fits(chain->get_results()));
-  unwrap->finalize();
-  unwrap->finalize();
+  unwrap->finalize(chain_cursor);
+  unwrap->finalize(chain_cursor);
 
   Bool chain_fold_succeeded = False;
   Option<Language::Model::Pack&> chain_folded;
@@ -410,8 +461,6 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, production_option_fixture) {
       monograph.get_documentation().get_line(0),
       "Library Option acceptance."_view);
 
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
   EXPECT(&workspace.resolve_context("OptionAcceptance"_view) == &monograph);
 
   const auto& source_type = monograph.get_source();
@@ -421,7 +470,9 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, production_option_fixture) {
   auto session = source_type.resolve_context("Session"_view)
                      .select<Language::Types::Object>();
   ASSERT(maybe && session);
-  EXPECT(&maybe->get_element_type() == &Dialect::get_unsigned_64());
+  EXPECT(
+      &maybe->get_element_type() ==
+      &monograph.resolve_context("Unsigned_64"_view));
 
   // Published Fields expose fitting and scalar defaults as retained Packs.
   auto absent = find_field(source_type, "absent"_view);
@@ -501,8 +552,10 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, production_option_fixture) {
   // Object defaults allocate independent Initializer and state Pack graphs
   // for each request.
   Allocator::Arena default_domain;
-  auto first_default = Dialect::create_default(default_domain, *session);
-  auto second_default = Dialect::create_default(default_domain, *session);
+  const auto& session_type =
+      static_cast<const Language::Model::Type&>(*session);
+  auto first_default = session_type.create_default(default_domain);
+  auto second_default = session_type.create_default(default_domain);
   ASSERT(first_default && second_default);
   EXPECT(&*first_default != &*second_default);
   auto first_initializer =
@@ -537,7 +590,8 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, production_option_fixture) {
 
   auto statements = choose->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(1));
-  auto match = statements.get_data()[0].get().select<Language::Flow::Match>();
+  auto match =
+      statements.get_data()[0].get_abstract().select<Language::Flow::Match>();
   ASSERT(match);
   ASSERT_EQ(match->get_case_count(), Count(1));
   auto case_kind = match->get_case_kind(0);
@@ -545,14 +599,18 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, production_option_fixture) {
   EXPECT(*case_kind == Language::Flow::Match::CaseKind::Value);
   auto payload = match->get_case_payload(0);
   ASSERT(payload);
-  EXPECT(&payload->get_type() == &Dialect::get_unsigned_64());
+  EXPECT(
+      &payload->get_type() == &monograph.resolve_context("Unsigned_64"_view));
   ASSERT(match->get_case_body(0));
   ASSERT(match->get_default());
 
   const Language::Field* retained_first = &*first_session;
   const Language::Flow::Match* retained_match = &*match;
-  ASSERT(monograph.link());
-  ASSERT(monograph.finalize());
+  Allocator::Arena repeated_domain;
+  Tokenizer repeated_tokenizer(repeated_domain, *source, path);
+  Cursor repeated_cursor(repeated_tokenizer, errors);
+  ASSERT(monograph.link(repeated_cursor));
+  ASSERT(monograph.finalize(repeated_cursor));
   auto repeated_first = find_field(source_type, "first_session"_view);
   ASSERT(repeated_first);
   EXPECT(&*repeated_first == retained_first);
@@ -561,7 +619,7 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, production_option_fixture) {
   auto repeated_match = repeated_choose->get_body()
                             ->get_statements()
                             .get_data()[0]
-                            .get()
+                            .get_abstract()
                             .select<Language::Flow::Match>();
   ASSERT(repeated_match);
   EXPECT(&*repeated_match == retained_match);

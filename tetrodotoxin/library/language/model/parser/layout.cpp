@@ -37,8 +37,8 @@ auto Language::Model::Parser::Layout::retain_name(
     return False;
   }
 
-  // Names are needed only until this parse transaction ends. The authored
-  // model retains its own stable spelling for delayed linking and reflection.
+  // The parsed model retains this same view into the source for delayed linking
+  // and reflection because its transaction Arena keeps the source alive.
   names.insert(name);
   return True;
 }

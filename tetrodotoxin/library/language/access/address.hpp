@@ -8,10 +8,9 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/addressable.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
 
@@ -23,28 +22,19 @@ class Address : public Expression {
   TTX_CONTRACT(Address, Expression);
 
   static auto parse(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
+      const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor,
       Expression& receiver) -> Perimortem::Core::Option<Expression&>;
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
       Expression& receiver,
-      const Ttx::Model::Addressable& addressable) -> Address&;
-
-  // The receiver result already selects the complete candidate category for
-  // `.`. Semantic linking and completion tooling apply this predicate to each
-  // Addressable rather than copying entries into a member registry.
-  static auto is_accessible(
-      const Ttx::Model::Addressable& candidate,
-      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
-      -> Bool;
+      const Model::Addressable& addressable) -> Address&;
 
   auto link(
-      Tetrodotoxin::Language::Monograph& source,
+      Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,
-      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool override;
 
   TTX_NAME(name);
@@ -52,7 +42,7 @@ class Address : public Expression {
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_result() const -> const Ttx::Concept::Abstract& override;
-  auto finalize() -> void override;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
 
@@ -66,7 +56,7 @@ class Address : public Expression {
       Ttx::Lexical::Token name_token,
       Perimortem::Core::View::Bytes name,
       Perimortem::Core::Option<
-          Ttx::Concept::Reference<const Ttx::Model::Addressable>> addressable,
+          Ttx::Concept::Reference<const Model::Addressable>> addressable,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor),
         receiver(receiver),
@@ -77,8 +67,7 @@ class Address : public Expression {
   Expression& receiver;
   Ttx::Lexical::Token name_token;
   Perimortem::Core::View::Bytes name;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Ttx::Model::Addressable>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Addressable>>
       addressable;
 };
 

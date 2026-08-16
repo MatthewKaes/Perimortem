@@ -11,6 +11,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "perimortem/system/file.hpp"
+#include "perimortem/serialization/json/blueprint.hpp"
 #include "perimortem/serialization/json/node.hpp"
 
 using namespace Perimortem::Core;
@@ -41,16 +42,16 @@ PERIMORTEM_BENCHMARK(JsonBlueprint, blueprint_x1024) {
   Count size = 0;
   Allocator::Arena arena;
   for (Count i = 0; i < json_batch; i++) {
-    Json::Node node = Json::Node::construct(
-        arena, Json::Blueprint{{
-                 {"jsonrpc"_view, "2.0"_view},
-                 {"id"_view, 1},
-                 {"result"_view,
-                  {
-                    {"name"_view, "ttx"_view},
-                    {"version"_view, "1.0"_view},
-                  }},
-               }});
+    Json::Node node = Json::Blueprint{
+      {
+        {"jsonrpc"_view, "2.0"_view},
+        {"id"_view, 1},
+        {"result"_view,
+         {
+           {"name"_view, "ttx"_view},
+           {"version"_view, "1.0"_view},
+         }},
+      }}.construct(arena);
     size += node.get_size();
     arena.reset();
   }

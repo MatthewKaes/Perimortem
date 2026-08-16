@@ -47,6 +47,7 @@ cc_library(
 cc_library(
     name = "library_native_harness_compile_check",
     srcs = ["data/ttx/library/native_harness.c"],
+    hdrs = ["data/ttx/library/native.h"],
     copts = [
         "-std=c17",
         "-Wall",
@@ -86,6 +87,7 @@ cc_binary(
         "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
+        "//tetrodotoxin:scene",
         "//tetrodotoxin:shader",
         "//ttx",
     ],

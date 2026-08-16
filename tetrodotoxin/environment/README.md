@@ -9,10 +9,11 @@ at the same time. Each language keeps the model that fits its own job. TTX gives
 them a shared way to refer to identities, Types, Layouts, and Callables without
 forcing them into one syntax tree.
 
-Tools use Environment to read a group of sources, connect references between
-them, report source errors, or restore a Package Archive. A finished output such
-as an executable no longer needs the Workspace. Ordinary references cannot be
-moved to another Workspace or kept after their Workspace is destroyed.
+Tools use Environment to complete a direct source or one fixed Package source
+table, report source errors, or restore a Package Archive. A
+finished output such as an executable no longer needs the Workspace. Ordinary
+references cannot be moved to another Workspace or kept after their Workspace
+is destroyed.
 
 ## Workspace lifetime
 
@@ -64,13 +65,28 @@ Direct import supplies three independent facts:
 - the path shown in errors
 - the source bytes read by the selected Dialect
 
-Environment reads the common envelope, selects the Dialect, and retains the
-returned Monograph under the authored semantic name. The path describes origin.
-It does not create semantic identity.
+Environment reads the common envelope, selects the installed Dialect, and
+copies the path and source bytes into one source transaction Arena. It
+constructs the Tokenizer and operation-local Cursor there. The selected Dialect
+receives that Cursor and returns an `Option` containing the one parse-valid
+Monograph it constructed in the Cursor's Arena. Absence is the only
+parse-failure result. The path describes origin; it does not create semantic
+identity.
 
 The envelope begins with required source Documentation. An explicit empty
 comment is valid, but a missing comment is not. Environment passes that exact
-Documentation through the selected Dialect and retains it with the Monograph.
+source-backed Documentation, its Anchor, the Cursor, and semantic context
+directly to the selected Dialect. Source-backed Comments and Attributes remain
+valid because the Monograph and source bytes occupy the same Arena.
+
+Workspace immediately links and finalizes the returned Monograph with the same
+Cursor. It retains the transaction Arena and publishes the authored semantic
+name only when both stages succeed. Parse, link, or finalization failure drops
+that Arena wholesale and leaves no invalid source in Workspace state. Passing
+one direct source is therefore one complete transaction, not an addition to a
+source group that Workspace validates later. A Package manifest is not a direct
+source; it must enter through Package import so its fixed Source table can
+complete atomically.
 
 ## Package import
 
@@ -82,49 +98,45 @@ resolve Graphics : Perimortem.Graphics = "1.0";
 source Scenes::Splash from "scenes/splash.ttx";
 ```
 
-Package reads each declared path from its confined storage. Environment gives
-the member to its selected Dialect, restores dependencies from their Archives,
-and connects the resulting Monographs through their Package contexts. Names
-local to a Package remain inside that Package rather than entering the Workspace
-root automatically.
+Workspace reads each path in the manifest's fixed Source table from confined
+Package storage. It creates one source transaction Arena per member, asks the
+installed Dialect to interpret it, and gives each member the same Package
+context. A member cannot create another Package import. Names local to a Package
+remain inside that Package rather than entering the Workspace root
+automatically.
 
 ## Linking and publication
 
-Interpretation can reserve declarations before all routes between sources are
-known. Environment therefore completes a retained source group in two barriers:
+A direct source completes before `interpret_source` returns:
 
 ```text
-interpret and retain the complete group
--> link every Monograph
--> finalize every Monograph when all links succeed
--> publish completed root names
+parse to one optional Monograph in the source Arena
+-> link that Monograph
+-> finalize that Monograph
+-> retain its Arena and publish it
 ```
 
-This ordering allows forward references and dependency cycles that the concrete
-languages can resolve while preventing a partially completed group from being
-published as completed input.
+Workspace owns the one staged multi-source operation and the local candidate
+Arena handles. It parses exactly the manifest entries, links every member before
+finalizing any member, then retains all completed handles and publishes only the
+Package root. Failure releases every candidate Arena and leaves Workspace state
+unchanged. The Package Monograph itself owns only Dependency and Source values
+plus borrowed Alias mappings.
 
-An `Invalid` answer observed before these stages finish is not a permanent
-negative result. Read-only consumers begin after publication. A tool that
-inspects a group while it is still being built must ask unresolved questions
-again after linking or finalization.
-
-Archive restoration uses the same barriers. Environment does not deserialize
-live objects or revive process addresses. It asks each installed Dialect to
-construct a new Monograph from its validated payload, retains the complete
-group, links every member, finalizes every member, and then publishes the
-restored roots.
+Dependencies do not recursively start imports. An authored Package binds only
+an exact identity and version already completed in the same Workspace. Archive
+reconstruction is an explicit source-free operation rather than a side effect
+of authored import.
 
 A Monograph may contain child layers from its dependencies. Environment keeps
 and publishes the outer Monograph, while the outer language moves its children
 through the same linking and finalization steps. Tools ask the outer Monograph
 for a layer instead of looking for another Workspace name.
 
-During Archive restoration, Environment creates the Package Monograph before
-restoring its members. Every member receives that Package context, including
-child layers inside Scene and Shader. The language dependencies still come from
-the Workspace. If a child layer cannot be restored, its outer member also
-fails.
+During Archive reconstruction, the Package Monograph is created before its
+members. Every member receives that Package context, including child layers
+inside Scene and Shader. The language dependencies still come from the
+Workspace. If a child layer cannot be restored, its outer member also fails.
 
 ## Contextual lookup
 
@@ -134,26 +146,25 @@ name returns its retained Monograph. A missing name returns TTX `Invalid`.
 Deeper `::` access is interpreted by the returned Abstract contexts. Environment
 does not require every Monograph to expose a Type or one common member model.
 
-## Diagnostics
+## Failure reporting
 
-Environment keeps the name and text of each authored source. The source and all
-of its child layers write errors to one ordered diagnostic list. Messages stay
-in the order they occurred, and errors cannot be hidden inside a child layer.
-Environment adds the source location when it presents them.
+Each authored source is paired with its text for the complete parse, link, and
+finalize operation. The source and every fixed child layer write textual errors
+through the matching operation-local Cursor to the caller's textual error sink,
+preserving order and exact authored locations. A Cursor is never retained by
+Workspace or a Monograph.
 
-Package paths, Archive bytes, and Repository requests can fail without an
-authored Token. Their owners preserve the cause belonging to that domain, and
-the caller attaches it to an authored dependency or compile request when such a
-source location exists.
-
-Perimortem process Diagnostics remain an emergency path for fatal host state.
-They do not replace the source error list for ordinary parsing, language, or
-restoration failures.
+Package paths, Archive bytes, Repository requests, and other source-free system
+or toolchain operations report through Perimortem Diagnostics. When an authored
+Package request exists, Package instead reports the failure at that request's
+Cursor location. No Environment Diagnostic object or throwaway Workspace error
+collection is created.
 
 ## Boundaries
 
-Environment owns semantic lifetime, source dispatch, group completion, and root
-publication. Package owns path confinement and durable package products.
+Environment owns semantic lifetime, source transactions, source dispatch,
+direct and fixed-table Package completion, and root publication. Package owns
+its description tables, path confinement, borrowed maps, and durable products.
 Concrete Dialects own source grammar and language semantics. Compilers and
 linkers consume completed Monographs without becoming part of Workspace lookup.
 

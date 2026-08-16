@@ -75,12 +75,17 @@ functionDefinition
     ;
 
 block
-    : SCOPE_START statement* SCOPE_END
+    : SCOPE_START documentedStatement* SCOPE_END
+    ;
+
+// Documentation decorates membership in the authored sequence. The selected
+// Local, Pack, control owner, or nested Block remains the semantic identity.
+documentedStatement
+    : documentation? statement
     ;
 
 statement
-    : documentation
-    | conditionalStatement
+    : conditionalStatement
     | forStatement
     | whileStatement
     | matchStatement
@@ -88,13 +93,13 @@ statement
     | continueStatement
     | breakStatement
     | localDeclaration
-    | assignmentStatement
-    | invocationStatement
+    | block
+    | expressionStatement
     ;
 
 conditionalStatement
     : IF pack block
-      (ELSE (conditionalStatement | block))?
+      (ELSE documentation? (conditionalStatement | block))?
     ;
 
 forStatement
@@ -132,31 +137,27 @@ localDeclaration
       END_STATEMENT
     ;
 
-assignmentStatement
-    : assignmentTarget assignmentOperator expression END_STATEMENT
-    ;
-
 assignmentOperator
+    // TTX tokenizes each complete spelling before Library selects its exact
+    // semantic operator. Library never reconstructs `+=` or `-=` from parts.
     : ASSIGN
     | ADD_ASSIGN
     | SUB_ASSIGN
     ;
 
-assignmentTarget
-    : (addressableName | SELF) assignmentSuffix*
-    ;
-
-assignmentSuffix
-    : ADDRESS addressableName
-    | BRACKET_START expression BRACKET_END
-    ;
-
-invocationStatement
+expressionStatement
     : expression END_STATEMENT
     ;
 
 expression
-    : rangeExpression
+    : assignmentExpression
+    ;
+
+// Assignment consumes the complete tighter expression on its left and parses
+// its right at the same precedence. Its empty result keeps it in expression
+// grammar while preventing assignment from becoming reusable value flow.
+assignmentExpression
+    : rangeExpression (assignmentOperator assignmentExpression)?
     ;
 
 rangeExpression

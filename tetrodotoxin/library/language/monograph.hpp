@@ -3,81 +3,66 @@
 
 #pragma once
 
-#include "perimortem/memory/managed/vector.hpp"
+#include "perimortem/memory/managed/map.hpp"
 
-#include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/language/import.hpp"
-#include "tetrodotoxin/library/language/materializations.hpp"
+#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// Monograph retains one Library source transaction. Its synthetic Source owns
-// name lookup while Monograph keeps the source facts and ordered barriers that
-// do not belong to a Type.
+// Monograph retains one Library source transaction and its intrinsic root
+// vocabulary. The synthetic Source owns source grammar and graph completion.
 class Monograph : public Tetrodotoxin::Language::Monograph {
- private:
-  Monograph(
-      Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Concept::Documentation& documentation,
-      const Ttx::Lexical::Anchor& source_anchor,
-      Tetrodotoxin::Language::Diagnostics& diagnostics,
-      Tetrodotoxin::Library::Dialect& dialect,
-      const Ttx::Concept::Abstract& interpretation_context);
-
  public:
   TTX_CONTRACT(Monograph, Tetrodotoxin::Language::Monograph);
 
   static auto create_authored(
-      Perimortem::Memory::Allocator::Arena& domain,
+      Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
       const Ttx::Lexical::Anchor& source_anchor,
-      Tetrodotoxin::Language::Diagnostics& diagnostics,
-      Tetrodotoxin::Library::Dialect& dialect,
-      const Ttx::Concept::Abstract& interpretation_context) -> Monograph&;
+      const Ttx::Concept::Abstract& language,
+      Ttx::Concept::Abstract& context) -> Monograph&;
 
-  // Imports remain in authored order until linking can inspect each selected
-  // Package member through its own contextual source route.
-  auto retain_import(const Import& import) -> Bool;
+  auto parse(Ttx::Lexical::Cursor& cursor) -> Bool;
 
-  auto link() -> Bool override;
+  auto link(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
-  auto finalize() -> Bool override;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
   auto get_name() const -> Perimortem::Core::View::Bytes override;
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
+  auto resolve_access(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto resolve_call(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
   constexpr auto get_source() -> Types::Source& { return source; }
 
   constexpr auto get_source() const -> const Types::Source& { return source; }
 
-  auto get_materializations() const -> Materializations& {
-    return dialect.get_materializations();
-  }
-
-  constexpr auto get_dialect() const -> const Tetrodotoxin::Library::Dialect& {
-    return dialect;
-  }
-
-  constexpr auto get_interpretation_context() const
-      -> const Ttx::Concept::Abstract& {
-    return interpretation_context;
-  }
-
  private:
-  auto link_imports() -> Bool;
+  Monograph(
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Ttx::Concept::Documentation& documentation,
+      const Ttx::Lexical::Anchor& source_anchor,
+      const Ttx::Concept::Abstract& language,
+      Ttx::Concept::Abstract& context);
 
-  Tetrodotoxin::Library::Dialect& dialect;
-  const Ttx::Concept::Abstract& interpretation_context;
-  Perimortem::Memory::Managed::Vector<Import> imports;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Monograph>>
-      imported_providers;
+  auto resolve_root_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract&;
+
+  Perimortem::Memory::Managed::
+      Map<Perimortem::Core::View::Bytes, Ttx::Concept::Abstract&>
+          vocabulary;
   Types::Source& source;
-  Bool declarations_imported = False;
-  Bool addressables_imported = False;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

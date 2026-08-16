@@ -132,9 +132,9 @@ auto Package::Resources::resolve(View::Bytes logical_route) -> const Abstract& {
   auto read = storage->read(logical_route);
   return read.visit(
       [&](Package::Content& content) -> const Abstract& {
-        View::Bytes retained_key = content.get_diagnostic_path();
+        View::Bytes retained_key = domain.proxy(content.get_diagnostic_path());
         Tetrodotoxin::Language::Resource& retained =
-            construct_resource(domain, content.get_contents());
+            construct_resource(domain, domain.proxy(content.get_contents()));
         resource_cache.launder(retained_key, retained);
         return retained;
       },

@@ -18,8 +18,7 @@ class Negate : public Operation {
   TTX_CONTRACT(Negate, Operation);
 
   static auto parse(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
+      const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Expression&>;
 
   static auto create_authored(
@@ -37,8 +36,8 @@ class Negate : public Operation {
       -> Perimortem::Utility::Result<
           Perimortem::Core::Option<Constant&>,
           Expression::Error> override;
-  auto select_type(Tetrodotoxin::Language::Monograph& source) const
-      -> Perimortem::Core::Option<const Ttx::Model::Type&> override;
+  auto select_type(const Ttx::Concept::Abstract& context) const
+      -> Perimortem::Core::Option<const Model::Type&> override;
 
  private:
   Negate(

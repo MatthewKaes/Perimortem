@@ -13,8 +13,8 @@ static auto retain_inputs(
     Core::View::Vector<Ttx::Concept::Reference<Language::Expression>>
         expressions)
     -> Memory::Managed::Vector<Ttx::Concept::Reference<Language::Expression>> {
-  // Operation owns the mutable traversal inventory. Expressions borrows the
-  // completed view below; no operand edge is copied into another graph.
+  // Operation owns the mutable traversal inventory. Expressions borrow the
+  // completed view below. No operand edge is copied into another graph.
   Memory::Managed::Vector<Ttx::Concept::Reference<Language::Expression>>
       retained(domain);
   retained.reset(expressions.get_size());
@@ -37,14 +37,14 @@ auto Language::Operation::get_type() const -> const Ttx::Concept::Abstract& {
       []() -> const Ttx::Concept::Abstract& {
         return Ttx::Concept::Invalid::get_invalid();
       },
-      [](const Ttx::Concept::Reference<const Ttx::Model::Type>& selected)
+      [](const Ttx::Concept::Reference<const Language::Model::Type>& selected)
           -> const Ttx::Concept::Abstract& { return selected.get(); });
 }
 
 auto Language::Operation::link(
-    Tetrodotoxin::Language::Monograph& source,
+    Ttx::Lexical::Cursor& cursor,
     const Ttx::Concept::Abstract& lexical_context,
-    Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
+    Core::Option<const Abstract&> access_scope) -> Bool {
   Bool failed = False;
   auto source_anchor = get_anchor();
 
@@ -54,7 +54,7 @@ auto Language::Operation::link(
   for (Count i = 0; i < inputs.get_size(); i++) {
     auto input = get_input(i);
     if (!input) {
-      source.report(
+      cursor.create_expression_error(
           source_anchor, "Operation contains an invalid Expression edge."_view,
           "Retain every authored operand as one Expression identity."_view);
       failed = True;
@@ -63,14 +63,14 @@ auto Language::Operation::link(
 
     // Operations preserve their caller's two contexts unchanged. Operand
     // nesting changes evaluation order, not lexical shadowing or host access.
-    failed |= !input->link(source, lexical_context, access_scope);
+    failed |= !input->link(cursor, lexical_context, access_scope);
   }
 
   BAIL_IF(failed);
 
-  auto selected = select_type(source);
+  auto selected = select_type(lexical_context);
   if (!selected) {
-    source.report(
+    cursor.create_expression_error(
         source_anchor, "Operation rejects the linked operand Types."_view,
         "Use operands with the exact Types required by this operation."_view);
     return False;
@@ -81,25 +81,25 @@ auto Language::Operation::link(
       return True;
     }
 
-    source.report(
+    cursor.create_expression_error(
         source_anchor,
         "Operation result Type cannot change during linking."_view,
         "Keep one exact result Type on this authored operation."_view);
     return False;
   }
 
-  result_type = Ttx::Concept::Reference<const Ttx::Model::Type>(*selected);
+  result_type = Ttx::Concept::Reference<const Language::Model::Type>(*selected);
   return True;
 }
 
-auto Language::Operation::finalize() -> void {
+auto Language::Operation::finalize(Ttx::Lexical::Cursor& cursor) -> void {
   // Operands are the canonical authored evaluation inventory. Finalize each
   // real producer in source order before asking this operation to cache its
   // own optional folded result.
   for (Ttx::Concept::Reference<Expression> input : inputs.get_view()) {
-    input.get().finalize();
+    input.get().finalize(cursor);
   }
-  Expression::finalize();
+  Expression::finalize(cursor);
 }
 
 auto Language::Operation::evaluate()

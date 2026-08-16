@@ -44,8 +44,8 @@ auto Package::Storage::read(View::Bytes logical_route)
     return cached->value;
   }
 
-  // Reading directly into the shared Arena gives Content stable bytes without
-  // a Dynamic allocation and a second copy.
+  // Reading directly into the acquisition Arena avoids a Dynamic intermediate.
+  // Semantic owners copy only successful content they actually retain.
   auto contents = root.read(arena, diagnostic_path);
   if (!contents) {
     return Failure(normalized, Failure::Error::Unreadable);
@@ -53,7 +53,7 @@ auto Package::Storage::read(View::Bytes logical_route)
 
   // Arena allocation cannot be reclaimed individually. Delay the retained Path
   // until success so repeated cache hits and retryable failures do not grow the
-  // Workspace Arena.
+  // acquisition Arena.
   auto retained_path = Path::normalize(arena, logical_route);
   if (!retained_path) {
     return Failure(normalized, Failure::Error::InvalidRoute);

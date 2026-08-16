@@ -11,47 +11,43 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
 
 auto Parser::Member::parse(
-    Allocator::Arena& domain,
-    Monograph& source,
     Cursor& cursor,
     Tetrodotoxin::Language::Definition& definition) -> Option<Abstract&> {
   Token qualifier = definition.get_qualifier();
   switch (qualifier.get_code().get_type()) {
   case Code::Type::Type:
   case Code::Type::Assign: {
-    auto field = Field::interpret(domain, source, cursor, definition);
+    auto field = Field::interpret(cursor, definition);
     BAIL_IF(!field);
     return *field;
   }
   case Code::Type::Alias: {
-    auto alias = Alias::interpret(domain, source, cursor, definition);
+    auto alias = Alias::interpret(cursor, definition);
     BAIL_IF(!alias);
     return *alias;
   }
   case Code::Type::Func: {
-    auto function = Function::reserve(domain, cursor, definition);
-    BAIL_IF(!function || !function->complete(source, cursor));
+    auto function = Function::interpret(cursor, definition);
+    BAIL_IF(!function);
     return *function;
   }
   case Code::Type::Enum: {
-    auto enumeration =
-        Types::Enumeration::interpret(domain, source, cursor, definition);
+    auto enumeration = Types::Enumeration::interpret(cursor, definition);
     BAIL_IF(!enumeration);
     return *enumeration;
   }
   case Code::Type::Struct: {
-    auto structure = Types::Structure::interpret(domain, cursor, definition);
+    auto structure = Types::Structure::interpret(cursor, definition);
     BAIL_IF(!structure);
     return *structure;
   }
   case Code::Type::Object: {
-    auto object = Types::Object::interpret(domain, cursor, definition);
+    auto object = Types::Object::interpret(cursor, definition);
     BAIL_IF(!object);
     return *object;
   }

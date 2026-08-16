@@ -22,28 +22,34 @@ namespace Tetrodotoxin::Library::Language::Model {
 // and finalization surface, so consumers never branch on their concrete carrier
 // merely to obtain the complete TTX Layout.
 //
-// The TTX Pack remains the host-neutral semantic contract. This derived owner
-// adds only the Library stages needed to bind authored Expressions. A Pack may
-// be observed through get_layout() only after resolve() returns this exact
-// Pack; empty output is then real zero-value flow rather than an incomplete
-// sentinel.
+// The TTX Pack remains the host neutral semantic contract. This derived owner
+// adds only the Library stages needed to bind authored Expressions. Layout
+// observation is total even while a Pack is incomplete. Only self-resolution
+// admits that Layout as produced flow, where empty output means zero values
+// rather than an incomplete sentinel.
 class Pack : public Ttx::Model::Pack {
  public:
   TTX_CONTRACT(Pack, Ttx::Model::Pack);
 
   virtual auto link(
-      Tetrodotoxin::Language::Monograph& source,
+      Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,
-      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool = 0;
 
   // The scalar output query is a convenience over the Pack's completed Layout.
-  // It is Invalid for empty or multi-value flow and never materializes an
+  // It is Invalid for empty or multiple value flow and never materializes an
   // aggregate Type merely to make the query succeed.
   virtual auto get_type() const -> const Ttx::Concept::Abstract&;
 
+  // Value Type selection follows the real producer that owns each output
+  // position. A raw Type identity in a Layout is not evidence that a value was
+  // produced, while Call and composed Packs can expose each real result.
+  virtual auto get_value_type(Count index) const
+      -> const Ttx::Concept::Abstract& = 0;
+
   // Pack fitting preserves each real producer's value rules before falling
-  // back to its identity-free output Layout. This is what lets a Constant own
+  // back to its identity free output Layout. This is what lets a Constant own
   // contextual scalar conversion while grouped and named flows retain their
   // concrete Layout ordering and names.
   auto fits(const Ttx::Concept::Layout& target) const -> Bool override;
@@ -61,19 +67,18 @@ class Pack : public Ttx::Model::Pack {
       Result<const Ttx::Concept::Abstract&, Ttx::Concept::Layout::Errors>;
 
   // A general Pack fits a Type through both complete Layouts. Scalar contextual
-  // conversions belong to Expression and Constant; applying them here would
-  // let one-entry grouped flow ignore the rest of a structural Type Layout.
+  // conversions belong to Expression and Constant. Applying them here would
+  // let single entry grouped flow ignore the rest of a structural Type Layout.
   virtual auto fits(const Ttx::Model::Type& target) const -> Bool;
 
-  // Receiving a Pack is a target negotiation. Ordinary source fitting runs
-  // first, then a concrete target Type may admit another complete flow shape.
-  // Option uses this boundary to turn no values into absence and element flow
-  // into presence without changing the source Pack or its Layout.
+  // Receiving a Pack is target Type policy. Ordinary source fitting runs
+  // first, then the selected Library Type may admit another complete flow
+  // shape without changing the source Pack or its Layout.
   auto fits_into(const Ttx::Model::Type& target) const -> Bool;
 
   // Finalization visits the real child Packs in evaluation order. It does not
-  // imply that empty or multi-value flow can be constant-folded into one value.
-  virtual auto finalize() -> void = 0;
+  // imply that empty or multiple value flow can be folded into one value.
+  virtual auto finalize(Ttx::Lexical::Cursor& cursor) -> void = 0;
 
   static auto create_empty(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -81,7 +86,7 @@ class Pack : public Ttx::Model::Pack {
 
   // A concrete producer may compose already retained child Packs when its
   // semantic result is genuinely grouped flow. Positional composition flattens
-  // child Layouts; named composition requires one produced value per name. The
+  // child Layouts. Named composition requires one produced value per name. The
   // children remain the only value identities and evaluation edges.
   static auto create_group(
       Perimortem::Memory::Allocator::Arena& domain,

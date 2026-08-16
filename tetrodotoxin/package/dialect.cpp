@@ -9,38 +9,21 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 
 auto Package::Dialect::interpret(
-    Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation,
-    const Anchor& source_anchor,
-    Abstract& interpretation_context)
-    -> Option<Tetrodotoxin::Language::Monograph&> {
-  auto& diagnostics =
-      domain.construct<Tetrodotoxin::Language::Diagnostics>(domain);
-  return interpret(
-      domain, cursor, documentation, source_anchor, diagnostics,
-      interpretation_context);
-}
+    const Anchor&,
+    Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
+  Allocator::Arena& transaction = cursor.get_arena();
 
-auto Package::Dialect::interpret(
-    Allocator::Arena& domain,
-    Cursor& cursor,
-    const Documentation& documentation,
-    const Anchor& source_anchor,
-    Tetrodotoxin::Language::Diagnostics& diagnostics,
-    Abstract&) -> Option<Tetrodotoxin::Language::Monograph&> {
   // Package produces a Monograph rather than a synthetic source Type, so it
   // has no semantic owner for the source envelope Anchor.
-  (void)source_anchor;
-  Managed::Vector<Language::Dependency> dependencies(domain);
-  Managed::Vector<Span> dependency_spans(domain);
-  Managed::Vector<Language::Source> sources(domain);
+  Managed::Vector<Language::Dependency> dependencies(transaction);
+  Managed::Vector<Language::Source> sources(transaction);
   Bool failed = False;
   Bool source_region = False;
 
@@ -51,8 +34,7 @@ auto Package::Dialect::interpret(
     Token statement = cursor.current();
     switch (cursor.get_code().get_type()) {
     case Code::Type::Resolve: {
-      Span dependency_span;
-      auto dependency = Language::Dependency::parse(cursor, dependency_span);
+      auto dependency = Language::Dependency::parse(cursor);
       if (!dependency) {
         failed = True;
         continue;
@@ -77,18 +59,13 @@ auto Package::Dialect::interpret(
         failed = True;
       }
 
-      // Dependency owns complete statement consumption and exposes only its
-      // lexical bounds beside the durable request. Pair them after parsing so
-      // recovery cannot leave provenance behind.
       dependencies.insert(*dependency);
-      dependency_spans.insert(dependency_span);
       continue;
     }
 
     case Code::Type::Source: {
       source_region = True;
-      Span source_span;
-      auto source = Language::Source::parse(domain, cursor, source_span);
+      auto source = Language::Source::parse(cursor);
       if (!source) {
         failed = True;
         continue;
@@ -102,7 +79,7 @@ auto Package::Dialect::interpret(
                 return dependency.get_local_name() == source->get_local_name();
               })) {
         cursor.create_expression_error(
-            source_span,
+            source->get_span(),
             "Source semantic name collides with a Dependency local alias in "
             "this Package."_view);
         failed = True;
@@ -151,14 +128,8 @@ auto Package::Dialect::interpret(
     return {};
   }
 
-  // Both inventories grow in the same statement branch, but Monograph owns
-  // the invariant so another authored producer cannot publish a partial pair.
   auto monograph = Language::Monograph::create_authored(
-      domain, documentation, diagnostics, dependencies, dependency_spans,
-      sources);
-  if (!monograph) {
-    return {};
-  }
-
-  return *monograph;
+      transaction, *this, documentation, context, dependencies, sources);
+  BAIL_IF(!monograph);
+  return static_cast<Tetrodotoxin::Language::Monograph&>(*monograph);
 }

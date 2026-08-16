@@ -43,9 +43,10 @@ offset equals the source byte count. A Cursor can observe a signed relative
 position without moving. Observation outside the stream returns an empty
 Terminal.
 
-A Cursor branch creates a speculative position over the same immutable Token
-stream. Joining publishes that position. Rejecting the branch leaves the parent
-Cursor unchanged.
+A Cursor is the one mutable position over the immutable Token stream. Grammar
+dispatch proves the selected production before its parser consumes that Cursor;
+a rejected production retains its diagnostics and the source transaction owns
+discarding any candidate semantic state.
 
 `Lexical::Span` identifies a complete authored range. `Lexical::Anchor` pairs
 that range with the independent Token a diagnostic should emphasize. An Anchor
@@ -99,33 +100,46 @@ The closed identity categories are:
 * `Invalid` is the absorbing semantic failure identity.
 * `Alias` provides a local identity that redirects to one borrowed target.
 * `Type` provides a semantic domain and one total Layout.
-* `Value` provides a leaf Type with no contextual subdomains.
-* `Flag`, `Real`, `Signed`, and `Unsigned` refine Value domains.
 * `Addressable` provides a named address whose edge reaches one Type.
 * `Pack` provides produced value flow and one total output Layout.
 * `Callable` provides complete parameter and result Layouts.
 
-`Authorship`, `Documentation`, `Layout`, and `Reference` are supporting
-contracts and values that carry no semantic identity.
+`Documentation`, `Layout`, and `Reference` are supporting contracts and values
+that carry no semantic identity.
 
 These categories are an interchange vocabulary rather than a complete type
 system. Concrete languages define their Type inventory, access policy,
 mutation, construction, and invocation roles.
 
 A Terminal product is not an identity category. `Lexical::Code::Terminal` is
-the end marker for a Token stream. `Value` is the leaf semantic Type
-category. Neither one represents an emitted Terminal product.
+the end marker for a Token stream. Neither term introduces another semantic
+identity.
 
 ## Resolution and category proof
 
 Every Abstract exposes its local name, its Documentation, its represented
 identity through `resolve()`, and owner directed contextual identity through
-`resolve_context(route)`. Each observation is total.
+`resolve_context(name)`. Each observation is total.
 
-`resolve()` returns the represented identity. `resolve_context(route)` gives a
-borrowed route to the receiving identity, which interprets it according to its
-own domain. For an unchanged completed graph, resolution is idempotent and
-every chain terminates.
+`resolve()` returns the represented identity. `resolve_context(name)` gives one
+borrowed name to the receiving identity, which interprets it according to its
+own domain. Concrete language operators split qualified syntax and query the
+identity selected by each preceding name. They never flatten a qualified route
+into one lookup key. For an unchanged completed graph, resolution is idempotent
+and every chain terminates.
+
+Context lookup, receiver access, and invocation are distinct semantic queries.
+An explicit receiver asks `resolve_access(host, name)` or
+`resolve_call(host, name)` with the original caller authority and one borrowed
+name. These Abstract hooks let an arbitrary graph context route a concrete
+language question without acquiring that language's Type system. TTX assigns
+them no receiver role, visibility rule, or forwarding policy. A concrete
+language may refine its Type and Addressable contracts to interpret the query.
+A Type-qualified context route still splits into names and uses
+`resolve_context(name)` on each selected identity; TTX defines no separate Type
+lookup or Static and Self distinction. Every query returns the original
+selected identity or Invalid and never searches another query domain as a
+fallback.
 
 An unanswered semantic query returns `Invalid`, never a null graph edge. Later
 construction may answer a query that formerly returned Invalid, but it does not
@@ -136,18 +150,16 @@ proof never creates a wrapper, clone, registry entry, or substitute identity.
 The consumer states the category it needs and either receives that same object
 under the proven contract or retains the original Abstract.
 
-An Abstract may separately borrow one identity-free Authorship source fact.
-Authorship preserves the exact authored Documentation and Anchor while its
-concrete language decides whether the authored object is published. It does
-not expose or invent a shared visibility model. Absence means that the semantic
-identity has no authored source fact; it does not manufacture a second
-category, wrapper, or declaration identity.
+Source provenance, declaration structure, visibility, and publication remain
+facts of the concrete language owner. Abstract exposes no generic declaration
+projection. A consumer that needs those facts proves the concrete owner and
+inspects its complete declaration value.
 
 ## Invalid
 
-Invalid is a stateless and absorbing Abstract. Its name is `Invalid`. Both
-resolution operations return the same Invalid identity. Its Documentation is
-empty.
+Invalid is a stateless and absorbing Abstract. Its name is `Invalid`. Every
+resolution, access, and invocation query returns the same Invalid identity. Its
+Documentation is empty.
 
 Invalid stores no failed route, source range, diagnostic, or recovery choice.
 Parser rejection and failed Layout fitting use the result contract of the
@@ -161,7 +173,7 @@ immediate target is opaque: consumers cannot inspect or bypass an Alias edge.
 `resolve()` is the sole traversal operation. It follows only Alias edges and
 returns the first non-Alias target identity without invoking that target's own
 `resolve()` operation. Every other operation, including
-`resolve_context(route)`, returns Invalid. A consumer that needs context first
+`resolve_context(name)`, returns Invalid. A consumer that needs context first
 resolves the Alias, proves the returned owner, and invokes that owner's
 operation explicitly.
 
@@ -171,38 +183,39 @@ once; repeating the same binding is harmless while changing it fails. The
 owner preserves target lifetime and prevents Alias cycles before publishing
 the completed graph.
 
-## Type and Value
+## Type
 
 Type is an Abstract that represents a semantic domain. Once resolution
 succeeds, each Type exposes one complete Layout. A Type admitted to ordinary
 value flow has at least one Layout entry. A Type with an empty Layout may own
-contextual or Static facts, but it cannot be instantiated, produced, or named
-by an Addressable. Empty Layouts fit without creating a shared Type identity.
+contextual facts, but it cannot be instantiated, produced, or named by an
+Addressable. Empty Layouts fit without creating a shared Type identity.
+
+A value Layout terminates when recursively following its real Type entries and
+the Types named by its Addressable entries reaches terminal `Value` leaves. An
+atomic Type's exact self entry is one such leaf. Returning to an active
+structural Type or reaching an empty child Layout is not a complete value
+shape. Completion validates this graph property before a concrete language
+constructs, lowers, or stores the value.
 
 Every completed concrete Type admitted to ordinary value flow has one total
 semantic default. The concrete language owns the
 default value and the operation that materializes it. TTX does not infer that
 value from an all-zero target representation, add a default query to Type, or
-require different Types with equivalent defaults to share identity. A Type
-used only as an internal compile-time descriptor need not be admitted to
-ordinary value flow.
+require different Types with equivalent defaults to share identity. A semantic
+Type selected for contextual traversal remains outside value flow unless a
+concrete language operation produces an instance of it.
 
 An empty Layout has no value to default. An empty View is different because it
 is one value of the exact View Type and still contributes that Type to its
 Pack's Layout.
 
-Value is a leaf Type used for scalar bit interpretations. Its contextual
-resolution always returns Invalid. Value provides bit width and abstract
-machine storage size and alignment. These are language level scalar facts, not
-target object layout, ABI alignment, or register policy. Concrete domains and
-representations belong to the language that constructs them.
-
-The terminal `Value` Layout has one entry containing its exact atomic Type.
-Every scalar Value Type uses that leaf, so scalar identity participates in
-ordinary Layout fitting instead of being inferred from an otherwise empty
-shape.
-
-TTX defines the `Flag`, `Real`, `Signed`, and `Unsigned` Value interfaces.
+The identity-free terminal `Value` Layout has one entry containing its exact
+atomic Type. Atomic identity therefore participates in ordinary Layout fitting
+instead of being inferred from an otherwise empty shape. Scalar families,
+logical and numeric refinements, bit width, abstract machine storage, and
+alignment belong to the concrete language that constructs those Types. They
+are not additional host-neutral TTX categories.
 
 ## Addressable
 
@@ -213,6 +226,10 @@ could name.
 
 A concrete graph object may be Addressable while adding capabilities
 owned by its language. TTX defines only the named edge to one Type.
+
+TTX does not make an Addressable forward context, receiver access, or
+invocation queries to that Type. A concrete language may add that behavior when
+its own receiver model requires it.
 
 Contextual resolution, Layout selection, or another consumer operation may
 return an Addressable. TTX does not prescribe its physical address or target
@@ -246,18 +263,17 @@ slots use `.name = expression` and retain those names independently from the
 produced semantic objects. Named descriptor slots use `.name : Type`; the
 different operator keeps promised shape distinct from supplied value flow.
 
-A graph owner may reserve a stable Pack before its output is complete. During
-that interval it resolves to Invalid. Once Pack resolution succeeds, its output
-Layout is total, stable, and never replaced. An empty Layout is valid zero-value
-flow and cannot serve as an incomplete placeholder.
+A graph owner may reserve a stable Pack before its output is complete. Its
+Layout query remains safe during that interval and may expose an empty shape,
+but the Pack resolves to Invalid. Only a Pack that resolves to itself supplies
+an empty Layout as completed zero-value flow. Once Pack resolution succeeds,
+its output Layout is stable and never replaced.
 
 ## Callable
 
 Callable is an Abstract that supplies one complete signature as a parameter
-Layout and a result Layout. A Callable is type-bound when parameter entry zero
-is an Addressable named `self`; that Addressable supplies the exact receiver
-Type. This role is derived from the Layout and creates no second Callable
-category or retained marker.
+Layout and a result Layout. TTX assigns no receiver role to any parameter
+position or spelling.
 
 TTX does not prescribe how a Callable is selected or invoked. A concrete
 language may fit an argument Pack to the parameter Layout and expose the
@@ -387,8 +403,8 @@ offsets, or treat a backend Type as the original semantic Type.
 5. Semantic query failure returns Invalid rather than a null edge.
 6. Later construction never changes an identity already returned successfully.
 7. Alias preserves local identity while redirecting represented identity.
-8. Value has no contextual subdomains.
-9. An atomic Type exposes itself as one terminal Value Layout entry.
+8. TTX Type and Addressable impose no Static or Self receiver-routing policy.
+9. An atomic Type exposes itself as one terminal `Value` Layout entry.
    Every Type admitted to value flow has a nonempty Layout, Addressable reaches
    one such Type, and Callable supplies complete parameter and result Layouts.
 10. Pack preserves produced value-flow identity and exposes one complete output

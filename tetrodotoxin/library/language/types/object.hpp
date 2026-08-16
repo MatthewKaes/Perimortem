@@ -20,10 +20,19 @@ class Object : public Structure {
   TTX_CONTRACT(Object, Structure);
 
   static auto interpret(
-      Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Language::Definition& definition)
       -> Perimortem::Core::Option<Object&>;
+
+  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
+
+  auto create_supplied(
+      Ttx::Lexical::Cursor& cursor,
+      Model::Pack& arguments,
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope,
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Types

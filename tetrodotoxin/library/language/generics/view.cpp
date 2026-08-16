@@ -6,25 +6,22 @@
 #include "perimortem/memory/managed/bytes.hpp"
 
 #include "tetrodotoxin/library/language/types/view.hpp"
-#include "ttx/concept/invalid.hpp"
 
 using namespace Tetrodotoxin::Library::Language;
 
-auto Generics::View::create(
-    Perimortem::Core::View::Vector<Argument> arguments,
-    Perimortem::Memory::Allocator::Arena& arena) const
-    -> Perimortem::Core::Option<const Ttx::Model::Type&> {
+auto Generics::View::create(Perimortem::Core::View::Vector<Argument> arguments)
+    const -> Perimortem::Core::Option<const Language::Model::Type&> {
+  auto& arena = get_domain();
   if (arguments.get_size() != 1) {
     return {};
   }
 
-  const Ttx::Model::Type* element =
-      arguments.get_data()[0].find<const Ttx::Model::Type&>();
+  const Language::Model::Type* element =
+      arguments.get_data()[0].find<const Language::Model::Type&>();
   if (element == nullptr) {
     return {};
   }
-  const auto& resolved = element->resolve();
-  if (&resolved == element && element->get_layout().is_empty()) {
+  if (element->get_layout().is_empty()) {
     return {};
   }
 

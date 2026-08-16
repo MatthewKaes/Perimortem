@@ -4,7 +4,7 @@
 #include "tetrodotoxin/library/language/access/propagate.hpp"
 
 #include "tetrodotoxin/library/language/constants/option.hpp"
-#include "tetrodotoxin/library/language/flow/block.hpp"
+#include "tetrodotoxin/library/language/flow/scope.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -35,12 +35,11 @@ static auto select_option_constant(Language::Model::Pack& source)
 }
 
 auto Language::Access::Propagate::parse(
-    Memory::Allocator::Arena& domain,
-    Language::Monograph&,
+    const Abstract&,
     Cursor& cursor,
     Expression& receiver) -> Core::Option<Expression&> {
-  auto transaction = cursor.branch();
-  Token operation = transaction.require(
+  Memory::Allocator::Arena& domain = cursor.get_arena();
+  Token operation = cursor.require(
       Code::Type::QuestionOp,
       "Library Option propagation requires postfix `?`."_view);
   BAIL_IF(!operation);
@@ -49,32 +48,36 @@ auto Language::Access::Propagate::parse(
   BAIL_IF(!receiver_anchor);
   Anchor anchor =
       Anchor::create(operation, receiver_anchor->get_span(), Span(operation));
+  // Absence exits through real empty Pack flow. Keeping that Pack on this
+  // operation lets link negotiate with the enclosing Function result instead
+  // of encoding Function policy in the parser.
   Model::Pack& empty_return = Model::Pack::create_empty(domain);
   Propagate& propagate = Expression::create_authored<Propagate>(
       domain, anchor, [&](Core::Option<Anchor> source) -> Propagate {
         return Propagate(receiver, empty_return, source);
       });
-  cursor.join(transaction);
   return propagate;
 }
 
 auto Language::Access::Propagate::link(
-    Tetrodotoxin::Language::Monograph& source,
+    Ttx::Lexical::Cursor& cursor,
     const Abstract& lexical_context,
-    Core::Option<const Type&> access_scope) -> Bool {
-  BAIL_IF(!receiver.link(source, lexical_context, access_scope));
+    Core::Option<const Abstract&> access_scope) -> Bool {
+  BAIL_IF(!receiver.link(cursor, lexical_context, access_scope));
   auto option = receiver.get_type().resolve().select<Types::Option>();
   if (!option) {
-    source.report(
+    cursor.create_expression_error(
         get_anchor(), "Postfix `?` requires one Option value."_view,
         "Use `?` only where absence should return from the Function."_view);
     return False;
   }
 
-  auto block = lexical_context.select<Flow::Block>();
-  BAIL_IF(!empty_return.link(source, lexical_context, access_scope));
-  if (!block || !empty_return.fits(block->get_function_results())) {
-    source.report(
+  auto scope = lexical_context.select<Flow::Scope>();
+  // The empty path is valid only when the enclosing Function can receive it.
+  // The present path keeps the exact payload Type and continues normally.
+  BAIL_IF(!empty_return.link(cursor, lexical_context, access_scope));
+  if (!scope || !empty_return.fits(scope->get_function_results())) {
+    cursor.create_expression_error(
         get_anchor(),
         "Postfix `?` cannot return empty flow from this Function."_view,
         "Use `[]` or one Option result Layout for the enclosing Function."_view);
@@ -82,29 +85,29 @@ auto Language::Access::Propagate::link(
   }
 
   if (element_type && &element_type->get() != &option->get_element_type()) {
-    source.report(
+    cursor.create_expression_error(
         get_anchor(),
         "Option propagation selected a different element Type."_view,
         "Repeat linking with the same completed Option identity."_view);
     return False;
   }
 
-  element_type = Reference<const Type>(option->get_element_type());
-  return Expression::link(source, lexical_context, access_scope);
+  element_type =
+      Reference<const Language::Model::Type>(option->get_element_type());
+  return Expression::link(cursor, lexical_context, access_scope);
 }
 
 auto Language::Access::Propagate::get_type() const -> const Abstract& {
   return element_type.visit(
       []() -> const Abstract& { return Invalid::get_invalid(); },
-      [](const Reference<const Type>& selected) -> const Abstract& {
-        return selected.get();
-      });
+      [](const Reference<const Language::Model::Type>& selected)
+          -> const Abstract& { return selected.get(); });
 }
 
-auto Language::Access::Propagate::finalize() -> void {
-  receiver.finalize();
-  empty_return.finalize();
-  Expression::finalize();
+auto Language::Access::Propagate::finalize(Cursor& cursor) -> void {
+  receiver.finalize(cursor);
+  empty_return.finalize(cursor);
+  Expression::finalize(cursor);
 }
 
 auto Language::Access::Propagate::evaluate()
@@ -127,6 +130,8 @@ auto Language::Access::Propagate::evaluate()
   }
 
   auto payload = option->get_payload();
+  // An absent folded Option produces no values. Runtime lowering observes the
+  // same empty path and owns the actual early return control transfer.
   return payload
              ? Core::Option<Model::Pack&>(const_cast<Model::Pack&>(*payload))
              : Core::Option<Model::Pack&>();

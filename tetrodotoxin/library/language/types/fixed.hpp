@@ -18,7 +18,7 @@ class Fixed : public Contiguous {
 
   Fixed(
       Perimortem::Core::View::Bytes name,
-      const Ttx::Model::Type& element,
+      const Model::Type& element,
       ::Unsigned_64 extent)
       : name(name),
         element(element),
@@ -29,6 +29,8 @@ class Fixed : public Contiguous {
 
   TTX_DOCUMENTATION(documentation);
 
+  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
   TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_layout() const
@@ -36,7 +38,7 @@ class Fixed : public Contiguous {
     return layout;
   }
 
-  constexpr auto get_element_type() const -> const Ttx::Model::Type& override {
+  constexpr auto get_element_type() const -> const Model::Type& override {
     return element;
   }
 
@@ -44,7 +46,7 @@ class Fixed : public Contiguous {
 
  private:
   Perimortem::Core::View::Bytes name;
-  const Ttx::Model::Type& element;
+  const Model::Type& element;
   ::Unsigned_64 extent;
   Ttx::Model::Layouts::Ranged layout;
   static constexpr Ttx::Model::Documentations::Comment documentation{

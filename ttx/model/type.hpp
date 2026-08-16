@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ttx/concept/abstract.hpp"
-#include "ttx/concept/invalid.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/model/layouts/value.hpp"
 
@@ -14,10 +13,10 @@ namespace Ttx::Model {
 // value or lowering position. It contributes target neutral recursive
 // shape. Type itself does not require size, alignment, offsets, register
 // selection, calling convention, documentation, aliases, or one universal
-// child table. Terminal specializes Type with direct size and alignment facts.
-// Composite Types derive those facts by walking their real Layout. Static and
-// Name resolution remains the Abstract query on the durable Type itself. Type
-// does not manufacture separate lexical scopes for static or receiver access.
+// child table. Concrete languages may add representation facts without
+// changing this host neutral contract. Atomic and structural Types expose their
+// real shape through Layout. Contextual and receiver queries remain the
+// Abstract contract on the durable identity.
 //
 // A host may reserve a stable Type before all of its facts are available. That
 // object resolves to Invalid until its owner can answer the Type contract. No
@@ -43,9 +42,9 @@ class Type : public Concept::Abstract {
  protected:
   constexpr Type() : layout(*this) {}
 
-  // The terminal leaf borrows this exact semantic identity. Copying or moving
-  // a Type would leave that leaf naming the original object, so every Type
-  // remains a stable graph identity after construction.
+  // The Value Layout leaf borrows this exact semantic identity. Copying or
+  // moving a Type would leave that leaf naming the original object, so every
+  // Type remains a stable graph identity after construction.
   Type(const Type&) = delete;
   Type(Type&&) = delete;
   auto operator=(const Type&) -> Type& = delete;

@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/operations/or.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -30,25 +31,13 @@ static Harness LibraryOr = {
   .name = "Tetrodotoxin::Library::Language::Operations::Or"_view,
 };
 
-class OrMonograph : public Tetrodotoxin::Language::Monograph {
- public:
-  OrMonograph(Allocator::Arena& domain)
-      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
-
-  constexpr auto get_name() const -> View::Bytes override {
-    return "OrMonograph"_view;
-  }
-
-  constexpr auto resolve_context(View::Bytes) const
-      -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
-};
-
-static auto link_operation(
-    Operation& operation,
-    Tetrodotoxin::Language::Monograph& source) -> Bool {
-  return operation.link(source, Invalid::get_invalid());
+static auto link_operation(Operation& operation, const Abstract& context)
+    -> Bool {
+  Allocator::Arena transaction;
+  Errors errors;
+  Tokenizer tokenizer(transaction, {}, "<operation>"_view);
+  Cursor cursor(tokenizer, errors);
+  return operation.link(cursor, context);
 }
 
 class OrExpression : public Expression {
@@ -98,9 +87,9 @@ class OrFoldInput : public Operation {
     return result;
   }
 
-  auto select_type(Tetrodotoxin::Language::Monograph&) const
-      -> Option<const Ttx::Model::Type&> override {
-    return Tetrodotoxin::Library::Dialect::get_bool();
+  auto select_type(const Abstract& context) const
+      -> Option<const Model::Type&> override {
+    return context.resolve_context("Bool"_view).select<Model::Type>();
   }
 
  private:
@@ -161,13 +150,14 @@ static auto matches_anchor(
 
 PERIMORTEM_UNIT_TEST(LibraryOr, exact_type_and_edges) {
   Allocator::Arena domain;
-  OrMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Boolean distinct_bool;
   Types::Signed_8 signed_8;
   OrExpression canonical_left(
-      "canonical left"_view, Tetrodotoxin::Library::Dialect::get_bool());
+      "canonical left"_view, resolve_library_flag(source));
   OrExpression canonical_right(
-      "canonical right"_view, Tetrodotoxin::Library::Dialect::get_bool());
+      "canonical right"_view, resolve_library_flag(source));
   OrExpression distinct("distinct"_view, distinct_bool);
   OrExpression signed_value("signed"_view, signed_8);
   OrExpression invalid("invalid"_view, Invalid::get_invalid());
@@ -177,6 +167,8 @@ PERIMORTEM_UNIT_TEST(LibraryOr, exact_type_and_edges) {
       Operations::Or::create_synthetic(domain, distinct, canonical_right);
   auto& distinct_right =
       Operations::Or::create_synthetic(domain, canonical_left, distinct);
+  auto& distinct_pair =
+      Operations::Or::create_synthetic(domain, distinct, distinct);
   auto& signed_operation =
       Operations::Or::create_synthetic(domain, canonical_left, signed_value);
   auto& invalid_operation =
@@ -187,11 +179,14 @@ PERIMORTEM_UNIT_TEST(LibraryOr, exact_type_and_edges) {
   EXPECT(link_operation(canonical, source));
   EXPECT_NOT(link_operation(distinct_left, source));
   EXPECT_NOT(link_operation(distinct_right, source));
+  EXPECT(link_operation(distinct_pair, source));
   EXPECT_NOT(link_operation(signed_operation, source));
   EXPECT_NOT(link_operation(invalid_operation, source));
 
-  EXPECT(&canonical.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
+  EXPECT(&canonical.get_type() == &resolve_library_flag(source));
+  EXPECT(&distinct_pair.get_type() == &distinct_bool);
   EXPECT(is_dynamic(canonical.fold()));
+  EXPECT(is_dynamic(distinct_pair.fold()));
   EXPECT(distinct_left.get_type().resolve().is<Invalid>());
   EXPECT(distinct_right.get_type().resolve().is<Invalid>());
   EXPECT(signed_operation.get_type().resolve().is<Invalid>());
@@ -200,11 +195,11 @@ PERIMORTEM_UNIT_TEST(LibraryOr, exact_type_and_edges) {
 
 PERIMORTEM_UNIT_TEST(LibraryOr, truth_table_and_repetition) {
   Allocator::Arena domain;
-  OrMonograph source(domain);
-  auto& true_value = Constants::True::create_synthetic(
-      domain, Tetrodotoxin::Library::Dialect::get_bool());
-  auto& false_value = Constants::False::create_synthetic(
-      domain, Tetrodotoxin::Library::Dialect::get_bool());
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
+  Types::Boolean flag_type;
+  auto& true_value = Constants::True::create_synthetic(domain, flag_type);
+  auto& false_value = Constants::False::create_synthetic(domain, flag_type);
   auto& true_true =
       Operations::Or::create_synthetic(domain, true_value, true_value);
   auto& true_false =
@@ -231,19 +226,19 @@ PERIMORTEM_UNIT_TEST(LibraryOr, truth_table_and_repetition) {
   EXPECT(right->is<Constants::True>());
   EXPECT(neither->is<Constants::False>());
   EXPECT(&*neither == &*repeated);
-  EXPECT(&both->get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
-  EXPECT(&neither->get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
+  EXPECT(&both->get_type() == &flag_type);
+  EXPECT(&neither->get_type() == &flag_type);
 }
 
 PERIMORTEM_UNIT_TEST(LibraryOr, ordered_reachability) {
   Allocator::Arena domain;
-  OrMonograph source(domain);
-  auto& true_value = Constants::True::create_synthetic(
-      domain, Tetrodotoxin::Library::Dialect::get_bool());
-  auto& false_value = Constants::False::create_synthetic(
-      domain, Tetrodotoxin::Library::Dialect::get_bool());
-  OrExpression dynamic(
-      "dynamic"_view, Tetrodotoxin::Library::Dialect::get_bool());
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
+  auto& true_value =
+      Constants::True::create_synthetic(domain, resolve_library_flag(source));
+  auto& false_value =
+      Constants::False::create_synthetic(domain, resolve_library_flag(source));
+  OrExpression dynamic("dynamic"_view, resolve_library_flag(source));
   OrFoldInput skipped_failure(domain, false_value, false_value, True);
   OrFoldInput reached_failure(domain, false_value, false_value, True);
   OrFoldInput dynamic_failure(domain, false_value, false_value, True);
@@ -276,16 +271,8 @@ PERIMORTEM_UNIT_TEST(LibraryOr, ordered_reachability) {
 PERIMORTEM_UNIT_TEST(LibraryOr, authored_parse_and_atomic_failure) {
   static constexpr View::Bytes success_source = "false or true"_view;
   Allocator::Arena domain;
-  OrMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  Errors host_errors;
-  Tokenizer host_tokens(domain, {}, "or-source.ttx"_view);
-  Cursor host_cursor(host_tokens, host_errors);
-  auto retained_source = dialect.interpret(
-      domain, host_cursor, Documentation::get_empty(), Anchor::create(Span()),
-      context);
-  ASSERT(retained_source && retained_source->is<Monograph>());
-  auto& source = static_cast<Monograph&>(*retained_source);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Errors success_errors;
   Tokenizer success_tokens(domain, success_source, "or.ttx"_view);
   Cursor success_cursor(success_tokens, success_errors);
@@ -293,16 +280,16 @@ PERIMORTEM_UNIT_TEST(LibraryOr, authored_parse_and_atomic_failure) {
   auto success_left_anchor =
       Anchor::create(success_left_token, Span(success_left_token));
   auto& success_left = Constants::False::create_authored(
-      domain, Tetrodotoxin::Library::Dialect::get_bool(), success_left_anchor);
+      domain, resolve_library_flag(source), success_left_anchor);
   auto parsed = Operations::Or::parse(
-      domain, source, success_cursor, success_left, Span(success_left_token));
+      source, success_cursor, success_left, Span(success_left_token));
 
   ASSERT(parsed && parsed->is<Operations::Or>());
   EXPECT(parsed->get_type().resolve().is<Invalid>());
   EXPECT(matches_anchor(*parsed, success_source, "or"_view, success_source));
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
-  EXPECT(parsed->link(source, Invalid::get_invalid()));
+  EXPECT(parsed->link(success_cursor, source));
 
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "false or"_view, "or.ttx"_view);
@@ -311,29 +298,21 @@ PERIMORTEM_UNIT_TEST(LibraryOr, authored_parse_and_atomic_failure) {
   auto failure_left_anchor =
       Anchor::create(failure_left_token, Span(failure_left_token));
   auto& failure_left = Constants::False::create_authored(
-      domain, Tetrodotoxin::Library::Dialect::get_bool(), failure_left_anchor);
-  Token operation = failure_cursor.current();
+      domain, resolve_library_flag(source), failure_left_anchor);
   auto rejected = Operations::Or::parse(
-      domain, source, failure_cursor, failure_left, Span(failure_left_token));
+      source, failure_cursor, failure_left, Span(failure_left_token));
 
   EXPECT_NOT(rejected);
-  EXPECT(failure_cursor.current().get_offset() == operation.get_offset());
-  EXPECT(failure_cursor.current().get_code() == operation.get_code());
+  EXPECT(failure_cursor.matches(Code::Type::Terminal));
   EXPECT_NOT(failure_errors.is_empty());
 
   Errors mismatch_errors;
   Tokenizer mismatch_tokens(domain, "false or 1"_view, "or.ttx"_view);
   Cursor mismatch_cursor(mismatch_tokens, mismatch_errors);
-  auto mismatch = Parser::Expression::parse(domain, source, mismatch_cursor);
+  auto mismatch = Parser::Expression::parse(source, mismatch_cursor);
 
   ASSERT(mismatch && mismatch->is<Operations::Or>());
   EXPECT(mismatch_errors.is_empty());
-  EXPECT_NOT(mismatch->link(source, Invalid::get_invalid()));
-  auto diagnostics = source.get_diagnostics();
-  ASSERT(diagnostics.get_size() == 1);
-  ASSERT(diagnostics.get_data()[0].get_anchor());
-  EXPECT_TEXT(
-      diagnostics.get_data()[0].get_anchor()->get_span().caculate_text(
-          "false or 1"_view),
-      "false or 1"_view);
+  EXPECT_NOT(mismatch->link(mismatch_cursor, source));
+  EXPECT_EQ(mismatch_errors.get_size(), Count(1));
 }

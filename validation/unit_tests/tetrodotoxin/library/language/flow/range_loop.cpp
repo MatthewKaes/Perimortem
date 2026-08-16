@@ -13,12 +13,13 @@
 #include "tetrodotoxin/library/language/flow/loop_control.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
-#include "ttx/model/types/unsigned.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library;
@@ -63,7 +64,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  return monograph && !workspace.link(errors) && !errors.is_empty();
+  return !monograph && !errors.is_empty();
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
@@ -91,22 +92,21 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto function = find_function(monograph->get_source(), "sum"_view);
   ASSERT(function && function->get_body());
   auto statements = function->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(4));
-  ASSERT(statements.get_data()[0].get().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[1].get().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[2].get().is<Language::Flow::RangeLoop>());
-  ASSERT(statements.get_data()[3].get().is<Language::Flow::Return>());
+  ASSERT(statements.get_data()[0].get_abstract().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[1].get_abstract().is<Language::Flow::Local>());
+  ASSERT(
+      statements.get_data()[2].get_abstract().is<Language::Flow::RangeLoop>());
+  ASSERT(statements.get_data()[3].get_abstract().is<Language::Flow::Return>());
 
   const auto& loop = static_cast<const Language::Flow::RangeLoop&>(
-      statements.get_data()[2].get());
+      statements.get_data()[2].get_abstract());
   EXPECT_TEXT(loop.get_name(), "entry"_view);
-  EXPECT(loop.get_type().is<Ttx::Model::Types::Unsigned>());
+  EXPECT(loop.get_type().is<Language::Model::Types::Unsigned>());
   const Abstract& range_type = loop.get_range().get_type().resolve();
   ASSERT(range_type.is<Language::Types::Range>());
   EXPECT(
@@ -116,10 +116,10 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
   EXPECT(&loop.get_body().resolve_context("entry"_view) == &loop);
   EXPECT(
       &function->get_body()->resolve_context("entry"_view) ==
-      &statements.get_data()[0].get());
+      &statements.get_data()[0].get_abstract());
   EXPECT(
       &loop.get_body().resolve_context("total"_view) ==
-      &statements.get_data()[1].get());
+      &statements.get_data()[1].get_abstract());
   EXPECT_TEXT(
       loop.get_anchor().get_span().caculate_text(source),
       "for [.entry : Unsigned_64] in 0...3 {\n"
@@ -127,11 +127,15 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
       "    total += copy;\n"
       "  }"_view);
 
-  const Abstract& retained = statements.get_data()[2].get();
-  ASSERT(monograph->link());
-  ASSERT(monograph->finalize());
+  const Abstract& retained = statements.get_data()[2].get_abstract();
+  Perimortem::Memory::Allocator::Arena transaction;
+  Tokenizer tokenizer(transaction, source, "range_loop.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  ASSERT(monograph->link(cursor));
+  ASSERT(monograph->finalize(cursor));
   EXPECT(
-      &function->get_body()->get_statements().get_data()[2].get() == &retained);
+      &function->get_body()->get_statements().get_data()[2].get_abstract() ==
+      &retained);
   EXPECT(errors.is_empty());
 }
 
@@ -181,15 +185,13 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, body_control_targets_exact_loop) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto function = find_function(monograph->get_source(), "scan"_view);
   ASSERT(function && function->get_body());
   const auto& loop = static_cast<const Language::Flow::RangeLoop&>(
-      function->get_body()->get_statements().get_data()[0].get());
+      function->get_body()->get_statements().get_data()[0].get_abstract());
   const auto& control = static_cast<const Language::Flow::LoopControl&>(
-      loop.get_body().get_statements().get_data()[0].get());
+      loop.get_body().get_statements().get_data()[0].get_abstract());
   EXPECT(control.get_kind() == Language::Flow::LoopControl::Kind::Break);
   EXPECT(&control.get_target() == &loop);
   EXPECT(errors.is_empty());

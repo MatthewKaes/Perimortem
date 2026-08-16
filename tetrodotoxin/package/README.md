@@ -65,7 +65,10 @@ System::Terminal
 Each `::` step asks the selected context for the next object. A Type position
 requires the route to end at a Type, while Package and `using` declarations
 require the kind of context they can import. Package does not convert these
-different objects into one common Package Type.
+different objects into one common Package Type. Package materializes each
+shared prefix as a real context: `Scenes::Splash` and `Scenes::Title` first
+select the same `Scenes` context and then query distinct leaf names. The
+complete qualified spelling is never a Package table key.
 
 ## Sources
 
@@ -88,11 +91,27 @@ Paths are normalized relative to the opened Package root. Empty, rooted,
 escaping, or invalid paths are rejected. Two authored paths that normalize to
 the same route identify the same input and therefore cannot declare two Sources.
 
+## Multi-source completion
+
+The Package Monograph is a description table. It retains the authored
+Dependency and Source values and maps their local names to borrowed completed
+Monographs; it owns none of those Monographs and contains no import state or
+completed-root cache.
+
+Workspace reads exactly that root manifest's fixed Source table. Each entry gets
+one source transaction Arena and one optional parse-valid Monograph. A member
+cannot add another Package import. After all entries parse, Workspace links
+every member before finalizing any member. Success transfers every completed
+owner into Workspace lifetime and publishes only the Package root; failure
+releases every candidate Arena.
+
 ## Package context
 
 The Package Monograph exposes dependencies and Sources through TTX Aliases. A
-Source Alias points to the Monograph produced by that source's language. A
-dependency Alias points to the restored Package context.
+Source Alias borrows the Workspace-owned Monograph produced by that source's
+language. A dependency Alias borrows an exact Package identity and version that
+was already completed in the Workspace. Authored import never recursively
+restores or imports a missing dependency.
 
 Contextual lookup returns those retained identities. It does not copy Library
 Types, App lifecycle facts, or Shader declarations into a separate Package
@@ -109,6 +128,11 @@ An embedded resource operand names bytes beneath the source Package root:
 $[resources/icon.png]
 $[resources/table.bin]:[0, 64]
 ```
+
+`$[...]` is one Package-reserved atomic contextual instruction. Package parses
+the path inside the brackets; it is not a qualified semantic name and does not
+permit other `resolve_context` implementations to consume punctuation or
+multiple name segments.
 
 Resource acquisition follows these rules:
 
@@ -192,14 +216,23 @@ different product kinds.
 
 ## Restoration
 
-Environment creates the Package before it restores any member. This gives every
-language the same context for imports and resources. Scene and Shader pass that
-context to their child layers. The Workspace supplies the installed language
-dependencies separately.
+Workspace creates the Package description Monograph before it reconstructs any
+member. This gives every language the same context for mappings and resources.
+Scene and Shader pass that context to their child layers. The Workspace supplies
+the installed language dependencies separately and retains every reconstructed
+Monograph handle.
 
-Every restored member goes through normal linking and finalization. If a child
-layer fails, its outer member fails as well. Nothing is published until the
-complete Package is valid.
+Each Dialect receives its opaque member payload and the same Package context
+directly in one Workspace-owned reconstruction Arena; there is no separate
+Restoration transaction wrapper. It returns one optional Monograph reference
+from that Arena. If a child layer fails, its outer member fails as well.
+Workspace links every member before finalizing any member and publishes nothing
+unless the complete restoration succeeds. Package records only borrowed member
+mappings. A later operation therefore retries from clean state.
+
+Archive validation and other source-free system or toolchain failures use
+Perimortem Diagnostics. They do not create a textual Cursor or a Package-local
+diagnostic collection without authored text.
 
 Restoration creates new objects. They must expose the same names, Types,
 relationships, ordering, Layout behavior, and language facts promised by the

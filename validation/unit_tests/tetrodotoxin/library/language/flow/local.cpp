@@ -17,6 +17,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library;
@@ -68,7 +69,7 @@ static auto rejects_link_without_publication(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  if (!monograph || workspace.link(errors) || errors.is_empty()) {
+  if (monograph || errors.is_empty()) {
     return False;
   }
 
@@ -97,7 +98,6 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
 
   const auto& source_type = monograph->get_source();
   const Abstract& packet_identity = source_type.resolve_context("Packet"_view);
@@ -110,32 +110,33 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
   const Language::Flow::Block& block = *body->get_body();
   auto statements = block.get_statements();
   ASSERT_EQ(statements.get_size(), Count(8));
-  ASSERT(statements.get_data()[0].get().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[1].get().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[2].get().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[3].get().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[4].get().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[5].get().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[6].get().is<Language::Flow::Local>());
-  const auto& explicit_local =
-      static_cast<const Language::Flow::Local&>(statements.get_data()[0].get());
-  const auto& fixed_local =
-      static_cast<const Language::Flow::Local&>(statements.get_data()[1].get());
-  const auto& inferred_local =
-      static_cast<const Language::Flow::Local&>(statements.get_data()[2].get());
-  const auto& copied_local =
-      static_cast<const Language::Flow::Local&>(statements.get_data()[3].get());
-  const auto& created_local =
-      static_cast<const Language::Flow::Local&>(statements.get_data()[4].get());
-  const auto& positional_local =
-      static_cast<const Language::Flow::Local&>(statements.get_data()[5].get());
-  const auto& named_local =
-      static_cast<const Language::Flow::Local&>(statements.get_data()[6].get());
+  ASSERT(statements.get_data()[0].get_abstract().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[1].get_abstract().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[2].get_abstract().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[3].get_abstract().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[4].get_abstract().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[5].get_abstract().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[6].get_abstract().is<Language::Flow::Local>());
+  const auto& explicit_local = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[0].get_abstract());
+  const auto& fixed_local = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[1].get_abstract());
+  const auto& inferred_local = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[2].get_abstract());
+  const auto& copied_local = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[3].get_abstract());
+  const auto& created_local = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[4].get_abstract());
+  const auto& positional_local = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[5].get_abstract());
+  const auto& named_local = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[6].get_abstract());
+  const Abstract& boolean = monograph->resolve_context("Bool"_view);
 
-  EXPECT(&explicit_local.get_type() == &Dialect::get_bool());
-  EXPECT(&fixed_local.get_type() == &Dialect::get_bool());
-  EXPECT(&inferred_local.get_type() == &Dialect::get_bool());
-  EXPECT(&copied_local.get_type() == &Dialect::get_bool());
+  EXPECT(&explicit_local.get_type() == &boolean);
+  EXPECT(&fixed_local.get_type() == &boolean);
+  EXPECT(&inferred_local.get_type() == &boolean);
+  EXPECT(&copied_local.get_type() == &boolean);
   EXPECT(&created_local.get_type() == &packet_identity);
   EXPECT(&positional_local.get_type() == &pair_identity);
   EXPECT(&named_local.get_type() == &pair_identity);
@@ -150,7 +151,6 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
   ASSERT(inferred_local.get_constant());
   EXPECT(&*fixed_local.get_constant() == &*inferred_local.get_constant());
 
-  ASSERT(workspace.finalize(errors));
   EXPECT(
       explicit_local.get_anchor().get_span().caculate_text(source) ==
       "state explicit : Bool = true;"_view);
@@ -162,11 +162,16 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
   EXPECT(&block.resolve_context("positional"_view) == &positional_local);
   EXPECT(&block.resolve_context("named"_view) == &named_local);
 
-  ASSERT(monograph->link());
+  Perimortem::Memory::Allocator::Arena transaction;
+  Tokenizer tokenizer(transaction, source, "local.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  ASSERT(monograph->link(cursor));
   auto repeated = block.get_statements();
   ASSERT_EQ(repeated.get_size(), statements.get_size());
   for (Count i = 0; i < statements.get_size(); i++) {
-    EXPECT(&repeated.get_data()[i].get() == &statements.get_data()[i].get());
+    EXPECT(
+        &repeated.get_data()[i].get_abstract() ==
+        &statements.get_data()[i].get_abstract());
   }
   EXPECT(errors.is_empty());
 }

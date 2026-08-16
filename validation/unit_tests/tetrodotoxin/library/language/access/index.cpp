@@ -8,6 +8,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
@@ -16,39 +17,40 @@
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
-using namespace Ttx::Model;
 using namespace Validation;
 
 static Harness LibraryIndex = {
   .name = "Tetrodotoxin::Library::Language::Access::Index"_view,
 };
 
-class IndexBinding : public Addressable {
+class IndexBinding : public Library::Language::Model::Addressable {
  public:
-  IndexBinding(View::Bytes name, const Ttx::Model::Type& type)
+  IndexBinding(View::Bytes name, const Library::Language::Model::Type& type)
       : name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto get_type() const -> const Ttx::Model::Type& override { return type; }
+  auto get_type() const -> const Library::Language::Model::Type& override {
+    return type;
+  }
 
  private:
   View::Bytes name;
-  const Ttx::Model::Type& type;
+  const Library::Language::Model::Type& type;
 };
 
 class IndexContext : public Abstract {
  public:
-  explicit IndexContext(const Addressable& binding) : binding(binding) {}
+  explicit IndexContext(const Library::Language::Model::Addressable& binding)
+      : binding(binding) {}
 
   auto get_name() const -> View::Bytes override { return "Index context"_view; }
   auto get_documentation() const -> const Documentation& override {
@@ -63,7 +65,7 @@ class IndexContext : public Abstract {
   }
 
  private:
-  const Addressable& binding;
+  const Library::Language::Model::Addressable& binding;
 };
 
 static auto create_monograph(
@@ -73,26 +75,25 @@ static auto create_monograph(
   Errors errors;
   Tokenizer tokenizer(domain, ""_view, "index-source.ttx"_view);
   Cursor cursor(tokenizer, errors);
-  auto interpreted = dialect.interpret(
-      domain, cursor, Documentation::get_empty(), Anchor::create(Span()),
-      context);
-  if (!interpreted || !errors.is_empty() ||
-      !interpreted->is<Library::Language::Monograph>()) {
+  Anchor source_anchor = Anchor::create(Span());
+  auto monograph = dialect.interpret(
+      cursor, Documentation::get_empty(), source_anchor, context);
+  if (!monograph || !monograph->is<Library::Language::Monograph>() ||
+      !errors.is_empty()) {
     return {};
   }
 
-  return static_cast<Library::Language::Monograph&>(*interpreted);
+  return static_cast<Library::Language::Monograph&>(*monograph);
 }
 
 static auto parse_index(
     Allocator::Arena& domain,
-    Library::Language::Monograph& monograph,
+    const Abstract& context,
     View::Bytes source,
     Errors& errors) -> Option<Library::Language::Access::Index&> {
   Tokenizer tokenizer(domain, source, "index.ttx"_view);
   Cursor cursor(tokenizer, errors);
-  auto parsed =
-      Library::Language::Parser::Expression::parse(domain, monograph, cursor);
+  auto parsed = Library::Language::Parser::Expression::parse(context, cursor);
   auto index = parsed.visit(
       []() -> Option<Library::Language::Access::Index&> { return {}; },
       [](Library::Language::Model::Pack& selected) {
@@ -105,16 +106,16 @@ static auto parse_index(
   return index;
 }
 
-static auto rejects_index_suffix(
+static auto rejects_committed_index_suffix(
     Allocator::Arena& domain,
-    Library::Language::Monograph& monograph,
+    const Abstract& context,
     View::Bytes suffix) -> Bool {
   Errors receiver_errors;
   Tokenizer receiver_tokenizer(
       domain, "storage"_view, "index-receiver.ttx"_view);
   Cursor receiver_cursor(receiver_tokenizer, receiver_errors);
-  auto receiver_pack = Library::Language::Parser::Expression::parse(
-      domain, monograph, receiver_cursor);
+  auto receiver_pack =
+      Library::Language::Parser::Expression::parse(context, receiver_cursor);
   auto receiver = receiver_pack.visit(
       []() -> Option<Library::Language::Expression&> { return {}; },
       [](Library::Language::Model::Pack& selected) {
@@ -128,11 +129,11 @@ static auto rejects_index_suffix(
   Tokenizer tokenizer(domain, suffix, "invalid-index.ttx"_view);
   Cursor cursor(tokenizer, errors);
   Token opening = cursor.current();
-  auto parsed = Library::Language::Access::Index::parse(
-      domain, monograph, cursor, *receiver);
+  auto parsed =
+      Library::Language::Access::Index::parse(context, cursor, *receiver);
   Token ending = cursor.current();
-  return !parsed && opening.get_code() == ending.get_code() &&
-         opening.get_offset() == ending.get_offset();
+  return !parsed && !errors.is_empty() &&
+         ending.get_offset() > opening.get_offset();
 }
 
 PERIMORTEM_UNIT_TEST(LibraryIndex, exact_edges_and_delayed_link) {
@@ -142,34 +143,38 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, exact_edges_and_delayed_link) {
   IndexBinding binding("storage"_view, access);
   IndexContext context(binding);
   Library::Dialect dialect;
-  auto monograph = create_monograph(domain, dialect, context);
-  ASSERT(monograph);
+  auto owner = create_monograph(domain, dialect, context);
+  ASSERT(owner);
+  auto& monograph = *owner;
   Errors unsigned_errors;
   auto unsigned_index =
-      parse_index(domain, *monograph, "storage[1]"_view, unsigned_errors);
+      parse_index(domain, monograph, "storage[1]"_view, unsigned_errors);
   ASSERT(unsigned_index);
+  Tokenizer unsigned_tokens(domain, "storage[1]"_view, "index.ttx"_view);
+  Cursor unsigned_cursor(unsigned_tokens, unsigned_errors);
 
   EXPECT(&unsigned_index->get_element_type() == &Invalid::get_invalid());
   EXPECT(&unsigned_index->resolve() == &Invalid::get_invalid());
   EXPECT(unsigned_index->is<Library::Language::Expression>());
   EXPECT(unsigned_index->is<Library::Language::Model::Pack>());
-  ASSERT(unsigned_index->link(*monograph, context));
-  ASSERT(unsigned_index->link(*monograph, context));
+  ASSERT(unsigned_index->link(unsigned_cursor, context));
+  ASSERT(unsigned_index->link(unsigned_cursor, context));
   EXPECT(&unsigned_index->get_element_type() == &element);
   EXPECT(&unsigned_index->get_type() == &element);
   EXPECT(&unsigned_index->resolve() == &*unsigned_index);
   ASSERT_EQ(unsigned_index->get_layout().get_size(), Count(1));
   EXPECT(&*unsigned_index->get_layout().get_abstract(0) == &*unsigned_index);
   EXPECT(unsigned_index->fits(element));
-  unsigned_index->finalize();
+  unsigned_index->finalize(unsigned_cursor);
   EXPECT(unsigned_errors.is_empty());
-  EXPECT(monograph->get_diagnostics().is_empty());
 
   Errors signed_errors;
   auto signed_index =
-      parse_index(domain, *monograph, "storage[-1]"_view, signed_errors);
+      parse_index(domain, monograph, "storage[-1]"_view, signed_errors);
   ASSERT(signed_index);
-  EXPECT(signed_index->link(*monograph, context));
+  Tokenizer signed_tokens(domain, "storage[-1]"_view, "index.ttx"_view);
+  Cursor signed_cursor(signed_tokens, signed_errors);
+  EXPECT(signed_index->link(signed_cursor, context));
   EXPECT(&signed_index->get_element_type() == &element);
   EXPECT(signed_errors.is_empty());
 }
@@ -185,36 +190,43 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, invalid_domains_are_rejected) {
   IndexContext value_context(value);
   Library::Dialect dialect;
 
-  auto receiver_error = create_monograph(domain, dialect, value_context);
-  ASSERT(receiver_error);
+  auto receiver_owner = create_monograph(domain, dialect, value_context);
+  ASSERT(receiver_owner);
+  auto& receiver_source = *receiver_owner;
   Errors receiver_parse_errors;
   auto invalid_receiver = parse_index(
-      domain, *receiver_error, "value[1]"_view, receiver_parse_errors);
+      domain, receiver_source, "value[1]"_view, receiver_parse_errors);
   ASSERT(invalid_receiver);
-  EXPECT_NOT(invalid_receiver->link(*receiver_error, value_context));
-  EXPECT_NOT(receiver_error->get_diagnostics().is_empty());
+  Tokenizer receiver_tokens(domain, "value[1]"_view, "index.ttx"_view);
+  Cursor receiver_cursor(receiver_tokens, receiver_parse_errors);
+  EXPECT_NOT(invalid_receiver->link(receiver_cursor, value_context));
+  EXPECT_NOT(receiver_parse_errors.is_empty());
 
-  auto index_error = create_monograph(domain, dialect, storage_context);
-  ASSERT(index_error);
+  auto index_owner = create_monograph(domain, dialect, storage_context);
+  ASSERT(index_owner);
+  auto& index_source = *index_owner;
   Errors index_parse_errors;
   auto invalid_index = parse_index(
-      domain, *index_error, "storage[true]"_view, index_parse_errors);
+      domain, index_source, "storage[true]"_view, index_parse_errors);
   ASSERT(invalid_index);
-  EXPECT_NOT(invalid_index->link(*index_error, storage_context));
-  EXPECT_NOT(index_error->get_diagnostics().is_empty());
+  Tokenizer index_tokens(domain, "storage[true]"_view, "index.ttx"_view);
+  Cursor index_cursor(index_tokens, index_parse_errors);
+  EXPECT_NOT(invalid_index->link(index_cursor, storage_context));
+  EXPECT_NOT(index_parse_errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryIndex, malformed_postfix_is_atomic) {
+PERIMORTEM_UNIT_TEST(LibraryIndex, malformed_postfix_is_committed) {
   Allocator::Arena domain;
   Library::Language::Types::Unsigned_8 element;
   Library::Language::Types::Access access("Access[Unsigned_8]"_view, element);
   IndexBinding storage("storage"_view, access);
   IndexContext context(storage);
   Library::Dialect dialect;
-  auto monograph = create_monograph(domain, dialect, context);
-  ASSERT(monograph);
+  auto owner = create_monograph(domain, dialect, context);
+  ASSERT(owner);
+  auto& monograph = *owner;
 
-  EXPECT(rejects_index_suffix(domain, *monograph, "[]"_view));
-  EXPECT(rejects_index_suffix(domain, *monograph, "[1"_view));
-  EXPECT(rejects_index_suffix(domain, *monograph, "[1, 2]"_view));
+  EXPECT(rejects_committed_index_suffix(domain, monograph, "[]"_view));
+  EXPECT(rejects_committed_index_suffix(domain, monograph, "[1"_view));
+  EXPECT(rejects_committed_index_suffix(domain, monograph, "[1, 2]"_view));
 }

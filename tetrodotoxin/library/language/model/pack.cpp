@@ -5,7 +5,8 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/library/language/types/option.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/concept/reference.hpp"
 
@@ -42,9 +43,9 @@ class Group final : public Language::Model::Pack {
         Count target_index) const
         -> Utility::Result<const Abstract&, Errors> override;
 
-   private:
     auto select(Count index) const -> Core::Option<Selection>;
 
+   private:
     const Group& group;
   };
 
@@ -77,19 +78,31 @@ class Group final : public Language::Model::Pack {
   TTX_INVALID_CONTEXT;
 
   auto link(
-      Tetrodotoxin::Language::Monograph& source,
+      Ttx::Lexical::Cursor& cursor,
       const Abstract& lexical_context,
-      Core::Option<const Type&> access_scope) -> Bool override {
+      Core::Option<const Abstract&> access_scope) -> Bool override {
     Bool failed = False;
     for (Reference<Language::Model::Pack> entry : entries.get_view()) {
-      failed |= !entry.get().link(source, lexical_context, access_scope);
+      failed |= !entry.get().link(cursor, lexical_context, access_scope);
     }
     BAIL_IF(failed);
+
+    // Type selection must link so a following access can query that identity.
+    // A group is a value consumer, so it rejects the same result before Layout
+    // observation turns the missing value output into a process failure.
+    for (Reference<Language::Model::Pack> entry : entries.get_view()) {
+      if (&entry.get().resolve() != &entry.get()) {
+        cursor.create_expression_error(
+            anchor, "Library Pack entry did not produce value flow."_view,
+            "Use a Type result only as an access receiver."_view);
+        return False;
+      }
+    }
 
     if (!names.is_empty()) {
       for (Reference<Language::Model::Pack> entry : entries.get_view()) {
         if (entry.get().get_layout().get_size() != 1) {
-          source.report(
+          cursor.create_expression_error(
               anchor,
               "A named Library Pack entry must produce exactly one value."_view,
               "Name each scalar value separately or use positional flow."_view);
@@ -106,14 +119,22 @@ class Group final : public Language::Model::Pack {
     return layout;
   }
 
+  auto get_value_type(Count index) const -> const Abstract& override {
+    auto selected = layout.select(index);
+    if (!selected) {
+      return Invalid::get_invalid();
+    }
+    return entries.at(selected->entry).get().get_value_type(selected->value);
+  }
+
   auto resolve() const -> const Abstract& override {
     return linked ? static_cast<const Language::Model::Pack&>(*this)
                   : static_cast<const Abstract&>(Invalid::get_invalid());
   }
 
-  auto finalize() -> void override {
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> void override {
     for (Reference<Language::Model::Pack> entry : entries.get_view()) {
-      entry.get().finalize();
+      entry.get().finalize(cursor);
     }
   }
 
@@ -284,37 +305,21 @@ auto Language::Model::Pack::get_type() const -> const Abstract& {
     return Invalid::get_invalid();
   }
 
-  return layout.get_abstract(0).visit(
-      []() -> const Abstract& { return Invalid::get_invalid(); },
-      [](const Abstract& entry) -> const Abstract& {
-        auto pack = entry.select<Language::Model::Pack>();
-        if (pack) {
-          return pack->get_type();
-        }
-
-        auto addressable = entry.select<Addressable>();
-        if (addressable) {
-          return addressable->get_type();
-        }
-
-        auto type = entry.select<Type>();
-        return type ? static_cast<const Abstract&>(*type)
-                    : static_cast<const Abstract&>(Invalid::get_invalid());
-      });
+  return get_value_type(0);
 }
 
 static auto select_target_type(const Abstract& target)
-    -> Core::Option<const Type&> {
-  auto direct = target.select<Type>();
+    -> Core::Option<const Language::Model::Type&> {
+  auto direct = target.select<Language::Model::Type>();
   if (direct) {
     return *direct;
   }
 
   const Abstract& resolved = target.resolve();
-  auto addressable = resolved.select<Addressable>();
+  auto addressable = resolved.select<Language::Model::Addressable>();
   const Abstract& selected = addressable ? addressable->get_type() : resolved;
-  direct = selected.select<Type>();
-  return direct ? direct : selected.resolve().select<Type>();
+  direct = selected.select<Language::Model::Type>();
+  return direct ? direct : selected.resolve().select<Language::Model::Type>();
 }
 
 auto Language::Model::Pack::fits_entry(
@@ -372,6 +377,7 @@ auto Language::Model::Pack::fits_at(const Layout& target, Count target_offset)
 }
 
 auto Language::Model::Pack::fits(const Layout& target) const -> Bool {
+  BAIL_IF(&resolve() != this);
   if (get_layout().get_size() == target.get_size() && fits_at(target, 0)) {
     return True;
   }
@@ -380,12 +386,7 @@ auto Language::Model::Pack::fits(const Layout& target) const -> Bool {
   auto target_entry = target.get_abstract(0);
   BAIL_IF(!target_entry);
   auto target_type = select_target_type(*target_entry);
-  auto option = target_type.visit(
-      []() -> Core::Option<const Language::Types::Option&> { return {}; },
-      [](const Type& selected) {
-        return selected.select<Language::Types::Option>();
-      });
-  return option && option->accepts(*this);
+  return target_type && target_type->accepts(*this);
 }
 
 auto Language::Model::Pack::get_fitted_at(
@@ -421,17 +422,21 @@ auto Language::Model::Pack::get_fitted_at(
           });
 }
 
-auto Language::Model::Pack::fits(const Type& target) const -> Bool {
-  return fits(target.get_layout());
+auto Language::Model::Pack::fits(const Ttx::Model::Type& target) const -> Bool {
+  BAIL_IF(&resolve() != this);
+  const Layout& target_layout = target.get_layout();
+  return get_layout().get_size() == target_layout.get_size() &&
+         fits_at(target_layout, 0);
 }
 
-auto Language::Model::Pack::fits_into(const Type& target) const -> Bool {
+auto Language::Model::Pack::fits_into(const Ttx::Model::Type& target) const
+    -> Bool {
   if (fits(target)) {
     return True;
   }
 
-  auto option = target.select<Language::Types::Option>();
-  return option && option->accepts(*this);
+  auto library_target = target.select<Language::Model::Type>();
+  return library_target && library_target->accepts(*this);
 }
 
 auto Language::Model::Pack::create_empty(

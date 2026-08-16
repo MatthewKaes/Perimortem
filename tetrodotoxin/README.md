@@ -87,9 +87,11 @@ Three questions recur when Tetrodotoxin languages meet:
 3. Which Callable does a language select, and how do values fit its
    parameter and result Layouts?
 
-These questions use existing TTX contracts. Tetrodotoxin does not add another
-Type, Addressable, or Callable category. Each concrete language assigns the
-grammar and meaning that turns a shared contract into one of its operations.
+These questions preserve the existing TTX identities and edges. Host-neutral
+Abstract supplies total query hooks, but it does not prescribe receiver roles,
+visibility, scalar families, or defaults. Library refines Type and Addressable
+once to own those CPU-language rules without creating a second semantic
+identity or imposing them on another Dialect's Types.
 
 Together, these objects form the live program in a Workspace. Each Dialect
 contributes objects from its own language. Linking and finalization connect them
@@ -105,8 +107,9 @@ packet -> resize(new_width)    // select and invoke a Callable
 ```
 
 Keeping each Type system with its Dialect lets every language use rules suited
-to its own domain. These operators share TTX contracts, while each Dialect keeps
-its own rules for lookup, visibility, mutation, and evaluation.
+to its own domain. The operators retain TTX edges while Library's Type protocol
+owns lookup, visibility, mutation, default construction, and Static and Self
+receiver policy.
 
 ## Dialects
 
@@ -133,8 +136,10 @@ installed top-level Dialect.
 Some Dialects build on layers from another Dialect. Scene contains one Library
 layer for its CPU state and functions. Shader contains a Library layer for CPU
 helpers and a Render layer for GPU data. These children come from the same
-Dialect instances already installed in the Workspace, so Types and Generic
-materializations remain shared.
+Dialect instances already installed in the Workspace, so grammar and installed
+dependencies stay consistent. Each child Monograph still owns its concrete
+Types and canonical Generic materializations. The Dialect stores no semantic
+identity.
 
 Dependencies always point toward the lower-level language. Scene depends on
 Library. Shader depends on Library and Render. App depends on Library and Scene.
@@ -168,23 +173,28 @@ its parsers from them.
 ## One Workspace lifetime
 
 Tetrodotoxin's Workspace manages several source languages in one shared
-lifetime. It interprets a related group of authored sources and invokes their
-Dialects through the same completion contract:
+lifetime. A direct source is one complete Workspace transaction:
 
 ```text
 source bytes
 -> TTX Tokens
 -> selected Dialect
--> interpret and retain authored identities
--> link contextual routes across the complete source group
--> finalize completed language facts
+-> direct Cursor, Documentation, Anchor, and context inputs
+-> optional parse-valid Monograph in the source Arena
+-> link with the source Cursor
+-> finalize with the source Cursor
+-> retain the Arena and publish the completed Monograph
 -> compilation, tooling, or durable output
 ```
 
-Reading source preserves each authored identity even while some routes remain
-unanswered. Linking connects those routes after the complete source group is
-known. Finalization performs work that needs every linked declaration. The
-Workspace publishes the group only after all three stages succeed.
+Failure at any stage releases the local Arena, and Workspace never accumulates
+an invalid source for later validation. A Package manifest supplies one fixed
+Source table; Workspace interprets all of those members, links every member
+before finalizing any member, and publishes only the completed Package root.
+Workspace retains each successful Monograph's source transaction Arena
+containing the authored bytes, source-backed values, Tokens, and semantic graph. The
+operation-local Cursor publishes textual reports while that transaction is
+active.
 
 Once the Workspace is complete, tools and compilers can use the same facts
 without translating the program into another language's model. Library compiles
@@ -205,8 +215,8 @@ Shader, Linker, and Package retain ownership of their formats and semantics.
 Compiled products keep the facts needed by their next consumer. LLVM IR,
 SPIR-V, debug data, and native objects cannot rebuild the complete language
 model that produced them. A Package Archive serves a different purpose. It
-keeps enough information for Environment to build and complete a fresh
-Workspace without source.
+keeps enough information for Package to rebuild its completed root inside a
+fresh Workspace without source.
 
 ### Semantic reconstruction in durable formats
 

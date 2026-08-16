@@ -3,13 +3,8 @@
 
 #include "tetrodotoxin/library/language/field.hpp"
 
-#include "tetrodotoxin/library/language/constants/option.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/types/composite.hpp"
-#include "tetrodotoxin/library/language/types/option.hpp"
-#include "tetrodotoxin/library/language/types/source.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -60,27 +55,17 @@ static auto parse_writability(
 }
 
 auto Language::Field::interpret(
-    Allocator::Arena& domain,
-    Monograph& source,
     Cursor& cursor,
     Tetrodotoxin::Language::Definition& definition) -> Option<Field&> {
-  auto transaction = cursor.branch();
-  auto host = definition.get_host().select<Language::Types::Composite>();
-  BAIL_IF(!host);
-  auto writability = parse_writability(definition, transaction);
+  Allocator::Arena& domain = cursor.get_arena();
+  // Definition proves the exact Library Type that supplies declaration
+  // context and access authority. Field does not require one concrete host.
+  BAIL_IF(!definition.get_host().is<Language::Model::Type>());
+  auto writability = parse_writability(definition, cursor);
   BAIL_IF(!writability);
-  if (host->is<Language::Types::Source>() &&
-      *writability == Language::Writability::Internal) {
-    transaction.create_token_error(
-        definition.get_name_token(),
-        "Library Source rejects instance state Fields."_view,
-        "Use an ordinary Static Field or move state into a Structure or "
-        "Object."_view);
-    return {};
-  }
 
   if (definition.get_name_token().get_code() != Code::Type::Addressable) {
-    transaction.create_token_error(
+    cursor.create_token_error(
         definition.get_name_token(),
         "Library Fields require an addressable name."_view);
     return {};
@@ -88,41 +73,41 @@ auto Language::Field::interpret(
 
   Option<TypeReference> type;
   Option<Model::Pack&> initializer;
-  if (transaction.matches(Code::Type::Assign)) {
-    transaction.consume();
-    if (Expressions::Initializer::is_next(transaction)) {
+  if (cursor.matches(Code::Type::Assign)) {
+    cursor.consume();
+    if (Expressions::Initializer::is_next(cursor)) {
       auto object_initializer =
-          Expressions::Initializer::parse(domain, source, transaction);
+          Expressions::Initializer::parse(definition.get_host(), cursor);
       BAIL_IF(!object_initializer);
       initializer = *object_initializer;
     } else {
-      initializer = Model::Parser::Pack::parse(domain, source, transaction);
+      initializer = Model::Parser::Pack::parse(definition.get_host(), cursor);
     }
     BAIL_IF(!initializer);
   } else {
-    auto authored_type = TypeReference::parse(source, transaction);
+    auto authored_type = TypeReference::parse(definition.get_host(), cursor);
     BAIL_IF(!authored_type);
     type = *authored_type;
 
-    if (transaction.matches(Code::Type::Assign)) {
-      transaction.consume();
-      if (Expressions::Initializer::is_next(transaction)) {
+    if (cursor.matches(Code::Type::Assign)) {
+      cursor.consume();
+      if (Expressions::Initializer::is_next(cursor)) {
         auto object_initializer =
-            Expressions::Initializer::parse(domain, source, transaction);
+            Expressions::Initializer::parse(definition.get_host(), cursor);
         BAIL_IF(!object_initializer);
         initializer = *object_initializer;
       } else {
-        initializer = Model::Parser::Pack::parse(domain, source, transaction);
+        initializer = Model::Parser::Pack::parse(definition.get_host(), cursor);
       }
       BAIL_IF(!initializer);
     } else if (*writability == Writability::Constant) {
-      transaction.create_token_error(
+      cursor.create_token_error(
           "Library const Fields require an initializer."_view);
       return {};
     }
   }
 
-  Token terminator = transaction.require(
+  Token terminator = cursor.require(
       Code::Type::EndStatement,
       "Library Fields require one terminating `;`."_view);
   BAIL_IF(!terminator);
@@ -131,34 +116,26 @@ auto Language::Field::interpret(
   Field& field = domain.construct_from<Field>([&]() -> Field {
     return Field(domain, definition, *writability, type, initializer);
   });
-  cursor.join(transaction);
   return field;
 }
 
-auto Language::Field::link_type(Tetrodotoxin::Language::Monograph& source)
-    -> Bool {
-  auto composite = get_host().select<Language::Types::Composite>();
-  if (!composite || !type_reference) {
-    source.report(
-        get_anchor(),
-        "Explicit Field linking requires one Composite host and Type route."_view,
-        "Use the authored Field provenance with its exact completion path."_view);
-    return False;
+auto Language::Field::link_declaration_type(Cursor& cursor) -> Bool {
+  if (!type_reference) {
+    return True;
   }
 
-  const Abstract& selected = composite->resolve_type(*type_reference);
-  const Abstract& resolved =
-      selected.is<Type>() ? selected : selected.resolve();
-  auto selected_type = resolved.select<Type>();
+  auto selected = type_reference->resolve_authored(cursor, *this);
+  BAIL_IF(!selected);
+  auto selected_type = selected->select<Language::Model::Type>();
   if (!selected_type) {
-    source.report(
+    cursor.create_expression_error(
         get_type_anchor(),
         "Field Type route did not resolve to one stable Type."_view,
         "Publish the named Type in this Library context before linking."_view);
     return False;
   }
   if (selected_type->get_layout().is_empty()) {
-    source.report(
+    cursor.create_expression_error(
         get_type_anchor(), "Field cannot bind an empty Type Layout."_view,
         "Use the empty Type as a Static namespace or choose a Type with one "
         "value leaf."_view);
@@ -170,19 +147,26 @@ auto Language::Field::link_type(Tetrodotoxin::Language::Monograph& source)
       return True;
     }
 
-    source.report(
+    cursor.create_expression_error(
         get_type_anchor(),
         "Field Type linking selected a different semantic identity."_view,
         "Repeat completion with the same resolved Type edge."_view);
     return False;
   }
 
-  type = Reference<const Type>(*selected_type);
+  type = Reference<const Language::Model::Type>(*selected_type);
   return True;
 }
 
-auto Language::Field::link_initializer(
-    Tetrodotoxin::Language::Monograph& monograph) -> Bool {
+auto Language::Field::link_inferred_declaration_type(Cursor& cursor) -> Bool {
+  if (type_reference) {
+    return True;
+  }
+
+  return link_declaration_initializer(cursor);
+}
+
+auto Language::Field::link_declaration_initializer(Cursor& cursor) -> Bool {
   if (initializer_linked) {
     return True;
   }
@@ -191,23 +175,31 @@ auto Language::Field::link_initializer(
       []() -> Option<Model::Pack&> { return {}; },
       [](Model::Pack& selected) -> Option<Model::Pack&> { return selected; });
   if (!selected_initializer) {
-    monograph.report(
+    cursor.create_expression_error(
         get_anchor(), "Field initializer state is incomplete."_view,
         "Retain one initializer before linking restricted Field access."_view);
     return False;
   }
 
-  // Composite retained this exact Field before linking and exposes only the
-  // completed prefix inside its private transaction. That path authenticates
-  // the real host without inventing another initializer context.
+  // The host retained this exact Field before linking and exposes only its
+  // completed declaration prefix. That path authenticates the real host
+  // without inventing another initializer context.
   // The Field remains the lexical owner of bare names. Its host Type travels
   // separately as access authority so nested expressions never have to infer
   // scope from the concrete declaration category.
-  BAIL_IF(!selected_initializer->link(monograph, *this, get_host()));
+  BAIL_IF(!selected_initializer->link(cursor, *this, get_host()));
+  // Linking a Type name is valid when a later access consumes its identity.
+  // Field is a value owner, so it proves real Pack flow before reading Layout.
+  if (&selected_initializer->resolve() != &*selected_initializer) {
+    cursor.create_expression_error(
+        get_anchor(), "Field initializer did not produce value flow."_view,
+        "Use a Type result only as an access receiver."_view);
+    return False;
+  }
 
   if (!type) {
     if (selected_initializer->get_layout().get_size() != 1) {
-      monograph.report(
+      cursor.create_expression_error(
           get_anchor(),
           "Inferred Field initializer must produce exactly one value."_view,
           "Name an explicit receiving Type for empty or multi-value flow."_view);
@@ -215,14 +207,15 @@ auto Language::Field::link_initializer(
     }
 
     const Abstract& result_type = selected_initializer->get_type();
-    // A scalar Pack can expose one exact Composite Type before that Type
-    // finishes its instance Layout. Inference retains that real identity
-    // directly rather than resolving it to the incomplete sentinel.
-    const Abstract& resolved_type =
-        result_type.is<Type>() ? result_type : result_type.resolve();
-    auto initializer_type = resolved_type.select<Type>();
+    // A scalar Pack can expose one exact Type before that Type finishes its
+    // Layout. Inference retains that real identity directly rather than
+    // resolving it to the incomplete sentinel.
+    const Abstract& resolved_type = result_type.is<Language::Model::Type>()
+                                        ? result_type
+                                        : result_type.resolve();
+    auto initializer_type = resolved_type.select<Language::Model::Type>();
     if (!initializer_type) {
-      monograph.report(
+      cursor.create_expression_error(
           get_anchor(),
           "Inferred Field initializer did not complete one stable Type."_view,
           "Use an initializer whose exact Type settles before Field "
@@ -230,20 +223,20 @@ auto Language::Field::link_initializer(
       return False;
     }
     if (initializer_type->get_layout().is_empty()) {
-      monograph.report(
+      cursor.create_expression_error(
           get_anchor(), "Inferred Field cannot bind an empty Type Layout."_view,
           "Keep the empty result as flow or infer from a Type with one value "
           "leaf."_view);
       return False;
     }
 
-    type = Reference<const Type>(*initializer_type);
+    type = Reference<const Language::Model::Type>(*initializer_type);
     initializer_linked = True;
     return True;
   }
 
   if (!selected_initializer->fits_into(type->get())) {
-    monograph.report(
+    cursor.create_expression_error(
         get_anchor(),
         "Field initializer Pack does not fit the declared Field Type's "
         "Layout."_view,
@@ -256,44 +249,43 @@ auto Language::Field::link_initializer(
   return True;
 }
 
-auto Language::Field::link_constant(
-    Tetrodotoxin::Language::Monograph& source) const -> Bool {
+auto Language::Field::resolve_context(View::Bytes route) const
+    -> const Abstract& {
+  return get_host().resolve_lexical_context(route);
+}
+
+auto Language::Field::link_declaration_constant(Cursor& cursor) const -> Bool {
   if (writability != Writability::Constant || cache_constant()) {
     return True;
   }
 
-  source.report(
+  cursor.create_expression_error(
       get_anchor(),
       "Const Field initializer did not resolve to a compile-time value."_view,
       "Use only fully linked constant Expressions in a const Field."_view);
   return False;
 }
 
-auto Language::Field::validate_publication(
-    Tetrodotoxin::Language::Monograph& source) const -> Bool {
+auto Language::Field::validate_publication(Cursor& cursor) const -> Bool {
   if (!get_definition().is_published()) {
     return True;
   }
 
-  auto composite = get_host().select<Language::Types::Composite>();
-  if (!composite) {
-    source.report(
-        get_anchor(), "A published Field has no Composite host."_view,
-        "Retain the Field on the Composite that owns its declaration."_view);
-    return False;
-  }
-
+  const Model::Type& host = get_host();
   Bool reachable = type_reference.visit(
-      [&]() { return composite->is_externally_reachable(get_type()); },
+      [&]() { return host.is_externally_reachable(get_type()); },
       [&](const TypeReference& reference) {
-        return Bool(
-            &composite->resolve_exported_type(reference) == &get_type());
+        const Abstract* selected = nullptr;
+        reference.resolve(host).visit(
+            [&](const Abstract& resolved) { selected = &resolved; },
+            [](const TypeReference::Failure&) {});
+        return Bool(selected != nullptr && &selected->resolve() == &get_type());
       });
   if (reachable) {
     return True;
   }
 
-  source.report(
+  cursor.create_expression_error(
       get_type_anchor().visit(
           [&]() -> Option<Anchor> { return get_anchor(); },
           [](Anchor selected) -> Option<Anchor> { return selected; }),
@@ -302,9 +294,10 @@ auto Language::Field::validate_publication(
   return False;
 }
 
-auto Language::Field::finalize() -> void {
+auto Language::Field::finalize_declaration(Cursor& cursor) -> Bool {
   initializer.visit(
-      []() {}, [](Model::Pack& selected) { selected.finalize(); });
+      []() {}, [&](Model::Pack& selected) { selected.finalize(cursor); });
+  return validate_publication(cursor);
 }
 
 auto Language::Field::resolve() const -> const Abstract& {
@@ -313,27 +306,6 @@ auto Language::Field::resolve() const -> const Abstract& {
   }
 
   return *this;
-}
-
-auto Language::Field::resolve_context(View::Bytes route) const
-    -> const Abstract& {
-  const Type& host = get_host();
-  return host.visit<Language::Types::Composite>(
-      [&](const Language::Types::Composite& composite) -> const Abstract& {
-        // Field initializers may name another local Addressable without an
-        // explicit receiver. This is lexical declaration lookup, distinct from
-        // `.` selection over a value's Layout.
-        const Abstract& addressable =
-            composite.resolve_lexical_addressable(route, host);
-        if (&addressable != &Invalid::get_invalid()) {
-          return addressable;
-        }
-
-        return composite.resolve_type_root(route, host);
-      },
-      [&](const Abstract&) -> const Abstract& {
-        return host.resolve_context(route);
-      });
 }
 
 auto Language::Field::get_initializer() const -> Option<const Model::Pack&> {
@@ -357,6 +329,8 @@ auto Language::Field::get_constant() const -> Option<Model::Pack&> {
 }
 
 auto Language::Field::cache_constant() const -> Bool {
+  // Folding is reentrant through const references. The explicit state keeps a
+  // cycle distinct from a dynamic value that may settle after another owner.
   if (constant_state == ConstantState::Folded) {
     return True;
   }
@@ -366,15 +340,18 @@ auto Language::Field::cache_constant() const -> Bool {
   }
 
   constant_state = ConstantState::Folding;
-  auto option = get_type().select<Language::Types::Option>();
-  if (option && initializer) {
-    auto fitted = Language::Constants::Option::create_fitted(
-        domain, *option, *initializer);
-    if (fitted) {
-      constant = Reference<Model::Pack>(*fitted);
-      constant_state = ConstantState::Folded;
-      return True;
-    }
+  // The receiving Type gets first refusal because fitting may construct a new
+  // semantic value such as an absent or present Option. Ordinary Types decline
+  // that path and leave constant evaluation to the real source Expression.
+  auto fitted = initializer.visit(
+      []() -> Option<Model::Pack&> { return {}; },
+      [&](Model::Pack& source) {
+        return get_type().create_fitted(domain, source);
+      });
+  if (fitted) {
+    constant = Reference<Model::Pack>(*fitted);
+    constant_state = ConstantState::Folded;
+    return True;
   }
 
   auto expression = initializer.visit(
@@ -387,6 +364,9 @@ auto Language::Field::cache_constant() const -> Bool {
 
   expression->fold().visit(
       [&](const Option<Model::Pack&>& folded) {
+        // Absence is not permanent failure. Another const dependency can finish
+        // during this closure, after which the same Field may be attempted
+        // again.
         if (!folded) {
           constant_state = ConstantState::Unresolved;
           return;

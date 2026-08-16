@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/parser/literal.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 
 #include "perimortem/core/algorithm/search.hpp"
 
@@ -104,19 +105,16 @@ class LiteralContext : public Abstract {
 static auto create_monograph(
     Allocator::Arena& domain,
     Library::Dialect& dialect,
-    Abstract& context) -> Option<Library::Language::Monograph&> {
+    Abstract& context)
+    -> Option<Library::Language::Monograph&> {
   Errors errors;
   Tokenizer tokenizer(domain, ""_view, "literal-source.ttx"_view);
   Cursor cursor(tokenizer, errors);
-  auto interpreted = dialect.interpret(
-      domain, cursor, Documentation::get_empty(), Anchor::create(Span()),
-      context);
-  if (!interpreted || !errors.is_empty() ||
-      !interpreted->is<Library::Language::Monograph>()) {
-    return {};
-  }
-
-  return static_cast<Library::Language::Monograph&>(*interpreted);
+  Anchor source_anchor = Anchor::create(Span());
+  auto monograph = dialect.interpret(
+      cursor, Documentation::get_empty(), source_anchor, context);
+  BAIL_IF(!monograph || !errors.is_empty());
+  return monograph->select<Library::Language::Monograph>();
 }
 
 static auto matches_token(const Cursor& cursor, Token expected) -> Bool {
@@ -127,13 +125,13 @@ static auto matches_token(const Cursor& cursor, Token expected) -> Bool {
 
 static auto parse_one(
     Allocator::Arena& domain,
-    Library::Language::Monograph& monograph,
+    const Abstract& context,
     View::Bytes source,
     Errors& errors) -> Option<Library::Language::Constant&> {
   Tokenizer tokenizer(domain, source, "literal.ttx"_view);
   Cursor cursor(tokenizer, errors);
   auto parsed =
-      Library::Language::Parser::Literal::parse(domain, monograph, cursor);
+      Library::Language::Parser::Literal::parse(context, cursor);
   if (parsed && !cursor.matches(Code::Type::Terminal)) {
     return {};
   }
@@ -143,27 +141,27 @@ static auto parse_one(
 
 static auto rejects(
     Allocator::Arena& domain,
-    Library::Language::Monograph& monograph,
+    const Abstract& context,
     View::Bytes source) -> Bool {
   Errors errors;
   Tokenizer tokenizer(domain, source, "rejected-literal.ttx"_view);
   Cursor cursor(tokenizer, errors);
   Token start = cursor.current();
   auto parsed =
-      Library::Language::Parser::Literal::parse(domain, monograph, cursor);
+      Library::Language::Parser::Literal::parse(context, cursor);
   return !parsed && matches_token(cursor, start) && !errors.is_empty();
 }
 
 static auto render_rejection(
     Allocator::Arena& domain,
-    Library::Language::Monograph& monograph,
+    const Abstract& context,
     View::Bytes source) -> Dynamic::Bytes {
   Errors errors;
   Tokenizer tokenizer(domain, source, "diagnostic-literal.ttx"_view);
   Cursor cursor(tokenizer, errors);
   Token start = cursor.current();
   auto parsed =
-      Library::Language::Parser::Literal::parse(domain, monograph, cursor);
+      Library::Language::Parser::Literal::parse(context, cursor);
   if (parsed || !matches_token(cursor, start) || errors.get_size() != 1) {
     return Dynamic::Bytes("unexpected literal diagnostic state"_view);
   }
@@ -183,23 +181,23 @@ PERIMORTEM_UNIT_TEST(LiteralTests, scalar_inference) {
   Library::Dialect dialect;
   auto monograph = create_monograph(domain, dialect, context);
   ASSERT(monograph);
+  auto& graph = *monograph;
   Errors errors;
   Tokenizer tokenizer(
       domain, "true false 42 0x2A -7 1.5"_view, "scalars.ttx"_view);
   Cursor cursor(tokenizer, errors);
 
   auto true_value =
-      Library::Language::Parser::Literal::parse(domain, *monograph, cursor);
+      Library::Language::Parser::Literal::parse(graph, cursor);
   auto false_value =
-      Library::Language::Parser::Literal::parse(domain, *monograph, cursor);
+      Library::Language::Parser::Literal::parse(graph, cursor);
   auto decimal =
-      Library::Language::Parser::Literal::parse(domain, *monograph, cursor);
+      Library::Language::Parser::Literal::parse(graph, cursor);
   auto hexadecimal =
-      Library::Language::Parser::Literal::parse(domain, *monograph, cursor);
+      Library::Language::Parser::Literal::parse(graph, cursor);
   auto signed_value =
-      Library::Language::Parser::Literal::parse(domain, *monograph, cursor);
-  auto real =
-      Library::Language::Parser::Literal::parse(domain, *monograph, cursor);
+      Library::Language::Parser::Literal::parse(graph, cursor);
+  auto real = Library::Language::Parser::Literal::parse(graph, cursor);
 
   ASSERT(
       true_value && false_value && decimal && hexadecimal && signed_value &&
@@ -220,23 +218,29 @@ PERIMORTEM_UNIT_TEST(LiteralTests, scalar_inference) {
   EXPECT_NOT(
       static_cast<const Library::Language::Constants::Flag&>(*false_value)
           .get_value());
-  EXPECT(&true_value->get_type() == &Library::Dialect::get_bool());
+  EXPECT(&true_value->get_type() == &resolve_library_flag(graph));
   EXPECT(
       static_cast<const Library::Language::Constants::Unsigned&>(*decimal)
           .get_value() == 42);
   EXPECT(
       static_cast<const Library::Language::Constants::Unsigned&>(*hexadecimal)
           .get_value() == 42);
-  EXPECT(&decimal->get_type() == &Library::Dialect::get_unsigned_64());
-  EXPECT(&hexadecimal->get_type() == &Library::Dialect::get_unsigned_64());
+  EXPECT(
+      &decimal->get_type() ==
+      &resolve_library_unsigned(graph, "Unsigned_64"_view));
+  EXPECT(
+      &hexadecimal->get_type() ==
+      &resolve_library_unsigned(graph, "Unsigned_64"_view));
   EXPECT(
       static_cast<const Library::Language::Constants::Signed&>(*signed_value)
           .get_value() == -7);
-  EXPECT(&signed_value->get_type() == &Library::Dialect::get_signed_64());
+  EXPECT(
+      &signed_value->get_type() ==
+      &resolve_library_signed(graph, "Signed_64"_view));
   EXPECT(
       static_cast<const Library::Language::Constants::Real&>(*real)
           .get_value() == Real_64(1.5));
-  EXPECT(&real->get_type() == &Library::Dialect::get_real_64());
+  EXPECT(&real->get_type() == &resolve_library_real(graph, "Real_64"_view));
   EXPECT(cursor.matches(Code::Type::Terminal));
   EXPECT(errors.is_empty());
 }
@@ -248,17 +252,17 @@ PERIMORTEM_UNIT_TEST(LiteralTests, byte_domains) {
   Library::Dialect dialect;
   auto monograph = create_monograph(domain, dialect, context);
   ASSERT(monograph);
+  auto& graph = *monograph;
   Errors errors;
   Dynamic::Bytes source("\"a\\\"b\" 0x[54\t54\n58\r31] \"\""_view);
   Tokenizer tokenizer(domain, source, "bytes.ttx"_view);
   Cursor cursor(tokenizer, errors);
 
   auto quoted =
-      Library::Language::Parser::Literal::parse(domain, *monograph, cursor);
+      Library::Language::Parser::Literal::parse(graph, cursor);
   auto hexadecimal =
-      Library::Language::Parser::Literal::parse(domain, *monograph, cursor);
-  auto empty =
-      Library::Language::Parser::Literal::parse(domain, *monograph, cursor);
+      Library::Language::Parser::Literal::parse(graph, cursor);
+  auto empty = Library::Language::Parser::Literal::parse(graph, cursor);
 
   ASSERT(quoted && hexadecimal && empty);
   ASSERT(quoted->is<Library::Language::Constants::Bytes>());
@@ -279,7 +283,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, byte_domains) {
       static_cast<const Library::Language::Types::Fixed&>(quoted->get_type());
   EXPECT(quoted_type.get_extent() == 3);
   EXPECT(
-      &quoted_type.get_element_type() == &Library::Dialect::get_unsigned_8());
+      &quoted_type.get_element_type() ==
+      &resolve_library_unsigned(graph, "Unsigned_8"_view));
   EXPECT(cursor.matches(Code::Type::Terminal));
   EXPECT(errors.is_empty());
 }
@@ -291,22 +296,23 @@ PERIMORTEM_UNIT_TEST(LiteralTests, real_64_domain) {
   Library::Dialect dialect;
   auto monograph = create_monograph(domain, dialect, context);
   ASSERT(monograph);
+  auto& source = *monograph;
   Errors tiny_errors;
   Errors wide_errors;
 
   auto tiny = parse_one(
-      domain, *monograph,
+      domain, source,
       "0.000000000000000000000000000000000000000000000000001"_view,
       tiny_errors);
   auto wide = parse_one(
-      domain, *monograph, "999999999999999999999999999999999999999.0"_view,
+      domain, source, "999999999999999999999999999999999999999.0"_view,
       wide_errors);
 
   ASSERT(tiny && wide);
   ASSERT(tiny->is<Library::Language::Constants::Real>());
   ASSERT(wide->is<Library::Language::Constants::Real>());
-  EXPECT(&tiny->get_type() == &Library::Dialect::get_real_64());
-  EXPECT(&wide->get_type() == &Library::Dialect::get_real_64());
+  EXPECT(&tiny->get_type() == &resolve_library_real(source, "Real_64"_view));
+  EXPECT(&wide->get_type() == &resolve_library_real(source, "Real_64"_view));
   EXPECT(
       static_cast<const Library::Language::Constants::Real&>(*tiny)
           .get_value() > Real_64(0));
@@ -324,13 +330,14 @@ PERIMORTEM_UNIT_TEST(LiteralTests, diagnostic_feedback) {
   Library::Dialect dialect;
   auto monograph = create_monograph(domain, dialect, context);
   ASSERT(monograph);
+  auto& source = *monograph;
 
   Dynamic::Bytes integer =
-      render_rejection(domain, *monograph, "18446744073709551616"_view);
+      render_rejection(domain, source, "18446744073709551616"_view);
   Dynamic::Bytes negative =
-      render_rejection(domain, *monograph, "-9223372036854775809"_view);
-  Dynamic::Bytes bytes = render_rejection(domain, *monograph, "0x[F]"_view);
-  Dynamic::Bytes operand = render_rejection(domain, *monograph, "value"_view);
+      render_rejection(domain, source, "-9223372036854775809"_view);
+  Dynamic::Bytes bytes = render_rejection(domain, source, "0x[F]"_view);
+  Dynamic::Bytes operand = render_rejection(domain, source, "value"_view);
 
   EXPECT(contains(integer, "Unable to parse unsigned literal value."_view));
   EXPECT(contains(negative, "Unable to parse signed literal value."_view));
@@ -347,13 +354,14 @@ PERIMORTEM_UNIT_TEST(LiteralTests, malformed_ranges) {
   Library::Dialect dialect;
   auto monograph = create_monograph(domain, dialect, context);
   ASSERT(monograph);
+  auto& source = *monograph;
 
-  EXPECT(rejects(domain, *monograph, "18446744073709551616"_view));
-  EXPECT(rejects(domain, *monograph, "-9223372036854775809"_view));
-  EXPECT(rejects(domain, *monograph, "0x10000000000000000"_view));
-  EXPECT(rejects(domain, *monograph, "0x[F]"_view));
-  EXPECT(rejects(domain, *monograph, "0x[GG]"_view));
-  EXPECT(rejects(domain, *monograph, "value"_view));
+  EXPECT(rejects(domain, source, "18446744073709551616"_view));
+  EXPECT(rejects(domain, source, "-9223372036854775809"_view));
+  EXPECT(rejects(domain, source, "0x10000000000000000"_view));
+  EXPECT(rejects(domain, source, "0x[F]"_view));
+  EXPECT(rejects(domain, source, "0x[GG]"_view));
+  EXPECT(rejects(domain, source, "value"_view));
 }
 
 PERIMORTEM_UNIT_TEST(LiteralTests, embedded_resolution) {
@@ -363,24 +371,25 @@ PERIMORTEM_UNIT_TEST(LiteralTests, embedded_resolution) {
   Library::Dialect dialect;
   auto monograph = create_monograph(domain, dialect, context);
   ASSERT(monograph);
+  auto& source = *monograph;
   View::Bytes table_backing = context.table.get_value();
   Errors errors;
   Tokenizer tokenizer(domain, "$[table] $[empty]"_view, "embedded.ttx"_view);
   Cursor cursor(tokenizer, errors);
 
   auto table =
-      Library::Language::Parser::Literal::parse(domain, *monograph, cursor);
+      Library::Language::Parser::Literal::parse(source, cursor);
   EXPECT(observations.table_seen);
   auto empty =
-      Library::Language::Parser::Literal::parse(domain, *monograph, cursor);
+      Library::Language::Parser::Literal::parse(source, cursor);
   EXPECT(observations.empty_seen);
 
   Errors postfix_errors;
   Tokenizer postfix_tokenizer(
       domain, "$[table]:[2, 4]"_view, "postfix-slice.ttx"_view);
   Cursor postfix_cursor(postfix_tokenizer, postfix_errors);
-  auto postfix_base = Library::Language::Parser::Literal::parse(
-      domain, *monograph, postfix_cursor);
+  auto postfix_base =
+      Library::Language::Parser::Literal::parse(source, postfix_cursor);
 
   ASSERT(table && empty && postfix_base);
   ASSERT(table->is<Library::Language::Constants::Bytes>());
@@ -402,8 +411,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, embedded_resolution) {
   EXPECT(postfix_cursor.matches(Code::Type::ValueAccessOp));
   EXPECT(errors.is_empty());
   EXPECT(postfix_errors.is_empty());
-  EXPECT(rejects(domain, *monograph, "$[missing]"_view));
-  EXPECT(rejects(domain, *monograph, "$[other]"_view));
+  EXPECT(rejects(domain, source, "$[missing]"_view));
+  EXPECT(rejects(domain, source, "$[other]"_view));
 }
 
 PERIMORTEM_UNIT_TEST(LiteralTests, contextual_error) {
@@ -414,12 +423,13 @@ PERIMORTEM_UNIT_TEST(LiteralTests, contextual_error) {
   Library::Dialect dialect;
   auto monograph = create_monograph(domain, dialect, context);
   ASSERT(monograph);
+  auto& source = *monograph;
   Errors errors;
   Tokenizer tokenizer(domain, "\n$[error]"_view, "resource-error.ttx"_view);
   Cursor cursor(tokenizer, errors);
 
   auto parsed =
-      Library::Language::Parser::Literal::parse(domain, *monograph, cursor);
+      Library::Language::Parser::Literal::parse(source, cursor);
   View::Bytes rendered = errors.render_message(render_arena, 0);
 
   EXPECT_NOT(parsed);

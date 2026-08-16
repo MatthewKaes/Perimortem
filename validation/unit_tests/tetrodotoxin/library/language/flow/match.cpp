@@ -20,6 +20,7 @@
 #include "tetrodotoxin/library/language/types/option.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/addressable.hpp"
 
 using namespace Perimortem::Core;
@@ -73,7 +74,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  return monograph && !workspace.link(errors) && !errors.is_empty();
+  return !monograph && !errors.is_empty();
 }
 
 PERIMORTEM_UNIT_TEST(MatchTests, ordered_cases_and_complete_flag_coverage) {
@@ -94,16 +95,14 @@ PERIMORTEM_UNIT_TEST(MatchTests, ordered_cases_and_complete_flag_coverage) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto function = find_function(monograph->get_source(), "choose"_view);
   ASSERT(function && function->get_body());
   auto statements = function->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(2));
-  const Abstract& outer = statements.get_data()[0].get();
-  const auto& match =
-      static_cast<const Language::Flow::Match&>(statements.get_data()[1].get());
+  const Abstract& outer = statements.get_data()[0].get_abstract();
+  const auto& match = static_cast<const Language::Flow::Match&>(
+      statements.get_data()[1].get_abstract());
   auto parameter = function->get_parameters().get_abstract(0);
   ASSERT(parameter);
   EXPECT(&match.get_input().get_result() == &*parameter);
@@ -134,8 +133,11 @@ PERIMORTEM_UNIT_TEST(MatchTests, ordered_cases_and_complete_flag_coverage) {
 
   const Abstract& retained_input = match.get_input();
   const Language::Constant& retained_case = *second;
-  ASSERT(monograph->link());
-  ASSERT(monograph->finalize());
+  Perimortem::Memory::Allocator::Arena transaction;
+  Tokenizer tokenizer(transaction, source, "match.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  ASSERT(monograph->link(cursor));
+  ASSERT(monograph->finalize(cursor));
   EXPECT(&match.get_input() == &retained_input);
   EXPECT(&*match.get_case_constant(1) == &retained_case);
   EXPECT(errors.is_empty());
@@ -155,13 +157,11 @@ PERIMORTEM_UNIT_TEST(MatchTests, folded_case_and_final_default) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto function = find_function(monograph->get_source(), "choose"_view);
   ASSERT(function && function->get_body());
   const auto& match = static_cast<const Language::Flow::Match&>(
-      function->get_body()->get_statements().get_data()[0].get());
+      function->get_body()->get_statements().get_data()[0].get_abstract());
   auto folded = match.get_case_constant(0);
   ASSERT(folded && folded->is<Language::Constants::Unsigned>());
   EXPECT_EQ(
@@ -197,21 +197,19 @@ PERIMORTEM_UNIT_TEST(MatchTests, case_blocks_inherit_the_nearest_loop) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto function = find_function(monograph->get_source(), "run"_view);
   ASSERT(function && function->get_body());
   const auto& loop = static_cast<const Language::Flow::Branch&>(
-      function->get_body()->get_statements().get_data()[0].get());
+      function->get_body()->get_statements().get_data()[0].get_abstract());
   const auto& match = static_cast<const Language::Flow::Match&>(
-      loop.get_body().get_statements().get_data()[0].get());
+      loop.get_body().get_statements().get_data()[0].get_abstract());
   ASSERT(match.get_case_body(0));
   ASSERT(match.get_case_body(1));
   const auto& continued = static_cast<const Language::Flow::LoopControl&>(
-      match.get_case_body(0)->get_statements().get_data()[0].get());
+      match.get_case_body(0)->get_statements().get_data()[0].get_abstract());
   const auto& broken = static_cast<const Language::Flow::LoopControl&>(
-      match.get_case_body(1)->get_statements().get_data()[0].get());
+      match.get_case_body(1)->get_statements().get_data()[0].get_abstract());
   EXPECT(&continued.get_target() == &loop);
   EXPECT(&broken.get_target() == &loop);
   EXPECT(errors.is_empty());
@@ -232,13 +230,11 @@ PERIMORTEM_UNIT_TEST(MatchTests, option_patterns_are_exact_and_branch_local) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   auto choose = find_function(monograph->get_source(), "choose"_view);
   ASSERT(choose && choose->get_body());
   const auto& first = static_cast<const Language::Flow::Match&>(
-      choose->get_body()->get_statements().get_data()[0].get());
+      choose->get_body()->get_statements().get_data()[0].get_abstract());
 
   ASSERT_EQ(first.get_case_count(), Count(1));
   ASSERT(first.get_case_kind(0));
@@ -246,7 +242,8 @@ PERIMORTEM_UNIT_TEST(MatchTests, option_patterns_are_exact_and_branch_local) {
 
   auto payload = first.get_case_payload(0);
   ASSERT(payload);
-  EXPECT(&payload->get_type() == &Dialect::get_unsigned_64());
+  EXPECT(
+      &payload->get_type() == &monograph->resolve_context("Unsigned_64"_view));
   ASSERT(first.get_case_body(0));
   ASSERT(first.get_default());
   EXPECT(&first.get_case_body(0)->resolve_context("item"_view) == &*payload);
@@ -258,8 +255,11 @@ PERIMORTEM_UNIT_TEST(MatchTests, option_patterns_are_exact_and_branch_local) {
 
   const Abstract& retained_input = first.get_input();
   const Ttx::Model::Addressable& retained_payload = *payload;
-  ASSERT(monograph->link());
-  ASSERT(monograph->finalize());
+  Perimortem::Memory::Allocator::Arena transaction;
+  Tokenizer tokenizer(transaction, source, "match.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  ASSERT(monograph->link(cursor));
+  ASSERT(monograph->finalize(cursor));
   EXPECT(&first.get_input() == &retained_input);
   EXPECT(&*first.get_case_payload(0) == &retained_payload);
   EXPECT(errors.is_empty());

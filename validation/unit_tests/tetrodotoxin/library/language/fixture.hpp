@@ -1,0 +1,77 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/model/types/flag.hpp"
+#include "tetrodotoxin/library/language/model/types/real.hpp"
+#include "tetrodotoxin/library/language/model/types/signed.hpp"
+#include "tetrodotoxin/library/language/model/types/unsigned.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
+#include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/span.hpp"
+#include "ttx/lexical/tokenizer.hpp"
+
+namespace Validation {
+
+// Direct semantic unit tests still use a real Library root. The temporary
+// Cursor only opens that root in the supplied Arena. Every resulting identity
+// remains owned by the Arena and is reached through the Monograph graph.
+inline auto create_library_monograph(
+    Perimortem::Memory::Allocator::Arena& arena,
+    Tetrodotoxin::Library::Dialect& dialect)
+    -> Tetrodotoxin::Library::Language::Monograph& {
+  Ttx::Lexical::Errors errors;
+  Ttx::Lexical::Tokenizer tokenizer(arena, {}, {});
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  return Tetrodotoxin::Library::Language::Monograph::create_authored(
+      cursor, Ttx::Concept::Documentation::get_empty(),
+      Ttx::Lexical::Anchor::create(Ttx::Lexical::Span()), dialect, dialect);
+}
+
+inline auto resolve_library_flag(
+    const Tetrodotoxin::Library::Language::Monograph& monograph)
+    -> const Tetrodotoxin::Library::Language::Model::Types::Flag& {
+  return static_cast<
+      const Tetrodotoxin::Library::Language::Model::Types::Flag&>(
+      monograph.resolve_context("Bool"_view));
+}
+
+inline auto resolve_library_unsigned(
+    const Tetrodotoxin::Library::Language::Monograph& monograph,
+    Perimortem::Core::View::Bytes name)
+    -> const Tetrodotoxin::Library::Language::Model::Types::Unsigned& {
+  return static_cast<
+      const Tetrodotoxin::Library::Language::Model::Types::Unsigned&>(
+      monograph.resolve_context(name));
+}
+
+inline auto resolve_library_signed(
+    const Tetrodotoxin::Library::Language::Monograph& monograph,
+    Perimortem::Core::View::Bytes name)
+    -> const Tetrodotoxin::Library::Language::Model::Types::Signed& {
+  return static_cast<
+      const Tetrodotoxin::Library::Language::Model::Types::Signed&>(
+      monograph.resolve_context(name));
+}
+
+inline auto resolve_library_real(
+    const Tetrodotoxin::Library::Language::Monograph& monograph,
+    Perimortem::Core::View::Bytes name)
+    -> const Tetrodotoxin::Library::Language::Model::Types::Real& {
+  return static_cast<
+      const Tetrodotoxin::Library::Language::Model::Types::Real&>(
+      monograph.resolve_context(name));
+}
+
+inline auto resolve_library_type(
+    const Tetrodotoxin::Library::Language::Monograph& monograph,
+    Perimortem::Core::View::Bytes name)
+    -> const Tetrodotoxin::Library::Language::Model::Type& {
+  return static_cast<const Tetrodotoxin::Library::Language::Model::Type&>(
+      monograph.resolve_context(name));
+}
+
+}  // namespace Validation

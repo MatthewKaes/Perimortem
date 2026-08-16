@@ -14,24 +14,31 @@ using namespace Validation;
 
 class TestDialect : public Language::Dialect {
  public:
+  TestDialect(View::Bytes name) : Language::Dialect(name) {}
+
   auto interpret(
-      Allocator::Arena&,
       Cursor&,
       const Documentation&,
       const Anchor&,
-      Language::Diagnostics&,
       Abstract&) -> Option<Language::Monograph&> override {
     return {};
   }
 };
 
-class IndependentDialect : public TestDialect {};
+class IndependentDialect : public TestDialect {
+ public:
+  using TestDialect::TestDialect;
+};
 
-class LowerDialect : public TestDialect {};
+class LowerDialect : public TestDialect {
+ public:
+  using TestDialect::TestDialect;
+};
 
 class MiddleDialect : public TestDialect {
  public:
-  explicit MiddleDialect(LowerDialect& lower) : lower(lower) {}
+  MiddleDialect(View::Bytes name, LowerDialect& lower)
+      : TestDialect(name), lower(lower) {}
 
   auto get_lower() const -> const LowerDialect& { return lower; }
 
@@ -41,7 +48,8 @@ class MiddleDialect : public TestDialect {
 
 class LeftDialect : public TestDialect {
  public:
-  explicit LeftDialect(LowerDialect& lower) : lower(lower) {}
+  LeftDialect(View::Bytes name, LowerDialect& lower)
+      : TestDialect(name), lower(lower) {}
 
   auto get_lower() const -> const LowerDialect& { return lower; }
 
@@ -51,7 +59,8 @@ class LeftDialect : public TestDialect {
 
 class RightDialect : public TestDialect {
  public:
-  explicit RightDialect(LowerDialect& lower) : lower(lower) {}
+  RightDialect(View::Bytes name, LowerDialect& lower)
+      : TestDialect(name), lower(lower) {}
 
   auto get_lower() const -> const LowerDialect& { return lower; }
 
@@ -61,8 +70,11 @@ class RightDialect : public TestDialect {
 
 class TopDialect : public TestDialect {
  public:
-  TopDialect(LeftDialect& left, RightDialect& right)
-      : left(left), right(right) {}
+  TopDialect(
+      View::Bytes name,
+      LeftDialect& left,
+      RightDialect& right)
+      : TestDialect(name), left(left), right(right) {}
 
   auto get_left() const -> const LeftDialect& { return left; }
   auto get_right() const -> const RightDialect& { return right; }
@@ -74,13 +86,15 @@ class TopDialect : public TestDialect {
 
 class RootDialect : public TestDialect {
  public:
-  RootDialect() = default;
-  explicit RootDialect(Language::Dialect&) {}
+  RootDialect(View::Bytes name) : TestDialect(name) {}
+
+  RootDialect(View::Bytes name, Language::Dialect&) : TestDialect(name) {}
 };
 
 class ChildDialect : public TestDialect {
  public:
-  explicit ChildDialect(RootDialect& root) : root(root) {}
+  ChildDialect(View::Bytes name, RootDialect& root)
+      : TestDialect(name), root(root) {}
 
   auto get_root() const -> const RootDialect& { return root; }
 
@@ -127,7 +141,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentDialects, shared_diamond) {
 PERIMORTEM_UNIT_TEST(EnvironmentDialects, rejects_unowned_dependencies) {
   Environment::Workspace local;
   Environment::Workspace foreign;
-  RootDialect missing;
+  RootDialect missing("Missing"_view);
 
   auto missing_result =
       local.install_dialect<ChildDialect>("Missing"_view, missing);
@@ -140,7 +154,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentDialects, rejects_unowned_dependencies) {
   EXPECT_NOT(foreign_result);
 }
 
-PERIMORTEM_UNIT_TEST(EnvironmentDialects, rejects_duplicates_and_cycle) {
+PERIMORTEM_UNIT_TEST(EnvironmentDialects, maps_names_to_instances) {
   Environment::Workspace workspace;
 
   auto root = workspace.install_dialect<RootDialect>("Root"_view);
@@ -149,7 +163,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentDialects, rejects_duplicates_and_cycle) {
   ASSERT(child);
 
   EXPECT_NOT(workspace.install_dialect<IndependentDialect>("Root"_view));
-  EXPECT_NOT(workspace.install_dialect<RootDialect>("SecondRoot"_view));
-  EXPECT_NOT(workspace.install_dialect<RootDialect>("CycleRoot"_view, *child));
+  EXPECT(workspace.install_dialect<RootDialect>("SecondRoot"_view));
+  EXPECT(workspace.install_dialect<RootDialect>("ContextRoot"_view, *child));
   EXPECT(&child->get_root() == root);
 }

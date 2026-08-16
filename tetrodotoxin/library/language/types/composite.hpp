@@ -11,26 +11,24 @@
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
-#include "tetrodotoxin/library/language/type_reference.hpp"
-#include "tetrodotoxin/library/language/types/defined.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/layouts/named.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Composite owns the member inventories, lookup categories, state-only Layout,
+// Composite owns the member inventories, lookup categories, instance Layout,
 // and completion lifecycle shared by Source, Structure, and Object. Each
 // concrete Type supplies its own presentation and authored semantics.
-class Composite : public Defined {
+class Composite : public Model::Type {
  public:
   // Category names the three independent declaration spaces owned by a
   // Composite. It is transaction input, not a property recovered from an
   // Alias. Forward parsing or an imported provider already proves the space,
   // so an opaque name can enter it before its target graph completes.
-  enum class Category : Unsigned_8 {
+  enum class Category : ::Unsigned_8 {
     Addressable,
     Callable,
     Type,
@@ -49,89 +47,95 @@ class Composite : public Defined {
 
   auto can_bind_definition(
       const Ttx::Concept::Abstract& binding,
-      Category category,
-      Bool callable_declares_self) const -> Bool;
+      Category category) const -> Bool;
 
-  auto publish_binding(Ttx::Concept::Abstract& binding, Category category)
-      -> void;
+  auto publish_binding(
+      Ttx::Concept::Abstract& binding,
+      Category category,
+      Bool published) -> void;
 
   virtual auto retain_binding(
       Ttx::Concept::Abstract& binding,
-      Category category) -> Bool;
+      Tetrodotoxin::Language::Definition& definition,
+      Category category,
+      Ttx::Lexical::Cursor& cursor) -> Bool;
 
   auto complete_field_layout() -> void;
 
-  // Hosting is provenance and access authority rather than universal semantic
-  // parentage. Following only the required Definition host chain reaches the
-  // one Monograph that owns this Composite's completion transaction.
-  auto get_monograph() -> Tetrodotoxin::Language::Monograph&;
-
-  auto get_monograph() const -> const Tetrodotoxin::Language::Monograph&;
+  // Source owns the closure barrier. These tree operations settle forward
+  // Alias routes without making an Alias discover or complete its siblings.
+  auto link_aliases() -> Count override;
+  auto validate_aliases(Ttx::Lexical::Cursor& cursor) const -> Bool override;
 
  public:
-  TTX_CONTRACT(Composite, Defined);
+  TTX_CONTRACT(Composite, Model::Type);
 
   Composite(const Composite&) = delete;
   Composite(Composite&&) = delete;
   auto operator=(const Composite&) -> Composite& = delete;
   auto operator=(Composite&&) -> Composite& = delete;
 
-  // A target grants private authority only to callers whose Definition host
-  // chain contains this Type. The caller chain authenticates access without
-  // becoming a semantic parent route or supplying an implicit receiver.
-  auto grants_private_access(const Ttx::Model::Type& caller_scope) const
-      -> Bool;
+  constexpr auto get_definition() const
+      -> const Tetrodotoxin::Language::Definition& {
+    return definition;
+  }
 
-  // Addressable selection is local to this exact Composite category. The
-  // caller scope controls publication filtering, while an incomplete inferred
-  // Field remains unavailable until its declaration has established a Type.
-  auto resolve_lexical_addressable(
-      Perimortem::Core::View::Bytes route,
-      const Ttx::Model::Type& caller_scope) const
-      -> const Ttx::Concept::Abstract&;
+  constexpr auto get_host() -> Ttx::Concept::Abstract& {
+    return definition.get_host();
+  }
 
-  // A lexical root may climb only this Composite's Definition host chain. Each
-  // visited Composite authenticates the unchanged caller before exposing a
-  // private Type; the final source context and intrinsic lookup remain public
-  // owner-directed fallbacks.
-  auto resolve_type_root(
-      Perimortem::Core::View::Bytes route,
-      const Ttx::Model::Type& caller_scope) const
-      -> const Ttx::Concept::Abstract&;
+  constexpr auto get_host() const -> const Ttx::Concept::Abstract& {
+    return definition.get_host();
+  }
 
-  // An explicit qualification segment selects only this Composite's local Type
-  // category. Missing `receiver::name` never escapes into the receiver's host.
-  auto resolve_type(
-      Perimortem::Core::View::Bytes route,
-      const Ttx::Model::Type& caller_scope) const
-      -> const Ttx::Concept::Abstract&;
+  constexpr auto get_anchor() const -> Ttx::Lexical::Anchor {
+    return definition.get_anchor();
+  }
 
-  // Authored Type access starts in this declaration scope and preserves that
-  // exact caller authority through every qualified segment.
-  auto resolve_type(const TypeReference& reference) const
-      -> const Ttx::Concept::Abstract&;
+  TTX_NAME(definition.get_name());
+  TTX_DOCUMENTATION(definition.get_documentation());
 
-  // Publication checks begin with this Composite's exported Types and then
-  // walk its enclosing exported Type chain before consulting intrinsics.
-  auto resolve_exported_type(const TypeReference& reference) const
-      -> const Ttx::Concept::Abstract&;
+  // A caller carries private authority only through its exact Definition host
+  // chain. The chain authenticates access without becoming a semantic parent
+  // route or supplying an implicit receiver.
+  auto has_private_access_to(const Model::Type& owner) const -> Bool override;
 
-  auto is_externally_reachable(const Ttx::Model::Type& type) const -> Bool;
+  auto is_externally_reachable(const Model::Type& type) const -> Bool override;
 
   // Declaration Types settle recursively before any Composite in the same
   // closure may complete Field Type edges.
-  auto link_types() -> Bool;
-  auto link_fields() -> Bool;
-  auto link_initializers() -> Bool;
-  auto link_callable_signatures() -> Bool;
-  auto link_callable_bodies() -> Bool;
-  auto finalize() -> Bool;
+  auto link_types(Ttx::Lexical::Cursor& cursor) -> Bool override;
+  auto link_fields(Ttx::Lexical::Cursor& cursor) -> Bool override;
+  auto validate_layout(Ttx::Lexical::Cursor& cursor) const -> Bool override;
+  auto link_initializers(Ttx::Lexical::Cursor& cursor) -> Bool override;
+  auto link_callable_signatures(Ttx::Lexical::Cursor& cursor) -> Bool override;
+  auto link_callable_bodies(Ttx::Lexical::Cursor& cursor) -> Bool override;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
-  // Contextless lookup exposes only Types. Address access selects Fields
-  // through the instance Layout and applies publication plus host authority.
+  // An explicit context query exposes only public Type names. A missing local
+  // name forwards outward, but a selected Composite never lends private
+  // declaration authority to the remainder of a qualified route.
   auto resolve_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  // Declaration owners use this one name query for their unqualified root.
+  // Actual containment grants local access without attaching authority to any
+  // later segment selected by TypeReference.
+  auto resolve_lexical_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto resolve_type_access(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route,
+      Model::Type::Access access) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto resolve_type_call(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route,
+      Model::Type::Access access) const
       -> const Ttx::Concept::Abstract& override;
 
   auto get_layout() const -> const Ttx::Model::Layouts::Named& override;
@@ -139,29 +143,28 @@ class Composite : public Defined {
   auto get_addressables(
       Tetrodotoxin::Language::Visibility visibility =
           Tetrodotoxin::Language::Visibility::Private) const {
-    return Perimortem::Core::View::Selection(
-        addressables.get_view(),
-        [this, visibility](const auto& binding) -> Bool {
-          return is_visible(binding.get(), visibility);
-        });
+    auto selected = visibility == Tetrodotoxin::Language::Visibility::Private
+                        ? addressables.get_view()
+                        : published_addressables.get_view();
+    return Perimortem::Core::View::Selection(selected);
   }
 
   auto get_callables(
       Tetrodotoxin::Language::Visibility visibility =
           Tetrodotoxin::Language::Visibility::Private) const {
-    return Perimortem::Core::View::Selection(
-        callables.get_view(), [this, visibility](const auto& binding) -> Bool {
-          return is_visible(binding.get(), visibility);
-        });
+    auto selected = visibility == Tetrodotoxin::Language::Visibility::Private
+                        ? callables.get_view()
+                        : published_callables.get_view();
+    return Perimortem::Core::View::Selection(selected);
   }
 
   auto get_types(
       Tetrodotoxin::Language::Visibility visibility =
           Tetrodotoxin::Language::Visibility::Private) const {
-    return Perimortem::Core::View::Selection(
-        types.get_view(), [this, visibility](const auto& binding) -> Bool {
-          return is_visible(binding.get(), visibility);
-        });
+    auto selected = visibility == Tetrodotoxin::Language::Visibility::Private
+                        ? types.get_view()
+                        : published_types.get_view();
+    return Perimortem::Core::View::Selection(selected);
   }
 
   constexpr auto is_linked() const -> Bool {
@@ -173,7 +176,7 @@ class Composite : public Defined {
   }
 
  private:
-  enum class Stage : Unsigned_8 {
+  enum class Stage : ::Unsigned_8 {
     Authored,
     TypesLinked,
     CallableSignaturesLinked,
@@ -183,23 +186,26 @@ class Composite : public Defined {
     Finalized,
   };
 
-  auto is_visible(
-      const Ttx::Concept::Abstract& binding,
-      Tetrodotoxin::Language::Visibility visibility) const -> Bool;
-
-  auto resolve_exported_type_root(Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract&;
-
+  Tetrodotoxin::Language::Definition& definition;
   Perimortem::Memory::Allocator::Arena& domain;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       addressables;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      published_addressables;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       callables;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      published_callables;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       types;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      published_types;
   Perimortem::Core::Option<const Ttx::Model::Layouts::Named&> layout;
   Stage stage = Stage::Authored;
 };

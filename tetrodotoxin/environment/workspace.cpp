@@ -5,72 +5,51 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
-#include "tetrodotoxin/language/parser/comment.hpp"
-#include "tetrodotoxin/language/parser/dialect.hpp"
+#include "perimortem/memory/dynamic/object.hpp"
+
+#include "perimortem/system/path.hpp"
+
 #include "tetrodotoxin/package/content.hpp"
 #include "tetrodotoxin/package/storage.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 
-static constexpr View::Bytes package_import_operation =
-    "Environment::Workspace Package import"_view;
-
-static constexpr auto storage_failure_error_name(
-    Package::Storage::Failure::Error error) -> View::Bytes {
-  switch (error) {
-  case Package::Storage::Failure::Error::InvalidRoute:
-    return "InvalidRoute"_view;
-  case Package::Storage::Failure::Error::Unreadable:
-    return "Unreadable"_view;
-  default:
-    return "Unknown"_view;
-  }
-}
-
-static_assert(
-    storage_failure_error_name(Package::Storage::Failure::Error::Unknown) ==
-    "Unknown"_view);
-static_assert(
-    storage_failure_error_name(
-        static_cast<Package::Storage::Failure::Error>(Unsigned_8(-2))) ==
-    "Unknown"_view);
-
-struct StagedSource {
-  View::Bytes semantic_name;
-  View::Bytes logical_route;
-  Option<Package::Language::Monograph&> owner;
-  Bool stage_globally;
-};
-
-Environment::Workspace::StagedPublication::StagedPublication(
-    View::Bytes name,
-    Language::Monograph& monograph)
-    : name(name), monograph(monograph) {}
-
-auto Environment::Workspace::StagedPublication::get_name() const
-    -> View::Bytes {
-  return name;
-}
-
-auto Environment::Workspace::StagedPublication::get_monograph() const
-    -> Language::Monograph& {
-  return monograph;
+static auto append_storage_failure(
+    auto& report,
+    const Package::Storage::Failure& failure,
+    View::Bytes subject) -> void {
+  report << subject;
+  failure.get_path().visit(
+      [&]() { report << " has an empty or invalid confined path."_view; },
+      [&](const Path& path) {
+        report << " `"_view << path.get_view() << "` "_view;
+        switch (failure.get_error()) {
+        case Package::Storage::Failure::Error::InvalidRoute:
+          report << "is not a confined logical child."_view;
+          break;
+        case Package::Storage::Failure::Error::Unreadable:
+          report << "could not be read from the opened Package root."_view;
+          break;
+        default:
+          report << "could not be acquired."_view;
+          break;
+        }
+      });
 }
 
 Environment::Workspace::Workspace()
     : arena(),
       dialects(arena),
-      retention(arena),
-      resolution(arena, dialects, retention),
+      transactions(),
       source_monographs(arena),
-      staged_publications(arena) {}
+      packages(arena) {}
 
 Environment::Workspace::~Workspace() = default;
 
@@ -79,162 +58,67 @@ auto Environment::Workspace::interpret_source(
     View::Bytes semantic_name,
     View::Bytes diagnostic_path,
     View::Bytes contents) -> Option<Language::Monograph&> {
-  // A raw View carries no storage provenance. Direct callers may supply stack,
-  // Dynamic, mapped, or another Arena's bytes, while parser products borrow
-  // source text for the Workspace lifetime. Copy each view at this boundary.
-  View::Bytes retained_semantic_name = arena.proxy(semantic_name);
-  View::Bytes retained_diagnostic_path = arena.proxy(diagnostic_path);
-  View::Bytes retained_contents = arena.proxy(contents);
+  // Source backed graph objects retain views into this candidate Arena. Keeping
+  // the complete lexical and semantic transaction under one handle makes every
+  // rejection release those views as one lifetime decision.
+  Dynamic::Object<Allocator::Arena> transaction;
+  View::Bytes retained_contents = transaction->proxy(contents);
+  View::Bytes retained_path = transaction->proxy(diagnostic_path);
+  Tokenizer& tokenizer = transaction->construct<Tokenizer>(
+      *transaction, retained_contents, retained_path);
+  Cursor& cursor = transaction->construct<Cursor>(tokenizer, errors);
 
-  return interpret_retained_source(
-      errors, retained_semantic_name, retained_diagnostic_path,
-      retained_contents, *this, True);
-}
-
-auto Environment::Workspace::has_staged_name(View::Bytes name) const -> Bool {
-  return staged_publications.get_view().contains(
-      [&](const StagedPublication& publication) {
-        return publication.get_name() == name;
-      });
-}
-
-auto Environment::Workspace::publish_staged() -> void {
-  for (Count i = 0; i < staged_publications.get_size(); i++) {
-    StagedPublication& publication = staged_publications[i];
-    source_monographs.launder(
-        publication.get_name(), publication.get_monograph());
-  }
-}
-
-auto Environment::Workspace::discard_staged() -> void {
-  staged_publications.clear();
-}
-
-auto Environment::Workspace::link(Errors& errors) -> Bool {
-  BAIL_IF(retention.awaits_finalize());
-
-  Bool linked = retention.link(errors);
-  if (!linked) {
-    discard_staged();
-  }
-  return linked;
-}
-
-auto Environment::Workspace::finalize(Errors& errors) -> Bool {
-  BAIL_IF(!retention.awaits_finalize());
-
-  Bool finalized = retention.finalize(errors);
-  if (finalized) {
-    publish_staged();
-  }
-
-  discard_staged();
-  return finalized;
-}
-
-auto Environment::Workspace::abandon() -> void {
-  retention.abandon();
-  discard_staged();
-}
-
-auto Environment::Workspace::interpret_retained_source(
-    Errors& errors,
-    View::Bytes semantic_name,
-    View::Bytes diagnostic_path,
-    View::Bytes contents,
-    Abstract& interpretation_context,
-    Bool stage_globally) -> Option<Language::Monograph&> {
-  // Public interpretation copies arbitrary caller views. Package Storage lives
-  // in the same Arena and enters here directly, avoiding a duplicate body for
-  // every staged member.
-  if (retention.awaits_finalize()) {
-    Errors::Report report(
-        errors, diagnostic_path, contents, Anchor::create(Span()));
-    report << "A linked source range must finalize or be abandoned before "
-              "another source is interpreted."_view;
+  if (source_monographs.contains(semantic_name)) {
+    cursor.create_error(
+        "This semantic source name is already published in the Workspace."_view,
+        semantic_name);
     return {};
   }
 
-  if (stage_globally && (source_monographs.contains(semantic_name) ||
-                         has_staged_name(semantic_name))) {
-    Errors::Report report(
-        errors, diagnostic_path, contents, Anchor::create(Span()));
-    report << "Semantic source "_view << semantic_name
-           << " is already published or staged in the Workspace."_view;
-    return {};
-  }
-
-  // Cursor installs the diagnostic path while semantic identity remains the
-  // separate exact authored name supplied by the transaction.
-  Tokenizer tokenizer(arena, contents, diagnostic_path);
-  Cursor cursor(tokenizer, errors);
-  Token source_opening = cursor.current();
-  if (cursor.get_code() != Code::Type::Comment) {
-    cursor.require(
-        Code::Type::Comment,
-        "Source is missing required documentation comment. Provide at least an "
-        "explicit empty comment."_view);
-    return {};
-  }
-
-  const Documentation& documentation = Language::Parser::Comment::parse(cursor);
-  Token dialect_declaration = cursor.current();
-  View::Bytes dialect_name = Language::Parser::Dialect::parse(cursor);
-  BAIL_IF(dialect_name.is_empty());
-  Anchor source_anchor = Anchor::create(
-      dialect_declaration, Span(source_opening, cursor.peek(-1)));
-
-  Option<Language::Dialect&> dialect = dialects.find(dialect_name);
-  if (!dialect) {
-    Errors::Report report(
-        errors, diagnostic_path, contents,
-        Anchor::create(Span(dialect_declaration)));
-    auto& hint = report.get_hint();
-    View::Vector<View::Bytes> installed_names = dialects.get_names();
-
-    report << "Unknown dialect "_view << dialect_name
-           << " can't be used to interpret this source."_view;
-    hint << "Installed dialects: "_view;
-    if (installed_names.is_empty()) {
-      hint << "<None>"_view;
-    } else {
-      const auto* installed_name_data = installed_names.get_data();
-      for (Count i = 0; i < installed_names.get_size(); i++) {
-        if (i != 0) {
-          hint << ", "_view;
-        }
-
-        hint << installed_name_data[i];
-      }
+  Count source_error_count = errors.get_size();
+  auto monograph = Language::Dialect::interpret_source(
+      dialects.get_dialects(), cursor, *this);
+  if (!monograph) {
+    if (errors.get_size() == source_error_count) {
+      cursor.create_error(
+          "Source interpretation failed without a more specific diagnostic."_view);
     }
-    hint << "."_view;
     return {};
   }
 
-  // Package members and direct sources can expose different contextual roots.
-  // Pass that exact owner into this interpretation instead of making every
-  // installed Dialect retain one universal source scope.
-  auto& diagnostics = arena.construct<Language::Diagnostics>(arena);
-  Option<Language::Monograph&> interpreted = dialect->interpret(
-      arena, cursor, documentation, source_anchor, diagnostics,
-      interpretation_context);
-  BAIL_IF(!interpreted);
-
-  // Retention owns lifetime and exact authored provenance. Package local
-  // publication stays separate so its real Package can bind the Monograph
-  // without adding the same local name to Workspace lookup.
-  Language::Monograph& monograph = *interpreted;
-  Origin origin(
-      diagnostic_path, contents, Span(source_opening, cursor.peek(-1)));
-  Bool retained = retention.retain(monograph, origin);
-  BAIL_IF(!retained);
-
-  if (stage_globally) {
-    StagedPublication publication(semantic_name, monograph);
-    staged_publications.insert(publication);
+  if (monograph->is<Package::Language::Monograph>()) {
+    // Package completion needs its fixed member barrier. Letting the direct path
+    // retain a manifest would publish aliases before their member owners exist.
+    cursor.create_error(
+        "A Package manifest must be completed through Workspace Package "
+        "import."_view);
+    return {};
   }
 
-  return monograph;
+  source_error_count = errors.get_size();
+  if (!monograph->link(cursor)) {
+    if (errors.get_size() == source_error_count) {
+      cursor.create_error(
+          "Source linking failed without a more specific diagnostic."_view);
+    }
+    return {};
+  }
+
+  source_error_count = errors.get_size();
+  if (!monograph->finalize(cursor)) {
+    if (errors.get_size() == source_error_count) {
+      cursor.create_error(
+          "Source finalization failed without a more specific diagnostic."_view);
+    }
+    return {};
+  }
+
+  // Publication follows complete source semantics. Until this point the
+  // Workspace has no lookup edge or retained Arena for the candidate graph.
+  transactions.insert(transaction);
+  View::Bytes retained_name = arena.proxy(semantic_name);
+  source_monographs.launder(retained_name, *monograph);
+  return *monograph;
 }
 
 auto Environment::Workspace::import_package(
@@ -243,183 +127,284 @@ auto Environment::Workspace::import_package(
     View::Bytes root_semantic_name,
     View::Bytes root_logical_route,
     View::Bytes root_package_identity,
-    Version root_package_version,
-    Package::Repository::Repository& repository)
-    -> Result<Language::Monograph&, Package::Repository::SelectionError> {
-  if (retention.has_staged() || retention.awaits_finalize()) {
-    Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
-    message << package_import_operation
-            << " failed. reason=another source range is still open"_view;
-    return Package::Repository::SelectionError::Unknown;
-  }
+    Version root_package_version) -> Option<Language::Monograph&> {
+  // Storage has no authored Cursor until the manifest is read. Root and
+  // manifest acquisition failures stay in process diagnostics, while every
+  // later failure uses the matching source Cursor.
+  Allocator::Arena acquisition;
 
-  auto storage = Package::Storage::open(arena, package_root);
+  auto storage = Package::Storage::open(acquisition, package_root);
   if (!storage) {
-    Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
-    message << package_import_operation
-            << " failed. reason=the Package root could not be opened "
-               "package_root="_view
-            << package_root << " root_semantic_name="_view << root_semantic_name
-            << " root_logical_route="_view << root_logical_route
-            << " root_package_identity="_view << root_package_identity
-            << " root_package_version="_view << root_package_version.get_major()
-            << '.' << root_package_version.get_minor();
-    return Package::Repository::SelectionError::Unknown;
+    Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Error);
+    message
+        << "Package import could not open its confined filesystem root `"_view
+        << package_root << "`."_view;
+    return {};
   }
 
-  // Root caller values cross into Workspace lifetime once. Repository may use
-  // another Arena and remains borrowed only during Resolution.
-  Managed::Vector<StagedSource> staged_sources(arena);
-  StagedSource root = {
-    .semantic_name = arena.proxy(root_semantic_name),
-    .logical_route = arena.proxy(root_logical_route),
-    .owner = {},
-    .stage_globally = True,
-  };
-  staged_sources.insert(root);
+  Option<Package::Content&> manifest =
+      storage->read(root_logical_route)
+          .visit(
+              [](Package::Content& content) {
+                return Option<Package::Content&>(content);
+              },
+              [&](const Package::Storage::Failure& failure) {
+                Diagnostics::Log::Message<768> message(
+                    Diagnostics::Log::Level::Error);
+                append_storage_failure(
+                    message, failure, "Package manifest"_view);
+                return Option<Package::Content&>();
+              });
+  if (!manifest) {
+    return {};
+  }
 
-  View::Bytes retained_root_identity = arena.proxy(root_package_identity);
-  Package::Storage& package_storage = *storage;
-  Option<Language::Monograph&> root_monograph;
-  const Count first_monograph = retention.get_size();
-  Count next_source = 0;
-  Bool failed = False;
+  // The manifest begins the candidate graph. Its bytes, Tokens, Cursor, and
+  // Package Monograph share one Arena so any rejection releases them together.
+  Dynamic::Object<Allocator::Arena> root_transaction;
+  View::Bytes root_contents = root_transaction->proxy(manifest->get_contents());
+  View::Bytes root_path =
+      root_transaction->proxy(manifest->get_diagnostic_path());
+  Tokenizer& root_tokenizer = root_transaction->construct<Tokenizer>(
+      *root_transaction, root_contents, root_path);
+  Cursor& root_cursor =
+      root_transaction->construct<Cursor>(root_tokenizer, errors);
+  if (source_monographs.contains(root_semantic_name)) {
+    root_cursor.create_error(
+        "This Package semantic name is already published in the Workspace."_view,
+        root_semantic_name);
+    return {};
+  }
 
-  // A monotonic index preserves authored breadth first order. Only a concrete
-  // Package Monograph can append its declared Sources to this queue.
-  while (next_source < staged_sources.get_size()) {
-    StagedSource staged = staged_sources[next_source];
-    next_source++;
+  if (root_package_identity.is_empty() || root_package_version.is_null()) {
+    root_cursor.create_error(
+        "Package import requires a nonempty identity and non-null version."_view);
+    return {};
+  }
 
-    auto reject_read = [&](Package::Storage::Failure::Error error)
-        -> Option<Package::Content&> {
-      Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
-      message << package_import_operation
-              << " failed. reason=the staged semantic source could not be read "
-                 "semantic_name="_view
-              << staged.semantic_name << " logical_route="_view
-              << staged.logical_route << " storage_error="_view
-              << storage_failure_error_name(error);
-      failed = True;
-      return {};
-    };
-    auto read = package_storage.read(staged.logical_route);
-    Option<Package::Content&> content = read.visit(
-        [](Package::Content& selected) {
-          return Option<Package::Content&>(selected);
-        },
-        [&](const Package::Storage::Failure& failure) {
-          return reject_read(failure.get_error());
-        });
-    if (!content) {
+  for (Count i = 0; i < packages.get_size(); i++) {
+    const ImportedPackage& imported = packages[i];
+    if (imported.identity != root_package_identity) {
       continue;
     }
 
-    // Storage path and body already meet the retained source contract because
-    // Storage was opened with this Workspace Arena. The existing owner is the
-    // complete Package context, while an ownerless root enters Workspace.
-    Abstract& interpretation_context =
-        staged.owner ? static_cast<Abstract&>(*staged.owner) : *this;
-    Option<Language::Monograph&> imported = interpret_retained_source(
-        errors, staged.semantic_name, content->get_diagnostic_path(),
-        content->get_contents(), interpretation_context, staged.stage_globally);
-    if (!imported) {
-      failed = True;
-      continue;
-    }
+    root_cursor.create_error(
+        imported.version == root_package_version
+            ? "This exact Package identity and version is already imported "
+              "into "
+              "the Workspace."_view
+            : "This Package identity is already imported with a different "
+              "version."_view,
+        root_package_identity);
+    return {};
+  }
 
-    if (next_source == 1) {
-      root_monograph = imported;
+  // Package interpretation establishes the complete Dependency and Source
+  // description table before Workspace acquires any member.
+  Count root_error_count = errors.get_size();
+  auto root_owner = Language::Dialect::interpret_source(
+      dialects.get_dialects(), root_cursor, *this);
+  if (!root_owner) {
+    if (errors.get_size() == root_error_count) {
+      root_cursor.create_error(
+          "Package manifest interpretation failed without a more specific "
+          "diagnostic."_view);
     }
+    return {};
+  }
 
-    // Only the root lacks an owning Package. Reusing the same owner for
-    // interpretation and binding keeps nested context exact without a second
-    // lookup or copied context.
-    Language::Monograph& monograph = *imported;
-    if (staged.owner) {
-      Package::Language::Monograph& owner = *staged.owner;
-      Bool bound = owner.bind_member(staged.semantic_name, monograph);
-      if (!bound) {
-        retention.find_origin(owner).visit(
-            []() {},
-            [&](const Origin& origin) {
-              Errors::Report report(
-                  errors, origin.get_path(), origin.get_body(),
-                  Anchor::create(origin.get_span()));
-              report << "Package member "_view << staged.semantic_name
-                     << " could not bind to its owning Package."_view;
-            });
-        failed = True;
+  auto selected_root = root_owner->select<Package::Language::Monograph>();
+  if (!selected_root) {
+    root_cursor.create_error(
+        "The root source of a Package import must use the installed Package "
+        "Dialect."_view);
+    return {};
+  }
+  Package::Language::Monograph& root = *selected_root;
+
+  // Package resources borrow this import's confined Storage only while sources
+  // parse. Sealing before linking removes that physical capability.
+  if (!root.get_resources().connect(*storage)) {
+    root_cursor.create_error(
+        "The Package resource table rejected its one import storage."_view);
+    return {};
+  }
+
+  // Dependencies are completed Workspace facts, not nested import requests.
+  // Exact identity and version matching keeps this transaction's scope fixed.
+  for (const Package::Language::Dependency& dependency :
+       root.get_dependencies()) {
+    const ImportedPackage* selected = nullptr;
+    for (Count i = 0; i < packages.get_size(); i++) {
+      const ImportedPackage& imported = packages[i];
+      if (imported.identity == dependency.get_package_name()) {
+        selected = &imported;
+        break;
       }
     }
 
-    if (!monograph.is<Package::Language::Monograph>()) {
-      continue;
+    if (selected == nullptr) {
+      root_cursor.create_expression_error(
+          dependency.get_span(),
+          "Package dependency is not already imported in this Workspace."_view,
+          dependency.get_package_name());
+      root.get_resources().seal();
+      return {};
     }
 
-    auto& package = static_cast<Package::Language::Monograph&>(monograph);
-    Bool resources_connected = package.get_resources().connect(package_storage);
-    if (!resources_connected) {
-      Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
-      message << package_import_operation
-              << " failed. reason=Package resources could not connect "
-                 "semantic_name="_view
-              << staged.semantic_name;
-      failed = True;
-      continue;
+    if (selected->version != dependency.get_version()) {
+      root_cursor.create_expression_error(
+          dependency.get_span(),
+          "Package dependency requests a different version than the one "
+          "already imported in this Workspace."_view,
+          dependency.get_package_name());
+      root.get_resources().seal();
+      return {};
     }
 
-    View::Vector<Package::Language::Source> sources = package.get_sources();
-    for (Count i = 0; i < sources.get_size(); i++) {
-      StagedSource member = {
-        .semantic_name = sources.get_data()[i].get_local_name(),
-        .logical_route = sources.get_data()[i].get_source_path(),
-        .owner = package,
-        .stage_globally = False,
-      };
-      staged_sources.insert(member);
+    if (!root.bind_dependency(dependency, *selected->monograph)) {
+      root_cursor.create_expression_error(
+          dependency.get_span(),
+          "Package dependency could not enter the Package mapping table."_view,
+          dependency.get_local_name());
+      root.get_resources().seal();
+      return {};
     }
   }
 
-  // Every authored Package is retained in this discovery range before its
-  // Sources enter the queue. Sealing the exact range here removes Storage from
-  // every semantic owner before abandonment or dependency resolution.
-  for (Count i = first_monograph; i < retention.get_size(); i++) {
-    Language::Monograph& retained = retention.get_monograph(i);
-    if (!retained.is<Package::Language::Monograph>()) {
+  // Workspace keeps every candidate Arena local while Package records only
+  // borrowed mappings. An early return destroys the complete candidate set.
+  Dynamic::Vector<Dynamic::Object<Allocator::Arena>> candidate_transactions(
+      root.get_sources().get_size() + 1);
+  Managed::Vector<Language::Monograph*> candidates(acquisition);
+  Managed::Vector<Cursor*> cursors(acquisition);
+  candidate_transactions.insert(root_transaction);
+  candidates.insert(&root);
+  cursors.insert(&root_cursor);
+
+  // Each declared Source gets its own owner and Cursor so source backed values
+  // and diagnostics retain the member's exact text and location.
+  Bool parsed = True;
+  for (const Package::Language::Source& source : root.get_sources()) {
+    Option<Package::Content&> content =
+        storage->read(source.get_source_path())
+            .visit(
+                [&](Package::Content& acquired) {
+                  return Option<Package::Content&>(acquired);
+                },
+                [&](const Package::Storage::Failure& failure) {
+                  auto report = root_cursor.create_report(source.get_span());
+                  append_storage_failure(
+                      report, failure, "Package source"_view);
+                  return Option<Package::Content&>();
+                });
+    if (!content) {
+      parsed = False;
       continue;
     }
 
-    auto& package = static_cast<Package::Language::Monograph&>(retained);
-    package.get_resources().seal();
+    Dynamic::Object<Allocator::Arena> source_transaction;
+    View::Bytes source_contents =
+        source_transaction->proxy(content->get_contents());
+    View::Bytes source_path =
+        source_transaction->proxy(content->get_diagnostic_path());
+    Tokenizer& tokenizer = source_transaction->construct<Tokenizer>(
+        *source_transaction, source_contents, source_path);
+    Cursor& cursor = source_transaction->construct<Cursor>(tokenizer, errors);
+    Count source_error_count = errors.get_size();
+    auto member = Language::Dialect::interpret_source(
+        dialects.get_dialects(), cursor, root);
+    if (!member) {
+      if (errors.get_size() == source_error_count) {
+        cursor.create_error(
+            "Package source interpretation failed without a more specific "
+            "diagnostic."_view);
+      }
+      parsed = False;
+      continue;
+    }
+
+    // The root manifest already fixed the complete table. Accepting a Package
+    // member here would recursively grow that table outside this barrier.
+    if (member->is<Package::Language::Monograph>()) {
+      cursor.create_error(
+          "A Package Source cannot create another Package import."_view);
+      parsed = False;
+      continue;
+    }
+
+    if (!root.bind_member(source.get_local_route(), *member)) {
+      root_cursor.create_expression_error(
+          source.get_span(),
+          "Package source could not enter the Package mapping table."_view,
+          source.get_local_name());
+      parsed = False;
+      continue;
+    }
+
+    candidate_transactions.insert(source_transaction);
+    candidates.insert(&*member);
+    cursors.insert(&cursor);
+  }
+  // Source parsing is the only stage with storage access. Linking observes a
+  // sealed Package context whose semantic candidates can no longer expand.
+  root.get_resources().seal();
+
+  if (!parsed) {
+    return {};
   }
 
-  if (failed || !root_monograph ||
-      !root_monograph->is<Package::Language::Monograph>()) {
-    abandon();
-    return Package::Repository::SelectionError::Unknown;
+  // Every parse valid identity must exist before any member resolves context.
+  // This keeps authored Source order from deciding which routes are visible.
+  Bool linked = True;
+  for (Count i = 0; i < candidates.get_size(); i++) {
+    Count source_error_count = errors.get_size();
+    if (!candidates[i]->link(*cursors[i])) {
+      if (errors.get_size() == source_error_count) {
+        cursors[i]->create_error(
+            "Package source linking failed without a more specific "
+            "diagnostic."_view);
+      }
+      linked = False;
+    }
+  }
+  if (!linked) {
+    return {};
   }
 
-  // Resolution receives only a complete staged discovery range. Earlier source
-  // failure abandons every retained hook and cannot enter Archive traversal or
-  // restored cache promotion.
-  auto& root_package =
-      static_cast<Package::Language::Monograph&>(*root_monograph);
-  auto resolved = resolution.resolve(
-      errors, first_monograph, retained_root_identity, root_package_version,
-      root_package, repository);
-  return resolved.visit(
-      [&](Language::Monograph& selected)
-          -> Result<Language::Monograph&, Package::Repository::SelectionError> {
-        publish_staged();
-        discard_staged();
-        return selected;
-      },
-      [&](Package::Repository::SelectionError error)
-          -> Result<Language::Monograph&, Package::Repository::SelectionError> {
-        discard_staged();
-        return error;
-      });
+  // Finalization may consume linked declarations from any member, so no
+  // candidate enters it until the whole graph links.
+  Bool finalized = True;
+  for (Count i = 0; i < candidates.get_size(); i++) {
+    Count source_error_count = errors.get_size();
+    if (!candidates[i]->finalize(*cursors[i])) {
+      if (errors.get_size() == source_error_count) {
+        cursors[i]->create_error(
+            "Package source finalization failed without a more specific "
+            "diagnostic."_view);
+      }
+      finalized = False;
+    }
+  }
+  if (!finalized) {
+    return {};
+  }
+
+  // Retaining all Arenas is the transaction commit. Package aliases become
+  // durable only with their owners, and every failure above publishes nothing.
+  for (Count i = 0; i < candidate_transactions.get_size(); i++) {
+    transactions.insert(candidate_transactions[i]);
+  }
+
+  View::Bytes retained_identity = arena.proxy(root_package_identity);
+  packages.insert({
+    .identity = retained_identity,
+    .version = root_package_version,
+    .monograph = &root,
+  });
+  View::Bytes retained_name = arena.proxy(root_semantic_name);
+  source_monographs.launder(retained_name, root);
+  return root;
 }
 
 auto Environment::Workspace::get_name() const -> View::Bytes {
@@ -436,13 +421,6 @@ auto Environment::Workspace::resolve() const -> const Abstract& {
 
 auto Environment::Workspace::resolve_context(View::Bytes route) const
     -> const Abstract& {
-  for (Count i = 0; i < staged_publications.get_size(); i++) {
-    const StagedPublication& publication = staged_publications.at(i);
-    if (publication.get_name() == route) {
-      return publication.get_monograph();
-    }
-  }
-
   return source_monographs.visit(
       route,
       [](const Language::Monograph& selected) -> const Abstract& {

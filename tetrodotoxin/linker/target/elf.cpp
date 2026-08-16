@@ -5,6 +5,7 @@
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
@@ -118,7 +119,6 @@ struct SectionDescriptor {
 
 struct SymbolReference {
   const Object::Symbol* symbol;
-  Count original_index;
   Count string_table_offset;
 };
 
@@ -237,7 +237,7 @@ static auto append_symbols(
     Object::Symbol::Visibility visibility) -> void {
   for (Count i = 0; i < symbols.get_size(); i++) {
     if (symbols.get_data()[i].get_visibility() == visibility) {
-      sorted_symbols.insert({symbols.get_data() + i, i, 0});
+      sorted_symbols.insert({symbols.get_data() + i, 0});
     }
   }
 }
@@ -250,13 +250,24 @@ static auto sort_symbols(View::Vector<Object::Symbol> symbols)
   return sorted_symbols;
 }
 
-static auto build_symbol_slots(View::Vector<SymbolReference> sorted_symbols)
+static auto build_symbol_slots(View::Vector<Object::Symbol> symbols)
     -> Dynamic::Vector<Unsigned_32> {
-  Dynamic::Vector<Unsigned_32> symbol_slots;
-  symbol_slots.resize(sorted_symbols.get_size());
-  const auto* sorted_symbol_data = sorted_symbols.get_data();
-  for (Count i = 0; i < sorted_symbols.get_size(); i++) {
-    symbol_slots[sorted_symbol_data[i].original_index] = Unsigned_32(1 + i);
+  Count local_count = 0;
+  const auto* symbol_data = symbols.get_data();
+  for (Count i = 0; i < symbols.get_size(); i++) {
+    local_count +=
+        symbol_data[i].get_visibility() == Object::Symbol::Visibility::Local;
+  }
+
+  Dynamic::Vector<Unsigned_32> symbol_slots(symbols.get_size());
+  Count next_local_slot = 1;
+  Count next_global_slot = 1 + local_count;
+  for (Count i = 0; i < symbols.get_size(); i++) {
+    const Bool is_local =
+        symbol_data[i].get_visibility() == Object::Symbol::Visibility::Local;
+    Count& next_slot = is_local ? next_local_slot : next_global_slot;
+    symbol_slots.insert(Unsigned_32(next_slot));
+    next_slot++;
   }
 
   return symbol_slots;
@@ -394,7 +405,14 @@ static auto group_relocations(
 
   for (Count i = 0; i < relocations.get_size(); i++) {
     const auto& relocation = relocations.get_data()[i];
-    relocation_tables[relocation.get_section_index()].insert(relocation);
+    const Count section_index = relocation.get_section_index();
+    // Module admission proves this edge before target encoding. Repeating that
+    // proof here prevents a corrupt Module from escaping as an invalid object.
+    if (section_index >= relocation_tables.get_size()) {
+      Diagnostics::Log::fatal(
+          "ELF encoder received a relocation for an absent Section."_view);
+    }
+    relocation_tables[section_index].insert(relocation);
   }
 
   return relocation_tables;
@@ -509,7 +527,7 @@ static auto build_object(const Object::Module& module) -> Dynamic::Bytes {
   }
 
   auto sorted_symbols = sort_symbols(symbols);
-  auto symbol_slots = build_symbol_slots(sorted_symbols.get_view());
+  auto symbol_slots = build_symbol_slots(symbols);
   auto string_table = build_string_table(sorted_symbols.get_access());
   auto symbol_table = build_symbol_table(sorted_symbols.get_view());
 

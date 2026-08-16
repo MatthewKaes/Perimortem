@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/operations/range.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -26,34 +27,6 @@ using namespace Validation;
 static Harness LibraryRange = {
   .name = "Tetrodotoxin::Library::Language::Operations::Range"_view,
 };
-
-class RangeMonograph : public Tetrodotoxin::Language::Monograph {
- public:
-  RangeMonograph(Allocator::Arena& domain)
-      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
-
-  auto get_name() const -> View::Bytes override {
-    return "RangeMonograph"_view;
-  }
-
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
-};
-
-static auto create_source(
-    Allocator::Arena& domain,
-    Tetrodotoxin::Library::Dialect& dialect,
-    Abstract& context) -> Option<Monograph&> {
-  Ttx::Lexical::Errors errors;
-  Ttx::Lexical::Tokenizer tokenizer(domain, {}, "range-source.ttx"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, errors);
-  auto retained = dialect.interpret(
-      domain, cursor, Documentation::get_empty(),
-      Ttx::Lexical::Anchor::create({}), context);
-  BAIL_IF(!retained || !errors.is_empty() || !retained->is<Monograph>());
-  return static_cast<Monograph&>(*retained);
-}
 
 class RangeExpression : public Expression {
  public:
@@ -81,11 +54,11 @@ static auto fold_is_dynamic(Operations::Range& range) -> Bool {
 
 PERIMORTEM_UNIT_TEST(LibraryRange, exact_materialization) {
   Allocator::Arena domain;
-  RangeMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  auto retained_source = create_source(domain, dialect, context);
-  ASSERT(retained_source);
-  auto& source = *retained_source;
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
+  Ttx::Lexical::Errors errors;
+  Ttx::Lexical::Tokenizer tokenizer(domain, {}, "range-link.ttx"_view);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
   Types::Unsigned_8 unsigned_8;
   Types::Signed_8 signed_8;
   RangeExpression unsigned_start("unsigned start"_view, unsigned_8);
@@ -102,10 +75,10 @@ PERIMORTEM_UNIT_TEST(LibraryRange, exact_materialization) {
   ASSERT(first.is<Operations::Range>());
   EXPECT(
       first.implements(Ttx::Concept::get_type_identity<Operations::Range>()));
-  ASSERT(first.link(source, Invalid::get_invalid()));
-  ASSERT(first.link(source, Invalid::get_invalid()));
-  ASSERT(repeated.link(source, Invalid::get_invalid()));
-  ASSERT(signed_range.link(source, Invalid::get_invalid()));
+  ASSERT(first.link(cursor, source));
+  ASSERT(first.link(cursor, source));
+  ASSERT(repeated.link(cursor, source));
+  ASSERT(signed_range.link(cursor, source));
   ASSERT(first.get_type().is<Types::Range>());
   ASSERT(signed_range.get_type().is<Types::Range>());
   const auto& first_type = static_cast<const Types::Range&>(first.get_type());
@@ -114,24 +87,23 @@ PERIMORTEM_UNIT_TEST(LibraryRange, exact_materialization) {
   EXPECT(&first.get_type() == &repeated.get_type());
   EXPECT(&first_type.get_element_type() == &unsigned_8);
   EXPECT(&signed_type.get_element_type() == &signed_8);
-  EXPECT_EQ(source.get_materializations().get_size(), Count(2));
   EXPECT(fold_is_dynamic(first));
-  EXPECT(source.get_diagnostics().is_empty());
+  EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryRange, integer_legality) {
   Allocator::Arena domain;
-  RangeMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  auto retained_source = create_source(domain, dialect, context);
-  ASSERT(retained_source);
-  auto& source = *retained_source;
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
+  Ttx::Lexical::Errors errors;
+  Ttx::Lexical::Tokenizer tokenizer(domain, {}, "range-link.ttx"_view);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
   Types::Real_32 real_32;
   RangeExpression unsigned_value("unsigned"_view, unsigned_8);
   RangeExpression other_width("other width"_view, unsigned_16);
-  RangeExpression flag("flag"_view, Tetrodotoxin::Library::Dialect::get_bool());
+  RangeExpression flag("flag"_view, resolve_library_flag(source));
   RangeExpression real("real"_view, real_32);
   RangeExpression unresolved("unresolved"_view, Invalid::get_invalid());
   auto& mismatch =
@@ -141,10 +113,9 @@ PERIMORTEM_UNIT_TEST(LibraryRange, integer_legality) {
   auto& unresolved_range =
       Operations::Range::create_synthetic(domain, unsigned_value, unresolved);
 
-  EXPECT_NOT(mismatch.link(source, Invalid::get_invalid()));
-  EXPECT_NOT(bool_range.link(source, Invalid::get_invalid()));
-  EXPECT_NOT(real_range.link(source, Invalid::get_invalid()));
-  EXPECT_NOT(unresolved_range.link(source, Invalid::get_invalid()));
-  EXPECT_EQ(source.get_diagnostics().get_size(), Count(4));
-  EXPECT_EQ(source.get_materializations().get_size(), Count(0));
+  EXPECT_NOT(mismatch.link(cursor, source));
+  EXPECT_NOT(bool_range.link(cursor, source));
+  EXPECT_NOT(real_range.link(cursor, source));
+  EXPECT_NOT(unresolved_range.link(cursor, source));
+  EXPECT_EQ(errors.get_size(), Count(4));
 }

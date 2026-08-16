@@ -47,9 +47,11 @@ create a generated Definition with a truthful Anchor, but generated declarations
 never pretend that source Tokens were authored for them.
 
 An Attribute is an ordered key with at most one scalar value. A Definition can
-keep any number of Attributes, including repeated keys. The concrete language
-decides which keys it understands, whether repetition is meaningful, and which
-combinations are invalid. The shared parser only preserves the authored data.
+keep any number of Attributes, including repeated keys. Definition and the
+concrete declaration preserve those facts without predicting which later system
+will use them. A compiler, embedding language, tool, or other consumer decides
+the meaning and validity of only the keys it actually consumes. The shared
+parser only preserves the authored data.
 
 ## Dialect
 
@@ -61,9 +63,21 @@ Dialect under the exact name accepted by the source envelope:
 dialect : Library;
 ```
 
-Environment consumes the envelope and gives the remaining Token stream to the
-selected Dialect. The Dialect constructs one concrete Monograph and may retain
-language state shared by other Monographs in the same Workspace.
+Environment consumes the envelope with one source transaction Cursor and calls
+the selected Dialect directly with that Cursor, the source-backed
+Documentation, its Anchor, and the semantic context. The Dialect constructs one
+Monograph in the Cursor's Arena and returns it through an `Option`. Absence is
+the only parse-failure result; there is no second success flag or transaction
+wrapper. Environment links and finalizes that Monograph before retaining its
+Arena and publishing it.
+
+An installed Dialect is itself an ordinary TTX Abstract context. Its exact live
+identity selects Monograph layers, its installed name answers source dispatch,
+and its contextual resolution exposes immutable language vocabulary. A Dialect
+owns only state shared across source interpretations in its Workspace. The
+operation-local Cursor traverses the source and publishes textual reports,
+while Workspace's local Arena handle carries the produced root until the
+Workspace retains or releases it.
 
 The context local to a source during interpretation is an ordinary TTX
 Abstract. A direct source may receive the Workspace. A Package member may
@@ -74,6 +88,29 @@ Package is part of the Tetrodotoxin toolchain without becoming an implicit
 context for every source. A Workspace that interprets one standalone source may
 omit the Package Dialect. Package participates when the request composes a
 Package, acquires its resources, or restores an Archive.
+
+## Source transaction
+
+Environment owns one local Arena handle and constructs the retained source
+bytes, Tokenizer, and operation-local Cursor in that Arena. It passes the
+Cursor, opening Documentation, source Anchor, and source semantic context
+directly to the selected installed Dialect. The Dialect uses
+`Cursor::get_arena()` for every source-backed semantic fact and returns one
+optional Monograph reference from that same Arena.
+
+Comments, Attributes, Tokens, and semantic objects may therefore retain direct
+source-backed views without proxying them into another domain. Workspace keeps
+the Arena handle only after the Monograph completes; dropping a failed handle
+releases the whole transaction. An embedded layer uses the same Cursor, Arena,
+and semantic context with its exact child language identity; it does not add a
+transaction wrapper or temporarily mutate shared Dialect state.
+
+Archive reconstruction does not introduce a parallel Restoration context. A
+persistent Dialect receives its destination Arena, opaque payload, and exact
+Package context directly and returns one optional Monograph reference through
+the same ownership contract. A fixed child receives its own payload section
+with that same Package context. Source-free validation and toolchain failures are written to
+Perimortem Diagnostics instead of manufacturing a source Cursor.
 
 ## Dialect dependencies
 
@@ -93,9 +130,11 @@ tries to finish the source. A dependency loop is always an invalid Workspace.
 
 ## Contextual resolution
 
-`resolve()` follows represented identity. `resolve_context(route)` asks the
-receiving Abstract to interpret a route in its own domain. The consumer then
-proves the category required by its grammar.
+`resolve()` follows represented identity. `resolve_context(name)` asks the
+receiving Abstract to interpret one borrowed, unqualified name in its own
+domain. A concrete grammar operator owns punctuation, resolves a selected Alias,
+and issues the next segment as another query. No Abstract accepts `A::B` as one
+lookup key. The consumer then proves the category required by its grammar.
 
 Three questions recur across the provided languages:
 
@@ -116,8 +155,8 @@ provides:
 
 - stable TTX identity
 - opening Documentation
+- the source transaction Arena that owns source bytes and its semantic graph
 - name resolution defined by its Dialect
-- ordered diagnostics
 - link and finalize lifecycle stages
 
 A Monograph may expose no Types, one global Type, several independent Types,
@@ -135,10 +174,10 @@ or create a wrapper around the child. A top-level Monograph answers with itself.
 A Scene answers with its Library child. A Shader answers with its Library or
 Render child. Any other request has no result.
 
-The Package keeps only the outer Monograph as a member. That outer Monograph
-keeps its children alive, moves them through linking and finalization, shows
-their diagnostics with its own, and stores their Archive data. The children do
-not become separate Package members or copied views of the same declarations.
+The Package table borrows only each outer member Monograph. Workspace owns those
+member handles and moves them through linking and finalization with their exact
+source Cursors. A fixed child layer remains owned by its outer Monograph and does
+not become a separate Package member or copied view of the same declarations.
 
 The Monograph remains queryable for the lifetime of its Workspace. It retains
 semantic facts rather than parser positions or source traversal state.
@@ -178,36 +217,36 @@ An unrecognized semantic name still resolves to TTX `Invalid`. Resource and
 Error therefore distinguish successful data, recognized failure, and ordinary
 absence without introducing a universal error enum.
 
-## Diagnostics
+## Failure reporting
 
-Each source or restored Package member collects errors in one ordered list. The
-outer Monograph and all of its child layers write to that same list while they
-read, link, finalize, or restore their data. Related errors therefore appear
-together, and a child cannot hide a separate list of failures.
+The Cursor owns all textual TTX contents and the ordered reports produced while
+that source is parsed, linked, and finalized. The outer Monograph and its fixed
+child layers receive that operation-local Cursor explicitly, so lexical and
+semantic failures point into the authored text without a retained Language
+Diagnostic collection. A Monograph never keeps a Cursor after the operation.
 
-The source reader still tracks the current Token and reports lexical errors at
-that location. Semantic errors can point to a TTX Anchor when source text
-exists. Errors from restored or generated data can omit a source location while
-keeping a useful message and hint.
-
-Environment combines the Diagnostic with the source origin it retained for the
-Monograph. Binary Archive validation and other operations that have no source
-context report their own domain details rather than inventing authored Tokens.
-Perimortem's process-wide Diagnostics remain reserved for fatal host state, not
-ordinary source or restoration failures.
+Puffer, an editor, or another source-evaluation caller presents the textual
+reports written through that Cursor directly to the end user. Binary Archive
+validation and other source-free system or toolchain failures use Perimortem
+Diagnostics, whose severity and persistence policy belongs to the host. They do
+not invent an authored Token or a second Tetrodotoxin diagnostic model.
 
 ## Semantic lifecycle
 
-Concrete languages participate in three stages:
+One source participates in three stages:
 
-1. Interpretation creates stable identities derived from source and records
-   authored routes that may not resolve yet.
-2. Linking connects those routes after the complete source group is available.
-3. Finalization performs language work that depends on every linked declaration.
+1. The selected Dialect constructs one optional parse-valid Monograph in the
+   source transaction Arena.
+2. Linking resolves every route available to that source and reports failures
+   to its Cursor.
+3. Finalization performs language work that depends on linked declarations.
 
-Environment links every Monograph in a retained group before finalizing any of
-them. A concrete Monograph may organize its own internal dependencies while
-presenting the same link and finalize boundary to Environment.
+Workspace performs all three stages in one direct-source call and publishes
+only the completed Monograph. Package is the sole multi-source model: it may
+interpret all declared members first, then links every member before finalizing
+any of them, and publishes only its completed root. A concrete Monograph may
+organize its own internal dependencies while presenting the same link and
+finalize boundary to its transaction owner.
 
 ## Persistence
 
@@ -231,9 +270,9 @@ that section. Neither profile stores parser state, temporary caches, generated
 IR, live runtime handles, or process addresses. Debug symbols and source mapping
 belong to a separate output.
 
-Restoration constructs a fresh graph with equivalent observable semantic facts
-and identity relations. It applies the same link and finalize lifecycle as
-authored source. Package remains independent of the payload schema.
+Archive reconstruction creates a fresh graph with equivalent observable
+semantic facts and identity relations. It applies the same link and finalize
+lifecycle as authored source. Package remains independent of the payload schema.
 
 The payload is part of a Terminal product and carries reconstruction facts
 rather than live graph identities. Equivalence means that a fresh Workspace
@@ -245,18 +284,20 @@ A payload may be much smaller than a memory image because it records only the
 owner facts needed for those observations. Compactness is a format benefit. It
 does not define whether a Dialect is persistent.
 
-When restoring a Package, Environment creates its Package Monograph before it
-restores the members. Every member receives that same Package context, so
-imports and resources work the same way they do for authored source. Scene and
-Shader pass the context to their child layers. Language dependencies still come
-from the Workspace, not from the Package. If a child rejects its data, the
-outer Monograph also fails.
+When reconstructing a Package, Workspace creates its description Monograph
+before its members. Every member receives that same Package context, so mappings
+and resources work the same way they do for authored source. Scene and Shader
+pass the context to their child layers. Language dependencies still come from
+the Workspace, not from the Package. If a child rejects its data, the outer
+Monograph also fails.
 
-The Dialect validates its complete bounded payload before returning a
-Monograph. Environment then retains the reconstructed group and runs the same
-link and finalize barriers used for authored source. A target representation
-such as LLVM IR cannot substitute for this payload because it has already lost
-owner facts that were meaningful in the source language.
+The Dialect validates its complete bounded payload before returning an optional
+Monograph reference from its reconstruction Arena. Workspace holds those Arena
+handles, links every member, and then finalizes every member before it publishes
+the completed root.
+A target
+representation such as LLVM IR cannot substitute for this payload because it
+has already lost owner facts that were meaningful in the source language.
 
 ## Shared source envelope
 
@@ -270,7 +311,8 @@ dialect : Package;
 
 An explicit empty comment represents intentionally empty Documentation.
 Absence is a malformed source envelope. Environment passes the exact
-Documentation to the selected Dialect, and the resulting Monograph retains it.
+source-backed Documentation directly to the selected Dialect, and the resulting
+Monograph retains it.
 
 Concrete body grammar starts immediately afterward. A grammar rule belongs to
 the shared Language layer only when multiple concrete Dialects use its source

@@ -8,10 +8,10 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
 
@@ -25,22 +25,23 @@ class Index : public Expression {
   TTX_CONTRACT(Index, Expression);
 
   static auto parse(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
+      const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor,
       Expression& receiver) -> Perimortem::Core::Option<Expression&>;
 
   auto link(
-      Tetrodotoxin::Language::Monograph& source,
+      Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,
-      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool override;
 
   TTX_NAME("Index"_view);
   TTX_EMPTY_DOCUMENTATION();
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
-  auto finalize() -> void override;
+  auto get_write_type(const Model::Type& access_scope) const
+      -> Perimortem::Core::Option<const Model::Type&> override;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
   constexpr auto get_index() const -> const Expression& { return index; }
@@ -55,7 +56,7 @@ class Index : public Expression {
 
   Expression& receiver;
   Expression& index;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       element_type;
 };
 

@@ -4,6 +4,9 @@
 #include "tetrodotoxin/library/language/operations/not.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
+
+#include "perimortem/core/static/vector.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -14,6 +17,8 @@
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/signed_8.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -26,25 +31,13 @@ static Harness LibraryNot = {
   .name = "Tetrodotoxin::Library::Language::Operations::Not"_view,
 };
 
-class NotMonograph : public Tetrodotoxin::Language::Monograph {
- public:
-  NotMonograph(Allocator::Arena& domain)
-      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
-
-  constexpr auto get_name() const -> View::Bytes override {
-    return "NotMonograph"_view;
-  }
-
-  constexpr auto resolve_context(View::Bytes) const
-      -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
-};
-
-static auto link_operation(
-    Operation& operation,
-    Tetrodotoxin::Language::Monograph& source) -> Bool {
-  return operation.link(source, Invalid::get_invalid());
+static auto link_operation(Operation& operation, const Abstract& context)
+    -> Bool {
+  Allocator::Arena transaction;
+  Ttx::Lexical::Errors errors;
+  Ttx::Lexical::Tokenizer tokenizer(transaction, {}, "<operation>"_view);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  return operation.link(cursor, context);
 }
 
 class NotExpression : public Expression {
@@ -79,11 +72,11 @@ static auto selected(
 
 PERIMORTEM_UNIT_TEST(LibraryNot, type_selection_and_partial) {
   Allocator::Arena domain;
-  NotMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Boolean distinct_bool;
   Types::Signed_8 signed_8;
-  NotExpression canonical(
-      "canonical"_view, Tetrodotoxin::Library::Dialect::get_bool());
+  NotExpression canonical("canonical"_view, resolve_library_flag(source));
   NotExpression distinct("distinct"_view, distinct_bool);
   NotExpression signed_value("signed"_view, signed_8);
   NotExpression unresolved("unresolved"_view, Invalid::get_invalid());
@@ -95,31 +88,61 @@ PERIMORTEM_UNIT_TEST(LibraryNot, type_selection_and_partial) {
   EXPECT(canonical_not.get_type().resolve().is<Invalid>());
   EXPECT_NOT(canonical_not.get_anchor());
   EXPECT(link_operation(canonical_not, source));
-  EXPECT(!link_operation(distinct_not, source));
+  EXPECT(link_operation(distinct_not, source));
   EXPECT(!link_operation(signed_not, source));
   EXPECT(!link_operation(invalid_not, source));
 
   auto canonical_result = selected(canonical_not.fold());
 
   EXPECT_NOT(canonical_result);
-  EXPECT(
-      &canonical_not.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
-  EXPECT(distinct_not.get_type().resolve().is<Invalid>());
+  EXPECT(&canonical_not.get_type() == &resolve_library_flag(source));
+  EXPECT(&distinct_not.get_type() == &distinct_bool);
   EXPECT(signed_not.get_type().resolve().is<Invalid>());
   EXPECT(invalid_not.get_type().resolve().is<Invalid>());
 }
 
+PERIMORTEM_UNIT_TEST(LibraryNot, flag_protocol_reads_folded_pack) {
+  Allocator::Arena domain;
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
+  Types::Boolean storage;
+  Types::Boolean other_storage;
+  const Model::Types::Flag& protocol = storage;
+  auto& active = Constants::True::create_synthetic(domain, protocol);
+  auto& inactive = Constants::False::create_synthetic(domain, protocol);
+  auto& other_active = Constants::True::create_synthetic(domain, other_storage);
+  Static::Vector<Reference<Model::Pack>, 2> entries{{active, inactive}};
+  auto& folded = Model::Pack::create_folded(domain, entries);
+  auto active_validity = protocol.get_validity(folded);
+  auto inactive_validity = protocol.get_validity(inactive);
+  auto& inverse = Operations::Not::create_synthetic(domain, active);
+
+  ASSERT(active_validity && inactive_validity);
+  EXPECT(*active_validity);
+  EXPECT_NOT(*inactive_validity);
+  EXPECT_NOT(protocol.get_validity(other_active));
+  ASSERT(link_operation(inverse, source));
+
+  auto inverse_value = selected(inverse.fold());
+  ASSERT(inverse_value);
+  auto inverse_validity = protocol.get_validity(*inverse_value);
+  ASSERT(inverse_validity);
+  EXPECT_NOT(*inverse_validity);
+  EXPECT(&inverse_value->get_type() == &protocol);
+}
+
 PERIMORTEM_UNIT_TEST(LibraryNot, canonical_folding) {
   Allocator::Arena domain;
-  NotMonograph source(domain);
-  auto& true_value = Constants::True::create_synthetic(
-      domain, Tetrodotoxin::Library::Dialect::get_bool());
-  auto& false_value = Constants::False::create_synthetic(
-      domain, Tetrodotoxin::Library::Dialect::get_bool());
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
+  auto& true_value =
+      Constants::True::create_synthetic(domain, resolve_library_flag(source));
+  auto& false_value =
+      Constants::False::create_synthetic(domain, resolve_library_flag(source));
   auto& complete_true = Constants::Flag::create_synthetic(
-      domain, Tetrodotoxin::Library::Dialect::get_bool(), True);
+      domain, resolve_library_flag(source), True);
   auto& complete_false = Constants::Flag::create_synthetic(
-      domain, Tetrodotoxin::Library::Dialect::get_bool(), False);
+      domain, resolve_library_flag(source), False);
   auto& true_not = Operations::Not::create_synthetic(domain, true_value);
   auto& false_not = Operations::Not::create_synthetic(domain, false_value);
   auto& complete_true_not =
@@ -145,17 +168,16 @@ PERIMORTEM_UNIT_TEST(LibraryNot, canonical_folding) {
   EXPECT(false_result->is<Constants::True>());
   EXPECT(complete_true_result->is<Constants::False>());
   EXPECT(complete_false_result->is<Constants::True>());
-  EXPECT(
-      &true_result->get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
-  EXPECT(
-      &false_result->get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
+  EXPECT(&true_result->get_type() == &resolve_library_flag(source));
+  EXPECT(&false_result->get_type() == &resolve_library_flag(source));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryNot, recursive_and_repeated_folding) {
   Allocator::Arena domain;
-  NotMonograph source(domain);
-  auto& true_value = Constants::True::create_synthetic(
-      domain, Tetrodotoxin::Library::Dialect::get_bool());
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
+  auto& true_value =
+      Constants::True::create_synthetic(domain, resolve_library_flag(source));
   auto& child = Operations::Not::create_synthetic(domain, true_value);
   auto& parent = Operations::Not::create_synthetic(domain, child);
 
@@ -169,7 +191,5 @@ PERIMORTEM_UNIT_TEST(LibraryNot, recursive_and_repeated_folding) {
   ASSERT(parent_result && repeated_result);
   EXPECT(parent_result->is<Constants::True>());
   EXPECT(&*parent_result == &*repeated_result);
-  EXPECT(
-      &parent_result->get_type() ==
-      &Tetrodotoxin::Library::Dialect::get_bool());
+  EXPECT(&parent_result->get_type() == &resolve_library_flag(source));
 }

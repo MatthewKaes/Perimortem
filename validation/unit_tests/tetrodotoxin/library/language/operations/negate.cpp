@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/operations/negate.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -20,6 +21,8 @@
 #include "tetrodotoxin/library/language/types/signed_8.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -32,25 +35,14 @@ static Harness LibraryNegate = {
   .name = "Tetrodotoxin::Library::Language::Operations::Negate"_view,
 };
 
-class NegateMonograph : public Tetrodotoxin::Language::Monograph {
- public:
-  NegateMonograph(Allocator::Arena& domain)
-      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
-
-  constexpr auto get_name() const -> View::Bytes override {
-    return "NegateMonograph"_view;
-  }
-
-  constexpr auto resolve_context(View::Bytes) const
-      -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
-};
-
 static auto link_operation(
     Operation& operation,
-    Tetrodotoxin::Language::Monograph& source) -> Bool {
-  return operation.link(source, Invalid::get_invalid());
+    const Abstract& context) -> Bool {
+  Allocator::Arena transaction;
+  Ttx::Lexical::Errors errors;
+  Ttx::Lexical::Tokenizer tokenizer(transaction, {}, "<operation>"_view);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  return operation.link(cursor, context);
 }
 
 class NegateExpression : public Expression {
@@ -115,14 +107,15 @@ static auto get_real(const Expression& expression) -> Option<Real_64> {
 
 PERIMORTEM_UNIT_TEST(LibraryNegate, type_selection_and_partial) {
   Allocator::Arena domain;
-  NegateMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Signed_8 signed_8;
   Types::Real_32 real_32;
   Types::Unsigned_8 unsigned_8;
   Types::Boolean boolean;
   Types::Fixed bytes_type(
       "Fixed[Unsigned_8,1]"_view,
-      Tetrodotoxin::Library::Dialect::get_unsigned_8(), 1);
+      resolve_library_unsigned(source, "Unsigned_8"_view), 1);
   NegateExpression signed_value("signed"_view, signed_8);
   NegateExpression real_value("real"_view, real_32);
   NegateExpression unsigned_value("unsigned"_view, unsigned_8);
@@ -164,7 +157,8 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, type_selection_and_partial) {
 
 PERIMORTEM_UNIT_TEST(LibraryNegate, checked_signed_widths) {
   Allocator::Arena domain;
-  NegateMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Signed_8 signed_8;
   Types::Signed_64 signed_64;
   auto& positive = Constants::Signed::create_synthetic(domain, signed_8, 127);
@@ -216,7 +210,8 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, checked_signed_widths) {
 
 PERIMORTEM_UNIT_TEST(LibraryNegate, ieee_real_domains) {
   Allocator::Arena domain;
-  NegateMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
   auto& finite_32 = Constants::Real::create_synthetic(domain, real_32, 3.25);
@@ -285,7 +280,8 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, ieee_real_domains) {
 
 PERIMORTEM_UNIT_TEST(LibraryNegate, recursive_fold_and_provenance) {
   Allocator::Arena domain;
-  NegateMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Signed_8 signed_8;
   auto& one = Constants::Signed::create_synthetic(domain, signed_8, 1);
   auto& minimum = Constants::Signed::create_synthetic(domain, signed_8, -128);

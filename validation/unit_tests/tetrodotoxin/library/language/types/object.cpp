@@ -52,24 +52,14 @@ static auto rejects_link(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  if (!monograph) {
-    return False;
-  }
-
-  Bool linked = workspace.link(errors);
-  return !linked && !errors.is_empty();
+  return !monograph && !errors.is_empty();
 }
 
 static auto rejects_finalize(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  if (!monograph || !workspace.link(errors)) {
-    return False;
-  }
-
-  Bool finalized = workspace.finalize(errors);
-  return !finalized && !errors.is_empty();
+  return !monograph && !errors.is_empty();
 }
 
 static Harness ObjectTests = {
@@ -92,8 +82,6 @@ PERIMORTEM_UNIT_TEST(ObjectTests, field_writability) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const Abstract& selected = monograph->resolve_context("Session"_view);
   ASSERT(selected.is<Language::Types::Object>());
@@ -129,9 +117,15 @@ PERIMORTEM_UNIT_TEST(ObjectTests, field_writability) {
   EXPECT(fixed.get_writability() == Language::Writability::Constant);
   EXPECT(hidden_const.get_writability() == Language::Writability::Constant);
   ASSERT_EQ(object.get_layout().get_size(), Count(3));
-  EXPECT(&*object.get_layout().get_abstract(0) == &open);
-  EXPECT(&*object.get_layout().get_abstract(1) == &observed);
-  EXPECT(&*object.get_layout().get_abstract(2) == &hidden_state);
+  auto first_layout_entry = object.get_layout().get_abstract(0);
+  auto second_layout_entry = object.get_layout().get_abstract(1);
+  auto third_layout_entry = object.get_layout().get_abstract(2);
+  ASSERT(first_layout_entry);
+  ASSERT(second_layout_entry);
+  ASSERT(third_layout_entry);
+  EXPECT(&*first_layout_entry == &open);
+  EXPECT(&*second_layout_entry == &observed);
+  EXPECT(&*third_layout_entry == &hidden_state);
   EXPECT(errors.is_empty());
 }
 
@@ -145,8 +139,6 @@ PERIMORTEM_UNIT_TEST(ObjectTests, exact_collision_domain) {
     Errors errors;
     auto monograph = interpret(workspace, errors, accepted[i]);
     ASSERT(monograph);
-    ASSERT(workspace.link(errors));
-    ASSERT(workspace.finalize(errors));
     EXPECT(errors.is_empty());
   }
 
@@ -208,8 +200,6 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface_retained_locally) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
   const auto& source_type = monograph->get_source();
   auto types = source_type.get_types();
   auto source_callables = source_type.get_callables();
@@ -250,26 +240,9 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inherited_initializer_mismatch) {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-  const Abstract& selected = monograph->resolve_context("Session"_view);
-  ASSERT(selected.is<Language::Types::Object>());
-  const auto& object = static_cast<const Language::Types::Object&>(selected);
-  auto authored_fields = object.get_addressables();
-  ASSERT(authored_fields != authored_fields.end());
-  const auto& authored_field =
-      static_cast<const Language::Field&>((*authored_fields).get());
-  auto authored_initializer = authored_field.get_initializer();
-  ASSERT(authored_initializer);
-
-  EXPECT_NOT(workspace.link(errors));
-  ASSERT(authored_field.get_initializer());
-  EXPECT(&*authored_field.get_initializer() == &*authored_initializer);
-  auto diagnostics = monograph->get_diagnostics();
-  ASSERT_EQ(diagnostics.get_size(), Count(1));
-  ASSERT(diagnostics.get_data()[0].get_anchor());
-  EXPECT_TEXT(
-      diagnostics.get_data()[0].get_anchor()->get_span().caculate_text(source),
-      "private state value : Unsigned_8 = false;"_view);
+  EXPECT_NOT(monograph);
+  EXPECT(
+      &workspace.resolve_context("ObjectTest"_view) == &Invalid::get_invalid());
   EXPECT_NOT(errors.is_empty());
 }
 
@@ -281,8 +254,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, link_failure_keeps_publication_empty) {
   Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-  EXPECT_NOT(workspace.link(errors));
+  EXPECT_NOT(monograph);
   EXPECT(
       &workspace.resolve_context("ObjectTest"_view) == &Invalid::get_invalid());
   EXPECT_NOT(errors.is_empty());
@@ -318,8 +290,6 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inferred_object_identity) {
   const auto& holder =
       static_cast<const Language::Types::Object&>(holder_identity);
 
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
   auto fields = holder.get_addressables();
   ASSERT(fields != fields.end());
   const auto& child_field =

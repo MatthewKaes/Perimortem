@@ -64,6 +64,22 @@ PERIMORTEM_UNIT_TEST(DynamicObject, assignment) {
   EXPECT_EQ(destructor_count, Count(2));
 }
 
+PERIMORTEM_UNIT_TEST(DynamicObject, shared_assignment_preserves_reservations) {
+  Count destructor_count = 0;
+
+  {
+    Dynamic::Object<RaiiProbe> first(destructor_count, 3);
+    Dynamic::Object<RaiiProbe> second = first;
+    const Dynamic::Object<RaiiProbe>& alias = first;
+
+    first = alias;
+    second = first;
+    EXPECT_EQ(destructor_count, Count(0));
+  }
+
+  EXPECT_EQ(destructor_count, Count(1));
+}
+
 PERIMORTEM_UNIT_TEST(DynamicObject, move_assignment) {
   Count destructor_count = 0;
 

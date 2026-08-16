@@ -102,10 +102,12 @@ static constexpr Static::Bytes<9> single_compressed = {{
 }};
 
 // hello_compressed with the last byte of its checksum flipped
+#if PERI_DEBUG
 static constexpr Static::Bytes<26> bad_adler_compressed = {{
   0x78, 0xDA, 0xF3, 0x48, 0xCD, 0xC9, 0xC9, 0xD7, 0x51, 0x08, 0x48, 0x2D, 0xCA,
   0xCC, 0xCD, 0x2F, 0x2A, 0x49, 0xCD, 0x55, 0x04, 0x00, 0x3D, 0x2E, 0x06, 0x79,
 }};
+#endif
 
 PERIMORTEM_UNIT_TEST(CompressionTests, dynamic_huffman) {
   auto out = Compression::Deflate::inflate(hello_compressed);

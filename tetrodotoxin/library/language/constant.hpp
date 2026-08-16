@@ -30,8 +30,7 @@ class Constant : public Expression {
   // stored under a documented name, that prose belongs to the Addressable.
   TTX_EMPTY_DOCUMENTATION();
 
-  virtual constexpr auto get_type() const
-      -> const Ttx::Model::Type& override = 0;
+  virtual constexpr auto get_type() const -> const Model::Type& override = 0;
   virtual constexpr auto equals(const Constant& rhs) const -> Bool = 0;
 
   constexpr auto operator==(const Constant& rhs) const -> Bool {
@@ -49,7 +48,7 @@ class Constant : public Expression {
   constexpr auto has_same_type(const Constant& rhs) const -> Bool {
     const Ttx::Concept::Abstract& lhs_type = get_type().resolve();
     const Ttx::Concept::Abstract& rhs_type = rhs.get_type().resolve();
-    return lhs_type.is<Ttx::Model::Type>() && rhs_type.is<Ttx::Model::Type>() &&
+    return lhs_type.is<Model::Type>() && rhs_type.is<Model::Type>() &&
            &lhs_type == &rhs_type;
   }
 };

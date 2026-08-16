@@ -11,14 +11,11 @@
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/flow/block.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Flow {
 
@@ -37,7 +34,7 @@ class Match : public Ttx::Concept::Abstract {
     CaseKind kind;
     Perimortem::Core::Option<Ttx::Concept::Reference<Expression>> expression;
     Ttx::Concept::Reference<Block> body;
-    Perimortem::Core::Option<Ttx::Concept::Reference<Ttx::Model::Addressable>>
+    Perimortem::Core::Option<Ttx::Concept::Reference<Model::Addressable>>
         payload;
     Ttx::Lexical::Anchor anchor;
     Perimortem::Core::Option<Ttx::Concept::Reference<const Constant>> constant;
@@ -47,12 +44,10 @@ class Match : public Ttx::Concept::Abstract {
   TTX_CONTRACT(Match, Ttx::Concept::Abstract);
 
   static auto interpret(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
       Block& lexical_context,
-      Ttx::Model::Callable& function,
-      const Ttx::Model::Type& access_scope) -> Perimortem::Core::Option<Match&>;
+      Model::Callable& function,
+      const Model::Type& access_scope) -> Perimortem::Core::Option<Match&>;
 
   Match(const Match&) = delete;
   Match(Match&&) = delete;
@@ -60,11 +55,11 @@ class Match : public Ttx::Concept::Abstract {
   auto operator=(Match&&) -> Match& = delete;
 
   auto link(
-      Tetrodotoxin::Language::Monograph& source,
+      Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,
-      const Ttx::Model::Type& access_scope) -> Bool;
+      const Model::Type& access_scope) -> Bool;
 
-  auto finalize() -> void;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
 
   auto reaches_next_statement() const -> Bool;
 
@@ -82,7 +77,7 @@ class Match : public Ttx::Concept::Abstract {
   auto get_case_kind(Count index) const -> Perimortem::Core::Option<CaseKind>;
 
   auto get_case_payload(Count index) const
-      -> Perimortem::Core::Option<const Ttx::Model::Addressable&>;
+      -> Perimortem::Core::Option<const Model::Addressable&>;
 
   auto get_case_body(Count index) const
       -> Perimortem::Core::Option<const Block&>;

@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/operations/add.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -20,6 +21,8 @@
 #include "tetrodotoxin/library/language/types/unsigned_64.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -30,21 +33,6 @@ using namespace Validation;
 
 static Harness LibraryAdd = {
   .name = "Tetrodotoxin::Library::Language::Operations::Add"_view,
-};
-
-class AddMonograph : public Tetrodotoxin::Language::Monograph {
- public:
-  AddMonograph(Allocator::Arena& domain)
-      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
-
-  constexpr auto get_name() const -> View::Bytes override {
-    return "AddMonograph"_view;
-  }
-
-  constexpr auto resolve_context(View::Bytes) const
-      -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
 };
 
 class AddExpression : public Expression {
@@ -65,8 +53,12 @@ class AddExpression : public Expression {
 
 static auto link_operation(
     Operation& operation,
-    Tetrodotoxin::Language::Monograph& source) -> Bool {
-  return operation.link(source, Invalid::get_invalid());
+    const Abstract& context) -> Bool {
+  Allocator::Arena transaction;
+  Ttx::Lexical::Errors errors;
+  Ttx::Lexical::Tokenizer tokenizer(transaction, {}, "<operation>"_view);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  return operation.link(cursor, context);
 }
 
 static auto selected(
@@ -123,7 +115,8 @@ static auto get_real(const Expression& expression) -> Option<Real_64> {
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, exact_type_selection_and_partial) {
   Allocator::Arena domain;
-  AddMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
   Types::Signed_8 signed_8;
@@ -156,7 +149,8 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, exact_type_selection_and_partial) {
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, integer_width_and_host_overflow) {
   Allocator::Arena domain;
-  AddMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_64 unsigned_64;
   Types::Signed_8 signed_8;
@@ -203,7 +197,8 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, integer_width_and_host_overflow) {
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, integer_results_retain_type) {
   Allocator::Arena domain;
-  AddMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 unsigned_type;
   Types::Signed_8 signed_type;
   auto& unsigned_left =
@@ -232,7 +227,8 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, integer_results_retain_type) {
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, ieee_real_domains) {
   Allocator::Arena domain;
-  AddMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
   auto& narrow_left =
@@ -267,7 +263,8 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, ieee_real_domains) {
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_fold_is_idempotent) {
   Allocator::Arena domain;
-  AddMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 type;
   auto& one = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& two = Constants::Unsigned::create_synthetic(domain, type, 2);
@@ -286,7 +283,8 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_fold_is_idempotent) {
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_error_keeps_child_origin) {
   Allocator::Arena domain;
-  AddMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 type;
   auto& maximum = Constants::Unsigned::create_synthetic(domain, type, 255);
   auto& one = Constants::Unsigned::create_synthetic(domain, type, 1);
@@ -300,7 +298,8 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_error_keeps_child_origin) {
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, invalid_constant_keeps_operand_origin) {
   Allocator::Arena domain;
-  AddMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 type;
   auto& wrong = Constants::Bytes::create_synthetic(domain, type, {});
   auto& valid = Constants::Unsigned::create_synthetic(domain, type, 1);
@@ -312,15 +311,16 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, invalid_constant_keeps_operand_origin) {
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, rejects_nonnumeric_and_mixed_domains) {
   Allocator::Arena domain;
-  AddMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 unsigned_8;
   Types::Signed_8 signed_8;
   Types::Real_32 real_32;
   Types::Fixed bytes_type(
       "Fixed[Unsigned_8,1]"_view,
-      Tetrodotoxin::Library::Dialect::get_unsigned_8(), 1);
+      resolve_library_unsigned(source, "Unsigned_8"_view), 1);
   auto& truth = Constants::True::create_synthetic(
-      domain, Tetrodotoxin::Library::Dialect::get_bool());
+      domain, resolve_library_flag(source));
   auto& bytes = Constants::Bytes::create_synthetic(domain, bytes_type, {});
   auto& unsigned_value =
       Constants::Unsigned::create_synthetic(domain, unsigned_8, 1);

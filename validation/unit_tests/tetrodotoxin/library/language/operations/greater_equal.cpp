@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/operations/greater_equal.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -38,25 +39,13 @@ static Harness LibraryGreaterEqual = {
   .name = "Tetrodotoxin::Library::Language::Operations::GreaterEqual"_view,
 };
 
-class GreaterEqualMonograph : public Tetrodotoxin::Language::Monograph {
- public:
-  GreaterEqualMonograph(Allocator::Arena& domain)
-      : Tetrodotoxin::Language::Monograph(domain, Documentation::get_empty()) {}
-
-  constexpr auto get_name() const -> View::Bytes override {
-    return "GreaterEqualMonograph"_view;
-  }
-
-  constexpr auto resolve_context(View::Bytes) const
-      -> const Abstract& override {
-    return Invalid::get_invalid();
-  }
-};
-
-static auto link_operation(
-    Operation& operation,
-    Tetrodotoxin::Language::Monograph& source) -> Bool {
-  return operation.link(source, Invalid::get_invalid());
+static auto link_operation(Operation& operation, const Abstract& context)
+    -> Bool {
+  Allocator::Arena transaction;
+  Errors errors;
+  Tokenizer tokenizer(transaction, {}, "<operation>"_view);
+  Cursor cursor(tokenizer, errors);
+  return operation.link(cursor, context);
 }
 
 class GreaterEqualExpression : public Expression {
@@ -95,7 +84,7 @@ class GreaterEqualFoldInput : public Operation {
       Allocator::Arena& domain,
       Expression& input,
       Constant& result,
-      const Ttx::Model::Type& type,
+      const Model::Type& type,
       Bool fails = False)
       : Operation(
             domain,
@@ -122,14 +111,14 @@ class GreaterEqualFoldInput : public Operation {
     return result;
   }
 
-  auto select_type(Tetrodotoxin::Language::Monograph&) const
-      -> Option<const Ttx::Model::Type&> override {
+  auto select_type(const Abstract&) const
+      -> Option<const Model::Type&> override {
     return type;
   }
 
  private:
   Constant& result;
-  const Ttx::Model::Type& type;
+  const Model::Type& type;
   Bool fails;
   Count evaluations = 0;
 };
@@ -164,7 +153,8 @@ static auto reports(
 
 PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, type_selection_and_partial) {
   Allocator::Arena domain;
-  GreaterEqualMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Signed_8 signed_8;
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
@@ -172,7 +162,7 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, type_selection_and_partial) {
   Types::Boolean boolean;
   Types::Fixed bytes_type(
       "Fixed[Unsigned_8,1]"_view,
-      Tetrodotoxin::Library::Dialect::get_unsigned_8(), 1);
+      resolve_library_unsigned(source, "Unsigned_8"_view), 1);
   GreaterEqualUnresolvedType unresolved_type;
   GreaterEqualExpression signed_left("signed left"_view, signed_8);
   GreaterEqualExpression signed_right("signed right"_view, signed_8);
@@ -216,12 +206,9 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, type_selection_and_partial) {
 
   auto retained = selected(unsigned_exact.fold());
 
-  EXPECT(
-      &signed_exact.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
-  EXPECT(
-      &unsigned_exact.get_type() ==
-      &Tetrodotoxin::Library::Dialect::get_bool());
-  EXPECT(&real_exact.get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
+  EXPECT(&signed_exact.get_type() == &resolve_library_flag(source));
+  EXPECT(&unsigned_exact.get_type() == &resolve_library_flag(source));
+  EXPECT(&real_exact.get_type() == &resolve_library_flag(source));
   EXPECT_NOT(retained);
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
   EXPECT(unresolved_pair.get_type().resolve().is<Invalid>());
@@ -232,7 +219,8 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, type_selection_and_partial) {
 
 PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, integer_endpoints) {
   Allocator::Arena domain;
-  GreaterEqualMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Signed_8 signed_type;
   Types::Unsigned_8 unsigned_type;
   auto& minimum =
@@ -284,7 +272,8 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, integer_endpoints) {
 
 PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, ieee_domains) {
   Allocator::Arena domain;
-  GreaterEqualMonograph source(domain);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Real_32 real_32;
   Types::Real_64 real_64;
   auto& narrow_left = Constants::Real::create_synthetic(domain, real_32, 1.0);
@@ -348,23 +337,13 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, ieee_domains) {
   EXPECT(right_nan->is<Constants::False>());
   EXPECT(forward->is<Constants::True>());
   EXPECT(reverse->is<Constants::True>());
-  EXPECT(
-      &narrow_result->get_type() ==
-      &Tetrodotoxin::Library::Dialect::get_bool());
+  EXPECT(&narrow_result->get_type() == &resolve_library_flag(source));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, recursive_provenance_and_atomicity) {
   Allocator::Arena domain;
-  GreaterEqualMonograph context(domain);
-  Tetrodotoxin::Library::Dialect dialect;
-  Errors host_errors;
-  Tokenizer host_tokens(domain, {}, "greater-equal-source.ttx"_view);
-  Cursor host_cursor(host_tokens, host_errors);
-  auto retained_source = dialect.interpret(
-      domain, host_cursor, Documentation::get_empty(), Anchor::create(Span()),
-      context);
-  ASSERT(retained_source && retained_source->is<Monograph>());
-  auto& source = static_cast<Monograph&>(*retained_source);
+  Tetrodotoxin::Library::Dialect producer;
+  auto& source = create_library_monograph(domain, producer);
   Types::Unsigned_8 selected_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
   auto& folded =
@@ -392,7 +371,8 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, recursive_provenance_and_atomicity) {
   EXPECT(reports(
       failure.fold(), Expression::Error::Type::InvalidConstant, failing));
 
-  const auto& parser_type = Tetrodotoxin::Library::Dialect::get_unsigned_64();
+  const auto& parser_type =
+      resolve_library_unsigned(source, "Unsigned_64"_view);
   Errors success_errors;
   Tokenizer success_tokens(domain, "2 >= 2"_view, "greater-equal.ttx"_view);
   Cursor success_cursor(success_tokens, success_errors);
@@ -402,7 +382,7 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, recursive_provenance_and_atomicity) {
   auto& success_left = Constants::Unsigned::create_authored(
       domain, parser_type, 2, success_left_anchor);
   auto parsed = Operations::GreaterEqual::parse(
-      domain, source, success_cursor, success_left, Span(success_left_token));
+      source, success_cursor, success_left, Span(success_left_token));
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "2 >= true"_view, "greater-equal.ttx"_view);
   Cursor failure_cursor(failure_tokens, failure_errors);
@@ -412,14 +392,14 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, recursive_provenance_and_atomicity) {
   auto& failure_left = Constants::Unsigned::create_authored(
       domain, parser_type, 2, failure_left_anchor);
   auto rejected = Operations::GreaterEqual::parse(
-      domain, source, failure_cursor, failure_left, Span(failure_left_token));
+      source, failure_cursor, failure_left, Span(failure_left_token));
 
   ASSERT(parsed);
   EXPECT(parsed->is<Operations::GreaterEqual>());
   EXPECT(parsed->get_type().resolve().is<Invalid>());
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
-  EXPECT(parsed->link(source, Invalid::get_invalid()));
+  EXPECT(parsed->link(success_cursor, source));
 
   auto parsed_fold = parsed->visit<Operation>(
       [&](Operation& operation) { return selected(operation.fold()); },
@@ -427,20 +407,14 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, recursive_provenance_and_atomicity) {
 
   ASSERT(parsed_fold);
   EXPECT(parsed_fold->is<Constants::True>());
-  EXPECT(&parsed->get_type() == &Tetrodotoxin::Library::Dialect::get_bool());
+  EXPECT(&parsed->get_type() == &resolve_library_flag(source));
 
   ASSERT(rejected);
   EXPECT(rejected->is<Operations::GreaterEqual>());
   EXPECT(rejected->get_type().resolve().is<Invalid>());
   EXPECT(failure_cursor.matches(Code::Type::Terminal));
   EXPECT(failure_errors.is_empty());
-  EXPECT_NOT(rejected->link(source, Invalid::get_invalid()));
+  EXPECT_NOT(rejected->link(failure_cursor, source));
   EXPECT(rejected->get_type().resolve().is<Invalid>());
-
-  auto diagnostics = source.get_diagnostics();
-  ASSERT(diagnostics.get_size() == 1);
-  ASSERT(diagnostics.get_data()[0].get_anchor());
-  EXPECT(
-      diagnostics.get_data()[0].get_anchor()->get_span().get_size() ==
-      Count(9));
+  EXPECT_EQ(failure_errors.get_size(), Count(1));
 }

@@ -3,19 +3,21 @@
 
 #pragma once
 
+#include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "ttx/model/documentations/comment.hpp"
-#include "ttx/model/types/unsigned.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Unsigned_64 is the standard sixty-four-bit Type implementing the Unsigned
+// Unsigned_64 is the standard sixty four bit Type implementing the Unsigned
 // domain.
-class Unsigned_64 : public Ttx::Model::Types::Unsigned {
+class Unsigned_64 : public Model::Types::Unsigned {
  public:
   TTX_NAME("Unsigned_64"_view);
 
   TTX_DOCUMENTATION(documentation);
 
+  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
   constexpr auto get_width() const -> Count override { return 64; }
   constexpr auto get_size() const -> Count override {
     return sizeof(::Unsigned_64);

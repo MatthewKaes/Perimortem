@@ -10,6 +10,12 @@ resulting semantic facts. Provider selection and native linking happen later,
 which keeps one declaration meaningful across targets without turning Foreign
 into another top level source Dialect or Monograph.
 
+A Library Source owns exactly one Foreign context. It parses the possible block
+Comment once and passes that Documentation to the context. Repeated blocks with
+the same ABI merge atomically into the same identity. Exact repeated State or
+Callable declarations retain the first identity, while a changed declaration
+rejects the later block without publishing any of its new declarations.
+
 Canonical grammar fragment: [Foreign.g4](grammar/Foreign.g4).
 
 ## Foreign block
@@ -59,6 +65,12 @@ cannot make an authored access legal.
 State visibility controls write authority through the source local `foreign`
 context. Functions are public. No Foreign declaration is automatically
 republished through the containing Monograph or Package.
+
+State and Callable names occupy separate query categories, so one external
+symbol spelling may support both `.` and `->`. A same category repeat must be
+the exact declaration retained earlier. Separate Sources retain separate
+Foreign identities, so matching declarations across sources do not collide at
+the semantic layer.
 
 The parent language supplies Documentation, Type identity, writability, and
 invocation semantics. Foreign retains the ABI selector and external symbol

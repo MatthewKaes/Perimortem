@@ -64,11 +64,6 @@ Abstract
 ├── Invalid
 ├── Alias
 ├── Type
-│   └── Value
-│       ├── Flag
-│       ├── Real
-│       ├── Signed
-│       └── Unsigned
 ├── Addressable
 ├── Pack
 └── Callable
@@ -119,7 +114,7 @@ Omitting a delimiter does not change the semantic Pack or Layout.
 A Layout describes an ordered shape and how supplied values fit it. TTX provides
 five common forms:
 
-- `Value` contains one atomic Type.
+- `Value` is an identity-free Layout containing one atomic Type.
 - `Fluid` describes and fits ordered positional entries.
 - `Named` retains uniquely named slots and fits them by name. A slot can borrow
   a name independently while fitted queries still return the exact source
@@ -131,9 +126,10 @@ Layouts describe promised semantic shape and how supplied values fit it. Layout
 decorators preserve the fitting rules of the source that owns each entry. A
 leaf Type contributes its own one-entry Value Layout, while an empty Layout
 describes no value and fits every other empty Layout. A Type with that shape
-can retain contextual or Static facts, but it cannot enter value flow. An
-Addressable therefore requires a Type with at least one Layout entry. Scalar
-Values separately define abstract machine width and storage requirements.
+can retain contextual facts, but it cannot enter value flow. An Addressable
+therefore requires a Type with at least one Layout entry. Concrete languages
+define their own scalar families, logical and numeric refinements, and abstract
+machine storage requirements.
 Target object layout, field offsets, registers, address spaces, pointer forms,
 and runtime storage belong to the consumer that chooses a physical
 representation.

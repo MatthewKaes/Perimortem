@@ -28,7 +28,6 @@ class LoopControl : public Ttx::Concept::Abstract {
   TTX_CONTRACT(LoopControl, Ttx::Concept::Abstract);
 
   static auto interpret(
-      Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
       const Block& lexical_context) -> Perimortem::Core::Option<LoopControl&>;
 

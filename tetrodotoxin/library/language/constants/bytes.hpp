@@ -9,7 +9,7 @@
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
-// Bytes is the Constant contract for immutable byte-array data. Quoted source,
+// Bytes is the Constant contract for immutable byte array data. Quoted source,
 // hexadecimal byte literals, and embedded files may all produce this value.
 // Library defines no native String constant. A concrete owner may materialize
 // its own String Type from these bytes through an ordinary Callable. The graph
@@ -21,7 +21,7 @@ class Bytes : public Constant {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Model::Type& type,
+      const Model::Type& type,
       Value value,
       Ttx::Lexical::Anchor anchor) -> Bytes& {
     return Expression::create_authored<Bytes>(
@@ -31,14 +31,14 @@ class Bytes : public Constant {
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Model::Type& type,
+      const Model::Type& type,
       Value value) -> Bytes& {
     return Expression::create_synthetic<Bytes>(
         domain,
         [&](auto source) -> Bytes { return Bytes(type, value, source); });
   }
 
-  constexpr auto get_type() const -> const Ttx::Model::Type& override {
+  constexpr auto get_type() const -> const Model::Type& override {
     return type;
   }
 
@@ -56,12 +56,12 @@ class Bytes : public Constant {
 
  private:
   constexpr Bytes(
-      const Ttx::Model::Type& type,
+      const Model::Type& type,
       Value value,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Constant(anchor), type(type), value(value) {}
 
-  const Ttx::Model::Type& type;
+  const Model::Type& type;
   Value value;
 };
 

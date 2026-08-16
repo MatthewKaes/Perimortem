@@ -20,15 +20,14 @@ class Unwrap : public Expression {
   TTX_CONTRACT(Unwrap, Expression);
 
   static auto parse(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
+      const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor,
       Expression& receiver) -> Perimortem::Core::Option<Expression&>;
 
   auto link(
-      Tetrodotoxin::Language::Monograph& source,
+      Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,
-      Perimortem::Core::Option<const Ttx::Model::Type&> access_scope = {})
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool override;
 
   TTX_NAME("Unwrap"_view);
@@ -36,7 +35,7 @@ class Unwrap : public Expression {
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
 
-  auto finalize() -> void override;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
 
@@ -47,15 +46,14 @@ class Unwrap : public Expression {
 
  private:
   constexpr Unwrap(
-      Perimortem::Memory::Allocator::Arena& domain,
       Expression& receiver,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Expression(anchor), domain(domain), receiver(receiver) {}
+      : Expression(anchor), receiver(receiver) {}
 
-  Perimortem::Memory::Allocator::Arena& domain;
   Expression& receiver;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       element_type;
+  Perimortem::Core::Option<Ttx::Concept::Reference<Model::Pack>> fallback;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

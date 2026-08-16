@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/constant.hpp"
-#include "ttx/model/types/signed.hpp"
+#include "tetrodotoxin/library/language/model/types/signed.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
@@ -18,7 +18,7 @@ class Signed : public Constant {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Model::Types::Signed& type,
+      const Tetrodotoxin::Library::Language::Model::Types::Signed& type,
       Value value,
       Ttx::Lexical::Anchor anchor) -> Signed& {
     return Expression::create_authored<Signed>(
@@ -28,14 +28,14 @@ class Signed : public Constant {
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Model::Types::Signed& type,
+      const Tetrodotoxin::Library::Language::Model::Types::Signed& type,
       Value value) -> Signed& {
     return Expression::create_synthetic<Signed>(
         domain,
         [&](auto source) -> Signed { return Signed(type, value, source); });
   }
 
-  constexpr auto get_type() const -> const Ttx::Model::Types::Signed& override {
+  constexpr auto get_type() const -> const Tetrodotoxin::Library::Language::Model::Types::Signed& override {
     return type;
   }
 
@@ -52,13 +52,13 @@ class Signed : public Constant {
   }
 
   constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
-    if (!get_type().resolve().is<Ttx::Model::Types::Signed>()) {
+    if (!get_type().resolve().is<Tetrodotoxin::Library::Language::Model::Types::Signed>()) {
       return ::False;
     }
 
     const Ttx::Concept::Abstract& target_type = target.resolve();
-    return target_type.visit<Ttx::Model::Types::Signed>(
-        [this](const Ttx::Model::Types::Signed& selected) {
+    return target_type.visit<Tetrodotoxin::Library::Language::Model::Types::Signed>(
+        [this](const Tetrodotoxin::Library::Language::Model::Types::Signed& selected) {
           Count size = selected.get_size();
           if (size == 0) {
             return ::False;
@@ -77,12 +77,12 @@ class Signed : public Constant {
 
  private:
   constexpr Signed(
-      const Ttx::Model::Types::Signed& type,
+      const Tetrodotoxin::Library::Language::Model::Types::Signed& type,
       Value value,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Constant(anchor), type(type), value(value) {}
 
-  const Ttx::Model::Types::Signed& type;
+  const Tetrodotoxin::Library::Language::Model::Types::Signed& type;
   Value value;
 };
 

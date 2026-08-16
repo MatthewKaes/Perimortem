@@ -52,6 +52,9 @@ class LayoutField final : public Addressable {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
+  auto resolve_context(View::Bytes) const -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
   auto get_type() const -> const Type& override { return type; }
 
  private:

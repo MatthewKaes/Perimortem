@@ -8,11 +8,11 @@
 #include "tetrodotoxin/library/language/constants/real.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/model/types/real.hpp"
+#include "tetrodotoxin/library/language/model/types/signed.hpp"
+#include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/types/real.hpp"
-#include "ttx/model/types/signed.hpp"
-#include "ttx/model/types/unsigned.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -25,10 +25,11 @@ static auto select_result_type(
     const Language::Expression& right) -> const Abstract& {
   const Abstract& left_resolved = left.get_type().resolve();
   const Abstract& right_resolved = right.get_type().resolve();
-  if (!left_resolved.is<Type>() || &left_resolved != &right_resolved ||
-      (!left_resolved.is<Types::Unsigned>() &&
-       !left_resolved.is<Types::Signed>() &&
-       !left_resolved.is<Types::Real>())) {
+  if (!left_resolved.is<Language::Model::Type>() ||
+      &left_resolved != &right_resolved ||
+      (!left_resolved.is<Language::Model::Types::Unsigned>() &&
+       !left_resolved.is<Language::Model::Types::Signed>() &&
+       !left_resolved.is<Language::Model::Types::Real>())) {
     return Invalid::get_invalid();
   }
 
@@ -38,7 +39,7 @@ static auto select_result_type(
 }
 
 static auto signed_difference(
-    const Ttx::Model::Types::Signed& type,
+    const Tetrodotoxin::Library::Language::Model::Types::Signed& type,
     Signed_64 left,
     Signed_64 right,
     Signed_64& result) -> Bool {
@@ -50,7 +51,7 @@ static auto signed_difference(
 }
 
 static auto unsigned_difference(
-    const Ttx::Model::Types::Unsigned& type,
+    const Tetrodotoxin::Library::Language::Model::Types::Unsigned& type,
     Unsigned_64 left,
     Unsigned_64 right,
     Unsigned_64& result) -> Bool {
@@ -61,23 +62,19 @@ static auto unsigned_difference(
   return Core::Math::is_representable(result, type.get_size());
 }
 
-TTX_DIRECT_BINARY_PARSE(
-    Subtract,
-    SubOp,
-    "Subtract has a malformed right operand."_view,
-    "Use a complete scalar Expression after binary `-`."_view);
+TTX_BINARY_PARSE(Subtract, SubOp);
 
 TTX_BINARY_OP(Subtract);
 
-auto Language::Operations::Subtract::select_type(
-    Tetrodotoxin::Language::Monograph&) const -> Core::Option<const Type&> {
+auto Language::Operations::Subtract::select_type(const Ttx::Concept::Abstract&)
+    const -> Core::Option<const Language::Model::Type&> {
   auto left = get_input(0);
   auto right = get_input(1);
   if (!left || !right) {
     return {};
   }
 
-  return select_result_type(*left, *right).select<Type>();
+  return select_result_type(*left, *right).select<Language::Model::Type>();
 }
 
 auto Language::Operations::Subtract::evaluate_constants(
@@ -94,7 +91,7 @@ auto Language::Operations::Subtract::evaluate_constants(
 
   // Type legality fixes one exact domain before folding. Visitor proof here is
   // only the Constant payload contract needed to perform that operation.
-  if (selected.is<Ttx::Model::Types::Signed>()) {
+  if (selected.is<Tetrodotoxin::Library::Language::Model::Types::Signed>()) {
     auto left_value = left->select<Constants::Signed>();
     auto right_value = right->select<Constants::Signed>();
     if (!left_value) {
@@ -107,8 +104,9 @@ auto Language::Operations::Subtract::evaluate_constants(
           Expression::Error::Type::InvalidConstant, *authored_right);
     }
 
-    return selected.visit<Ttx::Model::Types::Signed>(
-        [&](const Ttx::Model::Types::Signed& type)
+    return selected.visit<
+        Tetrodotoxin::Library::Language::Model::Types::Signed>(
+        [&](const Tetrodotoxin::Library::Language::Model::Types::Signed& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           Signed_64 value = 0;
           if (!signed_difference(
@@ -127,7 +125,7 @@ auto Language::Operations::Subtract::evaluate_constants(
         });
   }
 
-  if (selected.is<Ttx::Model::Types::Unsigned>()) {
+  if (selected.is<Tetrodotoxin::Library::Language::Model::Types::Unsigned>()) {
     auto left_value = left->select<Constants::Unsigned>();
     auto right_value = right->select<Constants::Unsigned>();
     if (!left_value) {
@@ -140,8 +138,9 @@ auto Language::Operations::Subtract::evaluate_constants(
           Expression::Error::Type::InvalidConstant, *authored_right);
     }
 
-    return selected.visit<Ttx::Model::Types::Unsigned>(
-        [&](const Ttx::Model::Types::Unsigned& type)
+    return selected.visit<
+        Tetrodotoxin::Library::Language::Model::Types::Unsigned>(
+        [&](const Tetrodotoxin::Library::Language::Model::Types::Unsigned& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           Unsigned_64 value = 0;
           if (!unsigned_difference(
@@ -160,7 +159,7 @@ auto Language::Operations::Subtract::evaluate_constants(
         });
   }
 
-  if (selected.is<Ttx::Model::Types::Real>()) {
+  if (selected.is<Tetrodotoxin::Library::Language::Model::Types::Real>()) {
     auto left_value = left->select<Constants::Real>();
     auto right_value = right->select<Constants::Real>();
     if (!left_value) {
@@ -173,8 +172,8 @@ auto Language::Operations::Subtract::evaluate_constants(
           Expression::Error::Type::InvalidConstant, *authored_right);
     }
 
-    return selected.visit<Ttx::Model::Types::Real>(
-        [&](const Ttx::Model::Types::Real& type)
+    return selected.visit<Tetrodotoxin::Library::Language::Model::Types::Real>(
+        [&](const Tetrodotoxin::Library::Language::Model::Types::Real& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
           if (type.get_size() == sizeof(Real_32)) {
             Real_32 value = Real_32(left_value->get_value()) -

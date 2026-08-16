@@ -17,16 +17,14 @@ class Range : public Generic {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "Range"_view;
 
-  static auto get_formula() -> const Range& {
-    static constexpr Range formula;
-    return formula;
-  }
+  Range(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Concept::Abstract& context)
+      : Generic(domain, context) {}
 
   TTX_NAME(name);
 
   TTX_DOCUMENTATION(documentation);
-
-  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_parameterization() const
       -> Perimortem::Core::View::Vector<Parameters> override {
@@ -34,10 +32,8 @@ class Range : public Generic {
   }
 
  private:
-  auto create(
-      Perimortem::Core::View::Vector<Argument> arguments,
-      Perimortem::Memory::Allocator::Arena& arena) const
-      -> Perimortem::Core::Option<const Ttx::Model::Type&> override;
+  auto create(Perimortem::Core::View::Vector<Argument> arguments) const
+      -> Perimortem::Core::Option<const Model::Type&> override;
 
   static constexpr Perimortem::Core::Static::Vector<Parameters, 1>
       parameterization = {{Parameters::Type}};

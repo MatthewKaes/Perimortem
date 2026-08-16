@@ -8,6 +8,7 @@
 
 #include "perimortem/system/version.hpp"
 
+#include "tetrodotoxin/package/language/parser/name.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/span.hpp"
 
@@ -20,18 +21,26 @@ namespace Tetrodotoxin::Package::Language {
 class Dependency {
  public:
   constexpr Dependency(
-      Perimortem::Core::View::Bytes local_name,
+      Parser::Name local_name,
       Perimortem::Core::View::Bytes package_name,
-      Perimortem::System::Version version)
-      : local_name(local_name), package_name(package_name), version(version) {}
+      Perimortem::System::Version version,
+      Ttx::Lexical::Span statement = {})
+      : local_name(local_name),
+        package_name(package_name),
+        version(version),
+        statement(statement) {}
 
-  // Consumes one complete Resolve statement and returns its lexical Span
-  // separately from the durable request. Failure recovers the Cursor and
-  // leaves the supplied Span invalid.
-  static auto parse(Ttx::Lexical::Cursor& cursor, Ttx::Lexical::Span& span)
+  // Consumes one complete Resolve statement. An authored value retains its
+  // statement coordinates for the enclosing import operation. Restored values
+  // use the default invalid Span.
+  static auto parse(Ttx::Lexical::Cursor& cursor)
       -> Perimortem::Core::Option<Dependency>;
 
   constexpr auto get_local_name() const -> Perimortem::Core::View::Bytes {
+    return local_name.get_view();
+  }
+
+  constexpr auto get_local_route() const -> const Parser::Name& {
     return local_name;
   }
 
@@ -43,10 +52,13 @@ class Dependency {
     return version;
   }
 
+  constexpr auto get_span() const -> Ttx::Lexical::Span { return statement; }
+
  private:
-  Perimortem::Core::View::Bytes local_name;
+  Parser::Name local_name;
   Perimortem::Core::View::Bytes package_name;
   Perimortem::System::Version version;
+  Ttx::Lexical::Span statement;
 };
 
 }  // namespace Tetrodotoxin::Package::Language

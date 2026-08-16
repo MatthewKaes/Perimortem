@@ -4,11 +4,11 @@
 #include "tetrodotoxin/package/archive/archive.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/package/fixture.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/package/archive/export.hpp"
 #include "tetrodotoxin/package/archive/member.hpp"
 #include "tetrodotoxin/package/archive/read_error.hpp"
@@ -281,27 +281,32 @@ PERIMORTEM_UNIT_TEST(PackageArchive, authored_provenance_is_not_encoded) {
       "dialect : Package;\n"
       "resolve Core : Pkg.Base = \"3.4\";\n"
       "source Main from \"main.ttx\";"_view;
-  Environment::Workspace workspace;
+  Package::Dialect authored_dialect;
+  Allocator::Arena authored_arena;
   Ttx::Lexical::Errors errors;
 
-  // Workspace supplies real authored provenance through the production
-  // parser. A synthetic Dependency alone could not prove spans were excluded.
-  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
-  ASSERT(workspace.interpret_source(
-      errors, "Authored"_view, "package.ttx"_view, source));
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
-  const auto& imported = workspace.resolve_context("Authored"_view);
-  ASSERT(imported.is<Package::Language::Monograph>());
-  const auto& authored =
-      static_cast<const Package::Language::Monograph&>(imported);
-  ASSERT_EQ(authored.get_dependency_spans().get_size(), Count(1));
+  // The direct Dialect fixture supplies real authored provenance without
+  // asking Workspace to publish an incomplete Package. A synthetic Dependency
+  // alone could not prove spans were excluded.
+  auto interpreted = interpret_package(
+      authored_arena, authored_dialect, errors, source, "package.ttx"_view);
+  ASSERT(interpreted);
+  const Package::Language::Monograph& authored = *interpreted;
+  ASSERT_EQ(authored.get_dependencies().get_size(), Count(1));
+  ASSERT_EQ(authored.get_sources().get_size(), Count(1));
+  EXPECT(authored.get_dependencies().get_data()[0].get_span());
+  EXPECT(authored.get_sources().get_data()[0].get_span());
   EXPECT(errors.is_empty());
 
   Allocator::Arena arena;
+  Package::Dialect synthetic_dialect;
+  Package::Language::Dependency source_free_dependencies[] = {
+    Package::Language::Dependency("Core"_view, "Pkg.Base"_view, Version(3, 4)),
+  };
   auto& source_free = Package::Language::Monograph::create_synthetic(
-      arena, Ttx::Concept::Documentation::get_empty(),
-      authored.get_dependencies());
+      arena, synthetic_dialect, synthetic_dialect, source_free_dependencies);
+  EXPECT_NOT(source_free.get_dependencies().get_data()[0].get_span());
+  EXPECT(source_free.get_sources().is_empty());
   Package::Archive::Member members[] = {
     Package::Archive::Member("Main"_view, "Lib"_view, View::Bytes()),
   };
@@ -336,6 +341,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, authored_provenance_is_not_encoded) {
   EXPECT(
       restored->get_dependencies().get_data()[0].get_version() ==
       Version(3, 4));
+  EXPECT_NOT(restored->get_dependencies().get_data()[0].get_span());
 
   auto restored_bytes = Package::Archive::Writer::write(*restored);
   ASSERT(restored_bytes);

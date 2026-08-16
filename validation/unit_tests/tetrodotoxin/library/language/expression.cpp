@@ -14,6 +14,7 @@
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/real_64.hpp"
 #include "tetrodotoxin/library/language/types/signed_64.hpp"
@@ -22,7 +23,6 @@
 #include "tetrodotoxin/library/language/types/unsigned_64.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/addressable.hpp"
 #include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
@@ -31,7 +31,7 @@ using namespace Tetrodotoxin::Library::Language;
 using namespace Ttx::Concept;
 using namespace Validation;
 
-class ExpressionType : public Ttx::Model::Type {
+class ExpressionType : public Model::Type {
  public:
   ExpressionType(View::Bytes name, Ttx::Model::Layouts::Named layout = {})
       : name(name), layout(layout) {}
@@ -46,42 +46,66 @@ class ExpressionType : public Ttx::Model::Type {
   auto get_layout() const -> const Ttx::Model::Layouts::Named& override {
     return layout;
   }
+  auto create_default(Allocator::Arena&) const
+      -> Option<Model::Pack&> override {
+    return {};
+  }
 
  private:
   View::Bytes name;
   Ttx::Model::Layouts::Named layout;
 };
 
-class ExpressionField : public Ttx::Model::Addressable {
+class ExpressionField : public Model::Addressable {
  public:
-  ExpressionField(View::Bytes name, const Ttx::Model::Type& type)
+  ExpressionField(View::Bytes name, const Model::Type& type)
       : name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto get_type() const -> const Ttx::Model::Type& override { return type; }
+  auto get_type() const -> const Model::Type& override { return type; }
 
  private:
   View::Bytes name;
-  const Ttx::Model::Type& type;
+  const Model::Type& type;
 };
 
 class ExpressionValue : public Expression {
  public:
-  ExpressionValue(View::Bytes name, const Ttx::Model::Type& type)
+  ExpressionValue(View::Bytes name, const Model::Type& type)
       : Expression({}), name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto get_type() const -> const Ttx::Model::Type& override { return type; }
+  auto get_type() const -> const Model::Type& override { return type; }
 
  private:
   View::Bytes name;
-  const Ttx::Model::Type& type;
+  const Model::Type& type;
+};
+
+// Type selection remains queryable through its exact result but owns no value
+// output that fitting or storage may consume.
+class ExpressionTypeResult : public Expression {
+ public:
+  ExpressionTypeResult(const Model::Type& result)
+      : Expression({}), result(result) {}
+
+  auto get_name() const -> View::Bytes override { return result.get_name(); }
+  auto get_documentation() const -> const Documentation& override {
+    return result.get_documentation();
+  }
+  auto get_type() const -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+  auto get_result() const -> const Abstract& override { return result; }
+
+ private:
+  const Model::Type& result;
 };
 
 static Harness LibraryExpression = {
@@ -90,7 +114,7 @@ static Harness LibraryExpression = {
 
 PERIMORTEM_UNIT_TEST(LibraryExpression, address_identity) {
   Allocator::Arena arena;
-  ExpressionType scalar("Scalar"_view);
+  Types::Boolean scalar;
   ExpressionField field("value"_view, scalar);
   ExpressionValue receiver("receiver"_view, scalar);
   auto& address =
@@ -104,6 +128,18 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, address_identity) {
   EXPECT(&address.get_receiver() == &receiver);
   EXPECT(&address.get_result() == &field);
   EXPECT(address.fits(scalar));
+}
+
+PERIMORTEM_UNIT_TEST(LibraryExpression, type_result_has_no_value_flow) {
+  Types::Boolean selected;
+  ExpressionTypeResult selection(selected);
+  Ttx::Model::Layouts::Named empty;
+
+  EXPECT(&selection.get_result() == &selected);
+  EXPECT(selection.get_layout().is_empty());
+  EXPECT(selection.resolve().is<Invalid>());
+  EXPECT_NOT(selection.fits(empty));
+  EXPECT_NOT(selection.fits(selected));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryExpression, constant_identity) {

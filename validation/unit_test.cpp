@@ -277,21 +277,27 @@ int main(int argc, const char* argv[]) {
   for (Count i = 0; i < test_count; i++) {
     Count index = i;
     const Instance& test = binary_tests[index];
-    if (test.harness != harness) {
-      harness = test.harness;
+    if (test.harness == nullptr) {
+      fprintf(stderr, "Registered test has no Harness.\n");
+      return 1;
+    }
+    const Harness& selected_harness = *test.harness;
+    if (&selected_harness != harness) {
+      harness = &selected_harness;
       if (!silent) {
         printf(
-            "%s[ START ] %.*s\n%s", dark_color, (int)harness->name.get_size(),
-            harness->name.get_data(), clear_color);
+            "%s[ START ] %.*s\n%s", dark_color,
+            (int)selected_harness.name.get_size(),
+            selected_harness.name.get_data(), clear_color);
       }
-      harness->init();
+      selected_harness.init();
     }
 
     // Setup sink before setup() so tests can still override.
     Diagnostics::Log::set_sink(Test::capture_sink);
     captured_log_message = ""_view;
 
-    harness->setup();
+    selected_harness.setup();
     not_run_tests -= 1;
 
     Test::TestResult result = Test::TestResult::Pass;
@@ -300,7 +306,7 @@ int main(int argc, const char* argv[]) {
     test.func(result);
     Real_64 test_time_ms = start.measure().convert_to_milliseconds();
 
-    harness->teardown();
+    selected_harness.teardown();
     Diagnostics::Log::set_sink(Diagnostics::Log::default_sink);
     switch (result) {
     case Test::TestResult::Pass:

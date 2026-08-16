@@ -10,6 +10,8 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
+#include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/language/parser/dialect.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
@@ -21,8 +23,6 @@
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/alias.hpp"
-#include "ttx/model/types/signed.hpp"
-#include "ttx/model/types/unsigned.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -49,6 +49,39 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
   return static_cast<Language::Monograph&>(*interpreted);
 }
 
+static auto parse_authored(
+    Allocator::Arena& lexical,
+    Dialect& dialect,
+    Workspace& context,
+    Errors& errors,
+    View::Bytes source) -> Option<Language::Monograph&> {
+  Tokenizer tokenizer(lexical, source, "enumeration.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  if (!cursor.matches(Code::Type::Comment)) {
+    return {};
+  }
+
+  Token source_opening = cursor.current();
+  const Documentation& documentation =
+      Tetrodotoxin::Language::Parser::Comment::parse(cursor);
+  Token dialect_declaration = cursor.current();
+  if (Tetrodotoxin::Language::Parser::Dialect::parse(cursor) !=
+      "Library"_view) {
+    return {};
+  }
+
+  Anchor source_anchor = Anchor::create(
+      dialect_declaration, Span(source_opening, cursor.peek(-1)));
+  auto monograph =
+      dialect.interpret(cursor, documentation, source_anchor, context);
+  if (!monograph || !cursor.matches(Code::Type::Terminal) ||
+      !monograph->is<Language::Monograph>() || !errors.is_empty()) {
+    return {};
+  }
+
+  return static_cast<Language::Monograph&>(*monograph);
+}
+
 static auto rejects_interpretation(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
@@ -61,12 +94,18 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
 static auto rejects_link(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
-  auto monograph = interpret(workspace, errors, source);
+  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
+  BAIL_IF(!dialect);
+  Allocator::Arena lexical;
+  auto monograph = parse_authored(lexical, *dialect, workspace, errors, source);
   if (!monograph) {
     return False;
   }
 
-  Bool linked = workspace.link(errors);
+  Allocator::Arena completion;
+  Tokenizer tokenizer(completion, source, "enumeration.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  Bool linked = monograph->link(cursor);
   return !linked && !errors.is_empty() &&
          &workspace.resolve_context("EnumerationTest"_view) ==
              &Invalid::get_invalid();
@@ -75,19 +114,30 @@ static auto rejects_link(View::Bytes source) -> Bool {
 static auto rejects_finalize_without_cases(View::Bytes source) -> Bool {
   Workspace workspace;
   Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  if (!monograph || !workspace.link(errors)) {
+  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
+  BAIL_IF(!dialect);
+  Allocator::Arena lexical;
+  auto owner = parse_authored(lexical, *dialect, workspace, errors, source);
+  if (!owner) {
     return False;
   }
 
-  const Abstract& selected = monograph->resolve_context("Bad"_view);
+  auto& monograph = *owner;
+  Allocator::Arena completion;
+  Tokenizer tokenizer(completion, source, "enumeration.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  if (!monograph.link(cursor)) {
+    return False;
+  }
+
+  const Abstract& selected = monograph.resolve_context("Bad"_view);
   if (!selected.is<Language::Types::Enumeration>()) {
     return False;
   }
 
   const auto& enumeration =
       static_cast<const Language::Types::Enumeration&>(selected);
-  Bool finalized = workspace.finalize(errors);
+  Bool finalized = monograph.finalize(cursor);
   auto cases = enumeration.get_cases();
   return !finalized && cases.is_empty() && !errors.is_empty() &&
          &workspace.resolve_context("EnumerationTest"_view) ==
@@ -113,8 +163,6 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_values_and_equal_aliases) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const Abstract& selected = monograph->resolve_context("Offset"_view);
   ASSERT(selected.is<Language::Types::Enumeration>());
@@ -128,7 +176,8 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_values_and_equal_aliases) {
     ASSERT(resolved.is<Language::Constants::Signed>());
     const auto& constant =
         static_cast<const Language::Constants::Signed&>(resolved);
-    EXPECT(&constant.get_type() == &Dialect::get_signed_8());
+    EXPECT(
+        &constant.get_type() == &monograph->resolve_context("Signed_8"_view));
     EXPECT_EQ(constant.get_value(), expected[i]);
   }
   EXPECT(&cases.get_data()[2].get() != &cases.get_data()[4].get());
@@ -154,8 +203,6 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, binary_wide_boundaries) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const Abstract& unsigned_identity =
       monograph->resolve_context("UnsignedEdge"_view);
@@ -240,8 +287,6 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, visibility_and_authored_order) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  ASSERT(workspace.link(errors));
-  ASSERT(workspace.finalize(errors));
 
   const auto& source_type = monograph->get_source();
   const Abstract& first = monograph->resolve_context("First"_view);

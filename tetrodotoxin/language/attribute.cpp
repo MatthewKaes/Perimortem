@@ -121,34 +121,33 @@ auto Language::Attribute::parse(Cursor& cursor) -> View::Vector<Attribute> {
     return {};
   }
 
-  auto transaction = cursor.branch();
   Managed::Vector<Attribute> attributes(cursor.get_arena());
-  while (transaction.matches(Code::Type::Attribute)) {
-    Token key_token = transaction.consume();
-    View::Bytes key = key_token.caculate_text(transaction.get_source_text());
+  while (cursor.matches(Code::Type::Attribute)) {
+    Token key_token = cursor.consume();
+    View::Bytes key = key_token.caculate_text(cursor.get_source_text());
     Bool valid_key = !key.is_empty();
     for (Count i = 0; i < key.get_size(); i++) {
       valid_key &= Lexicon::is_identifier(key[i]);
     }
     if (!valid_key) {
-      transaction.create_token_error(
+      cursor.create_token_error(
           key_token, "Attributes require one authored key."_view);
       return {};
     }
 
     Token closing = key_token;
     Attribute::Value value;
-    if (transaction.matches(Code::Type::PackingStart)) {
-      transaction.consume();
-      auto parsed_value = parse_value(transaction);
+    if (cursor.matches(Code::Type::PackingStart)) {
+      cursor.consume();
+      auto parsed_value = parse_value(cursor);
       if (!parsed_value) {
-        transaction.create_token_error(
+        cursor.create_token_error(
             "Attribute values require one scalar literal."_view);
         return {};
       }
       value = *parsed_value;
 
-      closing = transaction.require(
+      closing = cursor.require(
           Code::Type::PackingEnd,
           "Attribute values require one closing `)`."_view);
       BAIL_IF(!closing);
@@ -158,6 +157,5 @@ auto Language::Attribute::parse(Cursor& cursor) -> View::Vector<Attribute> {
         key, value, Anchor::create(key_token, Span(key_token, closing))));
   }
 
-  cursor.join(transaction);
   return attributes.get_view();
 }

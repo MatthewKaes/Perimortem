@@ -9,14 +9,12 @@
 
 #include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/statement.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Flow {
 
@@ -33,13 +31,10 @@ class Branch : public Ttx::Concept::Abstract {
   TTX_CONTRACT(Branch, Ttx::Concept::Abstract);
 
   static auto interpret(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Monograph& source,
       Ttx::Lexical::Cursor& cursor,
       Block& lexical_context,
-      Ttx::Model::Callable& function,
-      const Ttx::Model::Type& access_scope)
-      -> Perimortem::Core::Option<Branch&>;
+      Model::Callable& function,
+      const Model::Type& access_scope) -> Perimortem::Core::Option<Branch&>;
 
   Branch(const Branch&) = delete;
   Branch(Branch&&) = delete;
@@ -47,11 +42,11 @@ class Branch : public Ttx::Concept::Abstract {
   auto operator=(Branch&&) -> Branch& = delete;
 
   auto link(
-      Tetrodotoxin::Language::Monograph& source,
-      const Ttx::Concept::Abstract& lexical_context,
-      const Ttx::Model::Type& access_scope) -> Bool;
+      Ttx::Lexical::Cursor& cursor,
+      Scope& lexical_context,
+      const Model::Type& access_scope) -> Bool;
 
-  auto finalize() -> void;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
 
   auto reaches_next_statement() const -> Bool;
 
@@ -68,13 +63,11 @@ class Branch : public Ttx::Concept::Abstract {
   constexpr auto get_body() const -> const Block& { return body->get(); }
 
   constexpr auto get_alternate() const
-      -> Perimortem::Core::Option<const Block&> {
+      -> Perimortem::Core::Option<const Statement&> {
     return alternate.visit(
-        []() -> Perimortem::Core::Option<const Block&> { return {}; },
-        [](const Ttx::Concept::Reference<Block>& selected)
-            -> Perimortem::Core::Option<const Block&> {
-          return selected.get();
-        });
+        []() -> Perimortem::Core::Option<const Statement&> { return {}; },
+        [](const Statement& selected)
+            -> Perimortem::Core::Option<const Statement&> { return selected; });
   }
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
@@ -89,7 +82,7 @@ class Branch : public Ttx::Concept::Abstract {
   Kind kind;
   Ttx::Concept::Reference<Model::Pack> condition;
   Perimortem::Core::Option<Ttx::Concept::Reference<Block>> body;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Block>> alternate;
+  Perimortem::Core::Option<Statement> alternate;
   Ttx::Lexical::Anchor anchor;
   Bool linked = False;
 };

@@ -5,18 +5,16 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/language/model/types/signed.hpp"
+#include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/lexical/errors.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/types/signed.hpp"
-#include "ttx/model/types/unsigned.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -54,26 +52,30 @@ static auto reject_operand(Cursor& cursor, Span postfix_span, Span operand_span)
   report.get_hint() << "Use a complete scalar or byte Expression."_view;
 }
 
-static auto get_byte_type(const Type& type)
-    -> Core::Option<const Ttx::Model::Types::Unsigned&> {
-  return type.visit<Ttx::Model::Types::Unsigned>(
-      [](const Ttx::Model::Types::Unsigned& selected)
-          -> Core::Option<const Ttx::Model::Types::Unsigned&> {
+static auto get_byte_type(const Language::Model::Type& type) -> Core::Option<
+    const Tetrodotoxin::Library::Language::Model::Types::Unsigned&> {
+  return type.visit<Tetrodotoxin::Library::Language::Model::Types::Unsigned>(
+      [](const Tetrodotoxin::Library::Language::Model::Types::Unsigned&
+             selected)
+          -> Core::Option<
+              const Tetrodotoxin::Library::Language::Model::Types::Unsigned&> {
         if (selected.get_width() != 8 || selected.get_size() != 1) {
           return {};
         }
 
         return selected;
       },
-      [](const Abstract&) -> Core::Option<const Ttx::Model::Types::Unsigned&> {
+      [](const Abstract&)
+          -> Core::Option<
+              const Tetrodotoxin::Library::Language::Model::Types::Unsigned&> {
         return {};
       });
 }
 
 static auto is_integer(const Language::Expression& expression) -> Bool {
   const Abstract& type = expression.get_type().resolve();
-  return type.is<Ttx::Model::Types::Signed>() ||
-         type.is<Ttx::Model::Types::Unsigned>();
+  return type.is<Tetrodotoxin::Library::Language::Model::Types::Signed>() ||
+         type.is<Tetrodotoxin::Library::Language::Model::Types::Unsigned>();
 }
 
 // Option is the safe miss produced by an integer outside Count. Error remains
@@ -123,28 +125,28 @@ static auto select_scalar(Language::Model::Pack& pack)
 }
 
 static auto select_required_type(const Abstract& candidate)
-    -> Core::Option<const Type&> {
-  auto direct = candidate.select<Type>();
+    -> Core::Option<const Language::Model::Type&> {
+  auto direct = candidate.select<Language::Model::Type>();
   if (direct) {
     return *direct;
   }
 
   auto pack = candidate.select<Language::Model::Pack>();
   if (pack) {
-    direct = pack->get_type().select<Type>();
+    direct = pack->get_type().select<Language::Model::Type>();
     if (direct) {
       return *direct;
     }
   }
 
   const Abstract& resolved = candidate.resolve();
-  auto addressable = candidate.select<Addressable>();
+  auto addressable = candidate.select<Language::Model::Addressable>();
   if (!addressable) {
-    addressable = resolved.select<Addressable>();
+    addressable = resolved.select<Language::Model::Addressable>();
   }
   const Abstract& selected = addressable ? addressable->get_type() : resolved;
-  direct = selected.select<Type>();
-  return direct ? direct : selected.resolve().select<Type>();
+  direct = selected.select<Language::Model::Type>();
+  return direct ? direct : selected.resolve().select<Language::Model::Type>();
 }
 
 // A slice is homogeneous value flow, but the repeated source is still the one
@@ -154,13 +156,13 @@ static auto select_required_type(const Abstract& candidate)
 static auto create_layout(
     Memory::Allocator::Arena& domain,
     const Language::Access::Slice& source,
-    const Type& element,
+    const Language::Model::Type& element,
     Count size) -> const Ttx::Concept::Layout& {
   class Layout final : public Ttx::Concept::Layout {
    public:
     constexpr Layout(
         const Language::Access::Slice& source,
-        const Type& element,
+        const Language::Model::Type& element,
         Count size)
         : source(source), element(element), size(size) {}
 
@@ -183,7 +185,7 @@ static auto create_layout(
               [&](const Abstract& required) {
                 return select_required_type(required).visit(
                     []() { return False; },
-                    [&](const Type& type) {
+                    [&](const Language::Model::Type& type) {
                       return element.get_layout().fits(type.get_layout());
                     });
               });
@@ -221,44 +223,30 @@ static auto create_layout(
 
    private:
     const Language::Access::Slice& source;
-    const Type& element;
+    const Language::Model::Type& element;
     Count size;
   };
 
   return domain.construct<Layout>(source, element, size);
 }
 
-static auto parse_operand(
-    Memory::Allocator::Arena& domain,
-    Language::Monograph& source,
-    Cursor& cursor) -> Core::Option<Language::Expression&> {
-  Errors operand_errors;
-  auto operand_cursor = cursor.branch(operand_errors);
-
-  // The complete operand grammar stays inside this private Cursor. Its
-  // provisional diagnostics remain local until Slice can attribute failure to
-  // the complete postfix.
-  auto pack =
-      Language::Parser::Expression::parse(domain, source, operand_cursor);
-  auto result = pack.visit(
+static auto parse_operand(const Abstract& context, Cursor& cursor)
+    -> Core::Option<Language::Expression&> {
+  auto pack = Language::Parser::Expression::parse(context, cursor);
+  return pack.visit(
       []() -> Core::Option<Language::Expression&> { return {}; },
       [](Language::Model::Pack& selected) {
         return selected.select<Language::Expression>();
       });
-  if (result) {
-    cursor.join(operand_cursor);
-  }
-
-  return result;
 }
 
 auto Language::Access::Slice::parse(
-    Memory::Allocator::Arena& domain,
-    Monograph& source,
+    const Abstract& context,
     Cursor& cursor,
     Expression& receiver) -> Core::Option<Expression&> {
-  // Expression selects Slice only after seeing ValueAccessOp. Consuming it here
-  // commits the transaction to this owner's complete postfix grammar.
+  Memory::Allocator::Arena& domain = cursor.get_arena();
+  // Expression selects Slice only after seeing ValueAccessOp, so this owner
+  // consumes it as the committed start of one complete postfix grammar.
   Token opening = cursor.consume();
   Code first_code = cursor.get_code();
   if (first_code.is_one_of({{
@@ -274,7 +262,7 @@ auto Language::Access::Slice::parse(
   Token first_start = cursor.current();
   Token first_end =
       cursor.matches(Code::Type::SubOp) ? cursor.peek(1) : first_start;
-  auto first = parse_operand(domain, source, cursor);
+  auto first = parse_operand(context, cursor);
   if (!first) {
     Span span = complete_postfix_span(cursor, opening);
     reject_operand(cursor, span, Span(first_start, first_end));
@@ -302,7 +290,7 @@ auto Language::Access::Slice::parse(
     Token second_start = cursor.current();
     Token second_end =
         cursor.matches(Code::Type::SubOp) ? cursor.peek(1) : second_start;
-    second = parse_operand(domain, source, cursor);
+    second = parse_operand(context, cursor);
     if (!second) {
       Span span = complete_postfix_span(cursor, opening);
       reject_operand(cursor, span, Span(second_start, second_end));
@@ -383,13 +371,13 @@ Language::Access::Slice::Slice(
       count(Ttx::Concept::Reference<Expression>(count)) {}
 
 auto Language::Access::Slice::link(
-    Tetrodotoxin::Language::Monograph& source,
+    Ttx::Lexical::Cursor& cursor,
     const Abstract& lexical_context,
-    Core::Option<const Type&> access_scope) -> Bool {
-  Bool failed = !receiver.link(source, lexical_context, access_scope);
-  failed |= !first.link(source, lexical_context, access_scope);
+    Core::Option<const Abstract&> access_scope) -> Bool {
+  Bool failed = !receiver.link(cursor, lexical_context, access_scope);
+  failed |= !first.link(cursor, lexical_context, access_scope);
   if (count) {
-    failed |= !count->get().link(source, lexical_context, access_scope);
+    failed |= !count->get().link(cursor, lexical_context, access_scope);
   }
   BAIL_IF(failed);
 
@@ -397,23 +385,26 @@ auto Language::Access::Slice::link(
       receiver.get_type().resolve().select<Language::Types::Contiguous>();
   if (!contiguous || !is_integer(first) ||
       (count && !is_integer(count->get()))) {
-    source.report(
+    cursor.create_expression_error(
         get_anchor(), "Slice rejects the linked operand Types."_view,
         "Use an indexable receiver and integer index, start, and count Expressions."_view);
     return False;
   }
 
-  const Type& element = contiguous->get_element_type();
+  const Language::Model::Type& element = contiguous->get_element_type();
   if (element_type && &element_type->get() != &element) {
-    source.report(
+    cursor.create_expression_error(
         get_anchor(), "Slice cannot change its linked element Type."_view,
         "Keep one exact element Type on this authored access."_view);
     return False;
   }
-  element_type = Reference<const Type>(element);
+  element_type = Reference<const Language::Model::Type>(element);
 
   if (!count) {
-    return Expression::link(source, lexical_context, access_scope);
+    auto selected_fallback = element.create_default(cursor.get_arena());
+    BAIL_IF(!selected_fallback);
+    fallback = Reference<Model::Pack>(*selected_fallback);
+    return Expression::link(cursor, lexical_context, access_scope);
   }
 
   // Range count determines the complete Pack shape and is therefore a link
@@ -427,7 +418,7 @@ auto Language::Access::Slice::link(
       [&](const Core::Option<Model::Pack&>& folded) { folded_count = folded; },
       [&](const Expression::Error& error) { fold_error = error; });
   if (fold_error || !folded_count) {
-    source.report(
+    cursor.create_expression_error(
         count_expression.get_anchor(),
         "Slice range count did not constant-fold during linking."_view,
         "Supply one nonnegative integer Constant for the range count."_view);
@@ -436,7 +427,7 @@ auto Language::Access::Slice::link(
 
   auto folded_count_expression = select_scalar(*folded_count);
   if (!folded_count_expression) {
-    source.report(
+    cursor.create_expression_error(
         count_expression.get_anchor(),
         "Slice range count did not fold to one scalar Constant."_view,
         "Supply one nonnegative integer Constant for the range count."_view);
@@ -452,7 +443,7 @@ auto Language::Access::Slice::link(
           },
           [&](const Expression::Error& error) { count_error = error; });
   if (count_error || !selected_count) {
-    source.report(
+    cursor.create_expression_error(
         count_expression.get_anchor(),
         "Slice range count is outside the supported nonnegative range."_view,
         "Use a nonnegative integer Constant representable as Count."_view);
@@ -462,7 +453,7 @@ auto Language::Access::Slice::link(
   if (range_layout) {
     Bool changed = !range_count || *range_count != *selected_count;
     if (changed) {
-      source.report(
+      cursor.create_expression_error(
           get_anchor(),
           "Slice range cannot change its linked output Layout."_view,
           "Keep one exact element Type and constant count for this access."_view);
@@ -507,7 +498,8 @@ auto Language::Access::Slice::resolve() const -> const Abstract& {
   return static_cast<const Ttx::Model::Pack&>(*this);
 }
 
-auto Language::Access::Slice::fits(const Type& target) const -> Bool {
+auto Language::Access::Slice::fits(const Ttx::Model::Type& target) const
+    -> Bool {
   if (!count) {
     return Expression::fits(target);
   }
@@ -518,13 +510,13 @@ auto Language::Access::Slice::fits(const Type& target) const -> Bool {
   return Model::Pack::fits(target);
 }
 
-auto Language::Access::Slice::finalize() -> void {
-  receiver.finalize();
-  first.finalize();
+auto Language::Access::Slice::finalize(Cursor& cursor) -> void {
+  receiver.finalize(cursor);
+  first.finalize(cursor);
   if (count) {
-    count->get().finalize();
+    count->get().finalize(cursor);
   }
-  Expression::finalize();
+  Expression::finalize(cursor);
 }
 
 auto Language::Access::Slice::evaluate()
@@ -566,7 +558,7 @@ auto Language::Access::Slice::evaluate()
     return Expression::Error(
         Expression::Error::Type::InvalidOperationType, *this);
   }
-  const Type& element = element_type->get();
+  const Language::Model::Type& element = element_type->get();
 
   auto selected_index = get_count(*folded_first, first);
   return selected_index.visit(
@@ -582,14 +574,14 @@ auto Language::Access::Slice::evaluate()
                   // No payload element exists, so the exact element Type
                   // decides whether safe selection has a value or a
                   // failure.
-                  auto fallback =
-                      Library::Dialect::create_default(domain, element);
                   if (!fallback) {
                     return Expression::Error(
                         Expression::Error::Type::InvalidConstant, *this);
                   }
 
-                  const Layout& fallback_layout = fallback->get_layout();
+                  Model::Pack& selected_fallback = fallback->get();
+                  const Layout& fallback_layout =
+                      selected_fallback.get_layout();
                   for (Count position = 0;
                        position < fallback_layout.get_size(); position++) {
                     auto fallback_value =
@@ -598,7 +590,7 @@ auto Language::Access::Slice::evaluate()
                       return Core::Option<Model::Pack&>{};
                     }
                   }
-                  return *fallback;
+                  return selected_fallback;
                 }
 
                 auto byte_type = get_byte_type(element);

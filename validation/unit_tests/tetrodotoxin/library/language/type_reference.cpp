@@ -6,6 +6,9 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/algorithm/search.hpp"
+
+#include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -19,8 +22,11 @@
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/tokenizer.hpp"
+#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
@@ -30,6 +36,38 @@ using namespace Validation;
 
 static Harness LibraryTypeReference = {
   .name = "Tetrodotoxin::Library::Language::TypeReference"_view,
+};
+
+class RouteType : public Type {
+ public:
+  TTX_CONTRACT(RouteType, Type);
+  TTX_NAME("Second"_view);
+  TTX_EMPTY_DOCUMENTATION();
+
+  constexpr auto resolve_context(View::Bytes) const
+      -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
+class RouteContext : public Abstract {
+ public:
+  RouteContext(View::Bytes name, View::Bytes child_name, const Abstract& child)
+      : name(name), child_name(child_name), child(child) {}
+
+  TTX_CONTRACT(RouteContext, Abstract);
+  TTX_NAME(name);
+  TTX_EMPTY_DOCUMENTATION();
+
+  constexpr auto resolve_context(View::Bytes route) const
+      -> const Abstract& override {
+    return route == child_name ? child : Invalid::get_invalid();
+  }
+
+ private:
+  View::Bytes name;
+  View::Bytes child_name;
+  const Abstract& child;
 };
 
 static auto interpret(
@@ -70,6 +108,27 @@ static auto select_structure(
 
 PERIMORTEM_UNIT_TEST(
     LibraryTypeReference,
+    each_segment_queries_the_selected_abstract) {
+  Allocator::Arena arena;
+  Errors errors;
+  Tokenizer tokenizer(arena, "First::Second"_view, "route.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  auto reference = Language::TypeReference::parse_route(cursor);
+  ASSERT(reference);
+
+  RouteType terminal;
+  RouteContext first("First"_view, "Second"_view, terminal);
+  RouteContext root("Root"_view, "First"_view, first);
+  const Abstract* selected = nullptr;
+  reference->resolve(root).visit(
+      [&](const Abstract& resolved) { selected = &resolved; },
+      [](const Language::TypeReference::Failure&) {});
+  EXPECT(selected == &terminal);
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(
+    LibraryTypeReference,
     authored_generic_types_keep_exact_recursive_identity) {
   static constexpr View::Bytes source =
       "// Generic TypeReference test.\n"
@@ -89,8 +148,6 @@ PERIMORTEM_UNIT_TEST(
   auto monograph =
       interpret(workspace, errors, "GenericTypeReference"_view, source);
   ASSERT(monograph);
-  EXPECT(errors.is_empty());
-  ASSERT(workspace.link(errors));
   EXPECT(errors.is_empty());
 
   const auto& root = monograph->get_source();
@@ -124,16 +181,21 @@ PERIMORTEM_UNIT_TEST(
 
   auto fixed = nested_view->get_element_type().select<Language::Types::Fixed>();
   ASSERT(fixed);
-  EXPECT(&fixed->get_element_type() == &Dialect::get_unsigned_8());
+  EXPECT(
+      &fixed->get_element_type() ==
+      &monograph->resolve_context("Unsigned_8"_view));
   EXPECT_EQ(fixed->get_extent(), Unsigned_64(4));
 
   const Type* values_type = &values->get_type();
   const Type* nested_type = &nested->get_type();
   const Type* children_type = &children->get_type();
 
-  // Repeating the transaction observes completed phases. Materializations and
-  // each declaration retain the exact Types selected by the first pass.
-  ASSERT(monograph->link());
+  // Repeating completion observes the same Generic owned materializations
+  // and the exact Types selected by the first pass.
+  Allocator::Arena repeat_domain;
+  Tokenizer repeat_tokenizer(repeat_domain, source, "type-reference.ttx"_view);
+  Cursor repeat_cursor(repeat_tokenizer, errors);
+  ASSERT(monograph->link(repeat_cursor));
   catalog = select_structure(root, "Catalog"_view);
   node = select_structure(root, "Node"_view);
   ASSERT(catalog);
@@ -148,7 +210,7 @@ PERIMORTEM_UNIT_TEST(
   EXPECT(&nested->get_type() == nested_type);
   EXPECT(&children->get_type() == children_type);
 
-  ASSERT(workspace.finalize(errors));
+  ASSERT(monograph->finalize(repeat_cursor));
   EXPECT(errors.is_empty());
   EXPECT(
       &workspace.resolve_context("GenericTypeReference"_view) == &*monograph);
@@ -173,8 +235,6 @@ PERIMORTEM_UNIT_TEST(
       interpret(workspace, errors, "GenericAliasTypeReference"_view, source);
   ASSERT(monograph);
   EXPECT(errors.is_empty());
-  ASSERT(workspace.link(errors));
-  EXPECT(errors.is_empty());
 
   const auto& root = monograph->get_source();
   auto later = select_structure(root, "Later"_view);
@@ -195,10 +255,9 @@ PERIMORTEM_UNIT_TEST(
   EXPECT(&qualified_access->get_element_type() == &*later);
 
   // Completing an Alias reached from a Generic argument does not publish a
-  // second generated identity. The two distinct formulas retain one canonical
-  // materialization each, regardless of the Alias chain used to reach Later.
-  EXPECT_EQ(monograph->get_materializations().get_size(), Count(2));
-  ASSERT(workspace.finalize(errors));
+  // second generated identity. The two distinct formulas retain one
+  // canonical materialization each, regardless of the Alias chain used to
+  // reach Later.
   EXPECT(errors.is_empty());
 }
 
@@ -214,35 +273,37 @@ PERIMORTEM_UNIT_TEST(
   Errors errors;
   auto monograph =
       interpret(workspace, errors, "RecursiveGenericAlias"_view, source);
-  ASSERT(monograph);
-  EXPECT(errors.is_empty());
-
-  EXPECT_NOT(workspace.link(errors));
-  EXPECT_NOT(errors.is_empty());
-  EXPECT_EQ(monograph->get_materializations().get_size(), Count(0));
-
-  auto diagnostics = monograph->get_diagnostics();
-  ASSERT_NOT(diagnostics.is_empty());
-  EXPECT_TEXT(
-      diagnostics.get_data()[0].get_message(),
-      "Library Alias Type references contain a cycle."_view);
+  EXPECT_NOT(monograph);
+  ASSERT_EQ(errors.get_size(), Count(2));
+  Allocator::Arena rendered;
+  EXPECT(
+      Algorithm::search(
+          errors.render_message(rendered, 0),
+          "Library route segment 1 did not resolve in its selected context."_view) !=
+      Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(
     LibraryTypeReference,
-    invalid_generic_application_fails_during_link) {
+    authored_generic_failures_report_once) {
   struct Rejection {
     View::Bytes semantic_name;
     View::Bytes source;
     View::Bytes route;
+    View::Bytes message;
+    View::Bytes focus;
+    View::Bytes marker;
   };
-  static constexpr Static::Vector<Rejection, 3> rejections = {{
+  static constexpr Static::Vector<Rejection, 6> rejections = {{
     Rejection{
       "ConcreteTypeArguments"_view,
       "// Concrete Type argument rejection.\n"
       "dialect : Library;\n"
       "public invalid : Unsigned_8[Unsigned_8];"_view,
       "Unsigned_8[Unsigned_8]"_view,
+      "Library Type arguments require a Generic at the route terminal."_view,
+      {},
+      {},
     },
     {
       "BareGeneric"_view,
@@ -250,6 +311,9 @@ PERIMORTEM_UNIT_TEST(
       "dialect : Library;\n"
       "public invalid : View;"_view,
       "View"_view,
+      "Field Type route did not resolve to one stable Type."_view,
+      {},
+      {},
     },
     {
       "EmptyGenericArguments"_view,
@@ -257,6 +321,39 @@ PERIMORTEM_UNIT_TEST(
       "dialect : Library;\n"
       "public invalid : View[];"_view,
       "View[]"_view,
+      "Library Generic application has the wrong number of arguments."_view,
+      {},
+      {},
+    },
+    {
+      "WrongGenericCategory"_view,
+      "// Generic category rejection.\n"
+      "dialect : Library;\n"
+      "public invalid : Fixed[Unsigned_8, false];"_view,
+      "Fixed[Unsigned_8, false]"_view,
+      "Library Generic argument 2 does not satisfy its parameter category."_view,
+      "type-reference.ttx:3:36:"_view,
+      "^----"_view,
+    },
+    {
+      "RejectedGenericFormula"_view,
+      "// Generic formula rejection.\n"
+      "dialect : Library;\n"
+      "public invalid : Fixed[Unsigned_8, 0];"_view,
+      "Fixed[Unsigned_8, 0]"_view,
+      "Library Generic rejected this argument combination."_view,
+      {},
+      {},
+    },
+    {
+      "NestedGenericRoute"_view,
+      "// Nested Generic route rejection.\n"
+      "dialect : Library;\n"
+      "public invalid : View[Missing];"_view,
+      "View[Missing]"_view,
+      "Library route segment 1 did not resolve in its selected context."_view,
+      "type-reference.ttx:3:23:"_view,
+      "^------"_view,
     },
   }};
 
@@ -266,20 +363,15 @@ PERIMORTEM_UNIT_TEST(
     Errors errors;
     auto monograph =
         interpret(workspace, errors, rejection.semantic_name, rejection.source);
-    ASSERT(monograph);
-    EXPECT(errors.is_empty());
-    EXPECT_NOT(workspace.link(errors));
+    EXPECT_NOT(monograph);
     ASSERT_EQ(errors.get_size(), Count(1));
-
-    auto diagnostics = monograph->get_diagnostics();
-    ASSERT_EQ(diagnostics.get_size(), Count(1));
-    const auto& diagnostic = diagnostics.get_data()[0];
-    ASSERT(diagnostic.get_anchor());
-    EXPECT_TEXT(
-        diagnostic.get_anchor()->get_span().caculate_text(rejection.source),
-        rejection.route);
-    EXPECT_TEXT(
-        diagnostic.get_message(),
-        "Field Type route did not resolve to one stable Type."_view);
+    Allocator::Arena rendered;
+    auto message = errors.render_message(rendered, 0);
+    EXPECT(Algorithm::search(message, rejection.route) != Count(-1));
+    EXPECT(Algorithm::search(message, rejection.message) != Count(-1));
+    if (!rejection.focus.is_empty()) {
+      EXPECT(Algorithm::search(message, rejection.focus) != Count(-1));
+      EXPECT(Algorithm::search(message, rejection.marker) != Count(-1));
+    }
   }
 }

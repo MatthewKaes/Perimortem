@@ -19,11 +19,6 @@ class Addressable : public Concept::Abstract {
  public:
   TTX_CONTRACT(Addressable, Abstract);
 
-  constexpr auto resolve_context(Perimortem::Core::View::Bytes route) const
-      -> const Concept::Abstract& override {
-    return get_type().resolve().resolve_context(route);
-  }
-
   virtual constexpr auto get_type() const -> const Type& = 0;
 };
 

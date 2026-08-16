@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -53,9 +54,12 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, direct_contract) {
 
 PERIMORTEM_UNIT_TEST(LibraryFixed, formula_construction) {
   Allocator::Arena arena;
+  Tetrodotoxin::Library::Dialect dialect;
+  auto& root = create_library_monograph(arena, dialect);
   Tetrodotoxin::Library::Language::Types::Unsigned_8 element;
-  Generics::Fixed fixed_formula;
-  const Generic& formula = fixed_formula;
+  const auto& formula =
+      static_cast<const Generic&>(root.resolve_context("Fixed"_view));
+  const Abstract& unsigned_8 = root.resolve_context("Unsigned_8"_view);
   const Static::Vector<Generic::Argument, 2> positive = {
     {Generic::Argument(element), Generic::Argument(::Unsigned_64(4))},
   };
@@ -72,23 +76,54 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, formula_construction) {
     {Generic::Argument(element)},
   };
 
-  auto positive_type = formula.create(positive, arena);
-  ASSERT(positive_type);
-  EXPECT(positive_type->is<Types::Fixed>());
-  EXPECT_TEXT(positive_type->get_name(), "Fixed[Unsigned_8,4]"_view);
-  EXPECT(positive_type->visit<Types::Fixed>(
-      [&element](const Types::Fixed& selected) {
-        return &selected.get_element_type() == &element &&
-                       selected.get_extent() == ::Unsigned_64(4)
+  auto positive_type = formula.materialize(positive);
+  EXPECT_NOT(unsigned_8.is<Invalid>());
+  EXPECT(
+      &formula.resolve_context("Unsigned_8"_view) == &Invalid::get_invalid());
+  EXPECT(positive_type.visit(
+      [&element](const Model::Type& selected) {
+        auto fixed = selected.select<Types::Fixed>();
+        return fixed && selected.get_name() == "Fixed[Unsigned_8,4]"_view &&
+                       &fixed->get_element_type() == &element &&
+                       fixed->get_extent() == ::Unsigned_64(4)
                    ? True
                    : False;
       },
-      [](const Abstract&) { return False; }));
+      [](const Generic::Failure&) { return False; }));
 
-  auto zero_type = formula.create(zero, arena);
-  EXPECT_NOT(zero_type);
-
-  EXPECT_NOT(formula.create(wrong_element, arena));
-  EXPECT_NOT(formula.create(wrong_extent, arena));
-  EXPECT_NOT(formula.create(wrong_arity, arena));
+  auto zero_type = formula.materialize(zero);
+  EXPECT(zero_type.visit(
+      [](const Model::Type&) { return False; },
+      [](const Generic::Failure& failure) {
+        return failure.get_type() == Generic::Failure::Type::Formula ? True
+                                                                     : False;
+      }));
+  EXPECT(formula.materialize(wrong_element)
+             .visit(
+                 [](const Model::Type&) { return False; },
+                 [](const Generic::Failure& failure) {
+                   return failure.get_type() ==
+                                      Generic::Failure::Type::Parameter &&
+                                  failure.get_argument() == 0
+                              ? True
+                              : False;
+                 }));
+  EXPECT(formula.materialize(wrong_extent)
+             .visit(
+                 [](const Model::Type&) { return False; },
+                 [](const Generic::Failure& failure) {
+                   return failure.get_type() ==
+                                      Generic::Failure::Type::Parameter &&
+                                  failure.get_argument() == 1
+                              ? True
+                              : False;
+                 }));
+  EXPECT(formula.materialize(wrong_arity)
+             .visit(
+                 [](const Model::Type&) { return False; },
+                 [](const Generic::Failure& failure) {
+                   return failure.get_type() == Generic::Failure::Type::Arity
+                              ? True
+                              : False;
+                 }));
 }

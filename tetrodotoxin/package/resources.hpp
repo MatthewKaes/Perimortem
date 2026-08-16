@@ -15,17 +15,16 @@
 namespace Tetrodotoxin::Package {
 
 // Owns contextual resource identities for one Package Monograph. Monograph
-// construction has the Workspace Arena but not the physical Package Storage,
-// so Workspace connects this owner to the Storage for its current authored
-// Package import after interpreting the manifest.
+// construction has its source transaction Arena but not physical Package
+// Storage, so Workspace connects this owner to confined Storage while it
+// completes the manifest's fixed Source table.
 //
 // While connected, complete resource routes read through that one
-// Storage and cache one Arena stable Resource or Error identity. Workspace
-// seals every Resources in the discovery range before dependency resolution
-// can link or finalize that range. Sealing clears only the borrowed Storage
-// pointer, so
-// cached identities remain valid for the Workspace lifetime while a new route
-// resolves to Invalid.
+// Storage and cache one Arena stable Resource or Error identity. The Package
+// import operation seals Resources before it links or finalizes the table.
+// Sealing clears only
+// the borrowed Storage pointer, so cached identities remain valid for the
+// Monograph lifetime while a new route resolves to Invalid.
 //
 // A Resources connection can be used only once. Sealing never permits another
 // Storage to be selected, and source free construction seals before publishing

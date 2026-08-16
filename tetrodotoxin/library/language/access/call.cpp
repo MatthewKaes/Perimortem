@@ -3,11 +3,9 @@
 
 #include "tetrodotoxin/library/language/access/call.hpp"
 
-#include "tetrodotoxin/library/language/foreign/surface.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
-#include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
-#include "ttx/model/addressable.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -16,29 +14,29 @@ using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
 static auto select_type(const Abstract& candidate)
-    -> Core::Option<const Ttx::Model::Type&> {
-  auto direct = candidate.select<Ttx::Model::Type>();
+    -> Core::Option<const Language::Model::Type&> {
+  auto direct = candidate.select<Language::Model::Type>();
   if (direct) {
     return *direct;
   }
 
-  return candidate.resolve().select<Ttx::Model::Type>();
+  return candidate.resolve().select<Language::Model::Type>();
 }
 
 static auto select_result_type(const Abstract& result)
-    -> Core::Option<const Ttx::Model::Type&> {
-  auto addressable = result.select<Addressable>();
+    -> Core::Option<const Language::Model::Type&> {
+  auto addressable = result.select<Language::Model::Addressable>();
   if (addressable) {
     return select_type(addressable->get_type());
   }
 
-  auto direct = result.select<Ttx::Model::Type>();
+  auto direct = result.select<Language::Model::Type>();
   if (direct) {
     return *direct;
   }
 
   const Abstract& resolved = result.resolve();
-  addressable = resolved.select<Addressable>();
+  addressable = resolved.select<Language::Model::Addressable>();
   return addressable ? select_type(addressable->get_type())
                      : select_type(resolved);
 }
@@ -52,12 +50,12 @@ static auto select_result_type(const Abstract& result)
 static auto create_layout(
     Memory::Allocator::Arena& domain,
     const Language::Access::Call& call,
-    const Callable& callable) -> const Ttx::Concept::Layout& {
+    const Language::Model::Callable& callable) -> const Ttx::Concept::Layout& {
   class Layout final : public Ttx::Concept::Layout {
    public:
     constexpr Layout(
         const Language::Access::Call& call,
-        const Callable& callable)
+        const Language::Model::Callable& callable)
         : call(call), callable(callable) {}
 
     constexpr auto get_size() const -> Count override {
@@ -107,7 +105,7 @@ static auto create_layout(
 
    private:
     const Language::Access::Call& call;
-    const Callable& callable;
+    const Language::Model::Callable& callable;
   };
 
   return domain.construct<Layout>(call, callable);
@@ -159,7 +157,7 @@ static auto create_inputs(
       return select_result_type(*target_entry)
           .visit(
               []() { return False; },
-              [&](const Ttx::Model::Type& type) {
+              [&](const Language::Model::Type& type) {
                 return receiver.fits(type);
               });
     }
@@ -203,40 +201,36 @@ static auto create_inputs(
 }
 
 auto Language::Access::Call::parse(
-    Memory::Allocator::Arena& domain,
-    Language::Monograph& source,
+    const Abstract& context,
     Cursor& cursor,
     Expression& receiver) -> Core::Option<Expression&> {
-  auto transaction = cursor.branch();
-  Token operation = transaction.require(
+  Memory::Allocator::Arena& domain = cursor.get_arena();
+  Token operation = cursor.require(
       Code::Type::CallOp,
       "Library invocation requires `->` before its Callable name."_view);
   BAIL_IF(!operation);
 
-  Token name_token = transaction.require(
+  Token name_token = cursor.require(
       Code::Type::Addressable,
       "Library invocation requires one Callable name after `->`."_view);
   BAIL_IF(!name_token);
 
-  Token arguments_opening = transaction.current();
-  auto arguments =
-      Language::Model::Parser::Pack::parse(domain, source, transaction, True);
+  Token arguments_opening = cursor.current();
+  auto arguments = Language::Model::Parser::Pack::parse(context, cursor, True);
   BAIL_IF(!arguments);
-  Token closing = transaction.peek(-1);
+  Token closing = cursor.peek(-1);
 
   auto receiver_anchor = receiver.get_anchor();
   if (!receiver_anchor) {
-    transaction.create_expression_error(
+    cursor.create_expression_error(
         Anchor::create(name_token, Span(operation, closing)),
         "Library invocation requires an authored receiver Anchor."_view);
     return {};
   }
 
-  // The Token remains the canonical authored name fact. The spelling copied
-  // into the Arena supports delayed lookup because Token coordinates require
-  // source bytes after the parser Cursor leaves this transaction.
-  Core::View::Bytes name =
-      domain.proxy(name_token.caculate_text(transaction.get_source_text()));
+  // The Token and its source spelling share the retained source lifetime,
+  // so delayed lookup can borrow the authored bytes directly.
+  Core::View::Bytes name = name_token.caculate_text(cursor.get_source_text());
   Anchor anchor = Anchor::create(
       name_token, receiver_anchor->get_span(),
       Span(arguments_opening, closing));
@@ -244,92 +238,59 @@ auto Language::Access::Call::parse(
       domain, anchor, [&](Core::Option<Anchor> source) -> Call {
         return Call(domain, receiver, name_token, name, *arguments, source);
       });
-  cursor.join(transaction);
   return call;
 }
 
 auto Language::Access::Call::link(
-    Tetrodotoxin::Language::Monograph& source,
+    Ttx::Lexical::Cursor& cursor,
     const Abstract& lexical_context,
-    Core::Option<const Ttx::Model::Type&> access_scope) -> Bool {
+    Core::Option<const Abstract&> access_scope) -> Bool {
   // Every access first completes its receiver. Static and Self are outcomes of
   // that result, not parser modes or retained role flags.
-  BAIL_IF(!receiver.link(source, lexical_context, access_scope));
-  BAIL_IF(!arguments.link(source, lexical_context, access_scope));
-
-  const Abstract& receiver_result = receiver.get_result();
-  auto foreign = receiver_result.select<Language::Foreign::Surface>();
-  auto static_type = receiver_result.select<Ttx::Model::Type>();
-  auto receiver_type =
-      static_type ? static_type : select_type(receiver.get_type());
-  auto target = receiver_type.visit(
-      []() -> Core::Option<const Types::Composite&> { return {}; },
-      [](const Ttx::Model::Type& type)
-          -> Core::Option<const Types::Composite&> {
-        return type.select<Types::Composite>();
-      });
-  if (!foreign && !target) {
-    source.report(
+  BAIL_IF(!receiver.link(cursor, lexical_context, access_scope));
+  BAIL_IF(!arguments.link(cursor, lexical_context, access_scope));
+  // A Type receiver proves Static lookup but argument positions are value
+  // flow. Preserve that split before Callable fitting reads the Pack Layout.
+  if (&arguments.resolve() != &arguments) {
+    cursor.create_expression_error(
         get_anchor(),
-        "Library invocation receiver did not produce one Callable Type."_view,
-        "Invoke through a Type result for Static access or a Composite value "
-        "for Self access."_view);
+        "Library invocation arguments did not produce value flow."_view,
+        "Use Type results only as access receivers."_view);
     return False;
   }
 
-  Core::Option<const Callable&> selected;
-  if (foreign) {
-    // Foreign is already the complete source local receiver role. Its Function
-    // receives only the authored argument Pack and never a fabricated self
-    // entry or a Composite lookup fallback.
-    selected = foreign->select_function(name).visit(
-        []() -> Core::Option<const Callable&> { return {}; },
-        [](const Language::Foreign::Function& function)
-            -> Core::Option<const Callable&> { return function; });
-  } else {
-    Tetrodotoxin::Language::Visibility visibility =
-        access_scope && target->grants_private_access(*access_scope)
-            ? Tetrodotoxin::Language::Visibility::Private
-            : Tetrodotoxin::Language::Visibility::Public;
-    for (const Reference<Abstract>& binding :
-         target->get_callables(visibility)) {
-      // The inventory binding owns the local spelling. Alias is otherwise
-      // opaque: only its ordinary resolution may reveal the registered
-      // Callable.
-      if (binding.get().get_name() != name) {
-        continue;
-      }
-
-      auto candidate = binding.get().resolve().select<Callable>();
-      Bool admits_receiver =
-          candidate && (static_type ? !candidate->is_type_bound()
-                                    : candidate->is_type_bound(*target));
-      if (admits_receiver) {
-        selected = *candidate;
-        break;
-      }
-    }
-  }
-
+  const Abstract& receiver_result = receiver.get_result();
+  const Abstract& host = access_scope.visit(
+      [&]() -> const Abstract& { return lexical_context; },
+      [](const Abstract& selected) -> const Abstract& { return selected; });
+  const Abstract& candidate = receiver_result.visit<Language::Model::Type>(
+      [&](const Language::Model::Type& type) -> const Abstract& {
+        return type.resolve_type_call(
+            host, name, Language::Model::Type::Access::Static);
+      },
+      [&](const Abstract& receiver) -> const Abstract& {
+        return receiver.resolve_call(host, name);
+      });
+  auto selected = candidate.resolve().select<Language::Model::Callable>();
   if (!selected) {
-    source.report(
+    cursor.create_expression_error(
         get_anchor(),
-        "Library invocation did not find its registered Callable."_view,
-        "Select an accessible Callable in the receiver's Foreign, Static, or "
-        "Self category."_view);
+        "Library invocation did not resolve one accessible Callable."_view,
+        "Resolve a Static name from its Type or a Self name from an "
+        "Addressable of that Type."_view);
     return False;
   }
 
   const Ttx::Concept::Layout& parameters = selected->get_parameters();
   Bool arguments_fit = arguments.fits(parameters);
-  if (!foreign && !static_type) {
+  if (selected->is_type_bound()) {
     if (!inputs) {
       inputs = create_inputs(domain, receiver, arguments);
     }
     arguments_fit = inputs->fits(parameters);
   }
   if (!arguments_fit) {
-    source.report(
+    cursor.create_expression_error(
         get_anchor(),
         "Library invocation arguments do not fit the registered Callable."_view,
         "Supply the exact positional or named parameter Layout."_view);
@@ -337,7 +298,7 @@ auto Language::Access::Call::link(
   }
 
   if (callable && &callable->get() != &*selected) {
-    source.report(
+    cursor.create_expression_error(
         get_anchor(),
         "Library invocation cannot change its Callable edge."_view,
         "Keep one exact Callable selected by this authored invocation."_view);
@@ -352,7 +313,7 @@ auto Language::Access::Call::link(
 
   const Ttx::Concept::Layout& retained_output =
       create_layout(domain, *this, *selected);
-  callable = Reference<const Callable>(*selected);
+  callable = Reference<const Language::Model::Callable>(*selected);
   output = retained_output;
 
   // Call deliberately does not delegate to Expression::link. Invocations with
@@ -364,7 +325,8 @@ auto Language::Access::Call::link(
 auto Language::Access::Call::get_documentation() const -> const Documentation& {
   return callable.visit(
       []() -> const Documentation& { return Documentation::get_empty(); },
-      [](const Reference<const Callable>& selected) -> const Documentation& {
+      [](const Reference<const Language::Model::Callable>& selected)
+          -> const Documentation& {
         return selected.get().get_documentation();
       });
 }
@@ -383,9 +345,26 @@ auto Language::Access::Call::get_type() const -> const Abstract& {
       [](const Abstract& result) -> const Abstract& {
         return select_result_type(result).visit(
             []() -> const Abstract& { return Invalid::get_invalid(); },
-            [](const Ttx::Model::Type& type) -> const Abstract& {
+            [](const Language::Model::Type& type) -> const Abstract& {
               return type;
             });
+      });
+}
+
+auto Language::Access::Call::get_value_type(Count index) const
+    -> const Abstract& {
+  if (!callable) {
+    return Invalid::get_invalid();
+  }
+  const Ttx::Concept::Layout& results = callable->get().get_results();
+  auto result = results.get_abstract(index);
+  if (!result) {
+    return Invalid::get_invalid();
+  }
+  return select_result_type(*result).visit(
+      []() -> const Abstract& { return Invalid::get_invalid(); },
+      [](const Language::Model::Type& type) -> const Abstract& {
+        return type;
       });
 }
 
@@ -401,19 +380,21 @@ auto Language::Access::Call::resolve() const -> const Abstract& {
   return static_cast<const Language::Model::Pack&>(*this);
 }
 
-auto Language::Access::Call::finalize() -> void {
+auto Language::Access::Call::finalize(Cursor& cursor) -> void {
   // Receiver and argument Pack are the complete evaluation inputs owned by
   // this invocation. A Call retained directly by a Block is the effect itself.
   // Discarded result flow must not turn that effectful Call into a fold
   // request.
-  receiver.finalize();
-  arguments.finalize();
+  receiver.finalize(cursor);
+  arguments.finalize(cursor);
 }
 
 auto Language::Access::Call::get_callable() const
-    -> Core::Option<const Callable&> {
+    -> Core::Option<const Language::Model::Callable&> {
   return callable.visit(
-      []() -> Core::Option<const Callable&> { return {}; },
-      [](const Reference<const Callable>& selected)
-          -> Core::Option<const Callable&> { return selected.get(); });
+      []() -> Core::Option<const Language::Model::Callable&> { return {}; },
+      [](const Reference<const Language::Model::Callable>& selected)
+          -> Core::Option<const Language::Model::Callable&> {
+        return selected.get();
+      });
 }

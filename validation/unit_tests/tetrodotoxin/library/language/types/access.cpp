@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/types/access.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -39,9 +40,11 @@ PERIMORTEM_UNIT_TEST(LibraryAccess, direct_contract) {
 
 PERIMORTEM_UNIT_TEST(LibraryAccess, formula_construction) {
   Allocator::Arena arena;
+  Tetrodotoxin::Library::Dialect dialect;
+  auto& root = create_library_monograph(arena, dialect);
   Tetrodotoxin::Library::Language::Types::Unsigned_8 element;
-  Generics::Access access_formula;
-  const Generic& formula = access_formula;
+  const auto& formula =
+      static_cast<const Generic&>(root.resolve_context("Access"_view));
   const Static::Vector<Generic::Argument, 1> accepted = {
     {Generic::Argument(element)},
   };
@@ -50,15 +53,32 @@ PERIMORTEM_UNIT_TEST(LibraryAccess, formula_construction) {
   };
   View::Vector<Generic::Argument> wrong_arity;
 
-  auto created = formula.create(accepted, arena);
-  ASSERT(created);
-  EXPECT(created->is<Types::Access>());
-  EXPECT_TEXT(created->get_name(), "Access[Unsigned_8]"_view);
-  EXPECT(created->visit<Types::Access>(
-      [&element](const Types::Access& selected) {
-        return &selected.get_element_type() == &element ? True : False;
+  auto created = formula.materialize(accepted);
+  EXPECT(created.visit(
+      [&element](const Model::Type& selected) {
+        auto access = selected.select<Types::Access>();
+        return access && selected.get_name() == "Access[Unsigned_8]"_view &&
+                       &access->get_element_type() == &element
+                   ? True
+                   : False;
       },
-      [](const Abstract&) { return False; }));
-  EXPECT_NOT(formula.create(wrong_category, arena));
-  EXPECT_NOT(formula.create(wrong_arity, arena));
+      [](const Generic::Failure&) { return False; }));
+  EXPECT(formula.materialize(wrong_category)
+             .visit(
+                 [](const Model::Type&) { return False; },
+                 [](const Generic::Failure& failure) {
+                   return failure.get_type() ==
+                                      Generic::Failure::Type::Parameter &&
+                                  failure.get_argument() == 0
+                              ? True
+                              : False;
+                 }));
+  EXPECT(formula.materialize(wrong_arity)
+             .visit(
+                 [](const Model::Type&) { return False; },
+                 [](const Generic::Failure& failure) {
+                   return failure.get_type() == Generic::Failure::Type::Arity
+                              ? True
+                              : False;
+                 }));
 }

@@ -14,7 +14,8 @@ file defines the exact production behavior it observes.
 | [`option_acceptance.ttx`](option_acceptance.ttx) | focused production Workspace acceptance for Option fitting, defaults, unwrap, propagation, and Match elimination |
 | [`broad.ttx`](broad.ttx) | broad Library source corpus covering declarations, Layouts, access chains, expressions, control flow, Foreign, Struct, Object, and Enumeration syntax |
 | [`foreign_triad.ttx`](foreign_triad.ttx) | one exposed State, public State, and Callable under the C ABI |
-| [`native.ttx`](native.ttx) | compact unsigned-integer and Foreign source paired with `native_harness.c` |
+| [`native.ttx`](native.ttx) | compact unsigned-integer and Foreign source paired with the native C ABI fixture |
+| [`native.h`](native.h) | shared C ABI declarations for the TTX export and native provider symbols |
 | [`native_harness.c`](native_harness.c) | C definitions and observation point for the native fixture |
 
 `broad.ttx` intentionally contains more language surface than any one narrow
@@ -107,11 +108,12 @@ The fixture selects data with `foreign.name` and invokes the Callable with
 `foreign -> imported_function(...)`. The `"C"` selector identifies the ABI;
 native provider selection remains outside source lookup.
 
-## Native pair
+## Native ABI fixture
 
-[`native.ttx`](native.ttx) and [`native_harness.c`](native_harness.c) describe a
-two-call interaction. The Library source increments private state by 20, copies
-it to imported state, adds an imported bias of 2, and returns the result.
+[`native.ttx`](native.ttx), [`native.h`](native.h), and
+[`native_harness.c`](native_harness.c) describe a two-call interaction. The
+Library source increments private state by 20, copies it to imported state, adds
+an imported bias of 2, and returns the result.
 
 The corresponding C observation is:
 
@@ -121,7 +123,8 @@ The corresponding C observation is:
 
 After both calls, the imported state is 40. `library_native` is the exported TTX
 entry. `PrivateOps`, local state, and helper calls remain source-local, while
-the three Foreign names are supplied by the C file.
+the three Foreign names are supplied by the C file through the shared ABI
+header.
 
 The standalone Bazel target for `native_harness.c` proves only that the C side
 of this contract compiles. Native output evidence links an emitted TTX Terminal
