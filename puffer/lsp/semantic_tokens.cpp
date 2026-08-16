@@ -7,6 +7,8 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "perimortem/serialization/json/blueprint.hpp"
+
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -125,26 +127,26 @@ static auto classify_semantic_token(Code code) -> Signed_64 {
 }
 
 auto Lsp::semantic_legend(Allocator::Arena& arena) -> Json::Node {
-  return Json::Node::construct(
-      arena, Json::Blueprint{{
-               {"tokenTypes"_view,
-                {
-                  "namespace"_view,
-                  "type"_view,
-                  "class"_view,
-                  "parameter"_view,
-                  "variable"_view,
-                  "property"_view,
-                  "function"_view,
-                  "keyword"_view,
-                  "comment"_view,
-                  "string"_view,
-                  "number"_view,
-                  "operator"_view,
-                  "decorator"_view,
-                }},
-               Json::Blueprint::empty_array("tokenModifiers"_view),
-             }});
+  return Json::Blueprint{
+    {
+      {"tokenTypes"_view,
+       {
+         "namespace"_view,
+         "type"_view,
+         "class"_view,
+         "parameter"_view,
+         "variable"_view,
+         "property"_view,
+         "function"_view,
+         "keyword"_view,
+         "comment"_view,
+         "string"_view,
+         "number"_view,
+         "operator"_view,
+         "decorator"_view,
+       }},
+      Json::Blueprint::empty_array("tokenModifiers"_view),
+    }}.construct(arena);
 }
 
 auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
@@ -152,10 +154,10 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
   Managed::Vector<Json::Node> data(arena);
   if (source.is_empty()) {
     const Json::Node data_node(data.get_view());
-    return Json::Node::construct(
-        arena, Json::Blueprint{{
-                 {"data"_view, data_node},
-               }});
+    return Json::Blueprint{
+      {
+        {"data"_view, data_node},
+      }}.construct(arena);
   }
 
   Tokenizer tokenizer(arena, source, "lsp-buffer.ttx"_view);
@@ -203,8 +205,8 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
   }
 
   const Json::Node data_node(data.get_view());
-  return Json::Node::construct(
-      arena, Json::Blueprint{{
-               {"data"_view, data_node},
-             }});
+  return Json::Blueprint{
+    {
+      {"data"_view, data_node},
+    }}.construct(arena);
 }

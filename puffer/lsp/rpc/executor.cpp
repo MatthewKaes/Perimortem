@@ -73,8 +73,12 @@ template <const auto& dispatch_table, Count worker_count>
 auto Lsp::Rpc::Executor<dispatch_table, worker_count>::create_connection(
     View::Bytes pipe_name) -> Bool {
   socket_descriptor = socket(AF_FILE, SOCK_STREAM, 0);
+  if (socket_descriptor == -1) {
+    Diagnostics::Log::error("Failed to create the RPC socket."_view);
+    return False;
+  }
 
-  sockaddr_un address;
+  sockaddr_un address = {};
   address.sun_family = AF_UNIX;
 
   Count path_length =
@@ -90,6 +94,8 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::create_connection(
     Diagnostics::Log::Message<128> error_message(
         Diagnostics::Log::Level::Error);
     error_message << "Failed to connect to pipe at "_view << pipe_name;
+    close(socket_descriptor);
+    socket_descriptor = -1;
     return False;
   }
 
@@ -260,7 +266,7 @@ auto Lsp::Rpc::Executor<dispatch_table, worker_count>::process_job(
   using DispatchTable = Table<Lsp::Rpc::DispatchFunc, dispatch_table>;
   auto job_function = DispatchTable::find_or_default(method_name, nullptr);
   if (job_function == nullptr) {
-    // JSON-RPC notifications never receive a response, and the LSP reserves
+    // JSON RPC notifications never receive a response, and the LSP reserves
     // `$/*` methods for protocol notifications that a server may ignore.
     if (!message.expects_response()) {
       return;
