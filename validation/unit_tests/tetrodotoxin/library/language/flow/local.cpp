@@ -110,27 +110,27 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
   const Language::Flow::Block& block = *body->get_body();
   auto statements = block.get_statements();
   ASSERT_EQ(statements.get_size(), Count(8));
-  ASSERT(statements.get_data()[0].get_abstract().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[1].get_abstract().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[2].get_abstract().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[3].get_abstract().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[4].get_abstract().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[5].get_abstract().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[6].get_abstract().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[0].get_root().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[1].get_root().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[2].get_root().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[3].get_root().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[4].get_root().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[5].get_root().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[6].get_root().is<Language::Flow::Local>());
   const auto& explicit_local = static_cast<const Language::Flow::Local&>(
-      statements.get_data()[0].get_abstract());
+      statements.get_data()[0].get_root());
   const auto& fixed_local = static_cast<const Language::Flow::Local&>(
-      statements.get_data()[1].get_abstract());
+      statements.get_data()[1].get_root());
   const auto& inferred_local = static_cast<const Language::Flow::Local&>(
-      statements.get_data()[2].get_abstract());
+      statements.get_data()[2].get_root());
   const auto& copied_local = static_cast<const Language::Flow::Local&>(
-      statements.get_data()[3].get_abstract());
+      statements.get_data()[3].get_root());
   const auto& created_local = static_cast<const Language::Flow::Local&>(
-      statements.get_data()[4].get_abstract());
+      statements.get_data()[4].get_root());
   const auto& positional_local = static_cast<const Language::Flow::Local&>(
-      statements.get_data()[5].get_abstract());
+      statements.get_data()[5].get_root());
   const auto& named_local = static_cast<const Language::Flow::Local&>(
-      statements.get_data()[6].get_abstract());
+      statements.get_data()[6].get_root());
   const Abstract& boolean = monograph->resolve_context("Bool"_view);
 
   EXPECT(&explicit_local.get_type() == &boolean);
@@ -170,8 +170,8 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
   ASSERT_EQ(repeated.get_size(), statements.get_size());
   for (Count i = 0; i < statements.get_size(); i++) {
     EXPECT(
-        &repeated.get_data()[i].get_abstract() ==
-        &statements.get_data()[i].get_abstract());
+        &repeated.get_data()[i].get_root() ==
+        &statements.get_data()[i].get_root());
   }
   EXPECT(errors.is_empty());
 }

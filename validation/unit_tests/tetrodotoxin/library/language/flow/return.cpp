@@ -69,7 +69,7 @@ static auto find_return(const Language::Function& function)
   auto body = function.get_body();
   BAIL_IF(!body);
   for (const Language::Statement& statement : body->get_statements()) {
-    auto returned = statement.get_abstract().select<Language::Flow::Return>();
+    auto returned = statement.get_root().select<Language::Flow::Return>();
     if (returned) {
       return *returned;
     }

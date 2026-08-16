@@ -104,7 +104,7 @@ PERIMORTEM_UNIT_TEST(
   ASSERT_EQ(statements.get_size(), Count(8));
 
   for (Count index = 0; index < 5; index++) {
-    const Abstract& semantic = statements.get_data()[index + 2].get_abstract();
+    const Abstract& semantic = statements.get_data()[index + 2].get_root();
     ASSERT(semantic.is<Language::Expression>());
     const auto& expression = static_cast<const Language::Expression&>(semantic);
     EXPECT(expression.resolve().is<Language::Model::Pack>());
@@ -112,16 +112,16 @@ PERIMORTEM_UNIT_TEST(
   }
 
   ASSERT(statements.get_data()[2]
-             .get_abstract()
+             .get_root()
              .is<Language::Operations::Assignment>());
   ASSERT(statements.get_data()[3]
-             .get_abstract()
+             .get_root()
              .is<Language::Operations::Assignment>());
   ASSERT(statements.get_data()[6]
-             .get_abstract()
+             .get_root()
              .is<Language::Operations::Assignment>());
   const auto& precedence = static_cast<const Language::Operations::Assignment&>(
-      statements.get_data()[2].get_abstract());
+      statements.get_data()[2].get_root());
   EXPECT(precedence.get_target().resolve().is<Language::Expression>());
   EXPECT(precedence.get_source().resolve().is<Language::Model::Pack>());
   EXPECT(precedence.get_source().is<Language::Operations::Add>());
@@ -131,17 +131,17 @@ PERIMORTEM_UNIT_TEST(
       "Data.value = local + 2 * 3"_view);
 
   ASSERT(statements.get_data()[4]
-             .get_abstract()
+             .get_root()
              .is<Language::Operations::AddAssignment>());
   const auto& addition =
       static_cast<const Language::Operations::AddAssignment&>(
-          statements.get_data()[4].get_abstract());
+          statements.get_data()[4].get_root());
   ASSERT(statements.get_data()[5]
-             .get_abstract()
+             .get_root()
              .is<Language::Operations::SubtractAssignment>());
   const auto& subtraction =
       static_cast<const Language::Operations::SubtractAssignment&>(
-          statements.get_data()[5].get_abstract());
+          statements.get_data()[5].get_root());
   EXPECT(addition.get_target().resolve().is<Language::Expression>());
   EXPECT(subtraction.get_target().resolve().is<Language::Expression>());
   EXPECT_NOT(addition.get_right().is<Language::Operations::Add>());
@@ -155,15 +155,14 @@ PERIMORTEM_UNIT_TEST(
       subtraction.get_right().get_anchor()->get_span().caculate_text(source),
       "1"_view);
 
-  const Abstract& retained = statements.get_data()[2].get_abstract();
+  const Abstract& retained = statements.get_data()[2].get_root();
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "assignment.ttx"_view);
   Cursor cursor(tokenizer, errors);
   ASSERT(monograph->link(cursor));
   ASSERT(monograph->finalize(cursor));
   EXPECT(
-      &run->get_body()->get_statements().get_data()[2].get_abstract() ==
-      &retained);
+      &run->get_body()->get_statements().get_data()[2].get_root() == &retained);
   EXPECT(errors.is_empty());
 }
 

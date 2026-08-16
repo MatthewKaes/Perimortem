@@ -35,7 +35,7 @@ static auto find_call(const Language::Function& function)
   auto body = function.get_body();
   BAIL_IF(!body);
   for (const Language::Statement& statement : body->get_statements()) {
-    auto call = statement.get_abstract().select<Language::Access::Call>();
+    auto call = statement.get_root().select<Language::Access::Call>();
     if (call) {
       return *call;
     }
@@ -337,20 +337,19 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
   auto statements = body->get_statements();
   ASSERT_EQ(statements.get_size(), Count(5));
   for (Count i = 0; i < statements.get_size(); i++) {
-    ASSERT(
-        statements.get_data()[i].get_abstract().is<Language::Access::Call>());
+    ASSERT(statements.get_data()[i].get_root().is<Language::Access::Call>());
   }
 
   const auto& none = static_cast<const Language::Access::Call&>(
-      statements.get_data()[0].get_abstract());
+      statements.get_data()[0].get_root());
   const auto& one = static_cast<const Language::Access::Call&>(
-      statements.get_data()[1].get_abstract());
+      statements.get_data()[1].get_root());
   const auto& many = static_cast<const Language::Access::Call&>(
-      statements.get_data()[2].get_abstract());
+      statements.get_data()[2].get_root());
   const auto& self_none = static_cast<const Language::Access::Call&>(
-      statements.get_data()[3].get_abstract());
+      statements.get_data()[3].get_root());
   const auto& self_one = static_cast<const Language::Access::Call&>(
-      statements.get_data()[4].get_abstract());
+      statements.get_data()[4].get_root());
   EXPECT(none.get_layout().is_empty());
   EXPECT(&none.get_type() == &Invalid::get_invalid());
   EXPECT_EQ(one.get_layout().get_size(), Count(1));

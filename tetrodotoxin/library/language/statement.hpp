@@ -15,10 +15,11 @@
 namespace Tetrodotoxin::Library::Language {
 
 // Statement is one retained source-order membership, not another semantic
-// identity. The exact Local, Pack, control owner, or nested Block remains the
-// only Abstract in the graph. A compact operation table is fixed when grammar
-// selects that owner, avoiding both multiple inheritance and later concrete
-// category inspection by Block.
+// identity. Its root is the complete outermost Pack returned for an expression
+// Statement, or the exact declaration, control owner, or nested Block selected
+// by grammar. That borrowed object remains the only Abstract in the graph. A
+// compact operation table is fixed when grammar selects the root, avoiding both
+// multiple inheritance and later concrete category inspection by Block.
 //
 // Leading Documentation belongs here because it describes participation in an
 // executable sequence. The underlying semantic owner need not counterfeit a
@@ -60,7 +61,7 @@ class Statement {
       typename BindingName = NoBindingName,
       typename Binding = NoBinding>
   static constexpr auto create(
-      Owner& owner,
+      Owner& root,
       const Ttx::Concept::Documentation& documentation,
       Ttx::Lexical::Anchor anchor,
       Link,
@@ -70,55 +71,55 @@ class Statement {
       Binding = {}) -> Statement {
     static_assert(__is_base_of(Ttx::Concept::Abstract, Owner));
     return Statement(
-        owner, documentation, anchor,
+        root, documentation, anchor,
         Operations{
-          .link = [](Ttx::Concept::Abstract& abstract,
-                     Ttx::Lexical::Cursor& cursor, Flow::Scope& scope) -> Bool {
-            return Link{}(static_cast<Owner&>(abstract), cursor, scope);
+          .link = [](Ttx::Concept::Abstract& root, Ttx::Lexical::Cursor& cursor,
+                     Flow::Scope& scope) -> Bool {
+            return Link{}(static_cast<Owner&>(root), cursor, scope);
           },
-          .finalize = [](Ttx::Concept::Abstract& abstract,
+          .finalize = [](Ttx::Concept::Abstract& root,
                          Ttx::Lexical::Cursor& cursor) -> void {
-            Finalize{}(static_cast<Owner&>(abstract), cursor);
+            Finalize{}(static_cast<Owner&>(root), cursor);
           },
-          .reaches_next = [](const Ttx::Concept::Abstract& abstract) -> Bool {
-            return ReachesNext{}(static_cast<const Owner&>(abstract));
+          .reaches_next = [](const Ttx::Concept::Abstract& root) -> Bool {
+            return ReachesNext{}(static_cast<const Owner&>(root));
           },
-          .get_binding_name = [](const Ttx::Concept::Abstract& abstract)
+          .get_binding_name = [](const Ttx::Concept::Abstract& root)
               -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> {
-            return BindingName{}(static_cast<const Owner&>(abstract));
+            return BindingName{}(static_cast<const Owner&>(root));
           },
-          .get_binding = [](const Ttx::Concept::Abstract& abstract)
+          .get_binding = [](const Ttx::Concept::Abstract& root)
               -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> {
-            return Binding{}(static_cast<const Owner&>(abstract));
+            return Binding{}(static_cast<const Owner&>(root));
           },
         });
   }
 
   constexpr auto link(Ttx::Lexical::Cursor& cursor, Flow::Scope& scope)
       -> Bool {
-    return operations.link(abstract.get(), cursor, scope);
+    return operations.link(root.get(), cursor, scope);
   }
 
   constexpr auto finalize(Ttx::Lexical::Cursor& cursor) -> void {
-    operations.finalize(abstract.get(), cursor);
+    operations.finalize(root.get(), cursor);
   }
 
   constexpr auto reaches_next() const -> Bool {
-    return operations.reaches_next(abstract.get());
+    return operations.reaches_next(root.get());
   }
 
   constexpr auto get_binding_name() const
       -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> {
-    return operations.get_binding_name(abstract.get());
+    return operations.get_binding_name(root.get());
   }
 
   constexpr auto get_binding() const
       -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> {
-    return operations.get_binding(abstract.get());
+    return operations.get_binding(root.get());
   }
 
-  constexpr auto get_abstract() const -> const Ttx::Concept::Abstract& {
-    return abstract.get();
+  constexpr auto get_root() const -> const Ttx::Concept::Abstract& {
+    return root.get();
   }
 
   constexpr auto get_documentation() const
@@ -140,16 +141,16 @@ class Statement {
   };
 
   constexpr Statement(
-      Ttx::Concept::Abstract& abstract,
+      Ttx::Concept::Abstract& root,
       const Ttx::Concept::Documentation& documentation,
       Ttx::Lexical::Anchor anchor,
       Operations operations)
-      : abstract(abstract),
+      : root(root),
         documentation(documentation),
         anchor(anchor),
         operations(operations) {}
 
-  Ttx::Concept::Reference<Ttx::Concept::Abstract> abstract;
+  Ttx::Concept::Reference<Ttx::Concept::Abstract> root;
   const Ttx::Concept::Documentation& documentation;
   Ttx::Lexical::Anchor anchor;
   Operations operations;

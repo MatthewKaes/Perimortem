@@ -98,20 +98,19 @@ PERIMORTEM_UNIT_TEST(LoopControlTests, nearest_loop_identity) {
   ASSERT(function && function->get_body());
   auto statements = function->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(3));
-  ASSERT(statements.get_data()[0].get_abstract().is<Language::Flow::Branch>());
-  ASSERT(
-      statements.get_data()[1].get_abstract().is<Language::Flow::RangeLoop>());
+  ASSERT(statements.get_data()[0].get_root().is<Language::Flow::Branch>());
+  ASSERT(statements.get_data()[1].get_root().is<Language::Flow::RangeLoop>());
 
   const auto& while_loop = static_cast<const Language::Flow::Branch&>(
-      statements.get_data()[0].get_abstract());
+      statements.get_data()[0].get_root());
   auto while_body = while_loop.get_body().get_statements();
   ASSERT_EQ(while_body.get_size(), Count(2));
   const auto& conditional = static_cast<const Language::Flow::Branch&>(
-      while_body.get_data()[0].get_abstract());
+      while_body.get_data()[0].get_root());
   const auto& nested_continue = static_cast<const Language::Flow::LoopControl&>(
-      conditional.get_body().get_statements().get_data()[0].get_abstract());
+      conditional.get_body().get_statements().get_data()[0].get_root());
   const auto& direct_break = static_cast<const Language::Flow::LoopControl&>(
-      while_body.get_data()[1].get_abstract());
+      while_body.get_data()[1].get_root());
   EXPECT(
       nested_continue.get_kind() ==
       Language::Flow::LoopControl::Kind::Continue);
@@ -120,36 +119,33 @@ PERIMORTEM_UNIT_TEST(LoopControlTests, nearest_loop_identity) {
   EXPECT(&direct_break.get_target() == &while_loop);
 
   const auto& range_loop = static_cast<const Language::Flow::RangeLoop&>(
-      statements.get_data()[1].get_abstract());
+      statements.get_data()[1].get_root());
   auto range_body = range_loop.get_body().get_statements();
   ASSERT_EQ(range_body.get_size(), Count(3));
   const auto& range_conditional = static_cast<const Language::Flow::Branch&>(
-      range_body.get_data()[0].get_abstract());
+      range_body.get_data()[0].get_root());
   const auto& range_continue = static_cast<const Language::Flow::LoopControl&>(
-      range_conditional.get_body()
-          .get_statements()
-          .get_data()[0]
-          .get_abstract());
+      range_conditional.get_body().get_statements().get_data()[0].get_root());
   const auto& inner_while = static_cast<const Language::Flow::Branch&>(
-      range_body.get_data()[1].get_abstract());
+      range_body.get_data()[1].get_root());
   const auto& inner_break = static_cast<const Language::Flow::LoopControl&>(
-      inner_while.get_body().get_statements().get_data()[0].get_abstract());
+      inner_while.get_body().get_statements().get_data()[0].get_root());
   const auto& final_continue = static_cast<const Language::Flow::LoopControl&>(
-      range_body.get_data()[2].get_abstract());
+      range_body.get_data()[2].get_root());
   EXPECT(&range_continue.get_target() == &range_loop);
   EXPECT(&inner_break.get_target() == &inner_while);
   EXPECT(&final_continue.get_target() == &range_loop);
   EXPECT_TEXT(
       inner_break.get_anchor().get_span().caculate_text(source), "break;"_view);
 
-  const Abstract& retained = range_body.get_data()[2].get_abstract();
+  const Abstract& retained = range_body.get_data()[2].get_root();
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "loop_control.ttx"_view);
   Cursor cursor(tokenizer, errors);
   ASSERT(monograph->link(cursor));
   ASSERT(monograph->finalize(cursor));
   EXPECT(
-      &range_loop.get_body().get_statements().get_data()[2].get_abstract() ==
+      &range_loop.get_body().get_statements().get_data()[2].get_root() ==
       &retained);
   EXPECT(errors.is_empty());
 }

@@ -68,7 +68,7 @@ static auto find_return(const Language::Function& function)
   auto body = function.get_body();
   BAIL_IF(!body);
   for (const Language::Statement& statement : body->get_statements()) {
-    auto returned = statement.get_abstract().select<Language::Flow::Return>();
+    auto returned = statement.get_root().select<Language::Flow::Return>();
     if (returned) {
       return *returned;
     }
@@ -1081,83 +1081,81 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
   // inventory flat here also proves the Call remains the statement itself.
   auto statements = execute->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(7));
-  ASSERT(statements.get_data()[0].get_abstract().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[1].get_abstract().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[2].get_abstract().is<Language::Access::Call>());
-  ASSERT(statements.get_data()[3].get_abstract().is<Language::Flow::Branch>());
-  ASSERT(statements.get_data()[4].get_abstract().is<Language::Flow::Branch>());
-  ASSERT(
-      statements.get_data()[5].get_abstract().is<Language::Flow::RangeLoop>());
-  ASSERT(statements.get_data()[6].get_abstract().is<Language::Flow::Match>());
+  ASSERT(statements.get_data()[0].get_root().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[1].get_root().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[2].get_root().is<Language::Access::Call>());
+  ASSERT(statements.get_data()[3].get_root().is<Language::Flow::Branch>());
+  ASSERT(statements.get_data()[4].get_root().is<Language::Flow::Branch>());
+  ASSERT(statements.get_data()[5].get_root().is<Language::Flow::RangeLoop>());
+  ASSERT(statements.get_data()[6].get_root().is<Language::Flow::Match>());
 
   const auto& total = static_cast<const Language::Flow::Local&>(
-      statements.get_data()[0].get_abstract());
+      statements.get_data()[0].get_root());
   const auto& one = static_cast<const Language::Flow::Local&>(
-      statements.get_data()[1].get_abstract());
+      statements.get_data()[1].get_root());
   EXPECT_TEXT(total.get_name(), "total"_view);
   EXPECT_TEXT(one.get_name(), "one"_view);
   EXPECT(total.get_writability() == Language::Writability::Full);
   EXPECT(one.get_writability() == Language::Writability::Constant);
 
   const auto& call = static_cast<const Language::Access::Call&>(
-      statements.get_data()[2].get_abstract());
+      statements.get_data()[2].get_root());
   ASSERT(call.get_callable());
   EXPECT_TEXT(call.get_callable()->get_name(), "tick"_view);
   EXPECT_NOT(call.get_folded());
 
   const auto& conditional = static_cast<const Language::Flow::Branch&>(
-      statements.get_data()[3].get_abstract());
+      statements.get_data()[3].get_root());
   EXPECT(conditional.get_kind() == Language::Flow::Branch::Kind::If);
   ASSERT_EQ(conditional.get_body().get_statements().get_size(), Count(1));
   ASSERT(conditional.get_body()
              .get_statements()
              .get_data()[0]
-             .get_abstract()
+             .get_root()
              .is<Language::Operations::AddAssignment>());
   ASSERT(conditional.get_alternate());
-  auto alternate = conditional.get_alternate()
-                       ->get_abstract()
-                       .select<Language::Flow::Block>();
+  auto alternate =
+      conditional.get_alternate()->get_root().select<Language::Flow::Block>();
   ASSERT(alternate);
   ASSERT_EQ(alternate->get_statements().get_size(), Count(1));
   ASSERT(alternate->get_statements()
              .get_data()[0]
-             .get_abstract()
+             .get_root()
              .is<Language::Operations::Assignment>());
 
   const auto& while_loop = static_cast<const Language::Flow::Branch&>(
-      statements.get_data()[4].get_abstract());
+      statements.get_data()[4].get_root());
   EXPECT(while_loop.get_kind() == Language::Flow::Branch::Kind::While);
   auto while_statements = while_loop.get_body().get_statements();
   ASSERT_EQ(while_statements.get_size(), Count(2));
   ASSERT(while_statements.get_data()[0]
-             .get_abstract()
+             .get_root()
              .is<Language::Operations::AddAssignment>());
   const auto& broken = static_cast<const Language::Flow::LoopControl&>(
-      while_statements.get_data()[1].get_abstract());
+      while_statements.get_data()[1].get_root());
   EXPECT(broken.get_kind() == Language::Flow::LoopControl::Kind::Break);
   EXPECT(&broken.get_target() == &while_loop);
 
   // The nested Branch contributes lexical scope but does not replace the
   // RangeLoop selected by continue. The retained edge stays on the real loop.
   const auto& range_loop = static_cast<const Language::Flow::RangeLoop&>(
-      statements.get_data()[5].get_abstract());
+      statements.get_data()[5].get_root());
   auto range_statements = range_loop.get_body().get_statements();
   ASSERT_EQ(range_statements.get_size(), Count(2));
   const auto& range_branch = static_cast<const Language::Flow::Branch&>(
-      range_statements.get_data()[0].get_abstract());
+      range_statements.get_data()[0].get_root());
   const auto& continued = static_cast<const Language::Flow::LoopControl&>(
-      range_branch.get_body().get_statements().get_data()[0].get_abstract());
+      range_branch.get_body().get_statements().get_data()[0].get_root());
   EXPECT(continued.get_kind() == Language::Flow::LoopControl::Kind::Continue);
   EXPECT(&continued.get_target() == &range_loop);
   ASSERT(range_statements.get_data()[1]
-             .get_abstract()
+             .get_root()
              .is<Language::Operations::AddAssignment>());
 
   // Exhaustive Flag cases make Match the Function terminal. Each Return stays
   // inside its real case Block rather than becoming a copied result edge.
   const auto& match = static_cast<const Language::Flow::Match&>(
-      statements.get_data()[6].get_abstract());
+      statements.get_data()[6].get_root());
   EXPECT(&match.get_input().get_result() == &*flag);
   ASSERT_EQ(match.get_case_count(), Count(2));
   auto first_case = match.get_case_constant(0);
@@ -1173,12 +1171,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
   ASSERT(match.get_case_body(0)
              ->get_statements()
              .get_data()[0]
-             .get_abstract()
+             .get_root()
              .is<Language::Flow::Return>());
   ASSERT(match.get_case_body(1)
              ->get_statements()
              .get_data()[0]
-             .get_abstract()
+             .get_root()
              .is<Language::Flow::Return>());
   EXPECT_NOT(match.get_default());
   EXPECT_NOT(match.reaches_next_statement());
@@ -1192,7 +1190,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
   ASSERT(monograph.link(repeated_cursor));
   ASSERT(monograph.finalize(repeated_cursor));
   EXPECT(
-      &execute->get_body()->get_statements().get_data()[6].get_abstract() ==
+      &execute->get_body()->get_statements().get_data()[6].get_root() ==
       &retained_match);
   EXPECT(errors.is_empty());
 }

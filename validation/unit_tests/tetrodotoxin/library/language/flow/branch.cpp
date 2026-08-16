@@ -99,15 +99,15 @@ PERIMORTEM_UNIT_TEST(BranchTests, retained_blocks_and_condition_pack) {
   ASSERT(function && function->get_body());
   auto statements = function->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(4));
-  ASSERT(statements.get_data()[0].get_abstract().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[1].get_abstract().is<Language::Flow::Branch>());
-  ASSERT(statements.get_data()[2].get_abstract().is<Language::Flow::Branch>());
-  ASSERT(statements.get_data()[3].get_abstract().is<Language::Flow::Return>());
+  ASSERT(statements.get_data()[0].get_root().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[1].get_root().is<Language::Flow::Branch>());
+  ASSERT(statements.get_data()[2].get_root().is<Language::Flow::Branch>());
+  ASSERT(statements.get_data()[3].get_root().is<Language::Flow::Return>());
 
   const auto& conditional = static_cast<const Language::Flow::Branch&>(
-      statements.get_data()[1].get_abstract());
+      statements.get_data()[1].get_root());
   const auto& loop = static_cast<const Language::Flow::Branch&>(
-      statements.get_data()[2].get_abstract());
+      statements.get_data()[2].get_root());
   EXPECT(conditional.get_kind() == Language::Flow::Branch::Kind::If);
   EXPECT(loop.get_kind() == Language::Flow::Branch::Kind::While);
   EXPECT_EQ(conditional.get_condition().get_layout().get_size(), Count(2));
@@ -121,25 +121,24 @@ PERIMORTEM_UNIT_TEST(BranchTests, retained_blocks_and_condition_pack) {
       "    outer = 2;\n"
       "  }"_view);
 
-  const Abstract& outer = statements.get_data()[0].get_abstract();
+  const Abstract& outer = statements.get_data()[0].get_root();
   const Abstract& shadowed =
       conditional.get_body().resolve_context("outer"_view);
   EXPECT(&shadowed != &outer);
   EXPECT(shadowed.is<Language::Flow::Local>());
-  auto alternate = conditional.get_alternate()
-                       ->get_abstract()
-                       .select<Language::Flow::Block>();
+  auto alternate =
+      conditional.get_alternate()->get_root().select<Language::Flow::Block>();
   ASSERT(alternate);
   EXPECT(&alternate->resolve_context("outer"_view) == &outer);
 
-  const Abstract& retained = statements.get_data()[1].get_abstract();
+  const Abstract& retained = statements.get_data()[1].get_root();
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "branch.ttx"_view);
   Cursor cursor(tokenizer, errors);
   ASSERT(monograph->link(cursor));
   ASSERT(monograph->finalize(cursor));
   EXPECT(
-      &function->get_body()->get_statements().get_data()[1].get_abstract() ==
+      &function->get_body()->get_statements().get_data()[1].get_root() ==
       &retained);
   EXPECT(errors.is_empty());
 }
@@ -186,12 +185,12 @@ PERIMORTEM_UNIT_TEST(BranchTests, else_if_retains_the_selected_statement) {
   auto statements = function->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(1));
   auto first =
-      statements.get_data()[0].get_abstract().select<Language::Flow::Branch>();
+      statements.get_data()[0].get_root().select<Language::Flow::Branch>();
   ASSERT(first && first->get_alternate());
   auto second =
-      first->get_alternate()->get_abstract().select<Language::Flow::Branch>();
+      first->get_alternate()->get_root().select<Language::Flow::Branch>();
   ASSERT(second && second->get_alternate());
-  EXPECT(second->get_alternate()->get_abstract().is<Language::Flow::Block>());
+  EXPECT(second->get_alternate()->get_root().is<Language::Flow::Block>());
   EXPECT_NOT(first->reaches_next_statement());
   EXPECT(errors.is_empty());
 }
@@ -214,9 +213,9 @@ PERIMORTEM_UNIT_TEST(BranchTests, while_body_targets_its_branch) {
   auto statements = function->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(2));
   const auto& loop = static_cast<const Language::Flow::Branch&>(
-      statements.get_data()[0].get_abstract());
+      statements.get_data()[0].get_root());
   const auto& control = static_cast<const Language::Flow::LoopControl&>(
-      loop.get_body().get_statements().get_data()[0].get_abstract());
+      loop.get_body().get_statements().get_data()[0].get_root());
   EXPECT(&control.get_target() == &loop);
   EXPECT(loop.reaches_next_statement());
   EXPECT(errors.is_empty());

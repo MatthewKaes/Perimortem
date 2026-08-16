@@ -97,14 +97,13 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
   ASSERT(function && function->get_body());
   auto statements = function->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(4));
-  ASSERT(statements.get_data()[0].get_abstract().is<Language::Flow::Local>());
-  ASSERT(statements.get_data()[1].get_abstract().is<Language::Flow::Local>());
-  ASSERT(
-      statements.get_data()[2].get_abstract().is<Language::Flow::RangeLoop>());
-  ASSERT(statements.get_data()[3].get_abstract().is<Language::Flow::Return>());
+  ASSERT(statements.get_data()[0].get_root().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[1].get_root().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[2].get_root().is<Language::Flow::RangeLoop>());
+  ASSERT(statements.get_data()[3].get_root().is<Language::Flow::Return>());
 
   const auto& loop = static_cast<const Language::Flow::RangeLoop&>(
-      statements.get_data()[2].get_abstract());
+      statements.get_data()[2].get_root());
   EXPECT_TEXT(loop.get_name(), "entry"_view);
   EXPECT(loop.get_type().is<Language::Model::Types::Unsigned>());
   const Abstract& range_type = loop.get_range().get_type().resolve();
@@ -116,10 +115,10 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
   EXPECT(&loop.get_body().resolve_context("entry"_view) == &loop);
   EXPECT(
       &function->get_body()->resolve_context("entry"_view) ==
-      &statements.get_data()[0].get_abstract());
+      &statements.get_data()[0].get_root());
   EXPECT(
       &loop.get_body().resolve_context("total"_view) ==
-      &statements.get_data()[1].get_abstract());
+      &statements.get_data()[1].get_root());
   EXPECT_TEXT(
       loop.get_anchor().get_span().caculate_text(source),
       "for [.entry : Unsigned_64] in 0...3 {\n"
@@ -127,14 +126,14 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
       "    total += copy;\n"
       "  }"_view);
 
-  const Abstract& retained = statements.get_data()[2].get_abstract();
+  const Abstract& retained = statements.get_data()[2].get_root();
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "range_loop.ttx"_view);
   Cursor cursor(tokenizer, errors);
   ASSERT(monograph->link(cursor));
   ASSERT(monograph->finalize(cursor));
   EXPECT(
-      &function->get_body()->get_statements().get_data()[2].get_abstract() ==
+      &function->get_body()->get_statements().get_data()[2].get_root() ==
       &retained);
   EXPECT(errors.is_empty());
 }
@@ -189,9 +188,9 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, body_control_targets_exact_loop) {
   auto function = find_function(monograph->get_source(), "scan"_view);
   ASSERT(function && function->get_body());
   const auto& loop = static_cast<const Language::Flow::RangeLoop&>(
-      function->get_body()->get_statements().get_data()[0].get_abstract());
+      function->get_body()->get_statements().get_data()[0].get_root());
   const auto& control = static_cast<const Language::Flow::LoopControl&>(
-      loop.get_body().get_statements().get_data()[0].get_abstract());
+      loop.get_body().get_statements().get_data()[0].get_root());
   EXPECT(control.get_kind() == Language::Flow::LoopControl::Kind::Break);
   EXPECT(&control.get_target() == &loop);
   EXPECT(errors.is_empty());

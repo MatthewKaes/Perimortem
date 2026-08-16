@@ -100,9 +100,9 @@ PERIMORTEM_UNIT_TEST(MatchTests, ordered_cases_and_complete_flag_coverage) {
   ASSERT(function && function->get_body());
   auto statements = function->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(2));
-  const Abstract& outer = statements.get_data()[0].get_abstract();
+  const Abstract& outer = statements.get_data()[0].get_root();
   const auto& match = static_cast<const Language::Flow::Match&>(
-      statements.get_data()[1].get_abstract());
+      statements.get_data()[1].get_root());
   auto parameter = function->get_parameters().get_abstract(0);
   ASSERT(parameter);
   EXPECT(&match.get_input().get_result() == &*parameter);
@@ -161,7 +161,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, folded_case_and_final_default) {
   auto function = find_function(monograph->get_source(), "choose"_view);
   ASSERT(function && function->get_body());
   const auto& match = static_cast<const Language::Flow::Match&>(
-      function->get_body()->get_statements().get_data()[0].get_abstract());
+      function->get_body()->get_statements().get_data()[0].get_root());
   auto folded = match.get_case_constant(0);
   ASSERT(folded && folded->is<Language::Constants::Unsigned>());
   EXPECT_EQ(
@@ -201,15 +201,15 @@ PERIMORTEM_UNIT_TEST(MatchTests, case_blocks_inherit_the_nearest_loop) {
   auto function = find_function(monograph->get_source(), "run"_view);
   ASSERT(function && function->get_body());
   const auto& loop = static_cast<const Language::Flow::Branch&>(
-      function->get_body()->get_statements().get_data()[0].get_abstract());
+      function->get_body()->get_statements().get_data()[0].get_root());
   const auto& match = static_cast<const Language::Flow::Match&>(
-      loop.get_body().get_statements().get_data()[0].get_abstract());
+      loop.get_body().get_statements().get_data()[0].get_root());
   ASSERT(match.get_case_body(0));
   ASSERT(match.get_case_body(1));
   const auto& continued = static_cast<const Language::Flow::LoopControl&>(
-      match.get_case_body(0)->get_statements().get_data()[0].get_abstract());
+      match.get_case_body(0)->get_statements().get_data()[0].get_root());
   const auto& broken = static_cast<const Language::Flow::LoopControl&>(
-      match.get_case_body(1)->get_statements().get_data()[0].get_abstract());
+      match.get_case_body(1)->get_statements().get_data()[0].get_root());
   EXPECT(&continued.get_target() == &loop);
   EXPECT(&broken.get_target() == &loop);
   EXPECT(errors.is_empty());
@@ -234,7 +234,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, option_patterns_are_exact_and_branch_local) {
   auto choose = find_function(monograph->get_source(), "choose"_view);
   ASSERT(choose && choose->get_body());
   const auto& first = static_cast<const Language::Flow::Match&>(
-      choose->get_body()->get_statements().get_data()[0].get_abstract());
+      choose->get_body()->get_statements().get_data()[0].get_root());
 
   ASSERT_EQ(first.get_case_count(), Count(1));
   ASSERT(first.get_case_kind(0));

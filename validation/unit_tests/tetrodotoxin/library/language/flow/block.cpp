@@ -95,8 +95,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
 
   auto statements = populated.get_statements();
   ASSERT_EQ(statements.get_size(), Count(2));
-  const Abstract& first = statements.get_data()[0].get_abstract();
-  const Abstract& second = statements.get_data()[1].get_abstract();
+  const Abstract& first = statements.get_data()[0].get_root();
+  const Abstract& second = statements.get_data()[1].get_root();
   EXPECT(&first != &second);
   ASSERT(first.is<Language::Access::Call>());
   ASSERT(second.is<Language::Flow::Return>());
@@ -119,8 +119,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
   ASSERT(monograph->finalize(cursor));
   auto repeated = populated.get_statements();
   ASSERT_EQ(repeated.get_size(), Count(2));
-  EXPECT(&repeated.get_data()[0].get_abstract() == &first);
-  EXPECT(&repeated.get_data()[1].get_abstract() == &second);
+  EXPECT(&repeated.get_data()[0].get_root() == &first);
+  EXPECT(&repeated.get_data()[1].get_root() == &second);
   EXPECT(errors.is_empty());
 }
 
@@ -147,11 +147,9 @@ PERIMORTEM_UNIT_TEST(BlockTests, free_expressions_are_statements) {
   auto statements = run->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(5));
   for (Count index = 0; index < 4; index++) {
-    EXPECT(statements.get_data()[index]
-               .get_abstract()
-               .is<Language::Model::Pack>());
+    EXPECT(statements.get_data()[index].get_root().is<Language::Model::Pack>());
   }
-  EXPECT(statements.get_data()[4].get_abstract().is<Language::Flow::Return>());
+  EXPECT(statements.get_data()[4].get_root().is<Language::Flow::Return>());
   EXPECT(errors.is_empty());
 }
 
@@ -177,7 +175,7 @@ PERIMORTEM_UNIT_TEST(BlockTests, nested_block_and_documentation_are_retained) {
   auto statements = run->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(2));
   const Language::Statement& nested_statement = statements.get_data()[0];
-  auto nested = nested_statement.get_abstract().select<Language::Flow::Block>();
+  auto nested = nested_statement.get_root().select<Language::Flow::Block>();
   ASSERT(nested);
   EXPECT_EQ(nested_statement.get_documentation().line_count(), Count(1));
   EXPECT_TEXT(
@@ -186,9 +184,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, nested_block_and_documentation_are_retained) {
 
   auto nested_statements = nested->get_statements();
   ASSERT_EQ(nested_statements.get_size(), Count(1));
-  EXPECT(nested_statements.get_data()[0]
-             .get_abstract()
-             .is<Language::Model::Pack>());
+  EXPECT(
+      nested_statements.get_data()[0].get_root().is<Language::Model::Pack>());
   EXPECT_EQ(
       nested_statements.get_data()[0].get_documentation().line_count(),
       Count(1));

@@ -591,7 +591,7 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, production_option_fixture) {
   auto statements = choose->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(1));
   auto match =
-      statements.get_data()[0].get_abstract().select<Language::Flow::Match>();
+      statements.get_data()[0].get_root().select<Language::Flow::Match>();
   ASSERT(match);
   ASSERT_EQ(match->get_case_count(), Count(1));
   auto case_kind = match->get_case_kind(0);
@@ -619,7 +619,7 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, production_option_fixture) {
   auto repeated_match = repeated_choose->get_body()
                             ->get_statements()
                             .get_data()[0]
-                            .get_abstract()
+                            .get_root()
                             .select<Language::Flow::Match>();
   ASSERT(repeated_match);
   EXPECT(&*repeated_match == retained_match);
