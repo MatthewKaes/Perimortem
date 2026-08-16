@@ -229,7 +229,9 @@ class Set {
   }
 
   auto find_bucket(const key_type& key, Unsigned_32 hash) const -> Count {
-    if (buffer_data.size == 0) {
+    // Both views belong to one allocation. Incomplete storage has no keys.
+    if (buffer_data.size == 0 || buffer_data.bucket_buffer == nullptr ||
+        buffer_data.slots_buffer == nullptr) {
       return Count(-1);
     }
 
@@ -255,6 +257,10 @@ class Set {
 
   auto find_hashed(const key_type& key, Unsigned_32 hash) const
       -> const key_type* {
+    if (buffer_data.slots_buffer == nullptr) {
+      return nullptr;
+    }
+
     Count bucket_index = find_bucket(key, hash);
     if (bucket_index == Count(-1)) {
       return nullptr;
@@ -287,15 +293,18 @@ class Set {
   auto grow(Count new_bucket_count) -> void {
     BufferData current_buffer = buffer_data;
     buffer_data = create_buffer(new_bucket_count);
-    for (Count bucket_index = 0; bucket_index < current_buffer.bucket_count;
-         bucket_index++) {
-      if (current_buffer.bucket_buffer[bucket_index] == 0) {
-        continue;
-      }
+    if (current_buffer.bucket_buffer != nullptr &&
+        current_buffer.slots_buffer != nullptr) {
+      for (Count bucket_index = 0; bucket_index < current_buffer.bucket_count;
+           bucket_index++) {
+        if (current_buffer.bucket_buffer[bucket_index] == 0) {
+          continue;
+        }
 
-      emplace_hashed(
-          current_buffer.slots_buffer + bucket_index,
-          current_buffer.bucket_buffer[bucket_index]);
+        emplace_hashed(
+            current_buffer.slots_buffer + bucket_index,
+            current_buffer.bucket_buffer[bucket_index]);
+      }
     }
 
     if (current_buffer.bucket_buffer != nullptr) {

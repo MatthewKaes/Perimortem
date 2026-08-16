@@ -37,7 +37,7 @@ class Option {
   Bool set = false;
 
  public:
-  constexpr Option() {}
+  constexpr Option() : set(false) {}
 
   constexpr Option(const value_type& selected)
     requires(__is_constructible(value_type, const value_type&))
@@ -49,7 +49,7 @@ class Option {
 
   constexpr Option(const Option& source)
     requires(__is_constructible(value_type, const value_type&))
-  {
+      : set(false) {
     if (source.set) {
       construct(source.value);
     }
@@ -57,7 +57,7 @@ class Option {
 
   constexpr Option(Option&& source)
     requires(__is_constructible(value_type, value_type &&))
-  {
+      : set(false) {
     if (source.set) {
       construct(static_cast<value_type&&>(source.value));
     }

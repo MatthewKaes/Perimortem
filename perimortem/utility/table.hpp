@@ -125,9 +125,9 @@ class Table {
       Unsigned_16 byte_index = 0;
     };
 
+    alignas(64) Core::Static::Vector<Unsigned_8, storage_size> buffer = {};
     Core::Static::Vector<Coord, max_range + 1> buffer_coordinates = {};
     Core::Static::Vector<value_type, get_source_count()> mappings = {};
-    alignas(64) Core::Static::Vector<Unsigned_8, storage_size> buffer = {};
   };
 
   static constexpr PackedBuffer byte_pack;
