@@ -1,16 +1,13 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#ifdef PERI_BENCH_CPP
-#include <algorithm>
-#endif
+#include "perimortem/core/algorithm/sort.hpp"
 
 #include "validation/benchmark.hpp"
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/algorithm/sort.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
 
@@ -66,7 +63,7 @@ static Static::Vector<Count, 1 << 14> count_16k;
 
 // Make sure keys are randomized
 template <typename count_array>
-auto fill_random(count_array& target) -> void {
+static auto fill_random(count_array& target) -> void {
   Count* data = target.get_data();
   for (Count i = 0; i < target.get_size(); i++) {
     data[i] = Random::generate();
@@ -133,13 +130,14 @@ static Static::Vector<SortWord, keyword_seeds.get_size() * permute_count>
 //
 // Stores state so it only runs the generation once regardless of how many
 // string sorting tests we have.
-auto populate_words() -> void {
+static auto populate_words() -> void {
   static Bool populated = False;
   if (populated) {
     return;
   }
 
-  auto generated_index = 0;
+  Count generated_index = 0;
+  Count word_index = 0;
   for (Count i = 0; i < keyword_seeds.get_size(); i++) {
     View::Bytes seed_word = keyword_seeds[i];
     for (Count j = 0; j < permute_count; j++) {
@@ -147,11 +145,11 @@ auto populate_words() -> void {
       Data::copy(slot, seed_word.get_data(), seed_word.get_size());
 
       slot[seed_word.get_size()] = '_';
-      slot[seed_word.get_size() + 1] = Unsigned_8('0' + (i / 100) % 10);
-      slot[seed_word.get_size() + 2] = Unsigned_8('0' + (i / 10) % 10);
+      slot[seed_word.get_size() + 1] = Unsigned_8('0' + (j / 10) % 10);
+      slot[seed_word.get_size() + 2] = Unsigned_8('0' + j % 10);
 
       Count generated_size = seed_word.get_size() + 3;
-      word_pool[i] = View::Bytes(slot, generated_size);
+      word_pool[word_index++] = View::Bytes(slot, generated_size);
       generated_index += generated_size;
     }
   }
@@ -161,9 +159,9 @@ auto populate_words() -> void {
 
 // Make sure keys are randomized
 template <typename word_array>
-auto fill_words(word_array& target) -> void {
+static auto fill_words(word_array& target) -> void {
   // Randomly selects 4 Byte::View chunks to fill the array with.
-  for (Count i = 0; i < target.get_size() / 4; i += 4) {
+  for (Count i = 0; i < target.get_size(); i += 4) {
     Unsigned_64 random_indexes = Random::generate();
     target[i] = word_pool[Unsigned_16(random_indexes) % word_pool.get_size()];
     target[i + 1] =
@@ -214,77 +212,3 @@ PERIMORTEM_BENCHMARK(SortStrings16k, views_16k) {
   Count sorted_str_size = words_16k[0].get_size();
   Benchmark::prevent_optimization(sorted_str_size);
 }
-
-#ifdef PERI_BENCH_CPP
-
-// All integer sort harnesses share the name "Sorting" so using that name here
-// lets find_stored_time locate their benchmark stats during comparison lookup.
-static Harness SortIntComp = {
-  .name = "Sorting"_view,
-  .setup =
-      []() {
-        fill_random(count_64);
-        fill_random(count_512);
-        fill_random(count_4k);
-        fill_random(count_16k);
-      },
-};
-
-static Harness SortStringComp = {
-  .name = "Sorting"_view,
-  .init = populate_words,
-  .setup =
-      []() {
-        fill_words(words_256);
-        fill_words(words_4k);
-        fill_words(words_16k);
-      },
-};
-
-template <typename array_type>
-auto cpp_std_sort_ints(array_type& arr) -> void {
-  std::sort(arr.get_data(), arr.get_data() + arr.get_size());
-  Benchmark::prevent_optimization(arr[0]);
-}
-
-template <typename array_type>
-auto cpp_std_sort_views(array_type& arr) -> void {
-  std::sort(
-      arr.get_data(), arr.get_data() + arr.get_size(),
-      [](const SortWord& a, const SortWord& b) { return b > a; });
-  Count sorted_size = arr[0].get_size();
-  Benchmark::prevent_optimization(sorted_size);
-}
-
-#define INT_SORT_COMPARISON(size, buffer)                  \
-  static Benchmark::Comparison sort_##size##_ints_comp = { \
-    .harness = &SortIntComp,                               \
-    .label = "ints " #size ""_view,                        \
-    .variants = {Benchmark::ComparisonVariant{             \
-      "perimortem"_view, "int_" #size "_items"_view}},     \
-  };                                                       \
-  PERIMORTEM_COMPARISON(sort_##size##_ints_comp) {         \
-    cpp_std_sort_ints(buffer);                             \
-  }
-
-INT_SORT_COMPARISON(64, count_64)
-INT_SORT_COMPARISON(512, count_512)
-INT_SORT_COMPARISON(4k, count_4k)
-INT_SORT_COMPARISON(16k, count_16k)
-
-#define STRING_SORT_COMPARISON(size, buffer)                  \
-  static Benchmark::Comparison sort_##size##_strings_comp = { \
-    .harness = &SortStringComp,                               \
-    .label = "strings " #size ""_view,                        \
-    .variants = {Benchmark::ComparisonVariant{                \
-      "perimortem"_view, "views_" #size ""_view}},            \
-  };                                                          \
-  PERIMORTEM_COMPARISON(sort_##size##_strings_comp) {         \
-    cpp_std_sort_views(buffer);                               \
-  }
-
-STRING_SORT_COMPARISON(256, words_256)
-STRING_SORT_COMPARISON(4k, words_4k)
-STRING_SORT_COMPARISON(16k, words_16k)
-
-#endif  // PERI_BENCH_CPP

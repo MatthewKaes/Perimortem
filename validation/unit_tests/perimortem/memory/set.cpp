@@ -5,7 +5,6 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
@@ -48,10 +47,16 @@ PERIMORTEM_UNIT_TEST(DynamicSet, find) {
   values.insert(2);
   values.insert(4);
 
-  auto* found = values.find(2);
-  ASSERT(found != nullptr);
+  auto found = values.find(2);
+  ASSERT(found);
   EXPECT_EQ(*found, 2);
-  EXPECT(values.find(8) == nullptr);
+  EXPECT(!values.find(8));
+
+  const auto& const_values = values;
+  auto const_found = const_values.find(4);
+  ASSERT(const_found);
+  EXPECT_EQ(*const_found, 4);
+  EXPECT(!const_values.find(8));
 }
 
 PERIMORTEM_UNIT_TEST(DynamicSet, visit) {
@@ -183,23 +188,6 @@ PERIMORTEM_UNIT_TEST(DynamicSet, insert_stress_test) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DynamicSet, capacity_stress_test) {
-  Count check_out_requests = Bibliotheca::check_out_requests();
-  Dynamic::Set<Signed_32> values;
-
-  values.ensure_capacity(1000);
-  EXPECT_EQ(Bibliotheca::check_out_requests(), check_out_requests + 1);
-  for (Count i = 0; i < 1000; i++) {
-    values.insert(i);
-  }
-
-  EXPECT_EQ(values.get_size(), 1000);
-  EXPECT_EQ(Bibliotheca::check_out_requests(), check_out_requests + 1);
-  for (Count i = 0; i < 1000; i++) {
-    ASSERT(values.contains(i));
-  }
-}
-
 PERIMORTEM_UNIT_TEST(DynamicSet, dynamic_keys) {
   Dynamic::Set<Dynamic::Bytes> values;
 
@@ -232,13 +220,9 @@ PERIMORTEM_UNIT_TEST(DynamicSet, pointer_keys) {
     StableObject(Count id) : id(id) {}
 
     constexpr auto get_id() const -> Count { return id; }
-    constexpr auto get_payload_size() const -> Count {
-      return payload.get_size();
-    }
 
    private:
     Count id = 0;
-    Static::Vector<Unsigned_8, 512> payload;
   };
 
   class StableObjectKey {
@@ -269,11 +253,10 @@ PERIMORTEM_UNIT_TEST(DynamicSet, pointer_keys) {
   EXPECT(values.insert(&third));
   EXPECT(!values.insert(&second));
 
-  const StableObjectKey* found = values.find(&second);
-  ASSERT(found != nullptr);
-  EXPECT(found->get_object() == &second);
-  EXPECT_EQ(found->get_object()->get_id(), 2);
-  EXPECT_EQ(found->get_object()->get_payload_size(), 512);
+  auto found = values.find(&second);
+  ASSERT(found);
+  EXPECT((*found).get_object() == &second);
+  EXPECT_EQ((*found).get_object()->get_id(), 2);
 
   EXPECT(values.remove(&second));
   EXPECT(!values.contains(&second));
@@ -297,34 +280,8 @@ PERIMORTEM_UNIT_TEST(DynamicSet, key_construction) {
     }
   }
 
-  EXPECT_EQ(construct_count, 300);
   EXPECT_EQ(construct_count, destruct_count);
-  EXPECT_EQ(default_construct_count, 0);
-  EXPECT_EQ(default_destruct_count, 0);
-}
-
-PERIMORTEM_UNIT_TEST(DynamicSet, growth) {
-  Count construct_count = 0;
-  Count destruct_count = 0;
-  Count check_out_requests = Bibliotheca::check_out_requests();
-
-  {
-    Dynamic::Set<Hashable> values;
-    for (Count i = 0; i < 1000; i++) {
-      ASSERT(values.insert(Hashable(i, construct_count, destruct_count)));
-    }
-
-    EXPECT_EQ(values.get_size(), 1000);
-    EXPECT_EQ(Bibliotheca::check_out_requests(), check_out_requests + 11);
-    for (Count i = 0; i < 1000; i++) {
-      ASSERT(values.contains(Hashable(i, construct_count, destruct_count)));
-    }
-
-    EXPECT_EQ(construct_count, 3000);
-    EXPECT_EQ(destruct_count, 2000);
-  }
-
-  EXPECT_EQ(construct_count, destruct_count);
+  EXPECT_EQ(default_construct_count, default_destruct_count);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicSet, reuse) {

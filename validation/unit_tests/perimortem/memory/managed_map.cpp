@@ -21,8 +21,25 @@ PERIMORTEM_UNIT_TEST(ManagedMap, empty) {
 
   EXPECT(values.is_empty());
   EXPECT_EQ(values.get_size(), Count(0));
-  EXPECT_EQ(values.get_capacity(), Count(0));
-  EXPECT(values.find(4) == nullptr);
+  EXPECT(!values.find(4));
+}
+
+PERIMORTEM_UNIT_TEST(ManagedMap, find) {
+  Allocator::Arena arena;
+  Managed::Map<Signed_32, Signed_32> values(arena);
+
+  values.insert(4, 5);
+
+  auto found = values.find(4);
+  ASSERT(found);
+  EXPECT_EQ((*found).value, 5);
+  EXPECT(!values.find(8));
+
+  const auto& const_values = values;
+  auto const_found = const_values.find(4);
+  ASSERT(const_found);
+  EXPECT_EQ((*const_found).value, 5);
+  EXPECT(!const_values.find(8));
 }
 
 PERIMORTEM_UNIT_TEST(ManagedMap, simple_insert) {

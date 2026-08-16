@@ -4,6 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/selection.hpp"
 
 namespace Perimortem::Core::View {
 
@@ -64,13 +65,9 @@ class Vector {
     return true;
   }
 
-  constexpr auto operator[](Count index) const -> const data_type& {
+  constexpr auto operator[](Count index) const -> data_type {
     if (index >= size) [[unlikely]] {
-      // Aligned storage has no constructor and is safe to alias as data_type.
-      // We zero-init so callers reading an OOB entry get a defined value.
-      alignas(
-          alignof(data_type)) static const Unsigned_8 oob[sizeof(data_type)]{};
-      return *Data::cast<const data_type>(oob);
+      return data_type();
     }
 
     return source_block[index];
@@ -92,6 +89,14 @@ class Vector {
   constexpr auto get_bytes() const -> const Bytes {
     return Bytes(
         Data::cast<const Unsigned_8>(source_block), size * sizeof(data_type));
+  }
+
+  constexpr auto begin() const -> Selection<Vector> {
+    return Selection<Vector>(*this);
+  }
+
+  constexpr auto end() const -> Selection<Vector> {
+    return Selection<Vector>(*this, get_size());
   }
 
  private:

@@ -79,22 +79,23 @@ static auto calculate_sizes(const Package::Archive::Archive& archive)
   Unsigned_64 identity = measure_sized_bytes(archive.get_identity());
   Unsigned_64 dependencies = 4;
   for (Count i = 0; i < dependency_values.get_size(); i++) {
-    dependencies += 4 + measure_dependency_record(dependency_values[i]);
+    dependencies +=
+        4 + measure_dependency_record(dependency_values.get_data()[i]);
   }
 
   Unsigned_64 members = 4;
   for (Count i = 0; i < member_values.get_size(); i++) {
-    members += 4 + measure_member_record(member_values[i]);
+    members += 4 + measure_member_record(member_values.get_data()[i]);
   }
 
   Unsigned_64 artifact_ids_size = 4;
   for (Count i = 0; i < artifact_ids.get_size(); i++) {
-    artifact_ids_size += 4 + measure_sized_bytes(artifact_ids[i]);
+    artifact_ids_size += 4 + measure_sized_bytes(artifact_ids.get_data()[i]);
   }
 
   Unsigned_64 exports = 4;
   for (Count i = 0; i < export_values.get_size(); i++) {
-    exports += 4 + measure_export_record(export_values[i]);
+    exports += 4 + measure_export_record(export_values.get_data()[i]);
   }
 
   Unsigned_64 body = section_header_size * section_count + identity + 4 +
@@ -173,7 +174,7 @@ auto Package::Archive::Writer::write(const Archive& archive)
   auto dependencies = archive.get_dependencies();
   writer << Unsigned_32(dependencies.get_size());
   for (Count i = 0; i < dependencies.get_size(); i++) {
-    const auto& dependency = dependencies[i];
+    const auto& dependency = dependencies.get_data()[i];
     Unsigned_32 record_size =
         Unsigned_32(measure_dependency_record(dependency));
     writer << record_size;
@@ -189,7 +190,7 @@ auto Package::Archive::Writer::write(const Archive& archive)
   auto members = archive.get_members();
   writer << Unsigned_32(members.get_size());
   for (Count i = 0; i < members.get_size(); i++) {
-    const auto& member = members[i];
+    const auto& member = members.get_data()[i];
     Unsigned_32 record_size = Unsigned_32(measure_member_record(member));
     writer << record_size;
     write_sized_bytes(writer, member.get_semantic_name());
@@ -204,7 +205,7 @@ auto Package::Archive::Writer::write(const Archive& archive)
   auto artifact_ids = archive.get_artifact_ids();
   writer << Unsigned_32(artifact_ids.get_size());
   for (Count i = 0; i < artifact_ids.get_size(); i++) {
-    View::Bytes artifact_id = artifact_ids[i];
+    View::Bytes artifact_id = artifact_ids.get_data()[i];
     Unsigned_32 record_size = Unsigned_32(measure_sized_bytes(artifact_id));
     writer << record_size;
     write_sized_bytes(writer, artifact_id);
@@ -216,7 +217,7 @@ auto Package::Archive::Writer::write(const Archive& archive)
   auto exports = archive.get_exports();
   writer << Unsigned_32(exports.get_size());
   for (Count i = 0; i < exports.get_size(); i++) {
-    const auto& entry = exports[i];
+    const auto& entry = exports.get_data()[i];
     Unsigned_32 record_size = Unsigned_32(measure_export_record(entry));
     writer << record_size;
     write_sized_bytes(writer, entry.get_semantic_route());

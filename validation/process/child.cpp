@@ -20,7 +20,7 @@ using namespace Perimortem::Memory;
 using namespace Validation;
 
 static constexpr Count max_arguments = 32;
-static constexpr Signed_32 drain_poll_milliseconds = 10;
+static constexpr Signed_32 poll_interval_milliseconds = 10;
 static constexpr Unsigned_64 nanoseconds_per_millisecond = 1'000'000;
 
 struct Pipe {
@@ -140,7 +140,7 @@ static auto terminate_child(pid_t child, Signed_32& status) -> Bool {
 static auto calculate_poll_timeout(Bool child_finished, Unsigned_64 deadline)
     -> Signed_32 {
   if (child_finished) {
-    return drain_poll_milliseconds;
+    return poll_interval_milliseconds;
   }
 
   Unsigned_64 now = Time::now().get_stamp();
@@ -151,9 +151,8 @@ static auto calculate_poll_timeout(Bool child_finished, Unsigned_64 deadline)
   Unsigned_64 remaining = deadline - now;
   Unsigned_64 milliseconds = (remaining + nanoseconds_per_millisecond - 1) /
                              nanoseconds_per_millisecond;
-  constexpr Unsigned_64 signed_maximum = 2'147'483'647;
-  if (milliseconds > signed_maximum) {
-    return Signed_32(signed_maximum);
+  if (milliseconds > Unsigned_64(poll_interval_milliseconds)) {
+    return poll_interval_milliseconds;
   }
 
   return Signed_32(milliseconds);
@@ -171,8 +170,9 @@ static auto prepare_arguments(
   encoded[0] = request.executable;
   encoded[0].append(0);
   arguments[0] = Data::cast<char>(encoded[0].get_access().get_data());
+  const auto* request_argument_data = request.arguments.get_data();
   for (Count index = 0; index < request.arguments.get_size(); index++) {
-    encoded[index + 1] = request.arguments[index];
+    encoded[index + 1] = request_argument_data[index];
     encoded[index + 1].append(0);
     arguments[index + 1] =
         Data::cast<char>(encoded[index + 1].get_access().get_data());
@@ -219,6 +219,14 @@ auto Process::run(const Request& request) -> Observation {
   }
 
   if (child == 0) {
+    if (input_pipe.input < 0 || output_pipe.output < 0 ||
+        error_pipe.output < 0) {
+      close_pipe(input_pipe);
+      close_pipe(output_pipe);
+      close_pipe(error_pipe);
+      _exit(126);
+    }
+
     Signed_32 input_ready = dup2(input_pipe.input, STDIN_FILENO);
     Signed_32 output_ready = dup2(output_pipe.output, STDOUT_FILENO);
     Signed_32 error_ready = dup2(error_pipe.output, STDERR_FILENO);

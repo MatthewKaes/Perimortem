@@ -37,16 +37,16 @@ static auto capture_sink(
   log_events[index].message = formatted;
 }
 
-auto last_entry() -> View::Bytes {
+static auto last_entry() -> View::Bytes {
   auto& event = log_events[(total_events - 1) % event_log_size];
   return View::Bytes(event.message.get_data(), event.message_size);
 }
 
-auto contains(View::Bytes haystack, View::Bytes message) -> Bool {
+static auto contains(View::Bytes haystack, View::Bytes message) -> Bool {
   return Algorithm::search(haystack, message) != Count(-1);
 }
 
-auto has_valid_header(View::Bytes entry) -> Bool {
+static auto has_valid_header(View::Bytes entry) -> Bool {
   constexpr auto header_length = 14;
   if (entry.get_size() < header_length) {
     return false;
@@ -109,42 +109,17 @@ static Harness DiagnosticsLog = {
       },
 };
 
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, timestamp_format) {
-  Diagnostics::Log::info("timestamp test"_view);
-  ASSERT(last_entry().get_size() > 0);
-  EXPECT(has_valid_header(last_entry()));
-}
-
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, newline_terminator) {
-  Diagnostics::Log::info("newline test"_view);
-  View::Bytes entry = last_entry();
-  ASSERT(entry.get_size() > 0);
-  EXPECT_EQ(entry[entry.get_size() - 1], Unsigned_8('\n'));
-}
-
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, source_location) {
-  Diagnostics::Log::info("location test"_view);
-  EXPECT(contains(
-      last_entry(), "validation/unit_tests/perimortem/core/log.cpp:"_view));
-}
-
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, main_thread_name) {
-  Diagnostics::Log::info("thread name test"_view);
-  ASSERT(last_entry().get_size() > 0);
-  EXPECT(contains(last_entry(), "[main]"_view));
-}
-
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, thread_name_order) {
-  Diagnostics::Log::info("ordering test"_view);
-  View::Bytes entry = last_entry();
-  ASSERT(entry.get_size() > 21);
-  // Format: "X HH:MM:SS.mmm [main] ..."
-  EXPECT_TEXT(entry.slice(15, 6), "[main]"_view);
-}
-
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, message_content) {
+PERIMORTEM_UNIT_TEST(DiagnosticsLog, info_record) {
   Diagnostics::Log::info("unique message string"_view);
-  EXPECT(contains(last_entry(), "unique message string"_view));
+  View::Bytes entry = last_entry();
+
+  ASSERT(entry.get_size() > 0);
+  EXPECT(has_valid_header(entry));
+  EXPECT_EQ(entry[entry.get_size() - 1], Unsigned_8('\n'));
+  EXPECT(
+      contains(entry, "validation/unit_tests/perimortem/core/log.cpp:"_view));
+  EXPECT(contains(entry, "[main]"_view));
+  EXPECT(contains(entry, "unique message string"_view));
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, message_raii_guard) {
@@ -159,16 +134,6 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, message_raii_guard) {
   EXPECT(total_events > events_before);
   EXPECT(contains(last_entry(), "builder emitted value=42"_view));
   EXPECT(has_valid_header(last_entry()));
-}
-
-PERIMORTEM_UNIT_TEST(DiagnosticsLog, header_thread_state) {
-  EXPECT_NOT(Diagnostics::Log::get_disable_header());
-
-  Diagnostics::Log::set_disable_header(True);
-  EXPECT(Diagnostics::Log::get_disable_header());
-
-  Diagnostics::Log::set_disable_header(False);
-  EXPECT_NOT(Diagnostics::Log::get_disable_header());
 }
 
 PERIMORTEM_UNIT_TEST(DiagnosticsLog, suppress_messages) {
@@ -187,11 +152,11 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, suppress_messages) {
   EXPECT(has_valid_header(last_entry()));
 }
 
-auto logging_function() -> void {
+static auto logging_function() -> void {
   Diagnostics::Log::error("Test Attribution"_view);
 }
 
-auto attributing_function() -> void {
+static auto attributing_function() -> void {
   auto scope_attribution = Diagnostics::Log::set_attribution();
   logging_function();
 }

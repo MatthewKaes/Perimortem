@@ -1,341 +1,433 @@
 # TTX Semantics
 
-This document defines the normative version 1 TTX lexical and semantic
-contracts. TTX is host neutral. Concrete language, source, package, filesystem,
-compiler, linker, runtime, archive, and diagnostic policy belongs to the
-systems that consume it.
+This document is the normative contract for implementers of TTX hosts
+and semantic objects. Readers evaluating TTX should begin with the
+[overview](README.md). The [design document](ttx_design.md) explains the
+rationale and tradeoffs behind these rules.
+
+TTX is independent of its host. Concrete languages define their grammar and
+type systems. Package, compiler, target, and runtime policy belong to the
+systems that consume the resulting graph.
+
+A host conforms by preserving the categories, identity relations, total
+queries, and lifetime rules specified here. Conformance does not require one
+internal object layout or graph shape.
 
 ## Formal model
 
 TTX has two layers:
 
-1. A Lexer maps authored bytes to an ordered Token stream whose Codes expose
-   stable local categories.
+1. A Lexer maps authored bytes to an ordered Token stream.
 2. A consumer interprets those Tokens and may construct shared semantic
-   identities and identity free supporting values.
+   identities and supporting values.
 
-TTX requires no universal parse tree or semantic pass between those layers. A
-consumer may construct durable facts directly while consuming Tokens. Cursor
-positions and Token indexes never become unfinished semantic meaning.
+The consumer may construct retained semantic facts directly while reading
+Tokens. TTX requires no universal syntax tree between the lexical stream and
+the semantic graph.
 
-## Token bytecode
+The semantic graph is live owner state. When a consumer emits an independent
+representation, that output is a Terminal product and lies outside the graph.
+A later consumer cannot query the output as TTX semantics. It must validate the
+format and reconstruct new semantic identities through a graph owner when the
+format carries enough facts to support reconstruction.
 
-A concrete Lexer emits one Token for every recognized source span. Each Token
-carries an eight bit `Lexical::Code`, an offset, a line, a column, and a source
-span size. `Terminal` reserves `0x00`. `Unknown` reserves `0xFF`. Every other
-Code belongs to the exact Lexer and Lexicon contract that assigned it.
+## Lexical contract
 
-A Code stream is not an independent stable serialization. It can be
-interpreted only with the matching Lexer contract and the source bytes needed
-to project payload text.
+Each Token carries an eight bit `Lexical::Code`, source offset, line, column,
+and span size. `Terminal` is `0x00` and `Unknown` is `0xFF`.
+Every other Code is interpreted by the exact Lexer and Lexicon contract that
+emitted it.
 
-Tokens are decoded source spans, not fixed width language instructions. One
-instruction may consume one Token or an ordered Token span according to the
-selected consumer. Any authored byte stream can be tokenized. Source that is
-neither ignored spacing nor recognized syntax emits `Unknown` rather than
-silently disappearing.
+The Tokenizer appends one zero length Terminal at the end of the source. Its
+offset equals the source byte count. A Cursor can observe a signed relative
+position without moving. Observation outside the stream returns an empty
+Terminal.
 
-### Lexical categories
+A Cursor is the one mutable position over the immutable Token stream. Grammar
+dispatch proves the selected production before its parser consumes that Cursor;
+a rejected production retains its diagnostics and the source transaction owns
+discarding any candidate semantic state.
 
-The common source categories use `snake_case` for an Addressable shaped name
-and `PascalCase` for a Type shaped name. Fixed grammar words have dedicated
-keyword Codes, while publication and evaluation words have dedicated modifier
-Codes. An Attribute uses `@name`. A byte literal uses `0x[...]`, and an
-embedded resource operand uses `$[...]`. Punctuation and operators have
-dedicated delimiter or operator Codes. Comment lines form their own category.
+`Lexical::Span` identifies a complete authored range. `Lexical::Anchor` pairs
+that range with the independent Token a diagnostic should emphasize. An Anchor
+created from only a Span focuses its opening Token. A synthetic semantic fact
+has no Anchor.
 
-The Lexicon owns fixed spellings and the exact variable spelling of every
-common lexical category. It validates one complete authored spelling against a
-Code and can admit explicit separator Codes between repeated category values.
-Payload bearing Tokens retain coordinates into the source view borrowed by the
-Tokenizer rather than copying their text.
+A Code stream is meaningful only with the Lexer contract and source bytes that
+produced it. Tokens are decoded source spans, not an independent serialized
+program.
 
-TTX defines the category of an embedded resource operand, but not how its bytes
-are loaded. It defines the category of a Dialect marker, but not which names a
-host accepts.
+### Common categories
+
+TTX defines a common Lexicon for spellings shared by concrete languages. The
+Lexicon and semantic interfaces remain separate, so a Token Code never chooses
+one universal grammar or semantic result.
+
+A source name for an Addressable uses `snake_case`. A source name for a Type
+uses `PascalCase`. Fixed grammar words, modifiers, delimiters, and operators
+have dedicated Codes. Attributes use `@name`, byte literals use `0x[...]`, and
+embedded resources use `$[...]`.
+
+The lexer preserves common operator spellings as distinct Codes:
+
+| Code            | Spelling |
+| --------------- | -------- |
+| `AddressOp`     | `.`      |
+| `TypeAccessOp`  | `::`     |
+| `CallOp`        | `->`     |
+| `SwizzleOp`     | `.[`     |
+| `ValueAccessOp` | `:[`     |
+| `QuestionOp`    | `?`      |
+
+`BracketStart` and `BracketEnd` retain the shared delimiter Codes. A concrete
+language may assign different grammar roles to the same delimiter according to
+parser context. TTX does not add another lexical spelling for each use.
+
+The Code names do not prescribe a shared expression grammar or result category.
+A concrete language assigns grammar and result contracts and proves every TTX
+category it consumes.
 
 ## Semantic graph
 
-The shared semantic model is a directed graph of `Concept::Abstract` objects.
-An object may be reachable through several bindings or Alias edges, so it does
-not store one authoritative parent path.
+The shared semantic model is a directed graph of Abstract identities. One
+identity may be reachable through several local bindings or Alias edges and
+therefore has no required parent path.
 
-The closed version 1 identity categories have distinct contracts:
+The closed identity categories are:
 
-* `Abstract` provides semantic identity, a local name, Documentation, category
-  proof, and contextual resolution.
-* `Invalid` provides the absorbing semantic failure identity.
-* `Alias` provides a local identity that redirects resolution to one borrowed
-  target.
-* `Type` provides a domain whose successful resolution exposes one total
-  Layout.
-* `Value` provides a leaf Type with no contextual subdomains.
-* `Flag` provides the Value contract for a binary logical domain.
-* `Real` provides the Value contract for a floating point domain.
-* `Signed` provides the Value contract for a signed integer domain.
-* `Unsigned` provides the Value contract for an unsigned integer domain.
+* `Abstract` provides identity, a local name, Documentation, category proof,
+  and contextual resolution.
+* `Invalid` is the absorbing semantic failure identity.
+* `Alias` provides a local identity that redirects to one borrowed target.
+* `Type` provides a semantic domain and one total Layout.
 * `Addressable` provides a named address whose edge reaches one Type.
-* `Callable` provides an invocable identity with complete parameter and result
-  Layouts.
+* `Pack` provides produced value flow and one total output Layout.
+* `Callable` provides complete parameter and result Layouts.
 
-`Documentation`, `Layout`, `Reference`, and `Attribute` are identity free
-supporting contracts and values. They do not inherit `Abstract` merely to gain
-discovery.
+`Documentation`, `Layout`, and `Reference` are supporting contracts and values
+that carry no semantic identity.
 
-There is no universal Kind, class database, mutable semantic registry, copied
-Type tree, nullable member record, or mandatory reflection field.
+These categories are an interchange vocabulary rather than a complete type
+system. Concrete languages define their Type inventory, access policy,
+mutation, construction, and invocation roles.
 
-## Category proof
+A Terminal product is not an identity category. `Lexical::Code::Terminal` is
+the end marker for a Token stream. Neither term introduces another semantic
+identity.
 
-Every declared semantic category owns a stable
-`Perimortem::System::Uuid`. An implementation recognizes its declared category
-and delegates unrecognized identifiers through its public base chain.
+## Resolution and category proof
 
-Category identifiers identify interfaces only. They are not object identities,
-cache keys, path hashes, package versions, or serialized handles.
+Every Abstract exposes its local name, its Documentation, its represented
+identity through `resolve()`, and owner directed contextual identity through
+`resolve_context(name)`. Each observation is total.
 
-Native consumers use:
+`resolve()` returns the represented identity. `resolve_context(name)` gives one
+borrowed name to the receiving identity, which interprets it according to its
+own domain. Concrete language operators split qualified syntax and query the
+identity selected by each preceding name. They never flatten a qualified route
+into one lookup key. For an unchanged completed graph, resolution is idempotent
+and every chain terminates.
 
-```text
-abstract.is<Category>()                 → Bool
-abstract.visit<Category>(match, mismatch)
-```
+Context lookup, receiver access, and invocation are distinct semantic queries.
+An explicit receiver asks `resolve_access(host, name)` or
+`resolve_call(host, name)` with the original caller authority and one borrowed
+name. These Abstract hooks let an arbitrary graph context route a concrete
+language question without acquiring that language's Type system. TTX assigns
+them no receiver role, visibility rule, or forwarding policy. A concrete
+language may refine its Type and Addressable contracts to interpret the query.
+A Type-qualified context route still splits into names and uses
+`resolve_context(name)` on each selected identity; TTX defines no separate Type
+lookup or Static and Self distinction. Every query returns the original
+selected identity or Invalid and never searches another query domain as a
+fallback.
 
-`is()` proves the public category. `visit()` calls the match function with the
-real category or the mismatch function with the exact `const Abstract&`.
-Ordinary input mismatch never traps or exposes an unchecked reference.
+An unanswered semantic query returns `Invalid`, never a null graph edge. Later
+construction may answer a query that formerly returned Invalid, but it does not
+replace an identity that was already returned successfully.
 
-An implementation may report only categories represented by its public C++
-inheritance. Implementation reuse does not manufacture another semantic fact.
+Category proof establishes the semantic contract of the original object. A
+proof never creates a wrapper, clone, registry entry, or substitute identity.
+The consumer states the category it needs and either receives that same object
+under the proven contract or retains the original Abstract.
 
-## Abstract resolution
-
-Every Abstract provides:
-
-```text
-get_name()                 → borrowed Bytes
-get_documentation()        → const Documentation&
-resolve()                  → const Abstract&
-resolve_context(route)     → const Abstract&
-```
-
-`resolve()` returns the represented identity. `resolve_context()` gives the
-complete borrowed route to the receiving Abstract. That Abstract owns route
-interpretation and may consume a prefix, pass a suffix, or redirect the
-unchanged view. TTX prescribes no separator grammar, traversal object, or
-resolution cache.
-
-For an unchanged valid graph, `resolve()` is idempotent and every resolution
-chain terminates. Failure returns `Invalid`, never a null pseudo Abstract.
-Graph enrichment may refine a query that previously returned Invalid, but it
-must not invalidate an earlier correct result.
-
-Diagnostics retain authored input and failed boundaries on the consumer that
-performed the query. Abstract does not retain route history for presentation.
+Source provenance, declaration structure, visibility, and publication remain
+facts of the concrete language owner. Abstract exposes no generic declaration
+projection. A consumer that needs those facts proves the concrete owner and
+inspects its complete declaration value.
 
 ## Invalid
 
-`Invalid : Abstract` is the binary wide semantic failure object. It is closed,
-stateless, and absorbing. Its name is `Invalid`. Both resolution operations
-return the same Invalid identity. Its documentation is empty.
+Invalid is a stateless and absorbing Abstract. Its name is `Invalid`. Every
+resolution, access, and invocation query returns the same Invalid identity. Its
+Documentation is empty.
 
-Invalid does not store a failed route, diagnostic, source range, package state,
-or recovery choice. Parser failures, construction failures, invalid indexes,
-and failed Layout fits use `Option`, `Union`, or another owner specific error
-result instead.
+Invalid stores no failed route, source range, diagnostic, or recovery choice.
+Parser rejection and failed Layout fitting use the result contract of the
+operation that failed. Other nonsemantic outcomes remain values of their
+concrete owners rather than Invalid identities.
 
 ## Alias
 
-Alias retains a local name, local visible Documentation, and one borrowed
-target. `resolve()` redirects to the target represented identity.
-`resolve_context(route)` first resolves the target and then gives that identity
-the complete route.
+Alias retains a local name, local Documentation, and one borrowed target. The
+immediate target is opaque: consumers cannot inspect or bypass an Alias edge.
+`resolve()` is the sole traversal operation. It follows only Alias edges and
+returns the first non-Alias target identity without invoking that target's own
+`resolve()` operation. Every other operation, including
+`resolve_context(name)`, returns Invalid. A consumer that needs context first
+resolves the Alias, proves the returned owner, and invokes that owner's
+operation explicitly.
 
-The graph owner preserves target lifetime and rejects cycles before an Alias
-becomes queryable.
+A concrete graph owner may reserve an Alias identity before its target is
+known. An unbound Alias resolves to Invalid, and its target may be bound only
+once; repeating the same binding is harmless while changing it fails. The
+owner preserves target lifetime and prevents Alias cycles before publishing
+the completed graph.
 
-## Type and Value
+## Type
 
-`Type : Abstract` represents a semantic domain. Once Type resolution succeeds,
-`get_layout()` returns one total `const Layout&`. An empty Layout is a complete
-shape and does not by itself prove that the Type is a scalar.
+Type is an Abstract that represents a semantic domain. Once resolution
+succeeds, each Type exposes one complete Layout. A Type admitted to ordinary
+value flow has at least one Layout entry. A Type with an empty Layout may own
+contextual facts, but it cannot be instantiated, produced, or named by an
+Addressable. Empty Layouts fit without creating a shared Type identity.
 
-A host may reserve a stable Type before all facts are ready. Until the Type can
-answer its contract, its semantic resolution may return Invalid. No incomplete
-Layout alternative is required.
+A value Layout terminates when recursively following its real Type entries and
+the Types named by its Addressable entries reaches terminal `Value` leaves. An
+atomic Type's exact self entry is one such leaf. Returning to an active
+structural Type or reaching an empty child Layout is not a complete value
+shape. Completion validates this graph property before a concrete language
+constructs, lowers, or stores the value.
 
-`Value : Type` is a leaf domain used for terminal bit interpretations. It has
-no contextual subdomains: every `resolve_context(route)` returns Invalid.
-Ordinary `resolve()` remains the represented Value identity.
+Every completed concrete Type admitted to ordinary value flow has one total
+semantic default. The concrete language owns the
+default value and the operation that materializes it. TTX does not infer that
+value from an all-zero target representation, add a default query to Type, or
+require different Types with equivalent defaults to share identity. A semantic
+Type selected for contextual traversal remains outside value flow unless a
+concrete language operation produces an instance of it.
 
-Value adds:
+An empty Layout has no value to default. An empty View is different because it
+is one value of the exact View Type and still contributes that Type to its
+Pack's Layout.
 
-```text
-get_width()       → Count
-get_size()        → Count
-get_alignment()   → Count
-```
-
-Width describes the value domain. Size and alignment describe storage. TTX
-defines the `Flag`, `Real`, `Signed`, and `Unsigned` domain interfaces.
-Concrete widths, names, representations, and installed instances belong to
-the language or system that constructs them.
+The identity-free terminal `Value` Layout has one entry containing its exact
+atomic Type. Atomic identity therefore participates in ordinary Layout fitting
+instead of being inferred from an otherwise empty shape. Scalar families,
+logical and numeric refinements, bit width, abstract machine storage, and
+alignment belong to the concrete language that constructs those Types. They
+are not additional host-neutral TTX categories.
 
 ## Addressable
 
-`Addressable : Abstract` is a named address to typed data:
+Addressable is an Abstract that names typed data. It reaches one exact Type
+whose Layout contains at least one value. A zero-value Type remains a valid
+semantic domain, but there is no value whose stable address an Addressable
+could name.
 
-```text
-get_type()        → const Type&
-```
+A concrete graph object may be Addressable while adding capabilities
+owned by its language. TTX defines only the named edge to one Type.
 
-A field, receiver, local, external symbol, interpreted endpoint, or runtime
-object may implement Addressable while exposing richer owner specific
-capabilities.
+TTX does not make an Addressable forward context, receiver access, or
+invocation queries to that Type. A concrete language may add that behavior when
+its own receiver model requires it.
 
-Contextual resolution delegates through the represented Type. Assignment,
-mutation, storage duration, physical address, and access policy are not part of
-the shared Addressable contract.
+Contextual resolution, Layout selection, or another consumer operation may
+return an Addressable. TTX does not prescribe its physical address or target
+representation, and later realization does not change the selected identity.
+
+Assignment, writability, storage duration, and visibility are concrete language
+policy rather than part of the shared Addressable contract.
+
+## Pack
+
+Pack is an Abstract that carries one produced value flow. It is not a Type,
+Addressable, or Layout. The Pack preserves the exact producer identity while
+its output Layout describes the values that producer supplies. A consumer can
+therefore retain, link, inspect, fit, or lower a value flow without first
+materializing an aggregate Type.
+
+A Pack may supply zero, one, or several values. It may expose positional, named,
+ranged, or composed output shape. One ordinary value-producing expression is
+already a one-value Pack; grouping that expression does not create a second
+semantic identity. An empty Pack exposes an empty Layout. A concrete language's
+empty result and an explicit empty grouping agree through that Layout without
+requiring a Type identity. A multi-value Pack remains value flow until a
+receiving contract fits it and an owning language deliberately materializes a
+Type.
+
+The common delimiter shapes keep value flow and required shape visually
+distinct: parentheses group produced Packs while brackets describe Layouts.
+Concrete languages decide which productions may omit those delimiters, but
+omission does not change the resulting Pack or Layout contract. Named Pack
+slots use `.name = expression` and retain those names independently from the
+produced semantic objects. Named descriptor slots use `.name : Type`; the
+different operator keeps promised shape distinct from supplied value flow.
+
+A graph owner may reserve a stable Pack before its output is complete. Its
+Layout query remains safe during that interval and may expose an empty shape,
+but the Pack resolves to Invalid. Only a Pack that resolves to itself supplies
+an empty Layout as completed zero-value flow. Once Pack resolution succeeds,
+its output Layout is stable and never replaced.
 
 ## Callable
 
-`Callable : Abstract` supplies one complete signature:
+Callable is an Abstract that supplies one complete signature as a parameter
+Layout and a result Layout. TTX assigns no receiver role to any parameter
+position or spelling.
 
-```text
-get_parameters()  → const Layout&
-get_results()     → const Layout&
-```
-
-The parameter and result Layouts are consumed by fitting, reflection,
-invocation, and lowering. Callable does not prescribe a receiver, executable
-body, linkage, machine address, calling convention, or target ABI.
+TTX does not prescribe how a Callable is selected or invoked. A concrete
+language may fit an argument Pack to the parameter Layout and expose the
+invocation's result Pack through the result Layout while adding executable body,
+calling convention, machine address, or target ABI policy.
 
 ## Layout
 
-`Layout` is the identity free directional fitting contract over an ordered
-group of real Abstracts:
+Layout carries no semantic identity. It describes one promised value shape and
+provides ordered observation and directional fitting over exact Abstract
+identities. Types and Callables expose required Layouts; Packs expose the output
+Layout of the values they supply. A consumer may test a complete fit, test a fit
+at an offset, and recover the original source edge that supplies a target
+position.
 
-```text
-get_size()                    → Count
-get_abstract(index)           → Option<const Abstract&>
-fits(target)                  → Bool
-fits_at(target, offset)       → Bool
-get_fitted(target, index)     → Union<const Abstract&, Layout::Errors>
-get_fitted_at(target, offset, index)
-                              → Union<const Abstract&, Layout::Errors>
-is_empty()                    → Bool
-```
+The closed fitting errors are `IndexOutOfBounds`, `SizeMismatch`, and
+`IncompatibleFit`. A failed fit does not add Invalid to the semantic graph.
 
-The closed errors are `IndexOutOfBounds`, `SizeMismatch`, and
-`IncompatibleFit`. An invalid index has no value. Layout failures do not inject
-Invalid into the semantic graph.
+TTX defines five common Layout forms:
 
-TTX supplies five common implementations:
+* `Value` contains one exact atomic Type as the terminal Layout leaf.
+* `Fluid` describes ordered positional entries and fits them by represented
+  identity. An Addressable target participates through its Type.
+* `Named` describes nonempty unique slot names, matches them by name, then
+  preserves the fitting rule of the source Layout for each matched entry. A
+  slot may borrow its name independently from the source Abstract without
+  renaming or wrapping that Abstract.
+* `Ranged` describes one exact entry repeated over a fixed interval and applies
+  Fluid fitting.
+* `Composite` describes two complete Layouts as one shape without flattening
+  them.
 
-* `Fluid` fits ordered source values by represented identity. An Addressable
-  target compares through its resolved Type.
-* `Named` fits uniquely named source values by name and the same represented
-  identity rule.
-* `Structured` retains and fits the exact Addressable identities owned by a
-  Type.
-* `Ranged` repeats one real Abstract over a fixed interval and uses the Fluid
-  identity rule.
-* `Composite` combines two complete Layouts without flattening them.
+Fitting is directional: the source supplies the target. Complete fitting
+requires equal sizes. Segmented fitting places a source in one target interval.
+Successful fitted queries return the original source edge that supplies the
+target position. A Layout that decorates or combines another Layout delegates
+entry fitting to the source owner rather than replacing its fitting rules.
 
-Fitting is directional: the source fits the target. The complete operations
-require equal sizes. The segmented operations fit a source into one target
-interval so Composite can preserve each child contract. `get_fitted()` and
-`get_fitted_at()` return the original source edge that supplies one target
-slot.
+A consumer may select one exact Layout entry and prove the category required by
+its own operation. `Named` provides name based fitting without defining a
+universal lookup or member interface.
 
-Layout stores no copied field name, Type, Documentation, Attribute, default,
-offset, storage class, or target representation. Those facts remain on their
-real semantic or target owners. Structural coincidence does not create Type
+Layout retains no copied semantic record, target offset, storage class, ABI
+rule, or anonymous Type identity. Structural coincidence does not create Type
 identity.
+
+An empty Layout has size zero. It fits another empty Layout and describes no
+stable value or address, regardless of which concrete Type or Pack exposes it.
 
 ## Documentation
 
-`Documentation` is an identity free ordered view of presentation lines. Every
-Abstract returns one stable Documentation reference. Missing documentation is
-the shared empty Documentation object.
+Documentation carries no semantic identity. It presents an ordered view of
+presentation lines. Every Abstract returns one stable Documentation reference.
+Missing documentation is the shared empty Documentation value.
 
-```text
-get_line(index)       → borrowed Bytes
-line_count()          → Count
-is_empty()            → Bool
-```
-
-Implementations may borrow authored lines, generate stable prose, or compose
-several Documentation objects. The object and every borrowed line remain valid
-for as long as the exposing Abstract is queryable.
-
-`Documentations::Comment` exposes one generated line. `Block` exposes an
-ordered authored sequence and preserves empty lines. `Merged` stacks two
-complete Documentation values without copying their lines.
-
-Documentation does not participate in resolution, semantic identity, Type
-identity, Layout identity, or fitting.
+Documentation may present one generated line, an ordered authored block, or a
+composition of two complete Documentation values. It does not participate in
+identity, resolution, or Layout fitting.
 
 ## Reference
 
-`Reference<Category>` is a nonnull borrowed semantic edge suitable for
-contiguous views and tagged unions. It preserves the exact object supplied by
-its owner. Resolution remains an explicit consumer operation, and the graph
-owner guarantees the borrowed lifetime.
+Reference is a nonnull borrowed semantic edge. It preserves the exact object
+and exposes no absent state.
 
-## Attribute
+Reference does not call `resolve()`, follow Alias targets, prove another
+category, or canonicalize structurally equal Types. The consumer performs the
+operation required by its own contract. This lets a Layout retain the exact
+Addressable selected by its owner while a Generic materialization retains the
+exact Type selected for one argument.
 
-`Attribute` is an identity free key and optional scalar value. Its closed value
-alternatives are borrowed `Bytes`, `Unsigned_64`, `Signed_64`, `Real_64`, and
-`Bool`.
+The graph owner guarantees that the borrowed identity outlives the Reference.
+A process address may identify that object while the owner keeps it stable, but
+the address is not a durable semantic name. A Reference cannot be serialized or
+carried across a Terminal boundary.
 
-```text
-get_key()             → borrowed Bytes
-get_value()           → const Attribute::Value&
-has_value()           → Bool
-is_empty()            → Bool
-```
+## Consumers and Terminal products
 
-Attribute does not define interpretation, publication, semantic identity, or a
-structured metadata model. Attribute equality compares the key and closed
-scalar value. The owner that exposes an Attribute gives that key and value
-meaning.
+Concrete languages may define expressions, constants, generic formulas,
+mutation capabilities, receiver roles, executable bodies, and concrete scalar
+Types. Their value-producing expressions participate as Packs and retain exact
+TTX Type, Layout, Addressable, and Callable edges.
 
-## Derived consumers
+Targets may derive sizes, offsets, pointer forms, address spaces, registers,
+ABI carriers, and executable addresses. Runtimes may add managed storage,
+frames, collectors, and scheduling state. These are consumers of the semantic
+graph rather than additional TTX categories.
 
-Concrete languages may define expressions, bindings, projections, constants,
-generic formulas, mutation capabilities, receiver roles, executable bodies,
-concrete scalar Types, and publication policy. Such objects retain real TTX
-Type, Layout, Addressable, and Callable edges without entering the shared TTX
-model.
+A consumer crosses the Terminal boundary when it emits an output whose
+consumption is independent of the live semantic graph and its identities.
+Formatted text, editor data, LLVM IR, SPIR-V modules, debug data, object
+modules, executables, and semantic archives are examples. Terminal is a
+boundary role. TTX defines no universal Terminal category, product registry,
+or common byte container.
 
-Target representations may contain offsets, alignments, pointer forms, address
-spaces, storage classes, register classes, ABI carriers, and executable
-addresses. Runtime systems may contain managed cells, frames, collectors,
-workers, and scheduling state. These derived records are not TTX semantic
-identities.
+Each Terminal format belongs to its concrete producer. The format may retain
+source presentation, target representation, or reconstruction facts defined by
+semantic owners according to that producer's purpose. The Terminal itself is
+never an Abstract, Type, Pack, Layout, Addressable, Callable, or Reference.
 
-Source caches, package manifests, filesystem roots, archives, diagnostics, and
-durable formats remain outside TTX.
+A target Terminal such as LLVM IR or an object module does not become a
+semantic source of truth. Target Types, offsets, registers, address spaces,
+calling convention records, and pointer representations remain derived facts
+owned by that compilation. They are not copied back into the graph.
 
-## Version 1 invariants
+A semantic Terminal may support reconstruction without source. Its reader first
+validates the complete bounded format. A graph owner then creates new stable
+identities, reconnects edges as defined by their owners, and applies its own
+validation, completion, and publication contract.
 
-1. Every emitted Token has exactly one Code and one source span.
-2. A Token stream is interpreted only with its exact Lexer contract.
-3. Payload text is projected through the source view borrowed by the
-   Tokenizer.
-4. Unrecognized source emits `Unknown` rather than disappearing.
-5. Cursor positions and Token indexes never stand in for unfinished semantic
-   facts.
-6. Every queryable semantic identity implements Abstract.
-7. Documentation, Layout, Reference, and Attribute remain identity free.
-8. Semantic query failure returns Invalid, never a null pseudo Abstract.
-9. Later graph enrichment never invalidates an earlier correct query result.
-10. Alias preserves local identity while redirecting represented identity.
-11. Value has no contextual subdomains.
-12. Addressable reaches one Type.
-13. Callable supplies complete parameter and result Layouts.
-14. Layout owns order and directional fitting, not copied semantic or physical
+Reconstruction is equivalent when the fresh graph reproduces every public
+observation promised by the format. These observations may include names,
+categories, represented identity relations, semantic edges, order, Layout
+behavior, completion, and concrete owner facts. Equivalence does not require
+the same internal graph shape, process addresses, or References.
+
+Structural coincidence is never enough for reconstruction. A reader cannot
+infer Type identity from matching Layouts, recover owner relations from target
+offsets, or treat a backend Type as the original semantic Type.
+
+## Semantic invariants
+
+1. Every emitted Token has one Code and one source span.
+2. A Token stream is interpreted with the Lexer contract and source bytes that
+   produced it.
+3. Unrecognized authored bytes emit `Unknown` rather than disappearing.
+4. Every semantic identity is an Abstract.
+5. Semantic query failure returns Invalid rather than a null edge.
+6. Later construction never changes an identity already returned successfully.
+7. Alias preserves local identity while redirecting represented identity.
+8. TTX Type and Addressable impose no Static or Self receiver-routing policy.
+9. An atomic Type exposes itself as one terminal `Value` Layout entry.
+   Every Type admitted to value flow has a nonempty Layout, Addressable reaches
+   one such Type, and Callable supplies complete parameter and result Layouts.
+10. Pack preserves produced value-flow identity and exposes one complete output
+    Layout without acquiring Type identity.
+11. Type, Pack, Addressable, Callable, and Layout remain independent contracts.
+    TTX defines no universal member model over them.
+12. Layout owns promised shape, order, and directional fitting, not produced
+    value identity or copied semantic or physical
     records.
-15. Concrete language, source, package, target, runtime, linker, archive, and
-    diagnostic policy remain outside TTX.
+13. Every completed concrete Type admitted to ordinary value flow has one
+    language-owned semantic default. TTX neither derives it from target bits
+    nor makes it a shared identity or Type query.
+14. Concrete language, package, target, runtime, and diagnostic policy remain
+    outside TTX.
+15. Reference preserves one exact borrowed object and never resolves or
+    canonicalizes it implicitly.
+16. A Reference is valid only within the lifetime guaranteed by its graph
+    owner and never crosses a Terminal boundary.
+17. A Terminal product is outside the semantic graph and belongs to no TTX
+    identity category.
+18. Target facts specific to a Terminal never flow backward into the graph as
+    semantic authority.
+19. Reconstruction without source creates a new live graph through its graph
+    owner and never restores process addresses.
+20. A reconstructed graph is published only after the graph owner's complete
+    validation, completion, and publication contract succeeds.

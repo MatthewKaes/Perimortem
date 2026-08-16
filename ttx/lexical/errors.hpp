@@ -13,29 +13,29 @@
 
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "ttx/lexical/token.hpp"
+#include "ttx/lexical/anchor.hpp"
 
 namespace Ttx::Lexical {
 
-// Collection of lexical errors surfaced across an evaluation boundary.
-//
-// Errors owns every diagnostic and exact source name to source text snapshot in
-// its Arena. The first diagnostic for one source name copies that source once;
-// every later diagnostic retains only the canonical name view.
+// One Errors value is the publication boundary for diagnostics tied to authored
+// text. Rendering happens after parsing, so the first report for an exact
+// source name retains both the name and body needed to interpret every later
+// Anchor. Reusing that snapshot prevents a repeated name from silently
+// changing the text beneath an earlier diagnostic.
 class Errors {
  public:
-  // Builds one diagnostic directly in the Errors Arena and publishes it when
-  // the scope ends. The supplied source context is captured independently and
-  // never replaces context owned by a Cursor or another parsing transaction.
+  // Report accumulates a complete message before publishing it at scope exit.
+  // This keeps partially streamed messages out of Errors and gives every early
+  // return the same publication behavior. Every context argument is explicit
+  // because an absent body or range must be a deliberate choice by an owner
+  // that actually has textual context.
   class Report {
    public:
     Report(
         Errors& errors,
         Perimortem::Core::View::Bytes source_name,
-        Perimortem::Core::View::Bytes source_text =
-            Perimortem::Core::View::Bytes(),
-        Token start_token = Token(),
-        Token end_token = Token());
+        Perimortem::Core::View::Bytes source_text,
+        Anchor anchor);
     ~Report();
     Report(const Report&) = delete;
     Report(Report&&) = delete;
@@ -57,8 +57,7 @@ class Errors {
     Errors& errors;
     Perimortem::Core::View::Bytes source_name;
     Perimortem::Core::View::Bytes source_text;
-    Token start_token;
-    Token end_token;
+    Anchor anchor;
     Perimortem::Memory::Managed::Bytes message_storage;
     Perimortem::Memory::Managed::Bytes hint_storage;
     Perimortem::Serialization::Stream::Textual<
@@ -73,8 +72,9 @@ class Errors {
   Errors(const Errors&) = delete;
   Errors(Errors&&) = delete;
 
-  // Centeralized render logic for rendering error messages.
-  // Eventually can be moved out, but for now this keeps the logic local.
+  // Rendering remains delayed so callers can collect failures across one
+  // transaction before choosing how to present them. The caller Arena owns only
+  // the rendered view while the retained source snapshot stays canonical here.
   auto render_message(Perimortem::Memory::Allocator::Arena& arena, Count index)
       const -> Perimortem::Core::View::Bytes;
 
@@ -82,13 +82,13 @@ class Errors {
   constexpr auto get_size() const -> Count { return errors.get_size(); }
 
  private:
-  // Container for errors that let's us delay rendering of messages.
+  // Error stores Anchors against the canonical source snapshot rather than
+  // retaining rendered lines that would duplicate the source for every report.
   struct Error {
     Perimortem::Core::View::Bytes message;
     Perimortem::Core::View::Bytes hint;
     Perimortem::Core::View::Bytes source_name;
-    Token start_token;
-    Token end_token;
+    Anchor anchor;
   };
 
   auto retain_source(
@@ -101,14 +101,11 @@ class Errors {
       Perimortem::Core::View::Bytes source_text,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint,
-      Token start_token,
-      Token end_token) -> void;
+      Anchor anchor) -> void;
 
-  // Error generation is inherently the slow path so Errors owns the lifetime of
-  // any errors that it needs to own. While this does snag an entire Arena page
-  // even if not used, arena pages are the most standardized Bibliotheca block
-  // size so it's essentially free as long as a minimum number of Error context
-  // are live at any one time.
+  // Diagnostics are already the failure path, so one Arena favors stable views
+  // and bulk release over reclaiming each message independently. The source map
+  // also prevents repeated reports from paying for repeated source bodies.
   Perimortem::Memory::Allocator::Arena arena;
   Perimortem::Memory::Managed::
       Map<Perimortem::Core::View::Bytes, Perimortem::Core::View::Bytes>

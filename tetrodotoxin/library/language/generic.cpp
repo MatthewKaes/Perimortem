@@ -1,114 +1,205 @@
-// // Perimortem Engine
-// // Copyright © Matt Kaes
+// Perimortem Engine
+// Copyright © Matt Kaes
 
-// #include "tetrodotoxin/library/language/generic.hpp"
+#include "tetrodotoxin/library/language/generic.hpp"
 
-// #include "perimortem/core/data.hpp"
-// #include "perimortem/core/hash.hpp"
+#include "perimortem/memory/dynamic/vector.hpp"
 
-// using namespace Perimortem::Core;
-// using namespace Perimortem::Memory;
-// using namespace Perimortem::Utility;
-// using namespace Ttx::Concept;
-// using namespace Ttx::Model;
+#include "tetrodotoxin/library/language/constants/signed.hpp"
+#include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/model/types/flag.hpp"
+#include "ttx/concept/invalid.hpp"
+#include "ttx/model/alias.hpp"
 
-// auto Types::Generic::Materializations::Key::hash() const -> Unsigned_64 {
-//   Unsigned_64 value = Hash(&formula.get()).get_value();
-//   for (Count i = 0; i < arguments.get_size(); i++) {
-//     Unsigned_64 argument = arguments[i].visit(
-//         []() -> Unsigned_64 { return 0; },
-//         [](const Type& type) { return Hash(&type).Rehash(1); },
-//         [](Unsigned_64 scalar) { return Hash(scalar).Rehash(2); },
-//         [](Signed_64 scalar) { return Hash(scalar).Rehash(3); },
-//         [](Bool scalar) {
-//           Unsigned_64 value = scalar == True ? 1 : 0;
-//           return Hash(value).Rehash(4);
-//         });
-//     value = Hash(value).Rehash(argument);
-//   }
+using namespace Perimortem;
+using namespace Tetrodotoxin::Library;
 
-//   return value;
-// }
+static auto matches_parameter(
+    Language::Generic::Parameters parameter,
+    const Language::Generic::Argument& argument) -> Bool {
+  switch (parameter) {
+  case Language::Generic::Parameters::Type:
+    return argument.is<const Language::Model::Type&>();
+  case Language::Generic::Parameters::Unsigned_64:
+    return argument.is<::Unsigned_64>();
+  case Language::Generic::Parameters::Signed_64:
+    return argument.is<::Signed_64>();
+  case Language::Generic::Parameters::Bool:
+    return argument.is<::Bool>();
+  }
 
-// auto Types::Generic::Materializations::materialize(
-//     const Generic& generic,
-//     View::Vector<Argument> arguments) -> Option<const Type&> {
-//   View::Vector<Parameters> parameters = generic.get_parameterization();
-//   if (&generic.resolve() != &generic ||
-//       parameters.get_size() != arguments.get_size()) {
-//     return none;
-//   }
+  return False;
+}
 
-//   // Validate each parameter in order against the argument list.
-//   // The values themselves are not actually validated, on the kind.
-//   for (Count i = 0; i < parameters.get_size(); i++) {
-//     Bool valid = arguments[i].visit(
-//         [&]() { return false; },
-//         [&](const Type& type) {
-//           return &type.resolve() == &type && parameters[i] ==
-//           Parameters::Type;
-//         },
-//         [&](Unsigned_64) { return parameters[i] == Parameters::Unsigned_64;
-//         },
-//         [&](Signed_64) { return parameters[i] == Parameters::Signed_64; },
-//         [&](Bool) { return parameters[i] == Parameters::Bool; });
+static auto matches_key(
+    Core::View::Vector<Language::Generic::Argument> retained,
+    Core::View::Vector<Language::Generic::Argument> candidate) -> Bool {
+  if (retained.get_size() != candidate.get_size()) {
+    return False;
+  }
 
-//     if (!valid) {
-//       return none;
-//     }
-//   }
+  for (Count i = 0; i < candidate.get_size(); i++) {
+    if (retained.get_data()[i] != candidate.get_data()[i]) {
+      return False;
+    }
+  }
 
-//   Key requested(generic, arguments);
-//   const auto* existing = entries.find(requested);
-//   if (existing != nullptr) {
-//     return existing->value.get();
-//   }
+  return True;
+}
 
-//   Active* repeated = nullptr;
-//   for (Active* invocation = active; invocation != nullptr;
-//        invocation = invocation->previous) {
-//     if (invocation->key == requested) {
-//       repeated = invocation;
-//       break;
-//     }
-//   }
+Language::Generic::Entry::Entry(
+    Memory::Allocator::Arena& domain,
+    Core::View::Vector<Argument> source_arguments,
+    const Language::Model::Type& value)
+    : arguments(domain), value(value) {
+  for (Count i = 0; i < source_arguments.get_size(); i++) {
+    arguments.insert(source_arguments.get_data()[i]);
+  }
+}
 
-//   if (repeated != nullptr) {
-//     for (Active* invocation = active;; invocation = invocation->previous) {
-//       invocation->reentered = True;
-//       if (invocation == repeated) {
-//         break;
-//       }
-//     }
+auto Language::Generic::normalize_argument(
+    Parameters parameter,
+    const Ttx::Concept::Abstract& argument) const -> Core::Option<Argument> {
+  switch (parameter) {
+  case Parameters::Type: {
+    const Ttx::Concept::Abstract& selected = argument.visit<Ttx::Model::Alias>(
+        [](const Ttx::Model::Alias& alias) -> const Ttx::Concept::Abstract& {
+          return alias.resolve();
+        },
+        [](const Ttx::Concept::Abstract& direct)
+            -> const Ttx::Concept::Abstract& { return direct; });
+    auto type = selected.select<Language::Model::Type>();
+    BAIL_IF(!type);
+    return Argument(*type);
+  }
+  case Parameters::Unsigned_64: {
+    auto constant = argument.select<Constants::Unsigned>();
+    const auto expected = context.resolve_context("Unsigned_64"_view)
+                              .select<Language::Model::Type>();
+    BAIL_IF(!constant || !expected || &constant->get_type() != &*expected);
+    return Argument(constant->get_value());
+  }
+  case Parameters::Signed_64: {
+    auto constant = argument.select<Constants::Signed>();
+    const auto expected = context.resolve_context("Signed_64"_view)
+                              .select<Language::Model::Type>();
+    BAIL_IF(!constant || !expected || &constant->get_type() != &*expected);
+    return Argument(constant->get_value());
+  }
+  case Parameters::Bool: {
+    auto value = argument.select<Language::Model::Pack>();
+    BAIL_IF(!value);
+    auto actual = value->get_value_type(0)
+                      .resolve()
+                      .select<Language::Model::Types::Flag>();
+    auto expected = context.resolve_context("Bool"_view)
+                        .resolve()
+                        .select<Language::Model::Types::Flag>();
+    BAIL_IF(!actual || !expected || &actual->resolve() != &expected->resolve());
+    auto validity = actual->get_validity(*value);
+    BAIL_IF(!validity);
+    return Argument(*validity);
+  }
+  }
 
-//     return none;
-//   }
+  return {};
+}
 
-//   Active invocation(requested, active);
-//   active = &invocation;
-//   Option<const Type&> created = generic.create(arguments, arena);
-//   active = invocation.previous;
-//   if (invocation.reentered) {
-//     return none;
-//   }
+auto Language::Generic::materialize(const Ttx::Concept::Layout& layout) const
+    -> Materialization {
+  auto parameters = get_parameterization();
+  if (parameters.get_size() != layout.get_size()) {
+    return Failure(Failure::Type::Arity);
+  }
 
-//   return created.visit(
-//       [](const None&) -> Option<const Type&> { return none; },
-//       [&](const Type& type) -> Option<const Type&> {
-//         if (&type.resolve() != &type) {
-//           return none;
-//         }
+  // Layout entries are graph edges, but the cache key must contain only the
+  // parameter values this Generic owns. Normalization keeps Alias traversal
+  // and literal storage details out of canonical Type identity.
+  Memory::Dynamic::Vector<Argument> arguments(parameters.get_size());
+  for (Count i = 0; i < parameters.get_size(); i++) {
+    auto semantic = layout.get_abstract(i);
+    if (!semantic) {
+      return Failure(Failure::Type::Parameter, i);
+    }
+    auto argument = normalize_argument(parameters.get_data()[i], *semantic);
+    if (!argument) {
+      return Failure(Failure::Type::Parameter, i);
+    }
+    arguments.insert(*argument);
+  }
 
-//         Argument* retained = Data::cast<Argument>(
-//             arena.allocate(sizeof(Argument) * arguments.get_size()));
-//         for (Count i = 0; i < arguments.get_size(); i++) {
-//           new (retained + i) Argument(arguments[i]);
-//         }
+  return materialize(arguments.get_view());
+}
 
-//         View::Vector<Argument> retained_arguments(
-//             retained, arguments.get_size());
-//         Key key(generic, retained_arguments);
-//         entries.insert(key, Reference<Type>(type));
-//         return type;
-//       });
-// }
+auto Language::Generic::materialize(
+    Core::View::Vector<Argument> arguments) const -> Materialization {
+  auto parameters = get_parameterization();
+  if (&resolve() != this) {
+    return Failure(Failure::Type::Unavailable);
+  }
+  if (parameters.get_size() != arguments.get_size()) {
+    return Failure(Failure::Type::Arity);
+  }
+
+  for (Count i = 0; i < arguments.get_size(); i++) {
+    if (!matches_parameter(parameters.get_data()[i], arguments.get_data()[i])) {
+      return Failure(Failure::Type::Parameter, i);
+    }
+
+    const Language::Model::Type* type =
+        arguments.get_data()[i].find<const Language::Model::Type&>();
+    if (type != nullptr) {
+      const Ttx::Concept::Abstract& resolved = type->resolve();
+      if (!resolved.is<Ttx::Concept::Invalid>() && &resolved != type) {
+        return Failure(Failure::Type::Parameter, i);
+      }
+    }
+  }
+
+  // Completed keys return the one canonical Type. Formula evaluation happens
+  // only after this lookup so repeated applications never create shadow Types.
+  for (Count i = 0; i < entries.get_size(); i++) {
+    Entry& entry = *entries[i];
+    if (matches_key(entry.arguments.get_view(), arguments)) {
+      return entry.value;
+    }
+  }
+
+  // The active chain is transaction state rather than another semantic graph.
+  // Marking every participant rejects an indirect cycle instead of caching the
+  // outer formulas after an inner formula reenters the same key.
+  for (Active* candidate = active; candidate != nullptr;
+       candidate = candidate->previous) {
+    if (matches_key(candidate->arguments, arguments)) {
+      for (Active* participant = active; participant != nullptr;
+           participant = participant->previous) {
+        participant->reentered = True;
+      }
+      return Failure(Failure::Type::Recursive);
+    }
+  }
+
+  Active transaction(arguments, active);
+  active = &transaction;
+  auto created = create(arguments);
+  active = transaction.previous;
+  if (transaction.reentered) {
+    return Failure(Failure::Type::Recursive);
+  }
+  if (!created || &created->resolve() != &*created) {
+    return Failure(Failure::Type::Formula);
+  }
+
+  // A formula result enters the cache only after it proves one complete Type.
+  // Failed applications therefore leave no identity for a later query to find.
+  Entry& entry = domain.construct<Entry>(domain, arguments, *created);
+  entries.insert(&entry);
+  return entry.value;
+}
+
+auto Language::Generic::resolve_context(Core::View::Bytes) const
+    -> const Ttx::Concept::Abstract& {
+  // Applying a Generic is explicit TypeReference syntax. Lending the creating
+  // context here would make a selected Generic silently expose unrelated names.
+  return Ttx::Concept::Invalid::get_invalid();
+}

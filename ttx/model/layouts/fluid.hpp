@@ -10,38 +10,45 @@
 
 namespace Ttx::Model::Layouts {
 
-// Fluid is positional value flow. Its entries are the real Abstracts produced
-// by a pack, return, or other reshapeable source. It fits another Layout by
-// ordered resolved identity and carries no field metadata.
+// Fluid is the positional descriptor exposed by a Pack or another ordered
+// source. Its entries are the real produced Abstracts, so fitting preserves
+// their provenance without turning the descriptor into value-flow identity.
+// Fluid fits another Layout by ordered represented identity and carries no
+// field metadata.
 class Fluid : public Concept::Layout {
  public:
   constexpr Fluid(
-      Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
-          abstracts = {})
+      Perimortem::Core::View::Vector<
+          Concept::Reference<const Concept::Abstract>> abstracts = {})
       : abstracts(abstracts) {}
 
   constexpr auto get_size() const -> Count override {
     return abstracts.get_size();
   }
   constexpr auto get_abstract(Count index) const
-      -> Perimortem::Utility::Option<const Concept::Abstract&> override {
+      -> Perimortem::Core::Option<const Concept::Abstract&> override {
     if (index >= abstracts.get_size()) {
       return {};
     }
 
-    return abstracts[index].get();
+    return abstracts.get_data()[index].get();
   }
+
+  auto fits_entry(
+      const Concept::Layout& target,
+      Count source_index,
+      Count target_index) const -> Bool override;
 
   auto fits_at(const Concept::Layout& target, Count target_offset) const
       -> Bool override;
   auto get_fitted_at(
       const Concept::Layout& target,
       Count target_offset,
-      Count target_index) const -> Perimortem::Core::Static::
-      Union<const Concept::Abstract&, Errors> override;
+      Count target_index) const
+      -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> override;
 
  private:
-  Perimortem::Core::View::Vector<Concept::Reference<Concept::Abstract>>
+  Perimortem::Core::View::Vector<Concept::Reference<const Concept::Abstract>>
       abstracts;
 };
 

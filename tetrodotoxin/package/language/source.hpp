@@ -4,12 +4,11 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/memory/allocator/arena.hpp"
-
-#include "perimortem/utility/option.hpp"
-
+#include "tetrodotoxin/package/language/parser/name.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/lexical/span.hpp"
 
 namespace Tetrodotoxin::Package::Language {
 
@@ -18,17 +17,23 @@ namespace Tetrodotoxin::Package::Language {
 class Source {
  public:
   constexpr Source(
-      Perimortem::Core::View::Bytes local_name,
-      Perimortem::Core::View::Bytes source_path)
-      : local_name(local_name), source_path(source_path) {}
+      Parser::Name local_name,
+      Perimortem::Core::View::Bytes source_path,
+      Ttx::Lexical::Span statement = {})
+      : local_name(local_name),
+        source_path(source_path),
+        statement(statement) {}
 
-  // Consumes one complete Source statement or returns no value after
-  // recovering the Cursor to the next statement boundary.
-  static auto parse(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Ttx::Lexical::Cursor& cursor) -> Perimortem::Utility::Option<Source>;
+  // Consumes one complete Source statement. An authored value retains its
+  // statement coordinates for the enclosing import operation.
+  static auto parse(Ttx::Lexical::Cursor& cursor)
+      -> Perimortem::Core::Option<Source>;
 
   constexpr auto get_local_name() const -> Perimortem::Core::View::Bytes {
+    return local_name.get_view();
+  }
+
+  constexpr auto get_local_route() const -> const Parser::Name& {
     return local_name;
   }
 
@@ -36,9 +41,12 @@ class Source {
     return source_path;
   }
 
+  constexpr auto get_span() const -> Ttx::Lexical::Span { return statement; }
+
  private:
-  Perimortem::Core::View::Bytes local_name;
+  Parser::Name local_name;
   Perimortem::Core::View::Bytes source_path;
+  Ttx::Lexical::Span statement;
 };
 
 }  // namespace Tetrodotoxin::Package::Language

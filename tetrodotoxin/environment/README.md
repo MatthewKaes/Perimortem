@@ -1,133 +1,172 @@
 # Environment
 
-`tetrodotoxin/environment` owns the host that assembles interpreted source into
-one queryable TTX environment. The complete folder builds as
-`//tetrodotoxin:environment`.
+Environment manages a Tetrodotoxin compilation session. Its `Workspace` keeps
+related languages and source results alive so they can safely refer to one
+another.
 
-The current owner is `Environment::Workspace`. There is no separate Source,
-Container, Namespace, or finalized Graph object.
+A Workspace can contain Package, Library, App, Scene, Render, and Shader sources
+at the same time. Each language keeps the model that fits its own job. TTX gives
+them a shared way to refer to identities, Types, Layouts, and Callables without
+forcing them into one syntax tree.
+
+Tools use Environment to complete a direct source or one fixed Package source
+table, report source errors, or restore a Package Archive. A
+finished output such as an executable no longer needs the Workspace. Ordinary
+references cannot be moved to another Workspace or kept after their Workspace
+is destroyed.
 
 ## Workspace lifetime
 
-Workspace owns one Arena containing installed Dialect instances, retained
-source bytes, parser products, and retained Monographs. It retains Dialect
-instances in installation order, binds exact authored names to them, and binds
-successful direct and staged semantic source names to their Monographs. The
-accepted production transaction later adds restored dependency Monographs and
-ordered post pass.
+A Workspace keeps every installed Dialect and Monograph alive while tools may
+still inspect them. Package Aliases, Library Types, Function Signatures, and
+source imports can therefore refer directly to objects produced by another
+language.
 
-Installed Dialects may retain state across interpretations. Workspace explicitly
-destroys every retained Monograph before destroying every installed Dialect.
-Both phases finish before Arena release, so Monograph and Dialect destructors
-may still use their Arena backed state.
+Each Workspace is independent. Installing the same Dialect in another Workspace
+creates another language environment and new Monograph identities. Tools may
+correlate those objects through durable names defined by their owners.
+An Archive can rebuild equivalent source results in another Workspace. It does
+not keep the original references alive or rely on a global Type list.
 
-Package Storage owns filesystem acquisition, confinement, logical route
-normalization, and successful read caching. Workspace keeps each authored
-semantic name separate and supplies its Arena so every successful Content path
-and byte view remains valid for the semantic island lifetime.
-
-`import_source` copies each semantic name, diagnostic path, and source body
-into the Workspace Arena before interpretation. It returns the published
-Monograph reference on success. The staged Package operation opens Storage
-with that Arena and enters its retained Content views directly into the same
-semantic transaction. This private retained input path exists because a raw
-View does not identify its allocator. It avoids copying every Package source a
-second time while keeping direct caller input safe.
+References between ordinary Monographs remain inside this lifetime. They are
+not durable identifiers and they are never written into a Package Archive. An
+import without source creates new objects in the receiving Workspace and
+reconnects them using Archive facts defined by their owners.
 
 ## Dialect installation
 
-The intended toolchain contract installs concrete Dialects through the type
-system:
+A tool installs the concrete Dialects accepted by one invocation. The exact
+installed name is the name authored after `dialect`:
 
-```text
-workspace.install_dialect<Package::Dialect>("Package")
+```ttx
+//
+dialect : Library;
 ```
 
-Workspace rejects an exact duplicate before construction, copies the authored
-name into its Arena, constructs one concrete Dialect with itself as the TTX
-registry, and retains the resulting instance. Installation reports true only
-for that successful publication. Installing the same concrete C++ Dialect
-under another name creates another distinct stateful instance.
+Unknown names are source errors. A source never selects a Dialect through a
+closed enum of Package kinds or a filename convention.
 
-The name map is a real Environment dispatch surface. It is not a TTX class
-registry or a copied semantic model.
+The Tetrodotoxin toolchain includes Package support, but Package is not
+installed into every Workspace automatically. A standalone source request may
+install only its selected Dialect. A Package compilation, resource request, or
+Archive restoration installs Package together with the concrete Dialects named
+by that request.
 
-Unknown Dialect diagnostics enumerate the retained authored names in
-installation order. No concrete Package installation or interpretation is
-established by this Environment contract.
+Some Dialects require another Dialect. Scene requires Library, while Shader
+requires Library and Render. Environment creates each dependency once and gives
+the shared instance to every language that needs it. A missing dependency is a
+source error, and dependency loops are rejected.
 
-## Source import
+## Direct source import
 
-Direct import receives an exact semantic name, diagnostic path, source bytes,
-and accumulated Errors. Its implemented transaction is:
+Direct import supplies three independent facts:
 
-```text
-retain the semantic name, diagnostic path, and source bytes
--> reject an already published exact semantic name
--> create Tokenizer and Cursor with the diagnostic path
--> require opening comment Documentation
--> parse `dialect : Type;`
--> select the exact installed Dialect
--> call its interpret operation with the same Cursor and Arena
--> publish the semantic name only for an engaged Monograph
+- the stable name used for Workspace lookup
+- the path shown in errors
+- the source bytes read by the selected Dialect
+
+Environment reads the common envelope, selects the installed Dialect, and
+copies the path and source bytes into one source transaction Arena. It
+constructs the Tokenizer and operation-local Cursor there. The selected Dialect
+receives that Cursor and returns an `Option` containing the one parse-valid
+Monograph it constructed in the Cursor's Arena. Absence is the only
+parse-failure result. The path describes origin; it does not create semantic
+identity.
+
+The envelope begins with required source Documentation. An explicit empty
+comment is valid, but a missing comment is not. Environment passes that exact
+source-backed Documentation, its Anchor, the Cursor, and semantic context
+directly to the selected Dialect. Source-backed Comments and Attributes remain
+valid because the Monograph and source bytes occupy the same Arena.
+
+Workspace immediately links and finalizes the returned Monograph with the same
+Cursor. It retains the transaction Arena and publishes the authored semantic
+name only when both stages succeed. Parse, link, or finalization failure drops
+that Arena wholesale and leaves no invalid source in Workspace state. Passing
+one direct source is therefore one complete transaction, not an addition to a
+source group that Workspace validates later. A Package manifest is not a direct
+source; it must enter through Package import so its fixed Source table can
+complete atomically.
+
+## Package import
+
+A Package import begins with one Package manifest and its confined root. The
+Package names dependencies and Source members explicitly:
+
+```ttx
+resolve Graphics : Perimortem.Graphics = "1.0";
+source Scenes::Splash from "scenes/splash.ttx";
 ```
 
-Failed envelope parsing, unknown Dialect dispatch, and failed interpretation
-publish no semantic name. Duplicate semantic imports leave the first Monograph
-unchanged, and a failed name may be retried.
+Workspace reads each path in the manifest's fixed Source table from confined
+Package storage. It creates one source transaction Arena per member, asks the
+installed Dialect to interpret it, and gives each member the same Package
+context. A member cannot create another Package import. Names local to a Package
+remain inside that Package rather than entering the Workspace root
+automatically.
 
-The implemented local Package path receives the package root, root semantic
-name, root logical route, and accumulated Errors. Its transaction is:
+## Linking and publication
 
-```text
-stage exact semantic name and package path
--> ask Package Storage for one confined same object read
--> submit the retained Content path and bytes to the retained import transaction
--> reject a duplicate semantic source name
--> create Tokenizer and Cursor with the diagnostic path
--> require opening comment Documentation
--> parse `dialect : Type;`
--> select the exact installed Dialect
--> call its interpret operation with the same Cursor and Arena
--> retain the resulting Monograph by authored semantic name
--> stage Package Source bindings in authored order
-```
-
-Environment owns the universal source envelope because it already owns the
-Dialect family and every lifetime produced by dispatch. A concrete Dialect owns
-only its body grammar and concrete Monograph.
-
-Unknown Dialects and malformed envelopes are source errors. A failed
-interpretation publishes no source name binding. Staged acquisition, envelope,
-dispatch, and interpretation failures do not stop later FIFO entries. The
-operation reports failure only for failures encountered during that call, so
-preexisting diagnostics do not reject an otherwise successful Package. A
-complete staged transaction returns its retained root Monograph.
-
-Workspace does not yet restore dependency Archives or invoke a Monograph post
-pass. Those completion steps remain W02 work.
-
-## Registry query
-
-Workspace is the shared Abstract registry supplied to every installed Dialect.
-Its contextual resolution looks up an imported semantic source name:
+A direct source completes before `interpret_source` returns:
 
 ```text
-workspace.resolve_context(source_name)
--> retained Dialect::Monograph
--> Ttx::Concept::Invalid when absent
+parse to one optional Monograph in the source Arena
+-> link that Monograph
+-> finalize that Monograph
+-> retain its Arena and publish it
 ```
 
-The returned edge is a real retained Abstract. Missing names use TTX Invalid so
-semantic queries remain total and chainable.
+Workspace owns the one staged multi-source operation and the local candidate
+Arena handles. It parses exactly the manifest entries, links every member before
+finalizing any member, then retains all completed handles and publishes only the
+Package root. Failure releases every candidate Arena and leaves Workspace state
+unchanged. The Package Monograph itself owns only Dependency and Source values
+plus borrowed Alias mappings.
 
-## Boundary
+Dependencies do not recursively start imports. An authored Package binds only
+an exact identity and version already completed in the same Workspace. Archive
+reconstruction is an explicit source-free operation rather than a side effect
+of authored import.
 
-Environment owns no concrete Package or Library declarations, target records,
-runtime values, linker objects, Archive envelope, or package repository search.
+A Monograph may contain child layers from its dependencies. Environment keeps
+and publishes the outer Monograph, while the outer language moves its children
+through the same linking and finalization steps. Tools ask the outer Monograph
+for a layer instead of looking for another Workspace name.
 
-Package Storage performs confined reads and supplies each retained diagnostic
-path and byte view. Package Source retains the separate authored local name and
-logical route. Workspace owns staging; Package owns path and repository policy.
-Concrete Dialects may retain their own lookup and completion structures inside
-their Monographs without adding a generic Environment Namespace.
+During Archive reconstruction, the Package Monograph is created before its
+members. Every member receives that Package context, including child layers
+inside Scene and Shader. The language dependencies still come from the
+Workspace. If a child layer cannot be restored, its outer member also fails.
+
+## Contextual lookup
+
+Workspace is an ordinary TTX Abstract context. Looking up an exact imported root
+name returns its retained Monograph. A missing name returns TTX `Invalid`.
+
+Deeper `::` access is interpreted by the returned Abstract contexts. Environment
+does not require every Monograph to expose a Type or one common member model.
+
+## Failure reporting
+
+Each authored source is paired with its text for the complete parse, link, and
+finalize operation. The source and every fixed child layer write textual errors
+through the matching operation-local Cursor to the caller's textual error sink,
+preserving order and exact authored locations. A Cursor is never retained by
+Workspace or a Monograph.
+
+Package paths, Archive bytes, Repository requests, and other source-free system
+or toolchain operations report through Perimortem Diagnostics. When an authored
+Package request exists, Package instead reports the failure at that request's
+Cursor location. No Environment Diagnostic object or throwaway Workspace error
+collection is created.
+
+## Boundaries
+
+Environment owns semantic lifetime, source transactions, source dispatch,
+direct and fixed-table Package completion, and root publication. Package owns
+its description tables, path confinement, borrowed maps, and durable products.
+Concrete Dialects own source grammar and language semantics. Compilers and
+linkers consume completed Monographs without becoming part of Workspace lookup.
+
+See [Language](../language/README.md) for Dialect and Monograph contracts and
+[Package](../package/README.md) for package source and resources.

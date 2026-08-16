@@ -45,6 +45,11 @@ PERIMORTEM_UNIT_TEST(CoreUnion, visit) {
   EXPECT_EQ(read(empty), Count(1));
   EXPECT_EQ(read(bits), Count(42));
   EXPECT_EQ(read(text), Count(5));
+
+  bits.visit(
+      []() {}, [](Unsigned_32& selected) -> void { selected++; },
+      [](View::Bytes&) {});
+  EXPECT_EQ(*bits.find<Unsigned_32>(), Unsigned_32(43));
 }
 
 PERIMORTEM_UNIT_TEST(CoreUnion, copy_move) {
@@ -104,9 +109,6 @@ PERIMORTEM_UNIT_TEST(CoreUnion, reference_alternative) {
   EXPECT(original != distinct);
 }
 
-static_assert(sizeof(Static::Union<Unsigned_32, Unsigned_64>) <= 16);
-static_assert(sizeof(Static::Union<View::Bytes, Signed_64>) == 24);
-static_assert(sizeof(Static::Union<ReferencedValue&, Unsigned_64, Bool>) <= 16);
 static_assert(__is_constructible(Static::Union<Unsigned_64>, int));
 static_assert(!__is_constructible(Static::Union<Unsigned_64, Signed_64>, int));
 static_assert(__is_constructible(

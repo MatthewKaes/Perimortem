@@ -78,6 +78,20 @@ class Arena {
     return *new (ptr) type(static_cast<arg_types&&>(args)...);
   }
 
+  // Allocates one object from an exact value produced by its owning factory.
+  //
+  // Guaranteed copy elision lets the factory keep constructor access while the
+  // object begins its lifetime directly in arena storage. This admits immovable
+  // objects without making their constructors public.
+  template <typename type, typename factory_type>
+  auto construct_from(factory_type&& factory) -> type& {
+    static_assert(alignof(type) <= arena_alignment);
+    static_assert(
+        __is_same(type, decltype(static_cast<factory_type&&>(factory)())));
+    Unsigned_8* ptr = allocate(sizeof(type)).get_data();
+    return *new (ptr) type(static_cast<factory_type&&>(factory)());
+  }
+
   // Creates a duplicate of the target buffer in the current arena.
   // Useful for migrating data from one arena to another.
   auto proxy(Core::View::Bytes source) -> Core::View::Bytes {

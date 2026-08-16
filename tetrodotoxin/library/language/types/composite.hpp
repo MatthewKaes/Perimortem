@@ -1,0 +1,213 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "perimortem/core/view/selection.hpp"
+#include "perimortem/core/option.hpp"
+
+#include "perimortem/memory/managed/vector.hpp"
+
+#include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/language/monograph.hpp"
+#include "tetrodotoxin/language/visibility.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
+#include "ttx/concept/reference.hpp"
+#include "ttx/lexical/anchor.hpp"
+#include "ttx/lexical/cursor.hpp"
+#include "ttx/model/layouts/named.hpp"
+
+namespace Tetrodotoxin::Library::Language::Types {
+
+// Composite owns the member inventories, lookup categories, instance Layout,
+// and completion lifecycle shared by Source, Structure, and Object. Each
+// concrete Type supplies its own presentation and authored semantics.
+class Composite : public Model::Type {
+ public:
+  // Category names the three independent declaration spaces owned by a
+  // Composite. It is transaction input, not a property recovered from an
+  // Alias. Forward parsing or an imported provider already proves the space,
+  // so an opaque name can enter it before its target graph completes.
+  enum class Category : ::Unsigned_8 {
+    Addressable,
+    Callable,
+    Type,
+  };
+
+ protected:
+  Composite(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition);
+
+  auto interpret_definition(
+      Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Language::Definition& definition) -> Bool;
+
+  auto can_accept_definition() const -> Bool;
+
+  auto can_bind_definition(
+      const Ttx::Concept::Abstract& binding,
+      Category category) const -> Bool;
+
+  auto publish_binding(
+      Ttx::Concept::Abstract& binding,
+      Category category,
+      Bool published) -> void;
+
+  virtual auto retain_binding(
+      Ttx::Concept::Abstract& binding,
+      Tetrodotoxin::Language::Definition& definition,
+      Category category,
+      Ttx::Lexical::Cursor& cursor) -> Bool;
+
+  auto complete_field_layout() -> void;
+
+  // Source owns the closure barrier. These tree operations settle forward
+  // Alias routes without making an Alias discover or complete its siblings.
+  auto link_aliases() -> Count override;
+  auto validate_aliases(Ttx::Lexical::Cursor& cursor) const -> Bool override;
+
+ public:
+  TTX_CONTRACT(Composite, Model::Type);
+
+  Composite(const Composite&) = delete;
+  Composite(Composite&&) = delete;
+  auto operator=(const Composite&) -> Composite& = delete;
+  auto operator=(Composite&&) -> Composite& = delete;
+
+  constexpr auto get_definition() const
+      -> const Tetrodotoxin::Language::Definition& {
+    return definition;
+  }
+
+  constexpr auto get_host() -> Ttx::Concept::Abstract& {
+    return definition.get_host();
+  }
+
+  constexpr auto get_host() const -> const Ttx::Concept::Abstract& {
+    return definition.get_host();
+  }
+
+  constexpr auto get_anchor() const -> Ttx::Lexical::Anchor {
+    return definition.get_anchor();
+  }
+
+  TTX_NAME(definition.get_name());
+  TTX_DOCUMENTATION(definition.get_documentation());
+
+  // A caller carries private authority only through its exact Definition host
+  // chain. The chain authenticates access without becoming a semantic parent
+  // route or supplying an implicit receiver.
+  auto has_private_access_to(const Model::Type& owner) const -> Bool override;
+
+  auto is_externally_reachable(const Model::Type& type) const -> Bool override;
+
+  // Declaration Types settle recursively before any Composite in the same
+  // closure may complete Field Type edges.
+  auto link_types(Ttx::Lexical::Cursor& cursor) -> Bool override;
+  auto link_fields(Ttx::Lexical::Cursor& cursor) -> Bool override;
+  auto validate_layout(Ttx::Lexical::Cursor& cursor) const -> Bool override;
+  auto link_initializers(Ttx::Lexical::Cursor& cursor) -> Bool override;
+  auto link_callable_signatures(Ttx::Lexical::Cursor& cursor) -> Bool override;
+  auto link_callable_bodies(Ttx::Lexical::Cursor& cursor) -> Bool override;
+  auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
+
+  auto resolve() const -> const Ttx::Concept::Abstract& override;
+
+  // An explicit context query exposes only public Type names. A missing local
+  // name forwards outward, but a selected Composite never lends private
+  // declaration authority to the remainder of a qualified route.
+  auto resolve_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  // Declaration owners use this one name query for their unqualified root.
+  // Actual containment grants local access without attaching authority to any
+  // later segment selected by TypeReference.
+  auto resolve_lexical_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto resolve_type_access(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route,
+      Model::Type::Access access) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto resolve_type_call(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route,
+      Model::Type::Access access) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto get_layout() const -> const Ttx::Model::Layouts::Named& override;
+
+  auto get_addressables(
+      Tetrodotoxin::Language::Visibility visibility =
+          Tetrodotoxin::Language::Visibility::Private) const {
+    auto selected = visibility == Tetrodotoxin::Language::Visibility::Private
+                        ? addressables.get_view()
+                        : published_addressables.get_view();
+    return Perimortem::Core::View::Selection(selected);
+  }
+
+  auto get_callables(
+      Tetrodotoxin::Language::Visibility visibility =
+          Tetrodotoxin::Language::Visibility::Private) const {
+    auto selected = visibility == Tetrodotoxin::Language::Visibility::Private
+                        ? callables.get_view()
+                        : published_callables.get_view();
+    return Perimortem::Core::View::Selection(selected);
+  }
+
+  auto get_types(
+      Tetrodotoxin::Language::Visibility visibility =
+          Tetrodotoxin::Language::Visibility::Private) const {
+    auto selected = visibility == Tetrodotoxin::Language::Visibility::Private
+                        ? types.get_view()
+                        : published_types.get_view();
+    return Perimortem::Core::View::Selection(selected);
+  }
+
+  constexpr auto is_linked() const -> Bool {
+    return stage >= Stage::FieldsLinked;
+  }
+
+  constexpr auto is_finalized() const -> Bool {
+    return stage == Stage::Finalized;
+  }
+
+ private:
+  enum class Stage : ::Unsigned_8 {
+    Authored,
+    TypesLinked,
+    CallableSignaturesLinked,
+    FieldsLinked,
+    InitializersLinked,
+    CallablesLinked,
+    Finalized,
+  };
+
+  Tetrodotoxin::Language::Definition& definition;
+  Perimortem::Memory::Allocator::Arena& domain;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      addressables;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      published_addressables;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      callables;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      published_callables;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      types;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      published_types;
+  Perimortem::Core::Option<const Ttx::Model::Layouts::Named&> layout;
+  Stage stage = Stage::Authored;
+};
+
+}  // namespace Tetrodotoxin::Library::Language::Types

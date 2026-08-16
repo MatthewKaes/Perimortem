@@ -7,41 +7,60 @@
 
 using namespace Perimortem::Core;
 
-template <typename storage_type>
-auto parse_decimal(View::Bytes source, Count& cursor) -> storage_type {
-  if (cursor >= source.get_size()) [[unlikely]] {
-    return storage_type();
-  }
+static constexpr Unsigned_64 signed_maximum = Unsigned_64(-1) >> 1;
+static constexpr Unsigned_64 signed_minimum_magnitude = signed_maximum + 1;
+static constexpr Signed_64 signed_minimum =
+    Signed_64(-9223372036854775807LL - 1);
 
-  storage_type sign = 1;
-  if constexpr (storage_type(0) > storage_type(-1)) {
-    if (source[cursor] == '-') {
-      sign = -1;
-      cursor++;
-    }
+static constexpr auto get_digit(Unsigned_8 character) -> Unsigned_8 {
+  if (character >= '0' && character <= '9') {
+    return character - '0';
   }
+  if (character >= 'A' && character <= 'F') {
+    return character - 'A' + 10;
+  }
+  if (character >= 'a' && character <= 'f') {
+    return character - 'a' + 10;
+  }
+  return Unsigned_8(-1);
+}
 
-  Unsigned_8 first = source[cursor];
-  if (first < '0' || first > '9') [[unlikely]] {
+static auto parse_unsigned(
+    View::Bytes source,
+    Count& cursor,
+    Unsigned_8 radix,
+    Unsigned_64 limit) -> Unsigned_64 {
+  if (radix < 2 || radix > 16 || cursor >= source.get_size()) [[unlikely]] {
     cursor = Count(-1);
-    return storage_type();
+    return 0;
+  }
+
+  Unsigned_8 first = get_digit(source[cursor]);
+  if (first >= radix) [[unlikely]] {
+    cursor = Count(-1);
+    return 0;
   }
 
   Unsigned_64 result = 0;
   while (cursor < source.get_size()) {
-    Unsigned_8 character = source[cursor];
-    if (character < '0' || character > '9') {
+    Unsigned_8 digit = get_digit(source[cursor]);
+    if (digit >= radix) {
       break;
     }
 
-    result = result * 10 + Unsigned_64(character - '0');
+    if (result > (limit - digit) / radix) [[unlikely]] {
+      cursor = Count(-1);
+      return 0;
+    }
+
+    result = result * radix + digit;
     cursor++;
   }
 
-  return result * sign;
+  return result;
 }
 
-auto skip_whitespace(View::Bytes source, Count& cursor) -> void {
+static auto skip_whitespace(View::Bytes source, Count& cursor) -> void {
   // Outer loop already does a bounds check so grab the raw pointer.
   auto text = source.get_data();
   while (cursor < source.get_size()) {
@@ -98,18 +117,47 @@ auto Reader::Textual::read_flag() -> Bool {
   }
 }
 
-auto Reader::Textual::read_unsigned() -> Unsigned_64 {
+auto Reader::Textual::read_unsigned(Unsigned_8 radix) -> Unsigned_64 {
   skip_whitespace(source, cursor);
-  return parse_decimal<Unsigned_64>(source, cursor);
+  return parse_unsigned(source, cursor, radix, Unsigned_64(-1));
 }
 
 auto Reader::Textual::read_signed() -> Signed_64 {
   skip_whitespace(source, cursor);
-  return parse_decimal<Signed_64>(source, cursor);
+  if (!has_content()) [[unlikely]] {
+    cursor = Count(-1);
+    return 0;
+  }
+
+  Bool negative = source[cursor] == '-';
+  if (negative) {
+    cursor++;
+  }
+
+  Unsigned_64 limit = negative ? signed_minimum_magnitude : signed_maximum;
+  Unsigned_64 magnitude = parse_unsigned(source, cursor, 10, limit);
+  if (!is_valid()) {
+    return 0;
+  }
+
+  if (magnitude == signed_minimum_magnitude) {
+    return signed_minimum;
+  }
+  return negative ? -Signed_64(magnitude) : Signed_64(magnitude);
 }
 
 auto Reader::Textual::read_real_32() -> Real_32 {
-  return Real_32(read_real_64());
+  Real_64 wide = read_real_64();
+  if (!is_valid()) {
+    return 0;
+  }
+
+  Real_32 value = Real_32(wide);
+  if (!__builtin_isfinite(value) || (wide != 0 && value == 0)) [[unlikely]] {
+    cursor = Count(-1);
+    return 0;
+  }
+  return value;
 }
 
 auto Reader::Textual::read_real_64() -> Real_64 {
@@ -119,36 +167,62 @@ auto Reader::Textual::read_real_64() -> Real_64 {
     return Real_64(0);
   }
 
-  // Get the raw data to avoid extra range checks.
-  Real_64 sign = 1;
+  Bool negative = False;
   if (source[cursor] == '-') {
-    sign = -1;
+    negative = True;
     cursor++;
   }
 
-  Real_64 result = Real_64(parse_decimal<Unsigned_64>(source, cursor));
-  if (!has_content()) [[unlikely]] {
-    return result * sign;
+  if (!has_content() || get_digit(source[cursor]) > 9) [[unlikely]] {
+    cursor = Count(-1);
+    return 0;
   }
 
-  // Check if we have a floating point portion at all.
-  auto data = source.get_data();
-  if (data[cursor] != '.') {
-    return result * sign;
-  }
-
-  Real_64 frac_mult = 0.1;
-  cursor++;
+  Real_64 result = 0;
+  Bool nonzero = False;
   while (has_content()) {
-    Unsigned_8 character = data[cursor];
-    if (character < '0' || character > '9') {
+    Unsigned_8 digit = get_digit(source[cursor]);
+    if (digit > 9) {
       break;
     }
 
-    result += Real_64(character - '0') * frac_mult;
-    frac_mult *= 0.1;
+    nonzero |= digit != 0;
+    result = result * 10 + digit;
+    if (!__builtin_isfinite(result)) [[unlikely]] {
+      cursor = Count(-1);
+      return 0;
+    }
     cursor++;
   }
 
-  return result * sign;
+  if (!has_content()) [[unlikely]] {
+    return negative ? -result : result;
+  }
+
+  // A decimal point ends the integer portion. Any later byte belongs to the
+  // next greedy read unless it is another decimal digit.
+  auto data = source.get_data();
+  if (data[cursor] != '.') {
+    return negative ? -result : result;
+  }
+
+  Real_64 fraction = 0.1;
+  cursor++;
+  while (has_content()) {
+    Unsigned_8 digit = get_digit(data[cursor]);
+    if (digit > 9) {
+      break;
+    }
+
+    nonzero |= digit != 0;
+    result += Real_64(digit) * fraction;
+    fraction *= 0.1;
+    cursor++;
+  }
+
+  if (nonzero && result == 0) [[unlikely]] {
+    cursor = Count(-1);
+    return 0;
+  }
+  return negative ? -result : result;
 }

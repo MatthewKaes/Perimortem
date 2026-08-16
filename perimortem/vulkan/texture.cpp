@@ -81,7 +81,7 @@ auto Vulkan::Texture::create(
   const VkDeviceSize image_size =
       VkDeviceSize(width) * height * Graphics::Pixel::get_byte_count();
 
-  // Staging buffer: host-visible, host-coherent.
+  // The staging buffer uses memory visible to and coherent with the host.
   VkBufferCreateInfo buffer_info = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
   buffer_info.size = image_size;
   buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
@@ -117,13 +117,14 @@ auto Vulkan::Texture::create(
   const auto source_bytes = pixels.get_bytes();
   Core::Access::Bytes destination_bytes(
       Core::Data::cast<Unsigned_8>(mapped), Count(image_size));
+  auto* destination_data = destination_bytes.get_data();
   for (Count i = 0; i < source_bytes.get_size(); i++) {
-    destination_bytes[i] = source_bytes[i];
+    destination_data[i] = source_bytes[i];
   }
 
   vkUnmapMemory(ctx.get_device(), staging_memory);
 
-  // Device-local image.
+  // The image uses device local memory.
   VkImageCreateInfo image_create_info = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
   image_create_info.imageType = VK_IMAGE_TYPE_2D;
   image_create_info.format = VK_FORMAT_R8G8B8A8_SRGB;

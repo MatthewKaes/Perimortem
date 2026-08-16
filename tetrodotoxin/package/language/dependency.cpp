@@ -34,15 +34,17 @@ static auto parse_quoted_version(Cursor& cursor, Token& token)
 
 auto Package::Language::Dependency::parse(Cursor& cursor)
     -> Option<Dependency> {
-  if (!cursor.require(
-          Code::Type::Resolve,
-          "Expected a Package `resolve` statement."_view)) {
+  Token resolve = cursor.require(
+      Code::Type::Resolve, "Expected a Package `resolve` statement."_view);
+  if (!resolve) {
     cursor.recover_to_statement();
     return {};
   }
 
-  View::Bytes local_name = Parser::Name::parse_semantic(cursor);
-  if (local_name.is_empty()) {
+  // Both names borrow their exact authored bytes. Their distinct grammar
+  // owners preserve that identity while the span remains only coordinates.
+  auto local_name = Parser::Name::parse_semantic(cursor);
+  if (!local_name) {
     cursor.recover_to_statement();
     return {};
   }
@@ -67,6 +69,8 @@ auto Package::Language::Dependency::parse(Cursor& cursor)
     return {};
   }
 
+  // Version validates its durable value before provenance can be published.
+  // A quoted token alone is not a complete Dependency request.
   Token version_token;
   auto payload = parse_quoted_version(cursor, version_token);
   if (!payload) {
@@ -83,12 +87,17 @@ auto Package::Language::Dependency::parse(Cursor& cursor)
     return {};
   }
 
-  if (!cursor.require(
-          Code::Type::EndStatement,
-          "Resolve statements require a terminating `;`."_view)) {
+  // The terminal is returned only after every durable field is complete.
+  // Failed recovery therefore cannot manufacture a successful statement span.
+  Token consumed_end_statement = cursor.require(
+      Code::Type::EndStatement,
+      "Resolve statements require a terminating `;`."_view);
+  if (!consumed_end_statement) {
     cursor.recover_to_statement();
     return {};
   }
 
-  return Dependency(local_name, package_name, version);
+  return Dependency(
+      *local_name, package_name, version,
+      Span(resolve, consumed_end_statement));
 }

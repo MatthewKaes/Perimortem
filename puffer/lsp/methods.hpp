@@ -30,7 +30,7 @@ using Method =
     Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Rpc::DispatchFunc>;
 
 inline constexpr Perimortem::Core::Static::Vector<Method, 6> method_table = {{
-  {"initialize"_view, initialize},
+  Method{"initialize"_view, initialize},
   {"format"_view, format},
   {"textDocument/didOpen"_view, did_open},
   {"textDocument/didChange"_view, did_change},

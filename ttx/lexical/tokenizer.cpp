@@ -132,7 +132,10 @@ class Context {
   }
 
   constexpr auto add_terminal() -> void {
-    token_start = ++parse_index;
+    // Terminal occupies no source bytes and begins at the authored boundary.
+    // Parsers can therefore use it as an exact end position without repairing
+    // an offset beyond the source.
+    token_start = parse_index;
     add_token(Code::Type::Terminal);
   }
 
@@ -279,9 +282,6 @@ auto Tokenizer::parse() -> void {
       if (ctx.peek_ahead(1) == '/') {
         ctx.parse_range<false, false>(Code::Type::Comment, '\n');
         break;
-      } else if (ctx.peek_ahead(1) == '>') {
-        parse_simple<Code::Type::Disabled>(ctx);
-        break;
       } else {
         parse_simple<Code::Type::DivOp>(ctx);
         break;
@@ -370,11 +370,11 @@ auto Tokenizer::parse() -> void {
       break;
 
     case '[':
-      parse_simple<Code::Type::LayoutStart>(ctx);
+      parse_simple<Code::Type::BracketStart>(ctx);
       break;
 
     case ']':
-      parse_simple<Code::Type::LayoutEnd>(ctx);
+      parse_simple<Code::Type::BracketEnd>(ctx);
       break;
 
     case ')':
@@ -402,9 +402,13 @@ auto Tokenizer::parse() -> void {
 
       break;
 
+    case '?':
+      parse_simple<Code::Type::QuestionOp>(ctx);
+      break;
+
     case ':':
       if (ctx.peek_ahead(1) == '[') {
-        parse_simple<Code::Type::SliceOp>(ctx);
+        parse_simple<Code::Type::ValueAccessOp>(ctx);
       } else if (ctx.peek_ahead(1) == ':') {
         parse_simple<Code::Type::TypeAccessOp>(ctx);
       } else {

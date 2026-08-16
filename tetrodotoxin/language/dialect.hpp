@@ -4,97 +4,77 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/option.hpp"
 
-#include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
-#include "perimortem/memory/dynamic/object.hpp"
 
-#include "perimortem/utility/option.hpp"
-
+#include "tetrodotoxin/language/monograph.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
+#include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/lexical/errors.hpp"
 
 namespace Tetrodotoxin::Language {
 
-// Dialects are used to interpret TTX lexical streams in order to convert them
-// into a usable TTX graph.
-//
-// A Tetrodotoxin toolchain consist of multiple dialects in order to construct
-// it's full language support. After the initial Tetrodotoxin header is parsed
-// the rest of the stream is passed to the target dialect if registered.
-//
-// Dialects are stateful for the duration
-class Dialect {
+// One Dialect is the installed Abstract language context for a Workspace. It
+// owns only Workspace lifetime language state and downward dependency edges. A
+// source Cursor exposes the transaction Arena used by every identity produced
+// while reading that source.
+class Dialect : public Ttx::Concept::Abstract {
  public:
-  // Monograph is an independent subgraph of the larger TTX data graph that owns
-  // its memory domain for its entire subtree context.
-  //
-  // Each custom Tetrodotoxin Dialect requires a distinct format.
-  class Monograph : public Ttx::Concept::Abstract {
-   public:
-    virtual ~Monograph() = 0;
-
-    Monograph(
-        Perimortem::Memory::Allocator::Arena& domain,
-        const Ttx::Concept::Documentation& documentation,
-        Dialect& host)
-        : domain(domain), documentation(documentation), host(host) {}
-
-    constexpr auto get_documentation() const
-        -> const Ttx::Concept::Documentation& override {
-      return documentation;
-    };
-
-    // Complete durable semantic facts after every source and restored
-    // dependency has joined the shared graph.
-    virtual auto post_pass(Ttx::Lexical::Errors& errors) -> void;
-
-   protected:
-    // The arena space which contains the sub portion of the
-    Perimortem::Memory::Allocator::Arena& domain;
-
-    // Documentation is provided by the wrapping dialect context as required by
-    // the language spec, but individual dialects may choose to extend or alter
-    // source provided information.
-    const Ttx::Concept::Documentation& documentation;
-
-    // Source formats can perform operations on their parent.
-    Dialect& host;
-  };
-
-  constexpr Dialect(Ttx::Concept::Abstract& registry) : registry(registry) {}
+  Dialect(Perimortem::Core::View::Bytes name);
   virtual ~Dialect() = 0;
 
-  // Interpret takes in the domain arean where it will create the subgraph.
-  // For caching it's useful to pass in a subgraph specific arena, but for one
-  // shots its usually more performant to just reuse the parent arena since the
-  // source tree is processed in immediate mode rather than retained mode.
+  TTX_CONTRACT(Dialect, Ttx::Concept::Abstract);
+
   virtual auto interpret(
-      Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Documentation& doc,
-      Ttx::Concept::Abstract& registry)
-      -> Perimortem::Utility::Option<Monograph&> = 0;
+      const Ttx::Concept::Documentation& documentation,
+      const Ttx::Lexical::Anchor& source_anchor,
+      Ttx::Concept::Abstract& context)
+      -> Perimortem::Core::Option<Monograph&> = 0;
+
+  static auto find_installed(
+      Perimortem::Core::View::Vector<Dialect*> installed,
+      Perimortem::Core::View::Bytes name) -> Perimortem::Core::Option<Dialect&>;
+
+  // Reads the one shared source envelope, selects an exact installed Dialect,
+  // and returns that Dialect's sole parse result.
+  static auto interpret_source(
+      Perimortem::Core::View::Vector<Dialect*> installed,
+      Ttx::Lexical::Cursor& cursor,
+      Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
 
   // Encode only the durable facts owned by this Dialect. An engaged empty byte
   // value is a successful empty payload while no value reports unsupported or
   // failed encoding.
-  virtual auto encode(const Monograph& monograph) const
-      -> Perimortem::Utility::Option<Perimortem::Memory::Dynamic::Bytes>;
+  virtual auto encode(const Ttx::Concept::Abstract& monograph) const
+      -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
-  // Restore one opaque payload into the importing Workspace Arena. A
-  // successful result and every durable fact it exposes must outlive the input
-  // byte view.
+  // Restore one opaque payload using the same transaction context as authored
+  // interpretation. The explicit payload is reconstruction input rather than
+  // a second contextual wrapper.
   virtual auto restore(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Bytes payload)
-      -> Perimortem::Utility::Option<Monograph&>;
+      Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Core::View::Bytes payload,
+      const Ttx::Concept::Documentation& documentation,
+      Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
 
- protected:
-  // The registry that was provide to resolve cross dialect queries.
-  Ttx::Concept::Abstract& registry;
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
+    return name;
+  }
+
+  constexpr auto get_documentation() const
+      -> const Ttx::Concept::Documentation& override {
+    return Ttx::Concept::Documentation::get_empty();
+  }
+
+  auto resolve_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+ private:
+  Perimortem::Core::View::Bytes name;
 };
 
 }  // namespace Tetrodotoxin::Language

@@ -4,10 +4,10 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
-
-#include "perimortem/system/uuid.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "ttx/concept/documentation.hpp"
+#include "ttx/concept/type_identity.hpp"
 
 namespace Ttx::Concept {
 
@@ -26,32 +26,27 @@ namespace Ttx::Concept {
 // of constructing parallel path or schema representations. Useful hierarchy
 // emerges from the virtual contracts implemented by each Abstract.
 //
-// A route is only the borrowed source bytes that remain to be resolved. The
-// queried Abstract owns the grammar, lookup structure, and slicing appropriate
-// to its context. This keeps the base independent of allocation and global
-// state. The surface is restricted rather than closed: additions must be
-// fundamental to every semantic object, not conveniences for one derived
-// contract.
+// A contextual query receives one borrowed, unqualified name. The concrete
+// grammar operator owns punctuation and asks each selected Abstract about the
+// next name. The queried Abstract owns only the lookup structure appropriate to
+// its context. This keeps the base independent of allocation and global state.
+// The surface is restricted rather than closed: additions must be fundamental
+// to every semantic object, not conveniences for one derived contract.
 class Abstract {
  public:
   using ClassCatagory = Abstract;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x67e0e29bc31340ef,
-    0xb8fae3b06a1a7be5,
-  };
 
   constexpr virtual ~Abstract() = default;
 
   // Proves a semantic contract without C++ RTTI or a central class registry.
-  // Derived contracts recognize their stable identifier and then delegate to
-  // their base contract. These identifiers describe interfaces only. Object
+  // Derived contracts recognize their live type identity and then delegate to
+  // their base contract. These identities describe interfaces only. Object
   // identity and durable names continue to come from the Abstract graph. A
   // native implementation may return true only for public C++ base contracts,
   // each represented by one unique accessible base subobject. This invariant
   // makes visitor dispatch well defined.
-  virtual constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool {
-    return requested == contract_id;
+  virtual constexpr auto implements(::Unsigned_64 requested) const -> Bool {
+    return requested == get_type_identity<Abstract>();
   }
 
   template <typename Requested>
@@ -62,7 +57,28 @@ class Abstract {
     static_assert(
         __is_same(Requested, typename Requested::ClassCatagory),
         "Only declared TTX contracts can be queried.");
-    return implements(Requested::contract_id);
+    return implements(get_type_identity<Requested>());
+  }
+
+  // Returns the proven contract as one borrowed reference. Absence preserves
+  // the same mismatch result as is() without making every caller rebuild the
+  // identical visit pair merely to retain the selected object.
+  template <typename Requested>
+  constexpr auto select() -> Perimortem::Core::Option<Requested&> {
+    if (!is<Requested>()) {
+      return {};
+    }
+
+    return static_cast<Requested&>(*this);
+  }
+
+  template <typename Requested>
+  constexpr auto select() const -> Perimortem::Core::Option<const Requested&> {
+    if (!is<Requested>()) {
+      return {};
+    }
+
+    return static_cast<const Requested&>(*this);
   }
 
   // Dispatches one proven public contract without exposing an unchecked
@@ -72,6 +88,17 @@ class Abstract {
   //
   // The callbacks own the result of the operation. visit() only selects which
   // callback runs and forwards that callback's result.
+  template <typename Requested, typename MatchVisitor, typename MismatchVisitor>
+  constexpr auto visit(
+      MatchVisitor match_visitor,
+      MismatchVisitor mismatch_visitor) -> decltype(auto) {
+    if (is<Requested>()) {
+      return match_visitor(static_cast<Requested&>(*this));
+    }
+
+    return mismatch_visitor(*this);
+  }
+
   template <typename Requested, typename MatchVisitor, typename MismatchVisitor>
   constexpr auto visit(
       MatchVisitor match_visitor,
@@ -85,7 +112,7 @@ class Abstract {
 
   // Gets the name of this Abstract.
   // If a canonical name is required then first call `resolve()`:
-  // `canonical_name = abstract.resolve().get_name();`
+  // `canonical_name = abstract.resolve().get_name()`
   virtual constexpr auto get_name() const -> Perimortem::Core::View::Bytes = 0;
 
   // Returns the Abstract represented by this name. Alias uses this query to
@@ -96,27 +123,32 @@ class Abstract {
   // `&abstract.resolve() == &abstract.resolve().resolve()`.
   virtual constexpr auto resolve() const -> const Abstract& { return *this; }
 
-  // Resolves the borrowed route inside this Abstract's context. Implementations
-  // decide how much of the route to consume and which Abstract receives the
-  // remaining suffix if any.
+  // Resolves one name inside this Abstract's context. Concrete language
+  // operators own route punctuation and ask the selected Abstract about the
+  // next name one step at a time. `Name::Name2` is therefore two ordered
+  // queries, never one flattened map key or a request for Abstract to parse
+  // another language's operator.
   //
-  // An Abstract can also completely change the context, but typically a resolve
-  // in a context should consume the entire route or forward a slice.
-  //
-  // Abstracts might optimize route resolution, so this:
-  // `abstract.resolve_context("Name").resolve_context("Name2");`
-  // might return the same resulting Abstract as this:
-  // `abstract.resolve_context("Name::Name2");`
-  //
-  // Neither partitioning is required to be optimized or equivalent. An empty
-  // route is not required to behave like `resolve()`. A context may forward an
-  // unchanged route while changing context, but valid DAG construction must
-  // still guarantee that resolution terminates.
+  // An empty name is not required to behave like `resolve()`. A context may
+  // forward an unchanged name while changing context, but valid DAG
+  // construction must still guarantee that resolution terminates.
   //
   // For an unchanged DAG, repeating the same ordered resolution chain from the
   // same starting Abstract returns the same final Abstract identity.
   virtual constexpr auto resolve_context(
-      Perimortem::Core::View::Bytes route) const -> const Abstract& = 0;
+      Perimortem::Core::View::Bytes name) const -> const Abstract& = 0;
+
+  // Resolves an Addressable or Callable selected by an explicit receiver.
+  // These queries keep operator intent separate from lexical name resolution.
+  // The selected Abstract and concrete language decide routing and authority.
+  // TTX does not assign receiver roles, storage, visibility, or member policy.
+  virtual auto resolve_access(
+      const Abstract& host,
+      Perimortem::Core::View::Bytes name) const -> const Abstract&;
+
+  virtual auto resolve_call(
+      const Abstract& host,
+      Perimortem::Core::View::Bytes name) const -> const Abstract&;
 
   // Returns the documentation visible at this exact Abstract. The concrete
   // object may own authored prose, expose a generated comment, forward another
@@ -131,3 +163,18 @@ class Abstract {
 };
 
 }  // namespace Ttx::Concept
+
+// Keep each derived category declaration beside its direct semantic base while
+// preserving the shared live proof implementation.
+#define TTX_CONTRACT(type, base)                                              \
+  using ClassCatagory = type;                                                 \
+  constexpr auto implements(::Unsigned_64 requested) const -> Bool override { \
+    return requested == Ttx::Concept::get_type_identity<type>() ||            \
+           base::implements(requested);                                       \
+  }
+
+// Compact exact implementations of Abstract's universal presentation slots.
+#define TTX_NAME(expression)                                                  \
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override { \
+    return expression;                                                        \
+  }

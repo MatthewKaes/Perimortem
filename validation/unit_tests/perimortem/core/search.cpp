@@ -33,19 +33,10 @@ auto load_text(Static::Bytes<size>& test_data, View::Bytes text, Count location)
   Data::copy(test_data.get_data() + location, text.get_data(), text.get_size());
 }
 
-PERIMORTEM_UNIT_TEST(AlgoSearch, both_empty) {
+PERIMORTEM_UNIT_TEST(AlgoSearch, boundaries) {
   EXPECT_EQ(Algorithm::search(""_view, ""_view), Count(0));
-}
-
-PERIMORTEM_UNIT_TEST(AlgoSearch, empty_source) {
   EXPECT_EQ(Algorithm::search(""_view, "abc"_view), Count(-1));
-}
-
-PERIMORTEM_UNIT_TEST(AlgoSearch, single_byte) {
   EXPECT_EQ(Algorithm::search("a"_view, "a"_view), Count(0));
-}
-
-PERIMORTEM_UNIT_TEST(AlgoSearch, missing_single_byte) {
   EXPECT_EQ(Algorithm::search("a"_view, "b"_view), Count(-1));
 }
 

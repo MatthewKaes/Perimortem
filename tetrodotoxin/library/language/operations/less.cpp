@@ -1,0 +1,166 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#include "tetrodotoxin/library/language/operations/less.hpp"
+
+#include "tetrodotoxin/library/language/constants/false.hpp"
+#include "tetrodotoxin/library/language/constants/real.hpp"
+#include "tetrodotoxin/library/language/constants/signed.hpp"
+#include "tetrodotoxin/library/language/constants/true.hpp"
+#include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/model/types/real.hpp"
+#include "tetrodotoxin/library/language/model/types/signed.hpp"
+#include "tetrodotoxin/library/language/model/types/unsigned.hpp"
+#include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "ttx/concept/invalid.hpp"
+
+using namespace Perimortem;
+using namespace Tetrodotoxin::Library;
+using namespace Ttx::Concept;
+using namespace Ttx::Lexical;
+using namespace Ttx::Model;
+
+static auto select_operand_type(
+    const Language::Expression& left,
+    const Language::Expression& right) -> const Abstract& {
+  const Abstract& left_resolved = left.get_type().resolve();
+  const Abstract& right_resolved = right.get_type().resolve();
+  if (!left_resolved.is<Language::Model::Type>() ||
+      &left_resolved != &right_resolved ||
+      (!left_resolved.is<Language::Model::Types::Unsigned>() &&
+       !left_resolved.is<Language::Model::Types::Signed>() &&
+       !left_resolved.is<Language::Model::Types::Real>())) {
+    return Invalid::get_invalid();
+  }
+
+  // Two runtime values and two Constants follow the same rule. A Literal keeps
+  // its binary wide Type until an explicitly typed owner performs conversion.
+  return left_resolved;
+}
+
+static auto make_result(
+    Memory::Allocator::Arena& domain,
+    const Tetrodotoxin::Library::Language::Model::Types::Flag& type,
+    Bool value) -> Language::Constant& {
+  if (value) {
+    return Language::Constants::True::create_synthetic(domain, type);
+  }
+
+  return Language::Constants::False::create_synthetic(domain, type);
+}
+
+TTX_BINARY_PARSE(Less, LessOp);
+
+TTX_BINARY_OP(Less);
+
+auto Language::Operations::Less::select_type(
+    const Ttx::Concept::Abstract& context) const
+    -> Core::Option<const Language::Model::Type&> {
+  auto left = get_input(0);
+  auto right = get_input(1);
+  if (!left || !right ||
+      !select_operand_type(*left, *right)
+           .resolve()
+           .is<Language::Model::Type>()) {
+    return {};
+  }
+
+  return context.resolve_context("Bool"_view).select<Language::Model::Type>();
+}
+
+auto Language::Operations::Less::evaluate_constants(
+    Memory::Allocator::Arena& domain)
+    -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
+  auto authored_left = get_input(0);
+  auto authored_right = get_input(1);
+  auto left = get_folded_input(0);
+  auto right = get_folded_input(1);
+  auto result_type =
+      get_type().select<Tetrodotoxin::Library::Language::Model::Types::Flag>();
+  if (!authored_left || !authored_right || !left || !right || !result_type) {
+    return Expression::Error(Expression::Error::Type::InvalidInput, *this);
+  }
+
+  const Abstract& selected = left->get_type().resolve();
+
+  // The retained operand domain was established before folding. Visitors prove
+  // the matching Constant payload while every comparison publishes canonical
+  // Bool identity regardless of that numeric domain.
+  if (selected.is<Tetrodotoxin::Library::Language::Model::Types::Signed>()) {
+    auto left_value = left->select<Constants::Signed>();
+    auto right_value = right->select<Constants::Signed>();
+    if (!left_value) {
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_left);
+    }
+
+    if (!right_value) {
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_right);
+    }
+
+    return make_result(
+        domain, *result_type,
+        left_value->get_value() < right_value->get_value());
+  }
+
+  if (selected.is<Tetrodotoxin::Library::Language::Model::Types::Unsigned>()) {
+    auto left_value = left->select<Constants::Unsigned>();
+    auto right_value = right->select<Constants::Unsigned>();
+    if (!left_value) {
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_left);
+    }
+
+    if (!right_value) {
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_right);
+    }
+
+    return make_result(
+        domain, *result_type,
+        left_value->get_value() < right_value->get_value());
+  }
+
+  if (selected.is<Tetrodotoxin::Library::Language::Model::Types::Real>()) {
+    auto left_value = left->select<Constants::Real>();
+    auto right_value = right->select<Constants::Real>();
+    if (!left_value) {
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_left);
+    }
+
+    if (!right_value) {
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, *authored_right);
+    }
+
+    return selected.visit<Tetrodotoxin::Library::Language::Model::Types::Real>(
+        [&](const Tetrodotoxin::Library::Language::Model::Types::Real& type)
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
+          if (type.get_size() == sizeof(Real_32)) {
+            return make_result(
+                domain, *result_type,
+                Real_32(left_value->get_value()) <
+                    Real_32(right_value->get_value()));
+          }
+
+          if (type.get_size() == sizeof(Real_64)) {
+            return make_result(
+                domain, *result_type,
+                left_value->get_value() < right_value->get_value());
+          }
+
+          return Expression::Error(
+              Expression::Error::Type::InvalidOperationType, *this);
+        },
+        [&](const Abstract&)
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
+          return Expression::Error(
+              Expression::Error::Type::InvalidOperationType, *this);
+        });
+  }
+
+  return Expression::Error(
+      Expression::Error::Type::InvalidOperationType, *this);
+}

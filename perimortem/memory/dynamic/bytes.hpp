@@ -12,7 +12,7 @@ namespace Perimortem::Memory::Dynamic {
 // A vector of dynamically managed bytes with value semantics.
 class Bytes {
  public:
-  Bytes();
+  constexpr Bytes() {};
   Bytes(Count reserved_capacity);
   Bytes(Core::View::Bytes view);
   Bytes(const Dynamic::Bytes& rhs);

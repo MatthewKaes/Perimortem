@@ -6,15 +6,17 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "ttx/concept/invalid.hpp"
+#include "ttx/model/addressable.hpp"
 #include "ttx/model/alias.hpp"
 #include "ttx/model/layouts/composite.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/layouts/ranged.hpp"
-#include "ttx/model/layouts/structured.hpp"
+#include "ttx/model/layouts/value.hpp"
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Ttx::Model::Layouts;
@@ -23,7 +25,7 @@ using namespace Validation;
 /// A Type owns its stable shape while Layout only exposes ordered Abstracts.
 class LayoutType final : public Type {
  public:
-  LayoutType(View::Bytes name, Structured layout = Structured())
+  LayoutType(View::Bytes name, Named layout = Named())
       : name(name), layout(layout) {}
 
   auto get_name() const -> View::Bytes override { return name; }
@@ -33,15 +35,15 @@ class LayoutType final : public Type {
   auto resolve_context(View::Bytes) const -> const Abstract& override {
     return Invalid::get_invalid();
   }
-  auto get_layout() const -> const Structured& override { return layout; }
+  auto get_layout() const -> const Named& override { return layout; }
 
  private:
   View::Bytes name;
-  Structured layout;
+  Named layout;
 };
 
-/// Structured layouts retain fields as Addressable facts instead of copying
-/// their names and Types into a parallel member model.
+/// Named layouts retain fields as Addressable facts instead of copying their
+/// names and Types into a parallel member model.
 class LayoutField final : public Addressable {
  public:
   LayoutField(View::Bytes name, const Type& type) : name(name), type(type) {}
@@ -49,6 +51,9 @@ class LayoutField final : public Addressable {
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes) const -> const Abstract& override {
+    return Invalid::get_invalid();
   }
   auto get_type() const -> const Type& override { return type; }
 
@@ -80,8 +85,29 @@ static Harness TtxLayout = {
   .name = "Ttx::Model::Layout"_view,
 };
 
+class AtomicType : public Type {
+ public:
+  auto get_name() const -> View::Bytes override { return "Atomic"_view; }
+  auto get_documentation() const -> const Documentation& override {
+    return Documentation::get_empty();
+  }
+  auto resolve_context(View::Bytes) const -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
+/// Layout fitting may compare a reserved Type before that Type's lifecycle
+/// owner completes it. Its exact identity remains meaningful even while
+/// resolve() reports Invalid.
+class StagedType final : public AtomicType {
+ public:
+  auto resolve() const -> const Abstract& override {
+    return Invalid::get_invalid();
+  }
+};
+
 static auto selects(
-    const Perimortem::Utility::Option<const Abstract&>& result,
+    const Perimortem::Core::Option<const Abstract&>& result,
     const Abstract& expected) -> Bool {
   return result.visit(
       []() { return False; },
@@ -91,29 +117,41 @@ static auto selects(
 }
 
 static auto selects(
-    const Static::Union<const Abstract&, Layout::Errors>& result,
+    const Result<const Abstract&, Layout::Errors>& result,
     const Abstract& expected) -> Bool {
-  const Abstract* selected = result.find<const Abstract&>();
-  return selected == &expected ? True : False;
+  return result.visit(
+      [&](const Abstract& selected) { return &selected == &expected; },
+      [](Layout::Errors) { return false; });
 }
 
-static auto is_none(const Perimortem::Utility::Option<const Abstract&>& result)
+static auto is_none(const Perimortem::Core::Option<const Abstract&>& result)
     -> Bool {
   return result.visit(
       []() { return True; }, [](const Abstract&) { return False; });
 }
 
 static auto reports(
-    const Static::Union<const Abstract&, Layout::Errors>& result,
+    const Result<const Abstract&, Layout::Errors>& result,
     Layout::Errors expected) -> Bool {
-  const Layout::Errors* selected = result.find<Layout::Errors>();
-  return selected != nullptr && *selected == expected ? True : False;
+  return result.visit(
+      [](const Abstract&) { return false; },
+      [&](Layout::Errors error) { return error == expected; });
+}
+
+PERIMORTEM_UNIT_TEST(TtxLayout, value_terminal) {
+  AtomicType atomic;
+  const Layout& layout = atomic.get_layout();
+
+  EXPECT_EQ(layout.get_size(), Count(1));
+  EXPECT(selects(layout.get_abstract(0), atomic));
+  EXPECT(layout.fits(layout));
+  EXPECT(selects(layout.get_fitted(layout, 0), atomic));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
   LayoutType real("Real_32"_view);
   LayoutType bits("Unsigned_32"_view);
-  const Static::Vector<Reference<Abstract>, 2> values = {{real, bits}};
+  const Static::Vector<Reference<const Abstract>, 2> values = {{real, bits}};
   Fluid layout(values);
 
   EXPECT_EQ(layout.get_size(), Count(2));
@@ -122,13 +160,40 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
   EXPECT(is_none(layout.get_abstract(2)));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, structured_fields) {
+PERIMORTEM_UNIT_TEST(TtxLayout, staged_type_identity) {
+  StagedType first;
+  StagedType second;
+  LayoutField first_field("first"_view, first);
+  LayoutField second_field("second"_view, second);
+  const Static::Vector<Reference<const Abstract>, 1> first_type = {{first}};
+  const Static::Vector<Reference<const Abstract>, 1> second_type = {{second}};
+  const Static::Vector<Reference<const Abstract>, 1> first_addressable = {
+    {first_field}};
+  const Static::Vector<Reference<const Abstract>, 1> second_addressable = {
+    {second_field}};
+  Fluid fluid_first(first_type);
+  Fluid fluid_same(first_type);
+  Fluid fluid_second(second_type);
+  Fluid field_first(first_addressable);
+  Fluid field_second(second_addressable);
+  Ranged ranged_first(first, 2);
+  Ranged ranged_same(first, 2);
+  Ranged ranged_second(second, 2);
+
+  EXPECT(fluid_first.fits(fluid_same));
+  EXPECT_NOT(fluid_first.fits(fluid_second));
+  EXPECT_NOT(field_first.fits(field_second));
+  EXPECT(ranged_first.fits(ranged_same));
+  EXPECT_NOT(ranged_first.fits(ranged_second));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLayout, named_fields) {
   LayoutType real("Real_32"_view);
   LayoutType bits("Unsigned_32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
-  const Static::Vector<Reference<Addressable>, 2> fields = {{x, y}};
-  Structured layout(fields);
+  const Static::Vector<Reference<const Abstract>, 2> fields = {{x, y}};
+  Named layout(fields);
 
   EXPECT_EQ(layout.get_size(), Count(2));
   EXPECT(selects(layout.get_abstract(0), x));
@@ -169,7 +234,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, composite_components) {
   Alias second("second"_view, byte);
   Alias third("third"_view, byte);
   Alias fourth("fourth"_view, byte);
-  const Static::Vector<Reference<Abstract>, 4> values = {{
+  const Static::Vector<Reference<const Abstract>, 4> values = {{
     first,
     second,
     third,
@@ -205,12 +270,13 @@ PERIMORTEM_UNIT_TEST(TtxLayout, composite_fitting) {
   LayoutField y("y"_view, bits);
   Alias named_x("x"_view, real);
   Alias named_y("y"_view, bits);
-  const Static::Vector<Reference<Addressable>, 2> fields = {{x, y}};
-  const Static::Vector<Reference<Abstract>, 2> values = {{named_y, named_x}};
+  const Static::Vector<Reference<const Abstract>, 2> fields = {{x, y}};
+  const Static::Vector<Reference<const Abstract>, 2> values = {
+    {named_y, named_x}};
   Ranged source_prefix(byte, 2);
   Ranged target_prefix(byte, 2);
   Named source_suffix(values);
-  Structured target_suffix(fields);
+  Named target_suffix(fields);
   Composite source(source_prefix, source_suffix);
   Composite target(target_prefix, target_suffix);
 
@@ -226,22 +292,51 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
   LayoutField y("y"_view, bits);
   Alias named_x("x"_view, real);
   Alias named_y("y"_view, bits);
-  const Static::Vector<Reference<Addressable>, 2> fields = {{x, y}};
-  const Static::Vector<Reference<Abstract>, 2> positional = {{real, bits}};
-  const Static::Vector<Reference<Abstract>, 2> reordered = {{named_y, named_x}};
-  Structured structured(fields);
+  const Static::Vector<Reference<const Abstract>, 2> fields = {{x, y}};
+  const Static::Vector<Reference<const Abstract>, 2> positional = {
+    {real, bits}};
+  const Static::Vector<Reference<const Abstract>, 2> reordered = {
+    {named_y, named_x}};
+  const Static::Vector<Reference<const Abstract>, 2> lexical_values = {
+    {bits, real}};
+  const Static::Vector<View::Bytes, 2> lexical_names = {{"y"_view, "x"_view}};
+  Named target(fields);
   Fluid fluid(positional);
   Named named(reordered);
+  Fluid lexical_flow(lexical_values);
+  Named lexical(lexical_flow, lexical_names);
 
-  EXPECT(fluid.fits(structured));
-  EXPECT(named.fits(structured));
-  EXPECT(structured.fits(structured));
-  EXPECT(selects(fluid.get_fitted(structured, 0), real));
-  EXPECT(selects(named.get_fitted(structured, 0), named_x));
-  EXPECT(selects(named.get_fitted(structured, 1), named_y));
-  EXPECT(selects(structured.get_fitted(structured, 1), y));
-  EXPECT(reports(
-      fluid.get_fitted(structured, 2), Layout::Errors::IndexOutOfBounds));
+  EXPECT(fluid.fits(target));
+  EXPECT(named.fits(target));
+  EXPECT(lexical.fits(target));
+  EXPECT(target.fits(target));
+  EXPECT(selects(fluid.get_fitted(target, 0), real));
+  EXPECT(selects(named.get_fitted(target, 0), named_x));
+  EXPECT(selects(named.get_fitted(target, 1), named_y));
+  EXPECT(selects(lexical.get_fitted(target, 0), real));
+  EXPECT(selects(lexical.get_fitted(target, 1), bits));
+  EXPECT(selects(target.get_fitted(target, 1), y));
+  EXPECT(
+      reports(fluid.get_fitted(target, 2), Layout::Errors::IndexOutOfBounds));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLayout, addressable_alias_fitting) {
+  LayoutType real("Real_32"_view);
+  LayoutField x("x"_view, real);
+  Alias alias("x"_view, x);
+  const Static::Vector<Reference<const Abstract>, 1> aliases = {{alias}};
+  const Static::Vector<Reference<const Abstract>, 1> fields = {{x}};
+  Fluid fluid_source(aliases);
+  Fluid fluid_target(fields);
+  Named named_source(aliases);
+  Named named_target(fields);
+  Ranged ranged_source(alias, 2);
+  Ranged ranged_target(x, 2);
+
+  EXPECT(fluid_source.fits(fluid_target));
+  EXPECT(named_source.fits(named_target));
+  EXPECT(ranged_source.fits(ranged_target));
+  EXPECT(selects(named_source.get_fitted(named_target, 0), alias));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
@@ -252,37 +347,38 @@ PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
   Alias first("x"_view, real);
   Alias duplicate("x"_view, bits);
   Alias unnamed({}, real);
-  const Static::Vector<Reference<Addressable>, 2> fields = {{x, y}};
-  const Static::Vector<Reference<Abstract>, 2> values = {{first, duplicate}};
-  const Static::Vector<Reference<Abstract>, 2> empty_names = {{first, unnamed}};
-  Structured structured(fields);
+  const Static::Vector<Reference<const Abstract>, 2> fields = {{x, y}};
+  const Static::Vector<Reference<const Abstract>, 2> values = {
+    {first, duplicate}};
+  const Static::Vector<Reference<const Abstract>, 2> empty_names = {
+    {first, unnamed}};
+  Named target(fields);
   Named named(values);
   Named nameless(empty_names);
 
-  EXPECT_NOT(named.fits(structured));
-  EXPECT(reports(
-      named.get_fitted(structured, 0), Layout::Errors::IncompatibleFit));
-  EXPECT_NOT(nameless.fits(structured));
-  EXPECT(reports(
-      nameless.get_fitted(structured, 0), Layout::Errors::IncompatibleFit));
+  EXPECT_NOT(named.fits(target));
+  EXPECT(reports(named.get_fitted(target, 0), Layout::Errors::IncompatibleFit));
+  EXPECT_NOT(nameless.fits(target));
+  EXPECT(
+      reports(nameless.get_fitted(target, 0), Layout::Errors::IncompatibleFit));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, structured_identity) {
+PERIMORTEM_UNIT_TEST(TtxLayout, named_shape) {
   LayoutType real("Real_32"_view);
   LayoutField first_x("x"_view, real);
   LayoutField second_x("x"_view, real);
-  const Static::Vector<Reference<Addressable>, 1> first_fields = {{first_x}};
-  const Static::Vector<Reference<Addressable>, 1> same_fields = {{first_x}};
-  const Static::Vector<Reference<Addressable>, 1> other_fields = {{second_x}};
-  Structured first(first_fields);
-  Structured same(same_fields);
-  Structured other(other_fields);
+  const Static::Vector<Reference<const Abstract>, 1> first_fields = {{first_x}};
+  const Static::Vector<Reference<const Abstract>, 1> same_fields = {{first_x}};
+  const Static::Vector<Reference<const Abstract>, 1> other_fields = {
+    {second_x}};
+  Named first(first_fields);
+  Named same(same_fields);
+  Named other(other_fields);
 
   EXPECT(first.fits(same));
-  EXPECT_NOT(first.fits(other));
-  EXPECT(reports(first.get_fitted(other, 0), Layout::Errors::IncompatibleFit));
-  EXPECT(reports(
-      first.get_fitted_at(other, 0, 0), Layout::Errors::IncompatibleFit));
+  EXPECT(first.fits(other));
+  EXPECT(selects(first.get_fitted(other, 0), first_x));
+  EXPECT(selects(first.get_fitted_at(other, 0, 0), first_x));
   EXPECT(
       reports(first.get_fitted_at(same, 1, 0), Layout::Errors::SizeMismatch));
 }

@@ -11,6 +11,7 @@
 #include "perimortem/memory/managed/bytes.hpp"
 
 #include "perimortem/serialization/base64.hpp"
+#include "perimortem/serialization/json/blueprint.hpp"
 #include "perimortem/serialization/json/node.hpp"
 
 #include "puffer/lsp/documents.hpp"
@@ -202,7 +203,8 @@ static auto decode_document_text(Allocator::Arena& arena, View::Bytes source)
 static auto format_source(Allocator::Arena&, View::Bytes source, View::Bytes)
     -> Dynamic::Bytes {
   // The old formatter depended on the deleted Syntax tree. Until formatting
-  // can consume a real dialect-owned tree again, the LSP format request keeps
+  // can consume a real tree owned by the dialect again, the LSP format request
+  // keeps
   // editor behavior stable by returning the exact authored source.
   return Dynamic::Bytes(source);
 }
@@ -213,38 +215,38 @@ static auto report_document(
   auto& arena = message.get_arena();
   View::Bytes encoded = Base64::encode(arena, source);
   return message.report_result(
-      Json::Node::construct(
-          arena, Json::Blueprint{{
-                   {"document"_view, encoded},
-                 }}));
+      Json::Blueprint{
+        {
+          {"document"_view, encoded},
+        }}.construct(arena));
 }
 
 auto Puffer::Lsp::initialize(Documents&, const Rpc::Message& message)
     -> Rpc::Response {
   auto& arena = message.get_arena();
   return message.report_result(
-      Json::Node::construct(
-          arena, Json::Blueprint{{
-                   {"serverInfo"_view,
-                    {
-                      {"name"_view, "Tetrodotoxin Language Server"_view},
-                      {"version"_view, "1.0"_view},
-                    }},
-                   {"capabilities"_view,
-                    {
-                      {"positionEncoding"_view, "utf-16"_view},
-                      {"textDocumentSync"_view,
-                       {
-                         {"openClose"_view, True},
-                         {"change"_view, Signed_64(1)},
-                       }},
-                      {"semanticTokensProvider"_view,
-                       {
-                         {"legend"_view, Lsp::semantic_legend(arena)},
-                         {"full"_view, True},
-                       }},
-                    }},
-                 }}));
+      Json::Blueprint{
+        {
+          {"serverInfo"_view,
+           {
+             {"name"_view, "Tetrodotoxin Language Server"_view},
+             {"version"_view, "1.0"_view},
+           }},
+          {"capabilities"_view,
+           {
+             {"positionEncoding"_view, "utf-16"_view},
+             {"textDocumentSync"_view,
+              {
+                {"openClose"_view, True},
+                {"change"_view, Signed_64(1)},
+              }},
+             {"semanticTokensProvider"_view,
+              {
+                {"legend"_view, Lsp::semantic_legend(arena)},
+                {"full"_view, True},
+              }},
+           }},
+        }}.construct(arena));
 }
 
 auto Puffer::Lsp::format(Documents&, const Rpc::Message& message)

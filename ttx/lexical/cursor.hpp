@@ -6,35 +6,48 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/option.hpp"
 #include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
 namespace Ttx::Lexical {
 
-// Cursor acts as a transitive iterator over a token stream and can be used to
-// persist parse state during a transaction.
-// Any errors created are pushed to the provided error collector.
+// Cursor is the one mutable position over an immutable authored Token stream.
+// Grammar owners consume that position only after deterministic dispatch, and
+// every failure is published to the operation error log.
 class Cursor {
  public:
   Cursor(const Lexical::Tokenizer& tokenizer, Lexical::Errors& errors)
       : tokenizer(tokenizer), errors(errors) {}
+  Cursor(const Cursor&) = delete;
 
+  // A grammar owner may add one required syntax diagnostic only when a nested
+  // parser did not already publish the more precise reason for rejection.
+  constexpr auto get_error_count() const -> Count { return errors.get_size(); }
+
+  // Gets the token from the tokenizer at the current location.
+  // If the current index is out of bounds then an empty token is returned.
   constexpr auto current() const -> Lexical::Token {
-    return tokenizer.get_tokens().get_data()[index];
+    return tokenizer.get_tokens()[index];
   }
 
-  constexpr auto get_token_index() const -> Count { return index; }
+  // Looks at a Token relative to the current position. Positive offsets look
+  // forward and negative offsets look backward. Passing zero returns current,
+  // while either stream boundary returns an empty Token.
+  constexpr auto peek(Signed_64 offset) const -> Lexical::Token {
+    return tokenizer.get_tokens()[index + offset];
+  }
 
   // Advances at most to the tokenizer's terminal token and returns the
   // token that was current before advancing.
   constexpr auto consume() -> Lexical::Token {
-    const auto tokens = tokenizer.get_tokens();
     Lexical::Token consumed = current();
-    if (index + 1 < tokens.get_size()) {
+    if (index + 1 < tokenizer.get_tokens().get_size()) {
       index++;
     }
 
@@ -70,64 +83,13 @@ class Cursor {
     return consume();
   }
 
-  // If the token isn't of the required type then log a message and give up on
-  // trying to parse the statement as it's most likely in an unrecoverable state
-  // that will just cause a cascade of errors.
-  //
-  // TODO: If it ever comes up that we need to bail on different kinds of
-  // statements we should fold that in but not until we have a real use case.
-  // Recover to balance braces was used in the old parser quite a bit.
-  constexpr auto bail(
-      Code::Type type,
-      Perimortem::Core::View::Bytes message = {}) -> Bool {
-    if (!require(type, message)) {
-      recover_to_statement();
-      return true;
-    }
-
-    return false;
-  }
-
-  // Checks if the token is a required semantic keyword instead of a token.
-  //
-  // TODO: If it ever comes up that we need to bail on different kinds of
-  // statements we should fold that in but not until we have a real use case.
-  // Recover to balance braces was used in the old parser quite a bit.
-  constexpr auto bail(
-      Perimortem::Core::View::Bytes keyword,
-      Perimortem::Core::View::Bytes message = {}) -> Bool {
-    auto candidate = require(Code::Type::Addressable, message);
-    if (!candidate) {
-      recover_to_statement();
-      return true;
-    }
-
-    auto text = candidate.caculate_text(get_source_text());
-    if (text != keyword) {
-      Perimortem::Core::Static::Bytes<128> hint_buffer;
-      Perimortem::Core::Writer::Textual hint_message(hint_buffer);
-      hint_message << "Expected `"_view << keyword << "` but got `"_view << text
-                   << "`."_view;
-      if (message.is_empty()) {
-        create_token_error(candidate, hint_message);
-      } else {
-        create_token_error(candidate, message, hint_message);
-      }
-
-      recover_to_statement();
-      return true;
-    }
-
-    return false;
-  }
-
   // Creates a source level error message.
   // Views can be temporary as the error context copies the data into its local
   // memory space in case the error outlives the source.
   auto create_error(
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    create_expression_error(Token(), Token(), message, hint);
+    create_expression_error(Anchor::create(Span()), message, hint);
   }
 
   // Creates an error at the current token.
@@ -136,29 +98,59 @@ class Cursor {
   auto create_token_error(
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    create_token_error(current(), message, hint);
+    create_expression_error(Anchor::create(Span(current())), message, hint);
   }
 
   auto create_token_error(
       Lexical::Token token,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
-    create_expression_error(token, token, message, hint);
+    create_expression_error(Anchor::create(Span(token)), message, hint);
   }
 
-  // Emits an error over an existing token range.
+  // A Span defaults its diagnostic focus to the opening Token. Callers with a
+  // more precise semantic Token provide the Anchor overload directly.
   // Views can be temporary as the error context copies the data into its local
   // memory space in case the error outlives the source.
   auto create_expression_error(
-      Lexical::Token start,
-      Lexical::Token end,
+      Lexical::Span span,
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = {}) -> void {
+    create_expression_error(Anchor::create(span), message, hint);
+  }
+
+  auto create_expression_error(
+      Perimortem::Core::Option<Lexical::Anchor> anchor,
+      Perimortem::Core::View::Bytes message,
+      Perimortem::Core::View::Bytes hint = {}) -> void {
+    if (!anchor) {
+      create_error(message, hint);
+      return;
+    }
+    create_expression_error(*anchor, message, hint);
+  }
+
+  auto create_expression_error(
+      Lexical::Anchor anchor,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) -> void {
     Errors::Report report(
-        errors, tokenizer.get_source_path(), tokenizer.get_source_text(), start,
-        end);
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
+        anchor);
     report << message;
     report.get_hint() << hint;
+  }
+
+  // Some semantic errors contribute directly to a Report. Cursor supplies the
+  // authored source facts without exposing its Errors owner to the consumer.
+  auto create_report(Lexical::Span span) -> Errors::Report {
+    return create_report(Anchor::create(span));
+  }
+
+  auto create_report(Lexical::Anchor anchor) -> Errors::Report {
+    return Errors::Report(
+        errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
+        anchor);
   }
 
   // Statement recovery is intentionally small.
@@ -168,7 +160,7 @@ class Cursor {
   // because only that layer knows how much grammar is safe to skip.
   //
   // By default `Terminal`, `EndStatement` and `ScopeEnd` are used as the sync
-  // points but this can very by dialect.
+  // points but this can vary by dialect.
   constexpr auto recover_to_statement(
       Perimortem::Core::View::Vector<Code::Type> terminals = {{
         Code::Type::Terminal,
@@ -191,9 +183,9 @@ class Cursor {
     }
   }
 
-  constexpr auto caculate_text(Token token) const
+  constexpr auto caculate_text(Span span) const
       -> Perimortem::Core::View::Bytes {
-    return token.caculate_text(get_source_text());
+    return span.caculate_text(get_source_text());
   }
 
   // Checks if the current cursor is exactly one type.

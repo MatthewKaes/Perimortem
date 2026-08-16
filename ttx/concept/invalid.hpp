@@ -23,11 +23,7 @@ namespace Ttx::Concept {
 // changes.
 class Invalid : public Abstract {
  public:
-  using ClassCatagory = Invalid;
-  static constexpr Perimortem::System::Uuid contract_id{
-    0x61aaefe33f534a6b,
-    0x8c39f04bd4a2f525,
-  };
+  TTX_CONTRACT(Invalid, Abstract);
 
   // Invalid has no object-specific state. Every semantic failure returns this
   // one binary-wide object so owners never store or construct failure state.
@@ -36,18 +32,9 @@ class Invalid : public Abstract {
   Invalid(const Invalid&) = delete;
   auto operator=(const Invalid&) -> Invalid& = delete;
 
-  constexpr auto implements(Perimortem::System::Uuid requested) const
-      -> Bool override {
-    return requested == contract_id || Abstract::implements(requested);
-  }
+  TTX_NAME("Invalid"_view);
 
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Invalid"_view;
-  }
-
-  auto get_documentation() const -> const Documentation& override {
-    return Documentation::get_empty();
-  }
+  TTX_EMPTY_DOCUMENTATION();
 
   constexpr auto resolve() const -> const Abstract& override { return *this; }
 
@@ -61,3 +48,17 @@ class Invalid : public Abstract {
 };
 
 }  // namespace Ttx::Concept
+
+// Abstracts with no contextual surface resolve every route to Invalid while
+// preserving whether their virtual slot is constexpr.
+#define TTX_CONSTEXPR_INVALID_CONTEXT                                 \
+  constexpr auto resolve_context(Perimortem::Core::View::Bytes) const \
+      -> const Ttx::Concept::Abstract& override {                     \
+    return Ttx::Concept::Invalid::get_invalid();                      \
+  }
+
+#define TTX_INVALID_CONTEXT                                 \
+  auto resolve_context(Perimortem::Core::View::Bytes) const \
+      -> const Ttx::Concept::Abstract& override {           \
+    return Ttx::Concept::Invalid::get_invalid();            \
+  }

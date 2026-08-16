@@ -125,13 +125,14 @@ auto Tetrodotoxin::Diagnostics::Suggestions::possible_candidate(
     Allocator::Arena& arena,
     View::Bytes name,
     View::Vector<View::Bytes> candidates) -> View::Bytes {
+  const auto* candidate_data = candidates.get_data();
   Count best_index = Count(-1);
   for (Count i = 0; i < candidates.get_size(); i++) {
-    if (consider(name, candidates[i], i, best_index)) {
+    if (consider(name, candidate_data[i], i, best_index)) {
       break;
     }
   }
 
   return best_index == Count(-1) ? View::Bytes()
-                                 : format(arena, candidates[best_index]);
+                                 : format(arena, candidate_data[best_index]);
 }

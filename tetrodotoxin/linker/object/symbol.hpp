@@ -4,37 +4,36 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
-#include "perimortem/core/data.hpp"
 #include "perimortem/core/perimortem.hpp"
+
+#include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "perimortem/utility/range.hpp"
 
 namespace Tetrodotoxin::Linker::Object {
 
-// Symbol is the linker-facing name for a generated function or data range.
-// It is intentionally part of the linker model because the only stable
-// consumer today is the object packaging layer. A future compiler can emit this
-// payload, but the payload should stay owned by the linker until a broader
-// object-module concept is earned by more than one owner.
+// Symbol is the linker facing name for a generated function or data range. Its
+// definition state remains explicit because section zero is an object format
+// reservation, not a substitute for the generator's construction decision.
 class Symbol {
  public:
   enum class Visibility : Unsigned_8 {
-    Local = 0,
-    Global = 1,
+    Local,
+    Global,
   };
 
   enum class Type : Unsigned_8 {
-    None = 0,
-    Object = 1,
-    Function = 2,
+    None,
+    Object,
+    Function,
   };
 
-  static constexpr auto create_string(
+  static auto create_string(
       Perimortem::Core::View::Bytes name,
       Unsigned_16 section_index,
       Perimortem::Utility::Range range) -> Symbol {
-    Symbol symbol;
-    symbol.name = name;
+    Symbol symbol(name);
+    symbol.definition = Definition::Defined;
     symbol.type = Type::Object;
     symbol.section_index = section_index;
     symbol.visibility = Visibility::Local;
@@ -42,12 +41,12 @@ class Symbol {
     return symbol;
   }
 
-  static constexpr auto create_function(
+  static auto create_function(
       Perimortem::Core::View::Bytes name,
       Unsigned_16 section_index,
       Visibility visibility) -> Symbol {
-    Symbol symbol;
-    symbol.name = name;
+    Symbol symbol(name);
+    symbol.definition = Definition::Defined;
     symbol.type = Type::Function;
     symbol.section_index = section_index;
     symbol.visibility = visibility;
@@ -55,13 +54,13 @@ class Symbol {
     return symbol;
   }
 
-  static constexpr auto create_read_only(
+  static auto create_read_only(
       Perimortem::Core::View::Bytes name,
       Unsigned_16 section_index,
       Perimortem::Utility::Range range,
       Visibility visibility = Visibility::Global) -> Symbol {
-    Symbol symbol;
-    symbol.name = name;
+    Symbol symbol(name);
+    symbol.definition = Definition::Defined;
     symbol.type = Type::Object;
     symbol.section_index = section_index;
     symbol.visibility = visibility;
@@ -69,11 +68,10 @@ class Symbol {
     return symbol;
   }
 
-  static constexpr auto create_external(
-      Perimortem::Core::View::Bytes name,
-      Type type) -> Symbol {
-    Symbol symbol;
-    symbol.name = name;
+  static auto create_undefined(Perimortem::Core::View::Bytes name, Type type)
+      -> Symbol {
+    Symbol symbol(name);
+    symbol.definition = Definition::Undefined;
     symbol.type = type;
     symbol.section_index = 0;
     symbol.visibility = Visibility::Global;
@@ -82,32 +80,37 @@ class Symbol {
   }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
-    return name;
+    return name.get_view();
   }
 
-  constexpr auto get_section_index() const -> Unsigned_16 {
-    return section_index;
-  }
-  constexpr auto get_range() const -> Perimortem::Utility::Range {
-    return range;
+  auto get_section_index() const -> Unsigned_16 { return section_index; }
+  auto get_range() const -> Perimortem::Utility::Range { return range; }
+
+  auto get_visibility() const -> Visibility { return visibility; }
+  auto get_type() const -> Type { return type; }
+  auto is_defined() const -> Bool { return definition == Definition::Defined; }
+  auto is_undefined() const -> Bool {
+    return definition == Definition::Undefined;
   }
 
-  constexpr auto get_visibility() const -> Visibility { return visibility; }
-  constexpr auto get_type() const -> Type { return type; }
-  constexpr auto is_external() const -> Bool { return section_index == 0; }
-
-  constexpr auto set_range(Perimortem::Utility::Range range) -> void {
+  auto set_range(Perimortem::Utility::Range range) -> void {
     this->range = range;
   }
 
  private:
-  constexpr Symbol() = default;
+  enum class Definition : Unsigned_8 {
+    Undefined,
+    Defined,
+  };
 
-  Perimortem::Core::View::Bytes name;
+  Symbol(Perimortem::Core::View::Bytes name) : name(name) {}
+
+  Perimortem::Memory::Dynamic::Bytes name;
   Unsigned_16 section_index = 0;
   Perimortem::Utility::Range range;
   Visibility visibility = Visibility::Local;
   Type type = Type::None;
+  Definition definition = Definition::Undefined;
 };
 
 }  // namespace Tetrodotoxin::Linker::Object

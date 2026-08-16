@@ -7,20 +7,25 @@
 
 #include "perimortem/serialization/stream/textual.hpp"
 
-namespace Tetrodotoxin::Library::Language::Generics {
+#include "tetrodotoxin/library/language/types/fixed.hpp"
 
-auto Fixed::create(
-    Perimortem::Core::View::Vector<Argument> arguments,
-    Perimortem::Memory::Allocator::Arena& arena) const
-    -> Perimortem::Utility::Option<const Ttx::Model::Type&> {
+using namespace Tetrodotoxin::Library::Language;
+
+auto Generics::Fixed::create(Perimortem::Core::View::Vector<Argument> arguments)
+    const -> Perimortem::Core::Option<const Language::Model::Type&> {
+  auto& arena = get_domain();
   if (arguments.get_size() != 2) {
     return {};
   }
 
-  const Ttx::Model::Type* element =
-      arguments[0].find<const Ttx::Model::Type&>();
-  const ::Signed_64* extent = arguments[1].find<::Signed_64>();
-  if (element == nullptr || extent == nullptr || *extent < 0) {
+  const auto* argument_data = arguments.get_data();
+  const Language::Model::Type* element =
+      argument_data[0].find<const Language::Model::Type&>();
+  const ::Unsigned_64* extent = argument_data[1].find<::Unsigned_64>();
+  if (element == nullptr || extent == nullptr || *extent == 0) {
+    return {};
+  }
+  if (element->get_layout().is_empty()) {
     return {};
   }
 
@@ -28,7 +33,5 @@ auto Fixed::create(
   Perimortem::Serialization::Stream::Textual<Perimortem::Memory::Managed::Bytes>
       output(name);
   output << "["_view << element->get_name() << ","_view << *extent << "]"_view;
-  return arena.construct<Type>(name.get_view(), *element, *extent);
+  return arena.construct<Types::Fixed>(name.get_view(), *element, *extent);
 }
-
-}  // namespace Tetrodotoxin::Library::Language::Generics

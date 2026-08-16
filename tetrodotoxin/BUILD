@@ -51,10 +51,29 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
+        ":language",
         "//perimortem",
         "//ttx:concept",
         "//ttx:lexical",
         "//ttx:model",
+    ],
+)
+
+cc_library(
+    name = "scene",
+    srcs = glob([
+        "scene/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "scene/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":language",
+        ":library",
+        "//perimortem",
+        "//ttx:concept",
+        "//ttx:lexical",
     ],
 )
 

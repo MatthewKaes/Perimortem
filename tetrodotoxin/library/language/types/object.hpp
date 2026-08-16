@@ -1,0 +1,38 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "tetrodotoxin/library/language/types/structure.hpp"
+
+namespace Tetrodotoxin::Library::Language::Types {
+
+// Object is the managed nonnull reference specialization of Structure. It
+// retains the mandatory authored Definition through Structure while Composite
+// owns every member, lookup, Layout, and completion rule.
+class Object : public Structure {
+ private:
+  Object(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition);
+
+ public:
+  TTX_CONTRACT(Object, Structure);
+
+  static auto interpret(
+      Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Language::Definition& definition)
+      -> Perimortem::Core::Option<Object&>;
+
+  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
+
+  auto create_supplied(
+      Ttx::Lexical::Cursor& cursor,
+      Model::Pack& arguments,
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope,
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
+};
+
+}  // namespace Tetrodotoxin::Library::Language::Types

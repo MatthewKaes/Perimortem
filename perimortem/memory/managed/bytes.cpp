@@ -3,8 +3,6 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
-#include <x86intrin.h>
-
 #include "perimortem/core/math.hpp"
 
 using namespace Perimortem::Core;

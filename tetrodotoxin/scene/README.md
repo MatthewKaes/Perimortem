@@ -1,128 +1,184 @@
 # Scene
 
-Scene grammar describes one retained Scene object. Environment Workspace owns
-the graph lifetime, parses the universal source envelope, and routes the
-remaining cursor to the installed Scene Dialect. The Dialect creates one Scene
-Monograph in the Workspace arena.
+Scene is Tetrodotoxin's language for a retained piece of interactive state. A
+Scene brings together its data, lifecycle functions, signals, and hosted
+graphics objects.
 
-The Monograph owns Scene state, signals, render facts, completed Library
-Callables, and direct edges assigning those Callables to lifecycle roles. App
-owns transitions between Scene identities and the live Scene stack.
+Each Scene describes how one instance prepares, updates, pauses, resumes, and
+releases its state. [App](../app/README.md) owns the live Scene stack and decides
+when the application moves from one Scene to another. A Scene therefore does not
+need to know which Scene comes before or after it.
 
-## Lifecycle
-
-A Scene provides `prepare`, `update`, and `release`. It may also provide
-`pause` and `resume`:
+Canonical grammar reference: [Scene.g4](grammar/Scene.g4).
 
 ```ttx
-Scene prepare[self] -> Void
-Scene pause[self] -> Void
-Scene resume[self] -> Void
-Scene update[self, .delta_time : Real_64] -> Scene::Flow
-Scene release[self] -> Void
+// Retained scene state.
+dialect : Scene;
 ```
 
-`prepare` and `release` bracket one live instance. App `push` calls `pause`
-before retaining an instance. App `pop` releases the active instance and calls
-`resume` on the instance below it. A paused Scene receives no `update` calls.
+## Library layer
 
-The role prefix creates a direct edge to an ordinary Library Self Callable.
-Generated lifecycle code follows that edge rather than searching for a
-conventional function name.
+Scene uses the Library language installed in its Workspace. Library provides
+the Object, Field, Function, and expression rules used by Scene state. If
+Library is not installed, the Scene source cannot be completed. Scene never
+creates a private Library copy, so shared and Generic Types keep the same
+identity throughout the Workspace.
 
-An update returns `Scene::Flow -> stay()` or emits one of its own signals. A
-Scene never selects another Scene or terminates the process directly. App maps
-the emitted identity to transition policy.
+Each completed Scene contains one Library child:
 
-Scene identity comes from the exact local name in its Package Source binding:
+```text
+Scene Monograph
+├── Signals, lifecycle roles, frame events, and render relationships
+└── Library child
+    ├── Source context for imports and Foreign declarations
+    └── Object representing one Scene instance
+        ├── state Fields
+        ├── helper Functions
+        └── lifecycle Self Callables
+```
+
+Only the outer Scene appears as a Package member. It points directly to the real
+Library Object, Fields, and Callables rather than copying them into a separate
+Scene Type. Library tools can inspect the child directly. Scene-aware tools use
+the outer layer to see Signals and render relationships as well.
+
+Scene and its Library child complete as one operation. Their errors appear
+together in source order. When a Scene is restored from an Archive, the child
+reads its own stored section and uses the same Package context as the outer
+Scene.
+
+## Lifecycle roles
+
+A Scene provides `prepare`, `update`, and `release`. It may also provide `pause`
+and `resume`:
+
+```ttx
+Scene prepare[self] -> []
+Scene pause[self] -> []
+Scene resume[self] -> []
+Scene update[self, .delta_time : Real_64] -> []
+Scene release[self] -> []
+```
+
+Each role names a Self Callable hosted by the Scene Object. Its parameters,
+expressions, and ordinary statements follow Library rules. The `emit` statement
+belongs to Scene because Library does not need to know about signals.
+
+`prepare` and `release` bracket one live instance. App `push` pauses the active
+instance before retaining it. App `pop` releases the active instance and resumes
+the one below it. A paused Scene receives no update calls.
+
+## Signals and emission
+
+A Signal is a named event owned by a Scene. It can carry no value or one value
+of a declared Type. A Signal is not stored state, a Function, or a Boolean flag:
+
+```ttx
+signal finished;
+signal loaded : Result;
+
+emit finished;
+emit loaded(result);
+```
+
+`emit` selects one of the current Scene's Signals and checks its optional value.
+It is a Scene statement rather than Field access such as `self.finished`. The
+Scene reports what happened, while App decides whether that Signal means
+`push`, `pop`, `replace`, or `exit`.
+
+Signals emitted during `update` enter a frame event queue in order. Once the
+Scene and Graphics have finished the frame and the backend has presented it,
+the queue becomes visible to subscribers. Delivery keeps the same order. A
+Signal emitted while the queue is being delivered waits for the next frame,
+which prevents recursive delivery.
+
+App is the first subscriber. It applies at most one transition per frame. The
+first event with a matching App rule wins, and no matching event leaves the
+current Scene in place. More general connections can be added without changing
+what a Signal means.
+
+Events used by another worker stay within a transferred Scene Garbage Realm or
+use the explicit transfer and immutable-sharing rules. A single Object or event
+does not silently gain cross-worker ownership.
+
+## Package identity
+
+A Scene's Package Source route gives it a stable identity:
 
 ```ttx
 source Scenes::Splash from "scenes/splash.ttx";
 source Scenes::Title from "scenes/title.ttx";
 ```
 
-The paths select confined inputs only. Package never derives a Scene name from
-a directory or filename.
+The paths only locate the source inside Package storage. A directory or filename
+does not become the Scene's identity.
 
-## Retained declared children
+## Hosted graphics state
 
-A Scene instance is the root of one owned child tree. Authored `child`
-declarations create nonnull values with stable identity for the complete Scene
-lifetime:
+A Scene instance is the root of its hosted graphics state. A private `state`
+Field initialized with `new[ObjectType]` is hosted when its Object Type supports
+the Graphics hosting contract:
 
 ```ttx
-child top_icon : Sprite;
-child bottom_icon : Sprite;
+private state top_icon : Graphics::Sprite = new[Graphics::Sprite];
+private state bottom_icon : Graphics::Sprite = new[Graphics::Sprite];
 ```
 
-Declared children construct and attach in authored order before `prepare`.
-`prepare` configures those existing values field by field. It never replaces
-their identity. A default constructed Sprite is valid but submits no draw until
-it has drawable content.
+These Fields are the real hosted objects. Scene does not build a second node
+tree or ordering table beside them. It finds hosted state from each Field's Type
+and keeps the order written in the source. The Objects exist before `prepare`,
+which configures them through ordinary Library access:
 
-After `update`, visible attached graphics children are collected automatically
-in retained tree order. Authored Scene code mutates child properties and does
-not call a render, draw, or submission operation. Equal z order follows sibling
-tree order, higher z order draws in front, and visibility and transforms
-propagate through graphics parents.
+```ttx
+self.top_icon.image = image;
+self.top_icon.position = (.x = 200, .y = 100);
+```
 
-App applies a Scene transition only after update and submission facts for the
-frame are stable. Scene `release` runs before automatic reverse order
-destruction of the complete child subtree. Replace and exit therefore release
-every declared child without authored cleanup calls.
+Graphics follows the current Object values through these Fields. Visibility and
+transforms compose through that tree. `z_index` sets the main draw order, and a
+later Field appears in front when two values share the same index. Assigning a
+new Object to a hosted Field changes what the next frame submits.
 
-Dynamic attachment, detach, reparenting, and queued individual release require
-their own owning and generational identity contract. They are not implicit in
-the declared child model.
+`release` runs before the Scene gives up its hosted graphics roots. Code cannot
+observe when Library later reclaims those Objects. An Object Field whose Type
+does not support Graphics hosting remains ordinary Scene state.
 
 ## Time and input
 
-Delta time is the only explicit argument after `self`. It is scheduler input,
-so Terminal and Headless Apps need no Graphics dependency:
+Delta time is scheduler input after `self`:
 
 ```ttx
-Scene update[self, .delta_time : Real_64] -> Scene::Flow
+Scene update[self, .delta_time : Real_64] -> [] {
+  self.elapsed = self.elapsed + delta_time;
+  if (self.elapsed > 1.0) {
+    emit finished;
+  }
+}
 ```
 
-Elapsed Scene time is retained state and accumulated from that argument:
+Elapsed time and process input are ordinary Scene state. The runtime refreshes
+one read-only `System::Input` snapshot at each frame boundary. Terminal and
+Headless applications use the same lifecycle because `update` has no
+graphics-specific parameter.
 
-```ttx
-state elapsed : Real_64 = 0.0;
+## Resources and persistence
 
-self.elapsed = self.elapsed + delta_time;
-```
+Embedded assets resolve beneath the source Package root. Package keeps those
+resources confined and alive while Scene or its Library child interprets their
+bytes.
 
-Input remains global retained state. A Package requests
-`Perimortem.System` under an authored alias, and Scene code queries that alias:
+Scene can be stored in a Package Archive and rebuilt without its source file. A
+Complete payload keeps its Signals, lifecycle and render relationships, and a
+Complete Library child so it can be compiled again. An Interface payload keeps
+the public Scene contract, Signal and lifecycle relationships, render
+relationships, Library interface, and compiled artifact locations without
+executable bodies.
 
-```ttx
-resolve System : Perimortem.System = "1.0";
+Neither profile stores a live Scene instance, current Object values, queued
+frame events, elapsed time, input state, backend resources, or source-level
+debugging data.
 
-const input := System -> get_input();
-```
-
-The exact System input API is a dependency contract rather than part of the
-Scene update ABI.
-
-## Resources
-
-Embedded paths resolve from the Package root. Future Package construction must
-supply the confined bytes to source interpretation and may share retained bytes
-for repeated reads before constant folding.
-
-The canonical fixtures are
-[`../../apps/ttx/scene_lifetime/scenes/splash.ttx`](../../apps/ttx/scene_lifetime/scenes/splash.ttx)
-and
-[`../../apps/ttx/scene_lifetime/scenes/title.ttx`](../../apps/ttx/scene_lifetime/scenes/title.ttx).
-They record state, embedded resources, required lifecycle roles, the intended
-System input query, signals, and an App owned transition cycle. Their Sprite
-state still requires the planned fixture migration to declared children. They
-do not yet record `pause` or `resume`.
-
-## Status
-
-The Scene Dialect, Scene Monograph, retained child runtime, automatic submission
-path, confined resource input, lifecycle executor, System input API, and durable
-Scene schema are not implemented. The canonical sources provide implementation
-pressure, but parsing their universal envelopes alone does not establish Scene
-behavior.
+See [App](../app/README.md) for transition policy,
+[Library](../library/README.md) for Object, Field, Option, and Callable
+semantics, and the [standard packages](../../packages/ttx/README.md) for the
+Graphics and System Types used by Scene sources.

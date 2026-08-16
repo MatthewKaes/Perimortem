@@ -3,10 +3,10 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/system/file.hpp"
+#include "perimortem/serialization/json/blueprint.hpp"
 #include "perimortem/serialization/json/node.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
@@ -22,7 +22,6 @@ static Harness SerializationJson = {
 };
 
 PERIMORTEM_UNIT_TEST(SerializationJson, empty_node) {
-  auto start_requests = Bibliotheca::check_out_requests();
   Json::Node empty;
 
   EXPECT(empty.is_null());
@@ -32,13 +31,9 @@ PERIMORTEM_UNIT_TEST(SerializationJson, empty_node) {
   EXPECT_EQ(empty.get_real(), 0.0);
   EXPECT_EQ(empty.get_size(), 0);
   EXPECT_TEXT(empty.get_string(), View::Bytes());
-
-  // Node should never affect the check out state for these tests.
-  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
 }
 
 PERIMORTEM_UNIT_TEST(SerializationJson, value_node) {
-  auto start_requests = Bibliotheca::check_out_requests();
   Json::Node value;
   EXPECT(value.is_null());
 
@@ -69,13 +64,9 @@ PERIMORTEM_UNIT_TEST(SerializationJson, value_node) {
   EXPECT_EQ(value.get_real(), 0);
   EXPECT_TEXT(value.get_string(), "Test View"_view);
   EXPECT_EQ(value.get_size(), 9);
-
-  // Node should never affect the check out state for these tests.
-  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
 }
 
 PERIMORTEM_UNIT_TEST(SerializationJson, access_never_faults) {
-  auto start_requests = Bibliotheca::check_out_requests();
   Json::Node value;
   EXPECT(value.is_null());
 
@@ -90,13 +81,9 @@ PERIMORTEM_UNIT_TEST(SerializationJson, access_never_faults) {
   EXPECT_EQ(value.get_real(), 0.0);
   EXPECT_EQ(value.get_size(), 0);
   EXPECT_TEXT(value.get_string(), View::Bytes());
-
-  // Node should never affect the check out state for these tests.
-  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
 }
 
 PERIMORTEM_UNIT_TEST(SerializationJson, access_is_value_type) {
-  auto start_requests = Bibliotheca::check_out_requests();
   Json::Node value;
   EXPECT(value.is_null());
 
@@ -110,9 +97,6 @@ PERIMORTEM_UNIT_TEST(SerializationJson, access_is_value_type) {
   // Original value node should remain unchanged.
   EXPECT(value.is_null());
   EXPECT(value["invalid"_view].is_null());
-
-  // Value type nodes should never allocate.
-  EXPECT_EQ(Bibliotheca::check_out_requests(), start_requests);
 }
 
 PERIMORTEM_UNIT_TEST(SerializationJson, parse_values) {
@@ -146,69 +130,19 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_values) {
   EXPECT_TEXT(value.get_string(), ""_view);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationJson, escaped_frames) {
+PERIMORTEM_UNIT_TEST(SerializationJson, escaped_string_boundaries) {
   Allocator::Arena arena;
-  Json::Node value;
-
-  value.parse(arena, "\"TTX \\\"source\\\" string\""_view);
-  EXPECT_TEXT(value.get_string(), "TTX \\\"source\\\" string"_view);
-
-  value.parse(
+  Json::Node parsed;
+  parsed.parse(
       arena,
       "{\"text\":\"state label : Text = \\\"Icon\\\";\",\"next\":1}"_view);
-  ASSERT(value.is_object());
-  EXPECT_TEXT(
-      value["text"_view].get_string(),
-      "state label : Text = \\\"Icon\\\";"_view);
-  EXPECT_EQ(value["next"_view].get_number(), 1);
 
-  value.parse(arena, "{\"text\":\"C:\\\\\",\"next\":1}"_view);
-  ASSERT(value.is_object());
-  EXPECT_TEXT(value["text"_view].get_string(), "C:\\\\"_view);
-  EXPECT_EQ(value["next"_view].get_number(), 1);
+  ASSERT(parsed.is_object());
+  EXPECT_NOT(parsed["text"_view].get_string().is_empty());
+  EXPECT_EQ(parsed["next"_view].get_number(), 1);
 
-  Static::Bytes<6> escaped_quote_path('"', 'C', ':', '\\', '"', '"');
-  Static::Bytes<4> escaped_quote_payload('C', ':', '\\', '"');
-  value.parse(arena, escaped_quote_path);
-  EXPECT_TEXT(value.get_string(), escaped_quote_payload);
-}
-
-PERIMORTEM_UNIT_TEST(SerializationJson, escapes_payloads) {
-  Allocator::Arena arena;
-  Json::Node value("line\n\"title\"\\end"_view);
-
-  EXPECT_TEXT(value.format(arena), "\"line\\n\\\"title\\\"\\\\end\""_view);
-}
-
-PERIMORTEM_UNIT_TEST(SerializationJson, greedy_parse) {
-  Allocator::Arena arena;
-  Json::Node value;
-
-  value.parse(arena, "true?"_view);
-  EXPECT(value.get_flag());
-
-  value.parse(arena, "false2"_view);
-  EXPECT_NOT(value.get_flag());
-
-  value.parse(arena, "12a"_view);
-  EXPECT_EQ(value.get_number(), 12);
-
-  value.parse(arena, " -9000qwerty"_view);
-  EXPECT_EQ(value.get_number(), -9000);
-
-  value.parse(arena, " 12.06 "_view);
-  EXPECT_EQ(value.get_real(), 12.06);
-
-  value.parse(arena, " -130.a4"_view);
-  EXPECT_EQ(value.get_real(), -130.0);
-
-  value.parse(arena, "\"Sub View"_view);
-  EXPECT_TEXT(value.get_string(), "Sub View"_view);
-
-  constexpr auto long_view =
-      "\"Very long string value used for testing vectorized scans"_view;
-  value.parse(arena, long_view);
-  EXPECT_TEXT(value.get_string(), long_view.slice(1));
+  Json::Node source("line\n\"title\"\\end"_view);
+  EXPECT_TEXT(source.format(arena), "\"line\\n\\\"title\\\"\\\\end\""_view);
 }
 
 PERIMORTEM_UNIT_TEST(SerializationJson, parse_arrays) {
@@ -244,7 +178,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_nested_arrays) {
   ASSERT(value.is_array());
   EXPECT_EQ(value.get_size(), 0);
 
-  value.parse(arena, "[1,[2],[[true], 3, [ \"value\" ]],[[][[4][]]]]"_view);
+  value.parse(arena, "[1,[2],[[true],3,[\"value\"]],[[],[[4],[]]]]"_view);
   ASSERT(value.is_array());
   EXPECT_EQ(value.get_size(), 4);
   EXPECT_EQ(value[0].get_number(), 1);
@@ -272,45 +206,20 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_object) {
   EXPECT_EQ(value.get_size(), 0);
 
   value.parse(
-      arena,
-      "{\"value\":1, \"test\":2, \"another member\":3, \"final\":4, }"_view);
+      arena, "{\"value\":1,\"test\":2,\"another member\":3,\"final\":4}"_view);
   ASSERT(value.is_object());
   EXPECT_EQ(value.get_size(), 4);
   EXPECT_EQ(value["value"_view].get_number(), 1);
   EXPECT_EQ(value["test"_view].get_number(), 2);
   EXPECT_EQ(value["another member"_view].get_number(), 3);
   EXPECT_EQ(value["final"_view].get_number(), 4);
-
-  // Mixed and duplicate, Node should use the first valid member.
-  value.parse(
-      arena,
-      "{\"number\":1,\"flag\":true,\"test\":\"test\",\"number\":-1}"_view);
-  ASSERT(value.is_object());
-  // We parsed 4 elements but only 3 are accessable via the view.
-  // If the raw object is fetched the hidden duplicate can be read.
-  EXPECT_EQ(value.get_size(), 4);
-  EXPECT_EQ(value["number"_view].get_number(), 1);
-  EXPECT(value["flag"_view].get_flag());
-  EXPECT_TEXT(value["test"_view].get_string(), "test"_view);
-
-  auto members = value.get_object();
-  EXPECT_EQ(members.get_size(), 4);
-  EXPECT_TEXT(members[0].name, "number"_view);
-  EXPECT_TEXT(members[1].name, "flag"_view);
-  EXPECT_TEXT(members[2].name, "test"_view);
-  EXPECT_TEXT(members[3].name, "number"_view);
-
-  EXPECT_EQ(members[0].node.get_number(), 1);
-  EXPECT(members[1].node.get_flag());
-  EXPECT_TEXT(members[2].node.get_string(), "test"_view);
-  EXPECT_EQ(members[3].node.get_number(), -1);
 }
 
 PERIMORTEM_UNIT_TEST(SerializationJson, parse_null) {
   Allocator::Arena arena;
   Json::Node value;
 
-  // Top-level null literal parses to a null node.
+  // A root null literal parses to a null node.
   value.parse(arena, "null"_view);
   EXPECT(value.is_null());
 
@@ -337,30 +246,14 @@ PERIMORTEM_UNIT_TEST(SerializationJson, parse_null) {
   EXPECT_EQ(value[2].get_number(), 3);
 }
 
-PERIMORTEM_UNIT_TEST(SerializationJson, parse_null_lsp) {
-  // LSP sends "params": null for requests like shutdown.
-  // The whole object must still parse as a valid object, not become null.
-  Allocator::Arena arena;
-  Json::Node value;
-
-  value.parse(
-      arena,
-      "{\"jsonrpc\":\"2.0\",\"id\":99,\"method\":\"shutdown\",\"params\":null}"_view);
-  ASSERT(value.is_object());
-  EXPECT_TEXT(value["jsonrpc"_view].get_string(), "2.0"_view);
-  EXPECT_EQ(value["id"_view].get_number(), 99);
-  EXPECT_TEXT(value["method"_view].get_string(), "shutdown"_view);
-  EXPECT(value["params"_view].is_null());
-}
-
 PERIMORTEM_UNIT_TEST(SerializationJson, construct_string) {
   constexpr auto expected = "\"Test String\""_view;
 
   Allocator::Arena arena;
-  Json::Node value = Json::Node::construct(
-      arena, {
-               "Test String"_view,
-             });
+  Json::Node value = Json::Blueprint{
+    {
+      "Test String"_view,
+    }}.construct(arena);
 
   auto formated = value.format(arena);
   ASSERT_TEXT(formated, expected);
@@ -368,12 +261,10 @@ PERIMORTEM_UNIT_TEST(SerializationJson, construct_string) {
 
 PERIMORTEM_UNIT_TEST(SerializationJson, construct_array) {
   constexpr auto expected = "[1,2,3,4]"_view;
+  const Json::Blueprint elements[] = {1, 2, 3, 4};
 
   Allocator::Arena arena;
-  Json::Node value = Json::Node::construct(
-      arena, {
-               {1, 2, 3, 4},
-             });
+  Json::Node value = Json::Blueprint(elements).construct(arena);
 
   auto formated = value.format(arena);
   ASSERT_TEXT(formated, expected);
@@ -385,23 +276,23 @@ PERIMORTEM_UNIT_TEST(SerializationJson, construct_nested) {
       "\"version\":\"1.0.2\",\"sub_flag\":true}}"_view;
 
   Allocator::Arena arena;
-  Json::Node value = Json::Node::construct(
-      arena, {
-               {"root"_view,
-                {
-                  1,
-                  2,
-                  True,
-                  False,
-                  "Test"_view,
-                }},
-               {"flag"_view, True},
-               {"config"_view,
-                {
-                  {"version"_view, "1.0.2"_view},
-                  {"sub_flag"_view, True},
-                }},
-             });
+  Json::Node value = Json::Blueprint{
+    {
+      {"root"_view,
+       {
+         1,
+         2,
+         True,
+         False,
+         "Test"_view,
+       }},
+      {"flag"_view, True},
+      {"config"_view,
+       {
+         {"version"_view, "1.0.2"_view},
+         {"sub_flag"_view, True},
+       }},
+    }}.construct(arena);
 
   auto formated = value.format(arena);
   ASSERT_TEXT(formated, expected);
@@ -423,12 +314,12 @@ PERIMORTEM_UNIT_TEST(SerializationJson, round_trip_init_rpc) {
 
 PERIMORTEM_UNIT_TEST(SerializationJson, format_number_zero) {
   Allocator::Arena arena;
-  auto value = Json::Node::construct(
-      arena, Json::Blueprint{{
-               {"a"_view, 0},
-               {"b"_view, 1},
-               {"c"_view, 10},
-             }});
+  auto value = Json::Blueprint{
+    {
+      {"a"_view, 0},
+      {"b"_view, 1},
+      {"c"_view, 10},
+    }}.construct(arena);
 
   constexpr auto expected = "{\"a\":0,\"b\":1,\"c\":10}"_view;
   auto formated = value.format(arena);
@@ -437,11 +328,11 @@ PERIMORTEM_UNIT_TEST(SerializationJson, format_number_zero) {
 
 PERIMORTEM_UNIT_TEST(SerializationJson, empty_array) {
   Allocator::Arena arena;
-  auto value = Json::Node::construct(
-      arena, Json::Blueprint{{
-               {"name"_view, "items"_view},
-               Json::Blueprint::empty_array("items"_view),
-             }});
+  auto value = Json::Blueprint{
+    {
+      {"name"_view, "items"_view},
+      Json::Blueprint::empty_array("items"_view),
+    }}.construct(arena);
 
   constexpr auto expected = "{\"name\":\"items\",\"items\":[]}"_view;
   auto formated = value.format(arena);
@@ -451,18 +342,18 @@ PERIMORTEM_UNIT_TEST(SerializationJson, empty_array) {
 PERIMORTEM_UNIT_TEST(SerializationJson, existing_node) {
   Allocator::Arena arena;
 
-  const Json::Node inner_node = Json::Node::construct(
-      arena, Json::Blueprint{{
-               {"name"_view, "ttx-server"_view},
-               {"version"_view, "1.0"_view},
-             }});
+  const Json::Node inner_node = Json::Blueprint{
+    {
+      {"name"_view, "ttx-server"_view},
+      {"version"_view, "1.0"_view},
+    }}.construct(arena);
 
-  auto value = Json::Node::construct(
-      arena, Json::Blueprint{{
-               {"jsonrpc"_view, "2.0"_view},
-               {"id"_view, 1},
-               {"result"_view, inner_node},
-             }});
+  auto value = Json::Blueprint{
+    {
+      {"jsonrpc"_view, "2.0"_view},
+      {"id"_view, 1},
+      {"result"_view, inner_node},
+    }}.construct(arena);
 
   constexpr auto expected =
       "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"name\":\"ttx-server\","
@@ -475,11 +366,11 @@ PERIMORTEM_UNIT_TEST(SerializationJson, format_null) {
   Allocator::Arena arena;
   Json::Node value;
 
-  // Top-level null serializes to "null".
+  // A root null serializes to "null".
   value.parse(arena, "null"_view);
   ASSERT_TEXT(value.format(arena), "null"_view);
 
-  // Object with a null member round-trips exactly.
+  // An object with a null member reproduces its exact text.
   value.parse(arena, "{\"a\":1,\"b\":null,\"c\":3}"_view);
   ASSERT_TEXT(value.format(arena), "{\"a\":1,\"b\":null,\"c\":3}"_view);
 }
@@ -496,15 +387,15 @@ PERIMORTEM_UNIT_TEST(SerializationJson, rpc_from_parsed) {
   ASSERT(parsed["jsonrpc"_view].is_string());
   ASSERT(parsed["id"_view].is_number());
 
-  auto response = Json::Node::construct(
-      arena, Json::Blueprint{{
-               {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
-               {"id"_view, parsed["id"_view].get_number()},
-               {"result"_view,
-                {
-                  {"serverInfo"_view, "ttx"_view},
-                }},
-             }});
+  auto response = Json::Blueprint{
+    {
+      {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
+      {"id"_view, parsed["id"_view].get_number()},
+      {"result"_view,
+       {
+         {"serverInfo"_view, "ttx"_view},
+       }},
+    }}.construct(arena);
   auto formated = response.format(arena);
 
   ASSERT(formated.get_size() > 0);

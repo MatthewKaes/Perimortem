@@ -1,87 +1,388 @@
 # TTX Design
 
-TTX is the narrow interchange boundary between lexical producers, semantic
-domains, and downstream consumers. It owns only facts that remain meaningful
-without knowing the concrete language, source transaction, package, target, or
-runtime.
+TTX is the shared semantic boundary between concrete languages and the systems
+that consume their work. It keeps exact identity, resolution, Type, Pack,
+Addressable, Callable, and Layout facts available before a package format,
+compiler target, runtime, or tool has been chosen.
 
-## One semantic graph
+The design is intentionally smaller than a complete language model. A concrete
+language owns the meaning of its declarations, expressions, members, and
+source rules. TTX owns the contracts that another domain can use without first
+translating those facts into a second model.
 
-`Abstract` is the root of every semantic identity. Narrow contracts add only
-the queries needed to exchange a fact across domains. A consumer retains the
-real identity through `Reference` or another borrowed edge rather than copying
-names and members into a shadow Type graph.
+That division gives a host one live multi domain semantic IR without making one
+frontend or backend representation the language of every subsystem. The shared
+part is the TTX contracts rather than a common node schema. This also places
+responsibility on each concrete owner. TTX cannot provide generic declaration
+visitors, C language behavior, target layout, optimization, or durable storage
+on the owner's behalf.
 
-This boundary is deliberately closed for version 1:
+Readers deciding whether that tradeoff fits their project should begin with the
+[TTX overview](README.md). The exact contract is specified in
+[TTX semantics](ttx_semantics.md).
+
+## A small shared boundary
+
+A representation works best when it has a clear job. TTX carries the facts
+that packages, concrete languages, editors, compilers, and runtimes can exchange
+directly. This includes produced Pack flow as well as the Layout contracts it
+must satisfy. Facts meaningful to only one system stay with that owner.
+
+The shared vocabulary contains relationships that are genuinely cross domain
+rather than source features owned by one language.
+A Library Object, a Package Dependency, a Scene signal, and a Shader resource
+can all expose exact TTX identities while retaining their richer rules in their
+own domains.
+
+The benefit is that a consumer can ask the original semantic object for the
+contract it needs. The cost is that there is no universal declaration record to
+inspect when the concrete owner has not exposed that contract.
+
+## Lessons from LLVM IR
+
+TTX draws heavily from LLVM IR's success as a focused intermediate
+representation.
+LLVM IR has a clear place in the compilation pipeline, a bounded common
+vocabulary, explicit context and module ownership, and well defined transitions
+into target products. TTX applies those lessons to an earlier boundary where
+source languages and tools still need access to semantic meaning.
+
+The first column names an LLVM IR design area. The other columns show what TTX
+carries forward and where it chooses a different boundary.
+
+| LLVM IR | Similarities | Key differences |
+| --- | --- | --- |
+| **Primary role.** LLVM IR represents a lowered program for optimization and code generation | Both provide a focused vocabulary between producers and consumers | TTX represents semantic identity and applicability before a concrete lowering has been chosen |
+| **Type identity.** LLVM Types belong to an LLVM context and describe values admitted by the lowered program | Both make identity meaningful within an owning live context | A TTX Type is the exact object constructed by its language owner. Equal structure or equal Layout never creates Type identity |
+| **Physical layout.** LLVM DataLayout gives target size and alignment meaning to IR Types | Both require target specific information before typed input becomes a physical machine representation | TTX Layout answers semantic fitting only. Concrete languages define scalar families and abstract machine storage requirements. Target object layout, offsets, registers, address spaces, pointer forms, and calling conventions belong to the Terminal producer |
+| **Composition.** LLVM links lowered modules and definitions | Both let independently constructed parts meet through explicit contracts | TTX connects owner constructed identities while their richer language semantics are still live in one graph |
+| **Transformation.** LLVM passes intentionally replace instructions and values | Both allow later stages to derive more specific facts | A successful TTX identity remains stable while later phases connect it, complete it, and answer richer queries |
+| **Extension model.** LLVM extends its program model through instructions, intrinsics, metadata, passes, and targets | Both keep specialized facts with specialized producers and consumers | TTX concrete languages retain their complete models behind a closed shared semantic vocabulary |
+| **Source relationship.** LLVM IR intentionally leaves most source structure behind during lowering | Neither representation needs to be a universal syntax tree | TTX leaves spelling, syntax, and source shaped facts with the concrete language owner from the beginning |
+| **Durable form.** LLVM textual IR and bitcode preserve LLVM IR outside one process | Both require an explicit format when a result must outlive its producer | The TTX graph has no generic serialized form. Each Terminal producer defines its output, and semantic restoration constructs a fresh graph from facts defined by their semantic owners |
+| **Verification.** LLVM IR structure is a public product accepted by verifiers and downstream tools | Both benefit from testing observable behavior through independent consumers | TTX graph shape matters only where identity, order, resolution, or another semantic contract makes it observable. A Terminal is proved through its own format and consumer |
+| **Ecosystem.** LLVM provides optimizers, code generators, debugger integration, and broad language support | Both are infrastructure intended to be embedded in larger systems | TTX stays focused on semantic composition and relies on systems such as LLVM for downstream optimization and target support |
+
+There has also been continuing work across LLVM, including LLDB, to make source
+language, debugger, and expression evaluation models more modular. Those
+systems must preserve established APIs and C and C++ behavior. TTX follows the
+same ownership direction from the other logical extreme. TTX was designed
+without inheriting a frontend or debugger compatibility surface, so each
+concrete language owns its complete set of Types from the beginning.
+
+LLVM IR remains the stronger choice once a project needs its optimizer, target
+model, code generators, or surrounding tool ecosystem. TTX is useful earlier,
+when several language and tool owners must share exact semantic relationships
+without turning one frontend or backend representation into the universal
+model. The two layers can be used together.
+
+## Source, Tokens, and meaning
+
+Authored bytes own spelling, order, and location. The Lexer turns those bytes
+into an ordered Token stream. Each Token records one decoded source span and the
+Code assigned by the exact Lexer contract.
+
+A concrete language can construct retained semantic objects as it recognizes
+the Token stream. TTX does not require a retained syntax tree between Tokens
+and the semantic graph. Another host may own a source model when source
+transformation or tooling requires one. Tetrodotoxin instead constructs its
+Monographs directly and retains no second source graph.
+
+Direct construction removes a translation layer and lets each language preserve
+the distinctions its consumers actually use. The corresponding cost is that
+TTX cannot provide generic AST visitors or source transformations across
+unrelated languages.
+
+The ownership progression is:
+
+```text
+authored bytes
+-> Tokens interpreted with their Lexer contract
+-> semantic identities constructed by their owner
+-> richer owner queries over those same identities
+-> a Terminal product whose use is independent of the live semantic graph
+```
+
+Construction may connect identities and answer unresolved queries, but it
+preserves every identity already returned successfully. This monotonic growth
+keeps the live graph as the only semantic authority.
+
+## One live graph
+
+Every semantic identity begins with `Abstract`. Narrower categories add only
+the queries needed to exchange that identity with another domain:
 
 ```text
 Abstract
 ├── Invalid
 ├── Alias
 ├── Type
-│   └── Value
-│       ├── Flag
-│       ├── Real
-│       ├── Signed
-│       └── Unsigned
 ├── Addressable
+├── Pack
 └── Callable
 ```
 
-`Documentation`, `Layout`, `Reference`, and `Attribute` do not inherit
-`Abstract`. They support identities without acquiring identity or resolution
-of their own.
+`Documentation`, `Layout`, and `Reference` are supporting values. They describe
+or connect identities without acquiring another semantic identity. Complete
+declaration structure, source provenance, visibility, and publication remain
+facts of each concrete language owner rather than a lossy Abstract projection.
+
+The graph is not a tree of declarations. One Type may be reached through a
+Package Alias, a source Alias, a Generic materialization, and a direct local
+route. Those paths retain one Type and do not give it a required parent.
+
+Structural similarity therefore says nothing about identity. Two Types may
+have equal Layouts and still mean different things. Two Alias objects may have
+different local names and Documentation while representing the same target.
+One Addressable keeps its own identity while reaching a Type. A Pack keeps its
+producer identity while exposing an identity-free output Layout. A Callable
+keeps its own identity while its parameters and results expose required
+Layouts.
+
+This gives tools and lowerers the original semantic fact. It also means they
+must use the contracts exposed by its owner. TTX offers no synchronized member
+record or cloned Type graph for a consumer that wants a different shape.
+
+Category selection proves a contract on the original identity without creating
+a wrapper, clone, registry entry, or second identity. A consumer that needs
+source or declaration facts proves the concrete owner and inspects the complete
+value retained there rather than asking every Abstract for a shared fragment.
+
+## Reference and graph lifetime
+
+A Reference is a nonnull borrowed edge to one exact semantic object. It remains
+valid for the lifetime established by the graph owner and carries no absent
+state.
+
+A Reference preserves the exact object it receives. Alias hides its immediate
+Reference and `resolve()` is the only operation that follows Alias edges.
+Proving a Type or reaching the Type of an Addressable remains an explicit
+operation performed by the consumer whose contract requires it.
+
+The graph owner guarantees the lifetime of every borrowed identity. A process
+address may serve as local identity while that owner keeps the object stable.
+Its meaning ends with that graph lifetime.
+
+This avoids copying a semantic object into every context that retains it and
+avoids treating a pointer, spelling, or structural hash as a durable identity.
+The tradeoff is that callers must respect one clear graph lifetime. A Reference
+cannot serve as a persistent handle after its owner is gone.
+
+When a Terminal supports later reconstruction, its format records the owner
+facts needed to build a new graph. Reconstruction creates new live objects
+under a new owner. It does not revive old References or promise equal process
+addresses.
+
+## Owner directed contextual resolution
+
+`resolve()` follows represented identity. `resolve_context(name)` asks the
+receiving Abstract to interpret one borrowed name in its own domain. The
+concrete operator splits qualified syntax and asks each selected result about
+the next name, so a route can cross Package, Monograph, source, and Type
+contexts without flattening those contexts into one key or converting them
+into one common category. Alias remains opaque to contextual lookup: the
+caller resolves it before asking the selected identity to interpret the next
+name.
+
+Context lookup does not stand in for explicit receiver access. Address and call
+operators issue `resolve_access(host, name)` and `resolve_call(host, name)` with
+the original caller authority. These hooks are shared because a concrete query
+may cross an arbitrary Abstract context. Their interpretation is not shared:
+TTX Type and Addressable impose no receiver role, forwarding behavior,
+visibility policy, or member inventory. The concrete language refines those
+contracts when it needs such behavior. Type qualification remains ordinary
+one-name contextual resolution rather than a second host-neutral Type lookup.
+Each query returns the original selected identity or Invalid without searching
+a different category domain.
+
+The caller owns the expected contract and proves the returned identity against
+the semantic category it needs. Route spelling does not infer a Type,
+Addressable, Callable, or another category on the caller's behalf.
+
+This lets one qualified spelling cross several concrete contexts without
+requiring a universal member table, overload set, scope object, or collision
+domain. The receiving owner interprets the one name it recognizes, and the
+concrete language assigns meaning to the operator that initiated the query.
+
+The cost is deliberate locality. Contextual resolution is not a global search
+service, so a caller cannot rely on unrelated domains or a registry to repair
+an ambiguous ownership path.
 
 ## Progressive construction
 
-A graph owner may reserve stable objects before every edge is ready. An
-incomplete semantic query returns the shared `Invalid` object. Once a query
-returns a valid identity, later enrichment may refine incomplete queries but
-must not invalidate that earlier correct answer.
+A graph owner may reserve a stable identity before all of its edges are ready.
+An Alias reserved this way binds its borrowed target once after the defining
+pass; the immediate edge remains opaque and only Alias resolution traverses
+it. An incomplete total query returns the shared `Invalid` object. Completion
+may make that unanswered query valid, while every successful identity remains
+stable.
 
-Construction failures, parser errors, invalid indexes, and failed Layout fits
-are not graph identities. They use ordinary `Option` or `Union` results.
-`Invalid` remains reserved for total semantic queries that must return an
-`Abstract`.
+A staged Pack follows the same rule. Its Layout query is total and may expose an
+empty shape while the Pack resolves to Invalid. Only a Pack that resolves to
+itself supplies that empty Layout as valid zero-value flow. Once resolution
+succeeds, the Layout is stable.
 
-## Resolution and category proof
+This supports recursive declarations and source groups without adding an
+Incomplete Layout or a universal publication bit to every Abstract. The
+concrete owner decides how it stages construction and when completed roots can
+be published.
 
-`resolve()` returns the represented identity. `resolve_context(route)` asks the
-receiving identity to interpret borrowed route bytes. TTX defines neither a
-path grammar nor a central resolver.
+Negative answers require care while construction is active. A consumer cannot
+treat `Invalid` as permanent across a transition that may complete more facts.
+An immutable compiler, writer, or Terminal emitter begins after its owning
+completion barrier. A tool that intentionally observes partial state must treat
+the graph as changing.
 
-`implements()` proves a public semantic category through its stable contract
-identifier. `is<Category>()` performs a Boolean proof, while
-`visit<Category>(match, mismatch)` dispatches without exposing an unchecked
-narrowed reference.
+Parser rejection, failed Layout fitting, archive corruption, and backend
+failure remain results of their owning operations. They do not create substitute
+semantic identities.
 
-There is no universal Kind, class database, semantic registry, copied member
-record, nullable graph edge, or allocated path history.
+## Pack is value flow and Layout is semantic shape
 
-## Layout fitting
+Pack and Layout deliberately answer different questions. A Pack identifies one
+producer and the values it supplies. A Layout has no semantic identity and
+describes a promised shape. This lets a call, swizzle, return, or other
+multi-value operation remain live value flow without materializing an anonymous
+aggregate Type merely so another owner can fit it.
 
-Layout is an identity free, directional fitting contract over an ordered group
-of real Abstracts. TTX supplies five common implementations:
+A Pack may be empty, contain one ordinary value-producing expression, or carry
+several positional, named, ranged, or composed values. One expression is
+already a one-value Pack; grouping it does not create another semantic object.
+A multi-value Pack remains untyped as a group until a receiving declaration or
+operation deliberately materializes one Type. Its individual produced values
+retain their exact semantic identities throughout fitting. An explicit empty
+grouping exposes an empty Layout, so cross-language empty flow needs no Type
+identity.
 
-* `Fluid` fits ordered values by represented identity.
-* `Named` fits uniquely named values by name and represented identity.
-* `Structured` retains the actual Addressable entries of a Type.
-* `Ranged` repeats one real Abstract over a fixed interval.
-* `Composite` combines two complete Layouts without flattening them.
+The common source convention reinforces the distinction: parentheses group
+supplied Pack values and brackets describe required Layout entries. A named
+descriptor uses `.name : Type`; a named value uses `.name = expression`. A
+concrete language may omit a delimiter where its grammar remains unambiguous,
+but the semantic direction does not change.
 
-Layouts retain no copied Type names, fields, documentation, physical offsets,
-ABI rules, or target storage. Those facts remain on their semantic or target
-owners.
+A Layout retains an ordered view of exact Abstract identities and answers
+whether one shape fits another. Fitting is directional because a Pack's source
+Layout supplies the values required by a target Layout.
 
-## Language boundary
+`Value` is the terminal one-entry descriptor for one exact atomic Type. `Fluid`
+describes positional entries and compares them in order. `Named` describes
+uniquely named slots, matches them by name, then preserves the source Layout's
+fitting rule for each match; a slot may borrow a name independently while
+retaining the exact source Abstract. `Ranged` describes one entry across a fixed
+interval. `Composite` preserves two complete child Layouts.
 
-TTX includes `Type`, `Value`, `Addressable`, and `Callable` because they are the
-shared exchange contracts for domains and signatures. It does not include the
-rules that create or evaluate those facts.
+Successful fitting returns the original source edge that supplies a target
+position. The Pack remains the value-flow owner; its Layout retains order,
+borrowed slot names, and applicability without copying Types, Documentation,
+defaults, or storage facts into a generic member record. A decorator or
+composition delegates entry fitting to the source Layout that owns each edge.
 
-Expressions, bindings, projections, constants, generic formulas, mutability,
-receiver roles, executable bodies, concrete scalar Types, and publication
-policy belong to the concrete language that defines their legality. Reuse by
-several languages does not make such policy universal.
+Keeping Layout semantic lets the same graph feed a CPU compiler, GPU compiler,
+interpreter, editor, and archive writer without letting the first backend fix
+the physical meaning for every later consumer.
 
-The normative contract is [ttx_semantics.md](ttx_semantics.md).
+TTX therefore cannot answer target object layout, field offset, register,
+address space, pointer form, or calling convention questions by itself. Each
+compiler derives and validates those facts for its own Terminal. That extra work
+is the price of keeping the graph target neutral.
+
+An empty Layout is a valid zero-value shape and fits another empty Layout. An
+empty Pack exposes that shape without requiring a Type identity.
+Atomic Types cannot launder that shape because their Value Layout contains
+their own exact identity. A Type with an empty Layout may still own contextual
+facts, but it cannot enter value flow and no Addressable can name it.
+
+## Semantic defaults
+
+Every concrete Type admitted to ordinary value flow has one default selected
+by its owning language. This is a total language invariant, not a shared TTX
+value representation. It lets safe selection, omitted initialization, and
+other concrete operations ask their language owner for a value without making
+nullable references or target zero bits part of the semantic model.
+
+The distinction matters for composite and managed values. A target may obtain
+cleared storage, but a language default may still require recursive Field
+initialization or allocation of a fresh nonnull identity. Conversely, the
+default of an optional value may be empty without constructing its payload.
+Completion rejects a recursive value Layout whose real Type and Addressable
+edges cannot reach terminal leaves. Default construction therefore needs no
+second recursion transaction.
+
+Default value and empty Layout are also independent. A View with no elements
+is still one exact View value, so the Pack carrying it has a one-entry Layout.
+An empty Layout instead describes zero value flow. TTX preserves this
+distinction while leaving every concrete default constructor with its language
+owner.
+
+## Terminal products and reconstruction
+
+A Terminal is a completed output that leaves the live semantic graph. Its use
+is independent of that graph and its process identities. Examples include
+formatted text, editor data, LLVM IR, SPIR-V words, debug data, object modules,
+native binaries, and semantic archives.
+
+Terminal is a role at a boundary, not an Abstract category or a universal
+product hierarchy. Each concrete producer retains ownership of its format. A
+linker object and a semantic archive are both Terminal products, but their
+different purposes do not create a generic product model.
+
+No live Abstract identity or Reference crosses this boundary. A Terminal may
+encode facts chosen by its owner, but its bytes or text are not semantic
+objects. A later process that needs semantic meaning validates the format
+defined by its producer and asks a concrete graph owner to construct a new
+graph.
+
+Most Terminals are intentionally lossy. LLVM IR, debug data, and object files
+preserve the target facts needed by their consumers, not the complete language
+graph that produced them. Feeding those products back as TTX Type, Layout, or
+identity authority would ask a lowered representation to recover meaning that
+it no longer carries.
+
+A semantic archive has a different purpose. It lets a graph owner avoid source
+acquisition, lexing, and parsing when it retains the facts and relations
+required by every included language. The result is a fresh graph with
+equivalent observable names, categories, represented identity relations,
+semantic edges, order, Layout behavior, completion, and concrete owner facts,
+followed by the graph owner's validation, completion, and publication contract.
+Its supporting shape and process addresses may differ because they are not
+public semantic observations.
+
+The reconstruction payload may therefore be much smaller than a memory image.
+It records sufficient owner facts rather than private graph structure. This is
+a format benefit rather than a requirement that every language support
+persistence.
+
+The distinction also shapes verification. Graph queries prove resolution,
+identity, fitting, order, and completion. An independent consumer proves a
+Terminal format. A fresh graph reconstructed from an archive proves durable
+semantics. A textual graph, AST, or IR dump is representation evidence only,
+except where exact text or bytes are themselves part of a Terminal contract.
+
+## Choosing this boundary
+
+TTX is useful when several concrete languages or semantic domains must compose
+before lowering, when exact identity matters across language and tool
+boundaries, or when one completed graph must feed several independent
+products. It is especially valuable when forcing every participant through one
+declaration tree would erase distinctions that their defining languages still
+need.
+
+That architecture carries costs. The host must own graph lifetime and
+completion barriers. Each language must define its semantics. A persistent
+language must also define and validate its reconstruction facts. Languages
+used only from source need no reconstruction contract. Each target must derive
+physical representation. Generic AST traversal, operation rewriting, and
+backend services come from other layers rather than TTX.
+
+LLVM IR is the direct choice when the problem begins with lowered computation.
+MLIR is the stronger foundation when extensible operation based transformation
+is the central design. Clang is the stronger foundation when faithful C or C++
+semantics and tooling are the product. A conventional language AST and typed
+intermediate representation are usually simpler when one frontend owns the
+whole program.
+
+TTX occupies the earlier boundary where independent owners still need to share
+meaning. Concrete languages decide which Types exist, how names are published,
+which writes are legal, how Callables are selected, and how expressions produce
+Packs. Targets, runtimes, packages, and tools consume those facts without
+becoming new TTX categories.

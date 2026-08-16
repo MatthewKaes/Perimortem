@@ -3,24 +3,21 @@
 
 #pragma once
 
+#include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "ttx/model/documentations/comment.hpp"
-#include "ttx/model/types/real.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
 // Real_64 is the standard 8 byte floating point representation.
 // For ABI evaluation it can be used to represent C/C++'s `double`.
-class Real_64 : public Ttx::Model::Types::Real {
+class Real_64 : public Model::Types::Real {
  public:
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Real_64"_view;
-  }
+  TTX_NAME("Real_64"_view);
 
-  constexpr auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
-    return documentation;
-  }
+  TTX_DOCUMENTATION(documentation);
 
+  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
   constexpr auto get_width() const -> Count override { return 64; }
   constexpr auto get_size() const -> Count override {
     return sizeof(::Real_64);

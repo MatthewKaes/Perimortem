@@ -1,0 +1,236 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#include "tetrodotoxin/library/language/expressions/initializer.hpp"
+
+#include "tetrodotoxin/library/language/model/parser/pack.hpp"
+#include "ttx/concept/invalid.hpp"
+
+using namespace Perimortem;
+using namespace Ttx::Concept;
+using namespace Ttx::Model;
+using namespace Tetrodotoxin::Library;
+
+auto Language::Expressions::Initializer::is_next(
+    const Ttx::Lexical::Cursor& cursor) -> Bool {
+  return cursor.matches(Ttx::Lexical::Code::Type::New);
+}
+
+auto Language::Expressions::Initializer::parse(
+    const Abstract& context,
+    Ttx::Lexical::Cursor& cursor) -> Core::Option<Initializer&> {
+  Memory::Allocator::Arena& domain = cursor.get_arena();
+  BAIL_IF(!is_next(cursor));
+
+  Ttx::Lexical::Token opening = cursor.consume();
+  BAIL_IF(!cursor.require(
+      Ttx::Lexical::Code::Type::BracketStart,
+      "Library `new` requires `[` before its Object Type."_view));
+  auto target_reference = TypeReference::parse(context, cursor);
+  BAIL_IF(!target_reference);
+  Ttx::Lexical::Token type_closing = cursor.require(
+      Ttx::Lexical::Code::Type::BracketEnd,
+      "Library `new` requires `]` after its Object Type."_view);
+  BAIL_IF(!type_closing);
+
+  Language::Model::Pack* arguments = nullptr;
+  Ttx::Lexical::Token closing = type_closing;
+  if (cursor.matches(Ttx::Lexical::Code::Type::PackingStart)) {
+    Ttx::Lexical::Token argument_opening = cursor.current();
+    Ttx::Lexical::Token argument_closing = cursor.peek(1);
+    // Empty argument syntax is known before semantic binding. Looking at the
+    // parsed Layout here would observe expressions before they link and would
+    // force Type selection to manufacture value output merely for this check.
+    if (argument_closing.get_code().get_type() ==
+        Ttx::Lexical::Code::Type::PackingEnd) {
+      cursor.create_expression_error(
+          Ttx::Lexical::Span(argument_opening, argument_closing),
+          "Object initializer arguments cannot be empty."_view,
+          "Omit the argument list when every state Field should use its "
+          "default."_view);
+      return {};
+    }
+    // Supplied values belong only to Object and its grammar is named. Rejecting
+    // positional syntax here avoids retaining a second shape fact through link.
+    if (argument_closing.get_code().get_type() !=
+        Ttx::Lexical::Code::Type::AddressOp) {
+      cursor.create_token_error(
+          argument_closing,
+          "Object initializer inputs must name state Fields."_view,
+          "Use `.field = value` for every supplied value."_view);
+      return {};
+    }
+    auto parsed = Language::Model::Parser::Pack::parse(context, cursor, True);
+    BAIL_IF(!parsed);
+    arguments = &*parsed;
+    closing = cursor.peek(-1);
+  } else {
+    // The omitted form owns an independent empty Pack. Sharing one static
+    // empty Layout would also share its staged link and finalization lifetime
+    // across otherwise unrelated initializer transactions.
+    arguments = &Language::Model::Pack::create_empty(domain);
+  }
+
+  Ttx::Lexical::Anchor anchor = Ttx::Lexical::Anchor::create(
+      opening, Ttx::Lexical::Span(opening, closing));
+  Initializer& initializer = Expression::create_authored<Initializer>(
+      domain, anchor,
+      [&](Core::Option<Ttx::Lexical::Anchor> source) -> Initializer {
+        return Initializer(*target_reference, *arguments, source);
+      });
+  return initializer;
+}
+
+auto Language::Expressions::Initializer::create_synthetic(
+    Memory::Allocator::Arena& domain,
+    const Language::Model::Type& type,
+    Core::View::Vector<Reference<Model::Pack>> values) -> Initializer& {
+  auto& arguments = Model::Pack::create_empty(domain);
+  auto& completed = Model::Pack::create_group(domain, values);
+  Initializer& initializer = Expression::create_synthetic<Initializer>(
+      domain, [&](Core::Option<Ttx::Lexical::Anchor> source) -> Initializer {
+        return Initializer({}, arguments, source);
+      });
+  initializer.expected_type = Reference<const Language::Model::Type>(type);
+  initializer.completed_values = Reference<Model::Pack>(completed);
+  return initializer;
+}
+
+Language::Expressions::Initializer::Initializer(
+    Core::Option<TypeReference> target_reference,
+    Language::Model::Pack& arguments,
+    Core::Option<Ttx::Lexical::Anchor> anchor)
+    : Expression(anchor),
+      target_reference(target_reference),
+      arguments(arguments) {}
+
+auto Language::Expressions::Initializer::get_type() const -> const Abstract& {
+  return expected_type.visit(
+      []() -> const Abstract& { return Invalid::get_invalid(); },
+      [](const Reference<const Language::Model::Type>& selected)
+          -> const Abstract& { return selected.get(); });
+}
+
+auto Language::Expressions::Initializer::fits(
+    const Ttx::Model::Type& target) const -> Bool {
+  return expected_type && &expected_type->get() == &target;
+}
+
+auto Language::Expressions::Initializer::finalize(Ttx::Lexical::Cursor& cursor)
+    -> void {
+  // The initializer owns the complete argument flow. Finalize its real Pack in
+  // source order before folding the initializer node itself. No second
+  // expression inventory exists beside the Pack's canonical Layout.
+  arguments.finalize(cursor);
+  completed_values.visit(
+      []() {},
+      [&](Reference<Model::Pack>& values) { values.get().finalize(cursor); });
+  Expression::finalize(cursor);
+}
+
+auto Language::Expressions::Initializer::get_completed_values() const
+    -> Core::Option<const Model::Pack&> {
+  return completed_values.visit(
+      []() -> Core::Option<const Model::Pack&> { return {}; },
+      [](const Reference<Model::Pack>& selected)
+          -> Core::Option<const Model::Pack&> { return selected.get(); });
+}
+
+auto Language::Expressions::Initializer::link(
+    Ttx::Lexical::Cursor& cursor,
+    const Abstract& lexical_context,
+    Core::Option<const Abstract&> access_scope) -> Bool {
+  if (expected_type && completed_values) {
+    BAIL_IF(
+        !completed_values->get().link(cursor, lexical_context, access_scope));
+    return Expression::link(cursor, lexical_context, access_scope);
+  }
+
+  if (!target_reference) {
+    cursor.create_expression_error(
+        get_anchor(), "Initializer lost its authored Type reference."_view,
+        "Retain `new[Type]` as one complete source expression."_view);
+    return False;
+  }
+
+  auto selected = target_reference->resolve_authored(cursor, lexical_context);
+  BAIL_IF(!selected);
+  auto target = selected->select<Language::Model::Type>();
+  if (!target || target->get_layout().is_empty()) {
+    cursor.create_expression_error(
+        target_reference->get_anchor(),
+        "Initializer requires one nonempty Library Type."_view,
+        "Name a completed value Type in `new[Type]`."_view);
+    return False;
+  }
+
+  if (expected_type) {
+    if (&expected_type->get() == &*target) {
+      return True;
+    }
+
+    cursor.create_expression_error(
+        get_anchor(),
+        "Object initializer cannot change its expected Type."_view,
+        "Keep the authored initializer on its original declaration."_view);
+    return False;
+  }
+
+  BAIL_IF(!arguments.link(cursor, lexical_context, access_scope));
+  // Object construction is the first semantic consumer of these arguments.
+  // Keep Type results usable as receivers while refusing them as Field values.
+  if (&arguments.resolve() != &arguments) {
+    cursor.create_expression_error(
+        get_anchor(), "Initializer arguments did not produce value flow."_view,
+        "Supply instance values and keep Type results as access receivers."_view);
+    return False;
+  }
+
+  const Layout& inputs = arguments.get_layout();
+  if (inputs.is_empty()) {
+    auto value = target->create_default(cursor.get_arena());
+    if (!value) {
+      cursor.create_expression_error(
+          get_anchor(), "Initializer could not create the Type default."_view,
+          "Use a completed source value Type with a terminating default."_view);
+      return False;
+    }
+
+    Model::Pack* completed = &*value;
+    auto aggregate = value->select<Initializer>();
+    if (aggregate && !aggregate->get_anchor()) {
+      auto aggregate_values = aggregate->get_completed_values();
+      if (!aggregate_values) {
+        cursor.create_expression_error(
+            get_anchor(), "Type default did not provide completed values."_view,
+            "Keep default construction total for every completed value Type."_view);
+        return False;
+      }
+      // The authored expression already carries the selected Type identity.
+      // Retaining the synthetic aggregate beneath it would duplicate the same
+      // construction node instead of exposing the Type owned default values.
+      completed = &const_cast<Model::Pack&>(*aggregate_values);
+    }
+
+    expected_type = Reference<const Language::Model::Type>(*target);
+    completed_values = Reference<Model::Pack>(*completed);
+    BAIL_IF(!completed->link(cursor, lexical_context, access_scope));
+    return Expression::link(cursor, lexical_context, access_scope);
+  }
+
+  auto completed =
+      target->create_supplied(cursor, arguments, access_scope, get_anchor());
+  BAIL_IF(!completed);
+  BAIL_IF(!completed->link(cursor, lexical_context, access_scope));
+  if (!completed->fits_into(*target)) {
+    cursor.create_expression_error(
+        get_anchor(),
+        "Initializer completed values do not fit the selected Type Layout."_view,
+        "Keep the Type's construction result consistent with its Layout."_view);
+    return False;
+  }
+
+  expected_type = Reference<const Language::Model::Type>(*target);
+  completed_values = Reference<Model::Pack>(*completed);
+  return True;
+}

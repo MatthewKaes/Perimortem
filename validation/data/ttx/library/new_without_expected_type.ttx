@@ -1,3 +1,0 @@
-dialect : Library;
-
-state inferred := new;

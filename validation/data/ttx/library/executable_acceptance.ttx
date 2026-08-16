@@ -1,0 +1,32 @@
+// Library executable acceptance.
+dialect : Library;
+
+public Worker : struct {
+  public tick : func = [] -> [] { return; }
+}
+
+public execute : func = [
+  .flag : Bool,
+  .limit : Unsigned_64,
+] -> Unsigned_64 {
+  state total : Unsigned_64 = 0;
+  const one : Unsigned_64 = 1;
+  Worker -> tick();
+  if flag {
+    total += one;
+  } else {
+    total = limit;
+  }
+  while flag {
+    total += one;
+    break;
+  }
+  for [.entry : Unsigned_64] in 0...limit {
+    if flag { continue; }
+    total += entry;
+  }
+  match flag {
+    case false : { return total; }
+    case true : { return total + one; }
+  }
+}

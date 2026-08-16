@@ -32,7 +32,6 @@ class Code {
     //                              TTX Data Model
     // ========================================================================
     Comment,       // //
-    Disabled,      // />
     Attribute,     // @
     Addressable,   // Any symbol that starts with a lowercase ASCII letter
     Type,          // Any symbol that starts with an uppercase ASCII letter
@@ -57,35 +56,36 @@ class Code {
     ScopeEnd,      // }
     PackingStart,  // (
     PackingEnd,    // )
-    LayoutStart,   // [ type args or layout
-    LayoutEnd,     // ]
+    BracketStart,  // [
+    BracketEnd,    // ]
 
     // ========================================================================
     //                               Operators
     // ========================================================================
-    AddOp,         // +
-    SubOp,         // -
-    DivOp,         // /
-    MulOp,         // *
-    ModOp,         // %
-    LessOp,        // <
-    GreaterOp,     // >
-    LessEqOp,      // <=
-    GreaterEqOp,   // >=
-    CmpOp,         // ==
-    NotEqOp,       // !=
-    Assign,        // =
-    AddAssign,     // +=
-    SubAssign,     // -=
-    CallOp,        // ->
-    AddressOp,     // .
-    SwizzleOp,     // .[
-    SliceOp,       // :[
-    PackingOp,     // ,
-    NotOp,         // !
-    RangeOp,       // ...
-    Define,        // :
-    TypeAccessOp,  // ::
+    AddOp,          // +
+    SubOp,          // -
+    DivOp,          // /
+    MulOp,          // *
+    ModOp,          // %
+    LessOp,         // <
+    GreaterOp,      // >
+    LessEqOp,       // <=
+    GreaterEqOp,    // >=
+    CmpOp,          // ==
+    NotEqOp,        // !=
+    Assign,         // =
+    AddAssign,      // +=
+    SubAssign,      // -=
+    CallOp,         // ->
+    AddressOp,      // .
+    SwizzleOp,      // .[
+    ValueAccessOp,  // :[
+    PackingOp,      // ,
+    NotOp,          // !
+    QuestionOp,     // ?
+    RangeOp,        // ...
+    Define,         // :
+    TypeAccessOp,   // ::
     // These Codes reserve the bitwise operator groupings without prescribing
     // how a consumer evaluates them.
     AndOp,  // & reserved
@@ -114,10 +114,17 @@ class Code {
     True,
     False,
     Return,
+    Emit,
     Resolve,
     Source,
     Dialect,
     Alias,
+    Enum,
+    Struct,
+    Object,
+    Using,
+    New,
+    From,
 
     // Modifiers receive distinct Codes because publication and evaluation are
     // prescribed groupings in this Lexer contract. Consumers can accept or
@@ -150,13 +157,7 @@ class Code {
 
   constexpr auto is_one_of(Perimortem::Core::View::Vector<Type> values) const
       -> Bool {
-    for (Count i = 0; i < values.get_size(); i++) {
-      if (get_type() == values[i]) {
-        return True;
-      }
-    }
-
-    return False;
+    return values.contains(get_type());
   }
 
   constexpr auto is_publication_modifier() const -> Bool {

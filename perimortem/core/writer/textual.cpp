@@ -98,8 +98,8 @@ static constexpr auto decimal_length(storage_type value) -> Count {
   return sign + 20;
 }
 
-// Backwards-fill variant: caller supplies length so digits are placed directly
-// into the output buffer at the correct offset without a scratch copy.
+// The caller supplies the length so digits can fill backwards from their final
+// offset without a scratch copy.
 template <typename value_type, typename storage_type>
 constexpr auto write_decimal(
     Access::Bytes& target,
@@ -156,7 +156,8 @@ auto Writer::Textual::set_pointer(Count location) -> void {
 auto Writer::Textual::operator<<(char character) -> Writer::Textual& {
   valid_state &= cursor < source.get_size();
   if (valid_state) {
-    source[cursor++] = Unsigned_8(character);
+    auto* data = source.get_data();
+    data[cursor++] = Unsigned_8(character);
   }
 
   return *this;

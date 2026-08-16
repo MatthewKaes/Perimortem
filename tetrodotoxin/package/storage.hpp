@@ -4,13 +4,17 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
 
 #include "perimortem/system/file.hpp"
+#include "perimortem/system/path.hpp"
 
-#include "perimortem/utility/option.hpp"
+#include "perimortem/utility/result.hpp"
+
+#include "tetrodotoxin/package/content.hpp"
 
 namespace Tetrodotoxin::Package {
 
@@ -18,35 +22,44 @@ namespace Tetrodotoxin::Package {
 // or resource read by its normalized logical route.
 //
 // Package::Language::Source owns the semantic name and authored route. Storage
-// resolves only that route into a diagnostic path and bytes. It constructs
-// Content in the Workspace Arena so staged Source and resource consumers
-// retain stable views for the semantic island lifetime, even after Storage
-// closes its root.
+// resolves only that route into a diagnostic path and bytes. Content remains
+// valid for this opened acquisition transaction. A semantic consumer copies
+// any retained view into its own graph domain before Storage closes.
 //
 // The cache belongs to this opened Package storage only. Storage never
 // interprets content or derives semantic identity from a route.
 class Storage {
  public:
-  // Binds one canonical diagnostic path to its retained content bytes.
-  class Content {
+  // A failed read keeps only the normalized Path that Storage could establish
+  // and the caller decision supported by File Root. Error stays nested because
+  // it has no identity or use outside this one result.
+  class Failure {
    public:
-    constexpr Content(
-        Perimortem::Core::View::Bytes diagnostic_path,
-        Perimortem::Core::View::Bytes contents)
-        : diagnostic_path(diagnostic_path), contents(contents) {}
+    enum class Error : Unsigned_8 {
+      Unknown = Unsigned_8(-1),
+      InvalidRoute = 0,
+      Unreadable,
+    };
 
-    constexpr auto get_diagnostic_path() const
-        -> Perimortem::Core::View::Bytes {
-      return diagnostic_path;
+    constexpr Failure(Error error) : error(error) {}
+
+    constexpr Failure(Perimortem::System::Path path, Error error)
+        : path(path), error(error) {}
+
+    constexpr auto get_path() const
+        -> Perimortem::Core::Option<const Perimortem::System::Path&> {
+      if (path.get_view().is_empty()) {
+        return {};
+      }
+
+      return path;
     }
 
-    constexpr auto get_contents() const -> Perimortem::Core::View::Bytes {
-      return contents;
-    }
+    constexpr auto get_error() const -> Error { return error; }
 
    private:
-    Perimortem::Core::View::Bytes diagnostic_path;
-    Perimortem::Core::View::Bytes contents;
+    Perimortem::System::Path path;
+    Error error;
   };
 
   Storage(const Storage&) = delete;
@@ -56,11 +69,10 @@ class Storage {
 
   static auto open(
       Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Bytes root)
-      -> Perimortem::Utility::Option<Storage>;
+      Perimortem::Core::View::Bytes root) -> Perimortem::Core::Option<Storage>;
 
   auto read(Perimortem::Core::View::Bytes logical_route)
-      -> Perimortem::Utility::Option<Content&>;
+      -> Perimortem::Utility::Result<Content&, Failure>;
 
  private:
   Storage(

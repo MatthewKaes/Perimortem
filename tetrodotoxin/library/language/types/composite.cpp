@@ -1,0 +1,606 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#include "tetrodotoxin/library/language/types/composite.hpp"
+
+#include "tetrodotoxin/library/language/alias.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/language/parser/member.hpp"
+#include "ttx/concept/invalid.hpp"
+#include "ttx/model/layouts/termination.hpp"
+
+using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
+using namespace Perimortem::Utility;
+using namespace Ttx::Concept;
+using namespace Ttx::Lexical;
+using namespace Tetrodotoxin::Library::Language;
+
+using Tetrodotoxin::Language::Visibility;
+using Type = Model::Type;
+
+static constexpr Ttx::Model::Layouts::Named empty_layout;
+
+template <typename selected_type, typename visitor_type>
+static auto visit_each(
+    View::Vector<Reference<Abstract>> bindings,
+    visitor_type visitor) -> Bool {
+  // A category may retain an opaque Alias before its target closes. Only an
+  // exact local contract receives this lifecycle step because the target owner
+  // remains responsible for completing its own graph.
+  Bool failed = False;
+  for (const Reference<Abstract>& binding : bindings) {
+    auto selected = binding.get().select<selected_type>();
+    if (selected) {
+      failed |= !visitor(*selected);
+    }
+  }
+
+  return !failed;
+}
+
+static auto select_definition_category(
+    Token qualifier,
+    Types::Composite::Category& category) -> Bool {
+  switch (qualifier.get_code().get_type()) {
+  case Code::Type::Type:
+  case Code::Type::Assign:
+    category = Types::Composite::Category::Addressable;
+    return True;
+  case Code::Type::Func:
+    category = Types::Composite::Category::Callable;
+    return True;
+  case Code::Type::Alias:
+  case Code::Type::Enum:
+  case Code::Type::Struct:
+  case Code::Type::Object:
+    category = Types::Composite::Category::Type;
+    return True;
+  default:
+    return False;
+  }
+}
+
+static auto select_callable_role(const Abstract& binding, Bool& type_bound)
+    -> Bool {
+  const Abstract& resolved =
+      binding.is<Model::Callable>() ? binding : binding.resolve();
+  auto callable = resolved.select<Model::Callable>();
+  if (!callable) {
+    return False;
+  }
+  type_bound = callable->declares_self();
+  return True;
+}
+
+template <typename bindings_type>
+static auto retains_binding(bindings_type bindings, const Abstract& candidate)
+    -> Bool {
+  for (const Reference<Abstract>& binding : bindings) {
+    if (&binding.get() == &candidate) {
+      return True;
+    }
+  }
+  return False;
+}
+
+static auto resolve_local_addressable(
+    const Types::Composite& composite,
+    const Abstract& host,
+    View::Bytes route,
+    Type::Access access) -> const Abstract& {
+  for (const Reference<Abstract>& binding :
+       composite.get_addressables(Visibility::Private)) {
+    if (binding.get().get_name() != route) {
+      continue;
+    }
+
+    const Abstract& resolved = binding.get().resolve();
+    auto addressable = resolved.select<Model::Addressable>();
+    if (!addressable || !addressable->supports_access(access)) {
+      return Invalid::get_invalid();
+    }
+
+    auto caller = host.select<Type>();
+    Bool published = retains_binding(
+        composite.get_addressables(Visibility::Public), binding.get());
+    if (published || (caller && caller->has_private_access_to(composite))) {
+      return binding.get();
+    }
+    return Invalid::get_invalid();
+  }
+
+  return Invalid::get_invalid();
+}
+
+static auto resolve_local_callable(
+    const Types::Composite& composite,
+    const Abstract& host,
+    View::Bytes route,
+    Type::Access access) -> const Abstract& {
+  Bool type_bound = access == Type::Access::Self;
+  for (const Reference<Abstract>& binding :
+       composite.get_callables(Visibility::Private)) {
+    if (binding.get().get_name() != route) {
+      continue;
+    }
+
+    const Abstract& resolved = binding.get().resolve();
+    auto callable = resolved.select<Model::Callable>();
+    if (!callable || callable->is_type_bound() != type_bound) {
+      continue;
+    }
+
+    auto caller = host.select<Type>();
+    Bool published = retains_binding(
+        composite.get_callables(Visibility::Public), binding.get());
+    if (published || (caller && caller->has_private_access_to(composite))) {
+      return binding.get();
+    }
+    return Invalid::get_invalid();
+  }
+
+  return Invalid::get_invalid();
+}
+
+Types::Composite::Composite(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition)
+    : definition(definition),
+      domain(domain),
+      addressables(domain),
+      published_addressables(domain),
+      callables(domain),
+      published_callables(domain),
+      types(domain),
+      published_types(domain) {}
+
+auto Types::Composite::has_private_access_to(const Type& owner) const -> Bool {
+  if (this == &owner) {
+    return True;
+  }
+
+  // Authority walks outward from the caller. Asking the owner to walk its own
+  // host would admit parents, siblings, and unrelated Aliases.
+  auto enclosing = get_host().select<Type>();
+  return enclosing && enclosing->has_private_access_to(owner);
+}
+
+auto Types::Composite::interpret_definition(
+    Cursor& cursor,
+    Tetrodotoxin::Language::Definition& definition) -> Bool {
+  Category category = Category::Addressable;
+  if (!select_definition_category(definition.get_qualifier(), category)) {
+    cursor.create_token_error(
+        definition.get_qualifier(),
+        "Library members require a Type, `alias`, `enum`, `struct`, "
+        "`object`, `func`, or inferred initializer qualifier."_view);
+    return False;
+  }
+
+  auto member = Parser::Member::parse(cursor, definition);
+  BAIL_IF(!member);
+  if (!retain_binding(*member, definition, category, cursor)) {
+    cursor.create_expression_error(
+        definition.get_name_anchor(),
+        "Library member collides with an occupied Composite category."_view);
+    return False;
+  }
+
+  return True;
+}
+
+template <typename bindings_type>
+static auto find_binding(const bindings_type& bindings, View::Bytes name)
+    -> const Abstract& {
+  for (const auto& binding : bindings) {
+    const Abstract& candidate = binding.get();
+    if (candidate.get_name() == name) {
+      return candidate;
+    }
+  }
+
+  return Invalid::get_invalid();
+}
+
+auto Types::Composite::can_accept_definition() const -> Bool {
+  return stage == Stage::Authored;
+}
+
+auto Types::Composite::can_bind_definition(
+    const Abstract& binding,
+    Category category) const -> Bool {
+  View::Bytes candidate = binding.get_name();
+  auto retains_identity = [&](const auto& category) {
+    return category.get_view().contains(
+        [&](const Reference<Abstract>& existing) {
+          return &existing.get() == &binding;
+        });
+  };
+  if (candidate.is_empty() || retains_identity(addressables) ||
+      retains_identity(callables) || retains_identity(types)) {
+    return False;
+  }
+
+  auto contains_name = [&](const auto& bindings) {
+    return bindings.get_view().contains(
+        [&](const Reference<Abstract>& existing) {
+          return existing.get().get_name() == candidate;
+        });
+  };
+  switch (category) {
+  case Category::Addressable:
+    return !contains_name(addressables);
+  case Category::Type:
+    return !contains_name(types);
+  case Category::Callable: {
+    Bool type_bound = False;
+    BAIL_IF(!select_callable_role(binding, type_bound));
+    return !callables.get_view().contains(
+        [&](const Reference<Abstract>& existing) {
+          Bool retained_type_bound = False;
+          return existing.get().get_name() == candidate &&
+                 select_callable_role(existing.get(), retained_type_bound) &&
+                 retained_type_bound == type_bound;
+        });
+  }
+  }
+
+  return False;
+}
+
+auto Types::Composite::retain_binding(
+    Abstract& binding,
+    Tetrodotoxin::Language::Definition& definition,
+    Category category,
+    Cursor&) -> Bool {
+  BAIL_IF(!can_accept_definition() || !can_bind_definition(binding, category));
+
+  publish_binding(binding, category, definition.is_published());
+  return True;
+}
+
+auto Types::Composite::publish_binding(
+    Abstract& binding,
+    Category category,
+    Bool published) -> void {
+  // The parser or importing provider supplies the category before publication.
+  // Alias resolution is deliberately absent here: delayed graph completion
+  // cannot change which namespace owns the local name.
+  switch (category) {
+  case Category::Addressable:
+    addressables.insert(binding);
+    if (published) {
+      published_addressables.insert(binding);
+    }
+    return;
+  case Category::Callable:
+    callables.insert(binding);
+    if (published) {
+      published_callables.insert(binding);
+    }
+    return;
+  case Category::Type:
+    types.insert(binding);
+    if (published) {
+      published_types.insert(binding);
+    }
+    return;
+  }
+}
+
+auto Types::Composite::link_aliases() -> Count {
+  Count linked = 0;
+  for (const Reference<Abstract>& binding : types.get_view()) {
+    auto alias = binding.get().select<Alias>();
+    if (alias && !alias->is_linked() && alias->link()) {
+      linked++;
+    }
+
+    auto type = binding.get().select<Type>();
+    if (type) {
+      linked += type->link_aliases();
+    }
+  }
+  return linked;
+}
+
+auto Types::Composite::validate_aliases(Cursor& cursor) const -> Bool {
+  Bool valid = True;
+  for (const Reference<Abstract>& binding : types.get_view()) {
+    auto alias = binding.get().select<Alias>();
+    if (alias && !alias->is_linked()) {
+      alias->report_unresolved(cursor);
+      valid = False;
+    }
+
+    auto type = binding.get().select<Type>();
+    if (type && !type->validate_aliases(cursor)) {
+      valid = False;
+    }
+  }
+  return valid;
+}
+
+auto Types::Composite::link_types(Cursor& cursor) -> Bool {
+  if (stage >= Stage::TypesLinked) {
+    return True;
+  }
+  if (stage != Stage::Authored) {
+    cursor.create_expression_error(
+        get_anchor(),
+        "Composite declaration Types cannot link from this lifecycle stage."_view,
+        "Begin with the complete authored Composite declaration."_view);
+    return False;
+  }
+
+  Bool failed = !visit_each<Type>(
+      types.get_view(), [&](Type& type) { return type.link_types(cursor); });
+
+  BAIL_IF(failed);
+
+  stage = Stage::TypesLinked;
+  return True;
+}
+
+auto Types::Composite::link_fields(Cursor& cursor) -> Bool {
+  if (stage >= Stage::FieldsLinked) {
+    return True;
+  }
+  if (stage != Stage::CallableSignaturesLinked) {
+    cursor.create_expression_error(
+        get_anchor(),
+        "Composite Fields require linked Callable signatures."_view,
+        "Settle every signature before a Field Expression can invoke it."_view);
+    return False;
+  }
+
+  Bool failed = !visit_each<Type>(
+      types.get_view(), [&](Type& type) { return type.link_fields(cursor); });
+  BAIL_IF(failed);
+
+  // Authored Type routes settle without evaluating initializers. Completing
+  // those declarations first gives inference every exact Type while each
+  // Addressable decides whether it owns an authored route.
+  failed |= !visit_each<Model::Addressable>(
+      addressables.get_view(), [&](Model::Addressable& addressable) {
+        return addressable.link_declaration_type(cursor);
+      });
+
+  // Explicit declarations are now safe lookup targets. Each inferred owner
+  // then authenticates its final context, while only completed candidates
+  // become visible to later inference.
+  failed |= !visit_each<Model::Addressable>(
+      addressables.get_view(), [&](Model::Addressable& addressable) {
+        return addressable.link_inferred_declaration_type(cursor);
+      });
+
+  BAIL_IF(failed);
+
+  stage = Stage::FieldsLinked;
+  return True;
+}
+
+auto Types::Composite::validate_layout(Cursor& cursor) const -> Bool {
+  Bool valid = True;
+  for (const Reference<Abstract>& binding : types.get_view()) {
+    auto type = binding.get().select<Type>();
+    if (type && !type->validate_layout(cursor)) {
+      valid = False;
+    }
+  }
+
+  const Layout& selected_layout = get_layout();
+  if (selected_layout.is_empty() ||
+      Ttx::Model::Layouts::is_terminating(*this)) {
+    return valid;
+  }
+
+  // Every stored Addressable Type is settled before this closure check.
+  // Rejecting an endless shape here keeps default construction and lowering
+  // free from separate defensive cycle protocols.
+  cursor.create_expression_error(
+      get_anchor(), "Library Type Layout does not terminate."_view,
+      "Break recursive value storage with one terminal Type Layout."_view);
+  return False;
+}
+
+auto Types::Composite::complete_field_layout() -> void {
+  Managed::Vector<Reference<const Abstract>> fields(domain);
+  fields.reset(addressables.get_size());
+  for (const Reference<Abstract>& binding : addressables.get_view()) {
+    auto addressable = binding.get().select<Model::Addressable>();
+    if (addressable && addressable->contributes_to_instance_layout()) {
+      fields.insert(*addressable);
+    }
+  }
+  layout = domain.construct<Ttx::Model::Layouts::Named>(fields.get_view());
+}
+
+auto Types::Composite::link_initializers(Cursor& cursor) -> Bool {
+  if (stage >= Stage::InitializersLinked) {
+    return True;
+  }
+  if (stage != Stage::FieldsLinked) {
+    cursor.create_expression_error(
+        get_anchor(), "Composite initializers require linked Fields."_view,
+        "Complete every Field Type before linking its initializer."_view);
+    return False;
+  }
+
+  Bool failed = !visit_each<Type>(types.get_view(), [&](Type& type) {
+    return type.link_initializers(cursor);
+  });
+  failed |= !visit_each<Model::Addressable>(
+      addressables.get_view(), [&](Model::Addressable& addressable) {
+        return addressable.link_declaration_initializer(cursor);
+      });
+
+  BAIL_IF(failed);
+
+  // Every initializer Expression is linked before const folding begins. A
+  // const declaration may therefore depend on any other acyclic const
+  // declaration in this Composite without source order becoming semantic.
+  failed |= !visit_each<Model::Addressable>(
+      addressables.get_view(), [&](Model::Addressable& addressable) {
+        return addressable.link_declaration_constant(cursor);
+      });
+
+  BAIL_IF(failed);
+
+  stage = Stage::InitializersLinked;
+  return True;
+}
+
+auto Types::Composite::link_callable_signatures(Cursor& cursor) -> Bool {
+  if (stage >= Stage::CallableSignaturesLinked) {
+    return True;
+  }
+  if (stage != Stage::TypesLinked) {
+    cursor.create_expression_error(
+        get_anchor(),
+        "Composite Callable signatures require linked declaration Types."_view,
+        "Settle every nested Type before completing Callable signatures."_view);
+    return False;
+  }
+
+  Bool failed = !visit_each<Type>(types.get_view(), [&](Type& type) {
+    return type.link_callable_signatures(cursor);
+  });
+  failed |= !visit_each<Model::Callable>(
+      callables.get_view(), [&](Model::Callable& callable) {
+        return callable.link_declaration_signature(cursor);
+      });
+
+  BAIL_IF(failed);
+
+  stage = Stage::CallableSignaturesLinked;
+  return True;
+}
+
+auto Types::Composite::link_callable_bodies(Cursor& cursor) -> Bool {
+  if (stage >= Stage::CallablesLinked) {
+    return True;
+  }
+  if (stage != Stage::InitializersLinked) {
+    cursor.create_expression_error(
+        get_anchor(),
+        "Composite Callable bodies require linked initializers."_view,
+        "Complete every Field Expression before linking Callable bodies."_view);
+    return False;
+  }
+
+  Bool failed = !visit_each<Type>(types.get_view(), [&](Type& type) {
+    return type.link_callable_bodies(cursor);
+  });
+  failed |= !visit_each<Model::Callable>(
+      callables.get_view(), [&](Model::Callable& callable) {
+        return callable.link_declaration_body(cursor);
+      });
+
+  BAIL_IF(failed);
+
+  stage = Stage::CallablesLinked;
+  return True;
+}
+
+auto Types::Composite::finalize(Cursor& cursor) -> Bool {
+  if (stage == Stage::Finalized) {
+    return True;
+  }
+  if (stage != Stage::CallablesLinked) {
+    cursor.create_expression_error(
+        get_anchor(), "An incomplete Composite cannot enter finalization."_view,
+        "Link every Field, initializer, and Callable before finalizing."_view);
+    return False;
+  }
+
+  Bool failed = !visit_each<Type>(
+      types.get_view(), [&](Type& type) { return type.finalize(cursor); });
+
+  failed |= !visit_each<Model::Addressable>(
+      addressables.get_view(), [&](Model::Addressable& addressable) {
+        return addressable.finalize_declaration(cursor);
+      });
+
+  // Callable folding still runs when publication fails. Independent cache and
+  // diagnostic facts therefore remain observable without admitting the Type.
+  failed |= !visit_each<Model::Callable>(
+      callables.get_view(), [&](Model::Callable& callable) {
+        return callable.finalize_declaration(cursor);
+      });
+
+  BAIL_IF(failed);
+
+  stage = Stage::Finalized;
+  return True;
+}
+
+auto Types::Composite::resolve() const -> const Abstract& {
+  if (stage < Stage::FieldsLinked) {
+    return Invalid::get_invalid();
+  }
+
+  return *this;
+}
+
+auto Types::Composite::resolve_context(View::Bytes route) const
+    -> const Abstract& {
+  const Abstract& type = find_binding(get_types(Visibility::Public), route);
+  return !type.is<Invalid>() ? type : get_host().resolve_context(route);
+}
+
+auto Types::Composite::resolve_lexical_context(View::Bytes route) const
+    -> const Abstract& {
+  const Abstract& addressable =
+      resolve_local_addressable(*this, *this, route, Type::Access::Static);
+  if (!addressable.is<Invalid>()) {
+    return addressable;
+  }
+
+  const Abstract& type = find_binding(get_types(Visibility::Private), route);
+  if (!type.is<Invalid>()) {
+    return type;
+  }
+
+  auto enclosing = get_host().select<Type>();
+  return enclosing ? enclosing->resolve_lexical_context(route)
+                   : get_host().resolve_context(route);
+}
+
+auto Types::Composite::resolve_type_access(
+    const Abstract& host,
+    View::Bytes route,
+    Type::Access access) const -> const Abstract& {
+  return resolve_local_addressable(*this, host, route, access);
+}
+
+auto Types::Composite::resolve_type_call(
+    const Abstract& host,
+    View::Bytes route,
+    Type::Access access) const -> const Abstract& {
+  return resolve_local_callable(*this, host, route, access);
+}
+
+auto Types::Composite::is_externally_reachable(const Type& type) const -> Bool {
+  const Abstract& local =
+      find_binding(get_types(Visibility::Public), type.get_name());
+  if (!local.is<Invalid>()) {
+    return &local.resolve() == &type;
+  }
+
+  auto enclosing = get_host().select<Type>();
+  if (enclosing) {
+    return enclosing->is_externally_reachable(type);
+  }
+
+  return &get_host().resolve_context(type.get_name()).resolve() == &type;
+}
+
+auto Types::Composite::get_layout() const -> const Ttx::Model::Layouts::Named& {
+  return layout.visit(
+      []() -> const Ttx::Model::Layouts::Named& { return empty_layout; },
+      [](const Ttx::Model::Layouts::Named& selected)
+          -> const Ttx::Model::Layouts::Named& { return selected; });
+}

@@ -96,7 +96,7 @@ auto Json::Node::at(Unsigned_32 index) const -> const Json::Node {
       return Json::Node();
     }
 
-    return array[index];
+    return array.get_data()[index];
   }
 
   return Json::Node();
@@ -106,8 +106,8 @@ auto Json::Node::at(const View::Bytes name) const -> const Json::Node {
   if (data.state == (Unsigned_32)NodeState::Object) {
     View::Vector<Member> members((const Member*)data.ptr, data.size);
     for (Count i = 0; i < members.get_size(); i++) {
-      if (members[i].name == name) {
-        return members[i].node;
+      if (members.get_data()[i].name == name) {
+        return members.get_data()[i].node;
       }
     }
   }
@@ -126,13 +126,8 @@ auto Json::Node::operator[](const View::Bytes name) const -> const Json::Node {
 auto Json::Node::contains(const View::Bytes name) const -> Bool {
   if (data.state == (Unsigned_32)NodeState::Object) {
     View::Vector<Member> members((const Member*)data.ptr, data.size);
-    for (Count i = 0; i < members.get_size(); i++) {
-      if (members[i].name == name) {
-        return true;
-      }
-    }
-
-    return false;
+    return members.contains(
+        [name](const Member& member) { return member.name == name; });
   }
 
   return false;
@@ -224,53 +219,6 @@ auto Json::Node::is_array() const -> Bool {
 
 auto Json::Node::is_object() const -> Bool {
   return (NodeState)data.state == NodeState::Object;
-}
-
-auto Json::Node::construct(
-    Allocator::Arena& arena,
-    const Json::Blueprint* entries,
-    Count count) -> Node {
-  // Named children become objects; unnamed children become arrays.
-  const Bool is_object = count != 0 && !entries[0].get_name().is_empty();
-  if (is_object) {
-    Managed::Vector<Json::Node::Member> members(arena);
-    for (Count i = 0; i < count; i++) {
-      members.insert(
-          Json::Node::Member(
-              entries[i].get_name(), Json::Node::construct(arena, entries[i])));
-    }
-
-    Json::Node result;
-    result.set(members);
-    return result;
-  }
-
-  Managed::Vector<Json::Node> nodes(arena);
-  for (Count i = 0; i < count; i++) {
-    nodes.insert(Json::Node::construct(arena, entries[i]));
-  }
-
-  Json::Node result;
-  result.set(nodes.get_view());
-  return result;
-}
-
-auto Json::Node::construct(Allocator::Arena& arena, const Json::Blueprint& root)
-    -> Node {
-  return root.visit(
-      []() { return Json::Node(); },
-      [](View::Bytes text) { return Json::Node(text); },
-      [](Signed_64 number) { return Json::Node(number); },
-      [](Real_64 real) { return Json::Node(real); },
-      [](Bool flag) { return Json::Node(flag); },
-      [&](View::Vector<Json::Blueprint> compound) {
-        return Json::Node::construct(
-            arena, compound.get_data(), compound.get_size());
-      },
-      [](const Json::Node* node) {
-        // Existing Nodes must outlive construction.
-        return *node;
-      });
 }
 
 auto Json::Node::parse(
@@ -472,7 +420,7 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
 
       View::Vector<Json::Node> array = node.get_array();
       for (Unsigned_32 i = 0; i < array.get_size(); i++) {
-        self(stream, array[i]);
+        self(stream, array.get_data()[i]);
         if (i != array.get_size() - 1) {
           stream << ","_view;
         }
@@ -487,7 +435,7 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
 
       View::Vector<Member> members = node.get_object();
       for (Unsigned_32 i = 0; i < members.get_size(); i++) {
-        const auto& member = members[i];
+        const auto& member = members.get_data()[i];
         stream << "\""_view << member.name << "\":"_view;
 
         self(stream, member.node);

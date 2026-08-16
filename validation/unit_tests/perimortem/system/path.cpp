@@ -5,7 +5,12 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/bytes.hpp"
+
+#include "perimortem/memory/dynamic/bytes.hpp"
+
 using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Validation;
 
@@ -19,6 +24,39 @@ PERIMORTEM_UNIT_TEST(SystemPath, normalize) {
   EXPECT_NOT(path.get_view().is_empty());
   EXPECT_TEXT(path.get_view(), "unit/folder/file.ttx"_view);
   EXPECT_NOT(path.is_rooted());
+}
+
+PERIMORTEM_UNIT_TEST(SystemPath, normalize_in_arena) {
+  Allocator::Arena arena;
+  Dynamic::Bytes authored("unit\\./folder//file.ttx"_view);
+  auto normalized = Path::normalize(arena, authored);
+  auto rooted = Path::normalize(arena, "/usr//local/./bin"_view);
+  ASSERT(normalized);
+  ASSERT(rooted);
+
+  // Mutating the source separates Arena ownership from a view that merely
+  // happens to contain the expected bytes during the call.
+  authored.set('x');
+
+  EXPECT_TEXT(*normalized, "unit/folder/file.ttx"_view);
+  EXPECT_TEXT(*rooted, "/usr/local/bin"_view);
+}
+
+PERIMORTEM_UNIT_TEST(SystemPath, normalize_in_arena_rejects_invalid) {
+  Allocator::Arena arena;
+  Static::Bytes<3> embedded_nul = {{'a', '\0', 'b'}};
+  Static::Bytes<Path::max_size + 1> oversized;
+  for (Count i = 0; i < oversized.get_size(); i++) {
+    oversized[i] = 'a';
+  }
+
+  // The oversized case uses one segment so failure proves the capacity bound
+  // rather than an unrelated parent or separator rule.
+  EXPECT_NOT(Path::normalize(arena, View::Bytes()));
+  EXPECT_NOT(Path::normalize(arena, "."_view));
+  EXPECT_NOT(Path::normalize(arena, "../file.ttx"_view));
+  EXPECT_NOT(Path::normalize(arena, embedded_nul));
+  EXPECT_NOT(Path::normalize(arena, oversized));
 }
 
 PERIMORTEM_UNIT_TEST(SystemPath, relative) {
@@ -50,14 +88,6 @@ PERIMORTEM_UNIT_TEST(SystemPath, root_parent) {
   EXPECT_NOT(path.get_view().is_empty());
   EXPECT_TEXT(path.get_view(), "/"_view);
   EXPECT(path.is_rooted());
-}
-
-PERIMORTEM_UNIT_TEST(SystemPath, construct_view) {
-  Path path("unit\\source/./main.ttx"_view);
-  Path copy(path);
-
-  EXPECT_NOT(copy.get_view().is_empty());
-  EXPECT_TEXT(copy.get_view(), "unit/source/main.ttx"_view);
 }
 
 PERIMORTEM_UNIT_TEST(SystemPath, file) {

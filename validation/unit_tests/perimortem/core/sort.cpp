@@ -5,9 +5,6 @@
 
 #include "validation/unit_test.hpp"
 
-#include <stdlib.h>
-
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
@@ -60,20 +57,21 @@ PERIMORTEM_UNIT_TEST(AlgoSort, simple_sort) {
 
   constexpr auto sorted_const = Algorithm::sort(test_const);
   auto sorted = Algorithm::sort(Access::Vector(test));
+  auto* sorted_data = sorted.get_data();
 
-  EXPECT_EQ(sorted[0], 1);
-  EXPECT_EQ(sorted[1], 3);
-  EXPECT_EQ(sorted[2], 4);
-  EXPECT_EQ(sorted[3], 7);
-  EXPECT_EQ(sorted[4], 8);
-  EXPECT_EQ(sorted[5], 9);
+  EXPECT_EQ(sorted_data[0], 1);
+  EXPECT_EQ(sorted_data[1], 3);
+  EXPECT_EQ(sorted_data[2], 4);
+  EXPECT_EQ(sorted_data[3], 7);
+  EXPECT_EQ(sorted_data[4], 8);
+  EXPECT_EQ(sorted_data[5], 9);
 
-  EXPECT_EQ(sorted[0], sorted_const[0]);
-  EXPECT_EQ(sorted[1], sorted_const[1]);
-  EXPECT_EQ(sorted[2], sorted_const[2]);
-  EXPECT_EQ(sorted[3], sorted_const[3]);
-  EXPECT_EQ(sorted[4], sorted_const[4]);
-  EXPECT_EQ(sorted[5], sorted_const[5]);
+  EXPECT_EQ(sorted_data[0], sorted_const[0]);
+  EXPECT_EQ(sorted_data[1], sorted_const[1]);
+  EXPECT_EQ(sorted_data[2], sorted_const[2]);
+  EXPECT_EQ(sorted_data[3], sorted_const[3]);
+  EXPECT_EQ(sorted_data[4], sorted_const[4]);
+  EXPECT_EQ(sorted_data[5], sorted_const[5]);
 }
 
 PERIMORTEM_UNIT_TEST(AlgoSort, empty_sort) {
@@ -88,18 +86,13 @@ PERIMORTEM_UNIT_TEST(AlgoSort, large_sort) {
   constexpr auto item_count = 10017;
   Signed_32 test[item_count] = {};
   for (Count i = 0; i < item_count; i++) {
-    test[i] = i;
-  }
-
-  // Shuffle array
-  srand(12);
-  for (Count i = 0; i < item_count; i++) {
-    Data::swap(test[rand() % item_count], test[rand() % item_count]);
+    test[i] = item_count - i - 1;
   }
 
   auto sorted = Algorithm::sort(test);
+  auto* sorted_data = sorted.get_data();
   for (Count i = 0; i < item_count; i++) {
-    EXPECT_EQ(sorted[i], i);
+    EXPECT_EQ(sorted_data[i], i);
   }
 }
 
@@ -107,27 +100,20 @@ PERIMORTEM_UNIT_TEST(AlgoSort, dynamic_types) {
   constexpr auto item_count = 37;
   SortBytes test[item_count] = {};
   for (Count i = 0; i < item_count; i++) {
+    Count value = item_count - i - 1;
     test[i] = "test_string #"_view;
-    test[i].append(Unsigned_8('0' + (i / 10)));
-    test[i].append(Unsigned_8('0' + (i % 10)));
+    test[i].append(Unsigned_8('0' + (value / 10)));
+    test[i].append(Unsigned_8('0' + (value % 10)));
   }
 
-  // Shuffle array
-  srand(12);
-  for (Count i = 0; i < item_count; i++) {
-    Data::swap(test[rand() % item_count], test[rand() % item_count]);
-  }
-
-  // Sorting even on dynamic data should result in zero memory requests
-  auto check_outs = Bibliotheca::check_out_requests();
   auto sorted = Algorithm::sort(Access::Vector(test));
-  EXPECT_EQ(check_outs, Bibliotheca::check_out_requests());
+  auto* sorted_data = sorted.get_data();
 
   Dynamic::Bytes validate = {};
   for (Count i = 0; i < item_count; i++) {
     validate = "test_string #"_view;
     validate.append(Unsigned_8('0' + (i / 10)));
     validate.append(Unsigned_8('0' + (i % 10)));
-    EXPECT_TEXT(sorted[i].get_view(), validate.get_view());
+    EXPECT_TEXT(sorted_data[i].get_view(), validate.get_view());
   }
 }

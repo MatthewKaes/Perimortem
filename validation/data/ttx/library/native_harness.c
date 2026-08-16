@@ -1,8 +1,7 @@
 #include <inttypes.h>
-#include <stdint.h>
 #include <stdio.h>
 
-extern uint64_t library_native(void);
+#include "validation/data/ttx/library/native.h"
 
 const uint64_t library_foreign_bias = UINT64_C(2);
 uint64_t library_foreign_state = UINT64_C(0);

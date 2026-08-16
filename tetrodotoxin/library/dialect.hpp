@@ -1,0 +1,27 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "perimortem/core/option.hpp"
+
+#include "tetrodotoxin/language/dialect.hpp"
+
+namespace Tetrodotoxin::Library {
+
+// Dialect implements the installed Library source protocol. Every semantic
+// identity belongs to the Monograph created for that source.
+class Dialect : public Tetrodotoxin::Language::Dialect {
+ public:
+  Dialect(Perimortem::Core::View::Bytes name = "Library"_view)
+      : Tetrodotoxin::Language::Dialect(name) {}
+
+  auto interpret(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Documentation& documentation,
+      const Ttx::Lexical::Anchor& source_anchor,
+      Ttx::Concept::Abstract& context)
+      -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
+};
+
+}  // namespace Tetrodotoxin::Library

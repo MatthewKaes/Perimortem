@@ -9,54 +9,21 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 
-static auto has_dependency_alias(
-    View::Vector<Package::Language::Dependency> dependencies,
-    View::Bytes local_name) -> Bool {
-  for (Count i = 0; i < dependencies.get_size(); i++) {
-    if (dependencies[i].get_local_name() == local_name) {
-      return True;
-    }
-  }
-
-  return False;
-}
-
-static auto has_source_name(
-    View::Vector<Package::Language::Source> sources,
-    View::Bytes local_name) -> Bool {
-  for (Count i = 0; i < sources.get_size(); i++) {
-    if (sources[i].get_local_name() == local_name) {
-      return True;
-    }
-  }
-
-  return False;
-}
-
-static auto has_source_path(
-    View::Vector<Package::Language::Source> sources,
-    View::Bytes source_path) -> Bool {
-  for (Count i = 0; i < sources.get_size(); i++) {
-    if (sources[i].get_source_path() == source_path) {
-      return True;
-    }
-  }
-
-  return False;
-}
-
 auto Package::Dialect::interpret(
-    Allocator::Arena& domain,
     Cursor& cursor,
     const Documentation& documentation,
-    Abstract&) -> Option<Dialect::Monograph&> {
-  Managed::Vector<Language::Dependency> dependencies(domain);
-  Managed::Vector<Language::Source> sources(domain);
+    const Anchor&,
+    Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
+  Allocator::Arena& transaction = cursor.get_arena();
+
+  // Package produces a Monograph rather than a synthetic source Type, so it
+  // has no semantic owner for the source envelope Anchor.
+  Managed::Vector<Language::Dependency> dependencies(transaction);
+  Managed::Vector<Language::Source> sources(transaction);
   Bool failed = False;
   Bool source_region = False;
 
@@ -81,7 +48,11 @@ auto Package::Dialect::interpret(
         continue;
       }
 
-      if (has_dependency_alias(dependencies, (*dependency).get_local_name())) {
+      if (dependencies.get_view().contains(
+              [&](const Language::Dependency& existing) {
+                return existing.get_local_name() ==
+                       dependency->get_local_name();
+              })) {
         cursor.create_token_error(
             statement,
             "Duplicate Dependency local alias in this Package."_view);
@@ -94,19 +65,37 @@ auto Package::Dialect::interpret(
 
     case Code::Type::Source: {
       source_region = True;
-      auto source = Language::Source::parse(domain, cursor);
+      auto source = Language::Source::parse(cursor);
       if (!source) {
         failed = True;
         continue;
       }
 
-      if (has_source_name(sources, (*source).get_local_name())) {
+      // Source owns complete statement consumption, so this range includes the
+      // terminating Token. The collision belongs to the whole binding rather
+      // than only its opening keyword or semantic name.
+      if (dependencies.get_view().contains(
+              [&](const Language::Dependency& dependency) {
+                return dependency.get_local_name() == source->get_local_name();
+              })) {
+        cursor.create_expression_error(
+            source->get_span(),
+            "Source semantic name collides with a Dependency local alias in "
+            "this Package."_view);
+        failed = True;
+      }
+
+      if (sources.get_view().contains([&](const Language::Source& existing) {
+            return existing.get_local_name() == source->get_local_name();
+          })) {
         cursor.create_token_error(
             statement, "Duplicate Source semantic name in this Package."_view);
         failed = True;
       }
 
-      if (has_source_path(sources, (*source).get_source_path())) {
+      if (sources.get_view().contains([&](const Language::Source& existing) {
+            return existing.get_source_path() == source->get_source_path();
+          })) {
         cursor.create_token_error(
             statement,
             "Duplicate normalized Source path in this Package."_view);
@@ -139,6 +128,8 @@ auto Package::Dialect::interpret(
     return {};
   }
 
-  return domain.construct<Language::Monograph>(
-      domain, documentation, *this, dependencies, sources);
+  auto monograph = Language::Monograph::create_authored(
+      transaction, *this, documentation, context, dependencies, sources);
+  BAIL_IF(!monograph);
+  return static_cast<Tetrodotoxin::Language::Monograph&>(*monograph);
 }

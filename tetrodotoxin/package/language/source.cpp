@@ -9,7 +9,6 @@
 #include "ttx/lexical/lexicon.hpp"
 
 using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 using namespace Ttx::Lexical;
@@ -36,31 +35,23 @@ static auto parse_quoted_path(Cursor& cursor, Token& token)
   return text.slice(1, text.get_size() - 2);
 }
 
-auto Package::Language::Source::parse(Allocator::Arena& domain, Cursor& cursor)
-    -> Option<Source> {
-  if (!cursor.require(
-          Code::Type::Source, "Expected a Package `source` statement."_view)) {
+auto Package::Language::Source::parse(Cursor& cursor) -> Option<Source> {
+  Token source = cursor.require(
+      Code::Type::Source, "Expected a Package `source` statement."_view);
+  if (!source) {
     cursor.recover_to_statement();
     return {};
   }
 
-  View::Bytes local_name = Parser::Name::parse_semantic(cursor);
-  if (local_name.is_empty()) {
+  auto local_name = Parser::Name::parse_semantic(cursor);
+  if (!local_name) {
     cursor.recover_to_statement();
     return {};
   }
 
   Token relation = cursor.require(
-      Code::Type::Addressable,
-      "Source statements require exact `from` spelling."_view);
+      Code::Type::From, "Source statements require `from`."_view);
   if (!relation) {
-    cursor.recover_to_statement();
-    return {};
-  }
-
-  if (relation.caculate_text(cursor.get_source_text()) != "from"_view) {
-    cursor.create_token_error(
-        relation, "Source statements require exact `from` spelling."_view);
     cursor.recover_to_statement();
     return {};
   }
@@ -80,13 +71,19 @@ auto Package::Language::Source::parse(Allocator::Arena& domain, Cursor& cursor)
     return {};
   }
 
-  if (!cursor.require(
-          Code::Type::EndStatement,
-          "Source statements require a terminating `;`."_view)) {
+  // Keep the range invalid until the normalized path and terminating Token are
+  // both complete. Recovery can then consume a boundary without publishing a
+  // plausible but incomplete Source statement.
+  Token consumed_end_statement = cursor.require(
+      Code::Type::EndStatement,
+      "Source statements require a terminating `;`."_view);
+  if (!consumed_end_statement) {
     cursor.recover_to_statement();
     return {};
   }
 
-  View::Bytes durable_path = domain.proxy(normalized_path.get_view());
-  return Source(local_name, durable_path);
+  View::Bytes durable_path =
+      cursor.get_arena().proxy(normalized_path.get_view());
+  return Source(
+      *local_name, durable_path, Span(source, consumed_end_statement));
 }

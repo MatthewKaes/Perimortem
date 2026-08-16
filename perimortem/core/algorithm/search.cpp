@@ -129,10 +129,9 @@ auto Algorithm::search(View::Bytes src, Unsigned_8 value) -> Count {
           _mm256_loadu_si256(Data::cast<const __m256i_u>(source_data + i));
 
       const auto source_hits = _mm256_cmpeq_epi8(source_block, test_mask);
-      auto range_mask = Unsigned_32(_mm256_movemask_epi8(source_hits));
+      const auto range_mask = Unsigned_32(_mm256_movemask_epi8(source_hits));
       if (range_mask) {
         auto index = __builtin_ctzg(range_mask);
-        range_mask ^= 1 << index;
         return i + index;
       }
     }

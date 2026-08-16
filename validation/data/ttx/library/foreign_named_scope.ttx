@@ -1,5 +1,6 @@
+//
 dialect : Library;
 
 private C : foreign {
-  public func old_foreign[] -> Void;
+  public func old_foreign[] -> [];
 }

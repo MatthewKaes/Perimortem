@@ -6,6 +6,7 @@
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/math.hpp"
+#include "perimortem/core/option.hpp"
 
 namespace Perimortem::Core::Access {
 
@@ -30,18 +31,17 @@ class Vector {
   template <Count N>
   constexpr Vector(data_type (&source)[N]) : source_block(source), size(N) {}
 
-  constexpr auto at(Count index) -> data_type& {
+  constexpr auto at(Count index) -> Core::Option<data_type&> {
     if (index >= size) [[unlikely]] {
-      // Aligned storage keeps escaped access independent of the element's
-      // constructors while providing one stable mutable fallback.
-      alignas(alignof(data_type)) static Unsigned_8 oob[sizeof(data_type)]{};
-      return *Data::cast<data_type>(oob);
+      return {};
     }
 
     return source_block[index];
   }
 
-  constexpr auto operator[](Count index) -> data_type& { return at(index); }
+  constexpr auto operator[](Count index) -> Core::Option<data_type&> {
+    return at(index);
+  }
 
   constexpr auto slice(Count start, Count size = Count(-1)) const
       -> Access::Vector<data_type> {

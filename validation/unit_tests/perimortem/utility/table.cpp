@@ -15,21 +15,36 @@ using namespace Validation;
 
 using KeywordEntry = Pair<View::Bytes, Unsigned_8>;
 constexpr Static::Vector<KeywordEntry, 23> keyword_source = {{
-  {"as"_view, 1},       {"if"_view, 2},       {"for"_view, 3},
-  {"new"_view, 4},      {"else"_view, 5},     {"func"_view, 6},
-  {"init"_view, 7},     {"self"_view, 8},     {"true"_view, 9},
-  {"alias"_view, 10},   {"debug"_view, 11},   {"error"_view, 12},
-  {"false"_view, 13},   {"using"_view, 14},   {"while"_view, 15},
-  {"entity"_view, 16},  {"object"_view, 17},  {"return"_view, 18},
-  {"struct"_view, 19},  {"library"_view, 20}, {"on_load"_view, 21},
-  {"package"_view, 22}, {"warning"_view, 23},
+  KeywordEntry{"as"_view, 1},
+  {"if"_view, 2},
+  {"for"_view, 3},
+  {"new"_view, 4},
+  {"else"_view, 5},
+  {"func"_view, 6},
+  {"init"_view, 7},
+  {"self"_view, 8},
+  {"true"_view, 9},
+  {"alias"_view, 10},
+  {"debug"_view, 11},
+  {"error"_view, 12},
+  {"false"_view, 13},
+  {"using"_view, 14},
+  {"while"_view, 15},
+  {"entity"_view, 16},
+  {"object"_view, 17},
+  {"return"_view, 18},
+  {"struct"_view, 19},
+  {"library"_view, 20},
+  {"on_load"_view, 21},
+  {"package"_view, 22},
+  {"warning"_view, 23},
 }};
 
 using keyword_table = Table<Unsigned_32, keyword_source>;
 
 using WordEntry = Pair<View::Bytes, View::Bytes>;
 constexpr Static::Vector<WordEntry, 8> word_source = {{
-  {"a"_view, "b"_view},
+  WordEntry{"a"_view, "b"_view},
   {"b"_view, "test"_view},
   {"longer?"_view, "shorter"_view},
   {"possible?"_view, "maybe!"_view},
@@ -49,7 +64,7 @@ struct Fact {
 
 using FactEntry = Pair<View::Bytes, Fact>;
 constexpr Static::Vector<FactEntry, 3> fact_source = {{
-  {"Vec2D"_view, {"Vec2D"_view, 8, True}},
+  FactEntry{"Vec2D"_view, {"Vec2D"_view, 8, True}},
   {"Vec3D"_view, {"Vec3D"_view, 12, True}},
   {"Sampler2D"_view, {"Sampler2D"_view, 0, False}},
 }};

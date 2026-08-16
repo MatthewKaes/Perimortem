@@ -8,29 +8,30 @@ dialect : Scene;
 
 signal finished;
 
-state top_icon : Graphics::Sprite = new;
-state bottom_icon : Graphics::Sprite = new;
-state elapsed : Real_64 = 0.0;
+private const top_icon : Graphics::Sprite = new;
+private const bottom_icon : Graphics::Sprite = new;
+private state elapsed : Real_64 = 0.0;
 
-const fade_time : Real_64 = 1.0;
-const hold_time : Real_64 = 1.5;
+private const fade_time : Real_64 = 1.0;
+private const hold_time : Real_64 = 1.5;
 
-private func create_icon[self, .image : Graphics::Image, .position : Graphics::Point2D]
-    -> Graphics::Sprite {
-  return (
-    .image = image,
-    .size_pixels = image -> get_size_pixels(),
-    .position = position,
-    .tone = (.r = 1.0, .g = 1.0, .b = 1.0, .a = 0.0),
-  );
+private func configure_icon[
+  self,
+  .icon : Graphics::Sprite,
+  .image : Graphics::Image,
+  .position : Graphics::Point2D,
+] -> Void {
+  icon.image = image;
+  icon.size_pixels = image -> get_size_pixels();
+  icon.position = position;
+  icon.tone = (.r = 1.0, .g = 1.0, .b = 1.0, .a = 0.0);
+  return;
 }
 
 Scene prepare[self] -> Void {
-  // TODO: Move this to a Library and give it global state so we only decode it once and use
-  // the result across scenes rather than decoding the same embedded each transition.
   state image := Graphics::Image -> decode($[resources/logo.png]);
-  self.top_icon = self -> create_icon(image, (.x = 200, .y = 100));
-  self.bottom_icon = self -> create_icon(image, (.x = 200, .y = 400));
+  self -> configure_icon(self.top_icon, image, (.x = 200.0, .y = 100.0));
+  self -> configure_icon(self.bottom_icon, image, (.x = 200.0, .y = 400.0));
   self.elapsed = 0.0;
   return;
 }

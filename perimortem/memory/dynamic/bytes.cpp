@@ -9,7 +9,6 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 
-Dynamic::Bytes::Bytes() {}
 Dynamic::Bytes::Bytes(Count reserved_capacity) {
   auto alloc = Bibliotheca::check_out(reserved_capacity);
   source_block = alloc.ptr;
@@ -162,19 +161,11 @@ auto Dynamic::Bytes::shrink(Count bytes_to_remove) -> void {
 }
 
 auto Dynamic::Bytes::operator[](Count index) const -> Unsigned_8 {
-  if (index > size) {
-    return 0;
-  }
-
-  return source_block[index];
+  return get_view()[index];
 }
 
 auto Dynamic::Bytes::at(Count index) const -> Unsigned_8 {
-  if (index > size) {
-    return 0;
-  }
-
-  return source_block[index];
+  return get_view()[index];
 }
 
 auto Dynamic::Bytes::clear() -> void {

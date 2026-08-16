@@ -11,27 +11,10 @@ using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
 
-static auto normalize_logical_route(View::Bytes logical_route) -> Option<Path> {
-  if (logical_route.is_empty()) {
-    return {};
-  }
-
-  for (Count i = 0; i < logical_route.get_size(); i++) {
-    if (logical_route[i] == '\0') {
-      return {};
-    }
-  }
-
-  Path normalized(logical_route);
-  if (normalized.get_view().is_empty() || normalized.is_rooted()) {
-    return {};
-  }
-
-  return normalized;
-}
-
 auto Package::Storage::open(Allocator::Arena& arena, View::Bytes location)
     -> Option<Storage> {
+  // Holding the opened descriptor keeps every read on the same package root
+  // even if the pathname is renamed or replaced after Storage construction.
   return File::Root::open(location).visit(
       []() { return Option<Storage>(); },
       [&arena](File::Root& root) {
@@ -39,30 +22,46 @@ auto Package::Storage::open(Allocator::Arena& arena, View::Bytes location)
       });
 }
 
-auto Package::Storage::read(View::Bytes logical_route) -> Option<Content&> {
-  auto normalized = normalize_logical_route(logical_route);
-  if (!normalized) {
-    return {};
+auto Package::Storage::read(View::Bytes logical_route)
+    -> Result<Content&, Failure> {
+  // Storage accepts logical children only. Letting an absolute or escaping
+  // route reach File would reintroduce ambient filesystem selection above the
+  // opened root capability.
+  Path normalized(logical_route);
+  if (normalized.get_view().is_empty()) {
+    return Failure(Failure::Error::InvalidRoute);
   }
 
-  View::Bytes diagnostic_path = (*normalized).get_view();
+  if (normalized.is_rooted()) {
+    return Failure(normalized, Failure::Error::InvalidRoute);
+  }
+
+  // The normalized spelling is the only stable cache identity. Raw spellings
+  // such as `a/./b` and `a/b` must observe the same first successful bytes.
+  View::Bytes diagnostic_path = normalized.get_view();
   auto cached = cache.find(diagnostic_path);
   if (cached) {
     return cached->value;
   }
 
+  // Reading directly into the acquisition Arena avoids a Dynamic intermediate.
+  // Semantic owners copy only successful content they actually retain.
   auto contents = root.read(arena, diagnostic_path);
   if (!contents) {
-    return {};
+    return Failure(normalized, Failure::Error::Unreadable);
   }
 
-  // Construct the Content with stabalized lifetime in the Arena. We can then
-  // launder the address into the cache to enforce the cache only containing
-  // valid items. Since the Map and content share the same Arena we this will
-  // always be true, but it requires us to also proxy the `diagnostic_path` to
-  // ensure all data members share the same lifetime.
-  View::Bytes retained_path = arena.proxy(diagnostic_path);
-  Content& retained = arena.construct<Content>(retained_path, *contents);
-  cache.launder(retained_path, retained);
+  // Arena allocation cannot be reclaimed individually. Delay the retained Path
+  // until success so repeated cache hits and retryable failures do not grow the
+  // acquisition Arena.
+  auto retained_path = Path::normalize(arena, logical_route);
+  if (!retained_path) {
+    return Failure(normalized, Failure::Error::InvalidRoute);
+  }
+
+  // Launder only a fully stable Content into the reference map. Publishing
+  // earlier could leave the cache pointing at a stack Path or failed read.
+  Content& retained = arena.construct<Content>(*retained_path, *contents);
+  cache.launder(*retained_path, retained);
   return retained;
 }

@@ -31,12 +31,12 @@ static auto create_args(Allocator::Arena& arena) -> Configs {
 
 static auto arg_value(const Args::Values& args, View::Bytes name)
     -> View::Bytes {
-  const auto* entry = args.find(name);
-  if (entry == nullptr) {
+  auto entry = args.find(name);
+  if (!entry) {
     return View::Bytes();
   }
 
-  View::Vector<View::Bytes> values = entry->value->get_view();
+  View::Vector<View::Bytes> values = (*entry).value->get_view();
   return values.is_empty() ? View::Bytes() : values[0];
 }
 

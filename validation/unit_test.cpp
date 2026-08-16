@@ -1,10 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-/* Explicitly don't protect the include to catch multiple includes */
-// #pragma once
-
 #include "validation/unit_test.hpp"
+
+#include "validation/process/oracle_fixture.hpp"
 
 #include <stdio.h>
 
@@ -30,14 +29,6 @@ struct Instance {
   Test::TestFunc func;
   Perimortem::Core::View::Bytes file;
   Count line;
-};
-
-struct TestTiming {
-  Perimortem::Core::View::Bytes harness_name = ""_view;
-  Perimortem::Core::View::Bytes test_name = ""_view;
-  Real_64 time_ms = 0.0;
-  Perimortem::Core::View::Bytes file = ""_view;
-  Count line = 0;
 };
 
 static Diagnostics::Log::Level captured_log_level;
@@ -192,13 +183,13 @@ auto Test::expected_hex(View::Bytes value, Bool actual) -> void {
   putchar('\n');
 }
 
-auto output_break() -> void {
+static auto output_break() -> void {
   printf(
       "%s[==============================================================]\n%s",
       dark_color, clear_color);
 }
 
-auto output_results(Count test_count) -> void {
+static auto output_results(Count test_count) -> void {
   printf("%s\n  Testing Completed:\n", perimortem_color);
   if (passed_tests) {
     printf(
@@ -234,6 +225,11 @@ auto output_results(Count test_count) -> void {
 }
 
 int main(int argc, const char* argv[]) {
+  Signed_32 process_status = 0;
+  if (Process::OracleFixture::dispatch(Signed_32(argc), argv, process_status)) {
+    return process_status;
+  }
+
   test_suites = 0;
   passed_tests = 0;
   failed_tests = 0;
@@ -247,7 +243,6 @@ int main(int argc, const char* argv[]) {
   Count test_count = binary_tests_count;
   not_run_tests = test_count;
 
-  TestTiming slowest_test;
   Count longest_test_name = 12;
 
   const Harness* harness = nullptr;
@@ -282,26 +277,27 @@ int main(int argc, const char* argv[]) {
   for (Count i = 0; i < test_count; i++) {
     Count index = i;
     const Instance& test = binary_tests[index];
-    if (test.harness != harness) {
-      harness = test.harness;
+    if (test.harness == nullptr) {
+      fprintf(stderr, "Registered test has no Harness.\n");
+      return 1;
+    }
+    const Harness& selected_harness = *test.harness;
+    if (&selected_harness != harness) {
+      harness = &selected_harness;
       if (!silent) {
         printf(
-            "%s[ START ] %.*s\n%s", dark_color, (int)harness->name.get_size(),
-            harness->name.get_data(), clear_color);
+            "%s[ START ] %.*s\n%s", dark_color,
+            (int)selected_harness.name.get_size(),
+            selected_harness.name.get_data(), clear_color);
       }
-      harness->init();
-    }
-
-    // The test harness was null for some reason.
-    if (test.harness == nullptr) {
-      continue;
+      selected_harness.init();
     }
 
     // Setup sink before setup() so tests can still override.
     Diagnostics::Log::set_sink(Test::capture_sink);
     captured_log_message = ""_view;
 
-    harness->setup();
+    selected_harness.setup();
     not_run_tests -= 1;
 
     Test::TestResult result = Test::TestResult::Pass;
@@ -310,16 +306,8 @@ int main(int argc, const char* argv[]) {
     test.func(result);
     Real_64 test_time_ms = start.measure().convert_to_milliseconds();
 
-    harness->teardown();
+    selected_harness.teardown();
     Diagnostics::Log::set_sink(Diagnostics::Log::default_sink);
-    if (test_time_ms > slowest_test.time_ms) {
-      slowest_test.time_ms = test_time_ms;
-      slowest_test.test_name = test.name;
-      slowest_test.harness_name = harness->name;
-      slowest_test.file = test.file;
-      slowest_test.line = test.line;
-    }
-
     switch (result) {
     case Test::TestResult::Pass:
       passed_tests += 1;

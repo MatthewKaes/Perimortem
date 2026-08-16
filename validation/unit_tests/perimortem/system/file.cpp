@@ -28,7 +28,6 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
-using namespace Perimortem::Utility;
 using namespace Validation;
 
 constexpr auto test_file = ".bin/bin/validation/system_file_test.json"_view;
@@ -1124,7 +1123,7 @@ PERIMORTEM_UNIT_TEST(SystemFileRoot, invalid_route_storage) {
       (*root).read(View::Bytes(embedded_null, sizeof(embedded_null)));
   EXPECT_NOT(embedded_source);
 
-  Static::Bytes<5> terminated_path{'f', 'i', 'l', 'e', '\0'};
+  Static::Bytes<5> terminated_path = {{'f', 'i', 'l', 'e', '\0'}};
   auto terminated_source = (*root).read(terminated_path);
   ASSERT(terminated_source);
   EXPECT_TEXT(*terminated_source, test_contents);

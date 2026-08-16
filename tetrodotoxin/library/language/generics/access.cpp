@@ -5,19 +5,24 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
-namespace Tetrodotoxin::Library::Language::Generics {
+#include "tetrodotoxin/library/language/types/access.hpp"
 
-auto Access::create(
-    Perimortem::Core::View::Vector<Argument> arguments,
-    Perimortem::Memory::Allocator::Arena& arena) const
-    -> Perimortem::Utility::Option<const Ttx::Model::Type&> {
+using namespace Tetrodotoxin::Library::Language;
+
+auto Generics::Access::create(
+    Perimortem::Core::View::Vector<Argument> arguments) const
+    -> Perimortem::Core::Option<const Language::Model::Type&> {
+  auto& arena = get_domain();
   if (arguments.get_size() != 1) {
     return {};
   }
 
-  const Ttx::Model::Type* element =
-      arguments[0].find<const Ttx::Model::Type&>();
+  const Language::Model::Type* element =
+      arguments.get_data()[0].find<const Language::Model::Type&>();
   if (element == nullptr) {
+    return {};
+  }
+  if (element->get_layout().is_empty()) {
     return {};
   }
 
@@ -25,7 +30,5 @@ auto Access::create(
   name.concat("["_view);
   name.concat(element->get_name());
   name.concat("]"_view);
-  return arena.construct<Type>(name.get_view(), *element);
+  return arena.construct<Types::Access>(name.get_view(), *element);
 }
-
-}  // namespace Tetrodotoxin::Library::Language::Generics

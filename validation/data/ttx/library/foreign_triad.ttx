@@ -1,7 +1,8 @@
+//
 dialect : Library;
 
 foreign "C" {
-  public const imported_constant : Unsigned_64;
+  expose state imported_readonly : Unsigned_64;
   public state imported_state : Unsigned_64;
   public func imported_function[
     .left : Unsigned_64,
@@ -9,10 +10,10 @@ foreign "C" {
   ] -> Unsigned_64;
 }
 
-public func consume_imports[] -> Unsigned_64 {
-  foreign.imported_state = foreign.imported_constant;
+public consume_imports : func = [] -> Unsigned_64 {
+  foreign.imported_state = foreign.imported_readonly;
   return foreign -> imported_function(
     foreign.imported_state,
-    foreign.imported_constant
+    foreign.imported_readonly
   );
 }

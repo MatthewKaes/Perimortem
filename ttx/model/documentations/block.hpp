@@ -10,7 +10,7 @@
 namespace Ttx::Model::Documentations {
 
 // Comments exposes a borrowed ordered sequence of documentation lines.
-// Source evaluators use it when adjacent comment tokens should remain separate
+// Source parsers use it when adjacent comment tokens should remain separate
 // for proper document reconstruction.
 class Block : public Concept::Documentation {
  public:
@@ -20,7 +20,7 @@ class Block : public Concept::Documentation {
 
   constexpr auto get_line(Count index) const
       -> Perimortem::Core::View::Bytes override {
-    return index < lines.get_size() ? lines[index]
+    return index < lines.get_size() ? lines.get_data()[index]
                                     : Perimortem::Core::View::Bytes();
   }
 

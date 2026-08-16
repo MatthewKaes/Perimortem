@@ -3,23 +3,22 @@
 
 #pragma once
 
+#include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "ttx/model/documentations/comment.hpp"
-#include "ttx/model/types/flag.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Boolean is the standard one-bit Flag Type with byte-addressable storage.
-class Boolean : public Ttx::Model::Types::Flag {
+// Boolean is the standard one bit Flag Type with byte addressable storage.
+class Boolean : public Model::Types::Flag {
  public:
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Bool"_view;
-  }
+  TTX_NAME("Bool"_view);
 
-  constexpr auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
-    return documentation;
-  }
+  TTX_DOCUMENTATION(documentation);
 
+  auto get_validity(const Model::Pack& value) const
+      -> Perimortem::Core::Option<Bool> override;
+  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
   constexpr auto get_width() const -> Count override { return 1; }
   constexpr auto get_size() const -> Count override { return sizeof(::Bool); }
   constexpr auto get_alignment() const -> Count override {

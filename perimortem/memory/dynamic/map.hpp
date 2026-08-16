@@ -6,6 +6,7 @@
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/hash.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/utility/pair.hpp"
 
@@ -14,8 +15,9 @@ namespace Perimortem::Memory::Dynamic {
 // Unordered scalar hash map that owns keys and values by association.
 //
 // Entries live inline in one allocation beside their control hashes. Insert,
-// remove, clear, and ensure_capacity may relocate entries, so pointers returned
-// from find and get_entry remain valid only until the next mutating call.
+// remove, clear, and ensure_capacity may relocate entries, so references
+// selected by find and pointers returned by get_entry remain valid only until
+// the next mutating call.
 //
 // The table uses linear probing because compiler maps are normally small and
 // benefit more from compact storage and a cheap header than from a second
@@ -117,10 +119,10 @@ class Map {
 
   auto insert(const key_type& key, const value_type& value) -> Entry* {
     Unsigned_32 hash = get_hash(key);
-    Count bucket = find_bucket(key, hash);
-    if (bucket != Count(-1)) {
-      entries[bucket].value = value;
-      return entries + bucket;
+    auto* found = find_hashed(key, hash);
+    if (found != nullptr) {
+      found->value = value;
+      return found;
     }
 
     ensure_capacity(size + 1);
@@ -138,10 +140,10 @@ class Map {
 
   auto emplace(key_type&& key, value_type&& value) -> Entry* {
     Unsigned_32 hash = get_hash(key);
-    Count bucket = find_bucket(key, hash);
-    if (bucket != Count(-1)) {
-      entries[bucket].value = static_cast<value_type&&>(value);
-      return entries + bucket;
+    auto* found = find_hashed(key, hash);
+    if (found != nullptr) {
+      found->value = static_cast<value_type&&>(value);
+      return found;
     }
 
     ensure_capacity(size + 1);
@@ -158,24 +160,31 @@ class Map {
       -> decltype(auto) {
     auto element = find(key);
     if (element) {
-      return found(element->value);
+      return found((*element).value);
     } else {
       return missing();
     }
   }
 
-  auto find(const key_type& key) -> Entry* {
-    return const_cast<Entry*>(static_cast<const Map*>(this)->find(key));
+  auto find(const key_type& key) -> Core::Option<Entry&> {
+    auto* found = find_hashed(key, get_hash(key));
+    if (found == nullptr) {
+      return {};
+    }
+
+    return *found;
   }
 
-  auto find(const key_type& key) const -> const Entry* {
-    Count bucket = find_bucket(key, get_hash(key));
-    return bucket == Count(-1) ? nullptr : entries + bucket;
+  auto find(const key_type& key) const -> Core::Option<const Entry&> {
+    const auto* found = find_hashed(key, get_hash(key));
+    if (found == nullptr) {
+      return {};
+    }
+
+    return *found;
   }
 
-  auto contains(const key_type& key) const -> Bool {
-    return find(key) != nullptr;
-  }
+  auto contains(const key_type& key) const -> Bool { return bool(find(key)); }
 
   auto remove(const key_type& key) -> Bool {
     Count bucket = find_bucket(key, get_hash(key));
@@ -237,9 +246,9 @@ class Map {
 
   auto at(const key_type& key) -> value_type& {
     Unsigned_32 hash = get_hash(key);
-    Count bucket = find_bucket(key, hash);
-    if (bucket != Count(-1)) {
-      return entries[bucket].value;
+    auto* found = find_hashed(key, hash);
+    if (found != nullptr) {
+      return found->value;
     }
 
     ensure_capacity(size + 1);
@@ -253,8 +262,8 @@ class Map {
 
   auto find_or_default(const key_type& key, const value_type& value) const
       -> const value_type& {
-    const Entry* entry = find(key);
-    return entry == nullptr ? value : entry->value;
+    auto entry = find(key);
+    return entry ? (*entry).value : value;
   }
 
   constexpr auto get_size() const -> Count { return size; }
@@ -273,7 +282,8 @@ class Map {
   }
 
   auto find_bucket(const key_type& key, Unsigned_32 hash) const -> Count {
-    if (size == 0) {
+    // Both views belong to one allocation. Incomplete storage has no entries.
+    if (size == 0 || buckets == nullptr || entries == nullptr) {
       return Count(-1);
     }
 
@@ -291,6 +301,33 @@ class Map {
 
       bucket = (bucket + 1) & (bucket_count - 1);
     }
+  }
+
+  auto find_hashed(const key_type& key, Unsigned_32 hash) -> Entry* {
+    if (entries == nullptr) {
+      return nullptr;
+    }
+
+    Count bucket = find_bucket(key, hash);
+    if (bucket == Count(-1)) {
+      return nullptr;
+    }
+
+    return entries + bucket;
+  }
+
+  auto find_hashed(const key_type& key, Unsigned_32 hash) const
+      -> const Entry* {
+    if (entries == nullptr) {
+      return nullptr;
+    }
+
+    Count bucket = find_bucket(key, hash);
+    if (bucket == Count(-1)) {
+      return nullptr;
+    }
+
+    return entries + bucket;
   }
 
   auto emplace_hashed(Entry* entry, Unsigned_32 hash) -> void {
@@ -324,9 +361,11 @@ class Map {
     Count old_bucket_count = bucket_count;
     Count old_size = size;
     create_buffer(new_bucket_count);
-    for (Count i = 0; i < old_bucket_count; i++) {
-      if (old_buckets[i] != 0) {
-        emplace_hashed(old_entries + i, old_buckets[i]);
+    if (old_buckets != nullptr && old_entries != nullptr) {
+      for (Count i = 0; i < old_bucket_count; i++) {
+        if (old_buckets[i] != 0) {
+          emplace_hashed(old_entries + i, old_buckets[i]);
+        }
       }
     }
 

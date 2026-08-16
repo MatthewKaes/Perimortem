@@ -7,6 +7,8 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
+#include "perimortem/serialization/json/blueprint.hpp"
+
 using namespace Puffer;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
@@ -48,20 +50,20 @@ auto Lsp::Rpc::Message::report_error(Perimortem::Core::View::Bytes error) const
   Managed::Bytes sanitized(arena);
   sanitized.proxy(error);
   sanitized.convert('"', '`');
-  return Json::Node::construct(
-      arena, Json::Blueprint{{
-               {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
-               {"id"_view, parsed["id"_view].get_number()},
-               {"error"_view, sanitized.get_view()},
-             }});
+  return Json::Blueprint{
+    {
+      {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
+      {"id"_view, parsed["id"_view].get_number()},
+      {"error"_view, sanitized.get_view()},
+    }}.construct(arena);
 }
 
 auto Lsp::Rpc::Message::report_result(const Response& result) const
     -> Lsp::Rpc::Response {
-  return Json::Node::construct(
-      arena, Json::Blueprint{{
-               {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
-               {"id"_view, parsed["id"_view].get_number()},
-               {"result"_view, result},
-             }});
+  return Json::Blueprint{
+    {
+      {"jsonrpc"_view, parsed["jsonrpc"_view].get_string()},
+      {"id"_view, parsed["id"_view].get_number()},
+      {"result"_view, result},
+    }}.construct(arena);
 }

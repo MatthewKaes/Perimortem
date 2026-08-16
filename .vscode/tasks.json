@@ -61,26 +61,6 @@
       }
     },
     {
-      "label": "Full Build w/ C++ (Linux) [Release]",
-      "type": "shell",
-      "command": "bazel",
-      "problemMatcher": [
-        "$gcc"
-      ],
-      "args": [
-        "build",
-        "...",
-        "--config=release",
-        "--define",
-        "PERI_BENCH_CPP=1"
-      ],
-      "group": "build",
-      "detail": "Performs a full Bazel build of the Platform.",
-      "presentation": {
-        "clear": true
-      }
-    },
-    {
       "label": "TTX Lsp Install",
       "type": "npm",
       "script": "install",

@@ -17,21 +17,12 @@ Silent mode changes reporting only. It never selects or skips tests.
 Run the full benchmark suite:
   bazel run -c opt //validation:benchmarks
 
-Enable C++ STL comparison benchmarks:
-  bazel run -c opt //validation:benchmarks --define PERI_BENCH_CPP=1
 """
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
-
-# Flip this on with --define PERI_BENCH_CPP=1 to compile in C++ STL comparison
-# benchmarks. Off by default to keep build times fast.
-config_setting(
-    name = "bench_cpp_enabled",
-    values = {"define": "PERI_BENCH_CPP=1"},
-)
 
 cc_library(
     name = "test_headers",
@@ -42,7 +33,8 @@ cc_library(
 )
 
 # Validation executes children directly so Bazel launcher output stays outside
-# the captured child streams.
+# captured streams. Unit-suite self-process cases prove this observer itself;
+# they are not evidence for a generated TTX Terminal.
 cc_library(
     name = "process_oracle",
     srcs = ["process/child.cpp"],
@@ -50,18 +42,12 @@ cc_library(
     deps = ["//perimortem"],
 )
 
-cc_binary(
-    name = "process_oracle_self_tests",
-    srcs = ["process/oracle_self_tests.cpp"],
-    data = glob(["data/ttx/oracles/**"]),
-    deps = [":process_oracle"],
-)
-
-# This target compiles the independent C-side native oracle without attempting
-# to link the intentionally unresolved TTX entry point.
+# This check proves that the independent C harness compiles. Output evidence
+# begins only when a generated TTX Terminal is linked with it and executed.
 cc_library(
-    name = "library_native_oracle",
+    name = "library_native_harness_compile_check",
     srcs = ["data/ttx/library/native_harness.c"],
+    hdrs = ["data/ttx/library/native.h"],
     copts = [
         "-std=c17",
         "-Wall",
@@ -77,6 +63,7 @@ cc_binary(
     name = "unit_tests",
     srcs = glob([
         "unit_tests/perimortem/**/*.cpp",
+        "unit_tests/process/**/*.cpp",
         "unit_tests/ttx/**/*.cpp",
         "unit_tests/tetrodotoxin/**/*.cpp",
     ]) + ["unit_test.cpp"],
@@ -92,6 +79,7 @@ cc_binary(
     includes = ["."],
     deps = [
         ":test_headers",
+        ":process_oracle",
         "//perimortem",
         "//tetrodotoxin:diagnostics",
         "//tetrodotoxin:environment",
@@ -99,6 +87,7 @@ cc_binary(
         "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
+        "//tetrodotoxin:scene",
         "//tetrodotoxin:shader",
         "//ttx",
     ],
@@ -107,19 +96,17 @@ cc_binary(
 cc_binary(
     name = "benchmarks",
     srcs = glob([
-        "benchmarks/perimortem/**/*.cpp"
+        "benchmarks/perimortem/**/*.cpp",
     ]) + [
         "benchmark.cpp",
+        "benchmark.hpp",
+        "harness.hpp",
+    ],
+    data = [
+        "data/json/init_rpc.json",
+        "data/json/test.json",
+        "data/json/tokenize_rpc.json",
     ],
     includes = ["."],
-    local_defines = select({
-        ":bench_cpp_enabled": ["PERI_BENCH_CPP=1"],
-        "//conditions:default": [],
-    }),
-    deps = [
-        ":test_headers",
-        "//perimortem",
-        "//ttx:concept",
-        "//ttx:model",
-    ],
+    deps = ["//perimortem"],
 )

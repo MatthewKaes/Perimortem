@@ -59,13 +59,7 @@ class Vector {
   }
 
   constexpr auto contains(const value_type& data) const -> Bool {
-    for (Count i = 0; i < size; i++) {
-      if (rented_block[i] == data) {
-        return true;
-      }
-    }
-
-    return false;
+    return get_view().contains(data);
   }
 
   constexpr auto at(Count index) const -> value_type& {

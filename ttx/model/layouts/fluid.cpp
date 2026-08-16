@@ -10,19 +10,48 @@ using namespace Ttx::Model;
 
 static auto resolves_for_fitting(const Concept::Abstract& value)
     -> const Concept::Abstract& {
-  return value.visit<Addressable>(
+  // A reserved Type is already the exact semantic fact needed by Layout
+  // negotiation even when its owner has not completed resolution yet. Resolving
+  // it first would collapse every incomplete Type to the shared Invalid object
+  // and make unrelated staged identities appear compatible.
+  if (value.is<Type>()) {
+    return value;
+  }
+
+  auto direct_addressable = value.select<Addressable>();
+  if (direct_addressable) {
+    return direct_addressable->get_type();
+  }
+
+  const Concept::Abstract& represented = value.resolve();
+  return represented.visit<Addressable>(
       [](const Addressable& addressable) -> const Concept::Abstract& {
-        return addressable.get_type().resolve();
+        return addressable.get_type();
       },
       [](const Concept::Abstract& abstract) -> const Concept::Abstract& {
-        return abstract.resolve();
+        return abstract;
       });
 }
 
 static auto fits_entry(
     const Concept::Abstract& source,
     const Concept::Abstract& target) -> Bool {
-  return &source.resolve() == &target ? True : False;
+  return &resolves_for_fitting(source) == &target ? True : False;
+}
+
+auto Layouts::Fluid::fits_entry(
+    const Concept::Layout& target,
+    Count source_index,
+    Count target_index) const -> Bool {
+  BAIL_IF(source_index >= get_size() || target_index >= target.get_size());
+
+  const Concept::Abstract& source = abstracts.get_data()[source_index].get();
+  return target.get_abstract(target_index)
+      .visit(
+          []() { return False; },
+          [&](const Concept::Abstract& target_entry) {
+            return ::fits_entry(source, resolves_for_fitting(target_entry));
+          });
 }
 
 auto Layouts::Fluid::fits_at(const Concept::Layout& target, Count target_offset)
@@ -32,16 +61,7 @@ auto Layouts::Fluid::fits_at(const Concept::Layout& target, Count target_offset)
   }
 
   for (Count i = 0; i < get_size(); i++) {
-    const Concept::Abstract& source = abstracts[i].get();
-    Bool entry_fits = target.get_abstract(target_offset + i)
-                          .visit(
-                              []() { return False; },
-                              [&source](const Concept::Abstract& target_entry) {
-                                const Concept::Abstract& target_type =
-                                    resolves_for_fitting(target_entry);
-                                return fits_entry(source, target_type);
-                              });
-    if (!entry_fits) {
+    if (!fits_entry(target, i, target_offset + i)) {
       return False;
     }
   }
@@ -53,7 +73,7 @@ auto Layouts::Fluid::get_fitted_at(
     const Concept::Layout& target,
     Count target_offset,
     Count target_index) const
-    -> Perimortem::Core::Static::Union<const Concept::Abstract&, Errors> {
+    -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> {
   if (target_index >= get_size()) {
     return Errors::IndexOutOfBounds;
   }
@@ -66,5 +86,5 @@ auto Layouts::Fluid::get_fitted_at(
     return Errors::IncompatibleFit;
   }
 
-  return abstracts[target_index].get();
+  return abstracts.get_data()[target_index].get();
 }

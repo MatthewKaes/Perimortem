@@ -1,19 +1,31 @@
 # Package
 
-`tetrodotoxin/package` owns the authored Package Dialect and confined Package
-storage. The current target contains the concrete Package body transaction,
-stateless statement parsers on the exact Dependency and Source values, the
-Package Monograph, and one opened root input owner.
+Package gives Tetrodotoxin sources stable names, pinned dependencies, confined
+resources, and durable build products. It fills a role similar to a package
+manifest and compiled module cache, but it never derives identity from a folder
+layout.
 
-Package depends on Language, TTX, and Perimortem. Environment is intended to
-install `Package::Dialect` and retain each interpreted Package Monograph.
+Authors declare source routes and dependency versions explicitly. A source can
+then move to another file without changing the name used by the rest of the
+program. The same Package can also be restored from an Archive when the original
+source is not available.
 
-## Authored grammar
+Package support is part of the Tetrodotoxin toolchain. A Workspace interpreting
+one standalone source does not need to install or use the Package Dialect. A
+package compilation, resource request, or Archive restoration installs Package
+with the languages used by that operation.
 
-A Package body contains ordered dependency requests followed by ordered Source
-bindings:
+Canonical grammar reference: [Package.g4](grammar/Package.g4).
+
+## Manifest
+
+A Package source begins with the common Dialect envelope and contains
+dependencies followed by source bindings:
 
 ```ttx
+// Scene Lifetime package.
+dialect : Package;
+
 resolve Math : Perimortem.Math = "1.0";
 resolve Graphics : Perimortem.Graphics = "1.0";
 resolve System : Perimortem.System = "1.0";
@@ -23,223 +35,216 @@ source Scenes::Title from "scenes/title.ttx";
 source Main from "main.ttx";
 ```
 
-Each `resolve` declaration records the local Type shaped name used by this
-package, the exact external package name, and the pinned version.
+Dependencies are optional and precede Sources. Every Package contains at least
+one Source. Local dependency names and Source routes share one Package context,
+so each authored route must be unique.
 
-Local semantic names use exact contiguous `Type (:: Type)*` grammar. External
-Package names use exact contiguous `Type (. Type)*` grammar. Spacing inside
-either qualified name is invalid and is never projected out of semantic text.
-`Package::Language::Parser::Name` owns both authored qualified name entry
-points while the TTX Lexicon validates every Type segment and the exact
-separator Code between segments.
-The pinned version must be a closed quoted canonical `Major.Minor` value.
+## Dependencies
 
-`Package::Language::Dependency` is that request, not the fetched package or a
-semantic resolution. Its stateless `parse` factory consumes one complete
-Resolve statement and returns only a complete Dependency.
+`resolve` records three facts:
 
-After the dependency region, each `source` declaration binds an exact authored
-Type shaped semantic name to one package path. The left side is the name used
-for cross Source resolution. The right side is only the location opened beneath
-the package root. A filename never creates a semantic name implicitly.
+```ttx
+resolve LocalName : External.Package.Identity = "Major.Minor";
+```
 
-`Package::Language::Source` retains that exact pair, and the Package Monograph
-retains the Source values in authored order. Its path is delimiter free and
-lexically normalized through `System::Path`. Package interpretation copies the
-normalized bytes into the graph Arena and does not open the path.
+- `LocalName` is the Alias used inside this Package and follows Type spelling.
+- `External.Package.Identity` is the durable Package coordinate.
+- `Major.Minor` is the pinned version.
 
-The stateless Source `parse` factory owns that one complete statement. It
-retains no Cursor, Token, bookmark, or partial declaration.
+Dots inside the external Package identity are manifest coordinate syntax, not
+Library Address access. Package selection uses the complete identity and pinned
+version. It does not infer a dependency from a filesystem location.
 
-Dependencies are optional and must precede Sources. At least one Source is
-required. Duplicate Dependency local aliases, duplicate Source semantic names,
-and duplicate normalized Source paths are independent Package errors.
+The local Alias participates in ordinary contextual access:
 
-## Dialect and Monograph
+```ttx
+Graphics::Image
+System::Terminal
+```
 
-`Package::Dialect` derives from `Language::Dialect`. Environment selects its
-stateful instance after parsing `dialect : Package;` and passes the same forward
-Cursor, opening Documentation, graph Arena, and shared registry to
-`interpret`.
+Each `::` step asks the selected context for the next object. A Type position
+requires the route to end at a Type, while Package and `using` declarations
+require the kind of context they can import. Package does not convert these
+different objects into one common Package Type. Package materializes each
+shared prefix as a real context: `Scenes::Splash` and `Scenes::Title` first
+select the same `Scenes` context and then query distinct leaf names. The
+complete qualified spelling is never a Package table key.
 
-Dialect selects the Resolve or Source parser, enforces the Dependency before
-Source body region, checks duplicates across completed values, requires at
-least one Source, and constructs the final Monograph only after the complete
-body transaction succeeds.
+## Sources
 
-The implemented interpretation contract constructs one
-`Package::Language::Monograph` in the Environment Arena after a successful
-transaction. The Monograph retains its opening Documentation, its host Package
-Dialect, ordered exact Dependency requests, and ordered Source bindings.
+`source` binds a semantic route to one path beneath the Package root:
 
-It retains no filesystem handle, downloaded dependency, opened member
-Monograph, compiler product, or archive entry.
+```ttx
+source Scenes::Splash from "scenes/splash.ttx";
+```
 
-Any failed Package transaction constructs and publishes no Package Monograph.
-Interpretation continues across recoverable statement failures so independent
-diagnostics remain visible. Existing diagnostics from another source do not
-decide the Package transaction.
+`Scenes::Splash` is the semantic route queried by other sources. It resolves
+through the Package context to the retained source binding. The quoted path
+only locates bytes. A filename, directory name, or manifest order never creates
+a semantic name implicitly.
 
-## Package root policy
+Source routes use Type-style segments joined by `::`. Library Type positions
+and `using` declarations follow the route and then check that it names the kind
+of object they require.
 
-`Package::Storage` is the physical companion to the authored Package model. A
-`Package::Language::Source` retains one semantic name and normalized logical
-route. Storage resolves only that route into a diagnostic path and content
-bytes. It never interprets the bytes or derives semantic identity from a
-filesystem name.
+Paths are normalized relative to the opened Package root. Empty, rooted,
+escaping, or invalid paths are rejected. Two authored paths that normalize to
+the same route identify the same input and therefore cannot declare two Sources.
 
-Storage borrows the Workspace Arena and owns exactly one opened
-`System::File::Root`. Its generic read operation serves Sources and embedded
-resources. Each logical route is normalized once at the Package boundary. The
-canonical relative form is then the cache key, diagnostic path, and confined
-read route. Absolute, rooted, escaping, empty, and NUL bearing routes are
-rejected.
+## Multi-source completion
 
-Only successful reads enter the managed cache. Each canonical route constructs
-one public `Storage::Content` value in the supplied Arena. Content contains
-only the retained diagnostic path and byte views. Equivalent normalized routes
-return the same Content reference. Distinct routes remain distinct even when
-their contents or filesystem object are equal. Empty bytes remain a successful
-retained value. Later file mutation, replacement, removal, root pathname
-movement, caller route mutation, cache growth, and Storage movement do not
-change existing Content.
+The Package Monograph is a description table. It retains the authored
+Dependency and Source values and maps their local names to borrowed completed
+Monographs; it owns none of those Monographs and contains no import state or
+completed-root cache.
 
-Storage lives while one physical Package can still be read. It may close after
-Workspace staging because every returned Content belongs to the Workspace
-Arena and remains valid for that semantic island lifetime. Workspace pairs the
-Source semantic name with Content when it imports the Source. Storage does not
-search the process working directory or resolve relative to a containing
-Source. Content outside the opened root is available only through an exact
-resolved Dependency.
+Workspace reads exactly that root manifest's fixed Source table. Each entry gets
+one source transaction Arena and one optional parse-valid Monograph. A member
+cannot add another Package import. After all entries parse, Workspace links
+every member before finalizing any member. Success transfers every completed
+owner into Workspace lifetime and publishes only the Package root; failure
+releases every candidate Arena.
 
-The current Monograph model still retains authored Source bindings only.
-Package Storage does not import members, construct Library Constants,
-interpret semantic facts, resolve dependencies, or select an App.
+## Package context
 
-`main.ttx` is only a filename convention. Future package assembly selects the
-sole completed App Monograph regardless of its local Source name or member
-filename.
+The Package Monograph exposes dependencies and Sources through TTX Aliases. A
+Source Alias borrows the Workspace-owned Monograph produced by that source's
+language. A dependency Alias borrows an exact Package identity and version that
+was already completed in the Workspace. Authored import never recursively
+restores or imports a missing dependency.
 
-## Archive and repository
+Contextual lookup returns those retained identities. It does not copy Library
+Types, App lifecycle facts, or Shader declarations into a separate Package
+model.
 
-Namespace `Package::Archive` owns the durable `Archive` value, Format 1
-`Reader`, and canonical `Writer`. `Package::Archive::Archive` is the semantic
-terminal for later source free restoration and is distinct from every Linker
-native product.
+Members local to a Package remain there unless another language
+explicitly imports or publishes them.
 
-An Archive contains:
+## Embedded resources
 
-1. exact Package identity and pinned version;
-2. ordered exact dependency requests;
-3. ordered semantic member names, concrete Dialect names, and opaque payloads;
-4. ordered logical native artifact IDs;
-5. ordered exported semantic routes and their artifact and symbol locators.
+An embedded resource operand names bytes beneath the source Package root:
 
-It contains no source bytes, source path as semantic identity, process address,
-parser state, filesystem handle, target cache, or Linker object bytes.
+```ttx
+$[resources/icon.png]
+$[resources/table.bin]:[0, 64]
+```
 
-Archive is a regular value over stable views supplied by its producer. Its
-constructor preserves those views and their order without copying storage or
-applying Format 1 validation. A direct producer obtains each opaque member
-payload through its concrete `Language::Dialect::encode` operation and keeps
-the described storage alive. Archive does not enumerate a Workspace, accept a
-Package Monograph or Source, interpret a payload, or depend on a concrete
-Dialect. An engaged empty payload remains a valid member payload.
+`$[...]` is one Package-reserved atomic contextual instruction. Package parses
+the path inside the brackets; it is not a qualified semantic name and does not
+permit other `resolve_context` implementations to consume punctuation or
+multiple name segments.
 
-The reader validates and materializes only. Its accepted input remains borrowed
-while the typed record ranges live in the caller Arena. The caller keeps that
-input valid until the Arena is reset or destroyed and keeps the Arena alive
-while it holds the returned Archive value. A caller with shorter lived input
-copies it into the Arena once before reading, while an Arena backed file read
-passes its existing view directly. Reader reports each rejected input through
-one explicit `Ttx::Lexical::Errors::Report` with the supplied diagnostic
-identity and exact input bytes. A later Workspace restoration transaction will
-select the installed Dialect and call its `restore` operation.
+Resource acquisition follows these rules:
 
-### Format 1
+1. Reads remain confined to the opened Package root.
+2. Absolute and escaping routes are rejected.
+3. Empty content is a successful Resource rather than a read failure.
+4. Equivalent normalized routes return the same retained result.
+5. Resolution never falls back to the process working directory or the
+   containing source directory.
 
-All unsigned integers are fixed width and little endian. The file starts with
-this twelve byte header:
+Package returns a Resource containing stable bytes without assigning them
+language meaning. The consumer assigns meaning. Library may construct a Bytes
+Constant, Shader may construct shader data, and another Dialect may define
+another interpretation.
 
-| Offset | Width | Value |
-| --- | ---: | --- |
-| 0 | 4 | ASCII `TTXA` |
-| 4 | 2 | format value `1` |
-| 6 | 2 | reserved flags `0` |
-| 8 | 4 | complete body size |
+A recognized request returns either one retained Resource or an Error defined by
+Package. The result says whether Package acquired the requested bytes. It does
+not decide how another language represents or uses them.
 
-The body is a tagged singleton field envelope. Every field starts with an
-unsigned 16 bit tag, unsigned 16 bit flags, and unsigned 32 bit payload size.
-Flag bit 0 marks a required field and every other bit is reserved.
+The logical path remains confinement and diagnostic data. It never becomes a
+Source name or exported semantic identity.
 
-The six known fields are required, occur exactly once, and occur in this
-canonical order:
+## Archive
 
-`Package::Archive::Archive::Sections` is the public source for these tags. Its
-closed values use `Unsigned_8` in memory and are widened to the existing
-unsigned 16 bit tag field on the wire. `Archive::header_size` publishes the
-twelve byte fixed header size used by both Reader and Writer.
+A Package Archive lets Tetrodotoxin rebuild a Package in a new Workspace
+without reading and parsing the original source. It stores durable language
+facts, not a copy of process memory.
 
-| Tag | Payload |
-| ---: | --- |
-| 1 | Package identity string |
-| 2 | unsigned 16 bit major and unsigned 16 bit minor Package version |
-| 3 | dependency list |
-| 4 | member list |
-| 5 | native artifact list |
-| 6 | export list |
+Package owns the Archive because it already knows the Package identity,
+dependencies, members, languages, and native artifacts that belong together.
+Each language owns the data for its own members. Linker continues to own native
+object and executable bytes.
 
-A missing, repeated, reordered, or incorrectly flagged known field rejects the
-Archive. An unknown field with the required bit rejects. An unknown optional
-field is skipped only when its complete declared payload remains inside the
-body. The writer emits no unknown fields.
+It contains:
 
-Strings and opaque member payloads start with an unsigned 32 bit byte size.
-Every list starts with an unsigned 32 bit count. Each list entry then starts
-with an unsigned 32 bit record size. A dependency record contains its local
-alias string, external Package identity string, unsigned 16 bit major, and
-unsigned 16 bit minor. A member record contains its semantic name string,
-Dialect name string, and opaque payload bytes. An artifact record contains one
-logical artifact ID string. An export record contains its semantic route
-string, artifact ID string, and symbol locator string.
+1. Package identity and version
+2. ordered dependency requests
+3. the selected Archive profile
+4. ordered member names, Dialect names, and language-owned member data
+5. ordered native artifact identifiers
+6. exported semantic routes with artifact and symbol locators
 
-Every declared field, record, string, and payload is consumed exactly. The
-header body size must describe the complete remaining input, so trailing bytes
-reject. Counts, record sizes, string sizes, and payload sizes use unsigned 32
-bit framing. Every addition, multiplication, allocation, and slice is checked
-against that framing and the remaining input before it occurs.
+Package arranges these records but does not interpret language-owned member
+data.
 
-Package identities use dot separated Type segments. Dependency aliases and
-member semantic names use `::` separated Type segments. Dialect names contain
-one Type segment. Each Type segment has the exact
-`[A-Z][A-Za-z0-9_]*` byte shape. Export semantic routes remain opaque to
-Package; their deeper legality belongs to their later semantic owner. Package
-and dependency versions reject the reserved `0.0` value.
+Package admits two profiles:
 
-Dependencies may be empty. Native artifact and export inventories may be
-empty. Members must not be empty. Dependency aliases, member semantic names,
-artifact IDs, and export semantic routes are each unique in their inventory.
-Every artifact ID, export semantic route, export artifact ID, and symbol
-locator is nonempty and contains no NUL byte. Every export references an
-artifact ID declared in the same Archive. Equal member payload bytes remain
-independent member facts.
+- `Complete` stores public and private declarations together with executable
+  bodies. It can be restored and compiled again without source.
+- `Interface` stores public Types, Layouts, Fields, Callable signatures,
+  constants, ABI requests, relationships, and compiled artifact locations. It
+  leaves executable bodies out.
 
-The writer accepts only a validated Archive. It preserves every supplied list
-order, preserves zero length member payloads, checks the complete encoded size
-before allocation, and always emits the header and six known fields above.
-Equivalent facts therefore produce byte identical output regardless of their
-original backing allocations.
+The selected profile also applies to child layers. For example, a Complete
+Scene contains Complete data for its Library child. The outer language stores
+the child section, while the child's language reads and checks it.
 
-### Future repository and restoration
+Neither profile stores parser state, temporary caches, compiler IR, live
+objects, or process addresses. Debug symbols and source mapping are separate
+outputs. A language that is always read from source does not need to support
+Archives.
 
-The exact Repository selects only explicitly supplied products by Package
-identity and pinned version. It provides semantic Archives to Workspace and
-native product paths to Puffer as separate values. It does not scan the current
-directory, fetch a latest version, or load native bytes during semantic
-restoration.
+Archive bytes are not live TTX objects. Name lookup, Type checks, and Layout
+fitting become available only after Environment restores the members and
+finishes the new Workspace.
 
-No exact Repository, Archive restoration path, or source free Workspace
-transaction exists in the current Package target. `Package::Dialect`
-encode and restore also remain future work because the Package root will be
-reconstructed from Archive envelope metadata rather than stored as a member
-payload.
+## Repository selection
+
+A Repository maps explicit build declarations to Package products. Language
+selection uses Package identity and version. Native selection uses an
+artifact identifier declared by the selected Archive.
+
+Repository selection does not scan directories or derive identity from paths.
+Archive locations, native artifact locations, and output routes remain explicit
+declarations. A semantic Archive can be selected without reading any native
+artifact.
+
+Output routes are relative, normalized, nonescaping paths. Archive and native
+outputs share the Package identity, version, and artifact key while remaining
+different product kinds.
+
+## Restoration
+
+Workspace creates the Package description Monograph before it reconstructs any
+member. This gives every language the same context for mappings and resources.
+Scene and Shader pass that context to their child layers. The Workspace supplies
+the installed language dependencies separately and retains every reconstructed
+Monograph handle.
+
+Each Dialect receives its opaque member payload and the same Package context
+directly in one Workspace-owned reconstruction Arena; there is no separate
+Restoration transaction wrapper. It returns one optional Monograph reference
+from that Arena. If a child layer fails, its outer member fails as well.
+Workspace links every member before finalizing any member and publishes nothing
+unless the complete restoration succeeds. Package records only borrowed member
+mappings. A later operation therefore retries from clean state.
+
+Archive validation and other source-free system or toolchain failures use
+Perimortem Diagnostics. They do not create a textual Cursor or a Package-local
+diagnostic collection without authored text.
+
+Restoration creates new objects. They must expose the same names, Types,
+relationships, ordering, Layout behavior, and language facts promised by the
+Archive. Their memory addresses and internal storage may differ, and old
+references are never revived.
+
+LLVM IR, object modules, and executables are compiled outputs. They cannot
+replace a language's Archive data because compilation has already discarded
+facts that matter to the source language. The Archive may name native artifacts
+and symbols, but Linker and the selected compiler still produce their bytes.
+
+See [Environment](../environment/README.md) for Workspace import and
+[Library](../library/README.md) for `using` and Resource consumption. The
+[standard packages](../../packages/ttx/README.md) are ordinary Package products
+that apply these contracts.

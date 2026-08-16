@@ -8,13 +8,21 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "perimortem/serialization/json/blueprint.hpp"
-
 namespace Perimortem::Serialization::Json {
 
 class Node {
  public:
-  class Member;
+  // Object membership is recursive, so a Member retains its materialized Node
+  // by reference. Both the Member range and every referred Node share the
+  // caller's arena lifetime.
+  class Member {
+   public:
+    constexpr Member(Core::View::Bytes name, const Node& node)
+        : name(name), node(node) {}
+
+    const Core::View::Bytes name;
+    const Node& node;
+  };
 
   Node() : data{.ptr = nullptr, .size = 0, .state = 0} { set(); }
   Node(const Node& rhs) : data(rhs.data) {};
@@ -82,25 +90,6 @@ class Node {
   auto is_array() const -> Bool;
   auto is_object() const -> Bool;
 
-  // Recursively materialises a Blueprint array into an arena-backed object
-  // node. Children with names become an object; children without names become
-  // an array. All stack C-arrays live for the full construct() expression.
-  template <Count N>
-  static auto construct(
-      Memory::Allocator::Arena& arena,
-      const Blueprint (&entries)[N]) -> Node {
-    return construct(arena, entries, N);
-  }
-
-  static auto construct(
-      Memory::Allocator::Arena& arena,
-      const Json::Blueprint* entries,
-      Count count) -> Node;
-
-  static auto construct(
-      Memory::Allocator::Arena& arena,
-      const Json::Blueprint& root) -> Node;
-
   auto parse(
       Memory::Allocator::Arena& arena,
       Core::View::Bytes source,
@@ -121,15 +110,6 @@ class Node {
     Unsigned_32 size;
     Unsigned_32 state;
   } data;
-};
-
-class Node::Member {
- public:
-  constexpr Member(Core::View::Bytes name, Node node)
-      : name(name), node(node) {}
-
-  const Core::View::Bytes name;
-  const Node node;
 };
 
 static_assert(sizeof(Node) == 16, "Size of Node is required to be 16 bytes.");

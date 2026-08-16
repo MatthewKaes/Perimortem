@@ -3,24 +3,21 @@
 
 #pragma once
 
+#include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "ttx/model/documentations/comment.hpp"
-#include "ttx/model/types/unsigned.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Unsigned_8 is the standard eight-bit Type implementing the Unsigned domain.
+// Unsigned_8 is the standard eight bit Type implementing the Unsigned domain.
 // Its name and representation match the Perimortem primitive exactly.
-class Unsigned_8 : public Ttx::Model::Types::Unsigned {
+class Unsigned_8 : public Model::Types::Unsigned {
  public:
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return "Unsigned_8"_view;
-  }
+  TTX_NAME("Unsigned_8"_view);
 
-  constexpr auto get_documentation() const
-      -> const Ttx::Concept::Documentation& override {
-    return documentation;
-  }
+  TTX_DOCUMENTATION(documentation);
 
+  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
   constexpr auto get_width() const -> Count override { return 8; }
   constexpr auto get_size() const -> Count override {
     return sizeof(::Unsigned_8);

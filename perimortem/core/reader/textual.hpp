@@ -8,11 +8,11 @@
 namespace Perimortem::Core::Reader {
 
 // Reads human-readable values from a text byte buffer. Reads are greedy so
-// numeric values must be whitespace seperated to be read appropriately.
+// numeric values must be whitespace separated to be read appropriately.
 //
 // Real, Flag, Unsigned, and Signed reads automatically skip leading whitespace.
 //
-// An overflow or parse failure set the reader to an invalid state and
+// An overflow or parse failure sets the reader to an invalid state and
 // subsequent reads return zero-initialized values without advancing the
 // cursor.
 class Textual {
@@ -23,19 +23,23 @@ class Textual {
   // Sets the location of the read cursor.
   //
   // An out-of-range location invalidates the reader by setting the position to
-  // Count(-1), so using `set_pointer(Count(-1))` is a cheap way to manually
+  // Count(-1), so using `set_location(Count(-1))` is a cheap way to manually
   // invalidate a reader.
-  constexpr auto set_location(Count location) -> void { cursor = location; }
+  constexpr auto set_location(Count location) -> void {
+    cursor = location <= source.get_size() ? location : Count(-1);
+  }
   constexpr auto get_location() const -> Count { return cursor; }
 
   auto read_byte() -> Unsigned_8;
   auto read_flag() -> Bool;
-  auto read_unsigned() -> Unsigned_64;
+  // Reads one unsigned value using a radix from 2 through 16.
+  auto read_unsigned(Unsigned_8 radix = 10) -> Unsigned_64;
   auto read_signed() -> Signed_64;
   auto read_real_32() -> Real_32;
   auto read_real_64() -> Real_64;
 
   constexpr auto get_size() const -> Count { return source.get_size(); }
+  constexpr auto is_valid() const -> Bool { return cursor != Count(-1); }
   constexpr auto has_content() const -> Bool {
     return cursor < source.get_size();
   }

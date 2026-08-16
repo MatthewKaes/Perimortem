@@ -23,12 +23,14 @@ auto Compression::Huffman::compute_lengths(
   constexpr Count node_max = Compression::Huffman::max_symbol_count * 2;
 
   Static::Vector<Node, node_max> nodes;
+  const auto* frequency_data = frequencies.get_data();
+  auto* length_data = lengths.get_data();
   Count node_count = 0;
   Count leaf_count = 0;
   for (Count s = 0; s < symbol_count; s++) {
-    lengths[s] = 0;
-    if (frequencies[s] > 0) {
-      nodes[node_count++] = {frequencies[s], null_node, Unsigned_16(s)};
+    length_data[s] = 0;
+    if (frequency_data[s] > 0) {
+      nodes[node_count++] = {frequency_data[s], null_node, Unsigned_16(s)};
       leaf_count++;
     }
   }
@@ -36,7 +38,7 @@ auto Compression::Huffman::compute_lengths(
   if (leaf_count == 0) {
     return;
   } else if (leaf_count == 1) {
-    lengths[nodes[0].symbol] = 1;
+    length_data[nodes[0].symbol] = 1;
     return;
   }
 
@@ -80,7 +82,7 @@ auto Compression::Huffman::compute_lengths(
     nodes[right_child].parent = Unsigned_16(new_node);
   }
 
-  // Phase 1: compute depths, clamp to max_code_bits, and build length counts.
+  // Compute depths, clamp to max_code_bits, and build length counts.
   Static::Vector<Count, max_code_bits + 2> codes_per_length;
   for (Count i = 0; i <= max_code_bits + 1; i++) {
     codes_per_length[i] = 0;
@@ -100,18 +102,19 @@ auto Compression::Huffman::compute_lengths(
     }
 
     codes_per_length[depth]++;
-    lengths[nodes[i].symbol] = Unsigned_8(depth);
+    length_data[nodes[i].symbol] = Unsigned_8(depth);
   }
 
-  // Phase 2: restore Kraft equality if clamping over-committed the prefix code.
+  // Clamping can overcommit the prefix code. Restore Kraft equality before the
+  // completed lengths become a table.
   // Clamping a symbol from depth d > max_code_bits to max_code_bits can make
   // the Kraft sum exceed 2 ^ max_code_bits which would produce an ambiguous
   // prefix code that stricter decoders reject.
   //
   // We compute the actual integer Kraft excess directly and reduce it by
   // exactly that many iterations. Each iteration removes one code from the
-  // deepest available sub-max level, replaces it with two codes at the next
-  // level, and removes one code at max_code_bits.
+  // deepest available level below the maximum, replaces it with two codes at
+  // the next level, and removes one code at max_code_bits.
   Count kraft_sum = 0;
   for (Count j = 1; j <= max_code_bits; j++) {
     kraft_sum += codes_per_length[j] * (Count(1) << (max_code_bits - j));
@@ -138,7 +141,7 @@ auto Compression::Huffman::compute_lengths(
     Count assign_index = leaf_count;
     for (Count bits = 1; bits <= max_code_bits; bits++) {
       for (Count i = 0; i < codes_per_length[bits]; i++) {
-        lengths[nodes[--assign_index].symbol] = Unsigned_8(bits);
+        length_data[nodes[--assign_index].symbol] = Unsigned_8(bits);
       }
     }
   }

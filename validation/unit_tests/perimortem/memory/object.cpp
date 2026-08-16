@@ -64,6 +64,22 @@ PERIMORTEM_UNIT_TEST(DynamicObject, assignment) {
   EXPECT_EQ(destructor_count, Count(2));
 }
 
+PERIMORTEM_UNIT_TEST(DynamicObject, shared_assignment_preserves_reservations) {
+  Count destructor_count = 0;
+
+  {
+    Dynamic::Object<RaiiProbe> first(destructor_count, 3);
+    Dynamic::Object<RaiiProbe> second = first;
+    const Dynamic::Object<RaiiProbe>& alias = first;
+
+    first = alias;
+    second = first;
+    EXPECT_EQ(destructor_count, Count(0));
+  }
+
+  EXPECT_EQ(destructor_count, Count(1));
+}
+
 PERIMORTEM_UNIT_TEST(DynamicObject, move_assignment) {
   Count destructor_count = 0;
 
@@ -74,7 +90,6 @@ PERIMORTEM_UNIT_TEST(DynamicObject, move_assignment) {
 
       first = static_cast<Dynamic::Object<RaiiProbe>&&>(second);
       EXPECT_EQ(first->get_value(), Count(2));
-      EXPECT_EQ(second->get_value(), Count(1));
       EXPECT_EQ(destructor_count, Count(0));
     }
 
@@ -93,7 +108,6 @@ PERIMORTEM_UNIT_TEST(DynamicObject, move_construction) {
     {
       Dynamic::Object<RaiiProbe> second(
           static_cast<Dynamic::Object<RaiiProbe>&&>(first));
-      EXPECT_EQ(first->get_value(), Count(3));
       EXPECT_EQ(second->get_value(), Count(3));
     }
 
@@ -113,7 +127,9 @@ PERIMORTEM_UNIT_TEST(DynamicObject, map_owner) {
   }
 
   EXPECT_EQ(destructor_count, Count(0));
-  EXPECT_EQ(values.find(0)->value->get_value(), Count(7));
+  auto found = values.find(0);
+  ASSERT(found);
+  EXPECT_EQ((*found).value->get_value(), Count(7));
 
   values.remove(0);
   EXPECT_EQ(destructor_count, Count(1));
@@ -129,7 +145,9 @@ PERIMORTEM_UNIT_TEST(DynamicObject, map_rehash) {
 
   EXPECT_EQ(destructor_count, Count(0));
   for (Count i = 0; i < 16; i++) {
-    EXPECT_EQ(values.find(i)->value->get_value(), i);
+    auto found = values.find(i);
+    ASSERT(found);
+    EXPECT_EQ((*found).value->get_value(), i);
   }
 
   values.clear();

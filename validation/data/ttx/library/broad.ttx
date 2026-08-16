@@ -1,30 +1,25 @@
+//
 dialect : Library;
 
 // Packet is the broad fixture's inline value owner.
 //
 // The empty documentation line above must survive as a paragraph break.
-@serializable
-@revision(1)
-@priority(-1)
-@ratio(1.5)
-@enabled(true)
-@label("packet")
 public Packet : struct {
-  public width : Unsigned_64 = 0;
-  public height : Unsigned_64 = 0;
-  public ready : Bool = false;
+  public state width : Unsigned_64 = 0;
+  public state height : Unsigned_64 = 0;
+  public state ready : Bool = false;
 
-  public func identity[.value : Unsigned_64] -> Unsigned_64 {
+  public identity : func = [.value : Unsigned_64] -> Unsigned_64 {
     return value;
   }
 
-  public func identity[self] -> Unsigned_64 {
+  public identity : func = [self] -> Unsigned_64 {
     return Packet -> finish(self.width + self.height);
   }
 
   private checksum : Unsigned_64 = 0;
 
-  private func finish[.value : Unsigned_64] -> Unsigned_64 {
+  private finish : func = [.value : Unsigned_64] -> Unsigned_64 {
     return value;
   }
 }
@@ -38,20 +33,20 @@ public Mode : enum[Unsigned_8] {
 public Session : object {
   expose state progress : Unsigned_64 = 0;
 
-  public func advance[self, .amount : Unsigned_64] -> Unsigned_64 {
+  public advance : func = [self, .amount : Unsigned_64] -> Unsigned_64 {
     self.progress += amount;
     return self.progress;
   }
 
   private state token : Unsigned_64 = 7;
 
-  private func token_value[self] -> Unsigned_64 {
+  private token_value : func = [self] -> Unsigned_64 {
     return self.token;
   }
 }
 
 public PacketAlias : alias = Packet;
-expose state observed_total : Unsigned_64 = 0;
+public observed_total : Unsigned_64 = 0;
 public const signature : Fixed[Unsigned_8, 4] = 0x[54 54 58 31];
 public default_packet : PacketAlias = (
   .width = 2,
@@ -60,24 +55,18 @@ public default_packet : PacketAlias = (
 );
 public dense_defaults : Fixed[Unsigned_64, 4] = (1, 2, 3, 4);
 
-public func broad_entry[
-  @input @slot(0) .limit : Unsigned_64,
-  @input @slot(1) .ready : Bool,
+public broad_entry : func = [
+  .limit : Unsigned_64,
+  .ready : Bool,
 ] -> Unsigned_64 {
   state local : Unsigned_64 = 0;
   state packet : Packet = default_packet;
   state dense : Fixed[Unsigned_64, 4] = (1, 2, 3, 4);
-  state sparse : Fixed[Unsigned_64, 4] = (
-    .0 = 8,
-    .0x1 = 13,
-    .2 = 21,
-    .0x3 = 34,
-  );
   state middle : Fixed[Unsigned_64, 2] = dense:[1, 2];
   state dimensions : Fixed[Unsigned_64, 2] = packet.[width, height];
   state negative : Signed_64 = -1;
   state accepted : Bool = ready and limit > 0;
-  state session : Session = new;
+  state session : Session = new[Session];
 
   if (accepted) {
     local = Packet -> identity(limit);
@@ -113,21 +102,24 @@ public func broad_entry[
   local = packet -> identity();
   session -> advance(middle:[0]);
   foreign -> library_observe(dimensions:[0]);
-  private_total = PrivateOps -> combine(local, sparse:[0]);
+  private_total = PrivateOps -> combine(local, dense:[0]);
   observed_total = private_total;
   return observed_total;
 }
 
-public func reset[] -> Void {
+public reset : func = [] -> [] {
   observed_total = 0;
   return;
 }
 
-public func unnamed_layout[Unsigned_64, Bool] -> [Unsigned_64, Bool] {
+public positional_result : func = [
+  .value : Unsigned_64,
+  .flag : Bool,
+] -> [Unsigned_64, Bool] {
   return (0, false);
 }
 
-public func classify[.value : Unsigned_64] -> [
+public classify : func = [.value : Unsigned_64] -> [
   .accepted : Bool,
   .adjusted : Unsigned_64,
 ] {
@@ -139,7 +131,7 @@ foreign "C" {
 }
 
 private PrivateOps : struct {
-  public func combine[
+  public combine : func = [
     .left : Unsigned_64,
     .right : Unsigned_64,
   ] -> Unsigned_64 {
@@ -147,14 +139,8 @@ private PrivateOps : struct {
   }
 }
 
-private state private_total : Unsigned_64 = 0;
+private private_total : Unsigned_64 = 0;
 private const mask : Unsigned_64 = 0xFF;
-private decode_table : Fixed[Unsigned_8, 4] = (
-  .0 = 0,
-  .1 = 1,
-  .2 = 2,
-  .3 = 3,
-);
 private private_packet : Packet = (
   .width = 5,
   .height = 8,

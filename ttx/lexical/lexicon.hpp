@@ -49,6 +49,22 @@ class Lexicon {
            (byte >= 'A' && byte <= 'F');
   }
 
+  // Accepts one byte ignored between authored lexical values.
+  static constexpr auto is_whitespace(Unsigned_8 byte) -> Bool {
+    return byte == ' ' || byte == '\n' || byte == '\r' || byte == '\t';
+  }
+
+  // Converts one byte already proven by is_hex into its numeric value.
+  static constexpr auto get_hex_value(Unsigned_8 byte) -> Unsigned_8 {
+    if (byte <= '9') {
+      return byte - '0';
+    }
+    if (byte <= 'F') {
+      return byte - 'A' + 10;
+    }
+    return byte - 'a' + 10;
+  }
+
   // Proves that one complete authored byte span has the requested Code shape.
   // When separators are supplied the span contains one or more values joined
   // by any listed separator Code.
@@ -75,8 +91,20 @@ class Lexicon {
     // Definition keywords
     case Code::Type::Alias:
       return "alias"_view;
+    case Code::Type::Enum:
+      return "enum"_view;
+    case Code::Type::Struct:
+      return "struct"_view;
+    case Code::Type::Object:
+      return "object"_view;
 
     // Statement and import keywords
+    case Code::Type::Using:
+      return "using"_view;
+    case Code::Type::New:
+      return "new"_view;
+    case Code::Type::From:
+      return "from"_view;
     case Code::Type::If:
       return "if"_view;
     case Code::Type::In:
@@ -97,6 +125,8 @@ class Lexicon {
       return "while"_view;
     case Code::Type::Return:
       return "return"_view;
+    case Code::Type::Emit:
+      return "emit"_view;
     case Code::Type::Resolve:
       return "resolve"_view;
     case Code::Type::Source:
@@ -155,9 +185,9 @@ class Lexicon {
       return "("_view;
     case Code::Type::PackingEnd:
       return ")"_view;
-    case Code::Type::LayoutStart:
+    case Code::Type::BracketStart:
       return "["_view;
-    case Code::Type::LayoutEnd:
+    case Code::Type::BracketEnd:
       return "]"_view;
     case Code::Type::Define:
       return ":"_view;
@@ -171,12 +201,14 @@ class Lexicon {
       return "."_view;
     case Code::Type::SwizzleOp:
       return ".["_view;
-    case Code::Type::SliceOp:
+    case Code::Type::ValueAccessOp:
       return ":["_view;
     case Code::Type::PackingOp:
       return ","_view;
     case Code::Type::NotOp:
       return "!"_view;
+    case Code::Type::QuestionOp:
+      return "?"_view;
     case Code::Type::RangeOp:
       return "..."_view;
     case Code::Type::Discard:
@@ -203,8 +235,6 @@ class Lexicon {
       return "@"_view;
     case Code::Type::Comment:
       return "//"_view;
-    case Code::Type::Disabled:
-      return "/>"_view;
     case Code::Type::String:
       return "\""_view;
 
@@ -222,8 +252,8 @@ class Lexicon {
     using Entry =
         Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Code::Type>;
 
-    static constexpr Perimortem::Core::Static::Vector<Entry, 25> keywords = {{
-      {get_spelling(Code::Type::And), Code::Type::And},
+    static constexpr Perimortem::Core::Static::Vector<Entry, 32> keywords = {{
+      Entry{get_spelling(Code::Type::And), Code::Type::And},
       {get_spelling(Code::Type::Or), Code::Type::Or},
       {get_spelling(Code::Type::If), Code::Type::If},
       {get_spelling(Code::Type::In), Code::Type::In},
@@ -239,10 +269,17 @@ class Lexicon {
       {get_spelling(Code::Type::True), Code::Type::True},
       {get_spelling(Code::Type::False), Code::Type::False},
       {get_spelling(Code::Type::Return), Code::Type::Return},
+      {get_spelling(Code::Type::Emit), Code::Type::Emit},
       {get_spelling(Code::Type::Resolve), Code::Type::Resolve},
       {get_spelling(Code::Type::Source), Code::Type::Source},
       {get_spelling(Code::Type::Dialect), Code::Type::Dialect},
       {get_spelling(Code::Type::Alias), Code::Type::Alias},
+      {get_spelling(Code::Type::Enum), Code::Type::Enum},
+      {get_spelling(Code::Type::Struct), Code::Type::Struct},
+      {get_spelling(Code::Type::Object), Code::Type::Object},
+      {get_spelling(Code::Type::Using), Code::Type::Using},
+      {get_spelling(Code::Type::New), Code::Type::New},
+      {get_spelling(Code::Type::From), Code::Type::From},
       {get_spelling(Code::Type::Public), Code::Type::Public},
       {get_spelling(Code::Type::Private), Code::Type::Private},
       {get_spelling(Code::Type::Expose), Code::Type::Expose},

@@ -13,6 +13,3 @@ filegroup(
         "scenes/title.ttx",
     ],
 )
-
-# The Scene evaluator and runtime are not implemented yet. This target exposes
-# the complete authored pressure fixture without claiming executable behavior.

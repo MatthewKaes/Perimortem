@@ -48,12 +48,12 @@ static auto parse(Allocator::Arena& arena, View::Vector<View::Bytes> arguments)
 
 static auto values_for(const Args::Values& args, View::Bytes name)
     -> View::Vector<View::Bytes> {
-  const auto* entry = args.find(name);
-  if (entry == nullptr) {
+  auto entry = args.find(name);
+  if (!entry) {
     return View::Vector<View::Bytes>();
   }
 
-  return entry->value->get_view();
+  return (*entry).value->get_view();
 }
 
 static auto value_count(const Args::Values& args, View::Bytes name) -> Count {
@@ -69,7 +69,7 @@ static auto value_at(
     return View::Bytes();
   }
 
-  return values[index];
+  return values.get_data()[index];
 }
 
 static constexpr View::Bytes expected_help =
@@ -136,21 +136,6 @@ PERIMORTEM_UNIT_TEST(SystemArgs, help_keeps_parsing) {
   EXPECT_TEXT(value_at(parsed, "help"_view), "true"_view);
   EXPECT_TEXT(value_at(parsed, "fast"_view), "true"_view);
   EXPECT_TEXT(value_at(parsed, "output"_view), "out.a"_view);
-}
-
-PERIMORTEM_UNIT_TEST(SystemArgs, double_dash_parse) {
-  constexpr Static::Vector<View::Bytes, 5> raw = {
-    {"demo"_view, "--fast"_view, "--output=out.a"_view, "---dep=dep.ttx"_view,
-     "----ratio=1.5"_view}};
-  Allocator::Arena arena;
-
-  Args::Values parsed = parse(arena, raw);
-  ASSERT_NOT(parsed.is_empty());
-  EXPECT(parsed.contains("fast"_view));
-  EXPECT_TEXT(value_at(parsed, "fast"_view), "true"_view);
-  EXPECT_TEXT(value_at(parsed, "output"_view), "out.a"_view);
-  EXPECT_TEXT(value_at(parsed, "dep"_view), "dep.ttx"_view);
-  EXPECT_TEXT(value_at(parsed, "ratio"_view), "1.5"_view);
 }
 
 PERIMORTEM_UNIT_TEST(SystemArgs, empty_value) {

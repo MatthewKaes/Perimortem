@@ -46,3 +46,15 @@ class Documentation {
 };
 
 }  // namespace Ttx::Concept
+
+#define TTX_EMPTY_DOCUMENTATION()                      \
+  auto get_documentation() const                       \
+      -> const Ttx::Concept::Documentation& override { \
+    return Ttx::Concept::Documentation::get_empty();   \
+  }
+
+#define TTX_DOCUMENTATION(expression)                  \
+  constexpr auto get_documentation() const             \
+      -> const Ttx::Concept::Documentation& override { \
+    return expression;                                 \
+  }
