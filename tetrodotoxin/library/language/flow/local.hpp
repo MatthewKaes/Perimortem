@@ -42,13 +42,36 @@ class Local : public Model::Addressable {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
 
+  auto lower(Llvm::Builder& body) const -> Bool;
+
   TTX_NAME(name);
-  TTX_EMPTY_DOCUMENTATION();
+
+  auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
+  auto resolve_access(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto resolve_call(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
   constexpr auto get_type() const -> const Model::Type& override {
     return type->get();
+  }
+
+  constexpr auto get_linked_type() const
+      -> Perimortem::Core::Option<const Model::Type&> {
+    return type.visit(
+        []() -> Perimortem::Core::Option<const Model::Type&> { return {}; },
+        [](const Ttx::Concept::Reference<const Model::Type>& selected)
+            -> Perimortem::Core::Option<const Model::Type&> {
+          return selected.get();
+        });
   }
 
   constexpr auto get_writability() const -> Writability { return writability; }
@@ -58,6 +81,16 @@ class Local : public Model::Addressable {
   }
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
+
+  constexpr auto get_initializer() const
+      -> Perimortem::Core::Option<const Model::Pack&> {
+    return initializer.visit(
+        []() -> Perimortem::Core::Option<const Model::Pack&> { return {}; },
+        [](Model::Pack& selected)
+            -> Perimortem::Core::Option<const Model::Pack&> {
+          return selected;
+        });
+  }
 
   auto get_constant() const -> Perimortem::Core::Option<Model::Pack&> override;
 

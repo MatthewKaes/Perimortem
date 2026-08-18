@@ -10,6 +10,7 @@
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -58,26 +59,47 @@ TTX_BINARY_PARSE(Modulo, ModOp);
 
 TTX_BINARY_OP(Modulo);
 
-auto Language::Operations::Modulo::select_type(const Ttx::Concept::Abstract&)
-    const -> Core::Option<const Language::Model::Type&> {
-  auto left = get_input(0);
-  auto right = get_input(1);
-  if (!left || !right) {
-    return {};
+auto Language::Operations::Modulo::lower(Llvm::Builder& body) const -> Bool {
+  auto folded = lower_folded(body);
+  if (folded) {
+    return *folded;
   }
 
-  return select_result_type(*left, *right).select<Language::Model::Type>();
+  auto inputs = get_inputs();
+  const Expression& left = inputs.get_data()[0].get();
+  const Expression& right = inputs.get_data()[1].get();
+  auto carrier = get_type().resolve().select<Ttx::Model::Type>();
+
+  if (!carrier) {
+    return False;
+  }
+
+  Bool lowered = lower_inputs(body);
+  if (!lowered) {
+    return False;
+  }
+
+  return body.modulo(*carrier, *this, left, right);
+}
+
+auto Language::Operations::Modulo::select_type(const Ttx::Concept::Abstract&)
+    const -> Core::Option<const Language::Model::Type&> {
+  auto inputs = get_inputs();
+  const Expression& left = inputs.get_data()[0].get();
+  const Expression& right = inputs.get_data()[1].get();
+  return select_result_type(left, right).select<Language::Model::Type>();
 }
 
 auto Language::Operations::Modulo::evaluate_constants(
     Memory::Allocator::Arena& domain)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   const Abstract& selected = get_type().resolve();
-  auto authored_left = get_input(0);
-  auto authored_right = get_input(1);
+  auto inputs = get_inputs();
+  Expression& authored_left = inputs.get_data()[0].get();
+  Expression& authored_right = inputs.get_data()[1].get();
   auto left = get_folded_input(0);
   auto right = get_folded_input(1);
-  if (!authored_left || !authored_right || !left || !right) {
+  if (!left || !right) {
     return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
@@ -88,12 +110,12 @@ auto Language::Operations::Modulo::evaluate_constants(
     auto right_value = right->select<Constants::Signed>();
     if (!left_value) {
       return Expression::Error(
-          Expression::Error::Type::InvalidConstant, *authored_left);
+          Expression::Error::Type::InvalidConstant, authored_left);
     }
 
     if (!right_value) {
       return Expression::Error(
-          Expression::Error::Type::InvalidConstant, *authored_right);
+          Expression::Error::Type::InvalidConstant, authored_right);
     }
 
     return selected.visit<
@@ -139,12 +161,12 @@ auto Language::Operations::Modulo::evaluate_constants(
     auto right_value = right->select<Constants::Unsigned>();
     if (!left_value) {
       return Expression::Error(
-          Expression::Error::Type::InvalidConstant, *authored_left);
+          Expression::Error::Type::InvalidConstant, authored_left);
     }
 
     if (!right_value) {
       return Expression::Error(
-          Expression::Error::Type::InvalidConstant, *authored_right);
+          Expression::Error::Type::InvalidConstant, authored_right);
     }
 
     return selected.visit<

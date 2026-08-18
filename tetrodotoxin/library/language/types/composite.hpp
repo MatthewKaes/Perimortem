@@ -52,7 +52,7 @@ class Composite : public Model::Type {
   auto publish_binding(
       Ttx::Concept::Abstract& binding,
       Category category,
-      Bool published) -> void;
+      Bool published) -> Bool;
 
   virtual auto retain_binding(
       Ttx::Concept::Abstract& binding,
@@ -66,6 +66,11 @@ class Composite : public Model::Type {
   // Alias routes without making an Alias discover or complete its siblings.
   auto link_aliases() -> Count override;
   auto validate_aliases(Ttx::Lexical::Cursor& cursor) const -> Bool override;
+
+  virtual auto reserve_carrier(Llvm::Program& program) const
+      -> Perimortem::Core::Option<Bool> = 0;
+
+  virtual auto complete_carrier(Llvm::Program& program) const -> Bool = 0;
 
  public:
   TTX_CONTRACT(Composite, Model::Type);
@@ -112,6 +117,17 @@ class Composite : public Model::Type {
   auto link_callable_bodies(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
+  auto reserve(Llvm::Program& program) const -> Bool override;
+
+  auto complete(Llvm::Program& program) const -> Bool override;
+
+  auto lower(Llvm::Program& program) const -> Bool override;
+
+  constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
+    return get_anchor();
+  }
+
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
   // An explicit context query exposes only public Type names. A missing local
@@ -132,12 +148,6 @@ class Composite : public Model::Type {
       Model::Type::Access access) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto resolve_type_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route,
-      Model::Type::Access access) const
-      -> const Ttx::Concept::Abstract& override;
-
   auto get_layout() const -> const Ttx::Model::Layouts::Named& override;
 
   auto get_addressables(
@@ -146,15 +156,6 @@ class Composite : public Model::Type {
     auto selected = visibility == Tetrodotoxin::Language::Visibility::Private
                         ? addressables.get_view()
                         : published_addressables.get_view();
-    return Perimortem::Core::View::Selection(selected);
-  }
-
-  auto get_callables(
-      Tetrodotoxin::Language::Visibility visibility =
-          Tetrodotoxin::Language::Visibility::Private) const {
-    auto selected = visibility == Tetrodotoxin::Language::Visibility::Private
-                        ? callables.get_view()
-                        : published_callables.get_view();
     return Perimortem::Core::View::Selection(selected);
   }
 
@@ -194,12 +195,6 @@ class Composite : public Model::Type {
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       published_addressables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      callables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      published_callables;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       types;

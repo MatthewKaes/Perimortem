@@ -3,8 +3,10 @@
 
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "tetrodotoxin/library/language/model/parser/layout.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/language/types/contiguous.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
 
 using namespace Perimortem::Core;
@@ -21,12 +23,12 @@ auto Language::Flow::RangeLoop::interpret(
     const Language::Model::Type& access_scope) -> Option<RangeLoop&> {
   Allocator::Arena& domain = cursor.get_arena();
   Token opening = cursor.require(
-      Code::Type::For, "Library Range loops require the `for` keyword."_view);
+      Code::Type::For, "Library for loops require the `for` keyword."_view);
   BAIL_IF(!opening);
 
   if (!cursor.matches(Code::Type::BracketStart)) {
     cursor.create_token_error(
-        "Library Range loop bindings require one bracketed named entry."_view);
+        "Library for loop bindings require one bracketed named entry."_view);
     return {};
   }
 
@@ -42,7 +44,7 @@ auto Language::Flow::RangeLoop::interpret(
         if (index != 0 || !selected_name ||
             selected_name->get_code() != Code::Type::Addressable) {
           entry.create_token_error(
-              "A Library Range loop requires exactly one `.name : Type` "
+              "A Library for loop requires exactly one `.name : Type` "
               "binding."_view);
           return False;
         }
@@ -58,22 +60,22 @@ auto Language::Flow::RangeLoop::interpret(
   if (entries != 1 || !name || !type_reference) {
     cursor.create_expression_error(
         Span(opening, *binding_end),
-        "A Library Range loop requires exactly one named binding."_view,
+        "A Library for loop requires exactly one named binding."_view,
         "Use `[.name : Type]` before the `in` keyword."_view);
     return {};
   }
 
   BAIL_IF(!cursor.require(
       Code::Type::In,
-      "Library Range loop bindings require the `in` keyword."_view));
+      "Library for loop bindings require the `in` keyword."_view));
 
-  auto range = Parser::Expression::parse(lexical_context, cursor);
-  BAIL_IF(!range);
+  auto input = Parser::Expression::parse(lexical_context, cursor);
+  BAIL_IF(!input);
 
   View::Bytes spelling = name->caculate_text(cursor.get_source_text());
   RangeLoop& loop = domain.construct_from<RangeLoop>([&]() -> RangeLoop {
     return RangeLoop(
-        lexical_context, *name, spelling, *type_reference, *range,
+        lexical_context, *name, spelling, *type_reference, *input,
         Anchor::create(*name, Span(opening, cursor.peek(-1))));
   });
 
@@ -103,30 +105,36 @@ auto Language::Flow::RangeLoop::link(
   if (!selected_type || selected_type->get_layout().is_empty()) {
     cursor.create_expression_error(
         type_reference.get_anchor(),
-        "Range loop binding Type did not resolve to one addressable Type."_view,
+        "For loop binding Type did not resolve to one addressable Type."_view,
         "Use one completed nonempty Type for the loop binding."_view);
     return False;
   }
   if (type && &type->get() != &*selected_type) {
     cursor.create_expression_error(
         type_reference.get_anchor(),
-        "Range loop binding selected a different Type identity."_view,
+        "For loop binding selected a different Type identity."_view,
         "Repeat linking with the same completed declaration graph."_view);
     return False;
   }
 
-  Model::Pack& retained_range = range.get();
-  // The authored binding and Range element must select the exact same Type.
+  Model::Pack& retained_input = input.get();
+  // The authored binding and input element must select the exact same Type.
   // Layout compatibility alone would permit a loop variable to change identity
   // when two Types happen to share a representation.
-  BAIL_IF(!retained_range.link(cursor, lexical_context, access_scope));
-  const Abstract& range_type = retained_range.get_type().resolve();
-  auto typed_range = range_type.select<Language::Types::Range>();
-  if (!typed_range || &typed_range->get_element_type() != &*selected_type) {
+  BAIL_IF(!retained_input.link(cursor, lexical_context, access_scope));
+  const Abstract& input_type = retained_input.get_type().resolve();
+  auto typed_range = input_type.select<Language::Types::Range>();
+  auto typed_contiguous = input_type.select<Language::Types::Contiguous>();
+  const Language::Model::Type* element =
+      typed_range        ? &typed_range->get_element_type()
+      : typed_contiguous ? &typed_contiguous->get_element_type()
+                         : nullptr;
+  if (element == nullptr || element != &*selected_type) {
     cursor.create_expression_error(
         anchor,
-        "Range loop input must be one Range with the binding's exact Type."_view,
-        "Match the declared binding Type to both Range endpoints."_view);
+        "For loop input must be one Range or contiguous value with the "
+        "binding's exact Type."_view,
+        "Match the declared binding Type to the input element Type."_view);
     return False;
   }
 
@@ -138,10 +146,29 @@ auto Language::Flow::RangeLoop::link(
 }
 
 auto Language::Flow::RangeLoop::finalize(Cursor& cursor) -> void {
-  range.get().finalize(cursor);
+  input.get().finalize(cursor);
   body.visit(
       []() {},
       [&](Reference<Block>& selected) { selected.get().finalize(cursor); });
+}
+
+auto Language::Flow::RangeLoop::lower(Llvm::Builder& target) const -> Bool {
+  Bool input_lowered = input.get().lower(target);
+  if (!input_lowered) {
+    return False;
+  }
+
+  Bool began = target.begin_range(*this, input.get(), anchor);
+  if (!began) {
+    return False;
+  }
+
+  Bool body_lowered = body->get().lower(target);
+  if (!body_lowered) {
+    return False;
+  }
+
+  return target.end_range(*this);
 }
 
 auto Language::Flow::RangeLoop::resolve() const -> const Abstract& {

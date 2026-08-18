@@ -5,6 +5,7 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "ttx/concept/documentation.hpp"
@@ -127,6 +128,13 @@ class Group final : public Language::Model::Pack {
     return entries.at(selected->entry).get().get_value_type(selected->value);
   }
 
+  auto get_produced(Count index) const
+      -> Core::Option<Ttx::Model::Pack::Produced> override {
+    auto selected = layout.select(index);
+    BAIL_IF(!selected);
+    return entries.at(selected->entry).get().get_produced(selected->value);
+  }
+
   auto resolve() const -> const Abstract& override {
     return linked ? static_cast<const Language::Model::Pack&>(*this)
                   : static_cast<const Abstract&>(Invalid::get_invalid());
@@ -136,6 +144,16 @@ class Group final : public Language::Model::Pack {
     for (Reference<Language::Model::Pack> entry : entries.get_view()) {
       entry.get().finalize(cursor);
     }
+  }
+
+  auto lower(Llvm::Builder& body) const -> Bool override {
+    for (Reference<Language::Model::Pack> entry : entries.get_view()) {
+      if (!entry.get().lower(body)) {
+        return False;
+      }
+    }
+
+    return body.compose(*this);
   }
 
   Memory::Managed::Vector<Reference<Language::Model::Pack>> entries;

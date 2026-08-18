@@ -41,6 +41,13 @@ class Operation : public Expression {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
+  // Operations retain their exact authored scalar input order. Consumers visit
+  // those real Expression edges without reconstructing another input model.
+  constexpr auto get_inputs() const
+      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Expression>> {
+    return inputs.get_view();
+  }
+
  protected:
   Operation(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -52,12 +59,10 @@ class Operation : public Expression {
   // the exact Expression retained here. This vector is the canonical ordered
   // evaluation inventory. A future operation over flow with several values must
   // own that Pack shape rather than flatten it into this scalar contract.
-  auto get_input(Count index) -> Perimortem::Core::Option<Expression&>;
-  auto get_input(Count index) const
-      -> Perimortem::Core::Option<const Expression&>;
-
   auto fold_input(Count index) -> Perimortem::Utility::
       Result<Perimortem::Core::Option<Expression&>, Expression::Error>;
+
+  auto lower_inputs(Llvm::Builder& body) const -> Bool;
 
   // Concrete evaluation runs only after the ordered traversal completed.
   // This observation unwraps that cached result without changing the

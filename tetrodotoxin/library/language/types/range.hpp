@@ -26,6 +26,10 @@ class Range : public Model::Type {
 
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
+
+  auto reserve(Llvm::Program& program) const -> Bool override;
+
+  auto complete(Llvm::Program& program) const -> Bool override;
   TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_element_type() const -> const Model::Type& {

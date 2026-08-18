@@ -6,6 +6,7 @@
 #include "tetrodotoxin/library/language/constants/option.hpp"
 #include "tetrodotoxin/library/language/flow/scope.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -108,6 +109,27 @@ auto Language::Access::Propagate::finalize(Cursor& cursor) -> void {
   receiver.finalize(cursor);
   empty_return.finalize(cursor);
   Expression::finalize(cursor);
+}
+
+auto Language::Access::Propagate::lower(Llvm::Builder& body) const -> Bool {
+  auto folded = lower_folded(body);
+  if (folded) {
+    return *folded;
+  }
+
+  auto carrier = receiver.get_type().resolve().select<Ttx::Model::Type>();
+  auto element = get_type().resolve().select<Ttx::Model::Type>();
+
+  if (!carrier || !element) {
+    return False;
+  }
+
+  Bool receiver_lowered = receiver.lower(body);
+  if (!receiver_lowered) {
+    return False;
+  }
+
+  return body.propagate(*carrier, *element, *this, receiver);
 }
 
 auto Language::Access::Propagate::evaluate()

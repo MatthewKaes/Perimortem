@@ -80,6 +80,9 @@ class Layout final : public Ttx::Concept::Layout {
   auto get_name(Count index) const
       -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> override;
 
+  auto get_slot_anchor(Count index) const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
+
   auto fits_entry(
       const Ttx::Concept::Layout& target,
       Count source_index,
@@ -138,7 +141,7 @@ class Layout final : public Ttx::Concept::Layout {
       Bool parameters) -> Bool;
 
   auto is_named() const -> Bool;
-  auto get_slot(Count index) const -> const Slot*;
+  auto get_slot(Count index) const -> Perimortem::Core::Option<const Slot&>;
   auto fits_value(
       const Ttx::Concept::Layout& target,
       Count source_index,

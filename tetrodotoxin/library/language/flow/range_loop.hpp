@@ -19,9 +19,9 @@
 namespace Tetrodotoxin::Library::Language::Flow {
 
 // RangeLoop owns one authored `for` statement and is itself the loop binding.
-// The binding is a read only Addressable whose exact Type must match the Range
-// element Type. Its body resolves that identity through ordinary lexical
-// lookup.
+// The binding is a read only Addressable whose exact Type must match the
+// element Type of either a Range or one contiguous input. Its body resolves
+// that identity through ordinary lexical lookup.
 class RangeLoop : public Model::Addressable {
  public:
   TTX_CONTRACT(RangeLoop, Model::Addressable);
@@ -42,6 +42,8 @@ class RangeLoop : public Model::Addressable {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
 
+  auto lower(Llvm::Builder& body) const -> Bool;
+
   TTX_NAME(name);
   TTX_EMPTY_DOCUMENTATION();
 
@@ -54,7 +56,7 @@ class RangeLoop : public Model::Addressable {
     return type->get();
   }
 
-  constexpr auto get_range() const -> const Model::Pack& { return range.get(); }
+  constexpr auto get_input() const -> const Model::Pack& { return input.get(); }
 
   constexpr auto get_body() const -> const Block& { return body->get(); }
 
@@ -66,20 +68,20 @@ class RangeLoop : public Model::Addressable {
       Ttx::Lexical::Token name_token,
       Perimortem::Core::View::Bytes name,
       TypeReference type_reference,
-      Model::Pack& range,
+      Model::Pack& input,
       Ttx::Lexical::Anchor anchor)
       : lexical_context(lexical_context),
         name_token(name_token),
         name(name),
         type_reference(type_reference),
-        range(range),
+        input(input),
         anchor(anchor) {}
 
   Block& lexical_context;
   Ttx::Lexical::Token name_token;
   Perimortem::Core::View::Bytes name;
   TypeReference type_reference;
-  Ttx::Concept::Reference<Model::Pack> range;
+  Ttx::Concept::Reference<Model::Pack> input;
   Perimortem::Core::Option<Ttx::Concept::Reference<Block>> body;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>> type;
   Ttx::Lexical::Anchor anchor;

@@ -4,7 +4,9 @@
 #include "tetrodotoxin/library/language/expression.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
+#include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -21,6 +23,39 @@ static auto select_value_type(const Abstract& candidate)
   auto type = select_output_type(candidate);
   BAIL_IF(!type || type->get_layout().is_empty());
   return *type;
+}
+
+static auto select_layout_type(const Abstract& candidate)
+    -> Option<const Language::Model::Type&> {
+  auto type = candidate.select<Language::Model::Type>();
+  if (type) {
+    return *type;
+  }
+
+  const Abstract& resolved = candidate.resolve();
+  auto addressable = resolved.select<Language::Model::Addressable>();
+  return addressable
+             ? Option<const Language::Model::Type&>(addressable->get_type())
+             : resolved.select<Language::Model::Type>();
+}
+
+static auto has_exact_representation(
+    const Language::Model::Pack& representation,
+    const Language::Model::Type& type) -> Bool {
+  const Layout& required = type.get_layout();
+  const Layout& supplied = representation.get_layout();
+  BAIL_IF(required.get_size() != supplied.get_size());
+
+  for (Count index = 0; index < required.get_size(); index++) {
+    auto required_entry = required.get_abstract(index);
+    BAIL_IF(!required_entry);
+    auto required_type = select_layout_type(*required_entry);
+    auto supplied_type =
+        select_layout_type(representation.get_value_type(index));
+    BAIL_IF(
+        !required_type || !supplied_type || &*required_type != &*supplied_type);
+  }
+  return True;
 }
 
 static constexpr Ttx::Model::Layouts::Fluid empty_expression_layout;
@@ -58,8 +93,42 @@ auto Language::Expression::get_value_type(Count index) const
           });
 }
 
+auto Language::Expression::get_produced(Count index) const
+    -> Option<Ttx::Model::Pack::Produced> {
+  if (index != 0 || get_layout().get_size() != 1 || &resolve() != this) {
+    return {};
+  }
+
+  return Ttx::Model::Pack::Produced{*this, 0};
+}
+
 auto Language::Expression::finalize(Ttx::Lexical::Cursor&) -> void {
   fold();
+}
+
+auto Language::Expression::lower(Llvm::Builder& body) const -> Bool {
+  auto folded = lower_folded(body);
+  return folded ? *folded : False;
+}
+
+auto Language::Expression::lower_write_target(Llvm::Builder&) const
+    -> Bool {
+  return False;
+}
+
+auto Language::Expression::lower_folded(Llvm::Builder& body) const
+    -> Option<Bool> {
+  auto selected = get_folded();
+  if (!selected || &*selected == this) {
+    return {};
+  }
+
+  Bool lowered = selected->lower(body);
+  if (!lowered) {
+    return False;
+  }
+
+  return body.alias(*this, *selected);
 }
 
 auto Language::Expression::link(
@@ -152,15 +221,20 @@ auto Language::Expression::fold() -> Perimortem::Utility::
         }
 
         const Layout& source_layout = get_layout();
-        Bool exact_shape =
-            source_layout.get_size() == representation_layout.get_size();
-        if (exact_shape && source_layout.get_size() == 1) {
-          const Abstract& expression_type = get_type().resolve();
-          const Abstract& result_type = representation.get_type().resolve();
-          exact_shape = expression_type.is<Language::Model::Type>() &&
-                        result_type.is<Language::Model::Type>() &&
-                        &expression_type == &result_type;
-        } else if (exact_shape) {
+        Bool exact_shape = False;
+        if (source_layout.get_size() == 1) {
+          auto expression_type =
+              get_type().resolve().select<Language::Model::Type>();
+          if (expression_type && representation_layout.get_size() == 1) {
+            const Abstract& result_type = representation.get_type().resolve();
+            exact_shape = result_type.is<Language::Model::Type>() &&
+                          &*expression_type == &result_type;
+          } else if (expression_type) {
+            exact_shape =
+                has_exact_representation(representation, *expression_type);
+          }
+        } else if (
+            source_layout.get_size() == representation_layout.get_size()) {
           // The authored Layout owns the output promise. A folded Pack may
           // replace a repeated producer (such as one Slice identity) with its
           // concrete Constant entries, so the reverse fit is not meaningful:
@@ -192,6 +266,57 @@ auto Language::Expression::get_write_type(
   return addressable && addressable->permits_write_from(access_scope)
              ? Option<const Language::Model::Type&>(addressable->get_type())
              : Option<const Language::Model::Type&>();
+}
+
+auto Language::Expression::link_write(
+    Ttx::Lexical::Cursor& cursor,
+    const Abstract& lexical_context,
+    const Language::Model::Type& access_scope,
+    Language::Model::Pack& source) -> Bool {
+  Bool failed = !link_write_target(cursor, lexical_context, access_scope);
+  failed |= !source.link(cursor, lexical_context, access_scope);
+  BAIL_IF(failed);
+
+  if (&source.resolve() != &source) {
+    auto report = cursor.create_report(get_anchor());
+    report << "Cannot write incomplete source '"_view << source.get_name()
+           << "' to target '"_view << get_name() << "'."_view;
+    report.get_hint()
+        << "Fix the source expression before assigning its value."_view;
+    return False;
+  }
+
+  if (!accepts_write(source, access_scope)) {
+    auto report = cursor.create_report(get_anchor());
+    report << "Cannot write source values to target '"_view << get_name()
+           << "'.\nSource produces: "_view;
+    Language::Diagnostics::write_pack(report, source);
+    auto target_type = get_write_type(access_scope);
+    if (target_type) {
+      report << "\nTarget '"_view << target_type->get_name()
+             << "' accepts: "_view;
+      Language::Diagnostics::write_layout(report, target_type->get_layout());
+    }
+    report.get_hint()
+        << "Supply values with the exact count and Types shown for the target."_view;
+    return False;
+  }
+
+  return True;
+}
+
+auto Language::Expression::link_write_target(
+    Ttx::Lexical::Cursor& cursor,
+    const Abstract& lexical_context,
+    const Language::Model::Type& access_scope) -> Bool {
+  return link(cursor, lexical_context, access_scope);
+}
+
+auto Language::Expression::accepts_write(
+    const Language::Model::Pack& source,
+    const Language::Model::Type& access_scope) const -> Bool {
+  auto target_type = get_write_type(access_scope);
+  return target_type && source.fits_into(*target_type);
 }
 
 auto Language::Expression::get_folded()

@@ -33,6 +33,12 @@ class Object : public Structure {
       Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor) const
       -> Perimortem::Core::Option<Model::Pack&> override;
+
+ protected:
+  auto reserve_carrier(Llvm::Program& program) const
+      -> Perimortem::Core::Option<Bool> override;
+
+  auto complete_carrier(Llvm::Program& program) const -> Bool override;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Types

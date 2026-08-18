@@ -3,7 +3,9 @@
 
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 
+#include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/alias.hpp"
 
@@ -29,24 +31,32 @@ auto Language::Expressions::Identifier::link(
   const Abstract& candidate =
       resolve_alias(lexical_context.resolve_context(name));
   const Abstract& selected =
-      candidate.is<Language::Model::Type>() ? candidate : candidate.resolve();
+      candidate.is<Language::Model::Type>() ||
+              candidate.is<Language::Model::Addressable>()
+          ? candidate
+          : candidate.resolve();
   auto source_anchor = get_anchor();
 
   if (selected.is<Invalid>()) {
-    cursor.create_expression_error(
-        source_anchor,
-        "Expression Identifier did not resolve in its lexical context."_view,
-        "Publish the named semantic object before linking this use."_view);
+    auto report = cursor.create_report(source_anchor);
+    report << "Identifier '"_view << name
+           << "' is not available in lexical context '"_view
+           << lexical_context.get_name() << "'."_view;
+    report.get_hint()
+        << "Declare '"_view << name
+        << "' before this use or correct the authored spelling."_view;
     return False;
   }
 
   // A later pass may fill an unresolved name, but a successful edge is
   // permanent. Repeating the same exact link remains harmless.
   if (result && &result->get() != &selected) {
-    cursor.create_expression_error(
-        source_anchor,
-        "Expression Identifier cannot change its linked result."_view,
-        "Keep one exact semantic object bound to this authored Token."_view);
+    auto report = cursor.create_report(source_anchor);
+    report << "Internal semantic error: Identifier '"_view << name
+           << "' changed identity from '"_view << result->get().get_name()
+           << "' to '"_view << selected.get_name() << "'."_view;
+    report.get_hint()
+        << "The source is valid; report this unstable linking result."_view;
     return False;
   }
 
@@ -88,4 +98,29 @@ auto Language::Expressions::Identifier::get_result() const -> const Abstract& {
       [](const Reference<const Abstract>& selected) -> const Abstract& {
         return selected.get();
       });
+}
+
+auto Language::Expressions::Identifier::lower(Llvm::Builder& body) const
+    -> Bool {
+  auto folded = lower_folded(body);
+  if (folded) {
+    return *folded;
+  }
+
+  Bool selected = lower_write_target(body);
+  if (!selected) {
+    return False;
+  }
+
+  return body.load(*this);
+}
+
+auto Language::Expressions::Identifier::lower_write_target(
+    Llvm::Builder& body) const -> Bool {
+  auto addressable = get_result().resolve().select<Model::Addressable>();
+  if (!addressable) {
+    return False;
+  }
+
+  return body.select(*this, *addressable);
 }

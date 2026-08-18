@@ -7,9 +7,12 @@
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/language/visibility.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/type.hpp"
 
@@ -21,6 +24,10 @@ namespace Tetrodotoxin::Library::Language::Model {
 // Abstract.
 class Type : public Ttx::Model::Type {
  public:
+  using CallableBindings = Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>;
+  using Callables = Perimortem::Core::View::Selection<CallableBindings>;
+
   // Access makes receiver intent explicit at every Library Type query. Static
   // selects through a Type identity, while Self selects through one real
   // Addressable instance. There is no implicit overload that guesses the role.
@@ -36,6 +43,17 @@ class Type : public Ttx::Model::Type {
   // policy and recursive construction stay with the concrete Type.
   virtual auto create_default(Perimortem::Memory::Allocator::Arena&) const
       -> Perimortem::Core::Option<Pack&> = 0;
+
+  virtual auto reserve(Llvm::Program&) const -> Bool { return False; }
+
+  virtual auto complete(Llvm::Program&) const -> Bool { return False; }
+
+  virtual auto lower(Llvm::Program&) const -> Bool { return True; }
+
+  virtual constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
+    return {};
+  }
 
   // An explicit initializer argument list is a receiving Type operation, not
   // an Initializer category switch. Neutral Types reject supplied flow while
@@ -133,11 +151,47 @@ class Type : public Ttx::Model::Type {
   }
 
   virtual auto resolve_type_call(
-      const Ttx::Concept::Abstract&,
-      Perimortem::Core::View::Bytes,
-      Access) const -> const Ttx::Concept::Abstract& {
-    return Ttx::Concept::Invalid::get_invalid();
-  }
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route,
+      Access access) const -> const Ttx::Concept::Abstract&;
+
+  // Lookup, reflection, and completion enumerate the same exact Callable
+  // identities. Visibility selects caller access without creating another
+  // generated or authored category.
+  auto get_callables(
+      Tetrodotoxin::Language::Visibility visibility =
+          Tetrodotoxin::Language::Visibility::Private) const -> Callables;
+
+ protected:
+  auto complete_debug(Llvm::Program& program) const -> Bool;
+
+  // Concrete Type construction publishes every authored or generated Callable
+  // into this one surface. The Callable parameter Layout remains the only
+  // Static or Self role authority.
+  auto can_publish_callable(const Ttx::Concept::Abstract& callable) const
+      -> Bool;
+
+  auto publish_callable(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Ttx::Concept::Abstract& callable,
+      Bool published) -> void;
+
+  auto reserve_callables(Llvm::Program& program) const -> Bool;
+
+  auto complete_callables(Llvm::Program& program) const -> Bool;
+
+  auto get_callable_bindings(
+      Tetrodotoxin::Language::Visibility visibility =
+          Tetrodotoxin::Language::Visibility::Private) const
+      -> CallableBindings;
+
+ private:
+  Perimortem::Core::Option<Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>>
+      callables;
+  Perimortem::Core::Option<Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>>
+      published_callables;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Model

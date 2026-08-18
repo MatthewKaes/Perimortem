@@ -67,6 +67,11 @@ class Enumeration : public Model::Type {
     return definition.get_anchor();
   }
 
+  constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
+    return get_anchor();
+  }
+
   TTX_NAME(definition.get_name());
   TTX_DOCUMENTATION(definition.get_documentation());
 
@@ -80,6 +85,10 @@ class Enumeration : public Model::Type {
 
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
+
+  auto reserve(Llvm::Program& program) const -> Bool override;
+
+  auto complete(Llvm::Program& program) const -> Bool override;
 
   auto get_storage_type() const -> Perimortem::Core::Option<const Model::Type&>;
 

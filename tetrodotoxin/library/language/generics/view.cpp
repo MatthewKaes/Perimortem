@@ -25,9 +25,18 @@ auto Generics::View::create(Perimortem::Core::View::Vector<Argument> arguments)
     return {};
   }
 
+  auto size_type = get_context()
+                       .resolve_context("Unsigned_64"_view)
+                       .resolve()
+                       .select<Language::Model::Type>();
+  if (!size_type) {
+    return {};
+  }
+
   Perimortem::Memory::Managed::Bytes name(arena, get_name());
   name.concat("["_view);
   name.concat(element->get_name());
   name.concat("]"_view);
-  return arena.construct<Types::View>(name.get_view(), *element);
+  return arena.construct<Types::View>(
+      arena, name.get_view(), *element, *size_type);
 }

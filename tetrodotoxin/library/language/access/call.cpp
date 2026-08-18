@@ -3,8 +3,12 @@
 
 #include "tetrodotoxin/library/language/access/call.hpp"
 
+#include "perimortem/memory/managed/vector.hpp"
+
+#include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -94,9 +98,11 @@ static auto create_layout(
       if (target_index >= get_size()) {
         return Errors::IndexOutOfBounds;
       }
+
       if (!has_target_segment(target, target_offset)) {
         return Errors::SizeMismatch;
       }
+
       if (!fits_at(target, target_offset)) {
         return Errors::IncompatibleFit;
       }
@@ -179,10 +185,12 @@ static auto create_inputs(
       if (target_index >= get_size()) {
         return Errors::IndexOutOfBounds;
       }
+
       if (target_offset > target.get_size() ||
           get_size() > target.get_size() - target_offset) {
         return Errors::SizeMismatch;
       }
+
       if (!fits_at(target, target_offset)) {
         return Errors::IncompatibleFit;
       }
@@ -273,35 +281,61 @@ auto Language::Access::Call::link(
       });
   auto selected = candidate.resolve().select<Language::Model::Callable>();
   if (!selected) {
-    cursor.create_expression_error(
-        get_anchor(),
-        "Library invocation did not resolve one accessible Callable."_view,
-        "Resolve a Static name from its Type or a Self name from an "
-        "Addressable of that Type."_view);
+    auto report = cursor.create_report(get_anchor());
+    report << "Receiver '"_view << receiver_result.get_name()
+           << "' has no accessible Callable named '"_view << name << "'. "_view
+           << "Receiver type: "_view;
+    Language::Diagnostics::write_type(report, receiver_result);
+    report << "."_view;
+    report.get_hint()
+        << "Correct the Callable spelling or invoke it through the required "
+           "Static or Self receiver."_view;
+    return False;
+  }
+
+  if (!selected->accepts_receiver(receiver_result, host)) {
+    auto report = cursor.create_report(get_anchor());
+    report << "Callable '"_view << selected->get_name()
+           << "' cannot use receiver '"_view << receiver_result.get_name()
+           << "' because it does not grant the required write authority."_view;
+    report.get_hint()
+        << "Invoke this Callable through a writable Addressable receiver."_view;
     return False;
   }
 
   const Ttx::Concept::Layout& parameters = selected->get_parameters();
   Bool arguments_fit = arguments.fits(parameters);
   if (selected->is_type_bound()) {
-    if (!inputs) {
-      inputs = create_inputs(domain, receiver, arguments);
+    if (!input_layout) {
+      input_layout = create_inputs(domain, receiver, arguments);
     }
-    arguments_fit = inputs->fits(parameters);
+    arguments_fit = input_layout->fits(parameters);
   }
+
   if (!arguments_fit) {
-    cursor.create_expression_error(
-        get_anchor(),
-        "Library invocation arguments do not fit the registered Callable."_view,
-        "Supply the exact positional or named parameter Layout."_view);
+    auto report = cursor.create_report(get_anchor());
+    report << "Arguments do not fit Callable '"_view << selected->get_name()
+           << "'.\nSource produces: "_view;
+    if (selected->is_type_bound()) {
+      Language::Diagnostics::write_layout(report, *input_layout);
+    } else {
+      Language::Diagnostics::write_pack(report, arguments);
+    }
+    report << "\nParameters accept: "_view;
+    Language::Diagnostics::write_layout(report, parameters);
+    report.get_hint()
+        << "Supply the exact positional or named parameter Types shown above."_view;
     return False;
   }
 
   if (callable && &callable->get() != &*selected) {
-    cursor.create_expression_error(
-        get_anchor(),
-        "Library invocation cannot change its Callable edge."_view,
-        "Keep one exact Callable selected by this authored invocation."_view);
+    auto report = cursor.create_report(get_anchor());
+    report << "Internal semantic error: invocation '"_view << name
+           << "' changed Callable identity from '"_view
+           << callable->get().get_name() << "' to '"_view
+           << selected->get_name() << "'."_view;
+    report.get_hint()
+        << "The source is valid; report this unstable linking result."_view;
     return False;
   }
 
@@ -309,6 +343,16 @@ auto Language::Access::Call::link(
     // Repeated linking may revalidate the surrounding graph, but this
     // invocation keeps its successfully published producer Layout.
     return True;
+  }
+
+  fitted_inputs.clear();
+  if (!fit_inputs(*selected, input_layout)) {
+    cursor.create_expression_error(
+        get_anchor(),
+        "Internal semantic error: Callable fitting did not retain one stable "
+        "input mapping."_view,
+        "The source is valid; report this invocation fitting failure."_view);
+    return False;
   }
 
   const Ttx::Concept::Layout& retained_output =
@@ -368,6 +412,17 @@ auto Language::Access::Call::get_value_type(Count index) const
       });
 }
 
+auto Language::Access::Call::get_produced(Count index) const
+    -> Core::Option<Ttx::Model::Pack::Produced> {
+  if (!output || index >= output->get_size() || &resolve() != this) {
+    return {};
+  }
+
+  // Every result belongs to this invocation even though its immutable
+  // signature Layout supplies the descriptor shape.
+  return Ttx::Model::Pack::Produced{*this, index};
+}
+
 auto Language::Access::Call::get_layout() const -> const Ttx::Concept::Layout& {
   return *output;
 }
@@ -387,6 +442,113 @@ auto Language::Access::Call::finalize(Cursor& cursor) -> void {
   // request.
   receiver.finalize(cursor);
   arguments.finalize(cursor);
+}
+
+static auto select_parameter(
+    const Language::Model::Callable& callable,
+    Count index) -> Core::Option<const Ttx::Model::Addressable&> {
+  auto entry = callable.get_parameters().get_abstract(index);
+  return entry ? entry->select<Ttx::Model::Addressable>()
+               : Core::Option<const Ttx::Model::Addressable&>();
+}
+
+auto Language::Access::Call::fit_inputs(
+    const Language::Model::Callable& callable,
+    Core::Option<const Ttx::Concept::Layout&> input_layout) -> Bool {
+  const Ttx::Concept::Layout& parameters = callable.get_parameters();
+  Count receiver_offset = callable.declares_self() ? 1 : 0;
+  Count source_size = receiver_offset + arguments.get_layout().get_size();
+  if (source_size == parameters.get_size()) {
+    const Ttx::Concept::Layout& source =
+        input_layout ? *input_layout : arguments.get_layout();
+    for (Count target_index = 0; target_index < parameters.get_size();
+         target_index++) {
+      Count selected = 0;
+      Count matches = 0;
+      for (Count source_index = 0; source_index < source_size; source_index++) {
+        if (!source.get_name(source_index) && source_index != target_index) {
+          continue;
+        }
+
+        Bool fits = input_layout ? input_layout->fits_entry(
+                                       parameters, source_index, target_index)
+                                 : arguments.fits_entry(
+                                       parameters, source_index, target_index);
+        if (fits) {
+          selected = source_index;
+          matches++;
+        }
+      }
+
+      auto parameter = select_parameter(callable, target_index);
+      BAIL_IF(matches != 1 || !parameter);
+      auto produced = selected < receiver_offset
+                          ? receiver.get_produced(0)
+                          : arguments.get_produced(selected - receiver_offset);
+      BAIL_IF(!produced);
+      fitted_inputs.insert(
+          Input(*parameter, produced->producer, produced->local_index, 1));
+    }
+
+    return True;
+  }
+
+  BAIL_IF(parameters.get_size() != receiver_offset + 1);
+  if (receiver_offset != 0) {
+    auto parameter = select_parameter(callable, 0);
+    auto produced = receiver.get_produced(0);
+    BAIL_IF(!parameter || !produced);
+    fitted_inputs.insert(
+        Input(*parameter, produced->producer, produced->local_index, 1));
+  }
+
+  auto parameter = select_parameter(callable, receiver_offset);
+  BAIL_IF(!parameter);
+  fitted_inputs.insert(
+      Input(*parameter, arguments, 0, arguments.get_layout().get_size()));
+  return True;
+}
+
+auto Language::Access::Call::lower(Llvm::Builder& body) const -> Bool {
+  auto selected = get_callable();
+  if (!selected) {
+    return False;
+  }
+
+  if (selected->declares_self()) {
+    Bool receiver_lowered = receiver.lower(body);
+    if (!receiver_lowered) {
+      return False;
+    }
+  }
+
+  Bool arguments_lowered = arguments.lower(body);
+  if (!arguments_lowered) {
+    return False;
+  }
+
+  Memory::Managed::Vector<LLVMValueRef> native_inputs(domain);
+  for (const Input& input : fitted_inputs.get_view()) {
+    auto value = body.fit_input(
+        input.get_parameter(), input.get_source(), input.get_offset(),
+        input.get_size());
+    if (!value) {
+      return False;
+    }
+
+    native_inputs.insert(*value);
+  }
+
+  Core::Option<const Ttx::Model::Pack&> receiver_source;
+  if (selected->declares_self() && !fitted_inputs.is_empty()) {
+    const Input& input = fitted_inputs.at(0);
+    if (input.get_offset() == 0 && input.get_size() == 1) {
+      receiver_source = input.get_source();
+    }
+  }
+
+  return selected->lower_call(
+      body, *this, native_inputs.get_view(), receiver_source);
 }
 
 auto Language::Access::Call::get_callable() const

@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/types/structure.hpp"
 
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
@@ -120,4 +121,16 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
 
   return Expressions::Initializer::create_synthetic(
       arena, *this, values.get_view());
+}
+
+auto Types::Structure::reserve_carrier(Llvm::Program& program) const
+    -> Option<Bool> {
+  const auto& carriers = program.get_carriers();
+  return carriers.reserve_structure(program, *this);
+}
+
+auto Types::Structure::complete_carrier(Llvm::Program& program) const
+    -> Bool {
+  const auto& carriers = program.get_carriers();
+  return carriers.complete_structure(program, *this, get_layout());
 }

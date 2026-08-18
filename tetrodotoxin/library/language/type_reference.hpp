@@ -129,7 +129,10 @@ class TypeReference {
   using Argument = Perimortem::Core::Static::
       Union<const TypeReference&, const Ttx::Concept::Abstract&>;
 
-  auto resolve_with_root(const Ttx::Concept::Abstract& context, Root root) const
+  auto resolve_with_root(
+      const Ttx::Concept::Abstract& context,
+      Root root,
+      Perimortem::Core::Option<Ttx::Lexical::Cursor&> cursor = {}) const
       -> Resolution;
 
   constexpr TypeReference(

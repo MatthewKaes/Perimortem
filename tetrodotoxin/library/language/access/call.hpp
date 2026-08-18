@@ -6,6 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
@@ -42,9 +43,13 @@ class Call : public Expression {
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_value_type(Count index) const
       -> const Ttx::Concept::Abstract& override;
+  auto get_produced(Count index) const
+      -> Perimortem::Core::Option<Ttx::Model::Pack::Produced> override;
   auto get_layout() const -> const Ttx::Concept::Layout& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
+
+  auto lower(Llvm::Builder& body) const -> Bool override;
 
   auto get_callable() const -> Perimortem::Core::Option<const Model::Callable&>;
 
@@ -59,6 +64,36 @@ class Call : public Expression {
   }
 
  private:
+  // Input retains the one parameter mapping proven during linking. Lowering
+  // consumes this evidence without repeating named or positional fitting.
+  class Input {
+   public:
+    constexpr Input(
+        const Ttx::Model::Addressable& parameter,
+        const Ttx::Model::Pack& source,
+        Count offset,
+        Count size)
+        : parameter(parameter), source(source), offset(offset), size(size) {}
+
+    constexpr auto get_parameter() const -> const Ttx::Model::Addressable& {
+      return parameter.get();
+    }
+
+    constexpr auto get_source() const -> const Ttx::Model::Pack& {
+      return source.get();
+    }
+
+    constexpr auto get_offset() const -> Count { return offset; }
+
+    constexpr auto get_size() const -> Count { return size; }
+
+   private:
+    Ttx::Concept::Reference<const Ttx::Model::Addressable> parameter;
+    Ttx::Concept::Reference<const Ttx::Model::Pack> source;
+    Count offset;
+    Count size;
+  };
+
   constexpr Call(
       Perimortem::Memory::Allocator::Arena& domain,
       Expression& receiver,
@@ -71,7 +106,12 @@ class Call : public Expression {
         receiver(receiver),
         name_token(name_token),
         name(name),
-        arguments(arguments) {}
+        arguments(arguments),
+        fitted_inputs(domain) {}
+
+  auto fit_inputs(
+      const Model::Callable& selected,
+      Perimortem::Core::Option<const Ttx::Concept::Layout&> inputs) -> Bool;
 
   Perimortem::Memory::Allocator::Arena& domain;
   Expression& receiver;
@@ -80,8 +120,9 @@ class Call : public Expression {
   Language::Model::Pack& arguments;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Callable>>
       callable;
-  Perimortem::Core::Option<const Ttx::Concept::Layout&> inputs;
+  Perimortem::Core::Option<const Ttx::Concept::Layout&> input_layout;
   Perimortem::Core::Option<const Ttx::Concept::Layout&> output;
+  Perimortem::Memory::Managed::Vector<Input> fitted_inputs;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

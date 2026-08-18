@@ -11,9 +11,9 @@
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -22,6 +22,9 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
+// Slice parsing commits after `:[` and owns recovery through its matching
+// bracket. No semantic Slice is retained until every authored operand and the
+// complete postfix Anchor have been established.
 static auto complete_postfix_span(Cursor& cursor, Token opening) -> Span {
   // A malformed tail still belongs to one Slice access. Consume only its local
   // closing bracket so the diagnostic covers the authored operation.
@@ -50,184 +53,6 @@ static auto reject_operand(Cursor& cursor, Span postfix_span, Span operand_span)
          << operand_span.caculate_text(cursor.get_source_text())
          << "` could not be parsed as a complete Expression."_view;
   report.get_hint() << "Use a complete scalar or byte Expression."_view;
-}
-
-static auto get_byte_type(const Language::Model::Type& type) -> Core::Option<
-    const Tetrodotoxin::Library::Language::Model::Types::Unsigned&> {
-  return type.visit<Tetrodotoxin::Library::Language::Model::Types::Unsigned>(
-      [](const Tetrodotoxin::Library::Language::Model::Types::Unsigned&
-             selected)
-          -> Core::Option<
-              const Tetrodotoxin::Library::Language::Model::Types::Unsigned&> {
-        if (selected.get_width() != 8 || selected.get_size() != 1) {
-          return {};
-        }
-
-        return selected;
-      },
-      [](const Abstract&)
-          -> Core::Option<
-              const Tetrodotoxin::Library::Language::Model::Types::Unsigned&> {
-        return {};
-      });
-}
-
-static auto is_integer(const Language::Expression& expression) -> Bool {
-  const Abstract& type = expression.get_type().resolve();
-  return type.is<Tetrodotoxin::Library::Language::Model::Types::Signed>() ||
-         type.is<Tetrodotoxin::Library::Language::Model::Types::Unsigned>();
-}
-
-// Option is the safe miss produced by an integer outside Count. Error remains
-// reserved for a Constant that does not expose its promised integer domain.
-static auto get_count(
-    const Language::Expression& expression,
-    const Language::Expression& authored)
-    -> Utility::Result<Core::Option<Count>, Language::Expression::Error> {
-  return expression.visit<Language::Constants::Signed>(
-      [&](const Language::Constants::Signed& value)
-          -> Utility::Result<Core::Option<Count>, Language::Expression::Error> {
-        if (value.get_value() < 0) {
-          return Core::Option<Count>{};
-        }
-
-        Unsigned_64 selected = Unsigned_64(value.get_value());
-        if (selected > Unsigned_64(Count(-1))) {
-          return Core::Option<Count>{};
-        }
-
-        return Core::Option<Count>(Count(selected));
-      },
-      [&](const Abstract& selected)
-          -> Utility::Result<Core::Option<Count>, Language::Expression::Error> {
-        return selected.visit<Language::Constants::Unsigned>(
-            [&](const Language::Constants::Unsigned& value)
-                -> Utility::Result<
-                    Core::Option<Count>, Language::Expression::Error> {
-              if (value.get_value() > Unsigned_64(Count(-1))) {
-                return Core::Option<Count>{};
-              }
-
-              return Core::Option<Count>(Count(value.get_value()));
-            },
-            [&](const Abstract&)
-                -> Utility::Result<
-                    Core::Option<Count>, Language::Expression::Error> {
-              return Language::Expression::Error(
-                  Language::Expression::Error::Type::InvalidConstant, authored);
-            });
-      });
-}
-
-static auto select_scalar(Language::Model::Pack& pack)
-    -> Core::Option<Language::Expression&> {
-  return pack.select<Language::Expression>();
-}
-
-static auto select_required_type(const Abstract& candidate)
-    -> Core::Option<const Language::Model::Type&> {
-  auto direct = candidate.select<Language::Model::Type>();
-  if (direct) {
-    return *direct;
-  }
-
-  auto pack = candidate.select<Language::Model::Pack>();
-  if (pack) {
-    direct = pack->get_type().select<Language::Model::Type>();
-    if (direct) {
-      return *direct;
-    }
-  }
-
-  const Abstract& resolved = candidate.resolve();
-  auto addressable = candidate.select<Language::Model::Addressable>();
-  if (!addressable) {
-    addressable = resolved.select<Language::Model::Addressable>();
-  }
-  const Abstract& selected = addressable ? addressable->get_type() : resolved;
-  direct = selected.select<Language::Model::Type>();
-  return direct ? direct : selected.resolve().select<Language::Model::Type>();
-}
-
-// A slice is homogeneous value flow, but the repeated source is still the one
-// Slice expression that performs selection. Keeping this Layout subordinate to
-// Slice avoids teaching host neutral Ranged how a Library Expression fits a
-// required element Type, and avoids fabricating one proxy identity per slot.
-static auto create_layout(
-    Memory::Allocator::Arena& domain,
-    const Language::Access::Slice& source,
-    const Language::Model::Type& element,
-    Count size) -> const Ttx::Concept::Layout& {
-  class Layout final : public Ttx::Concept::Layout {
-   public:
-    constexpr Layout(
-        const Language::Access::Slice& source,
-        const Language::Model::Type& element,
-        Count size)
-        : source(source), element(element), size(size) {}
-
-    constexpr auto get_size() const -> Count override { return size; }
-
-    constexpr auto get_abstract(Count index) const
-        -> Core::Option<const Abstract&> override {
-      BAIL_IF(index >= size);
-      return source;
-    }
-
-    auto fits_entry(
-        const Ttx::Concept::Layout& target,
-        Count source_index,
-        Count target_index) const -> Bool override {
-      BAIL_IF(source_index >= size || target_index >= target.get_size());
-      return target.get_abstract(target_index)
-          .visit(
-              []() { return False; },
-              [&](const Abstract& required) {
-                return select_required_type(required).visit(
-                    []() { return False; },
-                    [&](const Language::Model::Type& type) {
-                      return element.get_layout().fits(type.get_layout());
-                    });
-              });
-    }
-
-    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
-        -> Bool override {
-      BAIL_IF(!has_target_segment(target, target_offset));
-      for (Count index = 0; index < size; index++) {
-        BAIL_IF(!fits_entry(target, index, target_offset + index));
-      }
-      return True;
-    }
-
-    auto get_fitted_at(
-        const Ttx::Concept::Layout& target,
-        Count target_offset,
-        Count target_index) const
-        -> Utility::Result<const Abstract&, Errors> override {
-      if (target_index >= size) {
-        return Errors::IndexOutOfBounds;
-      }
-      if (!has_target_segment(target, target_offset)) {
-        return Errors::SizeMismatch;
-      }
-      if (!fits_at(target, target_offset)) {
-        return Errors::IncompatibleFit;
-      }
-
-      // Layout index retains which repeated value is consumed. Lowering can use
-      // that index without replacing the one semantic producer with shadow
-      // nodes.
-      return source;
-    }
-
-   private:
-    const Language::Access::Slice& source;
-    const Language::Model::Type& element;
-    Count size;
-  };
-
-  return domain.construct<Layout>(source, element, size);
 }
 
 static auto parse_operand(const Abstract& context, Cursor& cursor)
@@ -370,6 +195,199 @@ Language::Access::Slice::Slice(
       first(start),
       count(Ttx::Concept::Reference<Expression>(count)) {}
 
+// Slice links one homogeneous receiver and folds retained values without
+// manufacturing an aggregate Type. Compact Bytes and general folded Packs use
+// the same safe selection and one default for each slot.
+static auto get_byte_type(const Language::Model::Type& type) -> Core::Option<
+    const Tetrodotoxin::Library::Language::Model::Types::Unsigned&> {
+  return type.visit<Tetrodotoxin::Library::Language::Model::Types::Unsigned>(
+      [](const Tetrodotoxin::Library::Language::Model::Types::Unsigned&
+             selected)
+          -> Core::Option<
+              const Tetrodotoxin::Library::Language::Model::Types::Unsigned&> {
+        if (selected.get_width() != 8 || selected.get_size() != 1) {
+          return {};
+        }
+
+        return selected;
+      },
+      [](const Abstract&)
+          -> Core::Option<
+              const Tetrodotoxin::Library::Language::Model::Types::Unsigned&> {
+        return {};
+      });
+}
+
+static auto is_integer(const Language::Expression& expression) -> Bool {
+  const Abstract& type = expression.get_type().resolve();
+  return type.is<Tetrodotoxin::Library::Language::Model::Types::Signed>() ||
+         type.is<Tetrodotoxin::Library::Language::Model::Types::Unsigned>();
+}
+
+// Option is the safe miss produced by an integer outside Count. Error remains
+// reserved for a Constant that does not expose its promised integer domain.
+static auto get_count(
+    const Language::Expression& expression,
+    const Language::Expression& authored)
+    -> Utility::Result<Core::Option<Count>, Language::Expression::Error> {
+  return expression.visit<Language::Constants::Signed>(
+      [&](const Language::Constants::Signed& value)
+          -> Utility::Result<Core::Option<Count>, Language::Expression::Error> {
+        if (value.get_value() < 0) {
+          return Core::Option<Count>{};
+        }
+
+        Unsigned_64 selected = Unsigned_64(value.get_value());
+        if (selected > Unsigned_64(Count(-1))) {
+          return Core::Option<Count>{};
+        }
+
+        return Core::Option<Count>(Count(selected));
+      },
+      [&](const Abstract& selected)
+          -> Utility::Result<Core::Option<Count>, Language::Expression::Error> {
+        return selected.visit<Language::Constants::Unsigned>(
+            [&](const Language::Constants::Unsigned& value)
+                -> Utility::Result<
+                    Core::Option<Count>, Language::Expression::Error> {
+              if (value.get_value() > Unsigned_64(Count(-1))) {
+                return Core::Option<Count>{};
+              }
+
+              return Core::Option<Count>(Count(value.get_value()));
+            },
+            [&](const Abstract&)
+                -> Utility::Result<
+                    Core::Option<Count>, Language::Expression::Error> {
+              return Language::Expression::Error(
+                  Language::Expression::Error::Type::InvalidConstant, authored);
+            });
+      });
+}
+
+static auto select_scalar(Language::Model::Pack& pack)
+    -> Core::Option<Language::Expression&> {
+  return pack.select<Language::Expression>();
+}
+
+static auto select_folded_entry(Language::Model::Pack& pack, Count index)
+    -> Core::Option<Language::Model::Pack&> {
+  auto produced = pack.get_produced(index);
+  BAIL_IF(!produced || produced->local_index != 0);
+
+  auto constant = produced->producer.select<Language::Constant>();
+  BAIL_IF(!constant || constant->get_layout().get_size() != 1);
+  return const_cast<Language::Constant&>(*constant);
+}
+
+static auto select_required_type(const Abstract& candidate)
+    -> Core::Option<const Language::Model::Type&> {
+  auto direct = candidate.select<Language::Model::Type>();
+  if (direct) {
+    return *direct;
+  }
+
+  auto pack = candidate.select<Language::Model::Pack>();
+  if (pack) {
+    direct = pack->get_type().select<Language::Model::Type>();
+    if (direct) {
+      return *direct;
+    }
+  }
+
+  const Abstract& resolved = candidate.resolve();
+  auto addressable = candidate.select<Language::Model::Addressable>();
+  if (!addressable) {
+    addressable = resolved.select<Language::Model::Addressable>();
+  }
+  const Abstract& selected = addressable ? addressable->get_type() : resolved;
+  direct = selected.select<Language::Model::Type>();
+  return direct ? direct : selected.resolve().select<Language::Model::Type>();
+}
+
+// A slice is homogeneous value flow, but the repeated source is still the one
+// Slice expression that performs selection. Keeping this Layout subordinate to
+// Slice avoids teaching host neutral Ranged how a Library Expression fits a
+// required element Type, and avoids fabricating one proxy identity per slot.
+static auto create_layout(
+    Memory::Allocator::Arena& domain,
+    const Language::Access::Slice& source,
+    const Language::Model::Type& element,
+    Count size) -> const Ttx::Concept::Layout& {
+  class Layout final : public Ttx::Concept::Layout {
+   public:
+    constexpr Layout(
+        const Language::Access::Slice& source,
+        const Language::Model::Type& element,
+        Count size)
+        : source(source), element(element), size(size) {}
+
+    constexpr auto get_size() const -> Count override { return size; }
+
+    constexpr auto get_abstract(Count index) const
+        -> Core::Option<const Abstract&> override {
+      BAIL_IF(index >= size);
+      return source;
+    }
+
+    auto fits_entry(
+        const Ttx::Concept::Layout& target,
+        Count source_index,
+        Count target_index) const -> Bool override {
+      BAIL_IF(source_index >= size || target_index >= target.get_size());
+      return target.get_abstract(target_index)
+          .visit(
+              []() { return False; },
+              [&](const Abstract& required) {
+                return select_required_type(required).visit(
+                    []() { return False; },
+                    [&](const Language::Model::Type& type) {
+                      return element.get_layout().fits(type.get_layout());
+                    });
+              });
+    }
+
+    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
+        -> Bool override {
+      BAIL_IF(!has_target_segment(target, target_offset));
+      for (Count index = 0; index < size; index++) {
+        BAIL_IF(!fits_entry(target, index, target_offset + index));
+      }
+      return True;
+    }
+
+    auto get_fitted_at(
+        const Ttx::Concept::Layout& target,
+        Count target_offset,
+        Count target_index) const
+        -> Utility::Result<const Abstract&, Errors> override {
+      if (target_index >= size) {
+        return Errors::IndexOutOfBounds;
+      }
+
+      if (!has_target_segment(target, target_offset)) {
+        return Errors::SizeMismatch;
+      }
+
+      if (!fits_at(target, target_offset)) {
+        return Errors::IncompatibleFit;
+      }
+
+      // Layout index retains which repeated value is consumed. Lowering can use
+      // that index without replacing the one semantic producer with shadow
+      // nodes.
+      return source;
+    }
+
+   private:
+    const Language::Access::Slice& source;
+    const Language::Model::Type& element;
+    Count size;
+  };
+
+  return domain.construct<Layout>(source, element, size);
+}
+
 auto Language::Access::Slice::link(
     Ttx::Lexical::Cursor& cursor,
     const Abstract& lexical_context,
@@ -436,7 +454,7 @@ auto Language::Access::Slice::link(
 
   Core::Option<Count> selected_count;
   Core::Option<Expression::Error> count_error;
-  get_count(*folded_count_expression, count_expression)
+  ::get_count(*folded_count_expression, count_expression)
       .visit(
           [&](const Core::Option<Count>& selected) {
             selected_count = selected;
@@ -475,6 +493,24 @@ auto Language::Access::Slice::get_type() const -> const Abstract& {
   }
 
   return element_type->get();
+}
+
+auto Language::Access::Slice::get_value_type(Count index) const
+    -> const Abstract& {
+  if (!element_type || index >= get_layout().get_size()) {
+    return Invalid::get_invalid();
+  }
+
+  return element_type->get();
+}
+
+auto Language::Access::Slice::get_produced(Count index) const
+    -> Core::Option<Ttx::Model::Pack::Produced> {
+  if (index >= get_layout().get_size() || &resolve() != this) {
+    return {};
+  }
+
+  return Ttx::Model::Pack::Produced{*this, index};
 }
 
 auto Language::Access::Slice::get_layout() const
@@ -519,6 +555,85 @@ auto Language::Access::Slice::finalize(Cursor& cursor) -> void {
   Expression::finalize(cursor);
 }
 
+auto Language::Access::Slice::lower(Llvm::Builder& body) const -> Bool {
+  auto folded = lower_folded(body);
+  if (folded) {
+    return *folded;
+  }
+
+  if (!element_type) {
+    return False;
+  }
+
+  Bool receiver_lowered = receiver.lower(body);
+  if (!receiver_lowered) {
+    return False;
+  }
+
+  Bool index_lowered = first.lower(body);
+  if (!index_lowered) {
+    return False;
+  }
+
+  if (!count) {
+    auto selected_fallback = get_fallback();
+    if (!selected_fallback) {
+      return False;
+    }
+
+    auto state = body.begin_slice(element_type->get(), receiver, first);
+    if (!state) {
+      return False;
+    }
+
+    Bool fallback_lowered = selected_fallback->lower(body);
+    if (!fallback_lowered) {
+      return False;
+    }
+
+    return body.end_slice(
+        *state, element_type->get(), *this, *selected_fallback);
+  }
+
+  if (!range_count) {
+    return False;
+  }
+
+  auto range = body.begin_slice_range(element_type->get(), receiver, first);
+  if (!range) {
+    return False;
+  }
+
+  Memory::Managed::Vector<LLVMValueRef> values(body.get_program().get_arena());
+  for (Count offset = 0; offset < *range_count; offset++) {
+    auto selected_fallback =
+        element_type->get().create_default(body.get_program().get_arena());
+    if (!selected_fallback) {
+      return False;
+    }
+
+    auto state = body.begin_slice_slot(*range, offset);
+    if (!state) {
+      return False;
+    }
+
+    Bool fallback_lowered = selected_fallback->lower(body);
+    if (!fallback_lowered) {
+      return False;
+    }
+
+    auto selected = body.end_slice_slot(
+        *state, element_type->get(), *selected_fallback);
+    if (!selected) {
+      return False;
+    }
+
+    values.insert(*selected);
+  }
+
+  return body.end_slice_range(*this, values.get_view());
+}
+
 auto Language::Access::Slice::evaluate()
     -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
   Core::Option<Model::Pack&> folded_receiver_pack;
@@ -544,13 +659,14 @@ auto Language::Access::Slice::evaluate()
   if (first_error) {
     return *first_error;
   }
+
   if (!folded_receiver_pack || !folded_first_pack) {
     return Core::Option<Model::Pack&>{};
   }
 
   auto folded_receiver = select_scalar(*folded_receiver_pack);
   auto folded_first = select_scalar(*folded_first_pack);
-  if (!folded_receiver || !folded_first) {
+  if (!folded_first) {
     return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
   }
 
@@ -560,10 +676,65 @@ auto Language::Access::Slice::evaluate()
   }
   const Language::Model::Type& element = element_type->get();
 
-  auto selected_index = get_count(*folded_first, first);
+  auto selected_index = ::get_count(*folded_first, first);
   return selected_index.visit(
       [&](const Core::Option<Count>& index)
           -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
+        if (!folded_receiver) {
+          const Count available = folded_receiver_pack->get_layout().get_size();
+          if (!count) {
+            if (index && *index < available) {
+              auto selected =
+                  select_folded_entry(*folded_receiver_pack, *index);
+              if (!selected) {
+                return Expression::Error(
+                    Expression::Error::Type::InvalidConstant, *this);
+              }
+              return Core::Option<Model::Pack&>(*selected);
+            }
+
+            if (!fallback) {
+              return Expression::Error(
+                  Expression::Error::Type::InvalidConstant, *this);
+            }
+            return fallback->get();
+          }
+
+          if (!range_count) {
+            return Expression::Error(
+                Expression::Error::Type::InvalidConstant, *this);
+          }
+
+          Memory::Managed::Vector<Reference<Model::Pack>> entries(domain);
+          entries.reset(*range_count);
+          for (Count offset = 0; offset < *range_count; offset++) {
+            Bool present = False;
+            Count position = 0;
+            if (index && offset <= Count(-1) - *index) {
+              position = *index + offset;
+              present = position < available;
+            }
+
+            if (present) {
+              auto selected =
+                  select_folded_entry(*folded_receiver_pack, position);
+              if (!selected) {
+                return Expression::Error(
+                    Expression::Error::Type::InvalidConstant, *this);
+              }
+              entries.insert(*selected);
+              continue;
+            }
+
+            auto selected_default = element.create_default(domain);
+            if (!selected_default) {
+              return Core::Option<Model::Pack&>{};
+            }
+            entries.insert(*selected_default);
+          }
+          return Model::Pack::create_folded(domain, entries.get_view());
+        }
+
         return folded_receiver->visit<Constants::Bytes>(
             [&](const Constants::Bytes& bytes)
                 -> Utility::Result<
@@ -615,27 +786,60 @@ auto Language::Access::Slice::evaluate()
                     Expression::Error::Type::InvalidConstant, receiver);
               }
 
-              // The retained range promises exactly range_count outputs, so
-              // clipping would change its semantic Layout. Folding currently
-              // stops at a missing slot until the range path applies the same
-              // exact Type default query as scalar Slice for each position.
-              // Lowering must make that bounds decision per position as well,
-              // matching View::Bytes element access rather than treating the
-              // complete range as one optional reference.
-              if (!index || *index > value.get_size() ||
-                  *range_count > value.get_size() - *index) {
+              constexpr Count maximum_entries =
+                  (Count(-1) - sizeof(Unsigned_8*)) /
+                  sizeof(Reference<Model::Pack>);
+              if (*range_count > maximum_entries) {
+                // The semantic Pack can describe this count but no host Vector
+                // can retain its folded producers without overflowing its byte
+                // request. Leave the expression dynamic for another consumer.
                 return Core::Option<Model::Pack&>{};
               }
 
               Memory::Managed::Vector<Reference<Model::Pack>> entries(domain);
               entries.reset(*range_count);
               for (Count offset = 0; offset < *range_count; offset++) {
-                Count position = *index + offset;
-                Unsigned_64 selected = Unsigned_64(value.get_data()[position]);
-                entries.insert(
-                    static_cast<Model::Pack&>(
-                        Constants::Unsigned::create_synthetic(
-                            domain, *byte_type, selected)));
+                Bool has_position = False;
+                Count position = 0;
+                if (index && offset <= Count(-1) - *index) {
+                  position = *index + offset;
+                  has_position = position < value.get_size();
+                }
+
+                if (has_position) {
+                  Unsigned_64 selected =
+                      Unsigned_64(value.get_data()[position]);
+                  entries.insert(
+                      static_cast<Model::Pack&>(
+                          Constants::Unsigned::create_synthetic(
+                              domain, *byte_type, selected)));
+                  continue;
+                }
+
+                // Request a separate default for every missing slot. Reusing
+                // one Pack would be observably wrong for Types whose default
+                // creates a fresh value and would make a partial miss differ
+                // from repeated scalar safe selection.
+                auto selected_default = element.create_default(domain);
+                if (!selected_default) {
+                  return Core::Option<Model::Pack&>{};
+                }
+
+                Bool constant_default = True;
+                const Layout& default_layout = selected_default->get_layout();
+                for (Count default_index = 0;
+                     default_index < default_layout.get_size();
+                     default_index++) {
+                  auto default_value =
+                      default_layout.get_abstract(default_index);
+                  constant_default &=
+                      Bool(default_value && default_value->is<Constant>());
+                }
+
+                if (!constant_default) {
+                  return Core::Option<Model::Pack&>{};
+                }
+                entries.insert(*selected_default);
               }
 
               return Model::Pack::create_folded(domain, entries.get_view());

@@ -10,6 +10,7 @@
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -64,23 +65,40 @@ TTX_UNARY_PARSE(Negate);
 
 TTX_UNARY_OP(Negate);
 
-auto Language::Operations::Negate::select_type(const Ttx::Concept::Abstract&)
-    const -> Core::Option<const Language::Model::Type&> {
-  auto operand = get_input(0);
-  if (!operand) {
-    return {};
+auto Language::Operations::Negate::lower(Llvm::Builder& body) const -> Bool {
+  auto folded = lower_folded(body);
+  if (folded) {
+    return *folded;
   }
 
-  return select_result_type(*operand).select<Language::Model::Type>();
+  const Expression& operand = get_inputs().get_data()[0].get();
+  auto carrier = get_type().resolve().select<Ttx::Model::Type>();
+
+  if (!carrier) {
+    return False;
+  }
+
+  Bool lowered = lower_inputs(body);
+  if (!lowered) {
+    return False;
+  }
+
+  return body.negate(*carrier, *this, operand);
+}
+
+auto Language::Operations::Negate::select_type(const Ttx::Concept::Abstract&)
+    const -> Core::Option<const Language::Model::Type&> {
+  const Expression& operand = get_inputs().get_data()[0].get();
+  return select_result_type(operand).select<Language::Model::Type>();
 }
 
 auto Language::Operations::Negate::evaluate_constants(
     Memory::Allocator::Arena& domain)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
   const Abstract& selected = get_type().resolve();
-  auto authored_operand = get_input(0);
+  Expression& authored_operand = get_inputs().get_data()[0].get();
   auto operand = get_folded_input(0);
-  if (!authored_operand || !operand) {
+  if (!operand) {
     return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
@@ -90,7 +108,7 @@ auto Language::Operations::Negate::evaluate_constants(
     auto value = operand->select<Constants::Signed>();
     if (!value) {
       return Expression::Error(
-          Expression::Error::Type::InvalidConstant, *authored_operand);
+          Expression::Error::Type::InvalidConstant, authored_operand);
     }
 
     return selected.visit<
@@ -116,7 +134,7 @@ auto Language::Operations::Negate::evaluate_constants(
     auto value = operand->select<Constants::Real>();
     if (!value) {
       return Expression::Error(
-          Expression::Error::Type::InvalidConstant, *authored_operand);
+          Expression::Error::Type::InvalidConstant, authored_operand);
     }
 
     return selected.visit<Tetrodotoxin::Library::Language::Model::Types::Real>(

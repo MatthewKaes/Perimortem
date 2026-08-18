@@ -9,6 +9,7 @@
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/model/types/value.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -67,15 +68,36 @@ TTX_BINARY_PARSE(NotEqual, NotEqOp);
 
 TTX_BINARY_OP(NotEqual);
 
+auto Language::Operations::NotEqual::lower(Llvm::Builder& body) const -> Bool {
+  auto folded = lower_folded(body);
+  if (folded) {
+    return *folded;
+  }
+
+  auto inputs = get_inputs();
+  const Expression& left = inputs.get_data()[0].get();
+  const Expression& right = inputs.get_data()[1].get();
+  auto carrier = left.get_type().resolve().select<Ttx::Model::Type>();
+
+  if (!carrier) {
+    return False;
+  }
+
+  Bool lowered = lower_inputs(body);
+  if (!lowered) {
+    return False;
+  }
+
+  return body.not_equal(*carrier, *this, left, right);
+}
+
 auto Language::Operations::NotEqual::select_type(
     const Ttx::Concept::Abstract& context) const
     -> Core::Option<const Language::Model::Type&> {
-  auto left = get_input(0);
-  auto right = get_input(1);
-  if (!left || !right ||
-      !select_operand_type(*left, *right)
-           .resolve()
-           .is<Language::Model::Type>()) {
+  auto inputs = get_inputs();
+  const Expression& left = inputs.get_data()[0].get();
+  const Expression& right = inputs.get_data()[1].get();
+  if (!select_operand_type(left, right).resolve().is<Language::Model::Type>()) {
     return {};
   }
 
@@ -85,18 +107,18 @@ auto Language::Operations::NotEqual::select_type(
 auto Language::Operations::NotEqual::evaluate_constants(
     Memory::Allocator::Arena& domain)
     -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-  auto authored_left = get_input(0);
-  auto authored_right = get_input(1);
+  auto inputs = get_inputs();
+  Expression& authored_left = inputs.get_data()[0].get();
+  Expression& authored_right = inputs.get_data()[1].get();
   auto left = get_folded_input(0);
   auto right = get_folded_input(1);
   auto result_type =
       get_type().select<Tetrodotoxin::Library::Language::Model::Types::Flag>();
-  if (!authored_left || !authored_right || !left || !right || !result_type) {
+  if (!left || !right || !result_type) {
     return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
-  const Abstract& selected =
-      select_operand_type(*authored_left, *authored_right);
+  const Abstract& selected = select_operand_type(authored_left, authored_right);
 
   // The scalar Type proves its own Constant carrier. Bytes remains the one
   // complete non scalar Constant domain admitted by this operator.
@@ -104,12 +126,12 @@ auto Language::Operations::NotEqual::evaluate_constants(
   auto right_value = right->select<Constant>();
   if (!left_value || !accepts_constant(selected, *left_value)) {
     return Expression::Error(
-        Expression::Error::Type::InvalidConstant, *authored_left);
+        Expression::Error::Type::InvalidConstant, authored_left);
   }
 
   if (!right_value || !accepts_constant(selected, *right_value)) {
     return Expression::Error(
-        Expression::Error::Type::InvalidConstant, *authored_right);
+        Expression::Error::Type::InvalidConstant, authored_right);
   }
 
   return make_result(domain, *result_type, *left_value != *right_value);

@@ -37,7 +37,19 @@ class Unwrap : public Expression {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
+  auto lower(Llvm::Builder& body) const -> Bool override;
+
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
+
+  constexpr auto get_fallback() const
+      -> Perimortem::Core::Option<const Model::Pack&> {
+    return fallback.visit(
+        []() -> Perimortem::Core::Option<const Model::Pack&> { return {}; },
+        [](const Ttx::Concept::Reference<Model::Pack>& selected)
+            -> Perimortem::Core::Option<const Model::Pack&> {
+          return selected.get();
+        });
+  }
 
  protected:
   auto evaluate() -> Perimortem::Utility::Result<

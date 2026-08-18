@@ -7,6 +7,7 @@
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -58,17 +59,43 @@ auto Language::Operations::Range::parse(
 
 TTX_BINARY_OP(Range);
 
+auto Language::Operations::Range::lower(Llvm::Builder& body) const -> Bool {
+  auto folded = lower_folded(body);
+  if (folded) {
+    return *folded;
+  }
+
+  auto inputs = get_inputs();
+  const Expression& left = inputs.get_data()[0].get();
+  const Expression& right = inputs.get_data()[1].get();
+  auto carrier = get_type().resolve().select<Language::Model::Type>();
+
+  if (!carrier) {
+    return False;
+  }
+
+  Bool carrier_ready = carrier->reserve(body.get_program()) &&
+                       carrier->complete(body.get_program());
+  if (!carrier_ready) {
+    return False;
+  }
+
+  Bool lowered = lower_inputs(body);
+  if (!lowered) {
+    return False;
+  }
+
+  return body.range(*carrier, *this, left, right);
+}
+
 auto Language::Operations::Range::select_type(
     const Ttx::Concept::Abstract& context) const
     -> Core::Option<const Language::Model::Type&> {
-  auto left = get_input(0);
-  auto right = get_input(1);
-  if (!left || !right) {
-    return {};
-  }
-
-  const Abstract& left_type = left->get_type().resolve();
-  const Abstract& right_type = right->get_type().resolve();
+  auto inputs = get_inputs();
+  const Expression& left = inputs.get_data()[0].get();
+  const Expression& right = inputs.get_data()[1].get();
+  const Abstract& left_type = left.get_type().resolve();
+  const Abstract& right_type = right.get_type().resolve();
   auto element = left_type.select<Language::Model::Type>();
   if (!element || &left_type != &right_type ||
       (!left_type.is<Tetrodotoxin::Library::Language::Model::Types::Signed>() &&

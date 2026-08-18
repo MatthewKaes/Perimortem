@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/operation.hpp"
 
+#include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -52,27 +53,31 @@ auto Language::Operation::link(
   // so diagnostics retain that same order without making later graph edges
   // disappear from the source model.
   for (Count i = 0; i < inputs.get_size(); i++) {
-    auto input = get_input(i);
-    if (!input) {
-      cursor.create_expression_error(
-          source_anchor, "Operation contains an invalid Expression edge."_view,
-          "Retain every authored operand as one Expression identity."_view);
-      failed = True;
-      continue;
-    }
+    Expression& input = inputs[i].get();
 
     // Operations preserve their caller's two contexts unchanged. Operand
     // nesting changes evaluation order, not lexical shadowing or host access.
-    failed |= !input->link(cursor, lexical_context, access_scope);
+    failed |= !input.link(cursor, lexical_context, access_scope);
   }
 
   BAIL_IF(failed);
 
   auto selected = select_type(lexical_context);
   if (!selected) {
-    cursor.create_expression_error(
-        source_anchor, "Operation rejects the linked operand Types."_view,
-        "Use operands with the exact Types required by this operation."_view);
+    auto report = cursor.create_report(source_anchor);
+    report << "Operation '"_view << get_name()
+           << "' rejects operand Types ["_view;
+    for (Count index = 0; index < inputs.get_size(); index++) {
+      if (index != 0) {
+        report << ", "_view;
+      }
+      Language::Diagnostics::write_type(
+          report, inputs.at(index).get().get_type());
+    }
+    report << "]."_view;
+    report.get_hint()
+        << "Use the exact matching operand Types accepted by '"_view
+        << get_name() << "'."_view;
     return False;
   }
 
@@ -81,10 +86,13 @@ auto Language::Operation::link(
       return True;
     }
 
-    cursor.create_expression_error(
-        source_anchor,
-        "Operation result Type cannot change during linking."_view,
-        "Keep one exact result Type on this authored operation."_view);
+    auto report = cursor.create_report(source_anchor);
+    report << "Internal semantic error: Operation '"_view << get_name()
+           << "' changed result Type from '"_view
+           << result_type->get().get_name() << "' to '"_view
+           << selected->get_name() << "'."_view;
+    report.get_hint()
+        << "The source is valid; report this unstable linking result."_view;
     return False;
   }
 
@@ -100,6 +108,16 @@ auto Language::Operation::finalize(Ttx::Lexical::Cursor& cursor) -> void {
     input.get().finalize(cursor);
   }
   Expression::finalize(cursor);
+}
+
+auto Language::Operation::lower_inputs(Llvm::Builder& body) const -> Bool {
+  for (Ttx::Concept::Reference<Expression> input : inputs.get_view()) {
+    if (!input.get().lower(body)) {
+      return False;
+    }
+  }
+
+  return True;
 }
 
 auto Language::Operation::evaluate()
@@ -151,12 +169,11 @@ auto Language::Operation::reaches_next_input(Count, const Expression&) const
 
 auto Language::Operation::fold_input(Count index)
     -> Utility::Result<Core::Option<Expression&>, Expression::Error> {
-  auto input = get_input(index);
-  if (!input) {
+  if (index >= inputs.get_size()) {
     return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
-  return input->fold().visit(
+  return inputs[index].get().fold().visit(
       [](const Core::Option<Model::Pack&>& folded)
           -> Utility::Result<Core::Option<Expression&>, Expression::Error> {
         return folded.visit(
@@ -180,22 +197,9 @@ auto Language::Operation::fold_input(Count index)
 
 auto Language::Operation::get_folded_input(Count index)
     -> Core::Option<Expression&> {
-  auto input = get_input(index);
-  BAIL_IF(!input);
+  BAIL_IF(index >= inputs.get_size());
 
-  auto folded = input->get_folded();
+  auto folded = inputs[index].get().get_folded();
   BAIL_IF(!folded);
   return folded->select<Expression>();
-}
-
-auto Language::Operation::get_input(Count index) -> Core::Option<Expression&> {
-  BAIL_IF(index >= inputs.get_size());
-
-  return inputs[index].get();
-}
-
-auto Language::Operation::get_input(Count index) const
-    -> Core::Option<const Expression&> {
-  BAIL_IF(index >= inputs.get_size());
-  return inputs.get_view().get_data()[index].get();
 }

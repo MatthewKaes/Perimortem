@@ -44,11 +44,14 @@ class Return : public Ttx::Concept::Abstract {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
 
+  auto lower(Llvm::Builder& body) const -> Bool;
+
   TTX_NAME("Return"_view);
   TTX_EMPTY_DOCUMENTATION();
   TTX_INVALID_CONTEXT;
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
+  constexpr auto get_pack() const -> const Model::Pack& { return pack.get(); }
 
  private:
   constexpr Return(

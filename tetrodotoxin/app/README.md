@@ -150,9 +150,8 @@ Building an App selects both a CPU target and a platform host. The CPU target
 defines how functions and values are represented. The Linux or Windows host
 provides process startup, loading, terminals, windows, and events.
 
-Library may compile the CPU code with LLVM or the direct native compiler. This
-choice does not change App behavior. Linker still produces the final ELF or PE
-program.
+Library compiles CPU code with LLVM. Linker produces the final ELF or PE
+program without making LLVM part of App behavior.
 
 See [Scene](../scene/README.md) for Scene roles,
 [Library](../library/README.md) for Callable and named Layout semantics, and the

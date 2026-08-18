@@ -8,6 +8,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -36,6 +37,10 @@ class Pack : public Ttx::Model::Pack {
       const Ttx::Concept::Abstract& lexical_context,
       Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool = 0;
+
+  // Lowering visits the retained producer graph in evaluation order. The
+  // target Body records physical outputs under this exact Pack identity.
+  virtual auto lower(Llvm::Builder& body) const -> Bool = 0;
 
   // The scalar output query is a convenience over the Pack's completed Layout.
   // It is Invalid for empty or multiple value flow and never materializes an

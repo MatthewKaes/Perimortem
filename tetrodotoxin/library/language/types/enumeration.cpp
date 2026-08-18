@@ -12,6 +12,7 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -443,4 +444,69 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::get_storage_type()
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_cases() const
     -> View::Vector<Reference<const Alias>> {
   return cases;
+}
+
+auto Tetrodotoxin::Library::Language::Types::Enumeration::reserve(
+    Llvm::Program& program) const -> Bool {
+  const auto& carriers = program.get_carriers();
+  auto storage = get_storage_type();
+  if (!storage) {
+    return False;
+  }
+
+  auto reserved = carriers.reserve_enumeration(program, *this);
+  if (!reserved) {
+    return False;
+  }
+
+  return !*reserved || storage->reserve(program);
+}
+
+auto Tetrodotoxin::Library::Language::Types::Enumeration::complete(
+    Llvm::Program& program) const -> Bool {
+  const auto& carriers = program.get_carriers();
+  auto storage = get_storage_type();
+  if (!storage) {
+    return False;
+  }
+
+  auto began = carriers.begin_completion(program, *this);
+  if (!began) {
+    return False;
+  }
+
+  if (!*began) {
+    return True;
+  }
+
+  Bool completed = storage->complete(program);
+  if (!completed) {
+    return False;
+  }
+
+  Bool carrier_completed =
+      carriers.complete_enumeration(program, *this, *storage);
+  if (!carrier_completed || !complete_debug(program)) {
+    return False;
+  }
+
+  for (const Reference<const Alias>& retained : cases.get_view()) {
+    const Alias& alias = retained.get();
+    const Abstract& value = alias.resolve();
+    auto signed_value = value.select<Constants::Signed>();
+    if (signed_value) {
+      if (!program.debug_signed_enumerator(
+              *this, alias, signed_value->get_value())) {
+        return False;
+      }
+    } else {
+      auto unsigned_value = value.select<Constants::Unsigned>();
+      if (!unsigned_value || !program.debug_unsigned_enumerator(
+                                 *this, alias, unsigned_value->get_value())) {
+        return False;
+      }
+    }
+  }
+
+  return True;
 }

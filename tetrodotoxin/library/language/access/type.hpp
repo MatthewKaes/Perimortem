@@ -41,6 +41,8 @@ class Type : public Expression {
   auto get_result() const -> const Ttx::Concept::Abstract& override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
+  auto lower(Llvm::Builder& body) const -> Bool override;
+
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
   constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
 

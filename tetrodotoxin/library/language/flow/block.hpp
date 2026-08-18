@@ -46,6 +46,8 @@ class Block : public Scope {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
 
+  auto lower(Llvm::Builder& body) const -> Bool;
+
   auto reaches_next_statement() const -> Bool;
 
   TTX_NAME("Block"_view);

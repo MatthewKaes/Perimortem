@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/lexicon.hpp"
 #include "ttx/model/documentations/merged.hpp"
@@ -111,22 +112,22 @@ auto Library::Language::Foreign::parse(
       auto state = State::interpret(
           *this, cursor, declaration_documentation, retained_abi);
       BAIL_IF(!state);
-      const State* duplicate = nullptr;
+      Option<const State&> duplicate;
       for (const Reference<State>& retained : states.get_view()) {
         if (retained.get().get_name() == state->get_name()) {
-          duplicate = &retained.get();
+          duplicate = retained.get();
           break;
         }
       }
-      if (duplicate == nullptr) {
+      if (!duplicate) {
         for (const Reference<State>& retained : staged_states.get_view()) {
           if (retained.get().get_name() == state->get_name()) {
-            duplicate = &retained.get();
+            duplicate = retained.get();
             break;
           }
         }
       }
-      if (duplicate != nullptr &&
+      if (duplicate &&
           !has_same_declaration(*duplicate, *state, cursor.get_source_text())) {
         cursor.create_expression_error(
             state->get_anchor(),
@@ -134,7 +135,7 @@ auto Library::Language::Foreign::parse(
             "Repeat the exact declaration or choose another symbol."_view);
         return False;
       }
-      if (duplicate == nullptr) {
+      if (!duplicate) {
         staged_states.insert(*state);
       }
       continue;
@@ -144,32 +145,31 @@ auto Library::Language::Foreign::parse(
       auto function = Function::interpret(
           *this, cursor, declaration_documentation, retained_abi);
       BAIL_IF(!function);
-      const Function* duplicate = nullptr;
+      Option<const Function&> duplicate;
       for (const Reference<Function>& retained : functions.get_view()) {
         if (retained.get().get_name() == function->get_name()) {
-          duplicate = &retained.get();
+          duplicate = retained.get();
           break;
         }
       }
-      if (duplicate == nullptr) {
+      if (!duplicate) {
         for (const Reference<Function>& retained :
              staged_functions.get_view()) {
           if (retained.get().get_name() == function->get_name()) {
-            duplicate = &retained.get();
+            duplicate = retained.get();
             break;
           }
         }
       }
-      if (duplicate != nullptr &&
-          !has_same_declaration(
-              *duplicate, *function, cursor.get_source_text())) {
+      if (duplicate && !has_same_declaration(
+                           *duplicate, *function, cursor.get_source_text())) {
         cursor.create_expression_error(
             function->get_anchor(),
             "Repeated Foreign Function changes its declaration."_view,
             "Repeat the exact declaration or choose another symbol."_view);
         return False;
       }
-      if (duplicate == nullptr) {
+      if (!duplicate) {
         staged_functions.insert(*function);
       }
       continue;
@@ -305,4 +305,91 @@ auto Library::Language::Foreign::retain_documentation(
 
   documentation = &domain.construct<Ttx::Model::Documentations::Merged>(
       *documentation, block_documentation);
+}
+
+auto Library::Language::Foreign::State::reserve_declaration(
+    Llvm::Program& program) const -> Bool {
+  Bool type_reserved = Model::Addressable::reserve_declaration(program);
+  if (!type_reserved) {
+    return False;
+  }
+
+  const auto& globals = program.get_globals();
+  Bool writable = Bool(
+      get_definition().get_visibility() ==
+      Tetrodotoxin::Language::Visibility::Public);
+  auto reserved =
+      globals.reserve_foreign(program, *this, abi, get_name(), writable);
+  return reserved ? True : False;
+}
+
+auto Library::Language::Foreign::State::complete_declaration(
+    Llvm::Program& program) const -> Bool {
+  Bool type_completed = Model::Addressable::complete_declaration(program);
+  if (!type_completed) {
+    return False;
+  }
+
+  const auto& globals = program.get_globals();
+  if (!globals.complete(program, *this)) {
+    return False;
+  }
+
+  return program.debug_global(*this, definition, False, False);
+}
+
+auto Library::Language::Foreign::Function::reserve_declaration(
+    Llvm::Program& program) const -> Bool {
+  const auto& functions = program.get_functions();
+  auto reserved = functions.reserve_foreign(program, *this, abi, get_symbol());
+  if (!reserved) {
+    return False;
+  }
+
+  return !*reserved || Model::Callable::reserve_declaration(program);
+}
+
+auto Library::Language::Foreign::Function::complete_declaration(
+    Llvm::Program& program) const -> Bool {
+  const auto& functions = program.get_functions();
+  Bool signature_completed = Model::Callable::complete_declaration(program);
+  return signature_completed && functions.complete(program, *this);
+}
+
+auto Library::Language::Foreign::reserve(Llvm::Program& program) const -> Bool {
+  for (const Reference<State>& state : states.get_view()) {
+    if (!state.get().reserve_declaration(program)) {
+      return False;
+    }
+  }
+
+  for (const Reference<Function>& function : functions.get_view()) {
+    if (!function.get().reserve_declaration(program)) {
+      return False;
+    }
+  }
+
+  return True;
+}
+
+auto Library::Language::Foreign::complete(Llvm::Program& program) const
+    -> Bool {
+  for (const Reference<State>& state : states.get_view()) {
+    if (!state.get().complete_declaration(program)) {
+      return False;
+    }
+  }
+
+  for (const Reference<Function>& function : functions.get_view()) {
+    if (!function.get().complete_declaration(program)) {
+      return False;
+    }
+  }
+
+  return True;
+}
+
+auto Library::Language::Foreign::lower(Llvm::Program&) const -> Bool {
+  // Foreign only defines the ABI so no body is actually lowered.
+  return True;
 }

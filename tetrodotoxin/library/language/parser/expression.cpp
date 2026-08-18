@@ -45,6 +45,16 @@ using namespace Ttx::Lexical;
 // multiplicative grammar, so concrete unary owners never replay either level.
 static constexpr Count prefix_precedence = 31;
 
+static auto associate_expression(
+    Cursor& cursor,
+    Library::Language::Model::Pack& pack) -> void {
+  auto expression = pack.select<Library::Language::Expression>();
+  if (!expression || !expression->get_anchor()) {
+    return;
+  }
+  cursor.get_associations().create(*expression->get_anchor(), *expression);
+}
+
 static auto is_postfix(Code::Type code) -> Bool {
   switch (code) {
   case Code::Type::AddressOp:
@@ -245,6 +255,7 @@ static auto parse_expression(
   Token start = cursor.current();
   auto primary = parse_primary(context, cursor);
   BAIL_IF(!primary);
+  associate_expression(cursor, *primary);
 
   Reference<Library::Language::Model::Pack> parsed(*primary);
   Span parsed_span(start, cursor.peek(-1));
@@ -260,6 +271,7 @@ static auto parse_expression(
 
       parsed = Reference<Library::Language::Model::Pack>(*selected);
       parsed_span = Span(start, cursor.peek(-1));
+      associate_expression(cursor, parsed.get());
       continue;
     }
 
@@ -283,6 +295,7 @@ static auto parse_expression(
 
     parsed = Reference<Library::Language::Model::Pack>(*selected);
     parsed_span = Span(start, cursor.peek(-1));
+    associate_expression(cursor, parsed.get());
   }
 
   while (True) {
@@ -298,6 +311,7 @@ static auto parse_expression(
 
     parsed = Reference<Library::Language::Model::Pack>(*selected);
     parsed_span = Span(start, cursor.peek(-1));
+    associate_expression(cursor, parsed.get());
   }
 }
 

@@ -3,10 +3,13 @@
 
 #include "tetrodotoxin/library/language/types/composite.hpp"
 
+#include "perimortem/core/diagnostics/log.hpp"
+
 #include "tetrodotoxin/library/language/alias.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/parser/member.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/termination.hpp"
 
@@ -40,6 +43,33 @@ static auto visit_each(
   return !failed;
 }
 
+template <typename selected_type>
+static auto select_next(
+    View::Vector<Reference<Abstract>> bindings,
+    Count& index) -> Option<const selected_type&> {
+  while (index < bindings.get_size()) {
+    auto selected = bindings.get_data()[index].get().select<selected_type>();
+    if (selected) {
+      return *selected;
+    }
+
+    index++;
+  }
+
+  return {};
+}
+
+template <typename selected_type>
+static auto declaration_offset(const Option<const selected_type&>& selected)
+    -> Count {
+  if (!selected) {
+    return Count(-1);
+  }
+
+  auto anchor = selected->get_declaration_anchor();
+  return anchor ? Count(anchor->get_span().get_offset()) : Count(-1);
+}
+
 static auto select_definition_category(
     Token qualifier,
     Types::Composite::Category& category) -> Bool {
@@ -60,18 +90,6 @@ static auto select_definition_category(
   default:
     return False;
   }
-}
-
-static auto select_callable_role(const Abstract& binding, Bool& type_bound)
-    -> Bool {
-  const Abstract& resolved =
-      binding.is<Model::Callable>() ? binding : binding.resolve();
-  auto callable = resolved.select<Model::Callable>();
-  if (!callable) {
-    return False;
-  }
-  type_bound = callable->declares_self();
-  return True;
 }
 
 template <typename bindings_type>
@@ -114,36 +132,6 @@ static auto resolve_local_addressable(
   return Invalid::get_invalid();
 }
 
-static auto resolve_local_callable(
-    const Types::Composite& composite,
-    const Abstract& host,
-    View::Bytes route,
-    Type::Access access) -> const Abstract& {
-  Bool type_bound = access == Type::Access::Self;
-  for (const Reference<Abstract>& binding :
-       composite.get_callables(Visibility::Private)) {
-    if (binding.get().get_name() != route) {
-      continue;
-    }
-
-    const Abstract& resolved = binding.get().resolve();
-    auto callable = resolved.select<Model::Callable>();
-    if (!callable || callable->is_type_bound() != type_bound) {
-      continue;
-    }
-
-    auto caller = host.select<Type>();
-    Bool published = retains_binding(
-        composite.get_callables(Visibility::Public), binding.get());
-    if (published || (caller && caller->has_private_access_to(composite))) {
-      return binding.get();
-    }
-    return Invalid::get_invalid();
-  }
-
-  return Invalid::get_invalid();
-}
-
 Types::Composite::Composite(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition)
@@ -151,8 +139,6 @@ Types::Composite::Composite(
       domain(domain),
       addressables(domain),
       published_addressables(domain),
-      callables(domain),
-      published_callables(domain),
       types(domain),
       published_types(domain) {}
 
@@ -212,39 +198,29 @@ auto Types::Composite::can_bind_definition(
     const Abstract& binding,
     Category category) const -> Bool {
   View::Bytes candidate = binding.get_name();
-  auto retains_identity = [&](const auto& category) {
-    return category.get_view().contains(
-        [&](const Reference<Abstract>& existing) {
-          return &existing.get() == &binding;
-        });
+  auto retains_identity = [&](auto category) {
+    return category.contains([&](const Reference<Abstract>& existing) {
+      return &existing.get() == &binding;
+    });
   };
-  if (candidate.is_empty() || retains_identity(addressables) ||
-      retains_identity(callables) || retains_identity(types)) {
+  if (candidate.is_empty() || retains_identity(addressables.get_view()) ||
+      retains_identity(get_callable_bindings()) ||
+      retains_identity(types.get_view())) {
     return False;
   }
 
-  auto contains_name = [&](const auto& bindings) {
-    return bindings.get_view().contains(
-        [&](const Reference<Abstract>& existing) {
-          return existing.get().get_name() == candidate;
-        });
+  auto contains_name = [&](auto bindings) {
+    return bindings.contains([&](const Reference<Abstract>& existing) {
+      return existing.get().get_name() == candidate;
+    });
   };
   switch (category) {
   case Category::Addressable:
-    return !contains_name(addressables);
+    return !contains_name(addressables.get_view());
   case Category::Type:
-    return !contains_name(types);
-  case Category::Callable: {
-    Bool type_bound = False;
-    BAIL_IF(!select_callable_role(binding, type_bound));
-    return !callables.get_view().contains(
-        [&](const Reference<Abstract>& existing) {
-          Bool retained_type_bound = False;
-          return existing.get().get_name() == candidate &&
-                 select_callable_role(existing.get(), retained_type_bound) &&
-                 retained_type_bound == type_bound;
-        });
-  }
+    return !contains_name(types.get_view());
+  case Category::Callable:
+    return can_publish_callable(binding);
   }
 
   return False;
@@ -254,17 +230,18 @@ auto Types::Composite::retain_binding(
     Abstract& binding,
     Tetrodotoxin::Language::Definition& definition,
     Category category,
-    Cursor&) -> Bool {
+    Cursor& cursor) -> Bool {
   BAIL_IF(!can_accept_definition() || !can_bind_definition(binding, category));
 
-  publish_binding(binding, category, definition.is_published());
+  BAIL_IF(!publish_binding(binding, category, definition.is_published()));
+  cursor.get_associations().create(definition.get_name_anchor(), binding);
   return True;
 }
 
 auto Types::Composite::publish_binding(
     Abstract& binding,
     Category category,
-    Bool published) -> void {
+    Bool published) -> Bool {
   // The parser or importing provider supplies the category before publication.
   // Alias resolution is deliberately absent here: delayed graph completion
   // cannot change which namespace owns the local name.
@@ -274,20 +251,19 @@ auto Types::Composite::publish_binding(
     if (published) {
       published_addressables.insert(binding);
     }
-    return;
+    return True;
   case Category::Callable:
-    callables.insert(binding);
-    if (published) {
-      published_callables.insert(binding);
-    }
-    return;
+    publish_callable(domain, binding, published);
+    return True;
   case Category::Type:
     types.insert(binding);
     if (published) {
       published_types.insert(binding);
     }
-    return;
+    return True;
   }
+
+  return False;
 }
 
 auto Types::Composite::link_aliases() -> Count {
@@ -327,6 +303,7 @@ auto Types::Composite::link_types(Cursor& cursor) -> Bool {
   if (stage >= Stage::TypesLinked) {
     return True;
   }
+
   if (stage != Stage::Authored) {
     cursor.create_expression_error(
         get_anchor(),
@@ -348,6 +325,7 @@ auto Types::Composite::link_fields(Cursor& cursor) -> Bool {
   if (stage >= Stage::FieldsLinked) {
     return True;
   }
+
   if (stage != Stage::CallableSignaturesLinked) {
     cursor.create_expression_error(
         get_anchor(),
@@ -422,6 +400,7 @@ auto Types::Composite::link_initializers(Cursor& cursor) -> Bool {
   if (stage >= Stage::InitializersLinked) {
     return True;
   }
+
   if (stage != Stage::FieldsLinked) {
     cursor.create_expression_error(
         get_anchor(), "Composite initializers require linked Fields."_view,
@@ -457,6 +436,7 @@ auto Types::Composite::link_callable_signatures(Cursor& cursor) -> Bool {
   if (stage >= Stage::CallableSignaturesLinked) {
     return True;
   }
+
   if (stage != Stage::TypesLinked) {
     cursor.create_expression_error(
         get_anchor(),
@@ -469,7 +449,7 @@ auto Types::Composite::link_callable_signatures(Cursor& cursor) -> Bool {
     return type.link_callable_signatures(cursor);
   });
   failed |= !visit_each<Model::Callable>(
-      callables.get_view(), [&](Model::Callable& callable) {
+      get_callable_bindings(), [&](Model::Callable& callable) {
         return callable.link_declaration_signature(cursor);
       });
 
@@ -483,6 +463,7 @@ auto Types::Composite::link_callable_bodies(Cursor& cursor) -> Bool {
   if (stage >= Stage::CallablesLinked) {
     return True;
   }
+
   if (stage != Stage::InitializersLinked) {
     cursor.create_expression_error(
         get_anchor(),
@@ -495,7 +476,7 @@ auto Types::Composite::link_callable_bodies(Cursor& cursor) -> Bool {
     return type.link_callable_bodies(cursor);
   });
   failed |= !visit_each<Model::Callable>(
-      callables.get_view(), [&](Model::Callable& callable) {
+      get_callable_bindings(), [&](Model::Callable& callable) {
         return callable.link_declaration_body(cursor);
       });
 
@@ -509,6 +490,7 @@ auto Types::Composite::finalize(Cursor& cursor) -> Bool {
   if (stage == Stage::Finalized) {
     return True;
   }
+
   if (stage != Stage::CallablesLinked) {
     cursor.create_expression_error(
         get_anchor(), "An incomplete Composite cannot enter finalization."_view,
@@ -527,7 +509,7 @@ auto Types::Composite::finalize(Cursor& cursor) -> Bool {
   // Callable folding still runs when publication fails. Independent cache and
   // diagnostic facts therefore remain observable without admitting the Type.
   failed |= !visit_each<Model::Callable>(
-      callables.get_view(), [&](Model::Callable& callable) {
+      get_callable_bindings(), [&](Model::Callable& callable) {
         return callable.finalize_declaration(cursor);
       });
 
@@ -576,13 +558,6 @@ auto Types::Composite::resolve_type_access(
   return resolve_local_addressable(*this, host, route, access);
 }
 
-auto Types::Composite::resolve_type_call(
-    const Abstract& host,
-    View::Bytes route,
-    Type::Access access) const -> const Abstract& {
-  return resolve_local_callable(*this, host, route, access);
-}
-
 auto Types::Composite::is_externally_reachable(const Type& type) const -> Bool {
   const Abstract& local =
       find_binding(get_types(Visibility::Public), type.get_name());
@@ -603,4 +578,124 @@ auto Types::Composite::get_layout() const -> const Ttx::Model::Layouts::Named& {
       []() -> const Ttx::Model::Layouts::Named& { return empty_layout; },
       [](const Ttx::Model::Layouts::Named& selected)
           -> const Ttx::Model::Layouts::Named& { return selected; });
+}
+
+auto Types::Composite::reserve(Llvm::Program& program) const -> Bool {
+  auto reserved = reserve_carrier(program);
+  if (!reserved) {
+    return False;
+  }
+
+  if (!*reserved) {
+    return True;
+  }
+
+  Bool types_reserved = visit_each<Model::Type>(
+      types.get_view(),
+      [&](const Model::Type& type) { return type.reserve(program); });
+  if (!types_reserved) {
+    return False;
+  }
+
+  Bool addressables_reserved = visit_each<Model::Addressable>(
+      addressables.get_view(), [&](const Model::Addressable& addressable) {
+        return addressable.reserve_declaration(program);
+      });
+  if (!addressables_reserved) {
+    return False;
+  }
+
+  return visit_each<Model::Callable>(
+      get_callable_bindings(), [&](const Model::Callable& callable) {
+        return callable.reserve_declaration(program);
+      });
+}
+
+auto Types::Composite::complete(Llvm::Program& program) const -> Bool {
+  const auto& carriers = program.get_carriers();
+  auto began = carriers.begin_completion(program, *this);
+  if (!began) {
+    return False;
+  }
+
+  if (!*began) {
+    return True;
+  }
+
+  Bool types_completed = visit_each<Model::Type>(
+      types.get_view(),
+      [&](const Model::Type& type) { return type.complete(program); });
+  if (!types_completed) {
+    return False;
+  }
+
+  Bool addressables_completed = visit_each<Model::Addressable>(
+      addressables.get_view(), [&](const Model::Addressable& addressable) {
+        return addressable.complete_declaration(program);
+      });
+  if (!addressables_completed) {
+    return False;
+  }
+
+  Bool callables_completed = visit_each<Model::Callable>(
+      get_callable_bindings(), [&](const Model::Callable& callable) {
+        return callable.complete_declaration(program);
+      });
+  if (!callables_completed) {
+    return False;
+  }
+
+  Bool carrier_completed = complete_carrier(program);
+  return carrier_completed && complete_debug(program);
+}
+
+auto Types::Composite::lower(Llvm::Program& program) const -> Bool {
+  Count type_index = 0;
+  Count addressable_index = 0;
+  Count callable_index = 0;
+  auto type_bindings = types.get_view();
+  auto addressable_bindings = addressables.get_view();
+  auto callable_bindings = get_callable_bindings();
+  while (True) {
+    auto type = select_next<Model::Type>(type_bindings, type_index);
+    auto addressable = select_next<Model::Addressable>(
+        addressable_bindings, addressable_index);
+    auto callable =
+        select_next<Model::Callable>(callable_bindings, callable_index);
+    if (!type && !addressable && !callable) {
+      return True;
+    }
+
+    Count type_offset = declaration_offset(type);
+    Count addressable_offset = declaration_offset(addressable);
+    Count callable_offset = declaration_offset(callable);
+    if (type_offset <= addressable_offset && type_offset <= callable_offset) {
+      Bool lowered = type->lower(program);
+      if (!lowered) {
+        Perimortem::Core::Diagnostics::Log::error(
+            "Library LLVM lowering rejected one Type declaration."_view);
+        return False;
+      }
+
+      type_index++;
+    } else if (addressable_offset <= callable_offset) {
+      Bool lowered = addressable->lower_declaration(program);
+      if (!lowered) {
+        Perimortem::Core::Diagnostics::Log::error(
+            "Library LLVM lowering rejected one Addressable declaration."_view);
+        return False;
+      }
+
+      addressable_index++;
+    } else {
+      Bool lowered = callable->lower_declaration(program);
+      if (!lowered) {
+        Perimortem::Core::Diagnostics::Log::error(
+            "Library LLVM lowering rejected one Callable declaration."_view);
+        return False;
+      }
+
+      callable_index++;
+    }
+  }
 }

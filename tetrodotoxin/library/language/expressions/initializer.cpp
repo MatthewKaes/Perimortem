@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -33,7 +34,7 @@ auto Language::Expressions::Initializer::parse(
       "Library `new` requires `]` after its Object Type."_view);
   BAIL_IF(!type_closing);
 
-  Language::Model::Pack* arguments = nullptr;
+  Core::Option<Language::Model::Pack&> arguments;
   Ttx::Lexical::Token closing = type_closing;
   if (cursor.matches(Ttx::Lexical::Code::Type::PackingStart)) {
     Ttx::Lexical::Token argument_opening = cursor.current();
@@ -62,13 +63,13 @@ auto Language::Expressions::Initializer::parse(
     }
     auto parsed = Language::Model::Parser::Pack::parse(context, cursor, True);
     BAIL_IF(!parsed);
-    arguments = &*parsed;
+    arguments = *parsed;
     closing = cursor.peek(-1);
   } else {
     // The omitted form owns an independent empty Pack. Sharing one static
     // empty Layout would also share its staged link and finalization lifetime
     // across otherwise unrelated initializer transactions.
-    arguments = &Language::Model::Pack::create_empty(domain);
+    arguments = Language::Model::Pack::create_empty(domain);
   }
 
   Ttx::Lexical::Anchor anchor = Ttx::Lexical::Anchor::create(
@@ -136,6 +137,28 @@ auto Language::Expressions::Initializer::get_completed_values() const
           -> Core::Option<const Model::Pack&> { return selected.get(); });
 }
 
+auto Language::Expressions::Initializer::lower(Llvm::Builder& body) const
+    -> Bool {
+  auto folded = lower_folded(body);
+  if (folded) {
+    return *folded;
+  }
+
+  auto values = get_completed_values();
+  auto type = get_type().resolve().select<Ttx::Model::Type>();
+
+  if (!values || !type) {
+    return False;
+  }
+
+  Bool lowered = values->lower(body);
+  if (!lowered) {
+    return False;
+  }
+
+  return body.construct(*this, *type, *values);
+}
+
 auto Language::Expressions::Initializer::link(
     Ttx::Lexical::Cursor& cursor,
     const Abstract& lexical_context,
@@ -196,7 +219,7 @@ auto Language::Expressions::Initializer::link(
       return False;
     }
 
-    Model::Pack* completed = &*value;
+    Reference<Model::Pack> completed(*value);
     auto aggregate = value->select<Initializer>();
     if (aggregate && !aggregate->get_anchor()) {
       auto aggregate_values = aggregate->get_completed_values();
@@ -209,12 +232,13 @@ auto Language::Expressions::Initializer::link(
       // The authored expression already carries the selected Type identity.
       // Retaining the synthetic aggregate beneath it would duplicate the same
       // construction node instead of exposing the Type owned default values.
-      completed = &const_cast<Model::Pack&>(*aggregate_values);
+      completed =
+          Reference<Model::Pack>(const_cast<Model::Pack&>(*aggregate_values));
     }
 
     expected_type = Reference<const Language::Model::Type>(*target);
-    completed_values = Reference<Model::Pack>(*completed);
-    BAIL_IF(!completed->link(cursor, lexical_context, access_scope));
+    completed_values = completed;
+    BAIL_IF(!completed.get().link(cursor, lexical_context, access_scope));
     return Expression::link(cursor, lexical_context, access_scope);
   }
 

@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/types/object.hpp"
 
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/language/field.hpp"
@@ -185,4 +186,16 @@ auto Types::Object::create_supplied(
   }
 
   return Model::Pack::create_group(arena, values.get_view());
+}
+
+auto Types::Object::reserve_carrier(Llvm::Program& program) const
+    -> Option<Bool> {
+  const auto& carriers = program.get_carriers();
+  return carriers.reserve_object(program, *this);
+}
+
+auto Types::Object::complete_carrier(Llvm::Program& program) const
+    -> Bool {
+  const auto& carriers = program.get_carriers();
+  return carriers.complete_object(program, *this, get_layout());
 }
