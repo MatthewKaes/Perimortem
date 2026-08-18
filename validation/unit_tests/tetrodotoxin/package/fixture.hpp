@@ -24,7 +24,8 @@ inline auto interpret_package(
   Perimortem::Core::View::Bytes retained_source = arena.proxy(source);
   Perimortem::Core::View::Bytes retained_path = arena.proxy(path);
   Ttx::Lexical::Tokenizer tokenizer(arena, retained_source, retained_path);
-  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
   Tetrodotoxin::Language::Dialect* installed[] = {&dialect};
 
   auto interpreted = Tetrodotoxin::Language::Dialect::interpret_source(

@@ -199,7 +199,8 @@ PERIMORTEM_UNIT_TEST(PackageDialect, dependency_statement) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, source, "dependency.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   auto parsed = Package::Language::Dependency::parse(cursor);
 
@@ -228,7 +229,8 @@ PERIMORTEM_UNIT_TEST(PackageDialect, source_statement) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, source, "source.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   auto parsed = Package::Language::Source::parse(cursor);
 

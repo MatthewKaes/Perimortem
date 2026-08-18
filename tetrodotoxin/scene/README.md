@@ -97,9 +97,10 @@ first event with a matching App rule wins, and no matching event leaves the
 current Scene in place. More general connections can be added without changing
 what a Signal means.
 
-Events used by another worker stay within a transferred Scene Garbage Realm or
-use the explicit transfer and immutable-sharing rules. A single Object or event
-does not silently gain cross-worker ownership.
+Events delivered to another worker use a read only View whose borrow lasts for
+the completed handoff call. The receiving worker copies any event data it keeps
+after that call. Scene Objects and writable Access values never cross workers.
+Persistent receiving state uses a newly constructed Object identity.
 
 ## Package identity
 
@@ -115,7 +116,7 @@ does not become the Scene's identity.
 
 ## Hosted graphics state
 
-A Scene instance is the root of its hosted graphics state. A private `state`
+A Scene instance owns its hosted graphics state. A private `state`
 Field initialized with `new[ObjectType]` is hosted when its Object Type supports
 the Graphics hosting contract:
 
@@ -139,9 +140,9 @@ transforms compose through that tree. `z_index` sets the main draw order, and a
 later Field appears in front when two values share the same index. Assigning a
 new Object to a hosted Field changes what the next frame submits.
 
-`release` runs before the Scene gives up its hosted graphics roots. Code cannot
-observe when Library later reclaims those Objects. An Object Field whose Type
-does not support Graphics hosting remains ordinary Scene state.
+`release` runs before the Scene gives up its hosted graphics values. Source code
+cannot observe when the final reference releases one of those Objects. An Object
+Field whose Type does not support Graphics hosting remains ordinary Scene state.
 
 ## Time and input
 

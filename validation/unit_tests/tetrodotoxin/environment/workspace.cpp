@@ -121,9 +121,12 @@ class WorkspaceDialect : public Language::Dialect {
     }
 
     Allocator::Arena& arena = cursor.get_arena();
-    return arena.construct<WorkspaceMonograph>(
+    auto& monograph = arena.construct<WorkspaceMonograph>(
         arena, *this, documentation, context, trace, fact, Span(fact_token),
         cursor.get_source_path());
+    cursor.get_associations().create(
+        Anchor::create(Span(fact_token)), monograph);
+    return monograph;
   }
 
  private:
@@ -268,6 +271,30 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, completed_source_retains_its_arena) {
   EXPECT(errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(
+    EnvironmentWorkspace,
+    completed_source_retains_its_associations) {
+  WorkspaceTrace trace;
+  active_workspace_trace = &trace;
+  Errors errors;
+  Environment::Workspace workspace;
+  ASSERT(workspace.install_dialect<WorkspaceDialect>("Trace"_view));
+  auto source = make_source("retained_cursor"_view);
+  auto interpreted = workspace.interpret_source(
+      errors, "CursorSource"_view, "cursor-source.ttx"_view, source);
+  ASSERT(interpreted);
+
+  auto associations = workspace.get_associations(*interpreted);
+  ASSERT(associations);
+  auto selected = associations->find_at(source_prefix.get_size());
+  ASSERT(selected);
+  EXPECT(&*selected == &*interpreted);
+  EXPECT(errors.is_empty());
+
+  Environment::Workspace unrelated;
+  EXPECT_NOT(unrelated.get_associations(*interpreted));
+}
+
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, duplicate_name_is_not_reopened) {
   WorkspaceTrace trace;
   active_workspace_trace = &trace;
@@ -307,6 +334,11 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, package_is_a_completed_table) {
   EXPECT(second.is<Library::Language::Monograph>());
   EXPECT(&workspace.resolve_context("Resources"_view) == &package);
   EXPECT(&workspace.resolve_context("SharedA"_view) == &Invalid::get_invalid());
+  EXPECT(workspace.get_associations(package));
+  EXPECT(workspace.get_associations(
+      static_cast<const Language::Monograph&>(first)));
+  EXPECT(workspace.get_associations(
+      static_cast<const Language::Monograph&>(second)));
   EXPECT(errors.is_empty());
 }
 

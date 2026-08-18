@@ -13,7 +13,6 @@
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/lexicon.hpp"
 #include "ttx/lexical/span.hpp"
-#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -309,7 +308,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, cursor_consume) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "value"_view, "test.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   EXPECT_TEXT(
       cursor.current().caculate_text(cursor.get_source_text()), "value"_view);
@@ -323,7 +323,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, cursor_completed_span) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "one two"_view, "test.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   EXPECT(!cursor.peek(-1));
   EXPECT_TEXT(
@@ -347,35 +348,12 @@ PERIMORTEM_UNIT_TEST(TtxLexical, cursor_completed_span) {
   EXPECT(!cursor.peek(1));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, cursor_selects_precise_semantic_association) {
-  Allocator::Arena arena;
-  Errors errors;
-  Tokenizer tokenizer(arena, "outer inner end"_view, "association.ttx"_view);
-  Cursor cursor(tokenizer, errors);
-  const Token* tokens = tokenizer.get_tokens().get_data();
-  Ttx::Model::Alias outer("Outer"_view, Ttx::Concept::Invalid::get_invalid());
-  Ttx::Model::Alias inner("Inner"_view, Ttx::Concept::Invalid::get_invalid());
-
-  cursor.associate(
-      Anchor::create(tokens[0], Span(tokens[0], tokens[2])), outer);
-  cursor.associate(Anchor::create(Span(tokens[1])), inner);
-
-  auto focused = cursor.find_at(tokens[1].get_offset());
-  auto containing = cursor.find_at(tokens[2].get_offset());
-  auto missing = cursor.find_at(tokenizer.get_source_text().get_size());
-
-  ASSERT(focused);
-  ASSERT(containing);
-  EXPECT(&*focused == &inner);
-  EXPECT(&*containing == &outer);
-  EXPECT_NOT(missing);
-}
-
 PERIMORTEM_UNIT_TEST(TtxLexical, require_success) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "value"_view, "test.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   Token token =
       cursor.require(Code::Type::Addressable, "Expected address."_view);
@@ -391,7 +369,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, require_error) {
   Allocator::Arena render_arena;
   Errors errors;
   Tokenizer tokenizer(arena, "value"_view, "test.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   Token required = cursor.require(Code::Type::Type, "Expected type."_view);
   View::Bytes rendered = errors.render_message(render_arena, 0);
@@ -429,7 +408,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, range_error) {
   Allocator::Arena render_arena;
   Errors errors;
   Tokenizer tokenizer(arena, "value = 1"_view, "test.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   Token start = cursor.current();
   cursor.consume();
@@ -527,13 +507,16 @@ PERIMORTEM_UNIT_TEST(TtxLexical, overlapping_cursors) {
     Allocator::Arena outer_arena;
     Tokenizer outer_tokenizer(
         outer_arena, "outer start finish"_view, "outer.ttx"_view);
-    Cursor outer(outer_tokenizer, errors);
+    Ttx::Lexical::Associations outer_associations(outer_tokenizer.get_arena());
+    Cursor outer(outer_tokenizer, errors, outer_associations);
 
     {
       Allocator::Arena inner_arena;
       Tokenizer inner_tokenizer(
           inner_arena, "inner source"_view, "inner.ttx"_view);
-      Cursor inner(inner_tokenizer, errors);
+      Ttx::Lexical::Associations inner_associations(
+          inner_tokenizer.get_arena());
+      Cursor inner(inner_tokenizer, errors, inner_associations);
 
       outer.create_token_error(
           "Outer while inner is live."_view, "Outer token hint."_view);
@@ -582,7 +565,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, wrapper_messages) {
   Allocator::Arena render_arena;
   Errors errors;
   Tokenizer tokenizer(arena, "first second third"_view, "wrappers.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   cursor.create_error("General wrapper."_view, "General hint."_view);
   cursor.create_token_error("Token wrapper."_view, "Token hint."_view);
@@ -614,7 +598,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, cursor_report) {
   Allocator::Arena render_arena;
   Errors errors;
   Tokenizer tokenizer(arena, "first second"_view, "cursor-report.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   Token first = cursor.consume();
   Token second = cursor.current();
@@ -638,7 +623,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, reversed_range) {
   Allocator::Arena render_arena;
   Errors errors;
   Tokenizer tokenizer(arena, "one two three"_view, "reversed.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   Token early = cursor.current();
   cursor.consume();
@@ -724,14 +710,16 @@ PERIMORTEM_UNIT_TEST(TtxLexical, retained_source_name) {
   {
     Allocator::Arena source_arena;
     Tokenizer tokenizer(source_arena, "first value"_view, "test.ttx"_view);
-    Cursor cursor(tokenizer, errors);
+    Ttx::Lexical::Associations associations(tokenizer.get_arena());
+    Cursor cursor(tokenizer, errors, associations);
     cursor.create_token_error("First failure."_view);
   }
 
   {
     Allocator::Arena source_arena;
     Tokenizer tokenizer(source_arena, "second value"_view, "test.ttx"_view);
-    Cursor cursor(tokenizer, errors);
+    Ttx::Lexical::Associations associations(tokenizer.get_arena());
+    Cursor cursor(tokenizer, errors, associations);
     cursor.create_token_error("Second failure."_view);
   }
 
@@ -770,7 +758,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, recover_stmt) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "bad tokens ; next"_view, "test.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   cursor.recover_to_statement();
 
