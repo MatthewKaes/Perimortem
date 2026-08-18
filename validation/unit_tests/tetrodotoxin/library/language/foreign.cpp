@@ -6,6 +6,7 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/algorithm/search.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -42,24 +43,20 @@ static auto interpret(
   return static_cast<Library::Language::Monograph&>(*interpreted);
 }
 
-static auto rejects_interpretation(View::Bytes source) -> Bool {
+static auto rejects(View::Bytes source, View::Bytes expected) -> Bool {
   Environment::Workspace workspace;
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  return Bool(
-      !monograph && !errors.is_empty() &&
-      &workspace.resolve_context("ForeignTest"_view) ==
-          &Invalid::get_invalid());
-}
+  if (monograph || errors.is_empty() ||
+      &workspace.resolve_context("ForeignTest"_view) !=
+          &Invalid::get_invalid()) {
+    return False;
+  }
 
-static auto rejects_link(View::Bytes source) -> Bool {
-  Environment::Workspace workspace;
-  Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  return Bool(
-      !monograph && !errors.is_empty() &&
-      &workspace.resolve_context("ForeignTest"_view) ==
-          &Invalid::get_invalid());
+  Perimortem::Memory::Allocator::Arena rendered_domain;
+  View::Bytes rendered = errors.render_message(rendered_domain, 0);
+  return expected.is_empty() ||
+         Algorithm::search(rendered, expected) != Count(-1);
 }
 
 PERIMORTEM_UNIT_TEST(ForeignTests, source_identity_and_lifecycle) {
@@ -205,57 +202,85 @@ PERIMORTEM_UNIT_TEST(ForeignTests, access_invocation_and_category_separation) {
 }
 
 PERIMORTEM_UNIT_TEST(ForeignTests, authored_rejections_are_atomic) {
-  static constexpr Static::Vector<View::Bytes, 8> rejected = {{
-    "// ABI.\ndialect : Library;\nforeign \"C++\" {}"_view,
-    "// Const.\ndialect : Library;\nforeign \"C\" { public const value : "
-    "Unsigned_64; }"_view,
-    "// Private State.\ndialect : Library;\nforeign \"C\" { private state "
-    "value : Unsigned_64; }"_view,
-    "// Private Function.\ndialect : Library;\nforeign \"C\" { private func "
-    "call[] -> []; }"_view,
-    "// Exposed Function.\ndialect : Library;\nforeign \"C\" { expose func "
-    "call[] -> []; }"_view,
-    "// Receiver.\ndialect : Library;\nforeign \"C\" { public func call[self] "
-    "-> []; }"_view,
-    "// Body.\ndialect : Library;\nforeign \"C\" { public func call[] -> "
-    "[] {} }"_view,
-    "// Conflict.\ndialect : Library;\nforeign \"C\" { public state value : "
-    "Unsigned_64; public state value : Bool; }"_view,
+  struct Rejection {
+    View::Bytes source;
+    View::Bytes message;
+  };
+  static constexpr Static::Vector<Rejection, 9> rejected = {{
+    Rejection{
+      "// ABI.\ndialect : Library;\nforeign \"C++\" {}"_view,
+      "Foreign supports only the exact `\"C\"` ABI selector."_view},
+    {"// Named.\ndialect : Library;\nprivate C : foreign {}"_view,
+     "Library members require a Type"_view},
+    {"// Const.\ndialect : Library;\nforeign \"C\" { public const value : "
+     "Unsigned_64; }"_view,
+     "Foreign const declarations require a loader or embedding contract."_view},
+    {"// Private State.\ndialect : Library;\nforeign \"C\" { private state "
+     "value : Unsigned_64; }"_view,
+     "Private Foreign State is unreachable from its parent Library."_view},
+    {"// Private Function.\ndialect : Library;\nforeign \"C\" { private func "
+     "call[] -> []; }"_view,
+     "Private Foreign Functions are unreachable from their parent Library."_view},
+    {"// Exposed Function.\ndialect : Library;\nforeign \"C\" { expose func "
+     "call[] -> []; }"_view,
+     "Foreign Functions do not accept `expose` visibility."_view},
+    {"// Receiver.\ndialect : Library;\nforeign \"C\" { public func call[self] "
+     "-> []; }"_view,
+     "Foreign Function cannot declare a `self` receiver."_view},
+    {"// Body.\ndialect : Library;\nforeign \"C\" { public func call[] -> "
+     "[] {} }"_view,
+     "Foreign Function declarations cannot contain an authored body."_view},
+    {"// Conflict.\ndialect : Library;\nforeign \"C\" { public state value : "
+     "Unsigned_64; public state value : Bool; }"_view,
+     "Repeated Foreign State changes its declaration."_view},
   }};
 
   for (Count i = 0; i < rejected.get_size(); i++) {
-    EXPECT(rejects_interpretation(rejected[i]));
+    EXPECT(rejects(rejected[i].source, rejected[i].message));
   }
 }
 
 PERIMORTEM_UNIT_TEST(ForeignTests, link_rejections_keep_source_unpublished) {
-  static constexpr Static::Vector<View::Bytes, 8> rejected = {{
-    "// Empty State.\ndialect : Library;\npublic Empty : struct {} foreign "
-    "\"C\" { public state value : Empty; }"_view,
-    "// Exposed write.\ndialect : Library;\nforeign \"C\" { expose state value "
-    ": Unsigned_64; } public write : func = [] -> [] { foreign.value = 1; "
-    "return; }"_view,
-    "// Missing State.\ndialect : Library;\nforeign \"C\" {} public read : "
-    "func "
-    "= [] -> Unsigned_64 { return foreign.missing; }"_view,
-    "// Ambient.\ndialect : Library;\nprivate foreign : Unsigned_64; foreign "
-    "\"C\" "
-    "{} public read : func = [] -> Unsigned_64 { return foreign.missing; }"_view,
-    "// Missing Function.\ndialect : Library;\nforeign \"C\" {} public call : "
-    "func = [] -> [] { foreign -> missing(); return; }"_view,
-    "// Arguments.\ndialect : Library;\nforeign \"C\" { public func use[.value "
-    ": Unsigned_64] -> []; } public call : func = [] -> [] { foreign -> "
-    "use(false); return; }"_view,
-    "// Dot mismatch.\ndialect : Library;\nforeign \"C\" { public func "
-    "shared[] "
-    "-> []; } public read : func = [] -> [] { return foreign.shared; }"_view,
-    "// Arrow mismatch.\ndialect : Library;\nforeign \"C\" { public state "
-    "shared : "
-    "Unsigned_64; } public call : func = [] -> [] { foreign -> shared(); "
-    "return; }"_view,
+  struct Rejection {
+    View::Bytes source;
+    View::Bytes message;
+  };
+  static constexpr Static::Vector<Rejection, 8> rejected = {{
+    Rejection{
+      "// Empty State.\ndialect : Library;\npublic Empty : struct {} foreign "
+      "\"C\" { public state value : Empty; }"_view,
+      "Foreign State cannot bind an empty Type Layout."_view},
+    {"// Exposed write.\ndialect : Library;\nforeign \"C\" { expose state "
+     "value "
+     ": Unsigned_64; } public write : func = [] -> [] { foreign.value = 1; "
+     "return; }"_view,
+     "Write source Pack is incompatible with this receiving Expression."_view},
+    {"// Missing State.\ndialect : Library;\nforeign \"C\" {} public read : "
+     "func = [] -> Unsigned_64 { return foreign.missing; }"_view,
+     "Address did not find one readable Addressable"_view},
+    {"// Ambient.\ndialect : Library;\nprivate foreign : Unsigned_64; foreign "
+     "\"C\" {} public read : func = [] -> Unsigned_64 { return "
+     "foreign.missing; }"_view,
+     "Address did not find one readable Addressable"_view},
+    {"// Missing Function.\ndialect : Library;\nforeign \"C\" {} public call : "
+     "func = [] -> [] { foreign -> missing(); return; }"_view,
+     "Library invocation did not resolve one accessible Callable."_view},
+    {"// Arguments.\ndialect : Library;\nforeign \"C\" { public func "
+     "use[.value "
+     ": Unsigned_64] -> []; } public call : func = [] -> [] { foreign -> "
+     "use(false); return; }"_view,
+     "Library invocation arguments do not fit"_view},
+    {"// Dot mismatch.\ndialect : Library;\nforeign \"C\" { public func "
+     "shared[] -> []; } public read : func = [] -> [] { return "
+     "foreign.shared; }"_view,
+     "Address did not find one readable Addressable"_view},
+    {"// Arrow mismatch.\ndialect : Library;\nforeign \"C\" { public state "
+     "shared : Unsigned_64; } public call : func = [] -> [] { foreign -> "
+     "shared(); return; }"_view,
+     "Library invocation did not resolve one accessible Callable."_view},
   }};
 
   for (Count i = 0; i < rejected.get_size(); i++) {
-    EXPECT(rejects_link(rejected[i]));
+    EXPECT(rejects(rejected[i].source, {}));
   }
 }

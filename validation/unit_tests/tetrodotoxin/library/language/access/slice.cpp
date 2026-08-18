@@ -55,7 +55,8 @@ static auto link_expression(
     const Abstract& context) -> Bool {
   Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(domain, {}, "slice-expression.ttx"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
   return expression.link(cursor, context);
 }
 
@@ -512,10 +513,19 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, operand_rejection_and_safe_bounds) {
   EXPECT(&maximum_index_value->get_type() == &element);
   EXPECT(&index_bounds_value->get_type() == &element);
   EXPECT(&nested_index_value->get_type() == &element);
-  EXPECT(is_dynamic(negative_start.fold()));
+  auto negative_range = selected_pack(negative_start.fold());
   EXPECT(is_dynamic(maximum_range.fold()));
-  EXPECT(is_dynamic(start_bounds.fold()));
-  EXPECT(is_dynamic(size_bounds.fold()));
+  auto empty_range = selected_pack(start_bounds.fold());
+  auto partial_range = selected_pack(size_bounds.fold());
+  ASSERT(negative_range && empty_range && partial_range);
+  EXPECT_EQ(negative_range->get_layout().get_size(), Count(2));
+  EXPECT_EQ(empty_range->get_layout().get_size(), Count(0));
+  EXPECT_EQ(partial_range->get_layout().get_size(), Count(2));
+  EXPECT_EQ(get_unsigned(*negative_range, 0), Option<Unsigned_64>(0));
+  EXPECT_EQ(get_unsigned(*negative_range, 1), Option<Unsigned_64>(0));
+  EXPECT_EQ(
+      get_unsigned(*partial_range, 0), Option<Unsigned_64>(Unsigned_64('c')));
+  EXPECT_EQ(get_unsigned(*partial_range, 1), Option<Unsigned_64>(0));
   EXPECT(supplies_self(negative_start, 2));
   EXPECT_EQ(maximum_range.get_layout().get_size(), Count(-1));
   EXPECT(supplies_self(start_bounds, 0));

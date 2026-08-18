@@ -423,7 +423,7 @@ auto Language::Field::complete_declaration(Llvm::Program& program) const
     return False;
   }
 
-  return program.debug_global(*this, definition, True, True);
+  return program.get_debug().global(program, *this, definition, True, True);
 }
 
 auto Language::Field::lower_declaration(Llvm::Program& program) const -> Bool {

@@ -167,7 +167,8 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
 
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "return.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   ASSERT(monograph->link(cursor));
   ASSERT(monograph->finalize(cursor));
   EXPECT(&*find_return(*scalar) == &*scalar_return);

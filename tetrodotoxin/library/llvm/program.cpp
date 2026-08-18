@@ -1,0 +1,196 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+// LLVM must enter before Perimortem so the standard placement declaration is
+// visible before the freestanding fallback used by Perimortem headers.
+// clang-format off
+#include "llvm/IR/IRBuilder.h"
+#include "tetrodotoxin/library/llvm/program.hpp"
+// clang-format on
+
+#include "perimortem/core/diagnostics/log.hpp"
+
+#include "llvm-c/Core.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/CBindingWrapping.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Target/TargetOptions.h"
+#include "tetrodotoxin/library/llvm/header.hpp"
+#include "ttx/concept/invalid.hpp"
+
+using namespace Perimortem;
+using namespace Tetrodotoxin::Library;
+
+Llvm::Program::Program(
+    Memory::Allocator::Arena& arena,
+    Ttx::Lexical::Errors& errors,
+    Core::View::Bytes source_path,
+    Core::View::Bytes source_text,
+    Target target,
+    Debug::Level debug_level)
+    : arena(arena),
+      errors(errors),
+      source_path(source_path),
+      source_text(source_text),
+      target(target),
+      debug(debug_level),
+      context(*LLVMContextCreate()),
+      module(*LLVMModuleCreateWithNameInContext("tetrodotoxin", &context)),
+      exports(arena) {}
+
+auto Llvm::Program::get_name() const -> Core::View::Bytes {
+  return "Program"_view;
+}
+
+auto Llvm::Program::get_documentation() const
+    -> const Ttx::Concept::Documentation& {
+  return Ttx::Concept::Documentation::get_empty();
+}
+
+Llvm::Program::~Program() {
+  debug.release();
+  target_machine.visit(
+      []() {},
+      [](Unsigned_8& machine) {
+        delete reinterpret_cast<llvm::TargetMachine*>(&machine);
+      });
+  LLVMDisposeModule(&module);
+  LLVMContextDispose(&context);
+}
+
+auto Llvm::Program::initialize() -> Bool {
+  if (target != Llvm::Target::X86_64SysV) {
+    return fail_backend(
+        "The LLVM request selected an unsupported target."_view);
+  }
+
+  llvm::InitializeAllTargetInfos();
+  llvm::InitializeAllTargets();
+  llvm::InitializeAllTargetMCs();
+  llvm::InitializeAllAsmParsers();
+  llvm::InitializeAllAsmPrinters();
+
+  constexpr llvm::StringLiteral triple_name("x86_64-pc-linux-gnu");
+  std::string error;
+  llvm::Triple target_triple(triple_name);
+  llvm::Module& native_module = *llvm::unwrap(&module);
+  const llvm::Target* selected =
+      llvm::TargetRegistry::lookupTarget(target_triple, error);
+  if (!selected) {
+    return fail_backend(
+        Core::View::Bytes(
+            reinterpret_cast<const Unsigned_8*>(error.data()), error.size()));
+  }
+
+  llvm::TargetOptions options;
+  options.UseInitArray = true;
+  llvm::TargetMachine* machine = selected->createTargetMachine(
+      target_triple, "x86-64", "", options, llvm::Reloc::PIC_,
+      llvm::CodeModel::Small, llvm::CodeGenOptLevel::None);
+  if (!machine) {
+    return fail_backend(
+        "LLVM could not create the selected target machine."_view);
+  }
+
+  target_machine = *reinterpret_cast<Unsigned_8*>(machine);
+  native_module.setTargetTriple(target_triple);
+  native_module.setDataLayout(machine->createDataLayout());
+  return debug.initialize(*this, source_path, source_text);
+}
+
+auto Llvm::Program::compile() -> Utility::Result<Products, Failure> {
+  if (!debug.finalize(*this)) {
+    return Failure::ToolchainFailed;
+  }
+
+  llvm::Module& native_module = *llvm::unwrap(&module);
+
+  llvm::SmallVector<char, 0> verification;
+  llvm::raw_svector_ostream verification_stream(verification);
+  if (llvm::verifyModule(native_module, &verification_stream)) {
+    fail_backend(
+        Core::View::Bytes(
+            reinterpret_cast<const Unsigned_8*>(verification.data()),
+            verification.size()));
+  }
+
+  if (source_failed) {
+    return Failure::SourceRejected;
+  }
+
+  if (tool_failed) {
+    return Failure::ToolchainFailed;
+  }
+
+  llvm::SmallVector<char, 0> ir;
+  llvm::raw_svector_ostream ir_stream(ir);
+  native_module.print(ir_stream, nullptr);
+
+  llvm::SmallVector<char, 0> object;
+  if (!target_machine) {
+    fail_backend("LLVM object emission requires one target machine."_view);
+    return Failure::ToolchainFailed;
+  }
+
+  llvm::TargetMachine& native_machine =
+      *reinterpret_cast<llvm::TargetMachine*>(&*target_machine);
+  llvm::raw_svector_ostream object_stream(object);
+  llvm::legacy::PassManager passes;
+  if (native_machine.addPassesToEmitFile(
+          passes, object_stream, nullptr, llvm::CodeGenFileType::ObjectFile)) {
+    fail_backend("LLVM cannot emit an object for the selected target."_view);
+    return Failure::ToolchainFailed;
+  }
+
+  passes.run(native_module);
+
+  auto header = Header::create(
+      get_arena(), get_carriers(), get_functions(), get_globals(),
+      exports.get_view());
+  if (!header) {
+    return Failure::ToolchainFailed;
+  }
+
+  Core::View::Bytes ir_view(
+      reinterpret_cast<const Unsigned_8*>(ir.data()), ir.size());
+  Core::View::Bytes object_view(
+      reinterpret_cast<const Unsigned_8*>(object.data()), object.size());
+  return Products(
+      get_arena().proxy(ir_view), get_arena().proxy(object_view),
+      header->get_view());
+}
+
+auto Llvm::Program::resolve_context(Core::View::Bytes) const
+    -> const Ttx::Concept::Abstract& {
+  return Ttx::Concept::Invalid::get_invalid();
+}
+
+auto Llvm::Program::add_export(Export value) -> void {
+  exports.insert(value);
+}
+
+auto Llvm::Program::fail_backend(Core::View::Bytes message) -> Bool {
+  Core::Diagnostics::Log::error(message);
+  tool_failed = True;
+  return False;
+}
+
+auto Llvm::Program::fail_source(
+    Core::Option<Ttx::Lexical::Anchor> anchor,
+    Core::View::Bytes message,
+    Core::View::Bytes hint) -> Bool {
+  Ttx::Lexical::Errors::Report report(
+      errors, source_path, source_text,
+      anchor ? *anchor : Ttx::Lexical::Anchor::create(Ttx::Lexical::Span()));
+  report << message;
+  report.get_hint() << hint;
+  source_failed = True;
+  return False;
+}

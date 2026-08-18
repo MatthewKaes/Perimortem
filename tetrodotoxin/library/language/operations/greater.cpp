@@ -54,8 +54,7 @@ TTX_BINARY_PARSE(Greater, GreaterOp);
 
 TTX_BINARY_OP(Greater);
 
-auto Language::Operations::Greater::lower(Llvm::Builder& body) const
-    -> Bool {
+auto Language::Operations::Greater::lower(Llvm::Builder& body) const -> Bool {
   auto folded = lower_folded(body);
   if (folded) {
     return *folded;
@@ -74,7 +73,8 @@ auto Language::Operations::Greater::lower(Llvm::Builder& body) const
     return False;
   }
 
-  return body.greater(*carrier, *this, left, right);
+  return body.compare(
+      Llvm::Builder::Comparison::Greater, *carrier, *this, left, right);
 }
 
 auto Language::Operations::Greater::select_type(

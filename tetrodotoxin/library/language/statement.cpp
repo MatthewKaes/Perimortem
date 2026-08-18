@@ -10,7 +10,7 @@
 using namespace Tetrodotoxin::Library;
 
 auto Language::Statement::lower(Llvm::Builder& body) const -> Bool {
-  if (!body.statement(root.get(), anchor)) {
+  if (!body.statement(anchor)) {
     Perimortem::Core::Diagnostics::Log::error(
         "Library LLVM lowering could not begin one Statement."_view);
     return False;
@@ -26,7 +26,7 @@ auto Language::Statement::lower(Llvm::Builder& body) const -> Bool {
     return False;
   }
 
-  Bool ended = body.end_statement(root.get());
+  Bool ended = body.end_statement();
   if (!ended) {
     Perimortem::Core::Diagnostics::Log::error(
         "Library LLVM lowering could not end one Statement."_view);

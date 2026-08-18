@@ -47,7 +47,8 @@ static auto parse_layout(
     View::Bytes text,
     Bool parameters = False) -> Option<Language::Model::Layout&> {
   Tokenizer tokenizer(arena, text, "authored-layout.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   auto layout =
       parameters
           ? Language::Model::Layout::interpret_parameters(cursor, context)
@@ -72,7 +73,8 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, owns_parameter_entries) {
   ASSERT(layout);
   Tokenizer link_tokens(
       arena, "[self, .input : Bool,]"_view, "authored-layout.ttx"_view);
-  Cursor link_cursor(link_tokens, parse_errors);
+  Ttx::Lexical::Associations link_associations(link_tokens.get_arena());
+  Cursor link_cursor(link_tokens, parse_errors, link_associations);
   EXPECT(layout->declares_self());
   EXPECT_NOT(layout->is_linked());
   ASSERT(layout->link_parameters(
@@ -132,7 +134,8 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_type_entries_are_rejected) {
   Tokenizer link_tokens(
       arena, "[.nothing : Empty, .value : Bool,]"_view,
       "authored-layout.ttx"_view);
-  Cursor link_cursor(link_tokens, parse_errors);
+  Ttx::Lexical::Associations link_associations(link_tokens.get_arena());
+  Cursor link_cursor(link_tokens, parse_errors, link_associations);
   EXPECT_NOT(named->is_linked());
   EXPECT_NOT(named->link_types(link_cursor, monograph->get_source()));
   EXPECT_NOT(parse_errors.is_empty());
@@ -156,11 +159,16 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting_preserves_real_edges) {
   Tokenizer source_tokens(
       arena, "[.flag : Bool, .count : Unsigned_64]"_view,
       "authored-layout.ttx"_view);
-  Cursor source_cursor(source_tokens, parse_errors);
+  Ttx::Lexical::Associations source_associations(
+      source_tokens.get_arena());
+  Cursor source_cursor(source_tokens, parse_errors, source_associations);
   Tokenizer reordered_tokens(
       arena, "[.count : Unsigned_64, .flag : Bool]"_view,
       "authored-layout.ttx"_view);
-  Cursor reordered_cursor(reordered_tokens, parse_errors);
+  Ttx::Lexical::Associations reordered_associations(
+      reordered_tokens.get_arena());
+  Cursor reordered_cursor(
+      reordered_tokens, parse_errors, reordered_associations);
   ASSERT(source->link_types(source_cursor, monograph->get_source()));
   ASSERT(reordered->link_types(reordered_cursor, monograph->get_source()));
 

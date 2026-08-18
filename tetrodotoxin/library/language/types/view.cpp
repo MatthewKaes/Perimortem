@@ -28,7 +28,7 @@ auto Types::View::create_default(
 
 auto Types::View::reserve(Llvm::Program& program) const -> Bool {
   const auto& carriers = program.get_carriers();
-  auto reserved = carriers.reserve_view(program, *this);
+  auto reserved = carriers.reserve(program, *this, Llvm::Carriers::Kind::View);
   if (!reserved) {
     return False;
   }
@@ -65,6 +65,7 @@ auto Types::View::complete(Llvm::Program& program) const -> Bool {
     return False;
   }
 
-  Bool carrier_completed = carriers.complete_view(program, *this, element);
+  Bool carrier_completed =
+      carriers.complete(program, *this, Llvm::Carriers::Kind::View);
   return carrier_completed && complete_debug(program);
 }

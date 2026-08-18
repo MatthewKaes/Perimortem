@@ -44,7 +44,8 @@ static auto link_operation(Operation& operation, const Abstract& context)
   Allocator::Arena transaction;
   Errors errors;
   Tokenizer tokenizer(transaction, {}, "<operation>"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   return operation.link(cursor, context);
 }
 
@@ -372,7 +373,10 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, recursive_provenance_and_atomicity) {
       resolve_library_unsigned(source, "Unsigned_64"_view);
   Errors success_errors;
   Tokenizer success_tokens(domain, "2 > 1"_view, "greater.ttx"_view);
-  Cursor success_cursor(success_tokens, success_errors);
+  Ttx::Lexical::Associations success_associations(
+      success_tokens.get_arena());
+  Cursor success_cursor(
+      success_tokens, success_errors, success_associations);
   Token success_left_token = success_cursor.consume();
   auto success_left_anchor =
       Anchor::create(success_left_token, Span(success_left_token));
@@ -382,7 +386,10 @@ PERIMORTEM_UNIT_TEST(LibraryGreater, recursive_provenance_and_atomicity) {
       source, success_cursor, success_left, Span(success_left_token));
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "2 > true"_view, "greater.ttx"_view);
-  Cursor failure_cursor(failure_tokens, failure_errors);
+  Ttx::Lexical::Associations failure_associations(
+      failure_tokens.get_arena());
+  Cursor failure_cursor(
+      failure_tokens, failure_errors, failure_associations);
   Token failure_left_token = failure_cursor.consume();
   auto failure_left_anchor =
       Anchor::create(failure_left_token, Span(failure_left_token));

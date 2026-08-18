@@ -16,6 +16,7 @@
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/contiguous.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -106,7 +107,7 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
       statements.get_data()[2].get_root());
   EXPECT_TEXT(loop.get_name(), "entry"_view);
   EXPECT(loop.get_type().is<Language::Model::Types::Unsigned>());
-  const Abstract& range_type = loop.get_range().get_type().resolve();
+  const Abstract& range_type = loop.get_input().get_type().resolve();
   ASSERT(range_type.is<Language::Types::Range>());
   EXPECT(
       &static_cast<const Language::Types::Range&>(range_type)
@@ -129,7 +130,8 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
   const Abstract& retained = statements.get_data()[2].get_root();
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "range_loop.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   ASSERT(monograph->link(cursor));
   ASSERT(monograph->finalize(cursor));
   EXPECT(
@@ -149,6 +151,41 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_and_range_must_match) {
   for (Count i = 0; i < sources.get_size(); i++) {
     EXPECT(rejects_link(sources[i]));
   }
+}
+
+PERIMORTEM_UNIT_TEST(RangeLoopTests, view_and_access_are_iterable) {
+  static constexpr View::Bytes source =
+      "// Contiguous loop inputs.\n"
+      "dialect : Library;\n"
+      "public scan : func = [] -> [] {\n"
+      "  state writable : Access[Unsigned_64];\n"
+      "  state readonly : View[Unsigned_64];\n"
+      "  for [.entry : Unsigned_64] in writable {}\n"
+      "  for [.entry : Unsigned_64] in readonly {}\n"
+      "  return;\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  auto function = find_function(monograph->get_source(), "scan"_view);
+  ASSERT(function && function->get_body());
+  auto statements = function->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(5));
+  for (Count index = 2; index < 4; index++) {
+    ASSERT(statements.get_data()[index]
+               .get_root()
+               .is<Language::Flow::RangeLoop>());
+    const auto& loop = static_cast<const Language::Flow::RangeLoop&>(
+        statements.get_data()[index].get_root());
+    const Abstract& input_type = loop.get_input().get_type().resolve();
+    ASSERT(input_type.is<Language::Types::Contiguous>());
+    EXPECT(
+        &static_cast<const Language::Types::Contiguous&>(input_type)
+             .get_element_type() == &loop.get_type());
+  }
+  EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_read_only_and_does_not_leak) {

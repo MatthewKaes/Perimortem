@@ -76,13 +76,13 @@ class TestOperation : public Operation {
   }
   auto get_evaluations() const -> Count { return evaluations; }
   auto input_is(Count index, const Expression& expected) const -> Bool {
-    return get_input(index).visit(
-        []() { return False; },
-        [&](const Expression& selected) {
-          return &selected == &expected ? True : False;
-        });
+    auto inputs = get_inputs();
+    return index < inputs.get_size() &&
+           &inputs.get_data()[index].get() == &expected;
   }
-  auto input_missing(Count index) const -> Bool { return !get_input(index); }
+  auto input_missing(Count index) const -> Bool {
+    return index >= get_inputs().get_size();
+  }
 
  protected:
   auto evaluate_constants(Allocator::Arena&)
@@ -119,7 +119,8 @@ static auto link_operation(Operation& operation, const Abstract& context)
   Allocator::Arena transaction;
   Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(transaction, {}, "<operation>"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
   return operation.link(cursor, context);
 }
 
@@ -197,7 +198,8 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, finalizes_canonical_inputs) {
   Allocator::Arena transaction;
   Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(transaction, {}, "<operation>"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
   operation.finalize(cursor);
 
   EXPECT(first.get_finalizations() == 1);

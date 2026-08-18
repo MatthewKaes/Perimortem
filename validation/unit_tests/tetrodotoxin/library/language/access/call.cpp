@@ -10,10 +10,16 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/access/address.hpp"
+#include "tetrodotoxin/library/language/builtins/get_access.hpp"
+#include "tetrodotoxin/library/language/builtins/get_size.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/flow/local.hpp"
+#include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -79,6 +85,123 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
   }
 
   return &workspace.resolve_context("CallTest"_view) == &Invalid::get_invalid();
+}
+
+static auto find_type_callable(
+    const Language::Model::Type& type,
+    View::Bytes name,
+    Tetrodotoxin::Language::Visibility visibility =
+        Tetrodotoxin::Language::Visibility::Private)
+    -> Option<const Language::Model::Callable&> {
+  for (const Reference<Abstract>& binding : type.get_callables(visibility)) {
+    auto callable = binding.get().resolve().select<Language::Model::Callable>();
+    if (binding.get().get_name() == name && callable) {
+      return *callable;
+    }
+  }
+
+  return {};
+}
+
+PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
+  static constexpr View::Bytes source =
+      "// Contiguous built-in identities.\n"
+      "dialect : Library;\n"
+      "public Custom : struct {\n"
+      "  public state value : Unsigned_64;\n"
+      "  public get_size : func = [self] -> Unsigned_64 { return 9; }\n"
+      "}\n"
+      "public run : func = [] -> Unsigned_64 {\n"
+      "  state dense : Fixed[Unsigned_64, 2] = (3, 4);\n"
+      "  state borrowed : Access[Unsigned_64] = dense -> get_access();\n"
+      "  state viewed : View[Unsigned_64];\n"
+      "  viewed -> get_size();\n"
+      "  return borrowed -> get_size();\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  Option<const Language::Function&> run;
+  for (const Reference<Abstract>& callable :
+       monograph->get_source().get_callables()) {
+    if (callable.get().get_name() == "run"_view &&
+        callable.get().is<Language::Function>()) {
+      run = static_cast<const Language::Function&>(callable.get());
+      break;
+    }
+  }
+  ASSERT(run && run->get_body());
+  auto statements = run->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(5));
+
+  const auto& dense = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[0].get_root());
+  auto fixed_access = find_type_callable(
+      dense.get_type(), "get_access"_view,
+      Tetrodotoxin::Language::Visibility::Public);
+  ASSERT(fixed_access);
+  EXPECT(fixed_access->is<Language::Builtins::GetAccess>());
+
+  const auto& borrowed = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[1].get_root());
+  auto access_size = find_type_callable(
+      borrowed.get_type(), "get_size"_view,
+      Tetrodotoxin::Language::Visibility::Public);
+  ASSERT(access_size);
+  EXPECT(access_size->is<Language::Builtins::GetSize>());
+
+  const auto& viewed = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[2].get_root());
+  auto view_size = find_type_callable(
+      viewed.get_type(), "get_size"_view,
+      Tetrodotoxin::Language::Visibility::Public);
+  ASSERT(view_size);
+  EXPECT(view_size->is<Language::Builtins::GetSize>());
+
+  ASSERT(statements.get_data()[3].get_root().is<Language::Access::Call>());
+  const auto& view_call = static_cast<const Language::Access::Call&>(
+      statements.get_data()[3].get_root());
+  ASSERT(view_call.get_callable());
+  EXPECT(&*view_call.get_callable() == &*view_size);
+  ASSERT(borrowed.get_initializer());
+  ASSERT(borrowed.get_initializer()->is<Language::Access::Call>());
+  const auto& get_access =
+      static_cast<const Language::Access::Call&>(*borrowed.get_initializer());
+  ASSERT(get_access.get_callable());
+  EXPECT(get_access.get_callable()->is<Language::Builtins::GetAccess>());
+  EXPECT(get_access.get_type().resolve().is<Language::Types::Access>());
+
+  const auto& returned = static_cast<const Language::Flow::Return&>(
+      statements.get_data()[4].get_root());
+  ASSERT(returned.get_pack().is<Language::Access::Call>());
+  const auto& get_size =
+      static_cast<const Language::Access::Call&>(returned.get_pack());
+  ASSERT(get_size.get_callable());
+  EXPECT(get_size.get_callable()->is<Language::Builtins::GetSize>());
+  EXPECT_TEXT(get_size.get_type().resolve().get_name(), "Unsigned_64"_view);
+
+  const Abstract& custom_identity =
+      monograph->get_source().resolve_context("Custom"_view);
+  auto custom = custom_identity.select<Language::Model::Type>();
+  ASSERT(custom);
+  auto custom_size = find_type_callable(
+      *custom, "get_size"_view, Tetrodotoxin::Language::Visibility::Public);
+  ASSERT(custom_size);
+  EXPECT(custom_size->is<Language::Function>());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(CallTests, fixed_borrow_requires_writable_receiver) {
+  static constexpr Static::Vector<View::Bytes, 2> sources = {{
+    "// Const local cannot grant Access.\ndialect : Library; private invalid : func = [] -> [] { const dense : Fixed[Unsigned_64, 2] = (1, 2); state borrowed : Access[Unsigned_64] = dense -> get_access(); return; }"_view,
+    "// View remains read only.\ndialect : Library; private invalid : func = [] -> [] { state viewed : View[Unsigned_64]; state borrowed : Access[Unsigned_64] = viewed -> get_access(); return; }"_view,
+  }};
+
+  for (Count index = 0; index < sources.get_size(); index++) {
+    EXPECT(rejects_link(sources[index]));
+  }
 }
 
 static auto find_field(

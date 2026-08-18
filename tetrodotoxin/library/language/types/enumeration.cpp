@@ -454,7 +454,8 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::reserve(
     return False;
   }
 
-  auto reserved = carriers.reserve_enumeration(program, *this);
+  auto reserved =
+      carriers.reserve(program, *this, Llvm::Carriers::Kind::Enumeration);
   if (!reserved) {
     return False;
   }
@@ -485,7 +486,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::complete(
   }
 
   Bool carrier_completed =
-      carriers.complete_enumeration(program, *this, *storage);
+      carriers.complete(program, *this, Llvm::Carriers::Kind::Enumeration);
   if (!carrier_completed || !complete_debug(program)) {
     return False;
   }
@@ -495,14 +496,15 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::complete(
     const Abstract& value = alias.resolve();
     auto signed_value = value.select<Constants::Signed>();
     if (signed_value) {
-      if (!program.debug_signed_enumerator(
-              *this, alias, signed_value->get_value())) {
+      if (!program.get_debug().signed_enumerator(
+              program, *this, alias, signed_value->get_value())) {
         return False;
       }
     } else {
       auto unsigned_value = value.select<Constants::Unsigned>();
-      if (!unsigned_value || !program.debug_unsigned_enumerator(
-                                 *this, alias, unsigned_value->get_value())) {
+      if (!unsigned_value ||
+          !program.get_debug().unsigned_enumerator(
+              program, *this, alias, unsigned_value->get_value())) {
         return False;
       }
     }

@@ -109,7 +109,8 @@ static auto create_monograph(
     -> Option<Library::Language::Monograph&> {
   Errors errors;
   Tokenizer tokenizer(domain, ""_view, "literal-source.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   Anchor source_anchor = Anchor::create(Span());
   auto monograph = dialect.interpret(
       cursor, Documentation::get_empty(), source_anchor, context);
@@ -129,7 +130,8 @@ static auto parse_one(
     View::Bytes source,
     Errors& errors) -> Option<Library::Language::Constant&> {
   Tokenizer tokenizer(domain, source, "literal.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   auto parsed =
       Library::Language::Parser::Literal::parse(context, cursor);
   if (parsed && !cursor.matches(Code::Type::Terminal)) {
@@ -145,7 +147,8 @@ static auto rejects(
     View::Bytes source) -> Bool {
   Errors errors;
   Tokenizer tokenizer(domain, source, "rejected-literal.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   Token start = cursor.current();
   auto parsed =
       Library::Language::Parser::Literal::parse(context, cursor);
@@ -158,7 +161,8 @@ static auto render_rejection(
     View::Bytes source) -> Dynamic::Bytes {
   Errors errors;
   Tokenizer tokenizer(domain, source, "diagnostic-literal.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   Token start = cursor.current();
   auto parsed =
       Library::Language::Parser::Literal::parse(context, cursor);
@@ -185,7 +189,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, scalar_inference) {
   Errors errors;
   Tokenizer tokenizer(
       domain, "true false 42 0x2A -7 1.5"_view, "scalars.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   auto true_value =
       Library::Language::Parser::Literal::parse(graph, cursor);
@@ -256,7 +261,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, byte_domains) {
   Errors errors;
   Dynamic::Bytes source("\"a\\\"b\" 0x[54\t54\n58\r31] \"\""_view);
   Tokenizer tokenizer(domain, source, "bytes.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   auto quoted =
       Library::Language::Parser::Literal::parse(graph, cursor);
@@ -375,7 +381,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, embedded_resolution) {
   View::Bytes table_backing = context.table.get_value();
   Errors errors;
   Tokenizer tokenizer(domain, "$[table] $[empty]"_view, "embedded.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   auto table =
       Library::Language::Parser::Literal::parse(source, cursor);
@@ -387,7 +394,10 @@ PERIMORTEM_UNIT_TEST(LiteralTests, embedded_resolution) {
   Errors postfix_errors;
   Tokenizer postfix_tokenizer(
       domain, "$[table]:[2, 4]"_view, "postfix-slice.ttx"_view);
-  Cursor postfix_cursor(postfix_tokenizer, postfix_errors);
+  Ttx::Lexical::Associations postfix_associations(
+      postfix_tokenizer.get_arena());
+  Cursor postfix_cursor(
+      postfix_tokenizer, postfix_errors, postfix_associations);
   auto postfix_base =
       Library::Language::Parser::Literal::parse(source, postfix_cursor);
 
@@ -426,7 +436,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, contextual_error) {
   auto& source = *monograph;
   Errors errors;
   Tokenizer tokenizer(domain, "\n$[error]"_view, "resource-error.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   auto parsed =
       Library::Language::Parser::Literal::parse(source, cursor);

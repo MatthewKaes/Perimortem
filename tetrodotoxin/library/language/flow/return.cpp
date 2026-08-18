@@ -3,9 +3,9 @@
 
 #include "tetrodotoxin/library/language/flow/return.hpp"
 
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -89,5 +89,5 @@ auto Language::Flow::Return::lower(Llvm::Builder& body) const -> Bool {
     return False;
   }
 
-  return body.return_values(*this, pack.get());
+  return body.return_values(pack.get());
 }

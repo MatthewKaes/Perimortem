@@ -412,12 +412,12 @@ auto Types::Source::resolve_local(View::Bytes route, Visibility visibility)
 auto Types::Source::reserve_carrier(Llvm::Program& program) const
     -> Option<Bool> {
   const auto& carriers = program.get_carriers();
-  return carriers.reserve_context(program, *this);
+  return carriers.reserve(program, *this, Llvm::Carriers::Kind::Context);
 }
 
 auto Types::Source::complete_carrier(Llvm::Program& program) const -> Bool {
   const auto& carriers = program.get_carriers();
-  return carriers.complete_context(program, *this);
+  return carriers.complete(program, *this, Llvm::Carriers::Kind::Context);
 }
 
 auto Types::Source::reserve(Llvm::Program& program) const -> Bool {

@@ -7,6 +7,7 @@
 
 using namespace Tetrodotoxin::Library;
 
-auto Language::Constants::Enumeration::lower(Llvm::Builder& body) const -> Bool {
-  return body.enumeration_value(get_type(), *this, get_value());
+auto Language::Constants::Enumeration::lower(Llvm::Builder& body) const
+    -> Bool {
+  return body.unsigned_value(get_type(), *this, get_value());
 }

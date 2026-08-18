@@ -74,7 +74,8 @@ auto Language::Operations::LessEqual::lower(Llvm::Builder& body) const -> Bool {
     return False;
   }
 
-  return body.less_equal(*carrier, *this, left, right);
+  return body.compare(
+      Llvm::Builder::Comparison::LessEqual, *carrier, *this, left, right);
 }
 
 auto Language::Operations::LessEqual::select_type(

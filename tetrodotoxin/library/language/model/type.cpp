@@ -134,5 +134,5 @@ auto Language::Model::Type::complete_callables(Llvm::Program& program) const
 
 auto Language::Model::Type::complete_debug(Llvm::Program& program) const
     -> Bool {
-  return program.debug_type(*this, get_declaration_anchor());
+  return program.get_debug().type(*this, get_declaration_anchor());
 }

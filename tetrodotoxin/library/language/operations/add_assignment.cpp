@@ -114,8 +114,8 @@ auto Language::Operations::AddAssignment::finalize(Cursor& cursor) -> void {
   right.finalize(cursor);
 }
 
-auto Language::Operations::AddAssignment::lower(
-    Llvm::Builder& body) const -> Bool {
+auto Language::Operations::AddAssignment::lower(Llvm::Builder& body) const
+    -> Bool {
   Bool target_lowered = target.lower_write_target(body);
   if (!target_lowered) {
     return False;
@@ -126,7 +126,7 @@ auto Language::Operations::AddAssignment::lower(
     return False;
   }
 
-  return body.add(*this, target, right);
+  return body.write(Llvm::Builder::Write::Add, *this, target, right);
 }
 
 auto Language::Operations::AddAssignment::get_value_type(Count) const

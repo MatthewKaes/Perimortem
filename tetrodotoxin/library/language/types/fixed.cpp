@@ -87,7 +87,7 @@ auto Types::Fixed::create_fitted(Allocator::Arena& arena, Model::Pack& source)
 
 auto Types::Fixed::reserve(Llvm::Program& program) const -> Bool {
   const auto& carriers = program.get_carriers();
-  auto reserved = carriers.reserve_fixed(program, *this);
+  auto reserved = carriers.reserve(program, *this, Llvm::Carriers::Kind::Fixed);
   if (!reserved) {
     return False;
   }
@@ -125,6 +125,6 @@ auto Types::Fixed::complete(Llvm::Program& program) const -> Bool {
   }
 
   Bool carrier_completed =
-      carriers.complete_fixed(program, *this, element, Count(extent));
+      carriers.complete(program, *this, Llvm::Carriers::Kind::Fixed);
   return carrier_completed && complete_debug(program);
 }

@@ -6,9 +6,11 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
+#include "perimortem/core/algorithm/search.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
@@ -164,7 +166,8 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
 
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "local.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   ASSERT(monograph->link(cursor));
   auto repeated = block.get_statements();
   ASSERT_EQ(repeated.get_size(), statements.get_size());
@@ -173,6 +176,51 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
         &repeated.get_data()[i].get_root() ==
         &statements.get_data()[i].get_root());
   }
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(LocalTests, const_fixed_retains_folded_values) {
+  static constexpr View::Bytes source =
+      "// Const Fixed Local.\n"
+      "dialect : Library;\n"
+      "public body : func = [] -> Unsigned_64 {\n"
+      "  const dense : Fixed[Unsigned_64, 4] = (5, 6, 7, 8);\n"
+      "  const extracted := dense:[1];\n"
+      "  return extracted;\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  auto body = find_function(monograph->get_source(), "body"_view);
+  ASSERT(body && body->get_body());
+  auto statements = body->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(3));
+  ASSERT(statements.get_data()[0].get_root().is<Language::Flow::Local>());
+  ASSERT(statements.get_data()[1].get_root().is<Language::Flow::Local>());
+  const auto& dense = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[0].get_root());
+  const auto& extracted = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[1].get_root());
+  EXPECT(dense.get_writability() == Language::Writability::Constant);
+  EXPECT(extracted.get_writability() == Language::Writability::Constant);
+
+  auto folded = dense.get_constant();
+  ASSERT(folded);
+  ASSERT_EQ(folded->get_layout().get_size(), Count(4));
+  for (Count index = 0; index < Count(4); index++) {
+    auto produced = folded->get_produced(index);
+    ASSERT(produced);
+    auto value = produced->producer.select<Language::Constants::Unsigned>();
+    ASSERT(value);
+    EXPECT_EQ(value->get_value(), Unsigned_64(index + 5));
+  }
+  auto extracted_value = extracted.get_constant();
+  ASSERT(extracted_value);
+  auto value = extracted_value->select<Language::Constants::Unsigned>();
+  ASSERT(value);
+  EXPECT_EQ(value->get_value(), Unsigned_64(6));
   EXPECT(errors.is_empty());
 }
 
@@ -211,4 +259,37 @@ PERIMORTEM_UNIT_TEST(LocalTests, invalid_type_flow_is_not_published) {
   for (Count i = 0; i < sources.get_size(); i++) {
     EXPECT(rejects_link_without_publication(sources[i]));
   }
+}
+
+PERIMORTEM_UNIT_TEST(
+    LocalTests,
+    explicit_type_survives_initializer_diagnostics) {
+  static constexpr View::Bytes source =
+      "// Typed Local diagnostic recovery.\n"
+      "dialect : Library;\n"
+      "public Pair : struct {\n"
+      "  public state left : Unsigned_64 = 2;\n"
+      "  public state right : Unsigned_64 = 3;\n"
+      "  public sum : func = [self] -> Unsigned_64 {\n"
+      "    return self.left + self.right;\n"
+      "  }\n"
+      "}\n"
+      "public execute : func = [] -> Unsigned_64 {\n"
+      "  state pair : Pair = (.left = 2, .right2 = 3);\n"
+      "  state total : Unsigned_64 = pair -> sum();\n"
+      "  return total;\n"
+      "}"_view;
+  Workspace workspace;
+  Errors errors;
+  EXPECT_NOT(interpret(workspace, errors, source));
+  EXPECT(
+      &workspace.resolve_context("LocalTest"_view) == &Invalid::get_invalid());
+  ASSERT_EQ(errors.get_size(), Count(1));
+
+  Perimortem::Memory::Allocator::Arena rendered;
+  View::Bytes diagnostic = errors.render_message(rendered, 0);
+  EXPECT(Algorithm::search(diagnostic, "right2"_view) != Count(-1));
+  EXPECT(Algorithm::search(diagnostic, "Pair"_view) != Count(-1));
+  EXPECT(Algorithm::search(diagnostic, "Identifier 'pair'"_view) == Count(-1));
+  EXPECT(Algorithm::search(diagnostic, "Identifier 'total'"_view) == Count(-1));
 }

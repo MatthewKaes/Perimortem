@@ -47,9 +47,8 @@ auto Language::Flow::LoopControl::interpret(
 }
 
 auto Language::Flow::LoopControl::lower(Llvm::Builder& body) const -> Bool {
-  if (kind == Kind::Break) {
-    return body.break_loop(*this, target.get());
-  }
-
-  return body.continue_loop(*this, target.get());
+  Llvm::Builder::LoopAction action = kind == Kind::Break
+                                         ? Llvm::Builder::LoopAction::Break
+                                         : Llvm::Builder::LoopAction::Continue;
+  return body.leave_loop(action, target.get());
 }

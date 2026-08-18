@@ -63,7 +63,8 @@ auto Language::Operations::Divide::lower(Llvm::Builder& body) const -> Bool {
     return False;
   }
 
-  return body.divide(*carrier, *this, left, right);
+  return body.arithmetic(
+      Llvm::Builder::Arithmetic::Divide, *carrier, *this, left, right);
 }
 
 auto Language::Operations::Divide::select_type(const Ttx::Concept::Abstract&)

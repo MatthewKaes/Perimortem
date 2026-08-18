@@ -3,9 +3,9 @@
 
 #include "tetrodotoxin/library/language/types/option.hpp"
 
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "tetrodotoxin/library/language/constants/option.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library::Language;
@@ -29,7 +29,8 @@ auto Types::Option::create_fitted(
 
 auto Types::Option::reserve(Llvm::Program& program) const -> Bool {
   const auto& carriers = program.get_carriers();
-  auto reserved = carriers.reserve_option(program, *this);
+  auto reserved =
+      carriers.reserve(program, *this, Llvm::Carriers::Kind::Option);
   if (!reserved) {
     return False;
   }
@@ -68,6 +69,6 @@ auto Types::Option::complete(Llvm::Program& program) const -> Bool {
   }
 
   Bool carrier_completed =
-      carriers.complete_option(program, *this, element, flag);
+      carriers.complete(program, *this, Llvm::Carriers::Kind::Option);
   return carrier_completed && complete_debug(program);
 }

@@ -3,12 +3,12 @@
 
 #include "tetrodotoxin/library/language/types/structure.hpp"
 
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/reference.hpp"
 
 using namespace Perimortem::Core;
@@ -26,6 +26,7 @@ auto Types::Structure::interpret(
         "Library Structure definitions require a Type shaped name."_view);
     return {};
   }
+
   if (definition.get_visibility() ==
       Tetrodotoxin::Language::Visibility::Exposed) {
     cursor.create_token_error(
@@ -33,6 +34,7 @@ auto Types::Structure::interpret(
         "Library Structures accept only `public` or `private` visibility."_view);
     return {};
   }
+
   if (!definition.get_modifiers().is_empty()) {
     cursor.create_token_error(
         definition.get_modifiers().get_data()[0],
@@ -126,11 +128,16 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
 auto Types::Structure::reserve_carrier(Llvm::Program& program) const
     -> Option<Bool> {
   const auto& carriers = program.get_carriers();
-  return carriers.reserve_structure(program, *this);
+  Llvm::Carriers::Kind kind = get_layout().is_empty()
+                                  ? Llvm::Carriers::Kind::Context
+                                  : Llvm::Carriers::Kind::Structure;
+  return carriers.reserve(program, *this, kind);
 }
 
-auto Types::Structure::complete_carrier(Llvm::Program& program) const
-    -> Bool {
+auto Types::Structure::complete_carrier(Llvm::Program& program) const -> Bool {
   const auto& carriers = program.get_carriers();
-  return carriers.complete_structure(program, *this, get_layout());
+  Llvm::Carriers::Kind kind = get_layout().is_empty()
+                                  ? Llvm::Carriers::Kind::Context
+                                  : Llvm::Carriers::Kind::Structure;
+  return carriers.complete(program, *this, kind);
 }

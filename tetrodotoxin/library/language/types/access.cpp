@@ -28,7 +28,8 @@ auto Types::Access::create_default(
 
 auto Types::Access::reserve(Llvm::Program& program) const -> Bool {
   const auto& carriers = program.get_carriers();
-  auto reserved = carriers.reserve_access(program, *this);
+  auto reserved =
+      carriers.reserve(program, *this, Llvm::Carriers::Kind::Access);
   if (!reserved) {
     return False;
   }
@@ -65,6 +66,7 @@ auto Types::Access::complete(Llvm::Program& program) const -> Bool {
     return False;
   }
 
-  Bool carrier_completed = carriers.complete_access(program, *this, element);
+  Bool carrier_completed =
+      carriers.complete(program, *this, Llvm::Carriers::Kind::Access);
   return carrier_completed && complete_debug(program);
 }

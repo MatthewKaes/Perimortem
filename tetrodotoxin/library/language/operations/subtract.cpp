@@ -87,7 +87,8 @@ auto Language::Operations::Subtract::lower(Llvm::Builder& body) const -> Bool {
     return False;
   }
 
-  return body.subtract(*carrier, *this, left, right);
+  return body.arithmetic(
+      Llvm::Builder::Arithmetic::Subtract, *carrier, *this, left, right);
 }
 
 auto Language::Operations::Subtract::select_type(const Ttx::Concept::Abstract&)

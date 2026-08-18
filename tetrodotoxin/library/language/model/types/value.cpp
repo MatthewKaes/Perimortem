@@ -4,17 +4,13 @@
 #include "tetrodotoxin/library/language/model/types/value.hpp"
 
 #include "tetrodotoxin/library/llvm/builder.hpp"
-#include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "tetrodotoxin/library/language/model/types/real.hpp"
-#include "tetrodotoxin/library/language/model/types/signed.hpp"
 
 using namespace Tetrodotoxin::Library;
 
 auto Language::Model::Types::Value::reserve(Llvm::Program& program) const
     -> Bool {
   const auto& carriers = program.get_carriers();
-  auto reserved = carriers.reserve_value(
-      program, *this, get_width(), is<Real>(), is<Signed>(), is<Flag>());
+  auto reserved = carriers.reserve(program, *this, Llvm::Carriers::Kind::Value);
   return reserved ? True : False;
 }
 
@@ -26,6 +22,7 @@ auto Language::Model::Types::Value::complete(Llvm::Program& program) const
     return False;
   }
 
-  Bool completed = !*began || carriers.complete_value(program, *this);
+  Bool completed =
+      !*began || carriers.complete(program, *this, Llvm::Carriers::Kind::Value);
   return completed && complete_debug(program);
 }

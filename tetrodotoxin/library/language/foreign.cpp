@@ -335,7 +335,7 @@ auto Library::Language::Foreign::State::complete_declaration(
     return False;
   }
 
-  return program.debug_global(*this, definition, False, False);
+  return program.get_debug().global(program, *this, definition, False, False);
 }
 
 auto Library::Language::Foreign::Function::reserve_declaration(

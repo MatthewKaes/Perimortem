@@ -83,7 +83,8 @@ static auto parse_authored(
     Errors& errors,
     View::Bytes source) -> Option<Language::Monograph&> {
   Tokenizer tokenizer(lexical, source, "structure.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   if (!cursor.matches(Code::Type::Comment)) {
     return {};
   }
@@ -129,7 +130,8 @@ static auto rejects_link(View::Bytes source) -> Bool {
 
   Allocator::Arena completion;
   Tokenizer tokenizer(completion, source, "structure.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   Bool linked = monograph->link(cursor);
   return !linked && !errors.is_empty();
 }
@@ -147,7 +149,8 @@ static auto rejects_finalize(View::Bytes source) -> Bool {
 
   Allocator::Arena completion;
   Tokenizer tokenizer(completion, source, "structure.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   if (!monograph->link(cursor)) {
     return False;
   }
@@ -200,7 +203,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
 
   Allocator::Arena completion;
   Tokenizer tokenizer(completion, source, "structure.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   ASSERT(monograph.link(cursor));
   ASSERT(monograph.finalize(cursor));
   EXPECT(&visible.resolve() == &hidden);
@@ -693,7 +697,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
 
   Allocator::Arena completion;
   Tokenizer tokenizer(completion, source, "structure.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   ASSERT(monograph.link(cursor));
   ASSERT(monograph.finalize(cursor));
 
@@ -743,7 +748,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
 
   Allocator::Arena completion;
   Tokenizer tokenizer(completion, source, "structure.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   ASSERT(monograph.link(cursor));
   auto source_fields = source_type.get_addressables();
   auto packet_fields = packet.get_addressables();
@@ -821,7 +827,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, inference_failure_rolls_back) {
     const auto& source_type = monograph.get_source();
     Allocator::Arena completion;
     Tokenizer tokenizer(completion, sources[i], "structure.ttx"_view);
-    Cursor cursor(tokenizer, errors);
+    Ttx::Lexical::Associations associations(tokenizer.get_arena());
+    Cursor cursor(tokenizer, errors, associations);
     EXPECT_NOT(monograph.link(cursor));
     auto fields = source_type.get_addressables();
     auto field = fields.begin();
@@ -858,7 +865,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_public_type_reachability) {
   auto& monograph = *owner;
   Allocator::Arena completion;
   Tokenizer tokenizer(completion, source, "structure.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   ASSERT(monograph.link(cursor));
   const auto& source_type = monograph.get_source();
   auto fields = source_type.get_addressables();
@@ -911,7 +919,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
 
     Allocator::Arena completion;
     Tokenizer tokenizer(completion, sources[i], "structure.ttx"_view);
-    Cursor cursor(tokenizer, errors);
+    Ttx::Lexical::Associations associations(tokenizer.get_arena());
+    Cursor cursor(tokenizer, errors, associations);
     EXPECT_NOT(monograph.link(cursor));
     auto fields = packet.get_addressables();
     auto field_selection = fields.begin();
@@ -929,11 +938,11 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
                        : "private value : Unsigned_8 = 256;"_view));
     EXPECT(has_diagnostic(
         errors,
-        "Field initializer Pack does not fit the declared Field Type's "
-        "Layout."_view));
+        "Initializer for Field 'value' does not fit declared Type "
+        "'Unsigned_8'."_view));
+    EXPECT(has_diagnostic(errors, "Target accepts: [Unsigned_8]"_view));
     EXPECT(has_diagnostic(
         errors,
-        "Supply the complete value flow accepted by the declared Field "
-        "Type."_view));
+        "Change the initializer or declare the exact Type it produces."_view));
   }
 }

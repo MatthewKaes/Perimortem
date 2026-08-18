@@ -79,7 +79,8 @@ auto Language::Operations::Modulo::lower(Llvm::Builder& body) const -> Bool {
     return False;
   }
 
-  return body.modulo(*carrier, *this, left, right);
+  return body.arithmetic(
+      Llvm::Builder::Arithmetic::Modulo, *carrier, *this, left, right);
 }
 
 auto Language::Operations::Modulo::select_type(const Ttx::Concept::Abstract&)

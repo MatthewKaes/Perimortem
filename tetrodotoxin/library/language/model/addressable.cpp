@@ -24,5 +24,5 @@ auto Language::Model::Addressable::complete_declaration(
     return True;
   }
 
-  return program.debug_field(*this, *anchor);
+  return program.get_debug().field(*this, *anchor);
 }

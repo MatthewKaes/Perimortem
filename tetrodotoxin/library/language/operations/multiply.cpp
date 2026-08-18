@@ -88,7 +88,8 @@ auto Language::Operations::Multiply::lower(Llvm::Builder& body) const -> Bool {
     return False;
   }
 
-  return body.multiply(*carrier, *this, left, right);
+  return body.arithmetic(
+      Llvm::Builder::Arithmetic::Multiply, *carrier, *this, left, right);
 }
 
 auto Language::Operations::Multiply::select_type(const Ttx::Concept::Abstract&)

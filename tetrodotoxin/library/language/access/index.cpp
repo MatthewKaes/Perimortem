@@ -284,8 +284,7 @@ auto Language::Access::Index::lower_write_target(Llvm::Builder& body) const
 
   auto selected_count = get_count();
   if (!selected_count) {
-    return body.select_index(
-        *element, *this, receiver, first, get_anchor());
+    return body.select_index(*element, *this, receiver, first);
   }
 
   Bool count_lowered = selected_count->lower(body);
@@ -298,6 +297,5 @@ auto Language::Access::Index::lower_write_target(Llvm::Builder& body) const
   }
 
   return body.select_range(
-      *element, *this, receiver, first, *selected_count, *range_count,
-      get_anchor());
+      *element, *this, receiver, first, *selected_count, *range_count);
 }

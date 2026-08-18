@@ -8,5 +8,5 @@
 using namespace Tetrodotoxin::Library;
 
 auto Language::Constants::Flag::lower(Llvm::Builder& body) const -> Bool {
-  return body.flag_value(get_type(), *this, get_value());
+  return body.unsigned_value(get_type(), *this, Unsigned_64(bool(get_value())));
 }

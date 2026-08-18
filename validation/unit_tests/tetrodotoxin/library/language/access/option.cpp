@@ -295,9 +295,15 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_edges_and_folding) {
   Allocator::Arena domain;
   Errors expression_errors;
   Tokenizer pass_tokenizer(domain, "value?"_view, "option-expression.ttx"_view);
-  Cursor pass_cursor(pass_tokenizer, expression_errors);
+  Ttx::Lexical::Associations pass_associations(
+      pass_tokenizer.get_arena());
+  Cursor pass_cursor(
+      pass_tokenizer, expression_errors, pass_associations);
   Tokenizer stop_tokenizer(domain, "value?"_view, "option-expression.ttx"_view);
-  Cursor stop_cursor(stop_tokenizer, expression_errors);
+  Ttx::Lexical::Associations stop_associations(
+      stop_tokenizer.get_arena());
+  Cursor stop_cursor(
+      stop_tokenizer, expression_errors, stop_associations);
   auto pass_pack = parse_expression(domain, *monograph, pass_cursor);
   auto stop_pack = parse_expression(domain, *monograph, stop_cursor);
   auto pass_propagate = pass_pack.visit(
@@ -356,10 +362,16 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_edges_and_folding) {
   // authored branch because an empty Pack cannot replace a one value output.
   Tokenizer present_tokenizer(
       domain, "present?"_view, "option-expression.ttx"_view);
-  Cursor present_cursor(present_tokenizer, expression_errors);
+  Ttx::Lexical::Associations present_associations(
+      present_tokenizer.get_arena());
+  Cursor present_cursor(
+      present_tokenizer, expression_errors, present_associations);
   Tokenizer absent_tokenizer(
       domain, "absent?"_view, "option-expression.ttx"_view);
-  Cursor absent_cursor(absent_tokenizer, expression_errors);
+  Ttx::Lexical::Associations absent_associations(
+      absent_tokenizer.get_arena());
+  Cursor absent_cursor(
+      absent_tokenizer, expression_errors, absent_associations);
   auto present_pack = parse_expression(domain, *monograph, present_cursor);
   auto absent_pack = parse_expression(domain, *monograph, absent_cursor);
   auto present_propagate = present_pack.visit(
@@ -412,7 +424,10 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, propagation_edges_and_folding) {
   // leaves the chain unfolded instead of evaluating the right suffix.
   Tokenizer chain_tokenizer(
       domain, "nested_absent?!"_view, "option-expression.ttx"_view);
-  Cursor chain_cursor(chain_tokenizer, expression_errors);
+  Ttx::Lexical::Associations chain_associations(
+      chain_tokenizer.get_arena());
+  Cursor chain_cursor(
+      chain_tokenizer, expression_errors, chain_associations);
   auto chain_pack = parse_expression(domain, *monograph, chain_cursor);
   auto unwrap = chain_pack.visit(
       []() -> Option<Language::Access::Unwrap&> { return {}; },
@@ -608,7 +623,10 @@ PERIMORTEM_UNIT_TEST(OptionAccessTests, production_option_fixture) {
   const Language::Flow::Match* retained_match = &*match;
   Allocator::Arena repeated_domain;
   Tokenizer repeated_tokenizer(repeated_domain, *source, path);
-  Cursor repeated_cursor(repeated_tokenizer, errors);
+  Ttx::Lexical::Associations repeated_associations(
+      repeated_tokenizer.get_arena());
+  Cursor repeated_cursor(
+      repeated_tokenizer, errors, repeated_associations);
   ASSERT(monograph.link(repeated_cursor));
   ASSERT(monograph.finalize(repeated_cursor));
   auto repeated_first = find_field(source_type, "first_session"_view);

@@ -115,8 +115,8 @@ auto Language::Operations::SubtractAssignment::finalize(Cursor& cursor)
   right.finalize(cursor);
 }
 
-auto Language::Operations::SubtractAssignment::lower(
-    Llvm::Builder& body) const -> Bool {
+auto Language::Operations::SubtractAssignment::lower(Llvm::Builder& body) const
+    -> Bool {
   Bool target_lowered = target.lower_write_target(body);
   if (!target_lowered) {
     return False;
@@ -127,7 +127,7 @@ auto Language::Operations::SubtractAssignment::lower(
     return False;
   }
 
-  return body.subtract(*this, target, right);
+  return body.write(Llvm::Builder::Write::Subtract, *this, target, right);
 }
 
 auto Language::Operations::SubtractAssignment::get_value_type(Count) const

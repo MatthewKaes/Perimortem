@@ -114,7 +114,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
 
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "block.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   ASSERT(monograph->link(cursor));
   ASSERT(monograph->finalize(cursor));
   auto repeated = populated.get_statements();

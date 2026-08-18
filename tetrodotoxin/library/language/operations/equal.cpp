@@ -88,7 +88,8 @@ auto Language::Operations::Equal::lower(Llvm::Builder& body) const -> Bool {
     return False;
   }
 
-  return body.equal(*carrier, *this, left, right);
+  return body.compare(
+      Llvm::Builder::Comparison::Equal, *carrier, *this, left, right);
 }
 
 auto Language::Operations::Equal::select_type(

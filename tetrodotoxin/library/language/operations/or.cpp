@@ -59,7 +59,7 @@ auto Language::Operations::Or::lower(Llvm::Builder& body) const -> Bool {
     return False;
   }
 
-  auto state = body.begin_or(left);
+  auto state = body.begin_logic(Llvm::Builder::Logical::Or, left);
   if (!state) {
     return False;
   }
@@ -69,7 +69,7 @@ auto Language::Operations::Or::lower(Llvm::Builder& body) const -> Bool {
     return False;
   }
 
-  return body.end_or(*state, *this, left, right);
+  return body.end_logic(*state, *this, left, right);
 }
 
 auto Language::Operations::Or::select_type(const Ttx::Concept::Abstract&) const

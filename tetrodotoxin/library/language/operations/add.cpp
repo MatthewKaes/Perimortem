@@ -87,7 +87,8 @@ auto Language::Operations::Add::lower(Llvm::Builder& body) const -> Bool {
     return False;
   }
 
-  return body.add(*carrier, *this, left, right);
+  return body.arithmetic(
+      Llvm::Builder::Arithmetic::Add, *carrier, *this, left, right);
 }
 
 auto Language::Operations::Add::select_type(const Ttx::Concept::Abstract&) const

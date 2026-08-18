@@ -251,7 +251,7 @@ auto Language::Function::lower_declaration(Llvm::Program& program) const
     return False;
   }
 
-  if (!body.end_function(*this)) {
+  if (!body.end_function()) {
     return False;
   }
 
