@@ -46,6 +46,10 @@ class File {
   static auto read(Memory::Allocator::Arena& arena, Core::View::Bytes location)
       -> Core::Option<Core::View::Bytes>;
   static auto write(Core::View::Bytes data, Core::View::Bytes location) -> Bool;
+  // Atomically replaces the destination name when the host filesystem permits
+  // one native rename transaction.
+  static auto replace(Core::View::Bytes source, Core::View::Bytes destination)
+      -> Bool;
   static auto remove(Core::View::Bytes location) -> Bool;
   static auto exists(Core::View::Bytes location) -> Bool;
 };

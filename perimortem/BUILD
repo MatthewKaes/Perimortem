@@ -10,6 +10,7 @@ cc_library(
     name = "perimortem",
     includes = ["."],
     deps = [
+        ":abi",
         ":compression",
         ":core",
         ":graphics",
@@ -18,6 +19,22 @@ cc_library(
         ":serialization",
         ":system",
         ":vulkan",
+    ],
+)
+
+cc_library(
+    name = "abi",
+    srcs = glob([
+        "abi/**/*.cpp",
+        "abi/core/cleanup.hpp",
+    ]),
+    hdrs = glob(
+        ["abi/**/*.hpp"],
+        exclude = ["abi/core/cleanup.hpp"],
+    ),
+    includes = ["."],
+    deps = [
+        ":core",
     ],
 )
 
@@ -77,6 +94,7 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
+        ":abi",
         ":core",
         ":utility",
     ],

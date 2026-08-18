@@ -1,60 +1,42 @@
 # Perimortem Memory
 
-Perimortem Memory provides allocation and managed-object storage for the
-runtime. Languages describe how long their values must remain valid and which
-fields refer to other objects. Memory decides how those objects are stored,
-traced, and reclaimed.
+Perimortem Memory provides allocation and reference counted managed Object
+storage for the runtime. Languages describe value construction and destruction,
+while Memory retains each live allocation until its final reference is released.
 
-These runtime details stay out of the language model. A program works with an
-Object identity, not an allocator pointer or a garbage-collector record.
+These runtime details stay out of the language model. A program works with one
+nonnull Object identity rather than an allocator record. Copying its one word
+handle retains the same identity, so every copy observes the same mutations.
+Destroying a handle releases one reservation. The final release runs the
+payload destructor before returning the allocation to Bibliotheca.
 
-## Garbage realms
+## Worker ownership
 
-A garbage realm is a group of managed objects owned by one worker. The worker
-may allocate objects, change them, add or remove roots, and run collection. No
-other worker changes that realm at the same time.
+Managed allocations remain on the worker that created them. An Object handle is
+not a worker transfer mechanism and may not be retained or released by another
+worker.
 
-An Object handle is a nonnull reference to one object in the realm. Copying the
-handle refers to the same object, so every copy observes the same changes. The
-handle does not become a second language identity.
+A worker boundary can borrow a read only View while the producing worker or
+another explicit owner guarantees that storage remains alive for the complete
+call. Data that must outlive that borrow is copied into storage owned by the
+receiver. This keeps thread handoff visible without adding shared heap guards, root
+registries, or a moving collector to every Object access.
 
-A realm can move to another worker at a safe handoff point. The runtime pauses
-changes, transfers the whole realm, and resumes it on the receiving worker.
-Object handles remain valid because the realm moves as one unit.
-
-Individual managed objects do not move between realms. Code that needs data on
-another worker has three choices:
-
-* copy the value and create a new identity
-* transfer the whole realm
-* use immutable storage designed for sharing
-
-Raw pointers and allocator reservations are not worker-transfer mechanisms.
-
-## Roots and tracing
-
-A root keeps an object alive. Stacks, running native calls, and live application
-state register the roots they hold with the realm.
-
-Library supplies a compact description of which Object fields may contain more
-managed references. The collector follows that description when it traces the
-object graph. It does not inspect source files, Package data, or a copied list
-of language fields.
-
-The collection strategy can change without changing program behavior. Object
-identity, aliases, and field access remain the same whether the runtime uses
-reference counts, tracing, or cycle collection.
+Reference cycles must be avoided through ordinary ownership design. Views are
+the borrowed edge for temporary observation. Graphs with longer lifetimes keep
+a clear direction for their owning Object references.
 
 ## Allocation and failure
 
-Bibliotheca, Perimortem's page allocator, supplies the worker-local storage used
-by a realm. The realm may ask for cleared storage when that makes initialization
-faster, but the language still defines each Type's default value.
+Bibliotheca, Perimortem's page allocator, supplies Object storage local to one
+worker.
+The runtime may ask for cleared storage when that makes initialization faster,
+but the language still defines each Type's default value.
 
 An Object becomes visible only after all of its fields are initialized. If the
 runtime cannot allocate the required storage, it reports a fatal process error.
 No partly initialized Object becomes visible, so there is nothing for source
 code to undo.
 
-The worker that owns a realm also reclaims it. After a transfer, the receiving
-worker becomes responsible for both the objects and their underlying storage.
+The worker that creates an Object remains responsible for its references and
+underlying storage until final release.
