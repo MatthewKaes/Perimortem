@@ -10,7 +10,9 @@
 #include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
+#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -23,7 +25,9 @@ namespace Ttx::Lexical {
 class Cursor {
  public:
   Cursor(const Lexical::Tokenizer& tokenizer, Lexical::Errors& errors)
-      : tokenizer(tokenizer), errors(errors) {}
+      : tokenizer(tokenizer),
+        errors(errors),
+        associations(tokenizer.get_arena()) {}
   Cursor(const Cursor&) = delete;
 
   // A grammar owner may add one required syntax diagnostic only when a nested
@@ -88,7 +92,7 @@ class Cursor {
   // memory space in case the error outlives the source.
   auto create_error(
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void {
+      Perimortem::Core::View::Bytes hint = {}) const -> void {
     create_expression_error(Anchor::create(Span()), message, hint);
   }
 
@@ -97,14 +101,14 @@ class Cursor {
   // memory space in case the error outlives the source.
   auto create_token_error(
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void {
+      Perimortem::Core::View::Bytes hint = {}) const -> void {
     create_expression_error(Anchor::create(Span(current())), message, hint);
   }
 
   auto create_token_error(
       Lexical::Token token,
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void {
+      Perimortem::Core::View::Bytes hint = {}) const -> void {
     create_expression_error(Anchor::create(Span(token)), message, hint);
   }
 
@@ -115,14 +119,14 @@ class Cursor {
   auto create_expression_error(
       Lexical::Span span,
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void {
+      Perimortem::Core::View::Bytes hint = {}) const -> void {
     create_expression_error(Anchor::create(span), message, hint);
   }
 
   auto create_expression_error(
       Perimortem::Core::Option<Lexical::Anchor> anchor,
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void {
+      Perimortem::Core::View::Bytes hint = {}) const -> void {
     if (!anchor) {
       create_error(message, hint);
       return;
@@ -133,7 +137,7 @@ class Cursor {
   auto create_expression_error(
       Lexical::Anchor anchor,
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void {
+      Perimortem::Core::View::Bytes hint = {}) const -> void {
     Errors::Report report(
         errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
         anchor);
@@ -143,11 +147,16 @@ class Cursor {
 
   // Some semantic errors contribute directly to a Report. Cursor supplies the
   // authored source facts without exposing its Errors owner to the consumer.
-  auto create_report(Lexical::Span span) -> Errors::Report {
+  auto create_report(Lexical::Span span) const -> Errors::Report {
     return create_report(Anchor::create(span));
   }
 
-  auto create_report(Lexical::Anchor anchor) -> Errors::Report {
+  auto create_report(Perimortem::Core::Option<Lexical::Anchor> anchor) const
+      -> Errors::Report {
+    return create_report(anchor ? *anchor : Anchor::create(Lexical::Span()));
+  }
+
+  auto create_report(Lexical::Anchor anchor) const -> Errors::Report {
     return Errors::Report(
         errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
         anchor);
@@ -217,10 +226,78 @@ class Cursor {
     return tokenizer.get_source_path();
   }
 
+  // A semantic consumer may associate an authored Anchor with the exact graph
+  // identity it constructed there. The Cursor and graph share one source
+  // transaction, so these borrowed edges cannot outlive their owner. This is
+  // an identity-free source index for tools, not another semantic graph.
+  auto associate(Lexical::Anchor anchor, const Ttx::Concept::Abstract& semantic)
+      -> void {
+    if (!anchor.get_span()) {
+      return;
+    }
+
+    associations.insert({
+      .anchor = anchor,
+      .semantic =
+          Ttx::Concept::Reference<const Ttx::Concept::Abstract>(semantic),
+    });
+  }
+
+  // Selects the most precise authored semantic identity at one source byte.
+  // A focused Token wins over a containing expression Span. Ties prefer the
+  // narrower source range and retain construction order when equally precise.
+  auto find_at(Count offset) const
+      -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> {
+    Perimortem::Core::Option<const Association&> selected;
+    Bool selected_focus = False;
+    Count selected_extent = Count(-1);
+
+    auto source_associations = associations.get_view();
+    for (Count i = 0; i < source_associations.get_size(); i++) {
+      const Association& association = source_associations.get_data()[i];
+      Lexical::Token focus = association.anchor.get_token();
+      Lexical::Span span = association.anchor.get_span();
+      Bool contains_focus = contains(focus, offset);
+      Bool contains_span = contains(span, offset);
+      if (!contains_focus && !contains_span) {
+        continue;
+      }
+
+      Count extent = contains_focus ? focus.get_size() : span.get_size();
+      if (!selected || (contains_focus && !selected_focus) ||
+          (contains_focus == selected_focus && extent < selected_extent)) {
+        selected = association;
+        selected_focus = contains_focus;
+        selected_extent = extent;
+      }
+    }
+
+    if (!selected) {
+      return {};
+    }
+    return selected->semantic.get();
+  }
+
  private:
+  struct Association {
+    Lexical::Anchor anchor;
+    Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic;
+  };
+
+  static constexpr auto contains(Lexical::Token token, Count offset) -> Bool {
+    return token && offset >= token.get_offset() &&
+           offset < Count(token.get_offset()) + Count(token.get_size());
+  }
+
+  static constexpr auto contains(Lexical::Span span, Count offset) -> Bool {
+    return span && offset >= span.get_offset() &&
+           offset < Count(span.get_offset()) + span.get_size();
+  }
+
   const Lexical::Tokenizer& tokenizer;
   Lexical::Errors& errors;
   Count index = 0;
+  Perimortem::Memory::Managed::Vector<Association> associations;
 };
 
 }  // namespace Ttx::Lexical

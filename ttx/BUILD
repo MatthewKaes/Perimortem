@@ -15,6 +15,7 @@ cc_library(
         "lexical/**/*.hpp",
     ]),
     deps = [
+        ":concept",
         "//perimortem",
     ],
 )
