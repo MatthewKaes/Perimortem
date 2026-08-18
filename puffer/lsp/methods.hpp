@@ -14,6 +14,8 @@
 
 namespace Puffer::Lsp {
 
+// Each method translates one protocol request into the narrow Documents query
+// it owns. The dispatch table fixes the complete server surface at build time.
 auto initialize(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
 auto format(Documents& documents, const Rpc::Message& message) -> Rpc::Response;
@@ -25,21 +27,21 @@ auto did_close(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
 auto semantic_tokens(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
+auto hover(Documents& documents, const Rpc::Message& message) -> Rpc::Response;
 
 using Method =
     Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Rpc::DispatchFunc>;
 
-inline constexpr Perimortem::Core::Static::Vector<Method, 6> method_table = {{
+inline constexpr Perimortem::Core::Static::Vector<Method, 7> method_table = {{
   Method{"initialize"_view, initialize},
   {"format"_view, format},
   {"textDocument/didOpen"_view, did_open},
   {"textDocument/didChange"_view, did_change},
   {"textDocument/didClose"_view, did_close},
   {"textDocument/semanticTokens/full"_view, semantic_tokens},
+  {"textDocument/hover"_view, hover},
 }};
 
-static constexpr Count default_executor_count = 4;
-
-using Executor = Rpc::Executor<method_table, default_executor_count>;
+using Executor = Rpc::Executor<method_table>;
 
 }  // namespace Puffer::Lsp

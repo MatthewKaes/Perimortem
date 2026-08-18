@@ -1,0 +1,21 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "perimortem/memory/allocator/arena.hpp"
+
+#include "perimortem/serialization/json/node.hpp"
+
+#include "ttx/concept/abstract.hpp"
+
+namespace Puffer::Lsp {
+
+// Builds presentation directly from one selected semantic identity. The output
+// Arena owns only JSON and Markdown bytes, never another semantic model.
+auto semantic_hover(
+    Perimortem::Memory::Allocator::Arena& arena,
+    const Ttx::Concept::Abstract& semantic)
+    -> Perimortem::Serialization::Json::Node;
+
+}  // namespace Puffer::Lsp

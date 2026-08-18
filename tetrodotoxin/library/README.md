@@ -315,9 +315,27 @@ Type with a nonempty Layout. `View` is a borrowed contiguous view.
 `Range` describes a lazy ascending integer sequence. `Option[T]` represents a
 value that may be absent in an otherwise nonnullable language. The Option Type
 always has a nonempty Layout. Its state either carries one exact `T` or carries
-no payload. An explicit empty list applies a formula with no arguments.
+no payload. Native Library targets use the Perimortem value carrier: one inline
+payload slot followed by its selected state. The payload is live only when
+selected, and Option adds no allocation, reference count, or shared identity.
+An explicit empty list applies a formula with no arguments.
 Omitting the list instead requires the route to name a Type. Applying the same
 formula to the same semantic arguments returns the same Type identity.
+
+Generated contiguous Types own their intrinsic Self Callables as part of the
+same semantic graph. Every Library Type publishes authored and generated
+Callables through one callable surface. A Generic installs its required
+Callables when it materializes the exact Type, so lookup, reflection, and
+completion enumerate the same identities regardless of their origin.
+`view -> get_size()` and `access -> get_size()` return the
+runtime element count as exact `Unsigned_64`. A writable Fixed Addressable may
+produce `Access[T]` over its complete existing storage with
+`fixed -> get_access()`. This operation does not copy the Fixed or make a View
+writable. A const Fixed, a computed Fixed value without writable storage, and a
+View cannot grant that Callable's required authority. The returned Access
+borrows the Fixed storage and is valid only while that storage remains alive.
+Its ordinary `[index]` and `[start, count]` operators provide scalar and ranged
+writable selection.
 
 Each Library root Generic owns its canonical materialized identities in that
 root's source transaction Arena. The Monograph reaches them through its root
@@ -328,7 +346,7 @@ context, and the installed Dialect retains no semantic identity cache.
 Generic rejection is a typed, source-free result owned by the formula. The
 authored TypeReference maps that result to the exact retained argument Anchor
 and reports it through the operation Cursor. Silent resolution is reserved for
-Alias fixed-point probing; every committed consumer uses the reporting path.
+repeated Alias probing. Every committed consumer uses the reporting path.
 
 Option construction belongs to target fitting:
 
@@ -359,7 +377,7 @@ never publishes a partly initialized value.
 ### Default values
 
 Every completed Library Type admitted to value flow owns one total default
-construction operation. The exact Type implements that operation; no central
+construction operation. The exact Type implements that operation. No central
 kind switch, visitor, semantic Default object, Monograph path, or copied Type
 inventory decides on its behalf. The caller supplies only the transaction Arena
 where that Type creates its Pack.
@@ -391,13 +409,16 @@ each default independently of the storage chosen by a compiler:
 - An Object default is one new nonnull Object initialized by the same Field
   rules.
 - A route ending in an Alias resolves it first and asks the represented Library
-  Type; Alias itself owns no default behavior.
+  Type. Alias itself owns no default behavior.
 
 Type selection remains outside value flow. `Descriptor` is consequently an
 ordinary source name rather than a reserved internal Type. Before construction,
 Library asks each completed value Layout whether its real Type and Addressable
-edges reach terminal leaves. `Option[T]` breaks such a recursive shape because
-its absent state is a terminal value and does not expose `T` in that Layout.
+edges reach terminal leaves. Target storage must also remain finite. `Option[T]`
+stores an inline payload slot, so it cannot make a Structure recursively contain
+itself by value. It can break an Object construction cycle because an Object
+payload is a finite reference carrier and the absent state does not construct
+that referenced identity.
 
 Cleared memory may make initialization faster, but it does not define these
 defaults. Every initializer required by the Type still runs. An empty
@@ -421,8 +442,10 @@ advances by one, so it contains `start` and stops before `end`. It is empty when
 
 A Range is lazy value flow rather than contiguous storage. It does not become a
 `View`, an `Access`, or an anonymous aggregate Type. Library does not widen the
-endpoints or use a general iterable registry. A `for` statement fits its one
-entry binding Layout against the exact `T` carried by the Range.
+endpoints or use a general iterable registry. A `for` statement accepts either
+one Range or one contiguous value and fits its read only entry binding against
+the input's exact element Type. Iterating a View or Access visits its current
+runtime count in ascending index order without changing the input's authority.
 
 ## Source and Composite Types
 
@@ -686,17 +709,21 @@ and return preserve the Object reference, so every alias sees the same mutations
 Object uses the same Fields, Functions, Layout, Visibility, and Writability as a
 Structure instead of defining a second member system.
 
-Library defines what Object lifetime means to a program. The runtime chooses how
-Objects are allocated, represented, traced, and eventually reclaimed. Source
-code has no finalizer, weak reference, explicit release, or observable
-reclamation order.
+Library defines Object as a nonnull reference counted identity. Copying,
+passing, or returning an Object preserves that identity and retains its
+allocation. Assignment and value lifetime completion release the previous
+reference. The final release runs the Object payload's generated destruction,
+including release of its contained Object Fields, before returning the storage.
+Source code has no finalizer, weak reference, explicit release, or observable
+reclamation callback.
 
-At runtime, related Objects live in a Garbage Realm owned by one worker. The
-whole Realm can move to another worker without invalidating any of its Object
-references. A single Object cannot cross on its own. Code must instead copy it
-into a new identity, transfer its complete Realm, or use separately shared
-read-only storage. These choices do not change the Library Type or add
-source-visible lifetime operations.
+Object references remain on their owning worker. An interface between workers
+may borrow read only data through a View for the duration of one completed call.
+The receiving worker copies anything it retains and constructs a new Object
+identity when it needs persistent managed state. Writable Access does not cross
+workers, and wrapping storage in a View does not make contained Object handles
+transferable. Reference cycles are not reclaimed automatically, so Object
+graphs avoid owning cycles or make an owning edge explicitly breakable.
 
 ### Object initialization arguments
 
@@ -734,9 +761,10 @@ language defaults still determine the finished values.
 
 A chain of Structure or Object defaults must eventually end. Library rejects a
 cycle while completing the program instead of discovering it during runtime
-initialization. An `Option[T]` Field breaks the cycle because its default has no
-payload. Construction that can reject input belongs in a Static factory
-returning `Option[T]`, not in `new`.
+initialization. An `Option[ObjectType]` Field breaks an Object construction
+cycle because its default has no payload. It does not make recursive inline
+Structure storage finite. Construction that can reject input belongs in a
+Static factory returning `Option[T]`, not in `new`.
 
 ## Enumerations
 
@@ -872,7 +900,7 @@ and retains the exact owner. Linking visits those owners in source order, makes
 only preceding Local declarations visible, and validates reachability.
 Finalization visits the same records in the same order without rediscovering
 their concrete kinds. `Flow::Scope` carries only the enclosing Function result
-Layout, member-access Type, and nearest loop fact needed across those owners;
+Layout, member access Type, and nearest loop fact needed across those owners.
 it does not shadow Block state or become another semantic graph.
 
 A local `state` declaration creates one mutable Addressable. A local `const`
@@ -883,6 +911,13 @@ exact completed Type under the same rules as an inferred Field. A local becomes
 visible after its declaration. A nested Block may shadow it with a different
 identity. A standalone `{ ... }` is itself one Statement and retains that exact
 nested Block rather than fabricating a control-flow owner.
+
+Diagnostic recovery does not change that transaction boundary. When an
+explicit Local Type has settled but its initializer fails, later Statements in
+the same rejected transaction may still query that Local's name, Type, and
+member surface. Its value remains incomplete, the Local continues to resolve
+Invalid, and the failed Monograph is never published. An inferred Local has no
+such recovery binding until its initializer establishes one exact Type.
 
 `=`, `+=`, and `-=` are distinct lowest-precedence Library Expression
 operators selected by unambiguous TTX Tokens. They parse right-associatively
@@ -912,11 +947,12 @@ every reachable path.
 decision. That value's Type must satisfy the Library Flag contract, which alone
 interprets the completed value as active or inactive. Parentheses may be omitted
 when the Pack is otherwise unambiguous, and additional produced values do not
-change which entry controls the branch. `for` consumes one `Range[T]` and fits
-its loop binding Layout against the Range entry. `break` and `continue` target
-the nearest enclosing loop and are illegal outside one. An `else if` retains
-its exact Branch as a Statement, including its leading Documentation, rather
-than acquiring synthetic braces or a second alternate representation.
+change which entry controls the branch. `for` consumes one `Range[T]` or
+contiguous `Fixed[T, extent]`, `View[T]`, or `Access[T]` and fits its read only
+loop binding against exact `T`. `break` and `continue` target the nearest
+enclosing loop and are illegal outside one. An `else if` retains its exact
+Branch as a Statement, including its leading Documentation, rather than
+acquiring synthetic braces or a second alternate representation.
 
 `match` evaluates its input once and compares cases in source order. An ordinary
 case must fold to a Constant with the input's exact Type. The first equal case
@@ -984,7 +1020,7 @@ path confinement and acquisition policy. Library never opens Package storage
 directly.
 
 A Library Monograph completes only its own source. Package and Environment
-barriers ensure that a context selected by `using` is already complete; using
+barriers ensure that a context selected by `using` is already complete. Using
 never discovers, links, finalizes, or owns a provider closure.
 
 ## Attributes and native publication
@@ -997,11 +1033,14 @@ may consume requests such as:
 
 ```ttx
 @abi("C")
-@symbol("library_native")
 public library_native : func = [] -> Unsigned_64 {
   return 42;
 }
 ```
+
+The compiler may generate a native name for that interface. An embedding
+boundary that must match an existing platform spelling may additionally request
+the exact override `@symbol("library_native")`.
 
 The consumer decides whether `abi` or `symbol` is relevant, which values and
 repetitions it supports, and whether the Function's visibility, receiver shape,
@@ -1013,9 +1052,11 @@ consumers without changing Function.
 When a Library CPU compiler chooses to honor a C ABI request, it checks that
 every parameter and result Type has a valid C representation for the selected
 target and rejects any unsupported local request at that consumption boundary.
-Linker checks that the resulting exported symbol names are unique before it
-emits native bytes. Function decides neither target representation nor
-whole-program symbol policy.
+Ordinary TTX calls require no ABI Attribute. Their target calling convention is
+compiler policy rather than authored Library semantics. A C request may select
+different aggregate carriers from an internal TTX call. Linker checks that the
+resulting exported symbol names are unique before it emits native bytes. Function
+decides neither target representation nor complete program symbol policy.
 
 A public Callable without `@abi` is still available to language lookup. The
 compiler gives it a stable internal symbol when native code needs one. Private
@@ -1044,17 +1085,44 @@ Interface profile as its parent.
 
 ## Compilation boundary
 
-The Library compiler accepts either a top-level Library or the Library child
+The Library compiler accepts either a top level Library or the Library child
 inside Scene or Shader. App may select one Static Callable as the program entry,
-but App itself does not become Library code. Compilation chooses object layouts,
-calling conventions, registers, instructions, and relocations without changing
-the language objects seen by tools.
+but App itself does not become Library code.
+
+Lowering is a forward operation on the completed Library graph. Monograph,
+Source, Type, Function, Block, Statement, Expression, and their concrete owners
+visit the exact edges they already retain and write target facts into one
+`Library::Llvm::Program` transaction. Operation exposes its complete input
+View, while each concrete Operation decides how those inputs lower. No backend
+walks a copied Library model or maintains a second category dispatcher.
+
+Program receives the caller Arena, source reporting conduit, and one target
+configuration. Program owns module-wide carrier, Callable, and Static facts.
+Each Function or Static initializer creates one concrete Builder over its
+scoped Body transaction. Neither transaction inherits a target capability
+interface or constructs a copied intermediate representation.
+Every physical fact remains keyed by the original Library identity that
+produced it. Lowering returns the completed Program only after every reachable
+owner has contributed successfully.
+
+Program accumulates module wide Types, symbols, Static state, and Callable
+relationships before its `compile` operation emits Terminal products. Builder
+owns addresses, values, blocks, and ownership for one executable Body. Branch,
+Match, Slice, Option, and logical owners retain their transient lowering handles
+locally. Those facts end with the Body and never persist as a current Function
+mode on Program.
+
+The internal lowering interface may exchange only the opaque handles declared
+by `llvm-c/Types.h`. LLVM operations, C++ headers, target-machine APIs, direct
+assembler types, registers, and object formats remain inside the compiler
+implementation. Library owners preserve evaluation order, control flow,
+fitting, and graph identity. Puffer selects the target configuration, asks
+Library to lower, and requests compilation from the returned Program.
 
 The CPU target chooses the instruction set, data layout, and calling convention.
-x86-64 System V and x86-64 Win64 are separate targets. Tetrodotoxin can compile
-through LLVM IR or through its direct x86-64 compiler. Both produce the same
-kind of object module for Linker. LLVM does not own Package locations, operating
-system startup, or linking rules.
+x86-64 System V and x86-64 Win64 are separate targets. Tetrodotoxin lowers CPU
+facts through LLVM and produces an object module for Linker. LLVM does not own
+Package locations, operating system startup, or linking rules.
 
 Linux and Windows hosts provide process entry, runtime and System services,
 loader inputs, and the executable format around the CPU code. Linker owns ELF,

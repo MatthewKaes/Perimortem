@@ -15,6 +15,10 @@ cc_library(
     ]),
     deps = [
         "//perimortem",
+        "//tetrodotoxin:environment",
+        "//tetrodotoxin:library",
+        "//tetrodotoxin:package",
+        "//tetrodotoxin:scene",
         "//ttx",
     ],
 )
@@ -22,11 +26,16 @@ cc_library(
 cc_binary(
     name = "puffer",
     srcs = [
+        "command.cpp",
+        "command.hpp",
         "main.cpp",
     ],
     deps = [
         ":lsp",
         "//perimortem",
+        "//tetrodotoxin:environment",
+        "//tetrodotoxin:library",
+        "//tetrodotoxin:library_llvm",
         "//ttx",
     ],
 )

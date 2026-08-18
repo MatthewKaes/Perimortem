@@ -45,18 +45,49 @@ cc_library(
     name = "library",
     srcs = glob([
         "library/**/*.cpp",
+        "library/llvm/**/*.hpp",
+    ], exclude = [
+        "library/llvm/builder.hpp",
+        "library/llvm/carriers.hpp",
+        "library/llvm/compiler.hpp",
+        "library/llvm/debug.hpp",
+        "library/llvm/failure.hpp",
+        "library/llvm/functions.hpp",
+        "library/llvm/globals.hpp",
+        "library/llvm/products.hpp",
+        "library/llvm/request.hpp",
+        "library/llvm/target.hpp",
     ]),
     hdrs = glob([
         "library/**/*.hpp",
-    ]),
+    ], exclude = [
+        "library/llvm/**/*.hpp",
+    ]) + [
+        "library/llvm/builder.hpp",
+        "library/llvm/carriers.hpp",
+        "library/llvm/compiler.hpp",
+        "library/llvm/debug.hpp",
+        "library/llvm/failure.hpp",
+        "library/llvm/functions.hpp",
+        "library/llvm/globals.hpp",
+        "library/llvm/products.hpp",
+        "library/llvm/request.hpp",
+        "library/llvm/target.hpp",
+    ],
     includes = ["."],
     deps = [
         ":language",
         "//perimortem",
+        "//toolchain/llvm:sdk",
         "//ttx:concept",
         "//ttx:lexical",
         "//ttx:model",
     ],
+)
+
+cc_library(
+    name = "library_llvm",
+    deps = [":library"],
 )
 
 cc_library(

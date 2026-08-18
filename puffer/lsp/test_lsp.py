@@ -102,7 +102,36 @@ def send_did_open(conn, uri, source_text):
             },
         },
     }))
-    time.sleep(0.1)
+    return read_lsp_response(conn, timeout=10.0)
+
+
+def send_did_change(conn, uri, source_text, version):
+    conn.sendall(lsp_frame({
+        "jsonrpc": "2.0",
+        "method": "textDocument/didChange",
+        "params": {
+            "textDocument": {"uri": uri, "version": version},
+            "contentChanges": [{"text": source_text}],
+        },
+    }))
+    return read_lsp_response(conn, timeout=10.0)
+
+
+def send_hover(conn, uri, source_text, needle, request_id, start=0):
+    offset = source_text.index(needle, start)
+    line = source_text.count("\n", 0, offset)
+    line_start = source_text.rfind("\n", 0, offset) + 1
+    character = len(source_text[line_start:offset].encode("utf-16-le")) // 2
+    conn.sendall(lsp_frame({
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": "textDocument/hover",
+        "params": {
+            "textDocument": {"uri": uri},
+            "position": {"line": line, "character": character},
+        },
+    }))
+    return read_lsp_response(conn, timeout=10.0)
 
 
 def send_semantic_tokens(conn, uri, request_id):
@@ -212,6 +241,8 @@ def run_test():
               "semantic token legend includes keyword")
         check(bool(semantic_provider.get("full")),
               "server supports full semantic token requests")
+        check(bool(caps.get("hoverProvider")),
+              "server advertises semantic hover")
     else:
         print("  ERROR: no initialize response")
         failures.append("initialize response")
@@ -227,6 +258,9 @@ def run_test():
     library_source = (
         "dialect : Library;\n"
         "public func run[] -> Count {\n"
+        "  pair.left;\n"
+        "  pair -> sum();\n"
+        "  source -> helper();\n"
         "  while (true) {\n"
         "    continue;\n"
         "  }\n"
@@ -237,11 +271,17 @@ def run_test():
     send_did_open(conn, library_uri, library_source)
     library_resp = send_semantic_tokens(conn, library_uri, 20)
     library_data = library_resp.get("result", {}).get("data", []) if library_resp else []
-    library_texts = [text for text, _ in semantic_token_texts(
-        library_source, library_data)]
+    library_tokens = semantic_token_texts(library_source, library_data)
+    library_texts = [text for text, _ in library_tokens]
     check(len(library_data) > 0, "Library document returns semantic tokens")
     check("while" in library_texts and "continue" in library_texts,
           "Library document highlights loop-control keywords")
+    check(("source", 7) in library_tokens,
+          "Library document highlights the Source routing keyword")
+    check(("left", 5) in library_tokens,
+          "address access highlights the selected property")
+    check(("sum", 6) in library_tokens,
+          "receiver invocation highlights the selected function")
 
     no_dialect_source = (
         "public func draft[] -> Count {\n"
@@ -284,6 +324,191 @@ def run_test():
     check("return" in shader_texts, "Shader document keeps shared control keywords")
     check("if" not in shader_texts and "continue" not in shader_texts,
           "Shader document filters Library-only control keywords")
+
+    print("\n--- Semantic hover: completed Library graph ---")
+    hover_path = os.path.join(
+        REPO_ROOT, "validation", "data", "ttx", "llvm",
+        "runtime.ttx")
+    with open(hover_path, "r", encoding="utf-8") as f:
+        hover_source = f.read()
+    hover_uri = "file:///llvm_nonobject-hover.ttx"
+    hover_diagnostics = send_did_open(conn, hover_uri, hover_source)
+    check(hover_diagnostics is not None and
+          hover_diagnostics.get("method") ==
+          "textDocument/publishDiagnostics" and
+          not hover_diagnostics.get("params", {}).get("diagnostics", []),
+          "valid attributed documentation publishes no diagnostics")
+    use_start = hover_source.index("total += OptionOps -> forward")
+    present_resp = send_hover(
+        conn, hover_uri, hover_source, "present", 30, use_start)
+    absent_resp = send_hover(
+        conn, hover_uri, hover_source, "absent", 31, use_start)
+    present_markdown = (
+        present_resp.get("result", {}).get("contents", {}).get("value", "")
+        if present_resp else "")
+    absent_markdown = (
+        absent_resp.get("result", {}).get("contents", {}).get("value", "")
+        if absent_resp else "")
+    check("const present : Option[Unsigned_64]" in present_markdown,
+          "hover resolves present to its exact Field and Type")
+    check("= some(5)" in present_markdown,
+          "hover displays present's folded Option payload")
+    check("const absent : Option[Unsigned_64]" in absent_markdown,
+          "hover resolves absent to its exact Field and Type")
+    check("= absent" in absent_markdown,
+          "hover displays absent's folded Option state")
+
+    frozen_use = hover_source.index("total += frozen_dense")
+    frozen_resp = send_hover(
+        conn, hover_uri, hover_source, "frozen_dense", 32, frozen_use)
+    frozen_markdown = (
+        frozen_resp.get("result", {}).get("contents", {}).get("value", "")
+        if frozen_resp else "")
+    check("const frozen_dense : Fixed[Unsigned_64,4]" in frozen_markdown,
+          "hover resolves the const Fixed stack Local and exact Type")
+    check("= (5, 6, 7, 8)" in frozen_markdown,
+          "hover displays the const Fixed Local's folded values")
+
+    dense_use = hover_source.index("total += dense")
+    dense_resp = send_hover(
+        conn, hover_uri, hover_source, "dense", 38, dense_use)
+    dense_markdown = (
+        (dense_resp.get("result") or {}).get("contents", {}).get("value", "")
+        if dense_resp else "")
+    check("> Test documentation string for variable" in dense_markdown,
+          "Local hover delegates to its Statement documentation")
+
+    function_start = hover_source.index("public execute : func")
+    function_resp = send_hover(
+        conn, hover_uri, hover_source, "execute", 39, function_start)
+    function_markdown = (
+        (function_resp.get("result") or {}).get("contents", {}).get("value", "")
+        if function_resp else "")
+    check("func execute" in function_markdown and
+          "> Test documentation string for function" in function_markdown,
+          "Function hover includes documentation interleaved with attributes")
+
+    changed_hover_source = hover_source.replace(
+        "private const present : Maybe = 5;",
+        "private const present : Maybe = 7;")
+    send_did_change(conn, hover_uri, changed_hover_source, 2)
+    changed_present_resp = send_hover(
+        conn, hover_uri, changed_hover_source, "present", 33, use_start)
+    changed_present_markdown = (
+        changed_present_resp.get("result", {})
+        .get("contents", {}).get("value", "")
+        if changed_present_resp else "")
+    check("= some(7)" in changed_present_markdown,
+          "document edits rebuild the semantic hover snapshot")
+
+    detail_source = (
+        "// Semantic hover details.\n"
+        "dialect : Library;\n"
+        "// Storage Type documentation.\n"
+        "public Bucket : struct {\n"
+        "  // Current value documentation.\n"
+        "  public state value : Unsigned_64 = 1;\n"
+        "}\n"
+        "// Alias documentation.\n"
+        "public BucketAlias : alias = Bucket;\n"
+        "private inspect : func = [] -> Unsigned_64 {\n"
+        "  state bucket : BucketAlias = (.value = 2);\n"
+        "  return bucket.value;\n"
+        "}\n"
+    )
+    detail_uri = "file:///semantic-hover-details.ttx"
+    send_did_open(conn, detail_uri, detail_source)
+
+    field_start = detail_source.index("public state value")
+    field_resp = send_hover(
+        conn, detail_uri, detail_source, "value", 34, field_start)
+    field_markdown = (
+        field_resp.get("result", {}).get("contents", {}).get("value", "")
+        if field_resp else "")
+    check("state value : Unsigned_64" in field_markdown,
+          "hover resolves a state Field declaration and exact Type")
+    check("**Kind:** State field" in field_markdown and
+          "**Type:** `Unsigned_64`" in field_markdown,
+          "state Field hover includes styled semantic details")
+    check("**Documentation**" in field_markdown and
+          "> Current value documentation." in field_markdown,
+          "state Field hover includes attached documentation")
+
+    type_start = detail_source.index("public Bucket : struct")
+    type_resp = send_hover(
+        conn, detail_uri, detail_source, "Bucket", 35, type_start)
+    type_markdown = (
+        (type_resp.get("result") or {}).get("contents", {}).get("value", "")
+        if type_resp else "")
+    check("type Bucket" in type_markdown and
+          "**Kind:** Type" in type_markdown,
+          "hover resolves an authored Type declaration")
+    check("> Storage Type documentation." in type_markdown,
+          "Type hover includes attached documentation")
+
+    local_start = detail_source.index("state bucket")
+    local_resp = send_hover(
+        conn, detail_uri, detail_source, "bucket", 36, local_start)
+    local_markdown = (
+        (local_resp.get("result") or {}).get("contents", {}).get("value", "")
+        if local_resp else "")
+    check("state bucket : Bucket" in local_markdown and
+          "**Kind:** State local" in local_markdown and
+          "**Type:** `Bucket`" in local_markdown,
+          "hover resolves a state Local declaration and resolved Type")
+
+    alias_resp = send_hover(
+        conn, detail_uri, detail_source, "BucketAlias", 37, local_start)
+    alias_markdown = (
+        (alias_resp.get("result") or {}).get("contents", {}).get("value", "")
+        if alias_resp else "")
+    check("BucketAlias : alias = Bucket" in alias_markdown and
+          "**Kind:** Type alias" in alias_markdown and
+          "**Resolves to:** `Bucket`" in alias_markdown,
+          "hover preserves the authored Alias at a Type reference")
+    check(alias_markdown.index("Alias documentation.") <
+          alias_markdown.index("Storage Type documentation.")
+          if "Alias documentation." in alias_markdown and
+          "Storage Type documentation." in alias_markdown else False,
+          "Alias hover propagates local then target documentation")
+
+    diagnostic_source = (
+        "// Invalid hover source.\n"
+        "dialect : Library;\n"
+        "private broken : func = [] -> [];\n"
+    )
+    diagnostic_uri = "file:///semantic-diagnostic.ttx"
+    diagnostic_resp = send_did_open(
+        conn, diagnostic_uri, diagnostic_source)
+    diagnostics = (
+        diagnostic_resp.get("params", {}).get("diagnostics", [])
+        if diagnostic_resp else [])
+    check(diagnostic_resp is not None and
+          diagnostic_resp.get("method") ==
+          "textDocument/publishDiagnostics" and diagnostics and
+          "Function bodies require" in diagnostics[0].get("message", ""),
+          "semantic failures publish editor diagnostics")
+
+    long_lines = "".join(
+        f"// Hover documentation line {index:03d} carries retained text.\n"
+        for index in range(100))
+    long_hover_source = (
+        "// Long hover source.\n"
+        "dialect : Library;\n" + long_lines +
+        "public Documented : struct {}\n"
+    )
+    long_hover_uri = "file:///semantic-long-hover.ttx"
+    long_diagnostics = send_did_open(
+        conn, long_hover_uri, long_hover_source)
+    long_hover_resp = send_hover(
+        conn, long_hover_uri, long_hover_source, "Documented", 40)
+    long_markdown = (
+        (long_hover_resp.get("result") or {})
+        .get("contents", {}).get("value", "")
+        if long_hover_resp else "")
+    check(long_diagnostics is not None and len(long_markdown) > 4096 and
+          "Hover documentation line 099" in long_markdown,
+          "Arena-backed hover output preserves documentation beyond 4 KiB")
 
     print("\n--- Ignored notifications ---")
     conn.sendall(lsp_frame({
@@ -332,7 +557,7 @@ def run_test():
 
     exit_code = proc.poll()
     if exit_code is None:
-        print("\nServer still running — shutting down.")
+        print("\nServer still running. Shutting down.")
         conn.close()
         proc.terminate()
         proc.wait(timeout=3)

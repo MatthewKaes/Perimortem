@@ -126,6 +126,54 @@ static auto classify_semantic_token(Code code) -> Signed_64 {
   }
 }
 
+static auto source_dialect(View::Vector<Token> tokens, View::Bytes source)
+    -> View::Bytes {
+  for (Count i = 0; i < tokens.get_size(); i++) {
+    if (tokens[i].get_code() != Code::Type::Dialect) {
+      continue;
+    }
+
+    Bool has_define = False;
+    for (Count j = i + 1; j < tokens.get_size(); j++) {
+      Code code = tokens[j].get_code();
+      if (code == Code::Type::EndStatement) {
+        break;
+      }
+      if (code == Code::Type::Define) {
+        has_define = True;
+      } else if (has_define && code == Code::Type::Type) {
+        return tokens[j].caculate_text(source);
+      }
+    }
+  }
+
+  return "Library"_view;
+}
+
+static auto contextual_semantic_token(View::Vector<Token> tokens, Count index)
+    -> Signed_64 {
+  Code code = tokens[index].get_code();
+  if (code != Code::Type::Addressable) {
+    return classify_semantic_token(code);
+  }
+
+  Code previous =
+      index == 0 ? Code::Type::Unknown : tokens[index - 1].get_code();
+  if (previous == Code::Type::CallOp || previous == Code::Type::Func) {
+    return SemanticFunction;
+  }
+  if (previous == Code::Type::AddressOp) {
+    return SemanticProperty;
+  }
+  if (index + 2 < tokens.get_size() &&
+      tokens[index + 1].get_code() == Code::Type::Define &&
+      tokens[index + 2].get_code() == Code::Type::Func) {
+    return SemanticFunction;
+  }
+
+  return SemanticVariable;
+}
+
 auto Lsp::semantic_legend(Allocator::Arena& arena) -> Json::Node {
   return Json::Blueprint{
     {
@@ -163,16 +211,16 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
   Tokenizer tokenizer(arena, source, "lsp-buffer.ttx"_view);
   View::Vector<Token> tokens = tokenizer.get_tokens();
   Errors errors;
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
-  // Only use one semantic dialect for now.
-  View::Bytes source_dialect = "Library"_view;
+  View::Bytes dialect = source_dialect(tokens, cursor.get_source_text());
   Unsigned_32 previous_line = 0;
   Unsigned_32 previous_column = 0;
   Bool emitted = False;
   for (Count i = 0; i < tokens.get_size(); i++) {
     Token token = tokens[i];
-    if (source_dialect == "Shader"_view &&
+    if (dialect == "Shader"_view &&
         should_filter_shader_keyword(token.get_code())) {
       continue;
     }
@@ -182,7 +230,7 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
       continue;
     }
 
-    Signed_64 token_type = classify_semantic_token(token.get_code());
+    Signed_64 token_type = contextual_semantic_token(tokens, i);
     if (token_type < 0) {
       continue;
     }

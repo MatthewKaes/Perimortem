@@ -100,7 +100,7 @@ without fabricating Tokens.
 Library requires every Composite and Enumeration Type to retain one Definition.
 Source, Structure, and Object follow that Type rule, while Field, Function, and
 authored Alias retain a Definition without changing their Addressable, Callable,
-or Alias categories. Definition remains a complete concrete declaration value;
+or Alias categories. Definition remains a complete concrete declaration value.
 it contributes no second semantic identity, inheritance path, or lossy TTX
 projection.
 
@@ -109,7 +109,7 @@ Every Library Monograph creates one Source Definition with the reserved name
 Documentation and Environment's exact source envelope Anchor. It invents no
 Tokens. Its host is the Monograph. Ordinary
 members use their containing Composite. A `using` declaration retains its
-resolved object as one borrowed fallback context; it creates no Alias,
+resolved object as one borrowed fallback context. It creates no Alias,
 Definition, copied declaration, binding inventory, or provider closure.
 
 Those concrete objects collectively form the shared semantic IR. The common
@@ -189,23 +189,24 @@ remains inside the one Workspace lifetime. Source-local transaction state does
 not accumulate on that installed object.
 
 Environment creates one source transaction Arena, copies the opened path and
-bytes into it, and then reads the source envelope with a Tokenizer and Cursor in
-that Arena. Environment passes the Cursor, source-backed Documentation, source
-Anchor, and semantic context directly to the selected installed Dialect. The
-Dialect constructs one Monograph in the Cursor's Arena and returns it through
-an `Option`. Absence is the only parse-failure result; success is never
-duplicated as transaction state or a second flag on the returned object.
+bytes into it, and then constructs a Tokenizer, Associations index, and Cursor
+in that Arena. Environment passes the Cursor, source-backed Documentation,
+source Anchor, and semantic context directly to the selected installed Dialect.
+The Dialect constructs one Monograph in the Cursor's Arena and returns it
+through an `Option`. Absence is the only parsing failure result. Success is
+never duplicated as transaction state or a second flag on the returned object.
 
-Workspace retains the Arena owner when the successful Monograph completes.
-Comments, Attributes, Tokens, and semantic facts can therefore borrow the
-retained source directly; there is no second graph Arena or defensive
-source-copy phase. Failure releases the whole transaction. An embedded language
-receives the same Cursor, Arena, and semantic context with its exact installed
-identity; it does not create another generic transaction wrapper, diagnostic
-collection, or restoration context.
+Workspace retains one source record containing the Arena owner, completed outer
+Monograph, and immutable Associations index when the source succeeds. Comments,
+Attributes, Tokens, semantic facts, and association edges can therefore borrow
+the retained source directly. There is no second graph Arena or defensive
+source copy phase. The operation Cursor is not published. Failure releases the
+whole transaction. An embedded language receives the same Cursor, Arena, and
+semantic context with its exact installed identity. It does not create another
+generic transaction wrapper, diagnostic collection, or restoration context.
 
 Installed Dialect dependencies form a strict directed acyclic graph. The tool
-constructing a Workspace injects each exact dependency instance; an outer
+constructing a Workspace injects each exact dependency instance. An outer
 Dialect never constructs a second instance or discovers one by name. Missing
 dependencies are diagnosed before that source can complete, and a dependency
 cycle is an invalid toolchain configuration. Source ownership, namespace,
@@ -228,11 +229,11 @@ queried, but Workspace does not accumulate an unfinished source group for later
 validation.
 
 Package supplies a fixed Dependency and Source description table. Workspace
-owns the candidate Arena handles and source-to-Cursor associations, links every
-parse-valid member before finalizing any member, and publishes one completed
-Package root only after the whole operation succeeds. Package stores only
-borrowed Alias mappings; a member never adds another import, and a dependency
-must already be completed in the same Workspace.
+owns the candidate Arena handles, operation Cursors, and durable Associations
+indexes, links every parse-valid member before finalizing any member, and
+publishes one completed Package root only after the whole operation succeeds.
+Package stores only borrowed Alias mappings. A member never adds another
+import, and a dependency must already be completed in the same Workspace.
 
 This model gives immutable consumers a clear starting point. A compiler,
 Archive writer, or other Terminal producer begins after completion. Only code
@@ -240,12 +241,15 @@ inside an active Package transaction may observe a route that is not settled
 yet, and it must ask that question again during linking or finalization.
 
 Authored parsing, linking, and finalization report textual failures through the
-operation-local Cursor. The outer Monograph and every fixed child receive the
-matching source Cursor explicitly, so source order and locations are preserved
-without a Language Diagnostic collection or a Cursor retained by the
-Monograph.
+operation Cursor. The outer Monograph and every fixed child receive the matching
+source Cursor explicitly during completion. Later tools recover the immutable
+Associations index from Workspace using the completed outer Monograph. A
+compiler receives the exact source path and bytes with the caller owned
+textual error sink for its own source attributed reports. No completed consumer
+recovers or retains the spent operation Cursor.
+
 Source-free system and toolchain failures use Perimortem Diagnostics with the
-host's chosen severity and persistence policy; they never manufacture authored
+host's chosen severity and persistence policy. They never manufacture authored
 Tokens.
 
 The [Environment guide](environment/README.md) explains Workspace integration
@@ -348,25 +352,28 @@ value flow and no Addressable can name it.
 A compiler maps scalar abstract machine storage facts and derives target object
 layouts, ABI alignments, offsets, pointer forms, calling convention carriers,
 registers, and relocations only after the semantic graph is complete. Library
-lowering consumes completed Library child facts, including the child owned by a
-Scene or Shader, without constructing a shadow graph. Shader lowering consumes
-its exact Render child and Shader-owned bridge facts. Linker owns object
-modules, symbols, relocations, target encoding, and final native products.
+lowering is a forward operation on each real graph owner. One compiler Program
+transaction retains the target configuration graph and target facts keyed by
+the original Abstract identities. It never copies Library Types, Expressions,
+Statements, or control owners into a backend model. Shader lowering follows the
+same rule over its exact Render child and Shader owned bridge facts. Linker owns
+object modules, symbols, relocations, target encoding, and final native products.
 
 This separation lets several targets consume the same language meaning. It also
 means Tetrodotoxin cannot answer target layout questions by consulting the
 semantic Layout alone. Each backend must perform and verify that mapping.
 
-Runtime policy follows the same boundary. Library defines Object identity and
-language lifetime. Allocation strategy, collector policy, pointer
-representation, and reclamation timing belong to the runtime that realizes
-those promises.
+Runtime policy follows the same boundary. Library defines Object identity,
+aliasing, and automatic reference counted lifetime. Perimortem realizes that
+contract with handles local to one worker and Bibliotheca storage, while target
+lowering places construction, retain, release, and destruction at the real
+value lifetime boundaries. This requires no semantic Realm, root registry,
+tracing graph, collector, or hidden invocation context.
 
 CPU target and operating-system host are separate selections. A CPU target
 defines ISA, data layout, and calling convention, such as x86-64 System V or
-x86-64 Win64. LLVM and the direct Library native compiler are alternative
-producers of the same source-independent Linker object contract. Linux and
-Windows hosts then supply process entry, runtime and System ABI
+x86-64 Win64. LLVM produces the source-independent Linker object contract.
+Linux and Windows hosts then supply process entry, runtime and System ABI
 implementations, loader inputs, executable format, and window surface policy.
 Linker depends on those declared target and host facts, never on LLVM as a
 semantic authority.
@@ -476,9 +483,9 @@ Debug/source correlation remains a separate Terminal product rather than a
 third semantic payload profile.
 
 The selected profile applies recursively to every embedded layer. A Complete
-Scene contains a Complete Library child; an Interface Scene contains the
+Scene contains a Complete Library child. An Interface Scene contains the
 Library interface and locators required by consumers. A Complete Shader
-contains Complete Library and Render children; its Interface payload retains
+contains Complete Library and Render children. Its Interface payload retains
 the public CPU and GPU contracts, bridge facts, and artifact locators. The
 outer payload length-delimits each child section, while the child Dialect alone
 validates and interprets its opaque bytes.
@@ -525,11 +532,11 @@ payload and toolchain failures are written to Perimortem Diagnostics.
 
 Puffer is the user facing compiler driver and LSP application shell. Its caller
 or build integration supplies declared inputs and outputs. Puffer constructs
-the Workspace, presents textual reports written through each source Cursor,
-stops before Terminal production when a source or Package transaction fails,
-requests each typed product from its defining component, and writes the declared
-outputs. It coordinates the transaction without becoming another semantic
-model or product owner.
+the Workspace, presents textual reports written to the caller owned source
+error sink, stops before Terminal production when a source or Package
+transaction fails, requests each typed product from its defining component, and
+writes the declared outputs. It coordinates the transaction without becoming
+another semantic model or product owner.
 
 ## Observable boundaries
 
