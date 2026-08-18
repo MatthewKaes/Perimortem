@@ -8,6 +8,16 @@ module(
 bazel_dep(name = "rules_cc", version = "0.2.17")
 bazel_dep(name = "platforms", version = "1.0.0")
 
+# LLVM is a backend implementation SDK rather than the repository's C++
+# toolchain.  Keeping it as an ordinary repository dependency prevents its
+# headers and flags from becoming ambient inputs to unrelated compile actions.
+llvm_sdk_repository = use_repo_rule(
+    "//toolchain/llvm:repository.bzl",
+    "llvm_sdk_repository",
+)
+
+llvm_sdk_repository(name = "llvm_22_1_8")
+
 register_toolchains(
     "//toolchain:cc_toolchain_for_linux_x86_64",
 )

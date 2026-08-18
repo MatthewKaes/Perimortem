@@ -1,0 +1,40 @@
+"Build definitions applied to the pinned Arch LLVM packages."
+
+load("@rules_cc//cc:cc_import.bzl", "cc_import")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["@perimortem//toolchain/llvm:__pkg__"])
+
+cc_import(
+    name = "runtime",
+    shared_library = "runtime/usr/lib/libLLVM.so.22.1",
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+cc_library(
+    name = "sdk",
+    hdrs = glob([
+        "headers/usr/include/llvm/**",
+        "headers/usr/include/llvm-c/**",
+    ]),
+    includes = ["headers/usr/include"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    deps = [":runtime"],
+)
+
+filegroup(
+    name = "license",
+    srcs = glob(
+        [
+            "headers/usr/share/licenses/llvm/**",
+            "runtime/usr/share/licenses/llvm-libs/**",
+        ],
+        allow_empty = True,
+    ),
+)

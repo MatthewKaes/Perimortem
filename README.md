@@ -35,9 +35,9 @@ Memory   -> Core
 
 `Core` provides the small data, view, algorithm, diagnostics, and threading
 building blocks used throughout the runtime. [Memory](perimortem/memory/README.md)
-provides allocation, managed Objects, Garbage Realms, and safe worker transfer.
-`Compression` and `Serialization` build file-format algorithms on those
-foundations.
+provides allocation local to one worker, reference counted managed Object
+storage, and automatic construction and destruction. `Compression` and
+`Serialization` build file format algorithms on those foundations.
 
 [System](perimortem/system/README.md) owns operating-system concerns such as
 files, arguments, random and identity services, input, windows, platform events,
