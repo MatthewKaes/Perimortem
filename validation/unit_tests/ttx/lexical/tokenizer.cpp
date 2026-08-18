@@ -13,6 +13,7 @@
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/lexicon.hpp"
 #include "ttx/lexical/span.hpp"
+#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -344,6 +345,30 @@ PERIMORTEM_UNIT_TEST(TtxLexical, cursor_completed_span) {
   EXPECT(at_terminal.get_end().get_code() == Code::Type::Addressable);
   EXPECT(!cursor.peek(-3));
   EXPECT(!cursor.peek(1));
+}
+
+PERIMORTEM_UNIT_TEST(TtxLexical, cursor_selects_precise_semantic_association) {
+  Allocator::Arena arena;
+  Errors errors;
+  Tokenizer tokenizer(arena, "outer inner end"_view, "association.ttx"_view);
+  Cursor cursor(tokenizer, errors);
+  const Token* tokens = tokenizer.get_tokens().get_data();
+  Ttx::Model::Alias outer("Outer"_view, Ttx::Concept::Invalid::get_invalid());
+  Ttx::Model::Alias inner("Inner"_view, Ttx::Concept::Invalid::get_invalid());
+
+  cursor.associate(
+      Anchor::create(tokens[0], Span(tokens[0], tokens[2])), outer);
+  cursor.associate(Anchor::create(Span(tokens[1])), inner);
+
+  auto focused = cursor.find_at(tokens[1].get_offset());
+  auto containing = cursor.find_at(tokens[2].get_offset());
+  auto missing = cursor.find_at(tokenizer.get_source_text().get_size());
+
+  ASSERT(focused);
+  ASSERT(containing);
+  EXPECT(&*focused == &inner);
+  EXPECT(&*containing == &outer);
+  EXPECT_NOT(missing);
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, require_success) {

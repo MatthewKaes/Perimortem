@@ -145,6 +145,26 @@ PERIMORTEM_UNIT_TEST(SerializationJson, escaped_string_boundaries) {
   EXPECT_TEXT(source.format(arena), "\"line\\n\\\"title\\\"\\\\end\""_view);
 }
 
+PERIMORTEM_UNIT_TEST(SerializationJson, decode_string_escapes) {
+  Allocator::Arena arena;
+  Json::Node value;
+  value.parse(
+      arena,
+      "\"quote: \\\" slash: \\\\ solidus: \\/ controls: "
+      "\\b\\f\\n\\r\\t unicode: \\u0041\\u03A9\\uD83D\\uDE00\""_view);
+
+  EXPECT_TEXT(
+      value.decode_string(arena),
+      "quote: \" slash: \\ solidus: / controls: \b\f\n\r\t unicode: "
+      "AΩ😀"_view);
+
+  Json::Node malformed("kept \\uD800 and \\q"_view);
+  EXPECT_TEXT(malformed.decode_string(arena), "kept \\uD800 and \\q"_view);
+
+  Json::Node not_a_string(Signed_64(42));
+  EXPECT_TEXT(not_a_string.decode_string(arena), View::Bytes());
+}
+
 PERIMORTEM_UNIT_TEST(SerializationJson, parse_arrays) {
   Allocator::Arena arena;
   Json::Node value;

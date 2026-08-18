@@ -1,6 +1,0 @@
-//
-dialect : Library;
-
-foreign "C" {
-  public const imported_constant : Unsigned_64;
-}

@@ -1,6 +1,0 @@
-//
-dialect : Library;
-
-foreign "C" {
-  private state hidden : Unsigned_64;
-}
