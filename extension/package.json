@@ -9,7 +9,7 @@
   "author": "Matt Kaes",
   "license": "MIT",
   "icon": "media/icon.png",
-  "version": "0.1.15",
+  "version": "0.1.20",
   "keywords": [
     "TTX",
     "Tetrodotoxin",
@@ -29,9 +29,20 @@
   },
   "homepage": "https://github.com/MatthewKaes/Perimortem/blob/main/README.md",
   "activationEvents": [
-    "onLanguage:tetrodotoxin"
+    "onLanguage:tetrodotoxin",
+    "onDebugResolve:lldb",
+    "workspaceContains:**/*.ttx"
   ],
   "main": "./out/extension",
+  "files": [
+    "LICENSE",
+    "README.md",
+    "lldb/**",
+    "media/**",
+    "out/extension.js",
+    "puffer",
+    "syntaxes/**"
+  ],
   "contributes": {
     "languages": [
       {
@@ -46,6 +57,11 @@
           "light": "./media/icon.svg",
           "dark": "./media/icon.svg"
         }
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "tetrodotoxin"
       }
     ],
     "grammars": [
