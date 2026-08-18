@@ -12,6 +12,7 @@
 #include "tetrodotoxin/package/content.hpp"
 #include "tetrodotoxin/package/storage.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
@@ -47,7 +48,7 @@ static auto append_storage_failure(
 Environment::Workspace::Workspace()
     : arena(),
       dialects(arena),
-      transactions(),
+      published_sources(),
       source_monographs(arena),
       packages(arena) {}
 
@@ -66,7 +67,10 @@ auto Environment::Workspace::interpret_source(
   View::Bytes retained_path = transaction->proxy(diagnostic_path);
   Tokenizer& tokenizer = transaction->construct<Tokenizer>(
       *transaction, retained_contents, retained_path);
-  Cursor& cursor = transaction->construct<Cursor>(tokenizer, errors);
+  Associations& associations =
+      transaction->construct<Associations>(*transaction);
+  Cursor& cursor =
+      transaction->construct<Cursor>(tokenizer, errors, associations);
 
   if (source_monographs.contains(semantic_name)) {
     cursor.create_error(
@@ -87,8 +91,9 @@ auto Environment::Workspace::interpret_source(
   }
 
   if (monograph->is<Package::Language::Monograph>()) {
-    // Package completion needs its fixed member barrier. Letting the direct path
-    // retain a manifest would publish aliases before their member owners exist.
+    // Package completion needs its fixed member barrier. Letting the direct
+    // path retain a manifest would publish aliases before their member owners
+    // exist.
     cursor.create_error(
         "A Package manifest must be completed through Workspace Package "
         "import."_view);
@@ -115,7 +120,11 @@ auto Environment::Workspace::interpret_source(
 
   // Publication follows complete source semantics. Until this point the
   // Workspace has no lookup edge or retained Arena for the candidate graph.
-  transactions.insert(transaction);
+  published_sources.insert({
+    .transaction = transaction,
+    .monograph = *monograph,
+    .associations = associations,
+  });
   View::Bytes retained_name = arena.proxy(semantic_name);
   source_monographs.launder(retained_name, *monograph);
   return *monograph;
@@ -167,8 +176,10 @@ auto Environment::Workspace::import_package(
       root_transaction->proxy(manifest->get_diagnostic_path());
   Tokenizer& root_tokenizer = root_transaction->construct<Tokenizer>(
       *root_transaction, root_contents, root_path);
-  Cursor& root_cursor =
-      root_transaction->construct<Cursor>(root_tokenizer, errors);
+  Associations& root_associations =
+      root_transaction->construct<Associations>(*root_transaction);
+  Cursor& root_cursor = root_transaction->construct<Cursor>(
+      root_tokenizer, errors, root_associations);
   if (source_monographs.contains(root_semantic_name)) {
     root_cursor.create_error(
         "This Package semantic name is already published in the Workspace."_view,
@@ -310,7 +321,10 @@ auto Environment::Workspace::import_package(
         source_transaction->proxy(content->get_diagnostic_path());
     Tokenizer& tokenizer = source_transaction->construct<Tokenizer>(
         *source_transaction, source_contents, source_path);
-    Cursor& cursor = source_transaction->construct<Cursor>(tokenizer, errors);
+    Associations& associations =
+        source_transaction->construct<Associations>(*source_transaction);
+    Cursor& cursor =
+        source_transaction->construct<Cursor>(tokenizer, errors, associations);
     Count source_error_count = errors.get_size();
     auto member = Language::Dialect::interpret_source(
         dialects.get_dialects(), cursor, root);
@@ -393,7 +407,11 @@ auto Environment::Workspace::import_package(
   // Retaining all Arenas is the transaction commit. Package aliases become
   // durable only with their owners, and every failure above publishes nothing.
   for (Count i = 0; i < candidate_transactions.get_size(); i++) {
-    transactions.insert(candidate_transactions[i]);
+    published_sources.insert({
+      .transaction = candidate_transactions[i],
+      .monograph = *candidates[i],
+      .associations = cursors[i]->get_associations(),
+    });
   }
 
   View::Bytes retained_identity = arena.proxy(root_package_identity);
@@ -405,6 +423,18 @@ auto Environment::Workspace::import_package(
   View::Bytes retained_name = arena.proxy(root_semantic_name);
   source_monographs.launder(retained_name, root);
   return root;
+}
+
+auto Environment::Workspace::get_associations(
+    const Language::Monograph& monograph) const -> Option<const Associations&> {
+  for (Count i = 0; i < published_sources.get_size(); i++) {
+    const PublishedSource& source = published_sources[i];
+    if (&source.monograph == &monograph) {
+      return source.associations;
+    }
+  }
+
+  return {};
 }
 
 auto Environment::Workspace::get_name() const -> View::Bytes {

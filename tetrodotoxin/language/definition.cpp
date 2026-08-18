@@ -5,6 +5,9 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/language/parser/comment.hpp"
+#include "ttx/model/documentations/merged.hpp"
+
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
@@ -19,9 +22,29 @@ auto Language::Definition::parse(
   // Dispatch has already committed to this declaration grammar. The semantic
   // owner is constructed only after its complete common prefix is accepted.
   Token opening = cursor.current();
-  Bool has_attributes = cursor.matches(Code::Type::Attribute);
-  auto attributes = Language::Attribute::parse(cursor);
-  BAIL_IF(has_attributes && attributes.is_empty());
+  Managed::Vector<Language::Attribute> attributes(cursor.get_arena());
+  const Documentation* retained_documentation = &documentation;
+  while (cursor.matches(Code::Type::Attribute) ||
+         cursor.matches(Code::Type::Comment)) {
+    if (cursor.matches(Code::Type::Attribute)) {
+      Count error_count = cursor.get_error_count();
+      auto parsed = Language::Attribute::parse(cursor);
+      BAIL_IF(parsed.is_empty() && cursor.get_error_count() != error_count);
+      for (const Language::Attribute& attribute : parsed) {
+        attributes.insert(attribute);
+      }
+      continue;
+    }
+
+    const Documentation& continued = Language::Parser::Comment::parse(cursor);
+    if (retained_documentation->is_empty()) {
+      retained_documentation = &continued;
+    } else {
+      retained_documentation =
+          &cursor.get_arena().construct<Ttx::Model::Documentations::Merged>(
+              *retained_documentation, continued);
+    }
+  }
 
   Token visibility_token = cursor.current();
   Visibility visibility = Visibility::Private;
@@ -82,8 +105,9 @@ auto Language::Definition::parse(
   Definition& definition =
       cursor.get_arena().construct_from<Definition>([&]() -> Definition {
         return Definition(
-            documentation, attributes, modifiers.get_view(), visibility,
-            visibility_token, name, name_token, qualifier, host,
+            *retained_documentation, attributes.get_view(),
+            modifiers.get_view(), visibility, visibility_token, name,
+            name_token, qualifier, host,
             Anchor::create(name_token, Span(opening, qualifier)), False);
       });
   return definition;

@@ -10,9 +10,7 @@
 #include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/managed/vector.hpp"
-
-#include "ttx/concept/reference.hpp"
+#include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -24,10 +22,11 @@ namespace Ttx::Lexical {
 // every failure is published to the operation error log.
 class Cursor {
  public:
-  Cursor(const Lexical::Tokenizer& tokenizer, Lexical::Errors& errors)
-      : tokenizer(tokenizer),
-        errors(errors),
-        associations(tokenizer.get_arena()) {}
+  constexpr Cursor(
+      const Lexical::Tokenizer& tokenizer,
+      Lexical::Errors& errors,
+      Lexical::Associations& associations)
+      : tokenizer(tokenizer), errors(errors), associations(associations) {}
   Cursor(const Cursor&) = delete;
 
   // A grammar owner may add one required syntax diagnostic only when a nested
@@ -226,78 +225,17 @@ class Cursor {
     return tokenizer.get_source_path();
   }
 
-  // A semantic consumer may associate an authored Anchor with the exact graph
-  // identity it constructed there. The Cursor and graph share one source
-  // transaction, so these borrowed edges cannot outlive their owner. This is
-  // an identity-free source index for tools, not another semantic graph.
-  auto associate(Lexical::Anchor anchor, const Ttx::Concept::Abstract& semantic)
-      -> void {
-    if (!anchor.get_span()) {
-      return;
-    }
-
-    associations.insert({
-      .anchor = anchor,
-      .semantic =
-          Ttx::Concept::Reference<const Ttx::Concept::Abstract>(semantic),
-    });
-  }
-
-  // Selects the most precise authored semantic identity at one source byte.
-  // A focused Token wins over a containing expression Span. Ties prefer the
-  // narrower source range and retain construction order when equally precise.
-  auto find_at(Count offset) const
-      -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> {
-    Perimortem::Core::Option<const Association&> selected;
-    Bool selected_focus = False;
-    Count selected_extent = Count(-1);
-
-    auto source_associations = associations.get_view();
-    for (Count i = 0; i < source_associations.get_size(); i++) {
-      const Association& association = source_associations.get_data()[i];
-      Lexical::Token focus = association.anchor.get_token();
-      Lexical::Span span = association.anchor.get_span();
-      Bool contains_focus = contains(focus, offset);
-      Bool contains_span = contains(span, offset);
-      if (!contains_focus && !contains_span) {
-        continue;
-      }
-
-      Count extent = contains_focus ? focus.get_size() : span.get_size();
-      if (!selected || (contains_focus && !selected_focus) ||
-          (contains_focus == selected_focus && extent < selected_extent)) {
-        selected = association;
-        selected_focus = contains_focus;
-        selected_extent = extent;
-      }
-    }
-
-    if (!selected) {
-      return {};
-    }
-    return selected->semantic.get();
+  // Returns the source artifact populated by semantic owners while this Cursor
+  // drives the transaction. Workspace publishes the artifact, not the Cursor.
+  constexpr auto get_associations() -> Lexical::Associations& {
+    return associations;
   }
 
  private:
-  struct Association {
-    Lexical::Anchor anchor;
-    Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic;
-  };
-
-  static constexpr auto contains(Lexical::Token token, Count offset) -> Bool {
-    return token && offset >= token.get_offset() &&
-           offset < Count(token.get_offset()) + Count(token.get_size());
-  }
-
-  static constexpr auto contains(Lexical::Span span, Count offset) -> Bool {
-    return span && offset >= span.get_offset() &&
-           offset < Count(span.get_offset()) + span.get_size();
-  }
-
   const Lexical::Tokenizer& tokenizer;
   Lexical::Errors& errors;
+  Lexical::Associations& associations;
   Count index = 0;
-  Perimortem::Memory::Managed::Vector<Association> associations;
 };
 
 }  // namespace Ttx::Lexical

@@ -48,11 +48,12 @@ dispatch proves the selected production before its parser consumes that Cursor.
 a rejected production retains its diagnostics and the source transaction owns
 discarding any candidate semantic state.
 
-A consumer may associate an authored Anchor with the exact semantic identity
-it constructs there. The Cursor may retain those borrowed associations as an
-identity-free source index for synchronous tools. Every association has the
-same source-transaction lifetime as the graph, creates no semantic edge, and
-cannot be serialized or used after that graph owner releases the transaction.
+A source transaction constructs one `Associations` index and supplies it to the
+Cursor. A consumer records an authored Anchor with the exact semantic identity
+it constructs there. The index retains those borrowed associations after the
+mutable Cursor completes, while sharing the source transaction lifetime of the
+graph. It creates no semantic edge and cannot be serialized or used after that
+graph owner releases the transaction.
 When several Anchors contain one source byte, an exact focus Token is more
 precise than a containing Span and the narrower range is more precise within
 the same class.

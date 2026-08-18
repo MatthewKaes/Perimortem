@@ -75,7 +75,7 @@
         "--experimental_total_worker_memory_limit_mb=4096"
       ],
       "group": "build",
-      "detail": "Builds the validation binary with full DWARF for its TTX runtime oracle.",
+      "detail": "Builds the validation binary with full DWARF for its TTX runtime integration.",
       "presentation": {
         "clear": true
       }

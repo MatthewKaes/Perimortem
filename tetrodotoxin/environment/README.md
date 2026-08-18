@@ -67,11 +67,11 @@ Direct import supplies three independent facts:
 
 Environment reads the common envelope, selects the installed Dialect, and
 copies the path and source bytes into one source transaction Arena. It
-constructs the Tokenizer and operation-local Cursor there. The selected Dialect
-receives that Cursor and returns an `Option` containing the one parse-valid
-Monograph it constructed in the Cursor's Arena. Absence is the only
-parse-failure result. The path describes origin; it does not create semantic
-identity.
+constructs the Tokenizer, Associations index, and operation-local Cursor there.
+The selected Dialect receives that Cursor and returns an `Option` containing
+the one parse-valid Monograph it constructed in the Cursor's Arena. Absence is
+the only parse-failure result. The path describes origin. It does not create
+semantic identity.
 
 The envelope begins with required source Documentation. An explicit empty
 comment is valid, but a missing comment is not. Environment passes that exact
@@ -80,13 +80,15 @@ directly to the selected Dialect. Source-backed Comments and Attributes remain
 valid because the Monograph and source bytes occupy the same Arena.
 
 Workspace immediately links and finalizes the returned Monograph with the same
-Cursor. It retains the transaction Arena and publishes the authored semantic
-name only when both stages succeed. Parse, link, or finalization failure drops
-that Arena wholesale and leaves no invalid source in Workspace state. Passing
-one direct source is therefore one complete transaction, not an addition to a
-source group that Workspace validates later. A Package manifest is not a direct
-source; it must enter through Package import so its fixed Source table can
-complete atomically.
+Cursor. It retains one source record containing the transaction Arena, exact
+outer Monograph, and immutable Associations index, then publishes the authored
+semantic name only when both stages succeed. The spent Cursor is not exposed as
+completed source state. Parse, link, or finalization
+failure drops that Arena wholesale and leaves no invalid source in Workspace
+state. Passing one direct source is therefore one complete transaction, not an
+addition to a source group that Workspace validates later. A Package manifest
+is not a direct source. It must enter through Package import so its fixed Source
+table can complete atomically.
 
 ## Package import
 
@@ -104,6 +106,21 @@ installed Dialect to interpret it, and gives each member the same Package
 context. A member cannot create another Package import. Names local to a Package
 remain inside that Package rather than entering the Workspace root
 automatically.
+
+Workspace may retain immutable filesystem snapshots independently from any one
+source graph transaction. Package still owns logical routing, confinement, and
+the decision to request one normalized resource path. Workspace keys the
+resulting snapshot by the exact Package root and normalized route, retains the
+bytes outside the replaceable graph Arenas, and records a fingerprint obtained
+from the same opened filesystem object that supplied those bytes. A later full
+graph replacement probes that fingerprint and reuses the immutable bytes only
+when the opened object is unchanged. A changed object causes one complete reread
+before the new graph can publish.
+
+This cache is nonsemantic Workspace state. It never resolves a resource name,
+keeps a rejected graph alive, or lets Library open a file. Replacing a document
+still constructs a complete new graph transaction. Persistence avoids repeated
+I/O rather than introducing an incremental semantic graph.
 
 ## Linking and publication
 
@@ -151,8 +168,11 @@ does not require every Monograph to expose a Type or one common member model.
 Each authored source is paired with its text for the complete parse, link, and
 finalize operation. The source and every fixed child layer write textual errors
 through the matching operation-local Cursor to the caller's textual error sink,
-preserving order and exact authored locations. A Cursor is never retained by
-Workspace or a Monograph.
+preserving order and exact authored locations. Successful publication retains
+the Associations index beside the exact outer Monograph and does not expose the
+spent Cursor. A later compiler receives the exact source path, source bytes, and
+error sink needed for its own source attributed reports. A Monograph never
+retains or serializes a Cursor.
 
 Package paths, Archive bytes, Repository requests, and other source-free system
 or toolchain operations report through Perimortem Diagnostics. When an authored
