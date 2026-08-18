@@ -46,6 +46,12 @@ class Function : public Model::Callable {
 
   auto finalize_declaration(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
+  auto reserve_declaration(Llvm::Program& program) const -> Bool override;
+
+  auto complete_declaration(Llvm::Program& program) const -> Bool override;
+
+  auto lower_declaration(Llvm::Program& program) const -> Bool override;
+
   TTX_DOCUMENTATION(get_definition().get_documentation());
   TTX_NAME(definition.get_name());
 
@@ -56,6 +62,11 @@ class Function : public Model::Callable {
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor {
     return definition.get_anchor();
+  }
+
+  constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
+    return get_anchor();
   }
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;

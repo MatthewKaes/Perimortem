@@ -58,7 +58,8 @@ PERIMORTEM_UNIT_TEST(LibraryRange, exact_materialization) {
   auto& source = create_library_monograph(domain, producer);
   Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(domain, {}, "range-link.ttx"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
   Types::Unsigned_8 unsigned_8;
   Types::Signed_8 signed_8;
   RangeExpression unsigned_start("unsigned start"_view, unsigned_8);
@@ -97,7 +98,8 @@ PERIMORTEM_UNIT_TEST(LibraryRange, integer_legality) {
   auto& source = create_library_monograph(domain, producer);
   Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(domain, {}, "range-link.ttx"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
   Types::Unsigned_8 unsigned_8;
   Types::Unsigned_16 unsigned_16;
   Types::Real_32 real_32;

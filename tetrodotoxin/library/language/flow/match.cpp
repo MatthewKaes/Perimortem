@@ -8,6 +8,7 @@
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -307,6 +308,7 @@ auto Language::Flow::Match::link(
           "Use a runtime value for each constant case."_view);
       case_failed = True;
     }
+
     if (!case_failed) {
       const Abstract& case_type = expression.get_type().resolve();
       if (!case_type.is<Language::Model::Type>() ||
@@ -416,6 +418,75 @@ auto Language::Flow::Match::finalize(Cursor& cursor) -> void {
       [&](Reference<Block>& selected) { selected.get().finalize(cursor); });
 }
 
+auto Language::Flow::Match::lower(Llvm::Builder& target) const -> Bool {
+  Bool input_lowered = input.get().lower(target);
+  if (!input_lowered) {
+    return False;
+  }
+
+  auto state = target.begin_match(input.get());
+  if (!state) {
+    return False;
+  }
+
+  for (const Case& entry : cases.get_view()) {
+    Option<Llvm::Builder::MatchCase> selected;
+    if (entry.kind == CaseKind::Constant) {
+      if (!entry.constant) {
+        return False;
+      }
+
+      Bool constant_lowered = entry.constant->get().lower(target);
+      if (!constant_lowered) {
+        return False;
+      }
+
+      selected = target.begin_constant_case(*state, entry.constant->get());
+      if (!selected) {
+        return False;
+      }
+    } else if (entry.kind == CaseKind::Value) {
+      if (!entry.payload) {
+        return False;
+      }
+
+      selected =
+          target.begin_value_case(*state, entry.payload->get(), entry.anchor);
+      if (!selected) {
+        return False;
+      }
+    } else {
+      return False;
+    }
+
+    Bool body_lowered = entry.body.get().lower(target);
+    if (!body_lowered) {
+      return False;
+    }
+
+    Bool case_ended = target.end_match_case(*state, *selected);
+    if (!case_ended) {
+      return False;
+    }
+  }
+
+  if (default_body) {
+    auto selected = target.begin_default_case();
+
+    Bool default_lowered = default_body->get().lower(target);
+    if (!default_lowered) {
+      return False;
+    }
+
+    Bool default_ended = target.end_match_case(*state, selected);
+    if (!default_ended) {
+      return False;
+    }
+  }
+
+  return target.end_match(*state, !complete_coverage);
+}
+
 auto Language::Flow::Match::reaches_next_statement() const -> Bool {
   if (!complete_coverage) {
     return True;
@@ -477,4 +548,13 @@ auto Language::Flow::Match::get_case_body(Count index) const
   }
 
   return cases.get_view().get_data()[index].body.get();
+}
+
+auto Language::Flow::Match::get_case_anchor(Count index) const
+    -> Option<Ttx::Lexical::Anchor> {
+  if (index >= cases.get_size()) {
+    return {};
+  }
+
+  return cases.get_view().get_data()[index].anchor;
 }

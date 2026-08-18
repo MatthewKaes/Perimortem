@@ -32,7 +32,7 @@ auto Lsp::Rpc::Message::expects_response() const -> Bool {
 }
 
 auto Lsp::Rpc::Message::get_method() const -> Perimortem::Core::View::Bytes {
-  return parsed["method"_view].get_string();
+  return parsed["method"_view].decode_string(arena);
 }
 
 auto Lsp::Rpc::Message::get_params() const

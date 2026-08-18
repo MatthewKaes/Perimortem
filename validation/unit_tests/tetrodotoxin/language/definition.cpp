@@ -61,7 +61,8 @@ PERIMORTEM_UNIT_TEST(DefinitionTests, complete_prefix) {
   View::Bytes retained_path = arena.proxy("<definition>"_view);
   Tokenizer& tokenizer =
       arena.construct<Tokenizer>(arena, retained_source, retained_path);
-  Cursor& cursor = arena.construct<Cursor>(tokenizer, errors);
+  Associations& associations = arena.construct<Associations>(arena);
+  Cursor& cursor = arena.construct<Cursor>(tokenizer, errors, associations);
 
   const Documentation& documentation = Parser::Comment::parse(cursor);
   auto definition = Definition::parse(cursor, documentation, host);
@@ -105,7 +106,8 @@ PERIMORTEM_UNIT_TEST(DefinitionTests, type_qualifier) {
   View::Bytes retained_path = arena.proxy("<typed definition>"_view);
   Tokenizer& tokenizer =
       arena.construct<Tokenizer>(arena, retained_source, retained_path);
-  Cursor& cursor = arena.construct<Cursor>(tokenizer, errors);
+  Associations& associations = arena.construct<Associations>(arena);
+  Cursor& cursor = arena.construct<Cursor>(tokenizer, errors, associations);
 
   const Documentation& documentation = Parser::Comment::parse(cursor);
   auto definition = Definition::parse(cursor, documentation, host);
@@ -128,7 +130,8 @@ PERIMORTEM_UNIT_TEST(DefinitionTests, malformed_prefix_fails) {
   View::Bytes retained_path = arena.proxy("<malformed definition>"_view);
   Tokenizer& tokenizer =
       arena.construct<Tokenizer>(arena, retained_source, retained_path);
-  Cursor& cursor = arena.construct<Cursor>(tokenizer, errors);
+  Associations& associations = arena.construct<Associations>(arena);
+  Cursor& cursor = arena.construct<Cursor>(tokenizer, errors, associations);
 
   const Documentation& documentation = Parser::Comment::parse(cursor);
   auto definition = Definition::parse(cursor, documentation, host);

@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/library/language/constants/option.hpp"
 
+#include "tetrodotoxin/library/llvm/builder.hpp"
+
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library::Language;
@@ -115,4 +117,23 @@ auto Constants::Option::equals(const Constant& rhs) const -> Bool {
                  payloads_equal(*left_payload, *right_payload)
              ? True
              : False;
+}
+
+auto Constants::Option::lower(Llvm::Builder& body) const -> Bool {
+  if (kind == Types::Option::Kind::Absent) {
+    return body.absent(get_type(), *this);
+  }
+
+  auto selected = get_payload();
+  if (!selected) {
+    return False;
+  }
+
+  Bool lowered = selected->lower(body);
+  if (!lowered) {
+    return False;
+  }
+
+  return body.present(
+      get_type(), get_type().get_element_type(), *this, *selected);
 }

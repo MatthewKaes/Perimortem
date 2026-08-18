@@ -157,11 +157,11 @@ class Log {
   // Default sink to use.
   static constexpr Sink default_sink = file_sink;
 
-  // Logging calls are thread-safe
+  // Logging calls are thread safe
   // Each thread writes to its own buffer and file.
   // The Source default argument is consteval, so it captures the caller's
   // location at compile time with zero runtime cost.
-  // Source is passed by reference to preserve a simple cross-language ABI.
+  // Source is passed by reference to preserve a simple cross language ABI.
   static auto log(
       Level level,
       Core::View::Bytes message,
@@ -180,8 +180,9 @@ class Log {
       Core::View::Bytes message,
       const Source& location = Source::current()) -> void;
 
-  // Fatal logs flush, print a stack trace to stderr, then abort the process.
-  // Mark it as [[noreturn]] to help the compiler handle fatal call paths.
+  // Fatal logs the message and platform backtrace through the selected sink,
+  // flushes it, then aborts. Marking it [[noreturn]] preserves fatal call
+  // paths.
   [[noreturn]] static auto fatal(
       Core::View::Bytes message,
       const Source& location = Source::current()) -> void;

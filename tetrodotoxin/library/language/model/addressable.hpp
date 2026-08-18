@@ -40,6 +40,19 @@ class Addressable : public Ttx::Model::Addressable {
     return True;
   }
 
+  virtual auto reserve_declaration(Llvm::Program& program) const -> Bool;
+
+  virtual auto complete_declaration(Llvm::Program& program) const -> Bool;
+
+  virtual auto lower_declaration(Llvm::Program&) const -> Bool {
+    return True;
+  }
+
+  virtual constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
+    return {};
+  }
+
   // Instance Layout assembly retains this exact Addressable identity, but the
   // declaration alone knows whether its evaluation policy creates storage.
   // Neutral Addressables remain contextual or flow identities.

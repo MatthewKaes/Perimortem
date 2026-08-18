@@ -11,6 +11,8 @@
 
 namespace Puffer::Lsp {
 
+// Semantic tokens classify the retained lexical stream for editor presentation.
+// They do not change parsing or attach highlighting facts to the source graph.
 auto semantic_legend(Perimortem::Memory::Allocator::Arena& arena)
     -> Perimortem::Serialization::Json::Node;
 auto semantic_tokens_for(

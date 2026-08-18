@@ -46,9 +46,13 @@ class Swizzle : public Expression {
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
+  auto get_produced(Count index) const
+      -> Perimortem::Core::Option<Ttx::Model::Pack::Produced> override;
   auto get_layout() const -> const Ttx::Concept::Layout& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
+
+  auto lower(Llvm::Builder& body) const -> Bool override;
 
   constexpr auto get_receiver() const -> const Language::Model::Pack& {
     return receiver;

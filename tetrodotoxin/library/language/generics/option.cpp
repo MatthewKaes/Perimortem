@@ -26,9 +26,17 @@ auto Generics::Option::create(
     return {};
   }
 
+  auto flag = get_context()
+                  .resolve_context("Bool"_view)
+                  .resolve()
+                  .select<Model::Types::Flag>();
+  if (!flag) {
+    return {};
+  }
+
   Perimortem::Memory::Managed::Bytes name(arena, get_name());
   name.concat("["_view);
   name.concat(element->get_name());
   name.concat("]"_view);
-  return arena.construct<Types::Option>(name.get_view(), *element);
+  return arena.construct<Types::Option>(name.get_view(), *element, *flag);
 }

@@ -13,6 +13,8 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // for another Signed width.
 class Signed : public Constant {
  public:
+  auto lower(Llvm::Builder& body) const -> Bool override;
+
   TTX_CONTRACT(Signed, Constant);
   using Value = Signed_64;
 

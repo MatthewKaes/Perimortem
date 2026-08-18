@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
+#include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/documentations/comment.hpp"
 
@@ -30,8 +31,9 @@ class Option : public Model::Type {
 
   constexpr Option(
       Perimortem::Core::View::Bytes name,
-      const Model::Type& element)
-      : name(name), element(element) {}
+      const Model::Type& element,
+      const Model::Types::Flag& flag)
+      : name(name), element(element), flag(flag) {}
 
   TTX_NAME(name);
 
@@ -47,15 +49,24 @@ class Option : public Model::Type {
       Model::Pack& source) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
+  auto reserve(Llvm::Program& program) const -> Bool override;
+
+  auto complete(Llvm::Program& program) const -> Bool override;
+
   TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_element_type() const -> const Model::Type& {
     return element;
   }
 
+  constexpr auto get_flag_type() const -> const Model::Types::Flag& {
+    return flag;
+  }
+
  private:
   Perimortem::Core::View::Bytes name;
   const Model::Type& element;
+  const Model::Types::Flag& flag;
   static constexpr Ttx::Model::Documentations::Comment documentation{
     "Carries either no value or one exact payload value."_view,
   };

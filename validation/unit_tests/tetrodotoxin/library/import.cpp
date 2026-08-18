@@ -46,7 +46,8 @@ static auto interpret_library(
     View::Bytes source,
     Errors& errors) -> Option<Library::Language::Monograph&> {
   Tokenizer tokenizer(arena, source, "library-import.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   auto monograph = dialect.interpret(
       cursor, Documentation::get_empty(), Anchor::create(Span()), context);
   BAIL_IF(
@@ -61,7 +62,8 @@ static auto complete_library(
     View::Bytes source,
     Errors& errors) -> Bool {
   Tokenizer tokenizer(arena, source, "library-import.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   return monograph.link(cursor) && monograph.finalize(cursor);
 }
 
@@ -117,7 +119,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_statement_grammar) {
     Allocator::Arena arena;
     Errors errors;
     Tokenizer tokenizer(arena, source, "import.ttx"_view);
-    Cursor cursor(tokenizer, errors);
+    Ttx::Lexical::Associations associations(tokenizer.get_arena());
+    Cursor cursor(tokenizer, errors, associations);
     auto import =
         Library::Language::Import::parse(cursor, Documentation::get_empty());
     EXPECT(import && cursor.matches(Code::Type::Terminal));
@@ -139,7 +142,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_statement_grammar) {
     Allocator::Arena arena;
     Errors errors;
     Tokenizer tokenizer(arena, source, "import.ttx"_view);
-    Cursor cursor(tokenizer, errors);
+    Ttx::Lexical::Associations associations(tokenizer.get_arena());
+    Cursor cursor(tokenizer, errors, associations);
     EXPECT_NOT(
         Library::Language::Import::parse(cursor, Documentation::get_empty()));
     EXPECT_NOT(errors.is_empty());

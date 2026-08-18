@@ -55,6 +55,10 @@ class Foreign final : public Ttx::Concept::Abstract {
 
     auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
 
+    auto reserve_declaration(Llvm::Program& program) const -> Bool override;
+
+    auto complete_declaration(Llvm::Program& program) const -> Bool override;
+
     TTX_DOCUMENTATION(get_definition().get_documentation());
     TTX_NAME(definition.get_name());
 
@@ -65,6 +69,11 @@ class Foreign final : public Ttx::Concept::Abstract {
 
     constexpr auto get_anchor() const -> Ttx::Lexical::Anchor {
       return definition.get_anchor();
+    }
+
+    constexpr auto get_declaration_anchor() const
+        -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
+      return get_anchor();
     }
 
     auto resolve() const -> const Ttx::Concept::Abstract& override;
@@ -120,6 +129,10 @@ class Foreign final : public Ttx::Concept::Abstract {
 
     auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
 
+    auto reserve_declaration(Llvm::Program& program) const -> Bool override;
+
+    auto complete_declaration(Llvm::Program& program) const -> Bool override;
+
     TTX_DOCUMENTATION(get_definition().get_documentation());
     TTX_NAME(definition.get_name());
 
@@ -130,6 +143,11 @@ class Foreign final : public Ttx::Concept::Abstract {
 
     constexpr auto get_anchor() const -> Ttx::Lexical::Anchor {
       return definition.get_anchor();
+    }
+
+    constexpr auto get_declaration_anchor() const
+        -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
+      return get_anchor();
     }
 
     auto resolve() const -> const Ttx::Concept::Abstract& override;
@@ -187,6 +205,12 @@ class Foreign final : public Ttx::Concept::Abstract {
   auto link_types(Ttx::Lexical::Cursor& cursor) -> Bool;
   auto link_callables(Ttx::Lexical::Cursor& cursor) -> Bool;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool;
+
+  auto reserve(Llvm::Program& program) const -> Bool;
+
+  auto complete(Llvm::Program& program) const -> Bool;
+
+  auto lower(Llvm::Program& program) const -> Bool;
 
   constexpr auto is_authored() const -> Bool { return Bool(abi); }
 

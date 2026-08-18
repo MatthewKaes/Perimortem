@@ -28,11 +28,11 @@ A generated header is automatically available to dependents. The authored
 unit name owns the module directory, so its logical include is independent of
 the Bazel package or repository that built it:
 
-    #include "Example.MyLib/cpp_abi.hpp"
+    #include "Example.MyLib/c_abi.h"
 
-The default compiler executable is `//tetrodotoxin:puffer`, the Tetrodotoxin
-CLI that resolves sources with the standard toolchain and emits archives plus
-Puffer Buffers for Bazel.
+Standalone Library actions use `//puffer:puffer` and the in process LLVM
+backend. Puffer emits one object and C header. Bazel's selected C++ toolchain
+owns archive creation and publishes the resulting CcInfo.
 
 Executable application targets belong here once App lowering produces real
 declarations. Until then, these rules do not generate host bridge code that
@@ -184,7 +184,86 @@ def _ttx_compile_impl(ctx, package):
     ]
 
 def _ttx_library_impl(ctx):
-    return _ttx_compile_impl(ctx, False)
+    if len(ctx.files.srcs) != 1:
+        fail("ttx_library requires exactly one direct Library source")
+    if ctx.attr.deps:
+        fail("standalone LLVM ttx_library does not consume Package dependencies")
+
+    unit_name = ctx.attr.library_name
+    artifact_root = unit_name + "/"
+    llvm_ir = ctx.actions.declare_file(artifact_root + "library.ll")
+    object_file = ctx.actions.declare_file(artifact_root + "x86_64.o")
+    header = ctx.actions.declare_file(artifact_root + "c_abi.h")
+    source = ctx.files.srcs[0]
+    arguments = ctx.actions.args()
+    arguments.add("-library")
+    arguments.add("-backend=llvm")
+    arguments.add("-target=x86_64-sysv")
+    arguments.add("-debug=%s" % ctx.attr.debug)
+    arguments.add("-name=%s" % unit_name)
+    arguments.add(source)
+    arguments.add(llvm_ir, format = "-ir=%s")
+    arguments.add(object_file, format = "-object=%s")
+    arguments.add(header, format = "-header=%s")
+
+    ctx.actions.run(
+        inputs = [source],
+        outputs = [llvm_ir, object_file, header],
+        executable = ctx.executable._compiler,
+        arguments = [arguments],
+        mnemonic = "TtxLlvmCompile",
+        progress_message = "Compiling TTX Library %s" % ctx.label,
+    )
+
+    cc_toolchain = find_cc_toolchain(ctx)
+    feature_configuration = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = cc_toolchain,
+        requested_features = ctx.features,
+        unsupported_features = ctx.disabled_features,
+    )
+    compilation_outputs = cc_common.create_compilation_outputs(
+        objects = depset([object_file]),
+        pic_objects = depset([object_file]),
+    )
+    linking_context, linking_outputs = (
+        cc_common.create_linking_context_from_compilation_outputs(
+            actions = ctx.actions,
+            name = ctx.label.name,
+            compilation_outputs = compilation_outputs,
+            cc_toolchain = cc_toolchain,
+            feature_configuration = feature_configuration,
+            disallow_dynamic_library = True,
+        )
+    )
+
+    include_root = ctx.bin_dir.path
+    if ctx.label.package:
+        include_root += "/" + ctx.label.package
+    compilation_context = cc_common.create_compilation_context(
+        headers = depset([header]),
+        system_includes = depset([include_root]),
+    )
+    output_files = [llvm_ir, object_file, header]
+    library = linking_outputs.library_to_link
+    if library.static_library:
+        output_files.append(library.static_library)
+    if library.pic_static_library and library.pic_static_library != library.static_library:
+        output_files.append(library.pic_static_library)
+
+    generated_cc_info = CcInfo(
+        compilation_context = compilation_context,
+        linking_context = linking_context,
+    )
+
+    return [
+        cc_common.merge_cc_infos(
+            direct_cc_infos = [generated_cc_info],
+            cc_infos = [ctx.attr._runtime[CcInfo]],
+        ),
+        TtxPackageInfo(puffer_buffers = depset()),
+        DefaultInfo(files = depset(output_files)),
+    ]
 
 def _ttx_package_impl(ctx):
     return _ttx_compile_impl(ctx, True)
@@ -207,15 +286,25 @@ ttx_library = rule(
         library_name = attr.string(
             mandatory = True,
             doc = (
-                "Stable dot-separated ABI identity and generated C++ " +
-                "namespace for this standalone TTX library."
+                "Stable semantic name and generated artifact directory for " +
+                "this standalone TTX Library."
             ),
         ),
+        debug = attr.string(
+            default = "none",
+            values = ["none", "line", "full"],
+            doc = "LLVM debug information mode.",
+        ),
         _compiler = attr.label(
-            default = "//tetrodotoxin:puffer",
+            default = "//puffer:puffer",
             executable = True,
             cfg = "exec",
             doc = "The Tetrodotoxin compiler binary.",
+        ),
+        _runtime = attr.label(
+            default = "//perimortem:memory",
+            providers = [CcInfo],
+            doc = "Perimortem runtime linked by generated managed values.",
         ),
     ),
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
@@ -252,11 +341,11 @@ ttx_package = rule(
         ),
         major = attr.int(
             mandatory = True,
-            doc = "Authored package Major version; zero is valid with a nonzero Minor.",
+            doc = "Authored package Major version. Zero is valid with a nonzero Minor.",
         ),
         minor = attr.int(
             mandatory = True,
-            doc = "Authored package Minor version; 0.0 is reserved as unset.",
+            doc = "Authored package Minor version. Version 0.0 is reserved as unset.",
         ),
         _compiler = attr.label(
             default = "//tetrodotoxin:puffer",
@@ -268,7 +357,7 @@ ttx_package = rule(
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
     fragments = ["cpp"],
     doc = (
-        "Compiles an authored TTX module rooted by dialect : Package; and " +
+        "Compiles an authored TTX module rooted by dialect : Package and " +
         "exports its manifest to dependent TTX targets."
     ),
 )

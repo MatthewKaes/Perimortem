@@ -78,6 +78,17 @@ class Errors {
   auto render_message(Perimortem::Memory::Allocator::Arena& arena, Count index)
       const -> Perimortem::Core::View::Bytes;
 
+  constexpr auto get_message(Count index) const
+      -> Perimortem::Core::View::Bytes {
+    return index < errors.get_size() ? errors.at(index).message
+                                     : Perimortem::Core::View::Bytes();
+  }
+
+  constexpr auto get_anchor(Count index) const -> Anchor {
+    return index < errors.get_size() ? errors.at(index).anchor
+                                     : Anchor::create(Span());
+  }
+
   constexpr auto is_empty() const -> Bool { return get_size() == 0; }
   constexpr auto get_size() const -> Count { return errors.get_size(); }
 

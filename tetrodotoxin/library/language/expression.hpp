@@ -98,6 +98,9 @@ class Expression : public Model::Pack {
   auto get_value_type(Count index) const
       -> const Ttx::Concept::Abstract& override;
 
+  auto get_produced(Count index) const
+      -> Perimortem::Core::Option<Ttx::Model::Pack::Produced> override;
+
   // Layout inspection is total. An ordinary value Expression exposes one
   // entry while a Type valued or incomplete Expression exposes an empty shape
   // and still resolves Invalid. Owners such as Call, Swizzle, and Slice
@@ -113,6 +116,13 @@ class Expression : public Model::Pack {
   // optional Constant representation. Grouped Packs override the same Library
   // lifecycle by visiting their real child producers in source order.
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
+
+  auto lower(Llvm::Builder& body) const -> Bool override;
+
+  // Write target lowering evaluates only the receiver and selector facts needed
+  // to publish the destination. The write operation lowers its source and then
+  // performs the actual mutation through the Builder.
+  virtual auto lower_write_target(Llvm::Builder& body) const -> Bool;
 
   // Linking enriches this exact source node after every declaration identity
   // is available. Constants already carry complete Types, while Identifier
@@ -170,7 +180,24 @@ class Expression : public Model::Pack {
                        : Model::Pack::fits(target);
   }
 
+  // Write operators use this one receiving Expression operation rather than
+  // selecting Address, Index, Field, Local, or another concrete target. It
+  // links the target and source in authored order, then lets the target decide
+  // whether it accepts the complete source Pack. Plain value linking remains a
+  // distinct operation so reference only Expressions can reject ordinary reads.
+  virtual auto link_write(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& lexical_context,
+      const Model::Type& access_scope,
+      Model::Pack& source) -> Bool;
+
  protected:
+  // A completed fold lowers its retained Pack once and aliases this authored
+  // Expression to the resulting target values. Absence keeps lowering on the
+  // concrete Expression owner.
+  auto lower_folded(Llvm::Builder& body) const
+      -> Perimortem::Core::Option<Bool>;
+
   // Concrete owners supply the builder because only their factory may use the
   // private constructor. The optional Anchor records whether source authored
   // the node while Arena begins its lifetime once at the final address.
@@ -212,6 +239,21 @@ class Expression : public Model::Pack {
   // their fold.
   virtual auto evaluate() -> Perimortem::Utility::
       Result<Perimortem::Core::Option<Model::Pack&>, Error>;
+
+  // Ordinary writable Expressions link through their value path. A
+  // reference only owner such as Index overrides this hook to establish its
+  // target facts without admitting an ordinary read.
+  virtual auto link_write_target(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& lexical_context,
+      const Model::Type& access_scope) -> Bool;
+
+  // Complete Pack admission belongs to the receiving Expression. The default
+  // delegates authority to the selected Addressable and its exact Type. Index
+  // supplies scalar or ranged reference compatibility directly.
+  virtual auto accepts_write(
+      const Model::Pack& source,
+      const Model::Type& access_scope) const -> Bool;
 
  private:
   Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor;

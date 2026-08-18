@@ -212,7 +212,7 @@ an ambiguous ownership path.
 
 A graph owner may reserve a stable identity before all of its edges are ready.
 An Alias reserved this way binds its borrowed target once after the defining
-pass; the immediate edge remains opaque and only Alias resolution traverses
+pass. The immediate edge remains opaque and only Alias resolution traverses
 it. An incomplete total query returns the shared `Invalid` object. Completion
 may make that unanswered query valid, while every successful identity remains
 stable.
@@ -247,7 +247,7 @@ aggregate Type merely so another owner can fit it.
 
 A Pack may be empty, contain one ordinary value-producing expression, or carry
 several positional, named, ranged, or composed values. One expression is
-already a one-value Pack; grouping it does not create another semantic object.
+already a one-value Pack. Grouping it does not create another semantic object.
 A multi-value Pack remains untyped as a group until a receiving declaration or
 operation deliberately materializes one Type. Its individual produced values
 retain their exact semantic identities throughout fitting. An explicit empty
@@ -256,7 +256,7 @@ identity.
 
 The common source convention reinforces the distinction: parentheses group
 supplied Pack values and brackets describe required Layout entries. A named
-descriptor uses `.name : Type`; a named value uses `.name = expression`. A
+descriptor uses `.name : Type`. A named value uses `.name = expression`. A
 concrete language may omit a delimiter where its grammar remains unambiguous,
 but the semantic direction does not change.
 
@@ -267,12 +267,12 @@ Layout supplies the values required by a target Layout.
 `Value` is the terminal one-entry descriptor for one exact atomic Type. `Fluid`
 describes positional entries and compares them in order. `Named` describes
 uniquely named slots, matches them by name, then preserves the source Layout's
-fitting rule for each match; a slot may borrow a name independently while
+fitting rule for each match. A slot may borrow a name independently while
 retaining the exact source Abstract. `Ranged` describes one entry across a fixed
 interval. `Composite` preserves two complete child Layouts.
 
 Successful fitting returns the original source edge that supplies a target
-position. The Pack remains the value-flow owner; its Layout retains order,
+position. The Pack remains the value-flow owner. Its Layout retains order,
 borrowed slot names, and applicability without copying Types, Documentation,
 defaults, or storage facts into a generic member record. A decorator or
 composition delegates entry fitting to the source Layout that owns each edge.

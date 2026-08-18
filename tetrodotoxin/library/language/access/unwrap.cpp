@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/library/language/constants/option.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -97,6 +98,38 @@ auto Language::Access::Unwrap::finalize(Cursor& cursor) -> void {
   Expression::finalize(cursor);
 }
 
+auto Language::Access::Unwrap::lower(Llvm::Builder& body) const -> Bool {
+  auto folded = lower_folded(body);
+  if (folded) {
+    return *folded;
+  }
+
+  auto selected_fallback = get_fallback();
+  auto carrier = receiver.get_type().resolve().select<Ttx::Model::Type>();
+  auto element = get_type().resolve().select<Ttx::Model::Type>();
+
+  if (!selected_fallback || !carrier || !element) {
+    return False;
+  }
+
+  Bool receiver_lowered = receiver.lower(body);
+  if (!receiver_lowered) {
+    return False;
+  }
+
+  auto state = body.begin_unwrap(*carrier, *element, receiver);
+  if (!state) {
+    return False;
+  }
+
+  Bool fallback_lowered = selected_fallback->lower(body);
+  if (!fallback_lowered) {
+    return False;
+  }
+
+  return body.end_unwrap(*state, *element, *this, *selected_fallback);
+}
+
 auto Language::Access::Unwrap::evaluate()
     -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
   Core::Option<Model::Pack&> folded;
@@ -107,6 +140,7 @@ auto Language::Access::Unwrap::evaluate()
   if (error) {
     return *error;
   }
+
   if (!folded) {
     return Core::Option<Model::Pack&>{};
   }

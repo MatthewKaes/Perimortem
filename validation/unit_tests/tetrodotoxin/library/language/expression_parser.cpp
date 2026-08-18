@@ -93,7 +93,8 @@ static auto create_monograph(
     Abstract& context) -> Option<Library::Language::Monograph&> {
   Errors errors;
   Tokenizer tokenizer(domain, ""_view, "expression-source.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   Anchor source_anchor = Anchor::create(Span());
   auto monograph = dialect.interpret(
       cursor, Documentation::get_empty(), source_anchor, context);
@@ -116,7 +117,8 @@ static auto parse_one(
     View::Bytes source,
     Errors& errors) -> Option<Library::Language::Model::Pack&> {
   Tokenizer tokenizer(domain, source, "expression-parser.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   auto parsed = Library::Language::Parser::Expression::parse(context, cursor);
   if (parsed && !cursor.matches(Code::Type::Terminal)) {
     return {};
@@ -132,7 +134,8 @@ static auto link_one(
     View::Bytes source,
     Errors& errors) -> Bool {
   Tokenizer tokenizer(domain, source, "expression-parser.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   return pack.link(cursor, root_context);
 }
 
@@ -142,7 +145,8 @@ static auto finalize_one(
     View::Bytes source,
     Errors& errors) -> void {
   Tokenizer tokenizer(domain, source, "expression-parser.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   pack.finalize(cursor);
 }
 
@@ -152,7 +156,8 @@ static auto rejects_grammar(
     View::Bytes source) -> Bool {
   Errors errors;
   Tokenizer tokenizer(domain, source, "rejected-expression.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   auto parsed = Library::Language::Parser::Expression::parse(context, cursor);
   return !parsed && !errors.is_empty();
 }

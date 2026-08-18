@@ -3,7 +3,7 @@
 
 #include "validation/process/child.hpp"
 
-#include "validation/process/oracle_fixture.hpp"
+#include "validation/process/fixture.hpp"
 #include "validation/unit_test.hpp"
 
 #include <errno.h>
@@ -84,7 +84,7 @@ static auto run_child(View::Bytes mode) -> Signed_32 {
   return 3;
 }
 
-auto Process::OracleFixture::dispatch(
+auto Process::Fixture::dispatch(
     Signed_32 argument_count,
     const char* const arguments[],
     Signed_32& status) -> Bool {
@@ -128,11 +128,11 @@ static auto observe(
   return Process::run(request);
 }
 
-static Harness ProcessOracle = {
+static Harness ProcessTests = {
   .name = "Validation::Process"_view,
 };
 
-PERIMORTEM_UNIT_TEST(ProcessOracle, exact_process_contract) {
+PERIMORTEM_UNIT_TEST(ProcessTests, exact_process_contract) {
   Dynamic::Bytes executable = executable_path();
   ASSERT_NOT(executable.is_empty());
 
@@ -152,7 +152,7 @@ PERIMORTEM_UNIT_TEST(ProcessOracle, exact_process_contract) {
       Process::compare(observation, expectation) == Process::Difference::None);
 }
 
-PERIMORTEM_UNIT_TEST(ProcessOracle, deadline_terminates_child) {
+PERIMORTEM_UNIT_TEST(ProcessTests, deadline_terminates_child) {
   Dynamic::Bytes executable = executable_path();
   ASSERT_NOT(executable.is_empty());
 
@@ -168,7 +168,7 @@ PERIMORTEM_UNIT_TEST(ProcessOracle, deadline_terminates_child) {
       Process::compare(observation, completed) == Process::Difference::Timeout);
 }
 
-PERIMORTEM_UNIT_TEST(ProcessOracle, difference_classification) {
+PERIMORTEM_UNIT_TEST(ProcessTests, difference_classification) {
   Process::Observation observation = {
     .launched = True,
     .exit_status = 7,

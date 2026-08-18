@@ -3,7 +3,7 @@
 
 #include "validation/unit_test.hpp"
 
-#include "validation/process/oracle_fixture.hpp"
+#include "validation/process/fixture.hpp"
 
 #include <stdio.h>
 
@@ -226,7 +226,7 @@ static auto output_results(Count test_count) -> void {
 
 int main(int argc, const char* argv[]) {
   Signed_32 process_status = 0;
-  if (Process::OracleFixture::dispatch(Signed_32(argc), argv, process_status)) {
+  if (Process::Fixture::dispatch(Signed_32(argc), argv, process_status)) {
     return process_status;
   }
 

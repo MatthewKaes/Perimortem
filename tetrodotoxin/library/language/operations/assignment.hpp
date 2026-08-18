@@ -33,6 +33,8 @@ class Assignment : public Expression {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
+  auto lower(Llvm::Builder& body) const -> Bool override;
+
   TTX_NAME("Assignment"_view);
   TTX_EMPTY_DOCUMENTATION();
 

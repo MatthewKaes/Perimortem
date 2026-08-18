@@ -6,6 +6,7 @@
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -274,6 +275,7 @@ auto Types::Source::retain_binding(
 
   BAIL_IF(!can_bind_static(binding, category));
   publish_binding(binding, category, definition.is_published());
+  cursor.get_associations().create(definition.get_name_anchor(), binding);
   return True;
 }
 
@@ -357,7 +359,7 @@ auto Types::Source::resolve_type_call(
     const Abstract& host,
     View::Bytes route,
     Type::Access access) const -> const Abstract& {
-  const Abstract& local = Composite::resolve_type_call(host, route, access);
+  const Abstract& local = Model::Type::resolve_type_call(host, route, access);
   if (!local.is<Invalid>()) {
     return local;
   }
@@ -405,4 +407,42 @@ auto Types::Source::resolve_local(View::Bytes route, Visibility visibility)
   }
 
   return Invalid::get_invalid();
+}
+
+auto Types::Source::reserve_carrier(Llvm::Program& program) const
+    -> Option<Bool> {
+  const auto& carriers = program.get_carriers();
+  return carriers.reserve(program, *this, Llvm::Carriers::Kind::Context);
+}
+
+auto Types::Source::complete_carrier(Llvm::Program& program) const -> Bool {
+  const auto& carriers = program.get_carriers();
+  return carriers.complete(program, *this, Llvm::Carriers::Kind::Context);
+}
+
+auto Types::Source::reserve(Llvm::Program& program) const -> Bool {
+  Bool source_reserved = Composite::reserve(program);
+  if (!source_reserved) {
+    return False;
+  }
+
+  return foreign.reserve(program);
+}
+
+auto Types::Source::complete(Llvm::Program& program) const -> Bool {
+  Bool source_completed = Composite::complete(program);
+  if (!source_completed) {
+    return False;
+  }
+
+  return foreign.complete(program);
+}
+
+auto Types::Source::lower(Llvm::Program& program) const -> Bool {
+  Bool source_lowered = Composite::lower(program);
+  if (!source_lowered) {
+    return False;
+  }
+
+  return foreign.lower(program);
 }

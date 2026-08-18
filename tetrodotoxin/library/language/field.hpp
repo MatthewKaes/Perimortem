@@ -71,6 +71,12 @@ class Field : public Model::Addressable {
   // side inventory is required merely to cache constant producers.
   auto finalize_declaration(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
+  auto reserve_declaration(Llvm::Program& program) const -> Bool override;
+
+  auto complete_declaration(Llvm::Program& program) const -> Bool override;
+
+  auto lower_declaration(Llvm::Program& program) const -> Bool override;
+
   constexpr auto contributes_to_instance_layout() const -> Bool override {
     return writability == Writability::Internal;
   }
@@ -113,6 +119,11 @@ class Field : public Model::Addressable {
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor {
     return definition.get_anchor();
+  }
+
+  constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
+    return get_anchor();
   }
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const

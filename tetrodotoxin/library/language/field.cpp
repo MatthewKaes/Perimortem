@@ -3,8 +3,10 @@
 
 #include "tetrodotoxin/library/language/field.hpp"
 
+#include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -134,6 +136,7 @@ auto Language::Field::link_declaration_type(Cursor& cursor) -> Bool {
         "Publish the named Type in this Library context before linking."_view);
     return False;
   }
+
   if (selected_type->get_layout().is_empty()) {
     cursor.create_expression_error(
         get_type_anchor(), "Field cannot bind an empty Type Layout."_view,
@@ -199,10 +202,13 @@ auto Language::Field::link_declaration_initializer(Cursor& cursor) -> Bool {
 
   if (!type) {
     if (selected_initializer->get_layout().get_size() != 1) {
-      cursor.create_expression_error(
-          get_anchor(),
-          "Inferred Field initializer must produce exactly one value."_view,
-          "Name an explicit receiving Type for empty or multi-value flow."_view);
+      auto report = cursor.create_report(get_anchor());
+      report << "Cannot infer Field '"_view << get_name() << "' from "_view
+             << selected_initializer->get_layout().get_size()
+             << " initializer values.\nSource produces: "_view;
+      Language::Diagnostics::write_pack(report, *selected_initializer);
+      report.get_hint()
+          << "Provide exactly one value or declare the Field's receiving Type."_view;
       return False;
     }
 
@@ -222,6 +228,7 @@ auto Language::Field::link_declaration_initializer(Cursor& cursor) -> Bool {
           "publication."_view);
       return False;
     }
+
     if (initializer_type->get_layout().is_empty()) {
       cursor.create_expression_error(
           get_anchor(), "Inferred Field cannot bind an empty Type Layout."_view,
@@ -236,12 +243,15 @@ auto Language::Field::link_declaration_initializer(Cursor& cursor) -> Bool {
   }
 
   if (!selected_initializer->fits_into(type->get())) {
-    cursor.create_expression_error(
-        get_anchor(),
-        "Field initializer Pack does not fit the declared Field Type's "
-        "Layout."_view,
-        "Supply the complete value flow accepted by the declared Field "
-        "Type."_view);
+    auto report = cursor.create_report(get_anchor());
+    report << "Initializer for Field '"_view << get_name()
+           << "' does not fit declared Type '"_view << type->get().get_name()
+           << "'.\nSource produces: "_view;
+    Language::Diagnostics::write_pack(report, *selected_initializer);
+    report << "\nTarget accepts: "_view;
+    Language::Diagnostics::write_layout(report, type->get().get_layout());
+    report.get_hint()
+        << "Change the initializer or declare the exact Type it produces."_view;
     return False;
   }
 
@@ -275,11 +285,11 @@ auto Language::Field::validate_publication(Cursor& cursor) const -> Bool {
   Bool reachable = type_reference.visit(
       [&]() { return host.is_externally_reachable(get_type()); },
       [&](const TypeReference& reference) {
-        const Abstract* selected = nullptr;
+        Option<const Abstract&> selected;
         reference.resolve(host).visit(
-            [&](const Abstract& resolved) { selected = &resolved; },
+            [&](const Abstract& resolved) { selected = resolved; },
             [](const TypeReference::Failure&) {});
-        return Bool(selected != nullptr && &selected->resolve() == &get_type());
+        return Bool(selected && &selected->resolve() == &get_type());
       });
   if (reachable) {
     return True;
@@ -334,6 +344,7 @@ auto Language::Field::cache_constant() const -> Bool {
   if (constant_state == ConstantState::Folded) {
     return True;
   }
+
   if (constant_state == ConstantState::Folding ||
       constant_state == ConstantState::Failed) {
     return False;
@@ -378,4 +389,71 @@ auto Language::Field::cache_constant() const -> Bool {
         constant_state = ConstantState::Failed;
       });
   return constant_state == ConstantState::Folded;
+}
+
+auto Language::Field::reserve_declaration(Llvm::Program& program) const
+    -> Bool {
+  Bool type_reserved = Model::Addressable::reserve_declaration(program);
+  if (!type_reserved) {
+    return False;
+  }
+
+  if (writability != Writability::Full) {
+    return True;
+  }
+
+  const auto& globals = program.get_globals();
+  auto reserved = globals.reserve_static(program, *this);
+  return reserved ? True : False;
+}
+
+auto Language::Field::complete_declaration(Llvm::Program& program) const
+    -> Bool {
+  Bool type_completed = Model::Addressable::complete_declaration(program);
+  if (!type_completed) {
+    return False;
+  }
+
+  if (writability != Writability::Full) {
+    return True;
+  }
+
+  const auto& globals = program.get_globals();
+  if (!globals.complete(program, *this)) {
+    return False;
+  }
+
+  return program.get_debug().global(program, *this, definition, True, True);
+}
+
+auto Language::Field::lower_declaration(Llvm::Program& program) const -> Bool {
+  if (writability != Writability::Full) {
+    return True;
+  }
+
+  const auto& globals = program.get_globals();
+  Option<const Model::Pack&> value = get_initializer();
+  if (!value) {
+    auto created = get_type().create_default(program.get_arena());
+    if (!created) {
+      return False;
+    }
+
+    value = *created;
+  }
+
+  auto initializer = globals.begin_initializer(program, *this);
+  if (!initializer) {
+    return False;
+  }
+
+  Llvm::Body native_body(program, *this, *initializer);
+  Llvm::Builder body(native_body);
+
+  Bool lowered = value->lower(body);
+  if (!lowered) {
+    return False;
+  }
+
+  return globals.end_initializer(native_body, *this, *value);
 }

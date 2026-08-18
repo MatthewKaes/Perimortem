@@ -52,6 +52,12 @@ class Source : public Composite {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
+  auto reserve(Llvm::Program& program) const -> Bool override;
+
+  auto complete(Llvm::Program& program) const -> Bool override;
+
+  auto lower(Llvm::Program& program) const -> Bool override;
+
   constexpr auto get_foreign() -> Foreign& { return foreign; }
 
   constexpr auto get_foreign() const -> const Foreign& { return foreign; }
@@ -91,6 +97,12 @@ class Source : public Composite {
       Tetrodotoxin::Language::Visibility visibility =
           Tetrodotoxin::Language::Visibility::Public) const
       -> const Ttx::Concept::Abstract&;
+
+ protected:
+  auto reserve_carrier(Llvm::Program& program) const
+      -> Perimortem::Core::Option<Bool> override;
+
+  auto complete_carrier(Llvm::Program& program) const -> Bool override;
 
  private:
   auto parse_definition(

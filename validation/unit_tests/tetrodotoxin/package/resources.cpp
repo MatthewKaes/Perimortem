@@ -286,7 +286,8 @@ PERIMORTEM_UNIT_TEST(PackageResources, monograph_dispatch) {
   Package::Dialect dialect;
   Errors errors;
   Tokenizer tokenizer(arena, {}, "package-resources.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   auto root_result = Package::Language::Monograph::create_authored(
       arena, dialect, Documentation::get_empty(), dialect, {}, sources);
   ASSERT(root_result);

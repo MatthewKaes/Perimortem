@@ -48,6 +48,8 @@ class Branch : public Ttx::Concept::Abstract {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
 
+  auto lower(Llvm::Builder& body) const -> Bool;
+
   auto reaches_next_statement() const -> Bool;
 
   TTX_NAME("Branch"_view);

@@ -2,27 +2,6 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "[Apps] Splash Screen (Linux)",
-      "type": "lldb",
-      "request": "launch",
-      "terminal": "integrated",
-      "program": "${workspaceFolder}/.bin/bin/apps/splash_screen",
-      "args": [],
-      "cwd": "${workspaceFolder}",
-      // Why are you like this VSCode???
-      "sourceMap": {
-        "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
-        "/proc/self/cwd/": "${workspaceFolder}"
-      },
-      "initCommands": [
-        "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
-      ],
-      "preLaunchTask": "Splash Screen Build (Linux)",
-      "presentation": {
-        "clear": true
-      }
-    },
-    {
       "name": "[Tests] Perimortem (Linux)",
       "type": "lldb",
       "request": "launch",
@@ -30,6 +9,9 @@
       "program": "${workspaceFolder}/.bin/bin/validation/unit_tests",
       "args": [],
       "cwd": "${workspaceFolder}",
+      "sourceLanguages": [
+        "tetrodotoxin"
+      ],
       // Why are you like this VSCode???
       "sourceMap": {
         "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
@@ -38,7 +20,7 @@
       "initCommands": [
         "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
       ],
-      "preLaunchTask": "Full Build (Linux) [Debug]",
+      "preLaunchTask": "Validation Unit Tests Build (Linux) [Debug]",
       "presentation": {
         "clear": true
       }
@@ -51,6 +33,9 @@
       "program": "${workspaceFolder}/.bin/bin/validation/unit_tests",
       "args": [],
       "cwd": "${workspaceFolder}",
+      "sourceLanguages": [
+        "tetrodotoxin"
+      ],
       // Why are you like this VSCode???
       "sourceMap": {
         "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
@@ -59,28 +44,7 @@
       "initCommands": [
         "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
       ],
-      "preLaunchTask": "Full Build (Linux) [Release]",
-      "presentation": {
-        "clear": true
-      }
-    },
-    {
-      "name": "[Tests] Lsp (Linux)",
-      "type": "lldb",
-      "request": "launch",
-      "terminal": "integrated",
-      "program": "${workspaceFolder}/.bin/bin/tetrodotoxin/lsp/server/tests",
-      "args": [],
-      "cwd": "${workspaceFolder}",
-      // Why are you like this VSCode???
-      "sourceMap": {
-        "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
-        "/proc/self/cwd/": "${workspaceFolder}"
-      },
-      "initCommands": [
-        "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
-      ],
-      "preLaunchTask": "Full Build (Linux) [Debug]",
+      "preLaunchTask": "Validation Unit Tests Build (Linux) [Release]",
       "presentation": {
         "clear": true
       }
@@ -101,7 +65,26 @@
       "initCommands": [
         "command source '${workspaceFolder}/.vscode/perimortem.lldb'"
       ],
-      "preLaunchTask": "Full Build (Linux) [Release]",
+      "preLaunchTask": "Validation Benchmarks Build (Linux) [Release]",
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
+      "name": "[TTX] Runtime Validation (Linux)",
+      "type": "lldb",
+      "request": "launch",
+      "terminal": "integrated",
+      "program": "${workspaceFolder}/.bin/bin/validation/unit_tests",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "sourceLanguages": [
+        "tetrodotoxin"
+      ],
+      "initCommands": [
+        "command script import '${workspaceFolder}/extension/lldb/tetrodotoxin.py'"
+      ],
+      "preLaunchTask": "TTX LLVM Debug Validation Build (Linux)",
       "presentation": {
         "clear": true
       }
@@ -112,12 +95,11 @@
       "request": "launch",
       "runtimeExecutable": "${execPath}",
       "args": [
-        "${workspaceFolder}/tetrodotoxin/tests/scripts/",
-        "--extensionDevelopmentPath=${workspaceRoot}/tetrodotoxin/lsp/client/"
+        "${workspaceFolder}",
+        "--extensionDevelopmentPath=${workspaceFolder}/extension/"
       ],
       "outFiles": [
-        "${workspaceRoot}/out/**/*.js",
-        "${workspaceRoot}/server/out/**/*.js"
+        "${workspaceFolder}/extension/out/**/*.js"
       ],
       "autoAttachChildProcesses": true,
       "preLaunchTask": "TTX Lsp Build",

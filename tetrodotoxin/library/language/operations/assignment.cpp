@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/operations/assignment.hpp"
 
 #include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
@@ -72,34 +73,9 @@ auto Language::Operations::Assignment::link(
     return False;
   }
 
-  // Assignment owns both traversal edges. The target is selected once and the
-  // complete source Pack remains intact for receiving Type fitting.
-  BAIL_IF(!target.link(cursor, lexical_context, *selected_scope));
-  BAIL_IF(!source.link(cursor, lexical_context, *selected_scope));
-  if (&source.resolve() != &source) {
-    cursor.create_expression_error(
-        get_anchor(), "Assignment source did not produce value flow."_view,
-        "Use a Type result only as an access receiver."_view);
-    return False;
-  }
-
-  auto target_type = target.get_write_type(*selected_scope);
-  if (!target_type) {
-    cursor.create_expression_error(
-        get_anchor(),
-        "Assignment target did not provide one writable Type."_view,
-        "Use mutable Local or Field storage, public Foreign State, or an "
-        "indexed Access address."_view);
-    return False;
-  }
-
-  if (!source.fits_into(*target_type)) {
-    cursor.create_expression_error(
-        get_anchor(),
-        "Assignment source Pack does not fit the target Type Layout."_view,
-        "Supply the complete value flow required by the selected target."_view);
-    return False;
-  }
+  // The receiving Expression owns target linking and complete Pack admission.
+  // Assignment never needs to recover its concrete storage carrier.
+  BAIL_IF(!target.link_write(cursor, lexical_context, *selected_scope, source));
 
   linked = True;
   return True;
@@ -109,6 +85,21 @@ auto Language::Operations::Assignment::finalize(Cursor& cursor) -> void {
   // Finalization follows the same independent edges fixed during linking.
   target.finalize(cursor);
   source.finalize(cursor);
+}
+
+auto Language::Operations::Assignment::lower(Llvm::Builder& body) const
+    -> Bool {
+  Bool target_lowered = target.lower_write_target(body);
+  if (!target_lowered) {
+    return False;
+  }
+
+  Bool source_lowered = source.lower(body);
+  if (!source_lowered) {
+    return False;
+  }
+
+  return body.write(Llvm::Builder::Write::Assign, *this, target, source);
 }
 
 auto Language::Operations::Assignment::get_value_type(Count) const

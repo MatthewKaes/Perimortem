@@ -141,7 +141,8 @@ PERIMORTEM_UNIT_TEST(LoopControlTests, nearest_loop_identity) {
   const Abstract& retained = range_body.get_data()[2].get_root();
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "loop_control.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   ASSERT(monograph->link(cursor));
   ASSERT(monograph->finalize(cursor));
   EXPECT(

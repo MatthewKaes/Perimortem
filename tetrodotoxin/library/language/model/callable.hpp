@@ -6,6 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/model/callable.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model {
@@ -15,6 +16,16 @@ namespace Tetrodotoxin::Library::Language::Model {
 class Callable : public Ttx::Model::Callable {
  public:
   TTX_CONTRACT(Callable, Ttx::Model::Callable);
+
+  // A selected Self Callable may impose receiver authority beyond exact Type
+  // binding. Ordinary invocations accept the resolved receiver unchanged.
+  // Borrowing built-ins use this boundary to require writable storage without
+  // teaching Call about a concrete declaration or built-in kind.
+  virtual auto accepts_receiver(
+      const Ttx::Concept::Abstract&,
+      const Ttx::Concept::Abstract&) const -> Bool {
+    return True;
+  }
 
   // The owning declaration context asks each retained Callable to cross its
   // closure barriers. Signatures settle before Fields may invoke them, while
@@ -30,6 +41,24 @@ class Callable : public Ttx::Model::Callable {
 
   virtual auto finalize_declaration(Ttx::Lexical::Cursor&) -> Bool {
     return True;
+  }
+
+  virtual auto reserve_declaration(Llvm::Program& program) const -> Bool;
+
+  virtual auto complete_declaration(Llvm::Program& program) const -> Bool;
+
+  virtual auto lower_declaration(Llvm::Program&) const -> Bool { return True; }
+
+  virtual auto lower_call(
+      Llvm::Builder& body,
+      const Ttx::Model::Pack& result,
+      Perimortem::Core::View::Vector<LLVMValueRef> inputs,
+      Perimortem::Core::Option<const Ttx::Model::Pack&> receiver_source) const
+      -> Bool;
+
+  virtual constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
+    return {};
   }
 
   // Registration needs receiver role before an authored Signature has linked

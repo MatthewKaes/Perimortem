@@ -16,6 +16,8 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // owner keeps the immutable backing storage alive for the Constant.
 class Bytes : public Constant {
  public:
+  auto lower(Llvm::Builder& body) const -> Bool override;
+
   TTX_CONTRACT(Bytes, Constant);
   using Value = Perimortem::Core::View::Bytes;
 

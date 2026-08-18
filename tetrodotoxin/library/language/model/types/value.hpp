@@ -26,6 +26,10 @@ class Value : public Model::Type {
   virtual constexpr auto get_width() const -> Count = 0;
   virtual constexpr auto get_size() const -> Count = 0;
   virtual constexpr auto get_alignment() const -> Count = 0;
+
+  auto reserve(Llvm::Program& program) const -> Bool override;
+
+  auto complete(Llvm::Program& program) const -> Bool override;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Model::Types

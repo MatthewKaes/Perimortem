@@ -4,7 +4,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Splash Screen Build (Linux)",
+      "label": "Validation Unit Tests Build (Linux) [Debug]",
       "type": "shell",
       "command": "bazel",
       "problemMatcher": [
@@ -12,38 +12,20 @@
       ],
       "args": [
         "build",
-        "//apps:splash_screen",
-        "--config=debug"
-      ],
-      "group": "build",
-      "detail": "Builds the TTX-backed splash screen app.",
-      "presentation": {
-        "clear": true
-      }
-    },
-    {
-      "label": "Full Build (Linux) [Debug]",
-      "type": "shell",
-      "command": "bazel",
-      "problemMatcher": [
-        "$gcc"
-      ],
-      "args": [
-        "build",
-        "...",
+        "//validation:unit_tests",
         "--config=debug"
       ],
       "group": {
         "kind": "build",
         "isDefault": true
       },
-      "detail": "Performs a full Bazel build of the Platform.",
+      "detail": "Builds the complete validation unit-test binary.",
       "presentation": {
         "clear": true
       }
     },
     {
-      "label": "Full Build (Linux) [Release]",
+      "label": "Validation Unit Tests Build (Linux) [Release]",
       "type": "shell",
       "command": "bazel",
       "problemMatcher": [
@@ -51,35 +33,62 @@
       ],
       "args": [
         "build",
-        "...",
+        "//validation:unit_tests",
         "--config=release"
       ],
       "group": "build",
-      "detail": "Performs a full Bazel build of the Platform.",
+      "detail": "Builds the release validation unit-test binary.",
       "presentation": {
         "clear": true
       }
     },
     {
-      "label": "TTX Lsp Install",
-      "type": "npm",
-      "script": "install",
+      "label": "Validation Benchmarks Build (Linux) [Release]",
+      "type": "shell",
+      "command": "bazel",
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "args": [
+        "build",
+        "//validation:benchmarks",
+        "--config=release"
+      ],
       "group": "build",
-      "detail": "Performs a npm install of TTX Lsp dependencies.",
+      "detail": "Builds the release validation benchmark binary.",
       "presentation": {
-        "clear": true,
-      },
-      "options": {
-        "cwd": "${workspaceFolder}/tetrodotoxin/lsp/client/"
-      },
-      "dependsOn": "Full Build (Linux) [Debug]"
+        "clear": true
+      }
+    },
+    {
+      "label": "TTX LLVM Debug Validation Build (Linux)",
+      "type": "shell",
+      "command": "bazel",
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "args": [
+        "build",
+        "//validation:unit_tests",
+        "--config=debug",
+        "--jobs=2",
+        "--experimental_total_worker_memory_limit_mb=4096"
+      ],
+      "group": "build",
+      "detail": "Builds the validation binary with full DWARF for its TTX runtime integration.",
+      "presentation": {
+        "clear": true
+      }
     },
     {
       "label": "TTX Lsp Build",
-      "type": "npm",
-      "script": "compile",
+      "type": "shell",
+      "command": "${workspaceFolder}/extension/package.sh",
+      "args": [
+        "--sync"
+      ],
       "group": "build",
-      "detail": "Performs a build of the TTX Lsp extension.",
+      "detail": "Builds Puffer, synchronizes the packaged server, and compiles the extension.",
       "presentation": {
         "clear": true,
         "panel": "dedicated",
@@ -89,9 +98,8 @@
         "$tsc"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/tetrodotoxin/lsp/client/"
-      },
-      "dependsOn": "TTX Lsp Install"
+        "cwd": "${workspaceFolder}"
+      }
     }
   ]
 }

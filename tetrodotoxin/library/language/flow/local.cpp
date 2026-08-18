@@ -3,8 +3,12 @@
 
 #include "tetrodotoxin/library/language/flow/local.hpp"
 
+#include "perimortem/core/diagnostics/log.hpp"
+
+#include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -88,6 +92,7 @@ auto Language::Flow::Local::interpret(Cursor& cursor, Block& host)
         domain, host, name, spelling, writability, type_reference, initializer,
         anchor);
   });
+  cursor.get_associations().create(anchor, local);
   return local;
 }
 
@@ -159,10 +164,13 @@ auto Language::Flow::Local::link(
 
   if (!type) {
     if (selected_initializer->get_layout().get_size() != 1) {
-      cursor.create_expression_error(
-          anchor,
-          "Inferred Local initializer must produce exactly one value."_view,
-          "Name an explicit receiving Type for empty or multi-value flow."_view);
+      auto report = cursor.create_report(anchor);
+      report << "Cannot infer Local '"_view << name << "' from "_view
+             << selected_initializer->get_layout().get_size()
+             << " initializer values.\nSource produces: "_view;
+      Language::Diagnostics::write_pack(report, *selected_initializer);
+      report.get_hint()
+          << "Provide exactly one value or declare the Local's receiving Type."_view;
       return False;
     }
 
@@ -191,11 +199,15 @@ auto Language::Flow::Local::link(
   }
 
   if (!selected_initializer->fits_into(type->get())) {
-    cursor.create_expression_error(
-        anchor,
-        "Local initializer Pack does not fit the declared Type Layout."_view,
-        "Supply the complete value flow accepted by the declared Local "
-        "Type."_view);
+    auto report = cursor.create_report(anchor);
+    report << "Initializer for Local '"_view << name
+           << "' does not fit declared Type '"_view << type->get().get_name()
+           << "'.\nSource produces: "_view;
+    Language::Diagnostics::write_pack(report, *selected_initializer);
+    report << "\nTarget accepts: "_view;
+    Language::Diagnostics::write_layout(report, type->get().get_layout());
+    report.get_hint()
+        << "Change the initializer or declare the exact Type it produces."_view;
     return False;
   }
 
@@ -212,9 +224,81 @@ auto Language::Flow::Local::resolve() const -> const Abstract& {
   return *this;
 }
 
+auto Language::Flow::Local::resolve_access(
+    const Abstract& access_host,
+    Core::View::Bytes route) const -> const Abstract& {
+  return type.visit(
+      []() -> const Abstract& { return Invalid::get_invalid(); },
+      [&](const Reference<const Language::Model::Type>& selected)
+          -> const Abstract& {
+        return selected.get().resolve_type_access(
+            access_host, route, Language::Model::Type::Access::Self);
+      });
+}
+
+auto Language::Flow::Local::resolve_call(
+    const Abstract& access_host,
+    Core::View::Bytes route) const -> const Abstract& {
+  return type.visit(
+      []() -> const Abstract& { return Invalid::get_invalid(); },
+      [&](const Reference<const Language::Model::Type>& selected)
+          -> const Abstract& {
+        return selected.get().resolve_type_call(
+            access_host, route, Language::Model::Type::Access::Self);
+      });
+}
+
+auto Language::Flow::Local::get_documentation() const -> const Documentation& {
+  for (const Language::Statement& statement : host.get_statements()) {
+    if (&statement.get_root() == this) {
+      return statement.get_documentation();
+    }
+  }
+
+  return Documentation::get_empty();
+}
+
 auto Language::Flow::Local::finalize(Cursor& cursor) -> void {
   initializer.visit(
       []() {}, [&](Model::Pack& selected) { selected.finalize(cursor); });
+}
+
+auto Language::Flow::Local::lower(Llvm::Builder& body) const -> Bool {
+  if (writability == Writability::Constant) {
+    return True;
+  }
+
+  Bool type_ready = get_type().reserve(body.get_program()) &&
+                    get_type().complete(body.get_program());
+  if (!type_ready) {
+    return False;
+  }
+
+  Core::Option<const Model::Pack&> value = get_initializer();
+  if (!value) {
+    auto created = get_type().create_default(body.get_program().get_arena());
+    if (!created) {
+      return False;
+    }
+
+    value = *created;
+  }
+
+  Bool lowered = value->lower(body);
+  if (!lowered) {
+    Perimortem::Core::Diagnostics::Log::error(
+        "Library LLVM lowering could not emit one Local initializer."_view);
+    return False;
+  }
+
+  Bool bound = body.bind_local(*this, *value);
+  if (!bound) {
+    Perimortem::Core::Diagnostics::Log::error(
+        "Library LLVM lowering could not bind one Local value."_view);
+    return False;
+  }
+
+  return body.local(*this, anchor);
 }
 
 auto Language::Flow::Local::get_constant() const -> Core::Option<Model::Pack&> {

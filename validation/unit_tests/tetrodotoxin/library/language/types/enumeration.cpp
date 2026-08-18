@@ -56,7 +56,8 @@ static auto parse_authored(
     Errors& errors,
     View::Bytes source) -> Option<Language::Monograph&> {
   Tokenizer tokenizer(lexical, source, "enumeration.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   if (!cursor.matches(Code::Type::Comment)) {
     return {};
   }
@@ -104,7 +105,8 @@ static auto rejects_link(View::Bytes source) -> Bool {
 
   Allocator::Arena completion;
   Tokenizer tokenizer(completion, source, "enumeration.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   Bool linked = monograph->link(cursor);
   return !linked && !errors.is_empty() &&
          &workspace.resolve_context("EnumerationTest"_view) ==
@@ -125,7 +127,8 @@ static auto rejects_finalize_without_cases(View::Bytes source) -> Bool {
   auto& monograph = *owner;
   Allocator::Arena completion;
   Tokenizer tokenizer(completion, source, "enumeration.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   if (!monograph.link(cursor)) {
     return False;
   }

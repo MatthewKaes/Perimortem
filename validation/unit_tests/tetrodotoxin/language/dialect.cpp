@@ -87,7 +87,8 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_defaults) {
   DefaultMonograph empty_monograph(arena, empty_dialect, context);
   Errors errors;
   Tokenizer tokenizer(arena, {}, "default.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   const Bool linked = monograph.link(cursor);
   const Bool finalized = monograph.finalize(cursor);

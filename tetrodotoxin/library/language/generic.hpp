@@ -59,9 +59,8 @@ class Generic : public Ttx::Concept::Abstract {
     Count argument;
   };
 
-  using Materialization = Perimortem::Utility::Result<
-      const Model::Type&,
-      Failure>;
+  using Materialization =
+      Perimortem::Utility::Result<const Model::Type&, Failure>;
 
   TTX_CONTRACT(Generic, Ttx::Concept::Abstract);
 
@@ -95,6 +94,10 @@ class Generic : public Ttx::Concept::Abstract {
 
   constexpr auto get_domain() const -> Perimortem::Memory::Allocator::Arena& {
     return domain;
+  }
+
+  constexpr auto get_context() const -> const Ttx::Concept::Abstract& {
+    return context;
   }
 
  private:

@@ -3,7 +3,9 @@
 
 #include "tetrodotoxin/library/language/flow/return.hpp"
 
+#include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -62,11 +64,14 @@ auto Language::Flow::Return::link(
   Bool fits = selected.fits(results);
 
   if (!fits) {
-    cursor.create_expression_error(
-        anchor,
-        "Return value Layout does not fit the Function result Layout."_view,
-        "Return the complete ordered values required by the Function "
-        "signature."_view);
+    auto report = cursor.create_report(anchor);
+    report << "Return values do not fit the Function result Layout.\n"
+              "Source produces: "_view;
+    Language::Diagnostics::write_pack(report, selected);
+    report << "\nFunction accepts: "_view;
+    Language::Diagnostics::write_layout(report, results);
+    report.get_hint()
+        << "Return the exact ordered Types declared by the Function."_view;
     return False;
   }
 
@@ -76,4 +81,13 @@ auto Language::Flow::Return::link(
 
 auto Language::Flow::Return::finalize(Cursor& cursor) -> void {
   pack.get().finalize(cursor);
+}
+
+auto Language::Flow::Return::lower(Llvm::Builder& body) const -> Bool {
+  Bool lowered = pack.get().lower(body);
+  if (!lowered) {
+    return False;
+  }
+
+  return body.return_values(pack.get());
 }

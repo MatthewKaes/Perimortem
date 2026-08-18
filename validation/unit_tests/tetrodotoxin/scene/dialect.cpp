@@ -48,7 +48,8 @@ class RejectingLibraryDialect : public Library::Dialect {
     Tokenizer tokenizer(
         source_cursor.get_arena(), "using Missing;"_view,
         "scene-child.ttx"_view);
-    Cursor cursor(tokenizer, parser_errors);
+    Ttx::Lexical::Associations associations(tokenizer.get_arena());
+    Cursor cursor(tokenizer, parser_errors, associations);
     auto& monograph = static_cast<Library::Language::Monograph&>(*interpreted);
     if (!monograph.parse(cursor) || !cursor.matches(Code::Type::Terminal) ||
         !parser_errors.is_empty()) {

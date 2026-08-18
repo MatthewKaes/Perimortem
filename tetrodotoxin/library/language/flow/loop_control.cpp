@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/flow/loop_control.hpp"
 
+#include "tetrodotoxin/library/llvm/builder.hpp"
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Ttx::Lexical;
@@ -43,4 +44,11 @@ auto Language::Flow::LoopControl::interpret(
             kind, *target, Anchor::create(opening, Span(opening, closing)));
       });
   return result;
+}
+
+auto Language::Flow::LoopControl::lower(Llvm::Builder& body) const -> Bool {
+  Llvm::Builder::LoopAction action = kind == Kind::Break
+                                         ? Llvm::Builder::LoopAction::Break
+                                         : Llvm::Builder::LoopAction::Continue;
+  return body.leave_loop(action, target.get());
 }

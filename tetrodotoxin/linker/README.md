@@ -19,9 +19,8 @@ and relocation requests:
   location.
 
 Linker checks these relationships before it writes an object format. The module
-may come from Library's LLVM compiler, Library's direct native compiler, another
-language compiler, or a declared ELF or COFF file. LLVM is one possible
-producer, not a dependency of Linker.
+may come from Library's LLVM compiler, another language compiler, or a declared
+ELF or COFF file. LLVM is one possible producer, not a dependency of Linker.
 
 ## CPU targets and platform hosts
 

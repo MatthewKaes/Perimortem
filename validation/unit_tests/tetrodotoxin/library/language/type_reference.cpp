@@ -112,18 +112,19 @@ PERIMORTEM_UNIT_TEST(
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "First::Second"_view, "route.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   auto reference = Language::TypeReference::parse_route(cursor);
   ASSERT(reference);
 
   RouteType terminal;
   RouteContext first("First"_view, "Second"_view, terminal);
   RouteContext root("Root"_view, "First"_view, first);
-  const Abstract* selected = nullptr;
+  Option<const Abstract&> selected;
   reference->resolve(root).visit(
-      [&](const Abstract& resolved) { selected = &resolved; },
+      [&](const Abstract& resolved) { selected = resolved; },
       [](const Language::TypeReference::Failure&) {});
-  EXPECT(selected == &terminal);
+  EXPECT(selected && &*selected == &terminal);
   EXPECT(errors.is_empty());
 }
 
@@ -194,7 +195,8 @@ PERIMORTEM_UNIT_TEST(
   // and the exact Types selected by the first pass.
   Allocator::Arena repeat_domain;
   Tokenizer repeat_tokenizer(repeat_domain, source, "type-reference.ttx"_view);
-  Cursor repeat_cursor(repeat_tokenizer, errors);
+  Ttx::Lexical::Associations repeat_associations(repeat_tokenizer.get_arena());
+  Cursor repeat_cursor(repeat_tokenizer, errors, repeat_associations);
   ASSERT(monograph->link(repeat_cursor));
   catalog = select_structure(root, "Catalog"_view);
   node = select_structure(root, "Node"_view);

@@ -30,6 +30,25 @@ class RaiiProbe {
   Count value = 0;
 };
 
+static_assert(sizeof(Dynamic::Object<RaiiProbe>) == sizeof(void*));
+
+static Count native_finalizations = 0;
+
+static auto finalize_native_object(Unsigned_8*) -> void {
+  native_finalizations++;
+}
+
+PERIMORTEM_UNIT_TEST(DynamicObject, native_runtime_surface) {
+  native_finalizations = 0;
+  Unsigned_8* object = perimortem_dynamic_object_allocate(
+      sizeof(Unsigned_64), finalize_native_object);
+  perimortem_dynamic_object_retain(object);
+  perimortem_dynamic_object_release(object);
+  EXPECT_EQ(native_finalizations, Count(0));
+  perimortem_dynamic_object_release(object);
+  EXPECT_EQ(native_finalizations, Count(1));
+}
+
 PERIMORTEM_UNIT_TEST(DynamicObject, shared_lifetime) {
   Count destructor_count = 0;
 

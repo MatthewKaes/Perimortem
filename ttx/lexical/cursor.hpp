@@ -10,7 +10,7 @@
 #include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-
+#include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -22,8 +22,11 @@ namespace Ttx::Lexical {
 // every failure is published to the operation error log.
 class Cursor {
  public:
-  Cursor(const Lexical::Tokenizer& tokenizer, Lexical::Errors& errors)
-      : tokenizer(tokenizer), errors(errors) {}
+  constexpr Cursor(
+      const Lexical::Tokenizer& tokenizer,
+      Lexical::Errors& errors,
+      Lexical::Associations& associations)
+      : tokenizer(tokenizer), errors(errors), associations(associations) {}
   Cursor(const Cursor&) = delete;
 
   // A grammar owner may add one required syntax diagnostic only when a nested
@@ -88,7 +91,7 @@ class Cursor {
   // memory space in case the error outlives the source.
   auto create_error(
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void {
+      Perimortem::Core::View::Bytes hint = {}) const -> void {
     create_expression_error(Anchor::create(Span()), message, hint);
   }
 
@@ -97,14 +100,14 @@ class Cursor {
   // memory space in case the error outlives the source.
   auto create_token_error(
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void {
+      Perimortem::Core::View::Bytes hint = {}) const -> void {
     create_expression_error(Anchor::create(Span(current())), message, hint);
   }
 
   auto create_token_error(
       Lexical::Token token,
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void {
+      Perimortem::Core::View::Bytes hint = {}) const -> void {
     create_expression_error(Anchor::create(Span(token)), message, hint);
   }
 
@@ -115,14 +118,14 @@ class Cursor {
   auto create_expression_error(
       Lexical::Span span,
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void {
+      Perimortem::Core::View::Bytes hint = {}) const -> void {
     create_expression_error(Anchor::create(span), message, hint);
   }
 
   auto create_expression_error(
       Perimortem::Core::Option<Lexical::Anchor> anchor,
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void {
+      Perimortem::Core::View::Bytes hint = {}) const -> void {
     if (!anchor) {
       create_error(message, hint);
       return;
@@ -133,7 +136,7 @@ class Cursor {
   auto create_expression_error(
       Lexical::Anchor anchor,
       Perimortem::Core::View::Bytes message,
-      Perimortem::Core::View::Bytes hint = {}) -> void {
+      Perimortem::Core::View::Bytes hint = {}) const -> void {
     Errors::Report report(
         errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
         anchor);
@@ -143,11 +146,16 @@ class Cursor {
 
   // Some semantic errors contribute directly to a Report. Cursor supplies the
   // authored source facts without exposing its Errors owner to the consumer.
-  auto create_report(Lexical::Span span) -> Errors::Report {
+  auto create_report(Lexical::Span span) const -> Errors::Report {
     return create_report(Anchor::create(span));
   }
 
-  auto create_report(Lexical::Anchor anchor) -> Errors::Report {
+  auto create_report(Perimortem::Core::Option<Lexical::Anchor> anchor) const
+      -> Errors::Report {
+    return create_report(anchor ? *anchor : Anchor::create(Lexical::Span()));
+  }
+
+  auto create_report(Lexical::Anchor anchor) const -> Errors::Report {
     return Errors::Report(
         errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
         anchor);
@@ -217,9 +225,16 @@ class Cursor {
     return tokenizer.get_source_path();
   }
 
+  // Returns the source artifact populated by semantic owners while this Cursor
+  // drives the transaction. Workspace publishes the artifact, not the Cursor.
+  constexpr auto get_associations() -> Lexical::Associations& {
+    return associations;
+  }
+
  private:
   const Lexical::Tokenizer& tokenizer;
   Lexical::Errors& errors;
+  Lexical::Associations& associations;
   Count index = 0;
 };
 

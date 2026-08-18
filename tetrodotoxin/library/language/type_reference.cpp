@@ -218,7 +218,8 @@ static auto map_failure(
 
 auto Language::TypeReference::resolve_with_root(
     const Abstract& context,
-    Root root) const -> Resolution {
+    Root root,
+    Core::Option<Cursor&> cursor) const -> Resolution {
   // Lexical authority applies only to the unqualified root. Every explicit
   // suffix is an ordinary public context query on the identity just selected.
   const Abstract* selected = &context.resolve_context(get_root());
@@ -228,7 +229,6 @@ auto Language::TypeReference::resolve_with_root(
       selected = &type->resolve_lexical_context(get_root());
     }
   }
-  selected = &resolve_alias(*selected);
   if (selected->is<Invalid>()) {
     return Failure(Failure::Type::Route, anchor, 0);
   }
@@ -236,17 +236,34 @@ auto Language::TypeReference::resolve_with_root(
   for (Count i = 1; i < get_size(); i++) {
     // TypeReference performs the explicit Alias resolution required before a
     // selected target may receive the next ordinary context query.
-    selected = &resolve_alias(selected->resolve_context(get_name(i)));
+    const Abstract& route_context = resolve_alias(*selected);
+    if (route_context.is<Invalid>()) {
+      return Failure(Failure::Type::Route, anchor, i - 1);
+    }
+
+    selected = &route_context.resolve_context(get_name(i));
     if (selected->is<Invalid>()) {
       return Failure(Failure::Type::Route, anchor, i);
     }
   }
 
   if (!arguments) {
-    return *selected;
+    const Abstract& resolved = resolve_alias(*selected);
+    if (resolved.is<Invalid>()) {
+      return Failure(Failure::Type::Route, anchor, get_size() - 1);
+    }
+
+    if (cursor) {
+      cursor->get_associations().create(anchor, *selected);
+    }
+    return resolved;
   }
 
-  auto generic = selected->select<Generic>();
+  const Abstract& resolved = resolve_alias(*selected);
+  if (resolved.is<Invalid>()) {
+    return Failure(Failure::Type::Route, anchor, get_size() - 1);
+  }
+  auto generic = resolved.select<Generic>();
   if (!generic) {
     return Failure(Failure::Type::Generic, anchor);
   }
@@ -263,7 +280,7 @@ auto Language::TypeReference::resolve_with_root(
     if (reference != nullptr) {
       const Abstract* nested = nullptr;
       Core::Option<Failure> nested_failure;
-      reference->resolve_with_root(context, root)
+      reference->resolve_with_root(context, root, cursor)
           .visit(
               [&](const Abstract& resolved) {
                 nested = &resolve_alias(resolved);
@@ -288,7 +305,12 @@ auto Language::TypeReference::resolve_with_root(
 
   Ttx::Model::Layouts::Fluid layout(linked.get_view());
   return generic->materialize(layout).visit(
-      [](const Language::Model::Type& type) -> Resolution { return type; },
+      [&](const Language::Model::Type& type) -> Resolution {
+        if (cursor) {
+          cursor->get_associations().create(anchor, type);
+        }
+        return type;
+      },
       [&](const Generic::Failure& failure) -> Resolution {
         // Generic owns source free formula failures. TypeReference maps the
         // parameter index back to authored syntax because it owns those
@@ -330,9 +352,10 @@ auto Language::TypeReference::resolve_authored(
     Cursor& cursor,
     const Abstract& context) const -> Core::Option<const Abstract&> {
   Core::Option<const Abstract&> selected;
-  resolve_lexical(context).visit(
-      [&](const Abstract& resolved) { selected = resolved; },
-      [&](const Failure& failure) { report(cursor, failure); });
+  resolve_with_root(context, Root::Lexical, cursor)
+      .visit(
+          [&](const Abstract& resolved) { selected = resolved; },
+          [&](const Failure& failure) { report(cursor, failure); });
   return selected;
 }
 

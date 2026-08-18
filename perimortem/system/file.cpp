@@ -39,6 +39,8 @@ static constexpr Count max_warning_size = max_path_size + 256;
 // one filesystem transaction uses the same value so its messages cannot drift.
 static constexpr View::Bytes file_read_operation = "System::File read"_view;
 static constexpr View::Bytes file_write_operation = "System::File write"_view;
+static constexpr View::Bytes file_replace_operation =
+    "System::File replace"_view;
 static constexpr View::Bytes root_read_operation =
     "System::File::Root read"_view;
 static constexpr View::Bytes root_write_operation =
@@ -636,6 +638,34 @@ auto File::write(View::Bytes data, View::Bytes location) -> Bool {
   Bool written = write_file(file, data, file_write_operation, location);
   Bool closed = close_stream(file, file_write_operation, location);
   return written && closed;
+}
+
+auto File::replace(View::Bytes source, View::Bytes destination) -> Bool {
+  Static::Bytes<max_path_size> source_buffer;
+  Static::Bytes<max_path_size> destination_buffer;
+  auto source_path = create_path(source_buffer, source);
+  auto destination_path = create_path(destination_buffer, destination);
+  if (!source_path || !destination_path) {
+    View::Bytes failed = source_path ? destination : source;
+    log_file_warning(
+        file_replace_operation, failed, "path"_view, "size"_view,
+        Signed_64(failed.get_size()));
+    return False;
+  }
+
+  const char* native_source = Data::cast<const char>(source_path->get_data());
+  const char* native_destination =
+      Data::cast<const char>(destination_path->get_data());
+  Signed_32 replaced = rename(native_source, native_destination);
+  if (replaced == 0) {
+    return True;
+  }
+
+  Signed_32 replace_error = errno;
+  log_file_warning(
+      file_replace_operation, destination, "rename"_view, "errno"_view,
+      replace_error);
+  return False;
 }
 
 auto File::remove(View::Bytes location) -> Bool {

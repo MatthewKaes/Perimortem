@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/library/language/access/address.hpp"
 
+#include "tetrodotoxin/library/language/diagnostics.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -82,18 +84,25 @@ auto Language::Access::Address::link(
   auto selected = candidate.resolve().select<Language::Model::Addressable>();
 
   if (!selected) {
-    cursor.create_expression_error(
-        source_anchor,
-        "Address did not find one readable Addressable for this receiver "
-        "identity."_view,
-        "Use the receiver's exact contextual Addressable."_view);
+    auto report = cursor.create_report(source_anchor);
+    report << "Receiver '"_view << receiver_result.get_name()
+           << "' has no readable field named '"_view << name << "'. "_view
+           << "Receiver type: "_view;
+    Language::Diagnostics::write_type(report, receiver_result);
+    report << "."_view;
+    report.get_hint()
+        << "Correct the field spelling or select a field exposed by this "
+           "receiver."_view;
     return False;
   }
 
   if (addressable && &addressable->get() != &*selected) {
-    cursor.create_expression_error(
-        source_anchor, "Address cannot change its selected Addressable."_view,
-        "Keep one exact Addressable bound to this authored Token."_view);
+    auto report = cursor.create_report(source_anchor);
+    report << "Internal semantic error: field access '"_view << name
+           << "' changed identity from '"_view << addressable->get().get_name()
+           << "' to '"_view << selected->get_name() << "'."_view;
+    report.get_hint()
+        << "The source is valid; report this unstable linking result."_view;
     return False;
   }
 
@@ -128,4 +137,40 @@ auto Language::Access::Address::get_result() const -> const Abstract& {
 auto Language::Access::Address::finalize(Cursor& cursor) -> void {
   receiver.finalize(cursor);
   Expression::finalize(cursor);
+}
+
+auto Language::Access::Address::lower(Llvm::Builder& body) const -> Bool {
+  auto folded = lower_folded(body);
+  if (folded) {
+    return *folded;
+  }
+
+
+  Bool selected = lower_write_target(body);
+  if (!selected) {
+    return False;
+  }
+
+  return body.load(*this);
+}
+
+auto Language::Access::Address::lower_write_target(Llvm::Builder& body) const
+    -> Bool {
+  auto selected = get_result().resolve().select<Language::Model::Addressable>();
+  auto instance =
+      receiver.get_result().resolve().select<Language::Model::Addressable>();
+  if (!selected) {
+    return False;
+  }
+
+  if (!instance) {
+    return body.select(*this, *selected);
+  }
+
+  Bool receiver_lowered = receiver.lower(body);
+  if (!receiver_lowered) {
+    return False;
+  }
+
+  return body.select_member(*this, *selected, receiver);
 }

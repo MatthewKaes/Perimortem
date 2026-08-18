@@ -304,7 +304,20 @@ auto Diagnostics::Log::fatal(View::Bytes message, const Source& location)
 #ifdef PERI_LINUX
   Static::Vector<void*, 64> frames;
   int frame_count = backtrace(frames.get_data(), frames.get_size());
-  backtrace_symbols_fd(frames.get_data(), frame_count, 2);
+  char** symbols = backtrace_symbols(frames.get_data(), frame_count);
+  if (symbols) {
+    // Fatal diagnostics obey the same selected sink as every other toolchain
+    // message. Writing the trace directly to descriptor 2 would bypass a
+    // file only host policy and leak internal failures into user diagnostics.
+    for (int index = 0; index < frame_count; index++) {
+      log(Level::Fatal, NullTerminated::to_view(symbols[index]), Source());
+    }
+    free(symbols);
+  } else {
+    log(Level::Fatal,
+        "The platform could not symbolize the fatal backtrace."_view, Source());
+  }
+  flush();
 #endif
 
   abort();

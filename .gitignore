@@ -19,10 +19,6 @@ extension/node_modules/*
 .codex/
 .claude/
 
-# Benchmark against 3P
-# nlohmann json, slows down build by quite a bit.
-core/tests/benchmarks/json.hpp
-
 # Profiling
 perf.*
 
@@ -30,3 +26,4 @@ perf.*
 .scratch/*
 build_trace.data
 AGENTS.md
+puffer/lsp/__pycache__/*

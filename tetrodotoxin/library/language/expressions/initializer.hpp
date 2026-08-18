@@ -63,6 +63,8 @@ class Initializer : public Expression {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
+  auto lower(Llvm::Builder& body) const -> Bool override;
+
   auto get_completed_values() const
       -> Perimortem::Core::Option<const Model::Pack&>;
 

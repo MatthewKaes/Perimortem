@@ -43,6 +43,11 @@ class Structure : public Composite {
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Language::Definition& definition,
       Ttx::Lexical::Token kind_token) -> Bool;
+
+  auto reserve_carrier(Llvm::Program& program) const
+      -> Perimortem::Core::Option<Bool> override;
+
+  auto complete_carrier(Llvm::Program& program) const -> Bool override;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Types

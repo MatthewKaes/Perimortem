@@ -7,6 +7,7 @@
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
@@ -85,10 +86,9 @@ auto Language::Operations::SubtractAssignment::link(
     return False;
   }
 
-  // SubtractAssignment owns the address read, subtraction, and write as one
-  // operation. Each authored edge is therefore linked exactly once.
-  BAIL_IF(!target.link(cursor, lexical_context, *selected_scope));
-  BAIL_IF(!right.link(cursor, lexical_context, *selected_scope));
+  // Scalar compound assignment asks the same target operation to bind its
+  // write edge while retaining the target Type for the required read.
+  BAIL_IF(!target.link_write(cursor, lexical_context, *selected_scope, right));
 
   auto target_type = target.get_write_type(*selected_scope);
   const Abstract& read_type = target.get_type().resolve();
@@ -113,6 +113,21 @@ auto Language::Operations::SubtractAssignment::finalize(Cursor& cursor)
     -> void {
   target.finalize(cursor);
   right.finalize(cursor);
+}
+
+auto Language::Operations::SubtractAssignment::lower(Llvm::Builder& body) const
+    -> Bool {
+  Bool target_lowered = target.lower_write_target(body);
+  if (!target_lowered) {
+    return False;
+  }
+
+  Bool right_lowered = right.lower(body);
+  if (!right_lowered) {
+    return False;
+  }
+
+  return body.write(Llvm::Builder::Write::Subtract, *this, target, right);
 }
 
 auto Language::Operations::SubtractAssignment::get_value_type(Count) const

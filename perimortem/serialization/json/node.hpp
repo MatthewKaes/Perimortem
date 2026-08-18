@@ -75,6 +75,8 @@ class Node {
   auto get_number() const -> Signed_64;
   auto get_real() const -> double;
   auto get_string() const -> const Core::View::Bytes;
+  auto decode_string(Memory::Allocator::Arena& arena) const
+      -> Core::View::Bytes;
   auto get_array() const -> const Core::View::Vector<Node>;
   auto get_object() const -> const Core::View::Vector<Member>;
 

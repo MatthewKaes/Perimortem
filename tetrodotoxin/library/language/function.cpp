@@ -3,6 +3,9 @@
 
 #include "tetrodotoxin/library/language/function.hpp"
 
+#include "perimortem/core/diagnostics/log.hpp"
+
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -31,6 +34,7 @@ static auto validate_authored_function(
         "Library Functions accept only `public` or `private` visibility."_view);
     return False;
   }
+
   if (!definition.get_modifiers().is_empty()) {
     cursor.create_token_error(
         definition.get_modifiers().get_data()[0],
@@ -170,4 +174,86 @@ auto Language::Function::get_body() const -> Option<const Flow::Block&> {
 
 auto Language::Function::is_signature_linked() const -> Bool {
   return signature.is_linked();
+}
+
+auto Language::Function::reserve_declaration(Llvm::Program& program) const
+    -> Bool {
+  const auto& functions = program.get_functions();
+  auto reserved = functions.reserve_function(program, *this, definition);
+  if (!reserved) {
+    return False;
+  }
+
+  return !*reserved || Model::Callable::reserve_declaration(program);
+}
+
+auto Language::Function::complete_declaration(Llvm::Program& program) const
+    -> Bool {
+  const auto& functions = program.get_functions();
+  Bool signature_completed = Model::Callable::complete_declaration(program);
+  if (!signature_completed) {
+    return False;
+  }
+
+  return functions.complete(program, *this);
+}
+
+auto Language::Function::lower_declaration(Llvm::Program& program) const
+    -> Bool {
+  const auto& functions = program.get_functions();
+  auto selected_body = get_body();
+  if (!selected_body) {
+    Perimortem::Core::Diagnostics::Log::error(
+        "Library LLVM lowering found a Function without its completed Body."_view);
+    return False;
+  }
+
+  auto lowering = functions.begin_body(program, *this);
+  if (!lowering) {
+    Perimortem::Core::Diagnostics::Log::error(
+        "Library LLVM lowering could not begin one Function Body."_view);
+    return False;
+  }
+
+  Llvm::Body native_body(
+      program, *this, lowering->get_function(), lowering->get_callable(),
+      lowering->get_sret(), lowering->get_sret_type());
+  if (!functions.bind_parameters(native_body, *this)) {
+    return False;
+  }
+
+  Llvm::Builder body(native_body);
+
+  if (!body.begin_function(*this, definition)) {
+    return False;
+  }
+
+  const Model::Layout& parameters = signature.get_parameters();
+  for (Count index = 0; index < parameters.get_size(); index++) {
+    auto entry = parameters.get_abstract(index);
+    auto parameter = entry ? entry->select<Ttx::Model::Addressable>()
+                           : Option<const Ttx::Model::Addressable&>();
+    auto anchor = parameters.get_slot_anchor(index);
+    if (!parameter ||
+        !body.parameter(
+            *parameter, anchor ? *anchor : definition.get_anchor(), index)) {
+      return False;
+    }
+  }
+
+  Bool lowered = selected_body->lower(body);
+  if (!lowered) {
+    Perimortem::Core::Diagnostics::Log::Message<256> message(
+        Perimortem::Core::Diagnostics::Log::Level::Error,
+        Perimortem::Core::Diagnostics::Source());
+    message << "Library LLVM lowering could not emit Function '"_view
+            << get_name() << "'."_view;
+    return False;
+  }
+
+  if (!body.end_function()) {
+    return False;
+  }
+
+  return functions.end_body(native_body, *this);
 }

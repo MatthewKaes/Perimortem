@@ -6,6 +6,7 @@
 #include "perimortem/memory/managed/map.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 
 namespace Tetrodotoxin::Library::Language {
@@ -28,6 +29,9 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
+
+  auto lower(Llvm::Program& program) const
+      -> Perimortem::Core::Option<Llvm::Program&>;
 
   auto get_name() const -> Perimortem::Core::View::Bytes override;
 

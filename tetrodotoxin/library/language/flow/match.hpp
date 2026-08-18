@@ -61,6 +61,8 @@ class Match : public Ttx::Concept::Abstract {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
 
+  auto lower(Llvm::Builder& body) const -> Bool;
+
   auto reaches_next_statement() const -> Bool;
 
   TTX_NAME("Match"_view);
@@ -81,6 +83,9 @@ class Match : public Ttx::Concept::Abstract {
 
   auto get_case_body(Count index) const
       -> Perimortem::Core::Option<const Block&>;
+
+  auto get_case_anchor(Count index) const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
 
   constexpr auto get_default() const -> Perimortem::Core::Option<const Block&> {
     return default_body.visit(

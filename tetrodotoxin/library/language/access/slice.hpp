@@ -50,10 +50,55 @@ class Slice : public Expression {
       -> Bool override;
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
+  auto get_value_type(Count index) const
+      -> const Ttx::Concept::Abstract& override;
+  auto get_produced(Count index) const
+      -> Perimortem::Core::Option<Ttx::Model::Pack::Produced> override;
   auto get_layout() const -> const Ttx::Concept::Layout& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto fits(const Ttx::Model::Type& target) const -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
+
+  auto lower(Llvm::Builder& body) const -> Bool override;
+
+  constexpr auto get_receiver() const -> const Expression& { return receiver; }
+
+  // The first operand is the scalar index or the first position of a range.
+  constexpr auto get_index() const -> const Expression& { return first; }
+
+  constexpr auto get_count() const
+      -> Perimortem::Core::Option<const Expression&> {
+    return count.visit(
+        []() -> Perimortem::Core::Option<const Expression&> { return {}; },
+        [](const Ttx::Concept::Reference<Expression>& selected)
+            -> Perimortem::Core::Option<const Expression&> {
+          return selected.get();
+        });
+  }
+
+  constexpr auto get_element_type() const
+      -> Perimortem::Core::Option<const Model::Type&> {
+    return element_type.visit(
+        []() -> Perimortem::Core::Option<const Model::Type&> { return {}; },
+        [](const Ttx::Concept::Reference<const Model::Type>& selected)
+            -> Perimortem::Core::Option<const Model::Type&> {
+          return selected.get();
+        });
+  }
+
+  constexpr auto get_fallback() const
+      -> Perimortem::Core::Option<const Model::Pack&> {
+    return fallback.visit(
+        []() -> Perimortem::Core::Option<const Model::Pack&> { return {}; },
+        [](const Ttx::Concept::Reference<Model::Pack>& selected)
+            -> Perimortem::Core::Option<const Model::Pack&> {
+          return selected.get();
+        });
+  }
+
+  constexpr auto get_range_count() const -> Perimortem::Core::Option<Count> {
+    return range_count;
+  }
 
  protected:
   auto evaluate() -> Perimortem::Utility::Result<

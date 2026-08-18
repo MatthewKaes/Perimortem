@@ -24,7 +24,8 @@ PERIMORTEM_UNIT_TEST(AttributeTests, optional_prefix) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "Value"_view, "<optional attribute>"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   auto attributes = Attribute::parse(cursor);
 
@@ -40,7 +41,8 @@ PERIMORTEM_UNIT_TEST(AttributeTests, scalar_prefix) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, source, "<attribute values>"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   auto attributes = Attribute::parse(cursor);
 
@@ -69,7 +71,8 @@ PERIMORTEM_UNIT_TEST(AttributeTests, malformed_prefix_fails) {
   Errors errors;
   Tokenizer tokenizer(
       arena, "@valid @invalid() Value"_view, "<invalid attribute>"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   auto attributes = Attribute::parse(cursor);
 
@@ -81,7 +84,8 @@ PERIMORTEM_UNIT_TEST(AttributeTests, empty_key_fails) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "@"_view, "<empty attribute>"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   auto attributes = Attribute::parse(cursor);
 
@@ -93,7 +97,8 @@ PERIMORTEM_UNIT_TEST(AttributeTests, separated_key_fails) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "@ Value"_view, "<separated attribute>"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   auto attributes = Attribute::parse(cursor);
 
@@ -106,7 +111,8 @@ PERIMORTEM_UNIT_TEST(AttributeTests, malformed_string_fails) {
   Errors errors;
   Tokenizer tokenizer(
       arena, "@text(\"unterminated)"_view, "<attribute string>"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
 
   auto attributes = Attribute::parse(cursor);
 

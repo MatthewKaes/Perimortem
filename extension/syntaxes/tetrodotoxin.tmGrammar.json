@@ -139,7 +139,7 @@
         },
         {
           "name": "keyword.other.tetrodotoxin",
-          "match": "\\b(dialect|import|external|func|self|new|init|object|struct|enum|foreign|alias)\\b"
+          "match": "\\b(dialect|func|self|new|object|struct|enum|foreign|alias|emit|resolve|source|using|from)\\b"
         }
       ]
     },

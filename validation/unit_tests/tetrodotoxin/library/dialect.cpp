@@ -92,9 +92,12 @@ class EmptyRegistry : public Abstract {
 
 class EmbeddedResource final : public Tetrodotoxin::Language::Resource {
  public:
-  constexpr auto get_value() const -> View::Bytes override {
-    return "0123456789ABCDEF"_view;
-  }
+  constexpr EmbeddedResource(View::Bytes value) : value(value) {}
+
+  constexpr auto get_value() const -> View::Bytes override { return value; }
+
+ private:
+  View::Bytes value;
 };
 
 class ResourceRegistry final : public Abstract {
@@ -106,13 +109,18 @@ class ResourceRegistry final : public Abstract {
     return Documentation::get_empty();
   }
   auto resolve_context(View::Bytes route) const -> const Abstract& override {
-    return route == "$[resource/hello.txt]"_view
-               ? static_cast<const Abstract&>(resource)
-               : static_cast<const Abstract&>(Invalid::get_invalid());
+    if (route == "$[resource/hello.txt]"_view) {
+      return table;
+    }
+    if (route == "$[resource/greeting.txt]"_view) {
+      return greeting;
+    }
+    return Invalid::get_invalid();
   }
 
  private:
-  EmbeddedResource resource;
+  EmbeddedResource table{"0123456789ABCDEF"_view};
+  EmbeddedResource greeting{"Hello World"_view};
 };
 
 class FutureType : public Language::Model::Type {
@@ -254,7 +262,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, each_root_owns_its_vocabulary) {
 
   Errors errors;
   Tokenizer tokenizer(arena, {}, "embedded-library.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   auto& first = Language::Monograph::create_authored(
       cursor, documentation, source_anchor, dialect, context);
   auto& second = Language::Monograph::create_authored(
@@ -286,24 +295,21 @@ PERIMORTEM_UNIT_TEST(DialectTests, each_root_owns_its_vocabulary) {
   auto first_result = first_formula.materialize(first_arguments.get_view());
   auto repeated_result = first_formula.materialize(first_arguments.get_view());
   auto second_result = second_formula.materialize(second_arguments.get_view());
-  const Language::Model::Type* first_view = first_result.visit(
-      [](const Language::Model::Type& selected) { return &selected; },
-      [](const Language::Generic::Failure&) -> const Language::Model::Type* {
-        return nullptr;
-      });
-  const Language::Model::Type* repeated_view = repeated_result.visit(
-      [](const Language::Model::Type& selected) { return &selected; },
-      [](const Language::Generic::Failure&) -> const Language::Model::Type* {
-        return nullptr;
-      });
-  const Language::Model::Type* second_view = second_result.visit(
-      [](const Language::Model::Type& selected) { return &selected; },
-      [](const Language::Generic::Failure&) -> const Language::Model::Type* {
-        return nullptr;
-      });
+  Option<const Language::Model::Type&> first_view;
+  Option<const Language::Model::Type&> repeated_view;
+  Option<const Language::Model::Type&> second_view;
+  first_result.visit(
+      [&](const Language::Model::Type& selected) { first_view = selected; },
+      [](const Language::Generic::Failure&) {});
+  repeated_result.visit(
+      [&](const Language::Model::Type& selected) { repeated_view = selected; },
+      [](const Language::Generic::Failure&) {});
+  second_result.visit(
+      [&](const Language::Model::Type& selected) { second_view = selected; },
+      [](const Language::Generic::Failure&) {});
   ASSERT(first_view && repeated_view && second_view);
-  EXPECT(first_view == repeated_view);
-  EXPECT(first_view != second_view);
+  EXPECT(&*first_view == &*repeated_view);
+  EXPECT(&*first_view != &*second_view);
 }
 
 static auto find_field(
@@ -344,7 +350,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, nested_missing_type_reports_authored_route) {
   Dialect dialect;
   Errors errors;
   Tokenizer tokenizer(arena, source, "phase-cascade.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   auto interpreted_owner =
       interpret_library_source(arena, dialect, cursor, registry);
   auto interpreted = select_library_monograph(interpreted_owner);
@@ -380,7 +387,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_field_failures_are_reported) {
     Dialect dialect;
     Errors errors;
     Tokenizer tokenizer(arena, sources[i], "source-field-failure.ttx"_view);
-    Cursor cursor(tokenizer, errors);
+    Ttx::Lexical::Associations associations(tokenizer.get_arena());
+    Cursor cursor(tokenizer, errors, associations);
     auto interpreted_owner =
         interpret_library_source(arena, dialect, cursor, registry);
     auto interpreted = select_library_monograph(interpreted_owner);
@@ -417,7 +425,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_alias_identity_and_visibility) {
   Dialect dialect;
   Errors errors;
   Tokenizer tokenizer(arena, source, "source-alias.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   auto interpreted_owner =
       interpret_library_source(arena, dialect, cursor, registry);
   auto interpreted = select_library_monograph(interpreted_owner);
@@ -446,6 +455,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_alias_identity_and_visibility) {
   ASSERT(monograph.finalize(cursor));
   EXPECT(&public_alias.resolve() == &hidden);
   EXPECT(&private_alias.resolve() == &hidden);
+  const Documentation& public_documentation = public_alias.get_documentation();
+  ASSERT_EQ(public_documentation.line_count(), Count(2));
+  EXPECT_TEXT(public_documentation.get_line(0), "Local documentation."_view);
+  EXPECT_TEXT(public_documentation.get_line(1), "Hidden documentation."_view);
   EXPECT(&monograph.resolve_context("PublicAlias"_view) == &public_identity);
   EXPECT(
       &monograph.resolve_context("PrivateAlias"_view) ==
@@ -469,7 +482,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, rejected_source_alias_is_atomic) {
     Dialect dialect;
     Errors errors;
     Tokenizer tokenizer(arena, rejected[i], "rejected-source-alias.ttx"_view);
-    Cursor cursor(tokenizer, errors);
+    Ttx::Lexical::Associations associations(tokenizer.get_arena());
+    Cursor cursor(tokenizer, errors, associations);
     auto interpreted_owner =
         interpret_library_source(arena, dialect, cursor, registry);
     auto interpreted = select_library_monograph(interpreted_owner);
@@ -491,7 +505,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_alias_binding_is_delayed) {
     Dialect dialect;
     Errors errors;
     Tokenizer tokenizer(arena, rejected[i], "delayed-source-alias.ttx"_view);
-    Cursor cursor(tokenizer, errors);
+    Ttx::Lexical::Associations associations(tokenizer.get_arena());
+    Cursor cursor(tokenizer, errors, associations);
     auto interpreted_owner =
         interpret_library_source(arena, dialect, cursor, registry);
     auto interpreted = select_library_monograph(interpreted_owner);
@@ -509,7 +524,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
     View::Bytes message;
     View::Bytes source_line;
   };
-  static constexpr Static::Vector<Rejection, 12> rejections = {{
+  static constexpr Static::Vector<Rejection, 4> rejections = {{
     Rejection{
       "validation/data/ttx/library/dialect_led_callable.ttx"_view,
       "Definitions require one authored visibility before their name."_view,
@@ -521,12 +536,6 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
       "public duplicate : Unsigned_64 = 2;"_view,
     },
     {
-      "validation/data/ttx/library/foreign_named_scope.ttx"_view,
-      "Library members require a Type, `alias`, `enum`, `struct`, "
-      "`object`, `func`, or inferred initializer qualifier."_view,
-      "private C : foreign {"_view,
-    },
-    {
       "validation/data/ttx/library/bare_new.ttx"_view,
       "Library `new` requires `[` before its Object Type."_view,
       "private inferred := new;"_view,
@@ -535,41 +544,6 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
       "validation/data/ttx/library/ordinary_bodyless.ttx"_view,
       "Library Function bodies require a scope beginning with `{`."_view,
       "public missing_body : func = [] -> Unsigned_64;"_view,
-    },
-    {
-      "validation/data/ttx/library/foreign_undeclared_symbol.ttx"_view,
-      "Library invocation did not resolve one accessible Callable."_view,
-      "foreign -> missing();"_view,
-    },
-    {
-      "validation/data/ttx/library/foreign_with_body.ttx"_view,
-      "Foreign Function declarations cannot contain an authored body."_view,
-      "public func illegal_definition[] -> [] {"_view,
-    },
-    {
-      "validation/data/ttx/library/foreign_const.ttx"_view,
-      "Foreign const declarations require a loader or embedding contract."_view,
-      "public const imported_constant : Unsigned_64;"_view,
-    },
-    {
-      "validation/data/ttx/library/foreign_private_state.ttx"_view,
-      "Private Foreign State is unreachable from its parent Library."_view,
-      "private state hidden : Unsigned_64;"_view,
-    },
-    {
-      "validation/data/ttx/library/foreign_private_function.ttx"_view,
-      "Private Foreign Functions are unreachable from their parent Library."_view,
-      "private func hidden[] -> [];"_view,
-    },
-    {
-      "validation/data/ttx/library/foreign_exposed_function.ttx"_view,
-      "Foreign Functions do not accept `expose` visibility."_view,
-      "expose func visible[] -> [];"_view,
-    },
-    {
-      "validation/data/ttx/library/foreign_exposed_write.ttx"_view,
-      "Assignment target did not provide one writable Type."_view,
-      "foreign.observed = 1;"_view,
     },
   }};
 
@@ -598,7 +572,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
 
 PERIMORTEM_UNIT_TEST(DialectTests, foreign_workspace_acceptance) {
   static constexpr View::Bytes path =
-      "validation/data/ttx/library/foreign_triad.ttx"_view;
+      "validation/data/ttx/library/foreign.ttx"_view;
   auto source = File::read(path);
   ASSERT(source);
 
@@ -611,12 +585,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, foreign_workspace_acceptance) {
   auto& monograph = static_cast<Language::Monograph&>(*interpreted);
   const Language::Foreign& foreign = monograph.get_source().get_foreign();
   const Abstract& readonly =
-      foreign.resolve_access(foreign, "imported_readonly"_view);
+      foreign.resolve_access(foreign, "library_foreign_bias"_view);
   const Abstract& state =
-      foreign.resolve_access(foreign, "imported_state"_view);
+      foreign.resolve_access(foreign, "library_foreign_state"_view);
   const Abstract& function =
-      foreign.resolve_call(foreign, "imported_function"_view);
-  EXPECT(monograph.resolve_context("imported_state"_view).is<Invalid>());
+      foreign.resolve_call(foreign, "library_foreign_add"_view);
+  EXPECT(monograph.resolve_context("library_foreign_state"_view).is<Invalid>());
   EXPECT(readonly.is<Addressable>());
   EXPECT(state.is<Addressable>());
   EXPECT(function.is<Callable>());
@@ -873,7 +847,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, broad_source_completes) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, native_source_completes) {
-  EXPECT(completes_fixture("validation/data/ttx/library/native.ttx"_view));
+  EXPECT(completes_fixture("validation/data/ttx/library/foreign.ttx"_view));
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
@@ -1057,7 +1031,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
 
 PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
   static constexpr View::Bytes path =
-      "validation/data/ttx/library/executable_acceptance.ttx"_view;
+      "validation/data/ttx/llvm/runtime.ttx"_view;
   auto source = File::read(path);
   ASSERT(source);
 
@@ -1071,7 +1045,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
   EXPECT(&workspace.resolve_context("ExecutableAcceptance"_view) == &monograph);
 
   const auto& source_type = monograph.get_source();
-  auto execute = find_function(source_type, "execute"_view);
+  auto execute = find_function(source_type, "executable_acceptance"_view);
   ASSERT(execute && execute->get_body());
   const auto& parameters = execute->get_parameters();
   auto flag = parameters.get_abstract(0);
@@ -1186,7 +1160,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
   Allocator::Arena repeated_domain;
   Tokenizer repeated_tokenizer(
       repeated_domain, *source, "executable-acceptance.ttx"_view);
-  Cursor repeated_cursor(repeated_tokenizer, errors);
+  Ttx::Lexical::Associations repeated_associations(
+      repeated_tokenizer.get_arena());
+  Cursor repeated_cursor(repeated_tokenizer, errors, repeated_associations);
   ASSERT(monograph.link(repeated_cursor));
   ASSERT(monograph.finalize(repeated_cursor));
   EXPECT(
@@ -1203,13 +1179,19 @@ PERIMORTEM_UNIT_TEST(DialectTests, resource_slice_folds_const_access) {
       "  $[resource/hello.txt]:[\n"
       "    source.offset + 12,\n"
       "    source.size\n"
-      "  ];"_view;
+      "  ];\n"
+      "private extract : func = [] -> [] {\n"
+      "  const embedded := $[resource/greeting.txt];\n"
+      "  const hello : Fixed[Unsigned_8, 5] = embedded:[0, 5];\n"
+      "  return;\n"
+      "}"_view;
   Allocator::Arena arena;
   ResourceRegistry registry;
   Dialect dialect;
   Errors errors;
   Tokenizer tokenizer(arena, source, "resource-slice-fold.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   auto interpreted_owner =
       interpret_library_source(arena, dialect, cursor, registry);
   auto interpreted = select_library_monograph(interpreted_owner);
@@ -1234,6 +1216,25 @@ PERIMORTEM_UNIT_TEST(DialectTests, resource_slice_folds_const_access) {
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*second).get_value(),
       Unsigned_64('E'));
+
+  auto extract = find_function(monograph.get_source(), "extract"_view);
+  ASSERT(extract && extract->get_body());
+  auto statements = extract->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(3));
+  auto hello =
+      statements.get_data()[1].get_root().select<Language::Flow::Local>();
+  ASSERT(hello);
+  auto hello_value = hello->get_constant();
+  ASSERT(hello_value);
+  ASSERT_EQ(hello_value->get_layout().get_size(), Count(5));
+  static constexpr View::Bytes expected = "Hello"_view;
+  for (Count index = 0; index < expected.get_size(); index++) {
+    auto produced = hello_value->get_produced(index);
+    ASSERT(produced);
+    auto value = produced->producer.select<Language::Constants::Unsigned>();
+    ASSERT(value);
+    EXPECT_EQ(value->get_value(), Unsigned_64(expected[index]));
+  }
   EXPECT(errors.is_empty());
 }
 
@@ -1252,7 +1253,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, const_field_access_is_type_owned) {
   Dialect dialect;
   Errors errors;
   Tokenizer tokenizer(arena, source, "instance-const-fold.ttx"_view);
-  Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
   auto interpreted_owner =
       interpret_library_source(arena, dialect, cursor, registry);
   auto interpreted = select_library_monograph(interpreted_owner);

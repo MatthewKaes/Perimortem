@@ -28,7 +28,8 @@ PERIMORTEM_UNIT_TEST(ParserCommentTests, greedy) {
   Lexical::Tokenizer tokenizer(
       arena, "// First line\n// Second line\nValue"_view,
       "<greedy comments>"_view);
-  Lexical::Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Lexical::Cursor cursor(tokenizer, errors, associations);
 
   Option<const Concept::Documentation&> documentation =
       Parser::Comment::parse(cursor);
@@ -54,7 +55,8 @@ PERIMORTEM_UNIT_TEST(ParserCommentTests, preserves_empty) {
   Lexical::Tokenizer tokenizer(
       arena, "// First line\n//\n// \n//  Indented line\nValue"_view,
       "<empty comment lines>"_view);
-  Lexical::Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Lexical::Cursor cursor(tokenizer, errors, associations);
 
   Option<const Concept::Documentation&> documentation =
       Parser::Comment::parse(cursor);

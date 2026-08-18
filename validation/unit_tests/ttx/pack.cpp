@@ -18,7 +18,7 @@ using namespace Ttx::Model::Layouts;
 using namespace Validation;
 
 // PackType supplies one exact terminal Layout entry so Pack fitting observes a
-// real Type identity rather than a test-only scalar surrogate.
+// real Type identity rather than a test only scalar surrogate.
 class PackType : public Type {
  public:
   constexpr explicit PackType(View::Bytes name) : name(name) {}
@@ -57,6 +57,14 @@ class FlowPack : public Pack {
   }
   constexpr auto get_layout() const -> const Layout& override { return layout; }
 
+  constexpr auto get_produced(Count index) const
+      -> Option<Pack::Produced> override {
+    if (!complete || index >= layout.get_size()) {
+      return {};
+    }
+    return Pack::Produced{*this, index};
+  }
+
   constexpr auto complete_output() -> void { complete = True; }
 
  private:
@@ -82,6 +90,11 @@ PERIMORTEM_UNIT_TEST(TtxPack, identity_and_output_layout) {
   EXPECT(&pack.get_layout() == &output);
   EXPECT_EQ(pack.get_layout().get_size(), Count(2));
   EXPECT(pack.fits(output));
+  auto produced = pack.get_produced(1);
+  ASSERT(produced);
+  EXPECT(&produced->producer == &pack);
+  EXPECT_EQ(produced->local_index, Count(1));
+  EXPECT_NOT(pack.get_produced(2));
 }
 
 PERIMORTEM_UNIT_TEST(TtxPack, completion_precedes_output_observation) {
@@ -91,6 +104,7 @@ PERIMORTEM_UNIT_TEST(TtxPack, completion_precedes_output_observation) {
   FlowPack pack("Staged"_view, output, False);
 
   EXPECT(pack.resolve().is<Invalid>());
+  EXPECT_NOT(pack.get_produced(0));
 
   pack.complete_output();
 

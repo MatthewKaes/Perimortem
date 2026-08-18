@@ -7,6 +7,7 @@
 
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
@@ -185,4 +186,15 @@ auto Types::Object::create_supplied(
   }
 
   return Model::Pack::create_group(arena, values.get_view());
+}
+
+auto Types::Object::reserve_carrier(Llvm::Program& program) const
+    -> Option<Bool> {
+  const auto& carriers = program.get_carriers();
+  return carriers.reserve(program, *this, Llvm::Carriers::Kind::Object);
+}
+
+auto Types::Object::complete_carrier(Llvm::Program& program) const -> Bool {
+  const auto& carriers = program.get_carriers();
+  return carriers.complete(program, *this, Llvm::Carriers::Kind::Object);
 }

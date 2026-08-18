@@ -3,17 +3,15 @@
 
 #pragma once
 
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
+
+#include "perimortem/abi/memory/dynamic/object.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
-// Perimortems ref-counted mechanism for light weight thread-local shared
-// pointers with automatic lifetime management.
-//
-// Used for dynamic objects that need persisted state that can be retained by
-// multiple systems in the same thread but who's lifetimes are dynamic so they
-// can't use the typical Arena lifetime synthesis mechanisms.
+// Object is Perimortem's reference counted handle for lightweight state shared
+// within one worker. It suits values whose independent lifetimes cannot use an
+// Arena transaction.
 //
 // Construction always builds a valid object in Bibliotheca storage. Copying or
 // move construction reserves that object, move assignment swaps two valid
@@ -23,16 +21,19 @@ class Object {
  public:
   template <typename... arg_types>
   Object(arg_types&&... args) {
-    auto allocation = Core::Bibliotheca::check_out(sizeof(value_type));
-    value = new (allocation.ptr) value_type(static_cast<arg_types&&>(args)...);
+    value = new (::Perimortem::Abi::Memory::Dynamic::Object::allocate(
+        sizeof(value_type), destroy))
+        value_type(static_cast<arg_types&&>(args)...);
   }
 
   Object(Object& rhs) : value(rhs.value) {
-    Core::Bibliotheca::reserve(Core::Data::cast<Unsigned_8>(value));
+    ::Perimortem::Abi::Memory::Dynamic::Object::retain(
+        Core::Data::cast<Unsigned_8>(value));
   }
 
   Object(const Object& rhs) : value(rhs.value) {
-    Core::Bibliotheca::reserve(Core::Data::cast<Unsigned_8>(value));
+    ::Perimortem::Abi::Memory::Dynamic::Object::retain(
+        Core::Data::cast<Unsigned_8>(value));
   }
 
   Object(Object&& rhs) : Object(rhs) {}
@@ -46,7 +47,8 @@ class Object {
 
     release();
     value = rhs.value;
-    Core::Bibliotheca::reserve(Core::Data::cast<Unsigned_8>(value));
+    ::Perimortem::Abi::Memory::Dynamic::Object::retain(
+        Core::Data::cast<Unsigned_8>(value));
     return *this;
   }
 
@@ -65,13 +67,13 @@ class Object {
   constexpr auto operator*() const -> const value_type& { return *value; }
 
  private:
-  auto release() -> void {
-    Unsigned_8* data = Core::Data::cast<Unsigned_8>(value);
-    if (Core::Bibliotheca::reservation_count(data) == 1) {
-      value->~value_type();
-    }
+  static auto destroy(Unsigned_8* payload) -> void {
+    Core::Data::cast<value_type>(payload)->~value_type();
+  }
 
-    Core::Bibliotheca::remit(data);
+  auto release() -> void {
+    ::Perimortem::Abi::Memory::Dynamic::Object::release(
+        Core::Data::cast<Unsigned_8>(value));
   }
 
   value_type* value;

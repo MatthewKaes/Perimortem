@@ -163,7 +163,7 @@ auto Language::Model::Layout::link(
   Bool failed = False;
   for (Count i = 0; i < slots.get_size(); i++) {
     Slot& slot = slots[i];
-    const Type* type = nullptr;
+    Option<const Type&> type;
     if (!slot.type_reference) {
       // Self is derived from the exact host because its reserved spelling is a
       // receiver role rather than a route that another context may intercept.
@@ -183,7 +183,7 @@ auto Language::Model::Layout::link(
         failed = True;
         continue;
       }
-      type = &*host_type;
+      type = *host_type;
     } else {
       auto selected = slot.type_reference->resolve_authored(cursor, host);
       if (!selected) {
@@ -199,7 +199,7 @@ auto Language::Model::Layout::link(
         failed = True;
         continue;
       }
-      type = &*selected_type;
+      type = *selected_type;
     }
 
     if (type->get_layout().is_empty()) {
@@ -219,7 +219,7 @@ auto Language::Model::Layout::link(
       // Repeated phase entry may observe the same identity but must never move
       // an already published slot to a newly selected Type.
       if (slot.edge) {
-        if (&slot.edge->get() != type) {
+        if (&slot.edge->get() != &*type) {
           cursor.create_expression_error(
               slot.get_type_anchor(),
               "Repeated Layout linking selected a different Type identity."_view,
@@ -234,7 +234,7 @@ auto Language::Model::Layout::link(
 
     if (slot.edge) {
       auto parameter = slot.edge->get().select<Language::Parameter>();
-      if (!parameter || &parameter->get_type() != type) {
+      if (!parameter || &parameter->get_type() != &*type) {
         cursor.create_expression_error(
             slot.get_type_anchor(),
             "Repeated parameter linking selected a different semantic edge."_view,
@@ -311,11 +311,11 @@ auto Language::Model::Layout::validate_publication(
           return Bool(i == 0 && slot.name == "self"_view && &*type == &host);
         },
         [&](const TypeReference& reference) {
-          const Abstract* selected = nullptr;
+          Option<const Abstract&> selected;
           reference.resolve(*context).visit(
-              [&](const Abstract& resolved) { selected = &resolved; },
+              [&](const Abstract& resolved) { selected = resolved; },
               [](const TypeReference::Failure&) {});
-          return Bool(selected != nullptr && &selected->resolve() == &*type);
+          return Bool(selected && &selected->resolve() == &*type);
         });
     if (!reachable) {
       cursor.create_expression_error(
@@ -352,8 +352,10 @@ auto Language::Model::Layout::is_named() const -> Bool {
   return slots.is_empty() || !slots.at(0).name.is_empty();
 }
 
-auto Language::Model::Layout::get_slot(Count index) const -> const Slot* {
-  return index < slots.get_size() ? &slots.at(index) : nullptr;
+auto Language::Model::Layout::get_slot(Count index) const
+    -> Option<const Slot&> {
+  return index < slots.get_size() ? Option<const Slot&>(slots.at(index))
+                                  : Option<const Slot&>();
 }
 
 auto Language::Model::Layout::get_size() const -> Count {
@@ -362,8 +364,8 @@ auto Language::Model::Layout::get_size() const -> Count {
 
 auto Language::Model::Layout::get_abstract(Count index) const
     -> Option<const Abstract&> {
-  const Slot* slot = get_slot(index);
-  BAIL_IF(slot == nullptr || !slot->edge);
+  auto slot = get_slot(index);
+  BAIL_IF(!slot || !slot->edge);
   return slot->edge->get();
 }
 
@@ -371,9 +373,16 @@ auto Language::Model::Layout::get_name(Count index) const
     -> Option<View::Bytes> {
   BAIL_IF(!is_named());
 
-  const Slot* slot = get_slot(index);
-  BAIL_IF(slot == nullptr || slot->name.is_empty());
+  auto slot = get_slot(index);
+  BAIL_IF(!slot || slot->name.is_empty());
   return slot->name;
+}
+
+auto Language::Model::Layout::get_slot_anchor(Count index) const
+    -> Option<Ttx::Lexical::Anchor> {
+  auto slot = get_slot(index);
+  BAIL_IF(!slot);
+  return slot->anchor;
 }
 
 auto Language::Model::Layout::fits_value(

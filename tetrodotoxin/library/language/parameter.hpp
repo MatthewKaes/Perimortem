@@ -39,6 +39,14 @@ class Parameter : public Model::Addressable {
       Perimortem::Core::View::Bytes name,
       const Model::Type& type) -> Perimortem::Core::Option<Parameter&>;
 
+  // A generated Callable supplies a reserved nonempty name and one completed
+  // value Type directly. The semantic identity is otherwise the same exact
+  // Parameter used by an authored Signature.
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Perimortem::Core::View::Bytes name,
+      const Model::Type& type) -> Parameter&;
+
  private:
   constexpr Parameter(
       Perimortem::Core::View::Bytes name,

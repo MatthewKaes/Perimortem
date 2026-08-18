@@ -11,6 +11,7 @@
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -47,7 +48,8 @@ static auto interpret_statement(
           return selected.get_name();
         },
         [](const Language::Flow::Local& selected) -> Option<const Abstract&> {
-          return selected;
+          return selected.get_linked_type() ? Option<const Abstract&>(selected)
+                                            : Option<const Abstract&>();
         });
   }
   case Code::Type::Return: {
@@ -277,6 +279,20 @@ auto Language::Flow::Block::finalize(Cursor& cursor) -> void {
   }
 }
 
+auto Language::Flow::Block::lower(Llvm::Builder& body) const -> Bool {
+  if (!body.begin_block(*this, anchor)) {
+    return False;
+  }
+
+  for (const Statement& statement : statements.get_view()) {
+    if (!statement.lower(body)) {
+      return False;
+    }
+  }
+
+  return body.end_block(*this);
+}
+
 auto Language::Flow::Block::reaches_next_statement() const -> Bool {
   auto ordered = statements.get_view();
   return ordered.is_empty() ||
@@ -303,8 +319,7 @@ auto Language::Flow::Block::resolve_context(View::Bytes route) const
       return Invalid::get_invalid();
     }
 
-    const Abstract& resolved = binding->resolve();
-    return resolved.is<Invalid>() ? Invalid::get_invalid() : *binding;
+    return *binding;
   }
 
   return lexical_context.resolve_context(route);

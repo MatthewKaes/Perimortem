@@ -44,9 +44,19 @@ position without moving. Observation outside the stream returns an empty
 Terminal.
 
 A Cursor is the one mutable position over the immutable Token stream. Grammar
-dispatch proves the selected production before its parser consumes that Cursor;
+dispatch proves the selected production before its parser consumes that Cursor.
 a rejected production retains its diagnostics and the source transaction owns
 discarding any candidate semantic state.
+
+A source transaction constructs one `Associations` index and supplies it to the
+Cursor. A consumer records an authored Anchor with the exact semantic identity
+it constructs there. The index retains those borrowed associations after the
+mutable Cursor completes, while sharing the source transaction lifetime of the
+graph. It creates no semantic edge and cannot be serialized or used after that
+graph owner releases the transaction.
+When several Anchors contain one source byte, an exact focus Token is more
+precise than a containing Span and the narrower range is more precise within
+the same class.
 
 `Lexical::Span` identifies a complete authored range. `Lexical::Anchor` pairs
 that range with the independent Token a diagnostic should emphasize. An Anchor
@@ -136,7 +146,7 @@ language question without acquiring that language's Type system. TTX assigns
 them no receiver role, visibility rule, or forwarding policy. A concrete
 language may refine its Type and Addressable contracts to interpret the query.
 A Type-qualified context route still splits into names and uses
-`resolve_context(name)` on each selected identity; TTX defines no separate Type
+`resolve_context(name)` on each selected identity. TTX defines no separate Type
 lookup or Static and Self distinction. Every query returns the original
 selected identity or Invalid and never searches another query domain as a
 fallback.
@@ -179,7 +189,7 @@ operation explicitly.
 
 A concrete graph owner may reserve an Alias identity before its target is
 known. An unbound Alias resolves to Invalid, and its target may be bound only
-once; repeating the same binding is harmless while changing it fails. The
+once. Repeating the same binding is harmless while changing it fails. The
 owner preserves target lifetime and prevents Alias cycles before publishing
 the completed graph.
 
@@ -248,7 +258,7 @@ materializing an aggregate Type.
 
 A Pack may supply zero, one, or several values. It may expose positional, named,
 ranged, or composed output shape. One ordinary value-producing expression is
-already a one-value Pack; grouping that expression does not create a second
+already a one-value Pack. Grouping that expression does not create a second
 semantic identity. An empty Pack exposes an empty Layout. A concrete language's
 empty result and an explicit empty grouping agree through that Layout without
 requiring a Type identity. A multi-value Pack remains value flow until a
@@ -260,7 +270,7 @@ distinct: parentheses group produced Packs while brackets describe Layouts.
 Concrete languages decide which productions may omit those delimiters, but
 omission does not change the resulting Pack or Layout contract. Named Pack
 slots use `.name = expression` and retain those names independently from the
-produced semantic objects. Named descriptor slots use `.name : Type`; the
+produced semantic objects. Named descriptor slots use `.name : Type`. The
 different operator keeps promised shape distinct from supplied value flow.
 
 A graph owner may reserve a stable Pack before its output is complete. Its
@@ -284,7 +294,7 @@ calling convention, machine address, or target ABI policy.
 
 Layout carries no semantic identity. It describes one promised value shape and
 provides ordered observation and directional fitting over exact Abstract
-identities. Types and Callables expose required Layouts; Packs expose the output
+identities. Types and Callables expose required Layouts. Packs expose the output
 Layout of the values they supply. A consumer may test a complete fit, test a fit
 at an offset, and recover the original source edge that supplies a target
 position.

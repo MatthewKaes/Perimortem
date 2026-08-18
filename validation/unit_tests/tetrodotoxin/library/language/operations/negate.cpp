@@ -41,7 +41,8 @@ static auto link_operation(
   Allocator::Arena transaction;
   Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(transaction, {}, "<operation>"_view);
-  Ttx::Lexical::Cursor cursor(tokenizer, errors);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
   return operation.link(cursor, context);
 }
 

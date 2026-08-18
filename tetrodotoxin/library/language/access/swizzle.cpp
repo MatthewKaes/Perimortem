@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
@@ -341,6 +342,20 @@ auto Language::Access::Swizzle::get_type() const -> const Abstract& {
       });
 }
 
+auto Language::Access::Swizzle::get_produced(Count index) const
+    -> Core::Option<Ttx::Model::Pack::Produced> {
+  BAIL_IF(!output || index >= output->get_size());
+
+  if (!projections.is_empty()) {
+    auto producer = projections.at(index).get().select<Language::Model::Pack>();
+    return producer ? producer->get_produced(0)
+                    : Core::Option<Ttx::Model::Pack::Produced>();
+  }
+
+  BAIL_IF(index >= selections.get_size());
+  return receiver.get_produced(selections.at(index));
+}
+
 auto Language::Access::Swizzle::get_layout() const
     -> const Ttx::Concept::Layout& {
   return *output;
@@ -359,4 +374,25 @@ auto Language::Access::Swizzle::finalize(Cursor& cursor) -> void {
   // describe selected members without creating another evaluation inventory.
   receiver.finalize(cursor);
   Expression::finalize(cursor);
+}
+
+auto Language::Access::Swizzle::lower(Llvm::Builder& body) const -> Bool {
+  auto folded = lower_folded(body);
+  if (folded) {
+    return *folded;
+  }
+
+  Bool receiver_lowered = receiver.lower(body);
+  if (!receiver_lowered) {
+    return False;
+  }
+
+  for (Reference<const Abstract> projection : projections.get_view()) {
+    auto pack = projection.get().select<Language::Model::Pack>();
+    if (!pack || !pack->lower(body)) {
+      return False;
+    }
+  }
+
+  return body.compose(*this);
 }

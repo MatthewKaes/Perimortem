@@ -97,3 +97,7 @@ auto Language::Access::Type::finalize(Cursor& cursor) -> void {
   receiver.finalize(cursor);
   Expression::finalize(cursor);
 }
+
+auto Language::Access::Type::lower(Llvm::Builder&) const -> Bool {
+  return True;
+}
