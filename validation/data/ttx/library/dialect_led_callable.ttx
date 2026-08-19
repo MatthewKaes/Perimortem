@@ -1,6 +1,4 @@
 //
 dialect : Library;
 
-Library legacy[] -> [] {
-  return;
-}
+Library legacy[] -> [] : return;

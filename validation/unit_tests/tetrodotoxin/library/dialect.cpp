@@ -528,7 +528,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
     Rejection{
       "validation/data/ttx/library/dialect_led_callable.ttx"_view,
       "Definitions require one authored visibility before their name."_view,
-      "Library legacy[] -> [] {"_view,
+      "Library legacy[] -> [] : return;"_view,
     },
     {
       "validation/data/ttx/library/duplicate_name.ttx"_view,
@@ -542,7 +542,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
     },
     {
       "validation/data/ttx/library/ordinary_bodyless.ttx"_view,
-      "Library Function bodies require a scope beginning with `{`."_view,
+      "Library Blocks require `{` for several Statements or `:` for one "
+      "Statement."_view,
       "public missing_body : func = [] -> Unsigned_64;"_view,
     },
   }};

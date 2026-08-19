@@ -13,7 +13,7 @@ Tetrodotoxin TTX adds editor support for `.ttx` source files.
 - full-document synchronization for open files
 - source diagnostics with editor ranges
 - hover for documentation, declaration Types, and folded constants
-- format requests that preserve the authored source
+- canonical full-document formatting with best-effort malformed-source support
 - CodeLLDB breakpoint enablement and TTX carrier summaries
 
 The bundled color theme gives TTX categories distinct defaults while respecting
@@ -54,17 +54,17 @@ in by including Tetrodotoxin in `sourceLanguages`:
 }
 ```
 
-The extension then imports the packaged formatter without making the language
-server responsible for runtime state. Debugger configuration and formatter
-wiring are kept separate from the language-client lifecycle inside the
-extension.
+The language server provides standard document formatting. The formatter uses
+the complete token graph, preserves malformed authored content, and supplies
+placeholder source documentation when a source has no leading documentation.
+Debugger configuration remains separate from the language-client lifecycle.
 
 ## Language server
 
 The Linux extension package includes the `puffer` language-server binary and
 starts it for Tetrodotoxin documents. Puffer tracks open document text and
-provides diagnostics, hover, and full semantic-token responses over the Language
-Server Protocol. This binary carries Perimortem's fixed Dialect set. Projects
+provides diagnostics, hover, formatting, and full semantic-token responses over
+the Language Server Protocol. This binary carries Perimortem's fixed Dialect set. Projects
 with additional Dialects build and package their own extended Puffer. A future
 tutorial will cover that workflow.
 

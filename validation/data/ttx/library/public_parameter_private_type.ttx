@@ -1,9 +1,7 @@
 //
 dialect : Library;
 
-public reveal : func = [.value : Hidden] -> Unsigned_64 {
-  return 0;
-}
+public reveal : func = [.value : Hidden] -> Unsigned_64 : return 0;
 
 private Hidden : struct {
   public state value : Unsigned_64 = 0;

@@ -13,7 +13,7 @@ file defines the exact production behavior it observes.
 | [`option_acceptance.ttx`](option_acceptance.ttx) | focused production Workspace acceptance for Option fitting, defaults, unwrap, propagation, and Match elimination |
 | [`broad.ttx`](broad.ttx) | broad Library source corpus covering declarations, Layouts, access chains, expressions, control flow, Foreign, Struct, Object, and Enumeration syntax |
 | [`foreign.ttx`](foreign.ttx) | consolidated Foreign semantics and repeated state C interoperability |
-| [`runtime.ttx`](../llvm/runtime.ttx) | executable Library and LLVM matrix for Locals, calls, control flow, safe access, Options, and logging owned by TTX |
+| [`runtime.ttx`](../llvm/runtime.ttx) | executable Library and LLVM matrix for Locals, calls, control flow, safe access, Options, Enumeration iteration, and logging owned by TTX |
 | [`foreign_harness.c`](../llvm/foreign_harness.c) | generated C header interoperability provider used by the validation binary |
 | [`runtime_harness.c`](../llvm/runtime_harness.c) | generated C header runtime observer used by the validation binary |
 

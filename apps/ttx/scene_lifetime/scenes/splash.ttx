@@ -6,27 +6,13 @@
 //
 dialect : Scene;
 
-signal finished;
-
-private const top_icon : Graphics::Sprite = new;
 private const bottom_icon : Graphics::Sprite = new;
+private const fade_time   : Real_64 = 1.0;
+private const hold_time   : Real_64 = 1.5;
+private const top_icon    : Graphics::Sprite = new;
+
+signal finished;
 private state elapsed : Real_64 = 0.0;
-
-private const fade_time : Real_64 = 1.0;
-private const hold_time : Real_64 = 1.5;
-
-private func configure_icon[
-  self,
-  .icon : Graphics::Sprite,
-  .image : Graphics::Image,
-  .position : Graphics::Point2D,
-] -> Void {
-  icon.image = image;
-  icon.size_pixels = image -> get_size_pixels();
-  icon.position = position;
-  icon.tone = (.r = 1.0, .g = 1.0, .b = 1.0, .a = 0.0);
-  return;
-}
 
 Scene prepare[self] -> Void {
   state image := Graphics::Image -> decode($[resources/logo.png]);
@@ -36,34 +22,33 @@ Scene prepare[self] -> Void {
   return;
 }
 
+Scene release[self] -> Void : return;
 Scene update[self, .delta_time : Real_64] -> Scene::Flow {
   self.elapsed = self.elapsed + delta_time;
 
   const duration : Real_64 = fade_time * 2.0 + hold_time;
-  state alpha : Real_64 = 0.0;
+  state alpha    : Real_64 = 0.0;
+  if (self.elapsed < fade_time) : alpha = self.elapsed / fade_time;
+  if (self.elapsed >= fade_time and self.elapsed < fade_time + hold_time) : alpha =
+      1.0;
+  if (self.elapsed >= fade_time + hold_time and self.elapsed < duration) : alpha =
+      (duration - self.elapsed) / fade_time;
 
-  if (self.elapsed < fade_time) {
-    alpha = self.elapsed / fade_time;
-  }
-
-  if (self.elapsed >= fade_time and self.elapsed < fade_time + hold_time) {
-    alpha = 1.0;
-  }
-
-  if (self.elapsed >= fade_time + hold_time and self.elapsed < duration) {
-    alpha = (duration - self.elapsed) / fade_time;
-  }
-
-  self.top_icon.tone.a = alpha;
+  self.top_icon.tone.a    = alpha;
   self.bottom_icon.tone.a = alpha;
-
-  if (self.elapsed >= duration) {
-    return Scene::Flow -> emit(self.finished);
-  }
+  if (self.elapsed >= duration) : return Scene::Flow -> emit(self.finished);
 
   return Scene::Flow -> stay();
 }
 
-Scene release[self] -> Void {
-  return;
+private func configure_icon[
+  self,
+  .icon : Graphics::Sprite,
+  .image : Graphics::Image,
+  .position : Graphics::Point2D,
+] -> [] {
+  icon.image       = image;
+  icon.size_pixels = image -> get_size_pixels();
+  icon.position    = position;
+  icon.tone        = (.r = 1.0, .g = 1.0, .b = 1.0, .a = 0.0);
 }

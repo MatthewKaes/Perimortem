@@ -3,6 +3,5 @@
 dialect : Package;
 
 resolve Math : Perimortem.Math = "1.0";
-
 source Formats from "render.ttx";
 source Shader from "shader.ttx";

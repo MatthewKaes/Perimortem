@@ -172,9 +172,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, else_if_retains_the_selected_statement) {
       "dialect : Library;\n"
       "public select : func = [.first : Bool, .second : Bool] -> Unsigned_64 "
       "{\n"
-      "  if first { return 1; }\n"
-      "  else if second { return 2; }\n"
-      "  else { return 3; }\n"
+      "  if first : return 1; else if second : return 2; else : return 3;\n"
       "}"_view;
   Workspace workspace;
   Errors errors;
@@ -201,7 +199,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, while_body_targets_its_branch) {
       "// While control.\n"
       "dialect : Library;\n"
       "public repeat : func = [] -> [] {\n"
-      "  while true { continue; }\n"
+      "  while true : continue;\n"
       "  return;\n"
       "}"_view;
   Workspace workspace;

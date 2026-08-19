@@ -12,10 +12,14 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/language/parser/dialect.hpp"
+#include "tetrodotoxin/library/builtin/enum/name.hpp"
+#include "tetrodotoxin/library/builtin/enum/size.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/language/constants/signed.hpp"
+#include "tetrodotoxin/library/language/constants/bytes.hpp"
+#include "tetrodotoxin/library/language/constants/enumeration.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
@@ -176,17 +180,56 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_values_and_equal_aliases) {
   Static::Vector<Signed_64, 5> expected = {{-128, 0, 127, 127, 127}};
   for (Count i = 0; i < cases.get_size(); i++) {
     const Abstract& resolved = cases.get_data()[i].get().resolve();
-    ASSERT(resolved.is<Language::Constants::Signed>());
+    ASSERT(resolved.is<Language::Constants::Enumeration>());
     const auto& constant =
-        static_cast<const Language::Constants::Signed&>(resolved);
-    EXPECT(
-        &constant.get_type() == &monograph->resolve_context("Signed_8"_view));
-    EXPECT_EQ(constant.get_value(), expected[i]);
+        static_cast<const Language::Constants::Enumeration&>(resolved);
+    EXPECT(&constant.get_type() == &offset);
+    EXPECT_EQ(Signed_64(constant.get_value()), expected[i]);
   }
   EXPECT(&cases.get_data()[2].get() != &cases.get_data()[4].get());
   EXPECT(
       &cases.get_data()[2].get().resolve() !=
       &cases.get_data()[4].get().resolve());
+
+  Count generated = 0;
+  Option<const Language::Model::Callable&> name_callable;
+  for (const Reference<Abstract>& binding :
+       offset.get_callables(Tetrodotoxin::Language::Visibility::Public)) {
+    auto callable = binding.get().select<Language::Model::Callable>();
+    ASSERT(callable);
+    if (callable->get_name() == "get_name"_view) {
+      EXPECT(callable->declares_self());
+      EXPECT(callable->is<Builtin::Enum::Name>());
+      name_callable = *callable;
+      generated++;
+    }
+  }
+  EXPECT_EQ(generated, Count(1));
+
+  const Abstract& size = offset.resolve_type_access(
+      offset, "size"_view, Language::Model::Type::Access::Static);
+  ASSERT(size.is<Builtin::Enum::Size>());
+  auto size_addressable = size.select<Language::Model::Addressable>();
+  ASSERT(size_addressable);
+  auto size_constant = size_addressable->get_constant();
+  ASSERT(size_constant && size_constant->is<Language::Constants::Unsigned>());
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*size_constant)
+          .get_value(),
+      Unsigned_64(5));
+
+  ASSERT(name_callable);
+  Allocator::Arena folded_domain;
+  Language::Constants::Enumeration& duplicate =
+      Language::Constants::Enumeration::create_synthetic(
+          folded_domain, offset, Unsigned_64(127));
+  Language::Model::Pack& empty =
+      Language::Model::Pack::create_empty(folded_domain);
+  auto folded = name_callable->fold_call(folded_domain, duplicate, empty);
+  ASSERT(folded && folded->is<Language::Constants::Bytes>());
+  EXPECT_TEXT(
+      static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
+      "high"_view);
   EXPECT(errors.is_empty());
 }
 
@@ -222,16 +265,19 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, binary_wide_boundaries) {
   ASSERT_EQ(unsigned_cases.get_size(), Count(2));
   ASSERT_EQ(signed_cases.get_size(), Count(2));
   for (Count i = 0; i < unsigned_cases.get_size(); i++) {
-    const auto& constant = static_cast<const Language::Constants::Unsigned&>(
+    const auto& constant = static_cast<const Language::Constants::Enumeration&>(
         unsigned_cases.get_data()[i].get().resolve());
+    EXPECT(&constant.get_type() == &unsigned_edge);
     EXPECT_EQ(constant.get_value(), Unsigned_64(-1));
   }
-  const auto& low = static_cast<const Language::Constants::Signed&>(
+  const auto& low = static_cast<const Language::Constants::Enumeration&>(
       signed_cases.get_data()[0].get().resolve());
-  const auto& high = static_cast<const Language::Constants::Signed&>(
+  const auto& high = static_cast<const Language::Constants::Enumeration&>(
       signed_cases.get_data()[1].get().resolve());
-  EXPECT_EQ(low.get_value(), Signed_64(-9223372036854775807LL - 1));
-  EXPECT_EQ(high.get_value(), Signed_64(9223372036854775807LL));
+  EXPECT(&low.get_type() == &signed_edge);
+  EXPECT(&high.get_type() == &signed_edge);
+  EXPECT_EQ(Signed_64(low.get_value()), Signed_64(-9223372036854775807LL - 1));
+  EXPECT_EQ(Signed_64(high.get_value()), Signed_64(9223372036854775807LL));
   EXPECT(errors.is_empty());
 }
 

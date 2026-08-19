@@ -5,34 +5,29 @@
 //
 dialect : Scene;
 
+private const title_card : Graphics::Sprite = new;
+
 signal space_pressed;
 signal shift_pressed;
 
-private const title_card : Graphics::Sprite = new;
-
 Scene prepare[self] -> Void {
   state image := Graphics::Image -> decode($[resources/logo.png]);
-  self.title_card.image = image;
+  self.title_card.image       = image;
   self.title_card.size_pixels = image -> get_size_pixels();
-  self.title_card.position = (.x = 200.0, .y = 250.0);
-  self.title_card.tone = (.r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0);
+  self.title_card.position    = (.x = 200.0, .y = 250.0);
+  self.title_card.tone        = (.r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0);
   return;
 }
 
+Scene release[self] -> Void : return;
 Scene update[self, .delta_time : Real_64] -> Scene::Flow {
   const input := System -> get_input();
-
-  if (input -> pressed(.key = System::Key -> space())) {
-    return Scene::Flow -> emit(self.space_pressed);
-  }
-
-  if (input -> pressed(.key = System::Key -> shift())) {
-    return Scene::Flow -> emit(self.shift_pressed);
-  }
+  if (input -> pressed(.key = System::Key -> space())) : return Scene::Flow -> emit(
+    self.space_pressed,
+  );
+  if (input -> pressed(.key = System::Key -> shift())) : return Scene::Flow -> emit(
+    self.shift_pressed,
+  );
 
   return Scene::Flow -> stay();
-}
-
-Scene release[self] -> Void {
-  return;
 }

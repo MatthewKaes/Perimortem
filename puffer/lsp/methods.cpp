@@ -10,7 +10,6 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "perimortem/serialization/base64.hpp"
 #include "perimortem/serialization/json/blueprint.hpp"
 #include "perimortem/serialization/json/node.hpp"
 
@@ -18,31 +17,51 @@
 #include "puffer/lsp/hover.hpp"
 #include "puffer/lsp/rpc/executor.hpp"
 #include "puffer/lsp/semantic_tokens.hpp"
+#include "ttx/lexical/formatter.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 using namespace Puffer;
 
-static auto format_source(Allocator::Arena&, View::Bytes source, View::Bytes)
-    -> Dynamic::Bytes {
-  // The old formatter depended on the deleted Syntax tree. Until formatting
-  // can consume a real tree owned by the dialect again, the LSP format request
-  // keeps
-  // editor behavior stable by returning the exact authored source.
-  return Dynamic::Bytes(source);
-}
+struct Position {
+  Count line;
+  Count character;
+};
 
-static auto report_document(
-    const Lsp::Rpc::Message& message,
-    View::Bytes source) -> Lsp::Rpc::Response {
-  auto& arena = message.get_arena();
-  View::Bytes encoded = Base64::encode(arena, source);
-  return message.report_result(
-      Json::Blueprint{
-        {
-          {"document"_view, encoded},
-        }}.construct(arena));
+static auto find_end_position(View::Bytes source) -> Position {
+  Position position = {};
+
+  for (Count offset = 0; offset < source.get_size();) {
+    Unsigned_8 lead = source[offset];
+    if (lead == '\n') {
+      position.line++;
+      position.character = 0;
+      offset++;
+      continue;
+    }
+
+    Count width = 1;
+    Count units = 1;
+    if (lead >= 0xC2 && lead <= 0xDF) {
+      width = 2;
+    } else if (lead >= 0xE0 && lead <= 0xEF) {
+      width = 3;
+    } else if (lead >= 0xF0 && lead <= 0xF4) {
+      width = 4;
+      units = 2;
+    }
+
+    if (offset + width > source.get_size()) {
+      width = 1;
+      units = 1;
+    }
+
+    position.character += units;
+    offset += width;
+  }
+
+  return position;
 }
 
 static auto publish_diagnostics(
@@ -120,6 +139,7 @@ auto Puffer::Lsp::initialize(Documents&, const Rpc::Message& message)
                 {"change"_view, Signed_64(1)},
               }},
              {"hoverProvider"_view, True},
+             {"documentFormattingProvider"_view, True},
              {"semanticTokensProvider"_view,
               {
                 {"legend"_view, Lsp::semantic_legend(arena)},
@@ -129,31 +149,39 @@ auto Puffer::Lsp::initialize(Documents&, const Rpc::Message& message)
         }}.construct(arena));
 }
 
-auto Puffer::Lsp::format(Documents&, const Rpc::Message& message)
-    -> Rpc::Response {
-  auto& arena = message.get_arena();
-  const auto& args = message.get_params();
-  if (args.is_null()) {
-    return message.report_error("Failed to parse format request."_view);
-  }
+auto Puffer::Lsp::document_formatting(
+    Documents& documents,
+    const Rpc::Message& message) -> Rpc::Response {
+  Allocator::Arena& arena = message.get_arena();
+  View::Bytes uri =
+      message.get_params()["textDocument"_view]["uri"_view].decode_string(
+          arena);
+  Dynamic::Bytes source = documents.get_text(uri);
+  Ttx::Lexical::Tokenizer tokenizer(arena, source.get_view(), uri);
+  Dynamic::Bytes formatted = Ttx::Lexical::Formatter(tokenizer).format();
+  View::Bytes formatted_text = arena.proxy(formatted.get_view());
+  Position end = find_end_position(source.get_view());
 
-  const auto source_b64 =
-      args["source"_view].decode_string(message.get_arena());
-  if (source_b64.is_empty()) {
-    return message.report_error(
-        "Requested format but no `source` was provided"_view);
-  }
-
-  const auto name = args["name"_view].decode_string(message.get_arena());
-  if (name.is_empty()) {
-    return message.report_error(
-        "Requested format but no `name` was provided"_view);
-  }
-
-  Dynamic::Bytes decoded_source = Base64::decode(source_b64);
-  Dynamic::Bytes formatted =
-      format_source(arena, decoded_source.get_view(), name);
-  return report_document(message, formatted.get_view());
+  Managed::Vector<Json::Node> edits(arena);
+  edits.insert(
+      Json::Blueprint{
+        {
+          {"range"_view,
+           {
+             {"start"_view,
+              {
+                {"line"_view, Count(0)},
+                {"character"_view, Count(0)},
+              }},
+             {"end"_view,
+              {
+                {"line"_view, end.line},
+                {"character"_view, end.character},
+              }},
+           }},
+          {"newText"_view, formatted_text},
+        }}.construct(arena));
+  return message.report_result(Json::Node(edits.get_view()));
 }
 
 auto Puffer::Lsp::did_open(Documents& documents, const Rpc::Message& message)

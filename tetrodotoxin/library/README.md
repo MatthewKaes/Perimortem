@@ -327,15 +327,21 @@ same semantic graph. Every Library Type publishes authored and generated
 Callables through one callable surface. A Generic installs its required
 Callables when it materializes the exact Type, so lookup, reflection, and
 completion enumerate the same identities regardless of their origin.
-`view -> get_size()` and `access -> get_size()` return the
-runtime element count as exact `Unsigned_64`. A writable Fixed Addressable may
-produce `Access[T]` over its complete existing storage with
-`fixed -> get_access()`. This operation does not copy the Fixed or make a View
-writable. A const Fixed, a computed Fixed value without writable storage, and a
-View cannot grant that Callable's required authority. The returned Access
-borrows the Fixed storage and is valid only while that storage remains alive.
-Its ordinary `[index]` and `[start, count]` operators provide scalar and ranged
-writable selection.
+`view -> get_size()` and `access -> get_size()` return the runtime element count
+as exact `Unsigned_64`. `fixed -> get_view()` borrows the complete Fixed storage
+without changing its read only authority. Byte literals remain Fixed values and
+therefore use this explicit conversion when a View is required. A writable Fixed
+Addressable may additionally produce `Access[T]` with `fixed -> get_access()`.
+Neither operation copies the Fixed, and every returned borrow is valid only
+while its backing storage remains alive.
+
+`view -> slice(start, count)` and `access -> slice(start, count)` return one
+read only `View[T]`. When `start` is within the receiver, its size is the lesser
+of `count` and the available suffix. A start at or beyond the receiver size
+returns the empty View. Access deliberately loses write authority through this
+operation. This borrowed subview is distinct from `:[start, count]`, which
+produces exactly `count` independent values and supplies defaults outside the
+receiver.
 
 Each Library root Generic owns its canonical materialized identities in that
 root's source transaction Arena. The Monograph reaches them through its root
@@ -773,17 +779,46 @@ declares named integer cases:
 
 ```ttx
 public Mode : enum[Unsigned_8] {
-  Idle = 0,
-  Running = 1,
-  Stopped = 2,
+  idle = 0;
+  running = 1;
+  stopped = 2;
 }
 ```
 
-Each case has its own Alias and Constant identity. Two case names may carry the
-same integer value without becoming the same semantic identity.
+Each case has its own Alias and exact Enumeration Constant identity. Two case
+names may carry the same integer value without becoming the same semantic
+identity.
 The Enumeration default is the exact Enumeration value whose underlying
 integer is zero. That representable value remains valid even when no case Alias
 names it.
+
+Every Enumeration publishes one Static const `size` Addressable and one Self
+`get_name()` Callable. `Mode.size` is the exact compile time `Unsigned_64` case
+count. `mode -> get_name()` returns the authored case name as
+`View[Unsigned_8]`, or an empty View when no case names that representable
+value. When several cases share that value, it returns the first authored name.
+Case name bytes are immutable program data.
+
+An Enumeration Type is itself iterable in authored case order. A value Layout
+binds each exact Enumeration value:
+
+```ttx
+for [.value : Mode] in Mode {
+  value -> consume();
+}
+```
+
+A name Layout instead binds the exact storage value and its authored name:
+
+```ttx
+for [.value : Unsigned_8, .name : View[Unsigned_8]] in Mode {
+  name -> consume();
+}
+```
+
+The first Type must be the Enumeration's exact storage Type. The second Type is
+exactly `View[Unsigned_8]`. The reserved `value` and `name` binding names make
+the two iteration contracts unambiguous.
 
 ## Functions and invocation roles
 
@@ -895,6 +930,31 @@ the root's facts, or requires Block to inspect every concrete statement
 category. Lowering derives target blocks and branches only after the body is
 complete.
 
+Block owns both authored body spellings. `{ ... }` contains an empty or ordered
+multi Statement body. `:` contains exactly one following Statement, so the
+same Block model supports compact Functions and control flow without a wrapper
+or caller specific parse path:
+
+```ttx
+private classify : func = [.value : Unsigned_64] -> Unsigned_64 : return value;
+
+if ready : total += 1; else : total = 0;
+```
+
+The formatter selects `:` for one directly retained non-control Statement and
+braces for several Statements or a nested control Statement whose braces
+preserve unambiguous `else` binding. An empty-result Function omits redundant
+trailing bare returns. If no other Statement remains, its canonical body is
+`: return;`. This is a mechanical presentation rule: nested returns and text
+following an earlier return remain authored content. An empty body for any
+other Block remains `{}`.
+
+One paragraph contains Definitions, ordinary Statements, zero or more
+compressed `:` Blocks, then at most one braced Block. A later item from an
+earlier stage starts a new paragraph. Consecutive compressed Blocks therefore
+stay together, while an ordinary Statement following them receives a blank
+line.
+
 Statement processing preserves the Library transaction stages. Parsing chooses
 and retains the exact owner. Linking visits those owners in source order, makes
 only preceding Local declarations visible, and validates reachability.
@@ -949,10 +1009,13 @@ interprets the completed value as active or inactive. Parentheses may be omitted
 when the Pack is otherwise unambiguous, and additional produced values do not
 change which entry controls the branch. `for` consumes one `Range[T]` or
 contiguous `Fixed[T, extent]`, `View[T]`, or `Access[T]` and fits its read only
-loop binding against exact `T`. `break` and `continue` target the nearest
-enclosing loop and are illegal outside one. An `else if` retains its exact
-Branch as a Statement, including its leading Documentation, rather than
-acquiring synthetic braces or a second alternate representation.
+loop binding against exact `T`. Enumeration iteration uses either of the named
+Layouts defined in the Enumeration section. The exact input Type owns its
+iteration contracts, so a future Type can add iteration without extending one
+closed loop category list. `break` and `continue` target the nearest enclosing
+loop and are illegal outside one. An `else if` retains its exact Branch as a
+Statement, including its leading Documentation, rather than acquiring
+synthetic braces or a second alternate representation.
 
 `match` evaluates its input once and compares cases in source order. An ordinary
 case must fold to a Constant with the input's exact Type. The first equal case
@@ -965,11 +1028,8 @@ case:
 
 ```ttx
 match value {
-  case item: {
-    item -> consume();
-  }
-  case _: {
-  }
+  case item : item -> consume();
+  case _ {}
 }
 ```
 

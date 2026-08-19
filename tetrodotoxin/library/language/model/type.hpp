@@ -50,6 +50,21 @@ class Type : public Ttx::Model::Type {
 
   virtual auto lower(Llvm::Program&) const -> Bool { return True; }
 
+  // Iteration is selected by the exact input Type. The loop supplies its real
+  // binding Layout and input Pack, while each iterable Type owns admission and
+  // translates its semantic contents into physical Builder operations.
+  virtual auto accepts_iteration(const Ttx::Concept::Layout&) const -> Bool {
+    return False;
+  }
+
+  virtual auto begin_iteration(
+      Llvm::Builder&,
+      const Ttx::Concept::Abstract&,
+      const Ttx::Concept::Layout&,
+      const Ttx::Model::Pack&) const -> Bool {
+    return False;
+  }
+
   virtual constexpr auto get_declaration_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
     return {};

@@ -6,6 +6,5 @@
 dialect : Package;
 
 resolve System : Perimortem.System = "1.0";
-
 source Main from "main.ttx";
 source App from "app.ttx";

@@ -105,11 +105,14 @@ int run_runtime_integration(void) {
   if (object_behavior != UINT64_C(44)) {
     return 4;
   }
-  if (llvm_borrow_iteration() != UINT64_C(108) || printed_count != 1 ||
+  if (llvm_borrow_iteration() != UINT64_C(197) || printed_count != 1 ||
       printed_value != UINT64_C(21) || dense_storage[0] != UINT64_C(1) ||
       dense_storage[1] != UINT64_C(20) || dense_storage[2] != UINT64_C(37) ||
       dense_storage[3] != UINT64_C(47)) {
     return 5;
+  }
+  if (llvm_enumeration_iteration() != UINT64_C(22)) {
+    return 6;
   }
   return 0;
 }

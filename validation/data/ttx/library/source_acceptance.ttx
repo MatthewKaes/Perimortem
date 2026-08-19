@@ -1,9 +1,14 @@
 // Library source acceptance.
 dialect : Library;
 
-@catalog("scalar")
-@catalog("scalar")
+@catalog("scalar") @catalog("scalar")
 public CountAlias : alias = Unsigned_64;
+
+@initializer @abi("C")
+public session : Session = new[Session](.id = 7);
+
+@abi("C") @symbol("source_acceptance") @tooling("entry") @tooling("entry")
+public exported : func = [] -> CountAlias : return 7;
 
 @presentation
 public Mode : enum[Unsigned_8] {
@@ -13,33 +18,20 @@ public Mode : enum[Unsigned_8] {
 
 @value_type
 public Packet : struct {
+  @member
+  public state nested : Nested;
+
   @nested_type
   public Nested : struct {
     @default_value
     public state value : CountAlias = 0;
   }
-
-  @member
-  public state nested : Nested;
 }
 
 @reference_type
 public Session : object {
   @identity
   public state id : CountAlias;
-
   @state
   expose state ready : Bool = false;
-}
-
-@initializer
-@abi("C")
-public session : Session = new[Session](.id = 7);
-
-@abi("C")
-@symbol("source_acceptance")
-@tooling("entry")
-@tooling("entry")
-public exported : func = [] -> CountAlias {
-  return 7;
 }

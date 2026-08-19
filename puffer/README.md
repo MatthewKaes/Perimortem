@@ -37,6 +37,37 @@ Puffer's process model and user interface are optional. Another application can
 reuse source interpretation, Package resolution, compilation, linking, and
 Archive support without adopting either one.
 
+Puffer can canonically format any TTX token stream without requiring semantic
+completion:
+
+```text
+puffer -format source.ttx another.ttx
+```
+
+Formatting rewrites each source transactionally. It preserves unknown and
+incomplete tokens, applies the same declaration and whitespace rules to every
+equivalent token stream, and supplies placeholder source documentation when the
+leading document is absent. Comment markers, hexadecimal widths, byte groups,
+and single Statement Blocks receive one prescribed spelling. Packs and Layouts
+stay on one line through the 100 column limit, then place one top level entry on
+each line with a trailing comma. Adjacent declarations and plain assignments
+align their `:` and `=` columns only when the required padding is at most eight
+columns and the aligned prefix remains short. Documentation, Attributes, and
+Blocks end an alignment island.
+
+Within one scope paragraph, formatting accepts Definitions, ordinary
+Statements, any number of compressed `:` Blocks, then at most one braced Block.
+Returning to an earlier stage inserts one blank line. Documentation begins its
+own stage before the item it describes.
+
+An empty-result Function does not retain redundant trailing `return;`
+Statements. Formatting removes every consecutive trailing bare return from a
+multi-Statement body. If that leaves no Statement, the canonical spelling is
+`: return;`; an explicitly authored one-line `: return;` is preserved. Returns
+inside nested Blocks and content following an earlier return are not analyzed
+or removed. The language server exposes the same formatter as standard
+document formatting for open editor buffers.
+
 ## Terminal production
 
 For a compilation request, Puffer opens the declared sources and dependencies

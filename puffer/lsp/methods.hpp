@@ -18,7 +18,8 @@ namespace Puffer::Lsp {
 // it owns. The dispatch table fixes the complete server surface at build time.
 auto initialize(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
-auto format(Documents& documents, const Rpc::Message& message) -> Rpc::Response;
+auto document_formatting(Documents& documents, const Rpc::Message& message)
+    -> Rpc::Response;
 auto did_open(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
 auto did_change(Documents& documents, const Rpc::Message& message)
@@ -34,7 +35,7 @@ using Method =
 
 inline constexpr Perimortem::Core::Static::Vector<Method, 7> method_table = {{
   Method{"initialize"_view, initialize},
-  {"format"_view, format},
+  {"textDocument/formatting"_view, document_formatting},
   {"textDocument/didOpen"_view, did_open},
   {"textDocument/didChange"_view, did_change},
   {"textDocument/didClose"_view, did_close},

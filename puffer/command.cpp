@@ -24,6 +24,8 @@
 #include "tetrodotoxin/library/llvm/compiler.hpp"
 #include "tetrodotoxin/library/llvm/products.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/formatter.hpp"
+#include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem;
 
@@ -32,6 +34,7 @@ static auto create_config(Memory::Allocator::Arena& arena)
   Memory::Managed::Map<Core::View::Bytes, Core::View::Bytes> variables(arena);
   variables.insert(
       "pipe"_view, "Run as an LSP server over the provided socket."_view);
+  variables.insert("format"_view, "Format each positional TTX source."_view);
   variables.insert("library"_view, "Compile one Library source."_view);
   variables.insert("backend"_view, "Select the Library backend."_view);
   variables.insert("target"_view, "Select the native target."_view);
@@ -96,6 +99,45 @@ static auto create_stage_path(
   Serialization::Stream::Textual<Memory::Managed::Bytes> output(buffer);
   output << path << ".puffer."_view << Signed_64(getpid()) << ".tmp"_view;
   return buffer.get_view();
+}
+
+static auto run_format(const System::Args::Values& args) -> Signed_32 {
+  auto sources = args.find(""_view);
+  if (!has_one(args, "format"_view) ||
+      value(args, "format"_view) != "true"_view || !sources ||
+      (*sources).value->is_empty()) {
+    write_error("puffer: -format needs at least one TTX source"_view);
+    return 2;
+  }
+
+  for (Core::View::Bytes path : (*sources).value->get_view()) {
+    auto source = System::File::read(path);
+    if (!source) {
+      write_error("puffer: could not read a TTX source for formatting"_view);
+      return 1;
+    }
+
+    Memory::Allocator::Arena transaction;
+    Ttx::Lexical::Tokenizer tokenizer(transaction, source->get_view(), path);
+    Memory::Dynamic::Bytes formatted =
+        Ttx::Lexical::Formatter(tokenizer).format();
+    Core::View::Bytes stage = create_stage_path(transaction, path);
+    Bool written = System::File::write(formatted.get_view(), stage);
+    if (!written) {
+      System::File::remove(stage);
+      write_error("puffer: could not stage a formatted TTX source"_view);
+      return 1;
+    }
+
+    Bool published = System::File::replace(stage, path);
+    if (!published) {
+      System::File::remove(stage);
+      write_error("puffer: could not publish a formatted TTX source"_view);
+      return 1;
+    }
+  }
+
+  return 0;
 }
 
 // File owns content I/O and diagnostics. Puffer adds product staging because a
@@ -262,17 +304,27 @@ auto Puffer::Command::run() const -> Signed_32 {
     Core::Diagnostics::Log::set_disable_header(True);
     System::Args::log_help(
         arena,
-        "Run the Tetrodotoxin language server or compile one Library source."_view,
+        "Run the language server, format TTX sources, or compile one Library "
+        "source."_view,
         config, command_line.slice(0, Count(argument_count)));
     return 0;
   }
 
   Bool pipe = args.contains("pipe"_view);
+  Bool format = args.contains("format"_view);
   Bool library = args.contains("library"_view);
-  if (pipe == library) {
-    write_error("puffer: select exactly one of -pipe or -library"_view);
+  Count modes = Count(pipe.value) + Count(format.value) + Count(library.value);
+  if (modes != 1) {
+    write_error(
+        "puffer: select exactly one of -pipe, -format, or -library"_view);
     return 2;
   }
 
-  return pipe ? run_lsp(value(args, "pipe"_view)) : run_library(args);
+  if (pipe) {
+    return run_lsp(value(args, "pipe"_view));
+  } else if (format) {
+    return run_format(args);
+  } else {
+    return run_library(args);
+  }
 }

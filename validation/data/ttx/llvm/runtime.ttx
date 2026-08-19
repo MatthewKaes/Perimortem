@@ -1,237 +1,92 @@
 // TTX runtime and LLVM lowering acceptance.
 dialect : Library;
 
-public Mode : enum[Unsigned_8] {
-  idle = 0;
-  active = 1;
-}
-
-public Pair : struct {
-  public state left : Unsigned_64 = 2;
-  public state right : Unsigned_64 = 3;
-
-  public sum : func = [self] -> Unsigned_64 {
-    return self.left + self.right;
-  }
-}
-
-public Large : struct {
-  public state first : Unsigned_64 = 0;
-  public state second : Unsigned_64 = 0;
-  public state third : Unsigned_64 = 0;
-}
-
-private LargeOps : struct {
-  public create : func = [] -> Large {
-    return (.third = 6, .first = 4, .second = 5);
-  }
-}
-
-public Counter : object {
-  public state value : Unsigned_64 = 0;
-
-  public add : func = [self, .amount : Unsigned_64] -> Unsigned_64 {
-    self.value += amount;
-    return self.value;
-  }
-}
-
-private RecursiveObject : object {
-  private state next : Option[RecursiveObject];
-  public state value : Unsigned_64 = 1;
-}
-
-private ObjectHolder : object {
-  public state selected : Option[Counter];
-}
-
-private ObjectInline : struct {
-  public state selected : Option[Counter];
-}
-
-private CounterOptions : alias = Fixed[Option[Counter], 2];
-
-private ObjectOps : struct {
-  public forward : func = [.value : Counter] -> Counter {
-    return value;
-  }
-
-  public read_optional : func = [
-    .value : Option[Counter],
-  ] -> Unsigned_64 {
-    state selected : Counter = value!;
-    return selected.value;
-  }
-}
-
-private object_static : Option[Counter] = new[Counter](.value = 2);
-
-@abi("C")
-@symbol("llvm_object_static_value")
-public object_static_value : func = [] -> Unsigned_64 {
-  state selected : Counter = object_static!;
-  return selected.value;
-}
-
-@abi("C")
-@symbol("llvm_object_create")
-public object_create : func = [] -> Counter {
-  state created := new[Counter](.value = 7);
-  return created;
-}
-
-@abi("C")
-@symbol("llvm_object_read")
-public object_read : func = [.value : Counter] -> Unsigned_64 {
-  return value.value;
-}
-
-@abi("C")
-@symbol("llvm_object_add")
-public object_add : func = [
-  .value : Counter,
-  .amount : Unsigned_64,
-] -> Unsigned_64 {
-  return value -> add(amount);
-}
-
-@abi("C")
-@symbol("llvm_object_results")
-public object_results : func = [
-  .value : Counter,
-] -> [
-  .optional : Option[Counter],
-  .count : Unsigned_64,
-] {
-  return (.count = value.value, .optional = value);
-}
-
-@abi("C")
-@symbol("llvm_object_behavior")
-public object_behavior : func = [] -> Unsigned_64 {
-  state original := new[Counter](.value = 4);
-  state shared : Counter = ObjectOps -> forward(original);
-  state optional : Option[Counter] = shared;
-  state extracted : Counter = optional!;
-  shared -> add(3);
-  extracted -> add(5);
-  optional = shared;
-  state parameter_value : Unsigned_64 = ObjectOps -> read_optional(shared);
-
-  state holder := new[ObjectHolder](.selected = shared);
-  state held : Counter = holder.selected!;
-  held -> add(2);
-
-  state inline_value : ObjectInline = (.selected = shared);
-  state inline_selected : Counter = inline_value.selected!;
-  inline_selected -> add(1);
-
-  state options : CounterOptions = (shared, shared);
-  state option_access := options -> get_access();
-  option_access[0] = shared;
-  option_access[0, 2] = (shared, shared);
-  state fixed_selected : Counter = options:[1]!;
-  fixed_selected -> add(1);
-
-  state static_value : Counter = object_static!;
-
-  state optional_pair : Option[Pair] = (.right = 2, .left = 1);
-  state selected_pair : Pair = optional_pair!;
-  state optional_fixed : Option[Fixed[Unsigned_64, 2]] = (3, 4);
-  state selected_fixed : Fixed[Unsigned_64, 2] = optional_fixed!;
-
-  state empty_objects : View[Counter] = new[View[Counter]];
-  state defaulted : Counter = empty_objects:[9];
-  state defaulted_value : Unsigned_64 = defaulted -> add(1);
-  state defaulted_range : Fixed[Counter, 2] = empty_objects:[9, 2];
-  state first_default : Counter = defaulted_range:[0];
-  state second_default : Counter = defaulted_range:[1];
-  first_default -> add(5);
-  state distinct_defaults : Unsigned_64 =
-      first_default.value + second_default.value;
-
-  state recursive := new[RecursiveObject];
-  return original.value + parameter_value + static_value.value +
-         recursive.value + selected_pair -> sum() + selected_fixed:[1] +
-         defaulted_value + distinct_defaults;
+foreign "C" {
+  public func llvm_dense_access[] -> Access[Unsigned_64];
+  public func llvm_dense_view[] -> View[Unsigned_64];
+  public func ttx_system_print[.value : Unsigned_64] -> [];
 }
 
 public Maybe : alias = Option[Unsigned_64];
 public Nested : alias = Option[Maybe];
-private const absent : Maybe = ();
+private CounterOptions : alias = Fixed[Option[Counter], 2];
+
+private const absent  : Maybe = ();
 private const present : Maybe = 5;
 
-private OptionOps : struct {
-  public lift : func = [.value : Unsigned_64] -> Maybe {
-    return value;
+private object_static : Option[Counter] = new[Counter](.value = 2);
+private dynamic       : Maybe = OptionOps -> lift(0);
+
+@abi("C") @symbol("llvm_access_write")
+public access_write : func = [.offset : Unsigned_64] -> Unsigned_64 {
+  state selected : Access[Unsigned_64] = DenseAccess -> acquire();
+  selected[1]     = 20;
+  selected[2, 2]  = (30 + offset, 40 + offset);
+  selected[99]    = 50;
+  selected[3, 2]  = (70, 80);
+  return selected:[0] + selected:[1] + selected:[2] + selected:[3];
+}
+
+@abi("C") @symbol("llvm_borrow_iteration")
+public borrow_iteration : func = [] -> Unsigned_64 {
+  const prefix      : View[Unsigned_8]       = "Echo: " -> get_view();
+  const prefix_tail : View[Unsigned_8]       = prefix -> slice(2, 99);
+  state dense       : Fixed[Unsigned_64, 4]  = (1, 2, 3, 4);
+  state selected    : Access[Unsigned_64]    = dense -> get_access();
+  selected[1]     = 20;
+  selected[2, 2]  = (30, 40);
+
+  state fixed_view   : View[Unsigned_64] = dense -> get_view();
+  state default_view : View[Unsigned_64] = FixedOps -> create() -> get_view();
+  state fixed_tail   : View[Unsigned_64] = fixed_view -> slice(2, 99);
+  state access_tail  : View[Unsigned_64] = selected -> slice(3, 99);
+  state missing      : View[Unsigned_64] = selected -> slice(99, 2);
+  state total        : Unsigned_64       = selected -> get_size();
+  for [.entry : Unsigned_64] in selected : total += entry;
+
+  total += prefix -> get_size() + prefix_tail -> get_size();
+  total += fixed_view -> get_size() + fixed_tail -> get_size();
+  total += default_view -> get_size();
+  total += access_tail -> get_size() + missing -> get_size();
+  total += fixed_tail:[0] + access_tail:[0];
+
+  state readonly : View[Unsigned_64] = DenseView -> acquire();
+  total += readonly -> get_size();
+  for [.entry : Unsigned_64] in readonly : total += entry;
+
+  return total;
+}
+
+@abi("C") @symbol("llvm_enumeration_iteration")
+public enumeration_iteration : func = [] -> Unsigned_64 {
+  const size  : Unsigned_64 = Mode.size;
+  state total : Unsigned_64 = size;
+  for [.value : Mode] in Mode : total += value -> get_name() -> get_size();
+  for [.value : Unsigned_8, .name : View[Unsigned_8]] in Mode {
+    total += name -> get_size();
+    value;
   }
 
-  public nest : func = [.value : Maybe] -> Nested {
-    return value;
-  }
-
-  @abi("C")
-  @symbol("llvm_option")
-  public forward : func = [.value : Maybe] -> Maybe {
-    return value?;
-  }
+  return total;
 }
 
-private dynamic : Maybe = OptionOps -> lift(0);
-
-@abi("C")
-@symbol("llvm_pair")
-public pair : func = [] -> Pair {
-  return (.left = 9, .right = 4);
-}
-
-@abi("C")
-@symbol("llvm_results")
-public results : func = [] -> [
-  .left : Unsigned_64,
-  .active : Bool,
-] {
-  return (.active = true, .left = 7);
-}
-
-@abi("C")
-@symbol("llvm_large")
-public large : func = [] -> Large {
-  return LargeOps -> create();
-}
-
-@abi("C")
-@symbol("llvm_large_sum")
-public large_sum : func = [.value : Large] -> Unsigned_64 {
-  return value.first + value.second + value.third;
-}
-
-@abi("C")
-public small : func = [
-  .value : Unsigned_8,
-  .active : Bool,
-] -> Unsigned_8 {
-  return value;
-}
-
-@abi("C")
-@symbol("llvm_nonobject")
-@backend_note("opaque")
 // Test documentation string for function
+@abi("C") @symbol("llvm_nonobject") @backend_note("opaque")
 public execute : func = [] -> Unsigned_64 {
   state pair : Pair = (.left = 2, .right = 3);
+
   // Test documentation string for variable
   state dense : Fixed[Unsigned_64, 4] = (1, 2, 3, 4);
   const frozen_dense : Fixed[Unsigned_64, 4] = (5, 6, 7, 8);
-  state empty : View[Unsigned_64] = new[View[Unsigned_64]];
-  state writable : Access[Unsigned_64];
-  state signed : Signed_64 = -2;
-  state real : Real_64 = 6.0;
-  state mode : Mode;
-  state bytes : Fixed[Unsigned_8, 2] = 0x[01 02];
-  state total : Unsigned_64 = pair -> sum();
-  writable[99] = 50;
-  writable[0, 2] = (5, 6);
+  state empty        : View[Unsigned_64] = new[View[Unsigned_64]];
+  state writable     : Access[Unsigned_64];
+  state signed       : Signed_64 = -2;
+  state real         : Real_64 = 6.0;
+  state mode         : Mode;
+  state bytes        : Fixed[Unsigned_8, 2] = 0x[01 02];
+  state total        : Unsigned_64 = pair -> sum();
+  writable[99]    = 50;
+  writable[0, 2]  = (5, 6);
   total += dense:[1];
   total += frozen_dense:[1];
   total += empty:[99];
@@ -246,84 +101,208 @@ public execute : func = [] -> Unsigned_64 {
   source -> access_write(7);
 
   const extracted := frozen_dense:[1];
-  if !false and signed * -signed <= -4 and real / 2.0 == 3.0 {
-    total += 0;
-  } else {
-    total += 1000;
-  }
-  if total != 0 and total >= 0 {
-    total += 0;
-  }
-
-  if total > 10 {
-    total += 1;
-  }
+  if !false and signed * -signed <= -4 and real / 2.0 == 3.0 : total += 0; else : total +=
+      1000;
+  if total != 0 and total >= 0 : total += 0;
+  if total > 10 : total += 1;
   while total < 14 {
     total += 1;
     break;
   }
-  for [.entry : Unsigned_64] in 0...3 {
+
+  for [.entry : Unsigned_64] in 0...3 : total += entry;
+  match total % 3 {
+    case 0 : total += 3;
+    case 1 : total -= 1;
+    case _ : total += 25;
+  }
+
+  return total;
+}
+
+@abi("C") @symbol("llvm_large")
+public large : func = [] -> Large : return LargeOps -> create();
+@abi("C") @symbol("llvm_large_sum")
+public large_sum : func = [
+  .value : Large,
+] -> Unsigned_64 : return value.first + value.second + value.third;
+@abi("C") @symbol("llvm_object_add")
+public object_add : func = [
+  .value : Counter,
+  .amount : Unsigned_64,
+] -> Unsigned_64 : return value -> add(amount);
+@abi("C") @symbol("llvm_object_behavior")
+public object_behavior : func = [] -> Unsigned_64 {
+  state original  := new[Counter](.value = 4);
+  state shared    : Counter = ObjectOps -> forward(original);
+  state optional  : Option[Counter] = shared;
+  state extracted : Counter = optional!;
+  shared -> add(3);
+  extracted -> add(5);
+  optional = shared;
+
+  state parameter_value : Unsigned_64 = ObjectOps -> read_optional(shared);
+  state holder := new[ObjectHolder](.selected = shared);
+  state held : Counter = holder.selected!;
+  held -> add(2);
+
+  state inline_value    : ObjectInline = (.selected = shared);
+  state inline_selected : Counter      = inline_value.selected!;
+  inline_selected -> add(1);
+
+  state options       : CounterOptions = (shared, shared);
+  state option_access := options -> get_access();
+  option_access[0]     = shared;
+  option_access[0, 2]  = (shared, shared);
+
+  state fixed_selected : Counter = options:[1]!;
+  fixed_selected -> add(1);
+
+  state static_value    : Counter = object_static!;
+  state optional_pair   : Option[Pair] = (.right = 2, .left = 1);
+  state selected_pair   : Pair = optional_pair!;
+  state optional_fixed  : Option[Fixed[Unsigned_64, 2]] = (3, 4);
+  state selected_fixed  : Fixed[Unsigned_64, 2] = optional_fixed!;
+  state empty_objects   : View[Counter] = new[View[Counter]];
+  state defaulted       : Counter = empty_objects:[9];
+  state defaulted_value : Unsigned_64 = defaulted -> add(1);
+  state defaulted_range : Fixed[Counter, 2] = empty_objects:[9, 2];
+  state first_default   : Counter = defaulted_range:[0];
+  state second_default  : Counter = defaulted_range:[1];
+  first_default -> add(5);
+
+  state distinct_defaults : Unsigned_64 = first_default.value + second_default.value;
+  state recursive         := new[RecursiveObject];
+  return original.value + parameter_value + static_value.value + recursive.value +
+      selected_pair -> sum() + selected_fixed:[1] + defaulted_value + distinct_defaults;
+}
+
+@abi("C") @symbol("llvm_object_create")
+public object_create : func = [] -> Counter {
+  state created := new[Counter](.value = 7);
+  return created;
+}
+
+@abi("C") @symbol("llvm_object_read")
+public object_read : func = [.value : Counter] -> Unsigned_64 : return value.value;
+@abi("C") @symbol("llvm_object_results")
+public object_results : func = [.value : Counter] -> [
+  .optional : Option[Counter],
+  .count : Unsigned_64,
+] : return (.count = value.value, .optional = value);
+@abi("C") @symbol("llvm_object_static_value")
+public object_static_value : func = [] -> Unsigned_64 {
+  state selected : Counter = object_static!;
+  return selected.value;
+}
+
+@abi("C") @symbol("llvm_pair")
+public pair : func = [] -> Pair : return (.left = 9, .right = 4);
+@abi("C") @symbol("llvm_results")
+public results : func = [] -> [.left : Unsigned_64, .active : Bool] : return (
+  .active = true,
+  .left = 7,
+);
+
+// One exported bridge starts the TTX-to-TTX runtime integration. Everything
+// after entry selection is expressed by Library calls and value flow.
+@abi("C") @symbol("ttx_runtime")
+public runtime : func = [] -> [] : RuntimeIntegration -> run();
+@abi("C")
+public small : func = [.value : Unsigned_8, .active : Bool] -> Unsigned_8 : return value;
+
+private executable_acceptance : func = [.flag : Bool, .limit : Unsigned_64] -> Unsigned_64 {
+  state total : Unsigned_64 = 0;
+  const one   : Unsigned_64 = 1;
+  Worker -> tick();
+  if flag : total += one; else : total = limit;
+  while flag {
+    total += one;
+    break;
+  }
+
+  for [.entry : Unsigned_64] in 0...limit {
+    if flag : continue;
+
     total += entry;
   }
-  match total % 3 {
-    case 0 : { total += 3; }
-    case 1 : { total -= 1; }
-    case _ : { total += 25; }
+
+  match flag {
+    case false : return total;
+    case true : return total + one;
   }
-  return total;
+}
+
+public Counter : object {
+  public state value : Unsigned_64 = 0;
+
+  public add : func = [self, .amount : Unsigned_64] -> Unsigned_64 {
+    self.value += amount;
+    return self.value;
+  }
+}
+
+public Large : struct {
+  public state first  : Unsigned_64 = 0;
+  public state second : Unsigned_64 = 0;
+  public state third  : Unsigned_64 = 0;
+}
+
+public Mode : enum[Unsigned_8] {
+  active = 1;
+  idle = 0;
+}
+
+public Pair : struct {
+  public state left  : Unsigned_64 = 2;
+  public state right : Unsigned_64 = 3;
+
+  public sum : func = [self] -> Unsigned_64 : return self.left + self.right;
 }
 
 private DenseAccess : struct {
-  public acquire : func = [] -> Access[Unsigned_64] {
-    return foreign -> llvm_dense_access();
-  }
+  public acquire : func = [] -> Access[Unsigned_64] : return foreign -> llvm_dense_access();
 }
 
 private DenseView : struct {
-  public acquire : func = [] -> View[Unsigned_64] {
-    return foreign -> llvm_dense_view();
+  public acquire : func = [] -> View[Unsigned_64] : return foreign -> llvm_dense_view();
+}
+
+private FixedOps : struct {
+  public create : func = [] -> Fixed[Unsigned_64, 2] : return (0, 0);
+}
+
+private LargeOps : struct {
+  public create : func = [] -> Large : return (.third = 6, .first = 4, .second =
+      5);
+}
+
+private ObjectHolder : object {
+  public state selected : Option[Counter];
+}
+
+private ObjectInline : struct {
+  public state selected : Option[Counter];
+}
+
+private ObjectOps : struct {
+  public forward : func = [.value : Counter] -> Counter : return value;
+  public read_optional : func = [.value : Option[Counter]] -> Unsigned_64 {
+    state selected : Counter = value!;
+    return selected.value;
   }
 }
 
-@abi("C")
-@symbol("llvm_access_write")
-public access_write : func = [.offset : Unsigned_64] -> Unsigned_64 {
-  state selected : Access[Unsigned_64] = DenseAccess -> acquire();
-  selected[1] = 20;
-  selected[2, 2] = (30 + offset, 40 + offset);
-  selected[99] = 50;
-  selected[3, 2] = (70, 80);
-  return selected:[0] + selected:[1] + selected:[2] + selected:[3];
+private OptionOps : struct {
+  @abi("C") @symbol("llvm_option")
+  public forward : func = [.value : Maybe] -> Maybe : return value?;
+  public lift : func = [.value : Unsigned_64] -> Maybe : return value;
+  public nest : func = [.value : Maybe] -> Nested : return value;
 }
 
-@abi("C")
-@symbol("llvm_borrow_iteration")
-public borrow_iteration : func = [] -> Unsigned_64 {
-  state dense : Fixed[Unsigned_64, 4] = (1, 2, 3, 4);
-  state selected : Access[Unsigned_64] = dense -> get_access();
-  selected[1] = 20;
-  selected[2, 2] = (30, 40);
-
-  state total : Unsigned_64 = selected -> get_size();
-  for [.entry : Unsigned_64] in selected {
-    total += entry;
-  }
-
-  state readonly : View[Unsigned_64] = DenseView -> acquire();
-  total += readonly -> get_size();
-  for [.entry : Unsigned_64] in readonly {
-    total += entry;
-  }
-  return total;
-}
-
-// System is the TTX-facing observation surface. Its provider remains one
-// explicit host boundary while the runtime scenario decides what to print.
-private System : struct {
-  public print : func = [.value : Unsigned_64] -> [] {
-    foreign -> ttx_system_print(value);
-    return;
-  }
+private RecursiveObject : object {
+  private state next : Option[RecursiveObject];
+  public state value : Unsigned_64 = 1;
 }
 
 private RuntimeIntegration : struct {
@@ -334,55 +313,17 @@ private RuntimeIntegration : struct {
     return total;
   }
 
-  public run : func = [] -> [] {
-    System -> print(RuntimeIntegration -> calculate());
-    return;
-  }
+  public run : func = [] -> [] : System -> print(RuntimeIntegration -> calculate());
+}
+
+// System is the TTX-facing observation surface. Its provider remains one
+// explicit host boundary while the runtime scenario decides what to print.
+private System : struct {
+  public print : func = [.value : Unsigned_64] -> [] : foreign -> ttx_system_print(value);
 }
 
 // This compact body is inspected by the Library unit suite. Native execution
 // uses the exported runtime and execute paths below.
 private Worker : struct {
-  public tick : func = [] -> [] { return; }
-}
-
-private executable_acceptance : func = [
-  .flag : Bool,
-  .limit : Unsigned_64,
-] -> Unsigned_64 {
-  state total : Unsigned_64 = 0;
-  const one : Unsigned_64 = 1;
-  Worker -> tick();
-  if flag {
-    total += one;
-  } else {
-    total = limit;
-  }
-  while flag {
-    total += one;
-    break;
-  }
-  for [.entry : Unsigned_64] in 0...limit {
-    if flag { continue; }
-    total += entry;
-  }
-  match flag {
-    case false : { return total; }
-    case true : { return total + one; }
-  }
-}
-
-// One exported bridge starts the TTX-to-TTX runtime integration. Everything
-// after entry selection is expressed by Library calls and value flow.
-@abi("C")
-@symbol("ttx_runtime")
-public runtime : func = [] -> [] {
-  RuntimeIntegration -> run();
-  return;
-}
-
-foreign "C" {
-  public func llvm_dense_access[] -> Access[Unsigned_64];
-  public func llvm_dense_view[] -> View[Unsigned_64];
-  public func ttx_system_print[.value : Unsigned_64] -> [];
+  public tick : func = [] -> [] : return;
 }

@@ -1,12 +1,7 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
-
 dialect : Render;
 
 public Simple : struct {
-  public stage Fragment[
-    @location(0) .color : Math::Vec4D,
-  ] -> [
-    @location(0) .color : Math::Vec4D,
-  ];
+  public stage Fragment[@location(0).color : Math::Vec4D] -> [@location(0).color : Math::Vec4D];
 }

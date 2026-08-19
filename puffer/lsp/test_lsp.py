@@ -12,7 +12,6 @@ Usage:
     python3 puffer/lsp/test_lsp.py
 """
 
-import base64
 import json
 import os
 import socket
@@ -67,13 +66,17 @@ def read_lsp_response(conn, timeout=5.0):
 
 
 def send_format(conn, source_text, name):
-    """Send a format request and return the decoded formatted text, or None on error."""
-    encoded = base64.b64encode(source_text.encode("utf-8")).decode()
+    """Open and format one document through the standard LSP request."""
+    uri = f"file:///{name}"
+    send_did_open(conn, uri, source_text)
     conn.sendall(lsp_frame({
         "jsonrpc": "2.0",
         "id": 10,
-        "method": "format",
-        "params": {"source": encoded, "name": name},
+        "method": "textDocument/formatting",
+        "params": {
+            "textDocument": {"uri": uri},
+            "options": {"tabSize": 2, "insertSpaces": True},
+        },
     }))
     resp = read_lsp_response(conn, timeout=10.0)
     if resp is None:
@@ -82,11 +85,11 @@ def send_format(conn, source_text, name):
     if "error" in resp:
         print(f"  ERROR from server for {name}: {resp['error']}")
         return None
-    encoded_doc = resp.get("result", {}).get("document", "")
-    if not encoded_doc:
-        print(f"  ERROR: response for {name} has no 'document' field")
+    edits = resp.get("result", [])
+    if len(edits) != 1 or "newText" not in edits[0]:
+        print(f"  ERROR: response for {name} has no complete document edit")
         return None
-    return base64.b64decode(encoded_doc.encode()).decode("utf-8")
+    return edits[0]["newText"]
 
 
 def send_did_open(conn, uri, source_text):
@@ -243,6 +246,8 @@ def run_test():
               "server supports full semantic token requests")
         check(bool(caps.get("hoverProvider")),
               "server advertises semantic hover")
+        check(bool(caps.get("documentFormattingProvider")),
+              "server advertises document formatting")
     else:
         print("  ERROR: no initialize response")
         failures.append("initialize response")
@@ -369,7 +374,8 @@ def run_test():
     check("= (5, 6, 7, 8)" in frozen_markdown,
           "hover displays the const Fixed Local's folded values")
 
-    dense_use = hover_source.index("total += dense")
+    execute_start = hover_source.index("public execute : func")
+    dense_use = hover_source.index("total += dense", execute_start)
     dense_resp = send_hover(
         conn, hover_uri, hover_source, "dense", 38, dense_use)
     dense_markdown = (
@@ -378,9 +384,8 @@ def run_test():
     check("> Test documentation string for variable" in dense_markdown,
           "Local hover delegates to its Statement documentation")
 
-    function_start = hover_source.index("public execute : func")
     function_resp = send_hover(
-        conn, hover_uri, hover_source, "execute", 39, function_start)
+        conn, hover_uri, hover_source, "execute", 39, execute_start)
     function_markdown = (
         (function_resp.get("result") or {}).get("contents", {}).get("value", "")
         if function_resp else "")
@@ -486,7 +491,7 @@ def run_test():
     check(diagnostic_resp is not None and
           diagnostic_resp.get("method") ==
           "textDocument/publishDiagnostics" and diagnostics and
-          "Function bodies require" in diagnostics[0].get("message", ""),
+          "Library Blocks require" in diagnostics[0].get("message", ""),
           "semantic failures publish editor diagnostics")
 
     long_lines = "".join(
@@ -543,6 +548,11 @@ def run_test():
                     print(f"      after:  {repr(b)}")
             if len(src_lines) != len(fmt_lines):
                 print(f"  line count: {len(src_lines)} → {len(fmt_lines)}")
+        check(splash_formatted == splash_source,
+              "tracked TTX source is already canonical")
+        splash_second = send_format(conn, splash_formatted, "splash.ttx")
+        check(splash_second == splash_formatted,
+              "document formatting is byte-idempotent")
 
     print("\n--- Round-trip: invalid source ---")
     invalid_source = "dialect : Library;\n\n$\n"
@@ -554,6 +564,11 @@ def run_test():
             print("  [DIFF] invalid source changed after formatting:")
             print(f"      before: {repr(invalid_source)}")
             print(f"      after:  {repr(invalid_formatted)}")
+        check("$" in invalid_formatted,
+              "formatting preserves malformed authored content")
+        check(invalid_formatted.startswith(
+            "//\n// Place holder source documentation.\n//\n"),
+            "formatting supplies missing source documentation")
 
     exit_code = proc.poll()
     if exit_code is None:

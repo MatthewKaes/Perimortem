@@ -1,7 +1,5 @@
 //
 dialect : Library;
 
-public const shared_header_a : Fixed[Unsigned_8, 64] =
-  $[resources/table.bin]:[0, 64];
-public const empty_payload : View[Unsigned_8] =
-  $[resources/empty.bin];
+public const empty_payload   : View[Unsigned_8]       = $[resources/empty.bin];
+public const shared_header_a : Fixed[Unsigned_8, 64]  = $[resources/table.bin]:[0, 64];
