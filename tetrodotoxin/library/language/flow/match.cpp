@@ -125,9 +125,6 @@ auto Language::Flow::Match::interpret(
         return {};
       }
       cursor.consume();
-      BAIL_IF(!cursor.require(
-          Code::Type::Define,
-          "Library match cases require `:` before their Block."_view));
 
       auto body = Block::interpret(
           cursor, lexical_context, function, access_scope, enclosing_loop);
@@ -144,7 +141,8 @@ auto Language::Flow::Match::interpret(
     }
 
     if (cursor.matches(Code::Type::Addressable) &&
-        cursor.peek(1).get_code().get_type() == Code::Type::Define) {
+        (cursor.peek(1).get_code().get_type() == Code::Type::Define ||
+         cursor.peek(1).get_code().get_type() == Code::Type::ScopeStart)) {
       // The payload context borrows its parent and exposes one private binding
       // only after Option linking proves this case is elimination. Until then
       // the same token remains a normal Identifier Constant candidate.
@@ -157,9 +155,6 @@ auto Language::Flow::Match::interpret(
       auto& expression = Expressions::Identifier::create_authored(
           cursor, value_token, Anchor::create(Span(value_token)));
 
-      BAIL_IF(!cursor.require(
-          Code::Type::Define,
-          "Library match cases require `:` before their Block."_view));
       auto body = Block::interpret(
           cursor, context, function, access_scope, enclosing_loop);
       BAIL_IF(!body);
@@ -188,9 +183,6 @@ auto Language::Flow::Match::interpret(
       return {};
     }
 
-    BAIL_IF(!cursor.require(
-        Code::Type::Define,
-        "Library match cases require `:` before their Block."_view));
     auto body = Block::interpret(
         cursor, lexical_context, function, access_scope, enclosing_loop);
     BAIL_IF(!body);

@@ -6,25 +6,26 @@
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/language/flow/block.hpp"
-#include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
+#include "tetrodotoxin/library/language/parameter.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/abstract.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/model/layouts/named.hpp"
 
 namespace Tetrodotoxin::Library::Language::Flow {
 
-// RangeLoop owns one authored `for` statement and is itself the loop binding.
-// The binding is a read only Addressable whose exact Type must match the
-// element Type of either a Range or one contiguous input. Its body resolves
-// that identity through ordinary lexical lookup.
-class RangeLoop : public Model::Addressable {
+// RangeLoop owns one authored `for` statement and its complete binding Layout.
+// Each binding is one real Parameter identity retained by the loop, while the
+// selected input Type owns which Layouts it can produce during iteration.
+class RangeLoop : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(RangeLoop, Model::Addressable);
+  TTX_CONTRACT(RangeLoop, Ttx::Concept::Abstract);
 
   static auto interpret(
       Ttx::Lexical::Cursor& cursor,
@@ -44,46 +45,49 @@ class RangeLoop : public Model::Addressable {
 
   auto lower(Llvm::Builder& body) const -> Bool;
 
-  TTX_NAME(name);
+  TTX_NAME("For"_view);
   TTX_EMPTY_DOCUMENTATION();
-
-  auto resolve() const -> const Ttx::Concept::Abstract& override;
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  constexpr auto get_type() const -> const Model::Type& override {
-    return type->get();
-  }
-
   constexpr auto get_input() const -> const Model::Pack& { return input.get(); }
+
+  constexpr auto get_bindings() const -> const Ttx::Concept::Layout& {
+    return *binding_layout;
+  }
 
   constexpr auto get_body() const -> const Block& { return body->get(); }
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
 
  private:
-  constexpr RangeLoop(
-      Block& lexical_context,
-      Ttx::Lexical::Token name_token,
-      Perimortem::Core::View::Bytes name,
-      TypeReference type_reference,
-      Model::Pack& input,
-      Ttx::Lexical::Anchor anchor)
-      : lexical_context(lexical_context),
-        name_token(name_token),
-        name(name),
-        type_reference(type_reference),
-        input(input),
-        anchor(anchor) {}
+  struct AuthoredBinding {
+    Ttx::Lexical::Token name_token;
+    Perimortem::Core::View::Bytes name;
+    TypeReference type_reference;
+  };
 
+  RangeLoop(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Block& lexical_context,
+      Perimortem::Core::View::Vector<AuthoredBinding> bindings,
+      Model::Pack& input,
+      Ttx::Lexical::Anchor anchor);
+
+  Perimortem::Memory::Allocator::Arena& domain;
   Block& lexical_context;
-  Ttx::Lexical::Token name_token;
-  Perimortem::Core::View::Bytes name;
-  TypeReference type_reference;
+  Perimortem::Memory::Managed::Vector<AuthoredBinding> authored_bindings;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Parameter>>
+      bindings;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
+      binding_entries;
+  Perimortem::Core::Option<Ttx::Model::Layouts::Named> binding_layout;
   Ttx::Concept::Reference<Model::Pack> input;
   Perimortem::Core::Option<Ttx::Concept::Reference<Block>> body;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>> type;
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
+      input_type;
   Ttx::Lexical::Anchor anchor;
   Bool linked = False;
 };
