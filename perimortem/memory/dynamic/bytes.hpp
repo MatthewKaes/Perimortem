@@ -7,9 +7,12 @@
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/hash.hpp"
 
+#include "perimortem/abi/memory/dynamic/bytes.hpp"
+
 namespace Perimortem::Memory::Dynamic {
 
-// A vector of dynamically managed bytes with value semantics.
+// A copy-on-write byte value backed by one worker-local Bibliotheca allocation.
+// Copies share their allocation until a writable operation detaches one owner.
 class Bytes {
  public:
   constexpr Bytes() {};
@@ -64,30 +67,35 @@ class Bytes {
   auto convert(Unsigned_8 source, Unsigned_8 target) -> void;
   auto slice(Count start, Count size) const -> Core::View::Bytes;
 
-  constexpr auto get_size() const -> Count { return size; }
-  constexpr auto get_capacity() const -> Count { return capacity; }
+  constexpr auto get_size() const -> Count { return storage.get_size(); }
+  constexpr auto get_capacity() const -> Count {
+    return storage.get_capacity();
+  }
   constexpr auto get_view() const -> const Core::View::Bytes {
-    return Core::View::Bytes(source_block, size);
+    return Core::View::Bytes(storage.get_data(), storage.get_size());
   }
 
-  constexpr auto get_access() -> Core::Access::Bytes {
-    return Core::Access::Bytes(source_block, size);
-  }
+  // Access promises writable storage, so a shared allocation detaches before
+  // its address escapes. The returned bounds do not extend the Bytes lifetime.
+  auto get_access() -> Core::Access::Bytes;
 
   constexpr auto hash() const -> Unsigned_64 {
     return Core::Hash(get_view()).get_value();
   }
 
-  constexpr auto is_empty() const -> Bool { return size == 0; }
+  constexpr auto is_empty() const -> Bool { return storage.get_size() == 0; }
 
   auto clear() -> void;
   auto reset() -> void;
   auto ensure_capacity(Count required_size) -> void;
 
  private:
-  Unsigned_8* source_block = nullptr;
-  Count size = 0;
-  Count capacity = 0;
+  auto prepare_write(Count required_capacity) -> void;
+  auto release() -> void;
+
+  Perimortem::Abi::Memory::Dynamic::Bytes storage;
 };
+
+static_assert(sizeof(Bytes) == sizeof(Perimortem::Abi::Memory::Dynamic::Bytes));
 
 }  // namespace Perimortem::Memory::Dynamic
