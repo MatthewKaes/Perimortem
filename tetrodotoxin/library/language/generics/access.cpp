@@ -19,7 +19,7 @@ auto Generics::Access::create(
 
   const Language::Model::Type* element =
       arguments.get_data()[0].find<const Language::Model::Type&>();
-  if (element == nullptr) {
+  if (!element) {
     return {};
   }
   if (element->get_layout().is_empty()) {
@@ -34,10 +34,34 @@ auto Generics::Access::create(
     return {};
   }
 
+  auto view = get_context()
+                  .resolve_context("View"_view)
+                  .resolve()
+                  .select<Language::Generic>();
+  if (!view) {
+    return {};
+  }
+  const Perimortem::Core::Static::Vector<Argument, 1> view_arguments = {
+    {Argument(*element)}};
+  auto view_type =
+      view->materialize(view_arguments.get_view())
+          .visit(
+              [](const Language::Model::Type& selected)
+                  -> Perimortem::Core::Option<const Language::Model::Type&> {
+                return selected;
+              },
+              [](const Language::Generic::Failure&)
+                  -> Perimortem::Core::Option<const Language::Model::Type&> {
+                return {};
+              });
+  if (!view_type) {
+    return {};
+  }
+
   Perimortem::Memory::Managed::Bytes name(arena, get_name());
   name.concat("["_view);
   name.concat(element->get_name());
   name.concat("]"_view);
   return arena.construct<Types::Access>(
-      arena, name.get_view(), *element, *size_type);
+      arena, name.get_view(), *element, *size_type, *view_type);
 }

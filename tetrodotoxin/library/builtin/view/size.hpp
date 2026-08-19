@@ -9,19 +9,19 @@
 #include "ttx/model/documentations/comment.hpp"
 #include "ttx/model/layouts/ranged.hpp"
 
-namespace Tetrodotoxin::Library::Language::Builtins {
+namespace Tetrodotoxin::Library::Builtin::View {
 
-// GetSize exposes the runtime element count retained by one View or Access.
-class GetSize : public Model::Callable {
+// Size exposes the runtime element count retained by one View or Access.
+class Size : public Language::Model::Callable {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "get_size"_view;
 
-  TTX_CONTRACT(GetSize, Model::Callable);
+  TTX_CONTRACT(Size, Language::Model::Callable);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Model::Type& receiver,
-      const Model::Type& result) -> GetSize&;
+      const Language::Model::Type& receiver,
+      const Language::Model::Type& result) -> Size&;
 
   TTX_NAME(name);
   TTX_DOCUMENTATION(documentation);
@@ -36,10 +36,6 @@ class GetSize : public Model::Callable {
     return results;
   }
 
-  auto reserve_declaration(Llvm::Program& program) const -> Bool override;
-
-  auto complete_declaration(Llvm::Program& program) const -> Bool override;
-
   auto lower_call(
       Llvm::Builder& body,
       const Ttx::Model::Pack& result,
@@ -48,7 +44,7 @@ class GetSize : public Model::Callable {
       -> Bool override;
 
  private:
-  constexpr GetSize(Parameter& self, const Model::Type& result)
+  constexpr Size(Language::Parameter& self, const Language::Model::Type& result)
       : parameters(self, 1), results(result, 1) {}
 
   Ttx::Model::Layouts::Ranged parameters;
@@ -59,4 +55,4 @@ class GetSize : public Model::Callable {
   };
 };
 
-}  // namespace Tetrodotoxin::Library::Language::Builtins
+}  // namespace Tetrodotoxin::Library::Builtin::View

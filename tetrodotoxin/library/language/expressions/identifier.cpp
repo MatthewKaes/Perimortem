@@ -102,6 +102,10 @@ auto Language::Expressions::Identifier::get_result() const -> const Abstract& {
 
 auto Language::Expressions::Identifier::lower(Llvm::Builder& body) const
     -> Bool {
+  if (get_result().resolve().is<Language::Model::Type>()) {
+    return True;
+  }
+
   auto folded = lower_folded(body);
   if (folded) {
     return *folded;

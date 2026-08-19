@@ -16,6 +16,15 @@ class Contiguous : public Model::Type {
   TTX_CONTRACT(Contiguous, Model::Type);
 
   virtual constexpr auto get_element_type() const -> const Model::Type& = 0;
+
+  auto accepts_iteration(const Ttx::Concept::Layout& bindings) const
+      -> Bool override;
+
+  auto begin_iteration(
+      Llvm::Builder& body,
+      const Ttx::Concept::Abstract& owner,
+      const Ttx::Concept::Layout& bindings,
+      const Ttx::Model::Pack& input) const -> Bool override;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Types

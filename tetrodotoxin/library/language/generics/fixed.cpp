@@ -24,7 +24,7 @@ auto Generics::Fixed::create(Perimortem::Core::View::Vector<Argument> arguments)
   const Language::Model::Type* element =
       argument_data[0].find<const Language::Model::Type&>();
   const ::Unsigned_64* extent = argument_data[1].find<::Unsigned_64>();
-  if (element == nullptr || extent == nullptr || *extent == 0) {
+  if (!element || !extent || *extent == 0) {
     return {};
   }
   if (element->get_layout().is_empty()) {
@@ -35,7 +35,11 @@ auto Generics::Fixed::create(Perimortem::Core::View::Vector<Argument> arguments)
                     .resolve_context("Access"_view)
                     .resolve()
                     .select<Language::Generic>();
-  if (!access) {
+  auto view = get_context()
+                  .resolve_context("View"_view)
+                  .resolve()
+                  .select<Language::Generic>();
+  if (!access || !view) {
     return {};
   }
   const Perimortem::Core::Static::Vector<Argument, 1> access_arguments = {
@@ -54,11 +58,25 @@ auto Generics::Fixed::create(Perimortem::Core::View::Vector<Argument> arguments)
   if (!access_type) {
     return {};
   }
+  auto view_type =
+      view->materialize(access_arguments.get_view())
+          .visit(
+              [](const Language::Model::Type& selected)
+                  -> Perimortem::Core::Option<const Language::Model::Type&> {
+                return selected;
+              },
+              [](const Language::Generic::Failure&)
+                  -> Perimortem::Core::Option<const Language::Model::Type&> {
+                return {};
+              });
+  if (!view_type) {
+    return {};
+  }
 
   Perimortem::Memory::Managed::Bytes name(arena, get_name());
   Perimortem::Serialization::Stream::Textual<Perimortem::Memory::Managed::Bytes>
       output(name);
   output << "["_view << element->get_name() << ","_view << *extent << "]"_view;
   return arena.construct<Types::Fixed>(
-      arena, name.get_view(), *element, *extent, *access_type);
+      arena, name.get_view(), *element, *extent, *access_type, *view_type);
 }

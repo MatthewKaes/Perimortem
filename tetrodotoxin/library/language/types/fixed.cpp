@@ -5,7 +5,8 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/library/language/builtins/get_access.hpp"
+#include "tetrodotoxin/library/builtin/fixed/access.hpp"
+#include "tetrodotoxin/library/builtin/fixed/view.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/llvm/builder.hpp"
@@ -22,13 +23,16 @@ Types::Fixed::Fixed(
     View::Bytes name,
     const Model::Type& element,
     ::Unsigned_64 extent,
-    const Model::Type& access_type)
+    const Model::Type& access_type,
+    const Model::Type& view_type)
     : name(name),
       element(element),
       extent(extent),
       layout(element, Count(extent)) {
-  auto& get_access = Builtins::GetAccess::create(domain, *this, access_type);
+  auto& get_access = Builtin::Fixed::Access::create(domain, *this, access_type);
+  auto& get_view = Builtin::Fixed::View::create(domain, *this, view_type);
   publish_callable(domain, get_access, True);
+  publish_callable(domain, get_view, True);
 }
 
 auto Types::Fixed::create_default(Allocator::Arena& arena) const

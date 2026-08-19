@@ -1,41 +1,24 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/builtins/get_size.hpp"
+#include "tetrodotoxin/library/builtin/view/size.hpp"
 
 #include "tetrodotoxin/library/llvm/builder.hpp"
+
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Builtins::GetSize::create(
+auto Builtin::View::Size::create(
     Memory::Allocator::Arena& domain,
     const Language::Model::Type& receiver,
-    const Language::Model::Type& result) -> GetSize& {
+    const Language::Model::Type& result) -> Size& {
   Language::Parameter& self =
       Language::Parameter::create_synthetic(domain, "self"_view, receiver);
-  return domain.construct_from<GetSize>(
-      [&]() -> GetSize { return GetSize(self, result); });
+  return domain.construct_from<Size>(
+      [&]() -> Size { return Size(self, result); });
 }
 
-auto Language::Builtins::GetSize::reserve_declaration(
-    Llvm::Program& program) const -> Bool {
-  const auto& functions = program.get_functions();
-  auto reserved = functions.reserve_get_size(program, *this);
-  if (!reserved) {
-    return False;
-  }
-
-  return !*reserved || Model::Callable::reserve_declaration(program);
-}
-
-auto Language::Builtins::GetSize::complete_declaration(
-    Llvm::Program& program) const -> Bool {
-  const auto& functions = program.get_functions();
-  Bool signature_completed = Model::Callable::complete_declaration(program);
-  return signature_completed && functions.complete(program, *this);
-}
-
-auto Language::Builtins::GetSize::lower_call(
+auto Builtin::View::Size::lower_call(
     Llvm::Builder& body,
     const Ttx::Model::Pack& result,
     Core::View::Vector<LLVMValueRef> inputs,

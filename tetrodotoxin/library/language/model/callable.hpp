@@ -56,6 +56,15 @@ class Callable : public Ttx::Model::Callable {
       Perimortem::Core::Option<const Ttx::Model::Pack&> receiver_source) const
       -> Bool;
 
+  // Generated semantic operations may expose an immutable result without
+  // changing ordinary invocation. Absence keeps the Call dynamic.
+  virtual auto fold_call(
+      Perimortem::Memory::Allocator::Arena&,
+      Perimortem::Core::Option<const Model::Pack&>,
+      const Model::Pack&) const -> Perimortem::Core::Option<Model::Pack&> {
+    return {};
+  }
+
   virtual constexpr auto get_declaration_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
     return {};

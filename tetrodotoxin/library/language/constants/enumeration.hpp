@@ -26,6 +26,17 @@ class Enumeration : public Constant {
         });
   }
 
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Types::Enumeration& type,
+      Unsigned_64 value,
+      Ttx::Lexical::Anchor anchor) -> Enumeration& {
+    return Expression::create_authored<Enumeration>(
+        domain, anchor, [&](auto source) -> Enumeration {
+          return Enumeration(type, value, source);
+        });
+  }
+
   constexpr auto get_type() const -> const Types::Enumeration& override {
     return type;
   }

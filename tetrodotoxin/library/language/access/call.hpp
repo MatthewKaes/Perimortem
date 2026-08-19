@@ -113,6 +113,9 @@ class Call : public Expression {
       const Model::Callable& selected,
       Perimortem::Core::Option<const Ttx::Concept::Layout&> inputs) -> Bool;
 
+  auto evaluate() -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Model::Pack&>, Error> override;
+
   Perimortem::Memory::Allocator::Arena& domain;
   Expression& receiver;
   Ttx::Lexical::Token name_token;

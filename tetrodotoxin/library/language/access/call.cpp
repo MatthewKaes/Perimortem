@@ -295,11 +295,13 @@ auto Language::Access::Call::link(
 
   if (!selected->accepts_receiver(receiver_result, host)) {
     auto report = cursor.create_report(get_anchor());
-    report << "Callable '"_view << selected->get_name()
-           << "' cannot use receiver '"_view << receiver_result.get_name()
-           << "' because it does not grant the required write authority."_view;
+    report
+        << "Callable '"_view << selected->get_name()
+        << "' cannot use receiver '"_view << receiver_result.get_name()
+        << "' because its required storage or authority is unavailable."_view;
     report.get_hint()
-        << "Invoke this Callable through a writable Addressable receiver."_view;
+        << "Invoke through an Addressable whose lifetime and write authority "
+           "satisfy this Callable."_view;
     return False;
   }
 
@@ -549,6 +551,34 @@ auto Language::Access::Call::lower(Llvm::Builder& body) const -> Bool {
 
   return selected->lower_call(
       body, *this, native_inputs.get_view(), receiver_source);
+}
+
+auto Language::Access::Call::evaluate()
+    -> Utility::Result<Core::Option<Language::Model::Pack&>, Error> {
+  auto selected = get_callable();
+  if (!selected) {
+    return Core::Option<Language::Model::Pack&>();
+  }
+
+  Core::Option<const Language::Model::Pack&> folded_receiver;
+  if (!selected->declares_self()) {
+    return selected->fold_call(domain, folded_receiver, arguments);
+  }
+
+  return receiver.fold().visit(
+      [&](const Core::Option<Language::Model::Pack&>& value)
+          -> Utility::Result<Core::Option<Language::Model::Pack&>, Error> {
+        if (!value) {
+          return Core::Option<Language::Model::Pack&>();
+        }
+
+        folded_receiver = *value;
+        return selected->fold_call(domain, folded_receiver, arguments);
+      },
+      [](const Error& error)
+          -> Utility::Result<Core::Option<Language::Model::Pack&>, Error> {
+        return error;
+      });
 }
 
 auto Language::Access::Call::get_callable() const

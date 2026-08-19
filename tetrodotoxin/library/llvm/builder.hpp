@@ -18,7 +18,7 @@
 namespace Tetrodotoxin::Library::Llvm {
 
 // Builder exposes the physical operations for one executable lowering
-// transaction. Library owners retain semantic traversal and control-flow state
+// transaction. Library owners retain semantic traversal and control flow state
 // while Builder writes directly into the Body owned by this transaction.
 class Builder {
  public:
@@ -225,12 +225,19 @@ class Builder {
       const Ttx::Model::Type& result_type,
       const Ttx::Model::Type& receiver_type,
       LLVMValueRef receiver) const -> Bool;
-  auto get_access(
+  auto borrow_fixed(
       const Ttx::Model::Pack& result,
       const Ttx::Model::Type& result_type,
       const Ttx::Model::Type& receiver_type,
       const Ttx::Model::Pack& receiver_source,
       LLVMValueRef receiver) const -> Bool;
+  auto slice_view(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      LLVMValueRef receiver,
+      LLVMValueRef start,
+      LLVMValueRef count) const -> Bool;
   auto compare(
       Comparison operation,
       const Ttx::Model::Type& carrier,
@@ -253,10 +260,17 @@ class Builder {
       const Ttx::Concept::Abstract& owner,
       const Ttx::Model::Pack& condition) const -> Bool;
   auto end_while(const Ttx::Concept::Abstract& owner) const -> Bool;
-  auto begin_range(
+  auto begin_sequence(
+      const Ttx::Concept::Abstract& owner,
       const Ttx::Model::Addressable& binding,
       const Ttx::Model::Pack& input) const -> Bool;
-  auto end_range(const Ttx::Model::Addressable& binding) const -> Bool;
+  auto begin_enumeration(
+      const Ttx::Concept::Abstract& owner,
+      const Ttx::Concept::Layout& bindings,
+      Perimortem::Core::View::Vector<Unsigned_64> values,
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names) const
+      -> Bool;
+  auto end_iteration(const Ttx::Concept::Abstract& owner) const -> Bool;
   auto begin_match(const Ttx::Model::Pack& input) const
       -> Perimortem::Core::Option<Match>;
   auto begin_constant_case(Match& state, const Ttx::Model::Pack& constant) const
@@ -303,6 +317,13 @@ class Builder {
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Pack& result,
       Perimortem::Core::View::Bytes value) const -> Bool;
+  auto enumeration_name(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      LLVMValueRef value,
+      Perimortem::Core::View::Vector<Unsigned_64> values,
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names) const
+      -> Bool;
   auto logical_not(
       const Ttx::Model::Pack& result,
       const Ttx::Model::Pack& operand) const -> Bool;

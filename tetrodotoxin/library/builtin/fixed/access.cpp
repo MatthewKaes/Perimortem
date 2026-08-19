@@ -1,24 +1,25 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "tetrodotoxin/library/language/builtins/get_access.hpp"
+#include "tetrodotoxin/library/builtin/fixed/access.hpp"
 
 #include "tetrodotoxin/library/llvm/builder.hpp"
+
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Builtins::GetAccess::create(
+auto Builtin::Fixed::Access::create(
     Memory::Allocator::Arena& domain,
     const Language::Model::Type& receiver,
-    const Language::Model::Type& result) -> GetAccess& {
+    const Language::Model::Type& result) -> Access& {
   Language::Parameter& self =
       Language::Parameter::create_synthetic(domain, "self"_view, receiver);
-  return domain.construct_from<GetAccess>(
-      [&]() -> GetAccess { return GetAccess(self, result); });
+  return domain.construct_from<Access>(
+      [&]() -> Access { return Access(self, result); });
 }
 
-auto Language::Builtins::GetAccess::accepts_receiver(
+auto Builtin::Fixed::Access::accepts_receiver(
     const Abstract& receiver,
     const Abstract& host) const -> Bool {
   auto addressable = receiver.resolve().select<Language::Model::Addressable>();
@@ -27,25 +28,7 @@ auto Language::Builtins::GetAccess::accepts_receiver(
          addressable->permits_write_from(*access_scope);
 }
 
-auto Language::Builtins::GetAccess::reserve_declaration(
-    Llvm::Program& program) const -> Bool {
-  const auto& functions = program.get_functions();
-  auto reserved = functions.reserve_get_access(program, *this);
-  if (!reserved) {
-    return False;
-  }
-
-  return !*reserved || Model::Callable::reserve_declaration(program);
-}
-
-auto Language::Builtins::GetAccess::complete_declaration(
-    Llvm::Program& program) const -> Bool {
-  const auto& functions = program.get_functions();
-  Bool signature_completed = Model::Callable::complete_declaration(program);
-  return signature_completed && functions.complete(program, *this);
-}
-
-auto Language::Builtins::GetAccess::lower_call(
+auto Builtin::Fixed::Access::lower_call(
     Llvm::Builder& body,
     const Ttx::Model::Pack& result,
     Core::View::Vector<LLVMValueRef> inputs,
@@ -60,7 +43,7 @@ auto Language::Builtins::GetAccess::lower_call(
   auto receiver = parameter ? parameter->select<Ttx::Model::Addressable>()
                             : Core::Option<const Ttx::Model::Addressable&>();
   return result_type && receiver && receiver_source && inputs.get_size() == 1 &&
-         body.get_access(
+         body.borrow_fixed(
              result, *result_type, receiver->get_type(), *receiver_source,
              inputs.get_data()[0]);
 }

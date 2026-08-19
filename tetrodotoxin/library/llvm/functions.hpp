@@ -65,16 +65,6 @@ class Functions {
       Perimortem::Core::View::Bytes symbol) const
       -> Perimortem::Core::Option<Bool>;
 
-  auto reserve_get_size(
-      Ttx::Concept::Abstract& program,
-      const Ttx::Model::Callable& callable) const
-      -> Perimortem::Core::Option<Bool>;
-
-  auto reserve_get_access(
-      Ttx::Concept::Abstract& program,
-      const Ttx::Model::Callable& callable) const
-      -> Perimortem::Core::Option<Bool>;
-
   auto complete(
       Ttx::Concept::Abstract& program,
       const Ttx::Model::Callable& callable) const -> Bool;
@@ -111,8 +101,6 @@ class Functions {
   enum class Kind : Unsigned_8 {
     Function,
     Foreign,
-    GetSize,
-    GetAccess,
   };
 
   class Record {

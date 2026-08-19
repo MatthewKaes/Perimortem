@@ -76,6 +76,11 @@ class Expression : public Model::Pack {
     return Ttx::Concept::Invalid::get_invalid();
   }
 
+  auto resolve_call(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
   // The result is the exact semantic object produced by this node. Ordinary
   // value Expressions produce themselves. Access nodes override this only
   // when evaluation selects an existing Type or Addressable identity. Keeping

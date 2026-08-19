@@ -3,10 +3,11 @@
 
 // The native bridge enters LLVM before the Perimortem owner so LLVM's standard
 // declarations remain confined to this implementation unit.
-// clang-format off
+#if __has_include("llvm/IR/Function.h")
 #include "llvm/IR/Function.h"
-#include "tetrodotoxin/library/llvm/functions.hpp"
-// clang-format on
+#else
+#error LLVM Function is required by the Library native compiler
+#endif
 
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
@@ -18,6 +19,7 @@
 #include "tetrodotoxin/library/llvm/body.hpp"
 #include "tetrodotoxin/library/llvm/carriers.hpp"
 #include "tetrodotoxin/library/llvm/export.hpp"
+#include "tetrodotoxin/library/llvm/functions.hpp"
 #include "tetrodotoxin/library/llvm/program.hpp"
 #include "tetrodotoxin/library/llvm/symbol.hpp"
 #include "ttx/model/addressable.hpp"
@@ -325,18 +327,6 @@ auto Tetrodotoxin::Library::Llvm::Functions::reserve_foreign(
   return reserved;
 }
 
-auto Tetrodotoxin::Library::Llvm::Functions::reserve_get_size(
-    Ttx::Concept::Abstract& program,
-    const Ttx::Model::Callable& callable) const -> Core::Option<Bool> {
-  return reserve(program, callable, Record(Kind::GetSize));
-}
-
-auto Tetrodotoxin::Library::Llvm::Functions::reserve_get_access(
-    Ttx::Concept::Abstract& program,
-    const Ttx::Model::Callable& callable) const -> Core::Option<Bool> {
-  return reserve(program, callable, Record(Kind::GetAccess));
-}
-
 auto Tetrodotoxin::Library::Llvm::Functions::complete(
     Ttx::Concept::Abstract& program,
     const Ttx::Model::Callable& callable) const -> Bool {
@@ -349,11 +339,6 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
 
   Record& record = found->value;
   if (record.completed) {
-    return True;
-  }
-
-  if (record.kind == Kind::GetSize || record.kind == Kind::GetAccess) {
-    record.completed = True;
     return True;
   }
 

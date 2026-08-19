@@ -111,8 +111,7 @@ auto Language::Expression::lower(Llvm::Builder& body) const -> Bool {
   return folded ? *folded : False;
 }
 
-auto Language::Expression::lower_write_target(Llvm::Builder&) const
-    -> Bool {
+auto Language::Expression::lower_write_target(Llvm::Builder&) const -> Bool {
   return False;
 }
 
@@ -214,6 +213,7 @@ auto Language::Expression::fold() -> Perimortem::Utility::
           auto entry = representation_layout.get_abstract(index);
           constants &= Bool(entry && entry->is<Constant>());
         }
+
         if (!constants) {
           Error error(Error::Type::InvalidConstant, *this);
           folded = error;
@@ -241,6 +241,7 @@ auto Language::Expression::fold() -> Perimortem::Utility::
           // it would ask those Constants to reproduce the source owner.
           exact_shape = source_layout.fits(representation_layout);
         }
+
         if (!exact_shape) {
           Error error(Error::Type::ResultTypeMismatch, *this);
           folded = error;
@@ -266,6 +267,14 @@ auto Language::Expression::get_write_type(
   return addressable && addressable->permits_write_from(access_scope)
              ? Option<const Language::Model::Type&>(addressable->get_type())
              : Option<const Language::Model::Type&>();
+}
+
+auto Language::Expression::resolve_call(const Abstract& host, View::Bytes route)
+    const -> const Abstract& {
+  auto type = get_type().resolve().select<Language::Model::Type>();
+  return type ? type->resolve_type_call(
+                    host, route, Language::Model::Type::Access::Self)
+              : Invalid::get_invalid();
 }
 
 auto Language::Expression::link_write(
@@ -355,6 +364,12 @@ auto Language::Expression::evaluate() -> Perimortem::Utility::
   }
 
   const Abstract& result = get_result();
+  auto constant = result.resolve().select<Constant>();
+  if (constant) {
+    return static_cast<Language::Model::Pack&>(
+        const_cast<Constant&>(*constant));
+  }
+
   auto addressable = result.resolve().select<Language::Model::Addressable>();
   return addressable ? addressable->get_constant()
                      : Option<Language::Model::Pack&>();

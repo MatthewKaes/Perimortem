@@ -30,6 +30,16 @@ class Range : public Model::Type {
   auto reserve(Llvm::Program& program) const -> Bool override;
 
   auto complete(Llvm::Program& program) const -> Bool override;
+
+  auto accepts_iteration(const Ttx::Concept::Layout& bindings) const
+      -> Bool override;
+
+  auto begin_iteration(
+      Llvm::Builder& body,
+      const Ttx::Concept::Abstract& owner,
+      const Ttx::Concept::Layout& bindings,
+      const Ttx::Model::Pack& input) const -> Bool override;
+
   TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_element_type() const -> const Model::Type& {

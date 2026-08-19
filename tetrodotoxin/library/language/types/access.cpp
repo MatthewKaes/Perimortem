@@ -3,7 +3,8 @@
 
 #include "tetrodotoxin/library/language/types/access.hpp"
 
-#include "tetrodotoxin/library/language/builtins/get_size.hpp"
+#include "tetrodotoxin/library/builtin/view/size.hpp"
+#include "tetrodotoxin/library/builtin/view/slice.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -15,10 +16,14 @@ Types::Access::Access(
     Perimortem::Memory::Allocator::Arena& domain,
     View::Bytes name,
     const Model::Type& element,
-    const Model::Type& size_type)
+    const Model::Type& size_type,
+    const Model::Type& view_type)
     : name(name), element(element) {
-  auto& get_size = Builtins::GetSize::create(domain, *this, size_type);
+  auto& get_size = Builtin::View::Size::create(domain, *this, size_type);
+  auto& slice =
+      Builtin::View::Slice::create(domain, *this, size_type, view_type);
   publish_callable(domain, get_size, True);
+  publish_callable(domain, slice, True);
 }
 
 auto Types::Access::create_default(
