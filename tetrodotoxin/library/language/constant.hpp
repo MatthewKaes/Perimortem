@@ -51,6 +51,10 @@ class Constant : public Expression {
     return lhs_type.is<Model::Type>() && rhs_type.is<Model::Type>() &&
            &lhs_type == &rhs_type;
   }
+
+  static auto have_equal_values(
+      const Model::Pack& left,
+      const Model::Pack& right) -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Library::Language

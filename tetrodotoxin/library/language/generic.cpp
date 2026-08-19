@@ -9,6 +9,7 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/lexical/cursor.hpp"
 #include "ttx/model/alias.hpp"
 
 using namespace Perimortem;
@@ -129,6 +130,16 @@ auto Language::Generic::materialize(const Ttx::Concept::Layout& layout) const
   }
 
   return materialize(arguments.get_view());
+}
+
+auto Language::Generic::validate_materializations(
+    Ttx::Lexical::Cursor& cursor) const -> Bool {
+  Bool valid = True;
+  for (Entry* entry : entries.get_view()) {
+    valid &= entry->value.validate_layout(cursor);
+  }
+
+  return valid;
 }
 
 auto Language::Generic::materialize(

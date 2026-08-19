@@ -9,6 +9,7 @@
 #include "tetrodotoxin/library/language/generics/fixed.hpp"
 #include "tetrodotoxin/library/language/generics/option.hpp"
 #include "tetrodotoxin/library/language/generics/range.hpp"
+#include "tetrodotoxin/library/language/generics/result.hpp"
 #include "tetrodotoxin/library/language/generics/view.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/real_32.hpp"
@@ -66,6 +67,7 @@ Library::Language::Monograph::Monograph(
     &domain.construct<Generics::Fixed>(domain, *this),
     &domain.construct<Generics::Option>(domain, *this),
     &domain.construct<Generics::Range>(domain, *this),
+    &domain.construct<Generics::Result>(domain, *this),
     &domain.construct<Generics::View>(domain, *this),
   };
   for (Abstract* identity : identities) {
@@ -94,7 +96,19 @@ auto Library::Language::Monograph::link(Cursor& cursor) -> Bool {
 }
 
 auto Library::Language::Monograph::finalize(Cursor& cursor) -> Bool {
-  return source.finalize(cursor);
+  Bool valid = True;
+  for (Count index = 0; index < vocabulary.get_size(); index++) {
+    auto entry = vocabulary.get_entry(index);
+    Option<Generic&> generic;
+    if (entry) {
+      generic = entry->value.select<Generic>();
+    }
+    if (generic) {
+      valid &= generic->validate_materializations(cursor);
+    }
+  }
+
+  return valid && source.finalize(cursor);
 }
 
 auto Library::Language::Monograph::lower(Llvm::Program& program) const
@@ -118,8 +132,7 @@ auto Library::Language::Monograph::lower(Llvm::Program& program) const
     Perimortem::Core::Diagnostics::Log::error(
         "Library LLVM lowering failed while emitting source declarations."_view);
   }
-  return lowered ? Option<Llvm::Program&>(program)
-                 : Option<Llvm::Program&>();
+  return lowered ? Option<Llvm::Program&>(program) : Option<Llvm::Program&>();
 }
 
 auto Library::Language::Monograph::get_name() const -> View::Bytes {

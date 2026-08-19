@@ -85,6 +85,19 @@ static auto collect_type(
     break;
   }
 
+  case Llvm::Carriers::Kind::Result: {
+    auto value = carriers.get_element(type);
+    auto error = carriers.get_error(type);
+    if (!value || !error ||
+        !collect_type(ordered, collected, carriers, *value) ||
+        !collect_type(ordered, collected, carriers, *error)) {
+      return fail_header(
+          "The C header found Result without both completed alternatives."_view);
+    }
+
+    break;
+  }
+
   case Llvm::Carriers::Kind::Enumeration:
   case Llvm::Carriers::Kind::Fixed:
   case Llvm::Carriers::Kind::Option:
@@ -204,6 +217,7 @@ static auto write_type_name(
 
   case Llvm::Carriers::Kind::Fixed:
   case Llvm::Carriers::Kind::Option:
+  case Llvm::Carriers::Kind::Result:
   case Llvm::Carriers::Kind::Range:
   case Llvm::Carriers::Kind::View:
   case Llvm::Carriers::Kind::Access:
@@ -360,6 +374,27 @@ static auto write_type_definition(
     }
 
     output << " value;\n  bool set;\n"_view;
+    break;
+  }
+
+  case Llvm::Carriers::Kind::Result: {
+    output << "typedef struct ttx_"_view;
+    write_encoded_name(output, type.get_name());
+    output << " {\n  union {\n    "_view;
+
+    auto value = carriers.get_element(type);
+    auto error = carriers.get_error(type);
+    if (!value || !error || !write_type_name(output, carriers, *value)) {
+      return fail_header(
+          "The C header cannot define Result without its value Type."_view);
+    }
+
+    output << " value;\n    "_view;
+    if (!write_type_name(output, carriers, *error)) {
+      return False;
+    }
+
+    output << " error;\n  };\n  bool value_selected;\n"_view;
     break;
   }
 

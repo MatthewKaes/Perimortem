@@ -130,7 +130,6 @@ cc_binary(
         "//tetrodotoxin:environment",
         "//tetrodotoxin:language",
         "//tetrodotoxin:library",
-        "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
         "//tetrodotoxin:scene",
         "//tetrodotoxin:shader",

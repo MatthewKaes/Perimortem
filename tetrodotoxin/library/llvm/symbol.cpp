@@ -111,6 +111,9 @@ Tetrodotoxin::Library::Llvm::Symbol::Symbol(
   case Kind::OptionType:
     output.concat("ttx.option."_view);
     break;
+  case Kind::ResultType:
+    output.concat("ttx.result."_view);
+    break;
   case Kind::StructureType:
     output.concat("ttx.struct."_view);
     break;

@@ -3,9 +3,8 @@
 
 #include "tetrodotoxin/library/language/access/propagate.hpp"
 
-#include "tetrodotoxin/library/language/constants/option.hpp"
+#include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/flow/scope.hpp"
-#include "tetrodotoxin/library/language/types/option.hpp"
 #include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -15,47 +14,25 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-static auto select_option_constant(Language::Model::Pack& source)
-    -> Core::Option<Language::Constants::Option&> {
-  auto direct = source.select<Language::Constants::Option>();
-  if (direct) {
-    return *direct;
-  }
-
-  const Layout& layout = source.get_layout();
-  BAIL_IF(layout.get_size() != 1);
-  return layout.get_abstract(0).visit(
-      []() -> Core::Option<Language::Constants::Option&> { return {}; },
-      [](const Abstract& selected)
-          -> Core::Option<Language::Constants::Option&> {
-        auto pack =
-            const_cast<Abstract&>(selected).select<Language::Model::Pack>();
-        return pack ? pack->select<Language::Constants::Option>()
-                    : Core::Option<Language::Constants::Option&>();
-      });
-}
-
 auto Language::Access::Propagate::parse(
     const Abstract&,
     Cursor& cursor,
     Expression& receiver) -> Core::Option<Expression&> {
   Memory::Allocator::Arena& domain = cursor.get_arena();
   Token operation = cursor.require(
-      Code::Type::QuestionOp,
-      "Library Option propagation requires postfix `?`."_view);
+      Code::Type::QuestionOp, "Library propagation requires postfix `?`."_view);
   BAIL_IF(!operation);
 
   auto receiver_anchor = receiver.get_anchor();
   BAIL_IF(!receiver_anchor);
   Anchor anchor =
       Anchor::create(operation, receiver_anchor->get_span(), Span(operation));
-  // Absence exits through real empty Pack flow. Keeping that Pack on this
-  // operation lets link negotiate with the enclosing Function result instead
-  // of encoding Function policy in the parser.
-  Model::Pack& empty_return = Model::Pack::create_empty(domain);
+  // Every propagation begins with an empty escape Pack. A receiver with a typed
+  // error replaces it during linking before Function result negotiation.
+  Model::Pack& empty_escape = Model::Pack::create_empty(domain);
   Propagate& propagate = Expression::create_authored<Propagate>(
       domain, anchor, [&](Core::Option<Anchor> source) -> Propagate {
-        return Propagate(receiver, empty_return, source);
+        return Propagate(receiver, empty_escape, source);
       });
   return propagate;
 }
@@ -65,41 +42,90 @@ auto Language::Access::Propagate::link(
     const Abstract& lexical_context,
     Core::Option<const Abstract&> access_scope) -> Bool {
   BAIL_IF(!receiver.link(cursor, lexical_context, access_scope));
-  auto option = receiver.get_type().resolve().select<Types::Option>();
-  if (!option) {
+  auto selected_type = receiver.get_type().resolve().select<Model::Type>();
+  auto propagated = selected_type ? selected_type->get_propagated_type()
+                                  : Core::Option<const Model::Type&>();
+  if (!selected_type || !propagated) {
     cursor.create_expression_error(
-        get_anchor(), "Postfix `?` requires one Option value."_view,
-        "Use `?` only where absence should return from the Function."_view);
+        get_anchor(), "Postfix `?` requires a propagating value Type."_view,
+        "Use Option, Bool, Result, or another Type that defines propagation."_view);
     return False;
   }
 
   auto scope = lexical_context.select<Flow::Scope>();
-  // The empty path is valid only when the enclosing Function can receive it.
-  // The present path keeps the exact payload Type and continues normally.
-  BAIL_IF(!empty_return.link(cursor, lexical_context, access_scope));
-  if (!scope || !empty_return.fits(scope->get_function_results())) {
+  if (receiver_type && &receiver_type->get() != &*selected_type) {
     cursor.create_expression_error(
-        get_anchor(),
-        "Postfix `?` cannot return empty flow from this Function."_view,
-        "Use `[]` or one Option result Layout for the enclosing Function."_view);
+        get_anchor(), "Postfix `?` selected a different receiver Type."_view,
+        "Repeat linking with the same completed receiver identity."_view);
     return False;
   }
 
-  if (element_type && &element_type->get() != &option->get_element_type()) {
+  auto propagated_error = selected_type->get_propagated_error_type();
+  if (propagated_error) {
+    if (error_type && &error_type->get() != &*propagated_error) {
+      cursor.create_expression_error(
+          get_anchor(),
+          "Postfix `?` selected a different propagated error Type."_view,
+          "Repeat linking with the same completed receiver Type."_view);
+      return False;
+    }
+
+    if (!error_type) {
+      ErrorEscape& created = Expression::create_synthetic<ErrorEscape>(
+          cursor.get_arena(),
+          [&](Core::Option<Anchor>) { return ErrorEscape(*propagated_error); });
+      escape = Ttx::Concept::Reference<Model::Pack>(created);
+      error_type =
+          Ttx::Concept::Reference<const Model::Type>(*propagated_error);
+    }
+  } else if (error_type) {
     cursor.create_expression_error(
-        get_anchor(),
-        "Option propagation selected a different element Type."_view,
-        "Repeat linking with the same completed Option identity."_view);
+        get_anchor(), "Postfix `?` changed its propagated escape shape."_view,
+        "Repeat linking with the same completed receiver Type."_view);
     return False;
   }
 
-  element_type =
-      Reference<const Language::Model::Type>(option->get_element_type());
+  Model::Pack& selected_escape = escape.get();
+  BAIL_IF(!selected_escape.link(cursor, lexical_context, access_scope));
+  if (!scope || !selected_escape.fits(scope->get_function_results())) {
+    auto report = cursor.create_report(get_anchor());
+    report
+        << "Postfix `?` escape values do not fit the Function result Layout.\n"
+           "Escape produces: "_view;
+    Language::Diagnostics::write_pack(report, selected_escape);
+    report << "\nFunction accepts: "_view;
+    if (scope) {
+      Language::Diagnostics::write_layout(
+          report, scope->get_function_results());
+    } else {
+      report << "<no Function scope>"_view;
+    }
+    if (error_type) {
+      report.get_hint()
+          << "Return the propagated error Type or a receiving Result with that "
+             "exact error Type."_view;
+    } else {
+      report.get_hint()
+          << "Use an empty Function result or one receiving Option result."_view;
+    }
+    return False;
+  }
+
+  if (continuation_type && &continuation_type->get() != &*propagated) {
+    cursor.create_expression_error(
+        get_anchor(),
+        "Postfix `?` selected a different continuation Type."_view,
+        "Repeat linking with the same completed receiver identity."_view);
+    return False;
+  }
+
+  receiver_type = Reference<const Language::Model::Type>(*selected_type);
+  continuation_type = Reference<const Language::Model::Type>(*propagated);
   return Expression::link(cursor, lexical_context, access_scope);
 }
 
 auto Language::Access::Propagate::get_type() const -> const Abstract& {
-  return element_type.visit(
+  return continuation_type.visit(
       []() -> const Abstract& { return Invalid::get_invalid(); },
       [](const Reference<const Language::Model::Type>& selected)
           -> const Abstract& { return selected.get(); });
@@ -107,7 +133,7 @@ auto Language::Access::Propagate::get_type() const -> const Abstract& {
 
 auto Language::Access::Propagate::finalize(Cursor& cursor) -> void {
   receiver.finalize(cursor);
-  empty_return.finalize(cursor);
+  escape.get().finalize(cursor);
   Expression::finalize(cursor);
 }
 
@@ -117,10 +143,7 @@ auto Language::Access::Propagate::lower(Llvm::Builder& body) const -> Bool {
     return *folded;
   }
 
-  auto carrier = receiver.get_type().resolve().select<Ttx::Model::Type>();
-  auto element = get_type().resolve().select<Ttx::Model::Type>();
-
-  if (!carrier || !element) {
+  if (!receiver_type || !continuation_type) {
     return False;
   }
 
@@ -129,7 +152,8 @@ auto Language::Access::Propagate::lower(Llvm::Builder& body) const -> Bool {
     return False;
   }
 
-  return body.propagate(*carrier, *element, *this, receiver);
+  return receiver_type->get().lower_propagation(
+      body, *this, receiver, escape.get());
 }
 
 auto Language::Access::Propagate::evaluate()
@@ -146,15 +170,24 @@ auto Language::Access::Propagate::evaluate()
     return Core::Option<Model::Pack&>{};
   }
 
-  auto option = select_option_constant(*folded);
-  if (!option) {
+  auto selected_type = receiver_type.visit(
+      []() -> Core::Option<const Language::Model::Type&> { return {}; },
+      [](const Reference<const Language::Model::Type>& selected)
+          -> Core::Option<const Language::Model::Type&> {
+        return selected.get();
+      });
+  if (!selected_type) {
     return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
   }
 
-  auto payload = option->get_payload();
-  // An absent folded Option produces no values. Runtime lowering observes the
-  // same empty path and owns the actual early return control transfer.
-  return payload
-             ? Core::Option<Model::Pack&>(const_cast<Model::Pack&>(*payload))
-             : Core::Option<Model::Pack&>();
+  return selected_type->fold_propagation(*folded).visit(
+      [](const Core::Option<Model::Pack&>& propagated)
+          -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
+        return propagated;
+      },
+      [&](Bool)
+          -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
+        return Expression::Error(
+            Expression::Error::Type::InvalidConstant, *this);
+      });
 }

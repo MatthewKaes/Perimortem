@@ -9,6 +9,8 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "perimortem/utility/result.hpp"
+
 #include "tetrodotoxin/language/visibility.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -43,6 +45,36 @@ class Type : public Ttx::Model::Type {
   // policy and recursive construction stay with the concrete Type.
   virtual auto create_default(Perimortem::Memory::Allocator::Arena&) const
       -> Perimortem::Core::Option<Pack&> = 0;
+
+  // Postfix propagation asks its exact receiver Type for both observable flow
+  // edges. The continuation Type remains the expression result. An optional
+  // error Type produces a typed Function escape, while absence produces empty
+  // flow. Types that do not support propagation return no continuation Type.
+  virtual constexpr auto get_propagated_type() const
+      -> Perimortem::Core::Option<const Type&> {
+    return {};
+  }
+
+  virtual constexpr auto get_propagated_error_type() const
+      -> Perimortem::Core::Option<const Type&> {
+    return {};
+  }
+
+  // Folding preserves the same split. A selected Pack continues locally,
+  // absence takes the escape edge, and failure reports an incompatible Constant
+  // representation to the owning Expression.
+  virtual auto fold_propagation(Pack&) const
+      -> Perimortem::Utility::Result<Perimortem::Core::Option<Pack&>, Bool> {
+    return False;
+  }
+
+  virtual auto lower_propagation(
+      Llvm::Builder&,
+      const Pack&,
+      const Pack&,
+      const Pack&) const -> Bool {
+    return False;
+  }
 
   virtual auto reserve(Llvm::Program&) const -> Bool { return False; }
 

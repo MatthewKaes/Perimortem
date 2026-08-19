@@ -580,6 +580,49 @@ static auto create_debug_type(
       members.push_back(&create_member(
           program, *builder, *file, *temporary, *native_struct, 1, "set"_view,
           *debug_flag));
+    } else if (*kind == Llvm::Carriers::Kind::Result) {
+      auto value = program.get_carriers().get_element(selected);
+      auto error = program.get_carriers().get_error(selected);
+      auto flag = program.get_carriers().get_flag(selected);
+      auto storage = program.get_carriers().get_payload(selected);
+      auto native_value = value ? program.get_carriers().get_type(*value)
+                                : Core::Option<LLVMTypeRef>();
+      auto native_error = error ? program.get_carriers().get_type(*error)
+                                : Core::Option<LLVMTypeRef>();
+      if (!value || !error || !flag || !storage || !native_value ||
+          !native_error) {
+        return {};
+      }
+
+      auto debug_value = create_type(create_type, *value, 0);
+      auto debug_error = create_type(create_type, *error, 0);
+      auto debug_flag = create_type(create_type, *flag, 0);
+      if (!debug_value || !debug_error || !debug_flag) {
+        return {};
+      }
+
+      llvm::SmallVector<llvm::Metadata*, 2> alternatives;
+      alternatives.push_back(builder->createMemberType(
+          temporary, "value", &*file, 0,
+          size_in_bits(program, *llvm::unwrap(*native_value)),
+          Unsigned_32(alignment_in_bits(program, *llvm::unwrap(*native_value))),
+          0, llvm::DINode::FlagZero, &*debug_value));
+      alternatives.push_back(builder->createMemberType(
+          temporary, "error", &*file, 0,
+          size_in_bits(program, *llvm::unwrap(*native_error)),
+          Unsigned_32(alignment_in_bits(program, *llvm::unwrap(*native_error))),
+          0, llvm::DINode::FlagZero, &*debug_error));
+      llvm::DICompositeType* debug_storage = builder->createUnionType(
+          temporary, "storage", &*file, 0,
+          size_in_bits(program, *llvm::unwrap(*storage)),
+          Unsigned_32(alignment_in_bits(program, *llvm::unwrap(*storage))),
+          llvm::DINode::FlagZero, builder->getOrCreateArray(alternatives));
+      members.push_back(&create_member(
+          program, *builder, *file, *temporary, *native_struct, 0,
+          "storage"_view, *debug_storage));
+      members.push_back(&create_member(
+          program, *builder, *file, *temporary, *native_struct, 1,
+          "value_selected"_view, *debug_flag));
     } else if (
         *kind == Llvm::Carriers::Kind::View ||
         *kind == Llvm::Carriers::Kind::Access) {

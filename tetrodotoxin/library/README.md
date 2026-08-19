@@ -306,6 +306,7 @@ View[Fixed[Unsigned_8, 4]]
 Access[Unsigned_8]
 Range[Unsigned_64]
 Option[View[Unsigned_8]]
+Result[View[Unsigned_8], ParseError]
 ```
 
 `Fixed[T, extent]` requires its `extent` to be a positive exact `Unsigned_64`
@@ -318,6 +319,10 @@ always has a nonempty Layout. Its state either carries one exact `T` or carries
 no payload. Native Library targets use the Perimortem value carrier: one inline
 payload slot followed by its selected state. The payload is live only when
 selected, and Option adds no allocation, reference count, or shared identity.
+`Result[T, E]` stores exactly one live value or error alternative in an inline
+union followed by Bool state. `T` and `E` must be distinct nonempty Types so raw
+received flow selects exactly one alternative. Result adds no allocation or
+shared identity.
 An explicit empty list applies a formula with no arguments.
 Omitting the list instead requires the route to name a Type. Applying the same
 formula to the same semantic arguments returns the same Type identity.
@@ -371,14 +376,21 @@ concrete target. Ordinary Types retain exact Layout fitting, while Option extend
 the same query with its absent and present states. Adding another target
 conversion therefore changes only the Type that defines it.
 
+Result uses the same receiving protocol. A Pack accepted only by `T` constructs
+its value state, while a Pack accepted only by `E` constructs its error state.
+Flow accepted by both alternatives is ambiguous and rejected. Result has no
+named construction Callables.
+
 This is Pack fitting rather than Layout fitting. `[]` does not fit
 `Option[T]`, and Option never acquires an empty Layout. Its absent state can
 produce `()` only through the flow control owned by postfix `?`.
 
-Option is a built-in Library Generic Type. It does not make Objects nullable and
-it is not supplied by a standard Package. A user-defined operation that may fail
-is written as a Static factory returning an Option. Object initialization itself
-never publishes a partly initialized value.
+Option and Result are built-in Library Generic Types rather than standard
+Packages. Option represents recoverable absence without making Objects nullable.
+Result represents one handled error Type that cannot be discarded by
+propagation. A user-defined fallible operation is a Static factory returning the
+appropriate sum. Object initialization itself never publishes a partly
+initialized value.
 
 ### Default values
 
@@ -408,6 +420,7 @@ each default independently of the storage chosen by a compiler:
 - `View[T]` and `Access[T]` use empty read-only and writable views respectively.
 - `Range[T]` uses the empty range.
 - `Option[T]` uses the state with no payload and does not construct `T`.
+- `Result[T, E]` uses the value state containing the default of `T`.
 - `Fixed[T, count]` contains `count` default `T` values.
 - A Structure initializes state Fields in source order from each Field's
   authored initializer when present and otherwise from that Field Type's
@@ -421,10 +434,10 @@ Type selection remains outside value flow. `Descriptor` is consequently an
 ordinary source name rather than a reserved internal Type. Before construction,
 Library asks each completed value Layout whether its real Type and Addressable
 edges reach terminal leaves. Target storage must also remain finite. `Option[T]`
-stores an inline payload slot, so it cannot make a Structure recursively contain
-itself by value. It can break an Object construction cycle because an Object
-payload is a finite reference carrier and the absent state does not construct
-that referenced identity.
+and `Result[T, E]` store inline alternative slots, so neither can make a
+Structure recursively contain itself by value. Option can break an Object
+construction cycle because an Object payload is a finite reference carrier and
+the absent state does not construct that referenced identity.
 
 Cleared memory may make initialization faster, but it does not define these
 defaults. Every initializer required by the Type still runs. An empty
@@ -889,23 +902,29 @@ Integer overflow and division by zero are semantic failures in their owning
 operation. Safe
 `:[...]` selection uses a default value instead of publishing a bounds failure.
 
-Postfix `?` makes a chain of fallible operations concise without introducing
-nullable values or truthiness. Its left side must be `Option[T]`. A present
-payload continues the chain as exact `T`. A state with no payload returns an
-empty Pack from the enclosing Function and evaluates nothing to the right.
+Postfix `?` makes a chain of fallible operations concise. Its exact receiver Type
+owns both the continuation and escape flow:
 
-The enclosing Function must accept that empty flow. Its result is either `[]`
-or one `Option[R]`. An empty Pack fits the latter as absence, while a successful
-`R` Pack fits it as presence:
+- `Option[T]` continues with `T` when present and otherwise escapes with empty
+  flow.
+- An active Flag such as Bool continues with that exact Flag value, while an
+  inactive value escapes with empty flow.
+- `Result[T, E]` continues with `T` for its value state and escapes with exact
+  `E` for its error state.
+
+The enclosing Function must receive the complete escape Pack. Empty flow fits
+`[]` or one `Option[R]`. A Result error fits exact `E` or a receiving
+`Result[R, E]`; it cannot disappear into `[]` or Option. Different error Types
+do not convert:
 
 ```ttx
 state parsed := Parser -> parse(source)?;
 return parsed -> finish();
 ```
 
-The same operator works as an early return in a Function with result `[]` when
-the successful value is consumed before the final `return;`. Propagation into
-a Function with several result entries is reserved for future language support.
+The same operator works with Bool as a concise success check in a Function with
+result `[]`. Propagation into a Function with several result entries is reserved
+for future language support.
 
 Binary `+` accepts exact signed, unsigned, or real operands and returns that
 same Type. It does not concatenate Bytes or Views. An output owner that accepts

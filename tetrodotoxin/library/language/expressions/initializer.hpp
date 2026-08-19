@@ -68,6 +68,11 @@ class Initializer : public Expression {
   auto get_completed_values() const
       -> Perimortem::Core::Option<const Model::Pack&>;
 
+ protected:
+  auto evaluate() -> Perimortem::Utility::Result<
+      Perimortem::Core::Option<Model::Pack&>,
+      Expression::Error> override;
+
  private:
   Initializer(
       Perimortem::Core::Option<TypeReference> target_reference,

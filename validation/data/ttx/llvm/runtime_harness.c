@@ -25,6 +25,24 @@ _Static_assert(
     offsetof(ttx_Option_5bUnsigned_5f64_5d, set) == 8,
     "Option selected state offset changed");
 _Static_assert(
+    sizeof(ttx_Result_5bUnsigned_5f64_2c_20Bool_5d) == 16,
+    "Result must store one inline alternative and selected state");
+_Static_assert(
+    offsetof(ttx_Result_5bUnsigned_5f64_2c_20Bool_5d, value_selected) == 8,
+    "Result selected state offset changed");
+_Static_assert(
+    sizeof(ttx_Result_5bCounter_2c_20Bool_5d) == 16,
+    "Object Result must store one handle and selected state inline");
+_Static_assert(
+    sizeof(ttx_Result_5bBool_2c_20Counter_5d) == 16,
+    "Object error Result must store one handle and selected state inline");
+_Static_assert(
+    sizeof(ttx_Result_5bBool_2c_20Large_5d) == 32,
+    "Wide Result must align its largest union alternative");
+_Static_assert(
+    offsetof(ttx_Result_5bBool_2c_20Large_5d, value_selected) == 24,
+    "Wide Result selected state offset changed");
+_Static_assert(
     sizeof(ttx_Access_5bUnsigned_5f64_5d) == 16,
     "Access must use its pointer and size carrier");
 _Static_assert(
@@ -67,12 +85,63 @@ int run_runtime_integration(void) {
       (ttx_Option_5bUnsigned_5f64_5d){.value = UINT64_MAX, .set = false});
   const ttx_Option_5bUnsigned_5f64_5d present = llvm_option(
       (ttx_Option_5bUnsigned_5f64_5d){.value = UINT64_C(37), .set = true});
+  const ttx_Option_5bUnsigned_5f64_5d stopped = llvm_bool_propagation(false);
+  const ttx_Option_5bUnsigned_5f64_5d continued = llvm_bool_propagation(true);
+  const ttx_Result_5bUnsigned_5f64_2c_20Bool_5d result_value =
+      llvm_result_propagation((ttx_Result_5bUnsigned_5f64_2c_20Bool_5d){
+        .value = UINT64_C(41),
+        .value_selected = true,
+      });
+  const ttx_Result_5bUnsigned_5f64_2c_20Bool_5d result_error =
+      llvm_result_propagation((ttx_Result_5bUnsigned_5f64_2c_20Bool_5d){
+        .error = true,
+        .value_selected = false,
+      });
+  const ttx_Result_5bBool_2c_20Large_5d wide_error =
+      llvm_result_wide_propagation((ttx_Result_5bBool_2c_20Large_5d){
+        .error =
+            {
+              .first = UINT64_C(4),
+              .second = UINT64_C(5),
+              .third = UINT64_C(6),
+            },
+        .value_selected = false,
+      });
   const uint64_t access_total = llvm_access_write(0);
   ttx_Counter object = llvm_object_create();
   if (object == NULL) {
     return 1;
   }
   const uint64_t initial_object = llvm_object_read(object);
+  const ttx_Result_5bCounter_2c_20Bool_5d object_value =
+      llvm_result_object(object, false);
+  const ttx_Result_5bCounter_2c_20Bool_5d object_error =
+      llvm_result_object(object, true);
+  const ttx_Result_5bCounter_2c_20Bool_5d propagated_object =
+      llvm_result_object_propagation((ttx_Result_5bCounter_2c_20Bool_5d){
+        .value = object,
+        .value_selected = true,
+      });
+  const ttx_Result_5bBool_2c_20Counter_5d propagated_object_error =
+      llvm_result_error_object_propagation((ttx_Result_5bBool_2c_20Counter_5d){
+        .error = object,
+        .value_selected = false,
+      });
+  const int object_result_valid =
+      object_value.value_selected && object_value.value == object &&
+      !object_error.value_selected && object_error.error &&
+      propagated_object.value_selected && propagated_object.value == object &&
+      !propagated_object_error.value_selected &&
+      propagated_object_error.error == object;
+  if (object_value.value_selected) {
+    perimortem_dynamic_object_release(object_value.value);
+  }
+  if (propagated_object.value_selected) {
+    perimortem_dynamic_object_release(propagated_object.value);
+  }
+  if (!propagated_object_error.value_selected) {
+    perimortem_dynamic_object_release(propagated_object_error.error);
+  }
   const ttx_results_llvm_5fobject_5fresults object_results =
       llvm_object_results(object);
   const int object_results_valid = object_results.optional.set &&
@@ -91,12 +160,20 @@ int run_runtime_integration(void) {
       large.third != UINT64_C(6) || llvm_large_sum(large) != UINT64_C(15) ||
       TTX_FUNC_small_static(UINT8_C(9), true) != UINT8_C(9) ||
       results.left != UINT64_C(7) || !results.active || absent.set ||
-      !present.set || present.value != UINT64_C(37) ||
+      !present.set || present.value != UINT64_C(37) || stopped.set ||
+      !continued.set || continued.value != UINT64_C(31) ||
+      !result_value.value_selected || result_value.value != UINT64_C(41) ||
+      result_error.value_selected || !result_error.error ||
+      wide_error.value_selected || wide_error.error.first != UINT64_C(4) ||
+      wide_error.error.second != UINT64_C(5) ||
+      wide_error.error.third != UINT64_C(6) ||
+      llvm_result_error(result_value) || !llvm_result_error(result_error) ||
       llvm_nonobject() != UINT64_C(21) || access_total != UINT64_C(91)) {
     return 1;
   }
   if (initial_object != UINT64_C(7) || changed_object != UINT64_C(12) ||
-      read_object != UINT64_C(12) || !object_results_valid) {
+      read_object != UINT64_C(12) || !object_results_valid ||
+      !object_result_valid) {
     return 2;
   }
   if (object_static_value != UINT64_C(2)) {

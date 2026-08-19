@@ -9,6 +9,10 @@ foreign "C" {
 
 public Maybe : alias = Option[Unsigned_64];
 public Nested : alias = Option[Maybe];
+public ObjectError : alias = Result[Bool, Counter];
+public ObjectOutcome : alias = Result[Counter, Bool];
+public Outcome : alias = Result[Unsigned_64, Bool];
+public WideOutcome : alias = Result[Bool, Large];
 private CounterOptions : alias = Fixed[Option[Counter], 2];
 
 private const absent  : Maybe = ();
@@ -25,6 +29,12 @@ public access_write : func = [.offset : Unsigned_64] -> Unsigned_64 {
   selected[99]    = 50;
   selected[3, 2]  = (70, 80);
   return selected:[0] + selected:[1] + selected:[2] + selected:[3];
+}
+
+@abi("C") @symbol("llvm_bool_propagation")
+public bool_propagation : func = [.value : Bool] -> Maybe {
+  value?;
+  return 31;
 }
 
 @abi("C") @symbol("llvm_borrow_iteration")
@@ -198,6 +208,32 @@ public object_static_value : func = [] -> Unsigned_64 {
 
 @abi("C") @symbol("llvm_pair")
 public pair : func = [] -> Pair : return (.left = 9, .right = 4);
+@abi("C") @symbol("llvm_result_error")
+public result_error : func = [.value : Outcome] -> Bool {
+  state selected := value?;
+  selected;
+  return false;
+}
+
+@abi("C") @symbol("llvm_result_error_object_propagation")
+public result_error_object_propagation : func = [
+  .value : ObjectError,
+] -> ObjectError : return value?;
+@abi("C") @symbol("llvm_result_object")
+public result_object : func = [.value : Counter, .failed : Bool] -> ObjectOutcome {
+  if failed : return failed;
+
+  return value;
+}
+
+@abi("C") @symbol("llvm_result_object_propagation")
+public result_object_propagation : func = [
+  .value : ObjectOutcome,
+] -> ObjectOutcome : return value?;
+@abi("C") @symbol("llvm_result_propagation")
+public result_propagation : func = [.value : Outcome] -> Outcome : return value?;
+@abi("C") @symbol("llvm_result_wide_propagation")
+public result_wide_propagation : func = [.value : WideOutcome] -> WideOutcome : return value?;
 @abi("C") @symbol("llvm_results")
 public results : func = [] -> [.left : Unsigned_64, .active : Bool] : return (
   .active = true,

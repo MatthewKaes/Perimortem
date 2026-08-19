@@ -153,17 +153,3 @@ cc_library(
         "//ttx:model",
     ],
 )
-
-cc_library(
-    name = "linker",
-    srcs = glob([
-        "linker/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "linker/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        "//perimortem",
-    ],
-)

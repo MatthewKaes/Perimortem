@@ -838,10 +838,11 @@ static auto control_leave_loop(
   return True;
 }
 
-auto Tetrodotoxin::Library::Llvm::Builder::return_values(
-    const Ttx::Model::Pack& values) const -> Bool {
-  Llvm::Body& native_body = body;
-  auto carriers = control_select_carriers(body);
+static auto control_return_values(
+    Llvm::Body& native_body,
+    const Ttx::Model::Pack& values,
+    Bool preserve_tracking) -> Bool {
+  auto carriers = control_select_carriers(native_body);
   if (!carriers) {
     return False;
   }
@@ -865,7 +866,7 @@ auto Tetrodotoxin::Library::Llvm::Builder::return_values(
     }
 
     if (returned->get_size() == 0) {
-      native_return = carriers->zero(body.get_program(), *type);
+      native_return = carriers->zero(native_body.get_program(), *type);
     } else {
       native_return = carriers->fit_and_assemble(
           native_body, *type, values, returned->get_view());
@@ -921,11 +922,17 @@ auto Tetrodotoxin::Library::Llvm::Builder::return_values(
   }
 
   if (!native_body.emit_storage_cleanup(0) ||
-      !native_body.clear_temporary_cleanup()) {
+      !(preserve_tracking ? native_body.emit_temporary_cleanup()
+                          : native_body.clear_temporary_cleanup())) {
     return False;
   }
 
   return native_body.create_return(native_return);
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::return_values(
+    const Ttx::Model::Pack& values) const -> Bool {
+  return control_return_values(body, values, False);
 }
 
 auto Tetrodotoxin::Library::Llvm::Builder::leave_loop(
@@ -1922,6 +1929,22 @@ auto Tetrodotoxin::Library::Llvm::Builder::present(
   return publish_option(native_body, result, selected_handle);
 }
 
+auto Tetrodotoxin::Library::Llvm::Builder::result(
+    const Ttx::Model::Type& carrier,
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Pack& payload) const -> Bool {
+  Llvm::Body& native_body = body;
+  auto carriers = option_select_carriers(body);
+  auto payload_values = native_body.find_values(payload);
+  if (!carriers || !payload_values) {
+    return False;
+  }
+
+  auto selected = carriers->fit_and_assemble(
+      native_body, carrier, payload, payload_values->get_view());
+  return selected && publish_option(native_body, result, *selected);
+}
+
 auto Tetrodotoxin::Library::Llvm::Builder::begin_unwrap(
     const Ttx::Model::Type& carrier,
     const Ttx::Model::Type& element,
@@ -2011,11 +2034,12 @@ auto Tetrodotoxin::Library::Llvm::Builder::end_unwrap(
   return publish_option(native_body, result, selected_handle);
 }
 
-auto Tetrodotoxin::Library::Llvm::Builder::propagate(
+auto Tetrodotoxin::Library::Llvm::Builder::propagate_option(
     const Ttx::Model::Type& carrier,
     const Ttx::Model::Type& element,
     const Ttx::Model::Pack& result,
-    const Ttx::Model::Pack& option) const -> Bool {
+    const Ttx::Model::Pack& option,
+    const Ttx::Model::Pack& escape) const -> Bool {
   Llvm::Body& native_body = body;
   auto carriers = option_select_carriers(body);
   if (!carriers) {
@@ -2024,8 +2048,7 @@ auto Tetrodotoxin::Library::Llvm::Builder::propagate(
 
   auto native_option = native_body.find_value(option);
   auto native_carrier = carriers->get_type(carrier);
-  auto callable = native_body.get_callable();
-  if (!native_option || !native_carrier || !callable ||
+  if (!native_option || !native_carrier ||
       llvm::unwrap(*native_option)->getType() !=
           llvm::unwrap(*native_carrier)) {
     return False;
@@ -2044,29 +2067,9 @@ auto Tetrodotoxin::Library::Llvm::Builder::propagate(
   builder.CreateCondBr(&present, &payload_block, &absent_block);
 
   builder.SetInsertPoint(&absent_block);
-  if (!native_body.emit_storage_cleanup(0) ||
-      !native_body.emit_temporary_cleanup()) {
+  if (!native_body.publish_values(escape, Core::View::Vector<LLVMValueRef>()) ||
+      !control_return_values(native_body, escape, True)) {
     return False;
-  }
-
-  const Ttx::Concept::Layout& results = callable->get_results();
-  if (results.is_empty()) {
-    if (!native_body.create_return()) {
-      return False;
-    }
-  } else {
-    auto result_type =
-        results.get_size() == 1
-            ? results.get_abstract(0)->resolve().select<Ttx::Model::Type>()
-            : Core::Option<const Ttx::Model::Type&>();
-    if (!result_type) {
-      return False;
-    }
-
-    auto absent = carriers->zero(body.get_program(), *result_type);
-    if (!absent || !native_body.create_return(*absent)) {
-      return False;
-    }
   }
 
   builder.SetInsertPoint(&payload_block);
@@ -2081,6 +2084,98 @@ auto Tetrodotoxin::Library::Llvm::Builder::propagate(
   LLVMValueRef payload_handle = llvm::wrap(&payload);
   native_body.mark_owned(element, payload_handle);
   return publish_option(native_body, result, payload_handle);
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::propagate_flag(
+    const Ttx::Model::Type& carrier,
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Pack& flag,
+    const Ttx::Model::Pack& escape) const -> Bool {
+  Llvm::Body& native_body = body;
+  auto carriers = option_select_carriers(body);
+  auto native_flag = native_body.find_value(flag);
+  auto native_carrier =
+      carriers ? carriers->get_type(carrier) : Core::Option<LLVMTypeRef>();
+  if (!carriers || !native_flag || !native_carrier ||
+      !carriers->is_flag(carrier) ||
+      LLVMTypeOf(*native_flag) != *native_carrier) {
+    return False;
+  }
+
+  llvm::IRBuilder<>& builder = option_native_builder(native_body);
+  llvm::Function& function = option_native_function(native_body);
+  llvm::BasicBlock& continued = *llvm::BasicBlock::Create(
+      function.getContext(), "propagate.continue", &function);
+  llvm::BasicBlock& inactive = *llvm::BasicBlock::Create(
+      function.getContext(), "propagate.inactive", &function);
+  builder.CreateCondBr(llvm::unwrap(*native_flag), &continued, &inactive);
+
+  builder.SetInsertPoint(&inactive);
+  if (!native_body.publish_values(escape, Core::View::Vector<LLVMValueRef>()) ||
+      !control_return_values(native_body, escape, True)) {
+    return False;
+  }
+
+  builder.SetInsertPoint(&continued);
+  Core::Static::Vector<LLVMValueRef, 1> value = {{*native_flag}};
+  return native_body.publish_values(result, value.get_view());
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::propagate_result(
+    const Ttx::Model::Type& carrier,
+    const Ttx::Model::Type& value,
+    const Ttx::Model::Type& error,
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Pack& source,
+    const Ttx::Model::Pack& escape) const -> Bool {
+  Llvm::Body& native_body = body;
+  auto carriers = option_select_carriers(body);
+  auto native_result = native_body.find_value(source);
+  auto native_carrier =
+      carriers ? carriers->get_type(carrier) : Core::Option<LLVMTypeRef>();
+  if (!carriers || !native_result || !native_carrier ||
+      LLVMTypeOf(*native_result) != *native_carrier) {
+    return False;
+  }
+
+  llvm::IRBuilder<>& builder = option_native_builder(native_body);
+  llvm::Function& function = option_native_function(native_body);
+  llvm::Value& value_selected =
+      *builder.CreateExtractValue(llvm::unwrap(*native_result), Unsigned_32(1));
+  llvm::BasicBlock& value_block = *llvm::BasicBlock::Create(
+      function.getContext(), "propagate.value", &function);
+  llvm::BasicBlock& error_block = *llvm::BasicBlock::Create(
+      function.getContext(), "propagate.error", &function);
+  llvm::BasicBlock& continued = *llvm::BasicBlock::Create(
+      function.getContext(), "propagate.continue", &function);
+  builder.CreateCondBr(&value_selected, &value_block, &error_block);
+
+  builder.SetInsertPoint(&error_block);
+  auto native_error =
+      carriers->select_result(native_body, carrier, *native_result, False);
+  if (!native_error || !carriers->retain(native_body, error, *native_error)) {
+    return False;
+  }
+
+  native_body.mark_owned(error, *native_error);
+  Core::Static::Vector<LLVMValueRef, 1> escaped = {{*native_error}};
+  if (!native_body.publish_values(escape, escaped.get_view()) ||
+      !control_return_values(native_body, escape, True)) {
+    return False;
+  }
+
+  builder.SetInsertPoint(&value_block);
+  auto native_value =
+      carriers->select_result(native_body, carrier, *native_result, True);
+  if (!native_value || !carriers->retain(native_body, value, *native_value)) {
+    return False;
+  }
+
+  builder.CreateBr(&continued);
+  builder.SetInsertPoint(&continued);
+  native_body.mark_owned(value, *native_value);
+  Core::Static::Vector<LLVMValueRef, 1> continued_value = {{*native_value}};
+  return native_body.publish_values(result, continued_value.get_view());
 }
 
 // Sequence operations preserve contiguous pointer and length carriers while

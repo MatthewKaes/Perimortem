@@ -23,3 +23,21 @@ auto Types::Boolean::create_default(
     Perimortem::Memory::Allocator::Arena& arena) const -> Option<Model::Pack&> {
   return Constants::False::create_synthetic(arena, *this);
 }
+
+auto Types::Boolean::fold_propagation(Model::Pack& source) const
+    -> Perimortem::Utility::Result<Option<Model::Pack&>, Bool> {
+  auto validity = get_validity(source);
+  if (!validity) {
+    return False;
+  }
+
+  return *validity ? Option<Model::Pack&>(source) : Option<Model::Pack&>();
+}
+
+auto Types::Boolean::lower_propagation(
+    Llvm::Builder& body,
+    const Model::Pack& result,
+    const Model::Pack& source,
+    const Model::Pack& escape) const -> Bool {
+  return body.propagate_flag(*this, result, source, escape);
+}

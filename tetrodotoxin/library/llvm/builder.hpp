@@ -341,6 +341,10 @@ class Builder {
       const Ttx::Model::Type& element,
       const Ttx::Model::Pack& result,
       const Ttx::Model::Pack& payload) const -> Bool;
+  auto result(
+      const Ttx::Model::Type& carrier,
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Pack& payload) const -> Bool;
   auto begin_unwrap(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Type& element,
@@ -350,11 +354,24 @@ class Builder {
       const Ttx::Model::Type& element,
       const Ttx::Model::Pack& result,
       const Ttx::Model::Pack& fallback) const -> Bool;
-  auto propagate(
+  auto propagate_option(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Type& element,
       const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& option) const -> Bool;
+      const Ttx::Model::Pack& option,
+      const Ttx::Model::Pack& escape) const -> Bool;
+  auto propagate_flag(
+      const Ttx::Model::Type& carrier,
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Pack& flag,
+      const Ttx::Model::Pack& escape) const -> Bool;
+  auto propagate_result(
+      const Ttx::Model::Type& carrier,
+      const Ttx::Model::Type& value,
+      const Ttx::Model::Type& error,
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Pack& source,
+      const Ttx::Model::Pack& escape) const -> Bool;
   auto range(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Pack& result,

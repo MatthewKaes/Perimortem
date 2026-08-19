@@ -22,6 +22,7 @@ class Symbol {
     FunctionSelf,
     Address,
     OptionType,
+    ResultType,
     StructureType,
     ObjectType,
     ObjectFinalizer,
