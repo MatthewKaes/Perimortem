@@ -3,22 +3,22 @@
 
 #include "perimortem/abi/system/terminal.hpp"
 
-#include "perimortem/core/diagnostics/log.hpp"
-#include "perimortem/core/null_terminated.hpp"
-
 #include "perimortem/system/terminal.hpp"
 
 using namespace Perimortem;
 
-extern "C" auto perimortem_system_terminal_read_line(
-    Core::Option<Memory::Dynamic::Bytes>* output) -> void {
-  if (!output) {
-    Core::Diagnostics::Log::fatal(
-        "Terminal ABI received an empty result address."_view);
+extern "C" auto perimortem_system_terminal_read_line()
+    -> Abi::Core::Option<Abi::Memory::Dynamic::Bytes> {
+  System::Terminal terminal;
+  auto line = terminal.read_line();
+  if (!line) {
+    return Abi::Core::Option<Abi::Memory::Dynamic::Bytes>::create();
   }
 
-  System::Terminal terminal;
-  new (output) Core::Option<Memory::Dynamic::Bytes>(terminal.read_line());
+  Abi::Memory::Dynamic::Bytes result = Abi::Memory::Dynamic::Bytes::create(
+      line->get_view().get_data(), line->get_size(), line->get_capacity());
+  perimortem_dynamic_bytes_retain(&result);
+  return Abi::Core::Option<Abi::Memory::Dynamic::Bytes>::create(result);
 }
 
 extern "C" auto perimortem_system_terminal_write_line(

@@ -74,6 +74,9 @@ PERIMORTEM_UNIT_TEST(DynamicBytes, reset_releases_once) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicBytes, abi_carrier_is_three_words) {
+  static_assert(__is_trivial(Perimortem::Abi::Memory::Dynamic::Bytes));
+  static_assert(__is_standard_layout(Perimortem::Abi::Memory::Dynamic::Bytes));
+
   EXPECT_EQ(
       sizeof(Perimortem::Abi::Memory::Dynamic::Bytes),
       sizeof(Unsigned_8*) + sizeof(Count) + sizeof(Count));

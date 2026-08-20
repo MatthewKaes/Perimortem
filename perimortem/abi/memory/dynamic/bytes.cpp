@@ -12,14 +12,14 @@ using namespace Perimortem;
 extern "C" auto perimortem_dynamic_bytes_retain(
     const Abi::Memory::Dynamic::Bytes* value) -> void {
   if (value && value->get_data()) {
-    Core::Bibliotheca::reserve(value->get_data());
+    Core::Bibliotheca::reserve(const_cast<Unsigned_8*>(value->get_data()));
   }
 }
 
 extern "C" auto perimortem_dynamic_bytes_release(
     const Abi::Memory::Dynamic::Bytes* value) -> void {
   if (value && value->get_data()) {
-    Core::Bibliotheca::remit(value->get_data());
+    Core::Bibliotheca::remit(const_cast<Unsigned_8*>(value->get_data()));
   }
 }
 
