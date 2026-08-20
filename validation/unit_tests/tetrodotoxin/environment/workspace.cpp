@@ -11,6 +11,8 @@
 
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/package/archive/archive.hpp"
+#include "tetrodotoxin/package/archive/member.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -74,6 +76,16 @@ class WorkspaceMonograph final : public Language::Monograph {
     return True;
   }
 
+  auto link_restored() -> Bool override {
+    trace.linked[trace.links++] = fact;
+    return fact != "link_fail"_view;
+  }
+
+  auto finalize_restored() -> Bool override {
+    trace.finalized[trace.finalizations++] = fact;
+    return fact != "finalize_fail"_view;
+  }
+
   auto get_name() const -> View::Bytes override { return "WorkspaceTest"_view; }
 
   constexpr auto get_fact() const -> View::Bytes { return fact; }
@@ -91,14 +103,15 @@ class WorkspaceMonograph final : public Language::Monograph {
 
 class WorkspaceDialect : public Language::Dialect {
  public:
-  WorkspaceDialect(View::Bytes name)
-      : Language::Dialect(name), trace(*active_workspace_trace) {}
+  WorkspaceDialect(View::Bytes name) : Language::Dialect(name) {}
 
   auto interpret(
       Cursor& cursor,
       const Documentation& documentation,
       const Anchor&,
       Abstract& context) -> Option<Language::Monograph&> override {
+    BAIL_IF(!active_workspace_trace);
+    WorkspaceTrace& trace = *active_workspace_trace;
     if (cursor.matches(Code::Type::Terminal)) {
       cursor.create_error("Workspace test source requires one fact."_view);
       return {};
@@ -129,8 +142,20 @@ class WorkspaceDialect : public Language::Dialect {
     return monograph;
   }
 
- private:
-  WorkspaceTrace& trace;
+  auto restore(
+      Allocator::Arena& arena,
+      View::Bytes payload,
+      Language::Persistence::Profile,
+      const Documentation& documentation,
+      Abstract& context) -> Option<Language::Monograph&> override {
+    BAIL_IF(!active_workspace_trace);
+    WorkspaceTrace& trace = *active_workspace_trace;
+    View::Bytes fact = arena.proxy(payload);
+    auto& monograph = arena.construct<WorkspaceMonograph>(
+        arena, *this, documentation, context, trace, fact, Span(),
+        View::Bytes());
+    return monograph;
+  }
 };
 
 class DependentWorkspaceDialect final : public WorkspaceDialect {
@@ -170,7 +195,8 @@ static auto contains_diagnostic(const Errors& errors, View::Bytes fragment)
 }
 
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, abstract_contract) {
-  Environment::Workspace workspace;
+  Environment::Toolchain toolchain;
+  Environment::Workspace workspace(toolchain);
 
   EXPECT_TEXT(workspace.get_name(), "Workspace"_view);
   EXPECT(&workspace.resolve() == &workspace);
@@ -181,24 +207,26 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, abstract_contract) {
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, dialects_map_names_to_instances) {
   WorkspaceTrace trace;
   active_workspace_trace = &trace;
-  Environment::Workspace workspace;
-  auto* first = workspace.install_dialect<WorkspaceDialect>("First"_view);
+  Environment::Toolchain toolchain;
+  Environment::Workspace workspace(toolchain);
+  auto first = toolchain.install<WorkspaceDialect>("First"_view);
   ASSERT(first);
-  auto* second = workspace.install_dialect<WorkspaceDialect>("Second"_view);
+  auto second = toolchain.install<WorkspaceDialect>("Second"_view);
   ASSERT(second);
-  EXPECT(first != second);
-  EXPECT_NOT(workspace.install_dialect<WorkspaceDialect>("First"_view));
+  EXPECT(&*first != &*second);
+  EXPECT_NOT(toolchain.install<WorkspaceDialect>("First"_view));
 
   Allocator::Arena outside_arena;
   WorkspaceDialect outside("Outside"_view);
-  EXPECT_NOT(workspace.install_dialect<DependentWorkspaceDialect>(
+  EXPECT_NOT(toolchain.install<DependentWorkspaceDialect>(
       "RejectedDependency"_view, outside));
-  EXPECT(workspace.install_dialect<DependentWorkspaceDialect>(
+  EXPECT(toolchain.install<DependentWorkspaceDialect>(
       "AcceptedDependency"_view, *first));
 }
 
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, unknown_dialect_is_lexical_error) {
-  Environment::Workspace workspace;
+  Environment::Toolchain toolchain;
+  Environment::Workspace workspace(toolchain);
   Errors errors;
   auto interpreted = workspace.interpret_source(
       errors, "Unknown"_view, "unknown.ttx"_view,
@@ -213,8 +241,9 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, unknown_dialect_is_lexical_error) {
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, direct_source_is_atomic) {
   WorkspaceTrace trace;
   active_workspace_trace = &trace;
-  Environment::Workspace workspace;
-  ASSERT(workspace.install_dialect<WorkspaceDialect>("Trace"_view));
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<WorkspaceDialect>("Trace"_view));
+  Environment::Workspace workspace(toolchain);
 
   Errors accepted_errors;
   auto accepted_source = make_source("complete"_view);
@@ -252,8 +281,9 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, direct_source_is_atomic) {
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, completed_source_retains_its_arena) {
   WorkspaceTrace trace;
   active_workspace_trace = &trace;
-  Environment::Workspace workspace;
-  ASSERT(workspace.install_dialect<WorkspaceDialect>("Trace"_view));
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<WorkspaceDialect>("Trace"_view));
+  Environment::Workspace workspace(toolchain);
   Dynamic::Bytes path("retained.ttx"_view);
   Dynamic::Bytes source = make_source("retained"_view);
   Errors errors;
@@ -277,8 +307,9 @@ PERIMORTEM_UNIT_TEST(
   WorkspaceTrace trace;
   active_workspace_trace = &trace;
   Errors errors;
-  Environment::Workspace workspace;
-  ASSERT(workspace.install_dialect<WorkspaceDialect>("Trace"_view));
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<WorkspaceDialect>("Trace"_view));
+  Environment::Workspace workspace(toolchain);
   auto source = make_source("retained_cursor"_view);
   auto interpreted = workspace.interpret_source(
       errors, "CursorSource"_view, "cursor-source.ttx"_view, source);
@@ -291,15 +322,16 @@ PERIMORTEM_UNIT_TEST(
   EXPECT(&*selected == &*interpreted);
   EXPECT(errors.is_empty());
 
-  Environment::Workspace unrelated;
+  Environment::Workspace unrelated(toolchain);
   EXPECT_NOT(unrelated.get_associations(*interpreted));
 }
 
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, duplicate_name_is_not_reopened) {
   WorkspaceTrace trace;
   active_workspace_trace = &trace;
-  Environment::Workspace workspace;
-  ASSERT(workspace.install_dialect<WorkspaceDialect>("Trace"_view));
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<WorkspaceDialect>("Trace"_view));
+  Environment::Workspace workspace(toolchain);
   Errors first_errors;
   auto source = make_source("first"_view);
   auto first = workspace.interpret_source(
@@ -316,9 +348,10 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, duplicate_name_is_not_reopened) {
 }
 
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, package_is_a_completed_table) {
-  Environment::Workspace workspace;
-  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
-  ASSERT(workspace.install_dialect<Library::Dialect>("Library"_view));
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<Package::Dialect>("Package"_view));
+  ASSERT(toolchain.install<Library::Dialect>("Library"_view));
+  Environment::Workspace workspace(toolchain);
   Errors errors;
   auto imported = workspace.import_package(
       errors, "validation/data/ttx/package_resources"_view, "Resources"_view,
@@ -344,11 +377,60 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, package_is_a_completed_table) {
 
 PERIMORTEM_UNIT_TEST(
     EnvironmentWorkspace,
+    restored_package_uses_atomic_source_free_barriers) {
+  Package::Archive::Member member(
+      "Main"_view, "Restored"_view, "restored"_view);
+  Package::Archive::Archive archive(
+      "Validation.Restored"_view, Version(1, 0), {}, View::Vector(&member, 1),
+      {}, {});
+  WorkspaceTrace trace;
+  active_workspace_trace = &trace;
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<Package::Dialect>("Package"_view));
+  ASSERT(toolchain.install<WorkspaceDialect>("Restored"_view));
+  Environment::Workspace workspace(toolchain);
+
+  auto restored = workspace.restore_package(archive, "RestoredPackage"_view);
+
+  ASSERT(restored && restored->is<Package::Language::Monograph>());
+  const auto& package =
+      static_cast<const Package::Language::Monograph&>(*restored);
+  const Abstract& selected = package.resolve_context("Main"_view).resolve();
+  ASSERT(selected.is<WorkspaceMonograph>());
+  EXPECT_TEXT(
+      static_cast<const WorkspaceMonograph&>(selected).get_fact(),
+      "restored"_view);
+  EXPECT_EQ(trace.links, Count(1));
+  EXPECT_EQ(trace.finalizations, Count(1));
+
+  Package::Archive::Member rejected_member(
+      "Main"_view, "Restored"_view, "link_fail"_view);
+  Package::Archive::Archive rejected_archive(
+      "Validation.Rejected"_view, Version(1, 0), {},
+      View::Vector(&rejected_member, 1), {}, {});
+  WorkspaceTrace rejected_trace;
+  active_workspace_trace = &rejected_trace;
+  Environment::Workspace rejected_workspace(toolchain);
+
+  auto rejected = rejected_workspace.restore_package(
+      rejected_archive, "RejectedPackage"_view);
+
+  EXPECT_NOT(rejected);
+  EXPECT(
+      &rejected_workspace.resolve_context("RejectedPackage"_view) ==
+      &Invalid::get_invalid());
+  EXPECT_EQ(rejected_trace.links, Count(1));
+  EXPECT_EQ(rejected_trace.finalizations, Count(0));
+}
+
+PERIMORTEM_UNIT_TEST(
+    EnvironmentWorkspace,
     package_replacements_share_embedded_file_snapshots) {
   Dynamic::Record<Package::Snapshots> snapshots;
-  Environment::Workspace first(snapshots);
-  ASSERT(first.install_dialect<Package::Dialect>("Package"_view));
-  ASSERT(first.install_dialect<Library::Dialect>("Library"_view));
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<Package::Dialect>("Package"_view));
+  ASSERT(toolchain.install<Library::Dialect>("Library"_view));
+  Environment::Workspace first(toolchain, snapshots);
   Errors first_errors;
   auto first_package = first.import_package(
       first_errors, "validation/data/ttx/package_resources"_view,
@@ -357,9 +439,7 @@ PERIMORTEM_UNIT_TEST(
   ASSERT(first_package);
   EXPECT(first_errors.is_empty());
 
-  Environment::Workspace replacement(snapshots);
-  ASSERT(replacement.install_dialect<Package::Dialect>("Package"_view));
-  ASSERT(replacement.install_dialect<Library::Dialect>("Library"_view));
+  Environment::Workspace replacement(toolchain, snapshots);
   Errors replacement_errors;
   auto replacement_package = replacement.import_package(
       replacement_errors, "validation/data/ttx/package_resources"_view,
@@ -372,7 +452,8 @@ PERIMORTEM_UNIT_TEST(
 PERIMORTEM_UNIT_TEST(
     EnvironmentWorkspace,
     source_free_package_failures_are_system_logs) {
-  Environment::Workspace workspace;
+  Environment::Toolchain toolchain;
+  Environment::Workspace workspace(toolchain);
   Errors errors;
   auto unopened = workspace.import_package(
       errors, "validation/data/ttx/package_resources/missing-root"_view,
@@ -396,8 +477,9 @@ PERIMORTEM_UNIT_TEST(
 }
 
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, package_manifest_is_not_a_source) {
-  Environment::Workspace workspace;
-  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<Package::Dialect>("Package"_view));
+  Environment::Workspace workspace(toolchain);
   Errors errors;
   auto interpreted = workspace.interpret_source(
       errors, "Manifest"_view, "package.ttx"_view,

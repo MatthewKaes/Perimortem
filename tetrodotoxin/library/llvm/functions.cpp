@@ -16,6 +16,8 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CBindingWrapping.h"
+#include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/llvm/body.hpp"
 #include "tetrodotoxin/library/llvm/carriers.hpp"
 #include "tetrodotoxin/library/llvm/export.hpp"
@@ -35,6 +37,22 @@ static auto llvm_text(Core::View::Bytes value) -> llvm::StringRef {
 static auto select_program(Ttx::Concept::Abstract& program)
     -> Core::Option<Tetrodotoxin::Library::Llvm::Program&> {
   return program.select<Tetrodotoxin::Library::Llvm::Program>();
+}
+
+static auto is_local_definition(
+    const Tetrodotoxin::Library::Llvm::Unit& unit,
+    const Tetrodotoxin::Language::Definition& definition) -> Bool {
+  Ttx::Concept::Reference<const Ttx::Concept::Abstract> current(
+      definition.get_host());
+  while (true) {
+    auto source = current.get().select<Language::Types::Source>();
+    if (source) {
+      return unit.owns(source->get_host());
+    }
+    auto composite = current.get().select<Language::Types::Composite>();
+    BAIL_IF(!composite);
+    current = composite->get_definition().get_host();
+  }
 }
 
 static auto get_program(Ttx::Concept::Abstract& body)
@@ -278,7 +296,22 @@ auto Tetrodotoxin::Library::Llvm::Functions::reserve_function(
     const Ttx::Model::Callable& callable,
     const Tetrodotoxin::Language::Definition& definition) const
     -> Core::Option<Bool> {
-  return reserve(program, callable, Record(Kind::Function, {}, {}, definition));
+  auto target = select_program(program);
+  if (!target || !target->get_unit().is_package_member() ||
+      is_local_definition(target->get_unit(), definition)) {
+    return reserve(
+        program, callable, Record(Kind::Function, {}, {}, definition));
+  }
+
+  auto symbol = target->get_unit().find(callable);
+  if (!symbol) {
+    fail_callable(
+        program, definition,
+        "LLVM Package member is missing one external Callable binding."_view);
+    return {};
+  }
+  return reserve(
+      program, callable, Record(Kind::External, {}, *symbol, definition));
 }
 
 auto Tetrodotoxin::Library::Llvm::Functions::reserve_foreign(
@@ -308,6 +341,27 @@ auto Tetrodotoxin::Library::Llvm::Functions::reserve_foreign(
   return reserved;
 }
 
+auto Tetrodotoxin::Library::Llvm::Functions::reserve_construction(
+    Ttx::Concept::Abstract& program,
+    const Ttx::Model::Callable& callable,
+    const Ttx::Model::Type& owner) const -> Core::Option<Bool> {
+  auto target = select_program(program);
+  BAIL_IF(!target);
+
+  auto external = target->get_unit().find(callable);
+  if (target->get_unit().is_package_member() && external) {
+    return reserve(
+        program, callable, Record(Kind::External, {}, *external, {}, True));
+  }
+
+  Symbol symbol(
+      target->get_arena(), owner, Symbol::Kind::Construction,
+      target->get_unit());
+  return reserve(
+      program, callable,
+      Record(Kind::Function, {}, symbol.get_view(), {}, True));
+}
+
 auto Tetrodotoxin::Library::Llvm::Functions::complete(
     Ttx::Concept::Abstract& program,
     const Ttx::Model::Callable& callable) const -> Bool {
@@ -332,25 +386,34 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
   Core::Option<Core::View::Bytes> abi;
   Core::Option<Core::View::Bytes> symbol;
   Bool c_boundary = Bool(record.kind == Kind::Foreign);
-  Bool exported = False;
-  if (record.kind == Kind::Function) {
-    if (!record.definition ||
-        !select_function_attributes(program, *record.definition, abi, symbol)) {
+  Bool c_publication = False;
+  Bool package_publication = False;
+  if (record.kind == Kind::Function && record.definition) {
+    if (!select_function_attributes(program, *record.definition, abi, symbol)) {
       return False;
     }
 
     c_boundary = Bool(abi);
-    exported = c_boundary;
+    c_publication = c_boundary;
+    package_publication = Bool(
+        target->get_unit().is_package_member() &&
+        record.definition->is_published() && !c_publication);
+  } else if (record.kind == Kind::Function && record.construction) {
+    package_publication = target->get_unit().is_package_member();
+  } else if (record.kind == Kind::Function) {
+    return fail_backend(
+        program, "LLVM Function lowering lost its declaration owner."_view);
   }
 
   Core::View::Bytes selected_symbol = record.symbol;
   if (record.kind == Kind::Function && symbol) {
     selected_symbol = *symbol;
-  } else if (record.kind == Kind::Function) {
+  } else if (record.kind == Kind::Function && !record.construction) {
     Symbol generated(
         target->get_arena(), callable,
         declares_self(callable) ? Symbol::Kind::FunctionSelf
-                                : Symbol::Kind::FunctionStatic);
+                                : Symbol::Kind::FunctionStatic,
+        target->get_unit());
     selected_symbol = generated.get_view();
   }
 
@@ -407,11 +470,15 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
           native_parameters.get_data(), native_parameters.get_size()),
       false);
   llvm::GlobalValue::LinkageTypes linkage =
-      record.kind == Kind::Foreign || exported
+      record.kind == Kind::Foreign || record.kind == Kind::External ||
+              c_publication || package_publication
           ? llvm::GlobalValue::ExternalLinkage
           : llvm::GlobalValue::InternalLinkage;
   llvm::Function& function = *llvm::Function::Create(
       signature, linkage, llvm_text(selected_symbol), module);
+  if (record.kind == Kind::External || package_publication) {
+    function.setVisibility(llvm::GlobalValue::HiddenVisibility);
+  }
   Count parameter_offset = sret ? 1 : 0;
   if (sret) {
     function.addParamAttr(
@@ -455,8 +522,12 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
   record.symbol = selected_symbol;
   record.function = llvm::wrap(&function);
   record.completed = True;
-  if (exported) {
+  if (c_publication || package_publication) {
     target->add_export(Export(callable, selected_symbol));
+  }
+  if (target->get_unit().is_package_member() &&
+      (c_publication || package_publication)) {
+    target->add_publication(Publication(callable, selected_symbol));
   }
 
   return True;

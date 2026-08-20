@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/access/type.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -19,18 +20,18 @@ static Harness TypeAccessTests = {
 };
 
 static auto links_library_source(View::Bytes source) -> Bool {
-  Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
-  BAIL_IF(!workspace.install_dialect<Library::Dialect>("Library"_view));
   auto interpreted = workspace.interpret_source(
       errors, "TypeAccessTest"_view, "type-access.ttx"_view, source);
   return interpreted && errors.is_empty();
 }
 
 static auto rejects_library_link(View::Bytes source) -> Bool {
-  Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
-  BAIL_IF(!workspace.install_dialect<Library::Dialect>("Library"_view));
   auto interpreted = workspace.interpret_source(
       errors, "TypeAccessTest"_view, "type-access.ttx"_view, source);
   return !interpreted && !errors.is_empty();

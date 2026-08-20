@@ -399,6 +399,14 @@ categories, represented identity relations, semantic edges, order, Layout
 behavior, completion, and concrete owner facts. Equivalence does not require
 the same internal graph shape, process addresses, or References.
 
+The Terminal producer defines that observation set. It may retain only the
+Types, Addressables, Callables, constant Pack flow, and owner facts that later
+consumers can query through its contract. Source declarations, executable
+bodies, and intermediate expressions are not implied observations. A compiled
+Package may therefore pair a semantic Terminal that reconstructs its query
+surface with a native Terminal that supplies execution. Recompilation remains
+a source or live Workspace operation.
+
 Structural coincidence is never enough for reconstruction. A reader cannot
 infer Type identity from matching Layouts, recover owner relations from target
 offsets, or treat a backend Type as the original semantic Type.

@@ -265,11 +265,17 @@ auto Language::Flow::Local::finalize(Cursor& cursor) -> void {
 
 auto Language::Flow::Local::lower(Llvm::Builder& body) const -> Bool {
   if (writability == Writability::Constant) {
-    return True;
+    if (!body.has_full_debug()) {
+      return True;
+    }
+
+    auto value = get_constant();
+    return value && value->lower(body) &&
+           body.constant_local(*this, *value, anchor);
   }
 
-  Bool type_ready = get_type().reserve(body.get_program()) &&
-                    get_type().complete(body.get_program());
+  Bool type_ready = get_type().reserve_value(body.get_program()) &&
+                    get_type().complete_value(body.get_program());
   if (!type_ready) {
     return False;
   }

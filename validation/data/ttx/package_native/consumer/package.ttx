@@ -1,0 +1,5 @@
+// Native Package consumer.
+dialect : Package;
+
+resolve Provider : Validation.Provider = "1.0";
+source Main from "main.ttx";

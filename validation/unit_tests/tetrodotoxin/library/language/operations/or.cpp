@@ -276,10 +276,8 @@ PERIMORTEM_UNIT_TEST(LibraryOr, authored_parse_and_atomic_failure) {
   auto& source = create_library_monograph(domain, producer);
   Errors success_errors;
   Tokenizer success_tokens(domain, success_source, "or.ttx"_view);
-  Ttx::Lexical::Associations success_associations(
-      success_tokens.get_arena());
-  Cursor success_cursor(
-      success_tokens, success_errors, success_associations);
+  Ttx::Lexical::Associations success_associations(success_tokens.get_arena());
+  Cursor success_cursor(success_tokens, success_errors, success_associations);
   Token success_left_token = success_cursor.consume();
   auto success_left_anchor =
       Anchor::create(success_left_token, Span(success_left_token));
@@ -297,10 +295,8 @@ PERIMORTEM_UNIT_TEST(LibraryOr, authored_parse_and_atomic_failure) {
 
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "false or"_view, "or.ttx"_view);
-  Ttx::Lexical::Associations failure_associations(
-      failure_tokens.get_arena());
-  Cursor failure_cursor(
-      failure_tokens, failure_errors, failure_associations);
+  Ttx::Lexical::Associations failure_associations(failure_tokens.get_arena());
+  Cursor failure_cursor(failure_tokens, failure_errors, failure_associations);
   Token failure_left_token = failure_cursor.consume();
   auto failure_left_anchor =
       Anchor::create(failure_left_token, Span(failure_left_token));
@@ -315,8 +311,7 @@ PERIMORTEM_UNIT_TEST(LibraryOr, authored_parse_and_atomic_failure) {
 
   Errors mismatch_errors;
   Tokenizer mismatch_tokens(domain, "false or 1"_view, "or.ttx"_view);
-  Ttx::Lexical::Associations mismatch_associations(
-      mismatch_tokens.get_arena());
+  Ttx::Lexical::Associations mismatch_associations(mismatch_tokens.get_arena());
   Cursor mismatch_cursor(
       mismatch_tokens, mismatch_errors, mismatch_associations);
   auto mismatch = Parser::Expression::parse(source, mismatch_cursor);

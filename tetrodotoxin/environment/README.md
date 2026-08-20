@@ -15,16 +15,19 @@ finished output such as an executable no longer needs the Workspace. Ordinary
 references cannot be moved to another Workspace or kept after their Workspace
 is destroyed.
 
-## Workspace lifetime
+## Toolchain and Workspace lifetime
 
-A Workspace keeps every installed Dialect and Monograph alive while tools may
-still inspect them. Package Aliases, Library Types, Function Signatures, and
-source imports can therefore refer directly to objects produced by another
-language.
+A Toolchain owns one immutable installed Dialect graph. The host constructs it
+once, including every downward Dialect dependency, and passes it to each
+Workspace. A Workspace owns only its Monographs and lookup state. Package
+Aliases, Library Types, Function Signatures, and source imports can therefore
+refer directly to objects produced by another language while the Toolchain
+remains reusable across graph replacements.
 
-Each Workspace is independent. Installing the same Dialect in another Workspace
-creates another language environment and new Monograph identities. Tools may
-correlate those objects through durable names defined by their owners.
+Each Workspace is independent even when it borrows the same Dialect identities.
+Interpreting the same source in another Workspace creates new Monograph
+identities. Tools may correlate those objects through durable names defined by
+their owners.
 An Archive can rebuild equivalent source results in another Workspace. It does
 not keep the original references alive or rely on a global Type list.
 
@@ -35,7 +38,7 @@ reconnects them using Archive facts defined by their owners.
 
 ## Dialect installation
 
-A tool installs the concrete Dialects accepted by one invocation. The exact
+A host installs the concrete Dialects accepted by one toolchain. The exact
 installed name is the name authored after `dialect`:
 
 ```ttx
@@ -46,16 +49,15 @@ dialect : Library;
 Unknown names are source errors. A source never selects a Dialect through a
 closed enum of Package kinds or a filename convention.
 
-The Tetrodotoxin toolchain includes Package support, but Package is not
-installed into every Workspace automatically. A standalone source request may
-install only its selected Dialect. A Package compilation, resource request, or
-Archive restoration installs Package together with the concrete Dialects named
-by that request.
+Package support is not injected into every Toolchain automatically. A
+standalone source tool may install only its selected Dialect. A Package
+compiler, resource tool, or Archive restorer installs Package together with the
+concrete Dialects it supports before creating any Workspace.
 
 Some Dialects require another Dialect. Scene requires Library, while Shader
-requires Library and Render. Environment creates each dependency once and gives
+requires Library and Render. Toolchain creates each dependency once and gives
 the shared instance to every language that needs it. A missing dependency is a
-source error, and dependency loops are rejected.
+configuration error, and dependency loops are rejected.
 
 ## Direct source import
 
@@ -107,9 +109,17 @@ context. A member cannot create another Package import. Names local to a Package
 remain inside that Package rather than entering the Workspace root
 automatically.
 
-Workspace may retain immutable filesystem snapshots independently from any one
-source graph transaction. Package still owns logical routing, confinement, and
-the decision to request one normalized resource path. Workspace keys the
+Dependencies must be completed Workspace facts before that fixed member
+barrier begins. The host repository or editor session reads a requested
+manifest, recursively acquires each exact Package identity and version, detects
+cycles in the active request chain, and imports dependencies before the
+consumer. Workspace validates and binds those completed facts; it does not
+invent a standard dependency set or perform ambient repository discovery.
+
+The host may retain immutable filesystem snapshots independently from any one
+source graph transaction and lend them to replacement Workspaces. Package still
+owns logical routing, confinement, and the decision to request one normalized
+resource path. Snapshot storage keys the
 resulting snapshot by the exact Package root and normalized route, retains the
 bytes outside the replaceable graph Arenas, and records a fingerprint obtained
 from the same opened filesystem object that supplied those bytes. A later full

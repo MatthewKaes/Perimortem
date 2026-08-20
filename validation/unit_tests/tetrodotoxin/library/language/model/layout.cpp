@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/model/layout.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
@@ -28,8 +29,6 @@ static Harness LibraryModelLayout = {
 
 static auto interpret_source(Workspace& workspace, Errors& errors)
     -> Option<Language::Monograph&> {
-  BAIL_IF(!workspace.install_dialect<Dialect>("Library"_view));
-
   auto interpreted = workspace.interpret_source(
       errors, "LayoutModelTest"_view, "layout-model.ttx"_view,
       "// Authored Layout model test.\n"
@@ -58,7 +57,8 @@ static auto parse_layout(
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModelLayout, owns_parameter_entries) {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret_source(workspace, errors);
   ASSERT(monograph);
@@ -98,7 +98,8 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, owns_parameter_entries) {
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_layout_is_explicit_flow) {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret_source(workspace, errors);
   ASSERT(monograph);
@@ -120,7 +121,8 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_layout_is_explicit_flow) {
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_type_entries_are_rejected) {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret_source(workspace, errors);
   ASSERT(monograph);
@@ -142,7 +144,8 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_type_entries_are_rejected) {
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting_preserves_real_edges) {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret_source(workspace, errors);
   ASSERT(monograph);
@@ -159,8 +162,7 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting_preserves_real_edges) {
   Tokenizer source_tokens(
       arena, "[.flag : Bool, .count : Unsigned_64]"_view,
       "authored-layout.ttx"_view);
-  Ttx::Lexical::Associations source_associations(
-      source_tokens.get_arena());
+  Ttx::Lexical::Associations source_associations(source_tokens.get_arena());
   Cursor source_cursor(source_tokens, parse_errors, source_associations);
   Tokenizer reordered_tokens(
       arena, "[.count : Unsigned_64, .flag : Bool]"_view,
@@ -175,8 +177,7 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting_preserves_real_edges) {
   EXPECT(source->fits(*reordered));
   auto count = source->get_fitted(*reordered, 0);
   auto flag = source->get_fitted(*reordered, 1);
-  const Abstract& unsigned_64 =
-      monograph->resolve_context("Unsigned_64"_view);
+  const Abstract& unsigned_64 = monograph->resolve_context("Unsigned_64"_view);
   const Abstract& boolean = monograph->resolve_context("Bool"_view);
   EXPECT(count.visit(
       [&](const Abstract& selected) -> Bool {

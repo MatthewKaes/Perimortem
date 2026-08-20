@@ -13,7 +13,8 @@
 
 #include "perimortem/system/version.hpp"
 
-#include "tetrodotoxin/environment/dialects.hpp"
+#include "tetrodotoxin/environment/toolchain.hpp"
+#include "tetrodotoxin/package/archive/archive.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "tetrodotoxin/package/snapshots.hpp"
 #include "ttx/lexical/associations.hpp"
@@ -26,18 +27,11 @@ namespace Tetrodotoxin::Environment {
 class Workspace : public Ttx::Concept::Abstract {
  public:
   Workspace(
+      Toolchain& toolchain,
       Perimortem::Core::Option<
           Perimortem::Memory::Dynamic::Record<Package::Snapshots>> snapshots =
           {});
   ~Workspace() override;
-
-  // Installs a distinct stateful Dialect under one exact authored name.
-  template <typename TargetDialect, typename... DependencyDialects>
-  auto install_dialect(
-      Perimortem::Core::View::Bytes name,
-      DependencyDialects&... dependencies) -> TargetDialect* {
-    return dialects.install<TargetDialect>(name, dependencies...);
-  }
 
   // Completes one direct source transaction before publishing its semantic
   // name. Parse, link, or finalization failure publishes nothing.
@@ -58,6 +52,13 @@ class Workspace : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes root_logical_route,
       Perimortem::Core::View::Bytes root_package_identity,
       Perimortem::System::Version root_package_version)
+      -> Perimortem::Core::Option<Language::Monograph&>;
+
+  // Reconstructs one source-free Package from validated Archive facts. Every
+  // dependency must already be restored in this Workspace.
+  auto restore_package(
+      const Package::Archive::Archive& archive,
+      Perimortem::Core::View::Bytes root_semantic_name)
       -> Perimortem::Core::Option<Language::Monograph&>;
 
   // Returns the immutable authored source index published with one completed
@@ -91,14 +92,17 @@ class Workspace : public Ttx::Concept::Abstract {
     const Ttx::Lexical::Associations& associations;
   };
 
-  // Declaration order is lifetime order. Reverse destruction releases
-  // retained Monographs before their installed Dialects.
+  // Toolchain outlives every Workspace and therefore every Monograph that
+  // retains one of its stateless Dialect identities.
+  Toolchain& toolchain;
   Perimortem::Core::Option<
       Perimortem::Memory::Dynamic::Record<Package::Snapshots>>
       snapshots;
   Perimortem::Memory::Allocator::Arena arena;
-  Dialects dialects;
   Perimortem::Memory::Dynamic::Vector<PublishedSource> published_sources;
+  Perimortem::Memory::Dynamic::Vector<
+      Perimortem::Memory::Dynamic::Record<Perimortem::Memory::Allocator::Arena>>
+      restored_transactions;
   Perimortem::Memory::Managed::
       Map<Perimortem::Core::View::Bytes, Language::Monograph&>
           source_monographs;

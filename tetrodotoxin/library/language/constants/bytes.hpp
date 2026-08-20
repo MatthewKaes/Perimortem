@@ -18,6 +18,8 @@ class Bytes : public Constant {
  public:
   auto lower(Llvm::Builder& body) const -> Bool override;
 
+  auto persist(Archive::Writer& writer) const -> Bool override;
+
   TTX_CONTRACT(Bytes, Constant);
   using Value = Perimortem::Core::View::Bytes;
 

@@ -90,6 +90,31 @@
       }
     },
     {
+      "name": "[TTX] Launch Echo (Linux)",
+      "type": "lldb",
+      "request": "launch",
+      "terminal": "integrated",
+      "program": "${workspaceFolder}/.bin/bin/apps/ttx/echo/echo",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "sourceLanguages": [
+        "tetrodotoxin"
+      ],
+      // Why are you like this VSCode???
+      "sourceMap": {
+        "/proc/self/cwd/external/": "${workspaceFolder}/.bin/Perimortem/external/",
+        "/proc/self/cwd/": "${workspaceFolder}"
+      },
+      "initCommands": [
+        "command source '${workspaceFolder}/.vscode/perimortem.lldb'",
+        "command script import '${workspaceFolder}/extension/lldb/tetrodotoxin.py'"
+      ],
+      "preLaunchTask": "TTX Echo Build (Linux) [Debug]",
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
       "name": "[Lsp] Launch TTX client",
       "type": "extensionHost",
       "request": "launch",

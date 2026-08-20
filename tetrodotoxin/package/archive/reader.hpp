@@ -8,7 +8,6 @@
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/package/archive/archive.hpp"
-#include "tetrodotoxin/package/archive/read_error.hpp"
 
 namespace Tetrodotoxin::Package::Archive {
 
@@ -19,8 +18,13 @@ class Reader {
  public:
   Reader() = delete;
 
+  enum class Error {
+    InvalidFormat,
+    UnsupportedFormat,
+  };
+
   // Reads one complete Format 1 envelope. Result exposes exactly Archive or
-  // ReadError. Rejection logs the exact validation stage and retains nothing.
+  // Error. Rejection logs the exact validation stage and retains nothing.
   // The caller that knows why this Archive was requested decides whether
   // failure becomes a textual source diagnostic. Success borrows the input and
   // retains its record ranges in the caller Arena. The caller keeps the input
@@ -29,7 +33,7 @@ class Reader {
   static auto read(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes input)
-      -> Perimortem::Utility::Result<Archive, ReadError>;
+      -> Perimortem::Utility::Result<Archive, Error>;
 };
 
 }  // namespace Tetrodotoxin::Package::Archive

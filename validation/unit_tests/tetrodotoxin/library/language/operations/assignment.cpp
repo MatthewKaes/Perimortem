@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/operations/assignment.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -34,10 +35,6 @@ static Harness AssignmentTests = {
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "AssignmentTest"_view, "assignment.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -61,7 +58,8 @@ static auto find_function(
 }
 
 static auto rejects_source(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty() &&
          &workspace.resolve_context("AssignmentTest"_view) ==
@@ -93,7 +91,8 @@ PERIMORTEM_UNIT_TEST(
       "  access[0] = local;\n"
       "  return;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -180,7 +179,8 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, complete_pack_fits_target) {
       "  pair = (1, true);\n"
       "  return pair;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   ASSERT(interpret(workspace, errors, source));
   EXPECT(errors.is_empty());
@@ -193,7 +193,8 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, immutable_targets_are_rejected) {
       "public Data : struct { public state value : Unsigned_64; }\n"
       "private data : Data;\n"
       "private write : func = [] -> [] { data.value = 1; return; }"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   ASSERT(interpret(workspace, errors, writable));
   EXPECT(errors.is_empty());

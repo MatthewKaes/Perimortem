@@ -63,13 +63,22 @@ class Globals {
         Bool foreign,
         Perimortem::Core::View::Bytes abi = {},
         Perimortem::Core::View::Bytes symbol = {},
-        Bool writable = True)
-        : foreign(foreign), abi(abi), symbol(symbol), writable(writable) {}
+        Bool writable = True,
+        Bool external = False,
+        Bool published = False)
+        : foreign(foreign),
+          abi(abi),
+          symbol(symbol),
+          writable(writable),
+          external(external),
+          published(published) {}
 
     Bool foreign;
     Perimortem::Core::View::Bytes abi;
     Perimortem::Core::View::Bytes symbol;
     Bool writable;
+    Bool external;
+    Bool published;
     Perimortem::Core::Option<LLVMValueRef> global;
     Perimortem::Core::Option<LLVMValueRef> initializer_function;
     Bool completed = False;

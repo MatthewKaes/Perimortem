@@ -17,7 +17,9 @@
 #include "perimortem/system/file.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
+#include "puffer/application.hpp"
 #include "puffer/lsp/methods.hpp"
+#include "puffer/package.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
@@ -39,6 +41,19 @@ static auto create_config(Memory::Allocator::Arena& arena)
       "Select the standard source Package root for LSP sessions."_view);
   variables.insert("format"_view, "Format each positional TTX source."_view);
   variables.insert("library"_view, "Compile one Library source."_view);
+  variables.insert("package"_view, "Compile one Package."_view);
+  variables.insert("application"_view, "Compile one App process entry."_view);
+  variables.insert("manifest"_view, "Read one Package manifest."_view);
+  variables.insert("complete"_view, "Write the Complete Package Archive."_view);
+  variables.insert(
+      "interface"_view, "Write the Interface Package Archive."_view);
+  variables.insert("dep"_view, "Read one dependency Interface Archive."_view);
+  variables.insert("unit"_view, "Compile one declared Package member."_view);
+  variables.insert(
+      "artifact"_view, "Select the native artifact identity."_view);
+  variables.insert("app-member"_view, "Select the Package App member."_view);
+  variables.insert(
+      "version"_view, "Set the Package `<major>.<minor>` version."_view);
   variables.insert("backend"_view, "Select the Library backend."_view);
   variables.insert("target"_view, "Select the native target."_view);
   variables.insert("debug"_view, "Select none, line, or full debug data."_view);
@@ -243,12 +258,12 @@ static auto run_library(const System::Args::Values& args) -> Signed_32 {
     return 2;
   }
 
-  Tetrodotoxin::Environment::Workspace workspace;
-  if (!workspace.install_dialect<Tetrodotoxin::Library::Dialect>(
-          "Library"_view)) {
+  Tetrodotoxin::Environment::Toolchain toolchain;
+  if (!toolchain.install<Tetrodotoxin::Library::Dialect>("Library"_view)) {
     write_error("puffer: could not install the Library dialect"_view);
     return 1;
   }
+  Tetrodotoxin::Environment::Workspace workspace(toolchain);
 
   Ttx::Lexical::Errors errors;
   auto interpreted = workspace.interpret_source(
@@ -318,10 +333,12 @@ auto Puffer::Command::run() const -> Signed_32 {
   Bool pipe = args.contains("pipe"_view);
   Bool format = args.contains("format"_view);
   Bool library = args.contains("library"_view);
-  Count modes = Count(pipe.value) + Count(format.value) + Count(library.value);
+  Bool package = args.contains("package"_view);
+  Bool application = args.contains("application"_view);
+  Count modes = Count(pipe.value) + Count(format.value) + Count(library.value) +
+                Count(package.value) + Count(application.value);
   if (modes != 1) {
-    write_error(
-        "puffer: select exactly one of -pipe, -format, or -library"_view);
+    write_error("puffer: select exactly one execution mode"_view);
     return 2;
   }
 
@@ -329,6 +346,10 @@ auto Puffer::Command::run() const -> Signed_32 {
     return run_lsp(value(args, "pipe"_view), value(args, "packages-root"_view));
   } else if (format) {
     return run_format(args);
+  } else if (package) {
+    return Puffer::Package(args).run();
+  } else if (application) {
+    return Puffer::Application(args).run();
   } else {
     return run_library(args);
   }

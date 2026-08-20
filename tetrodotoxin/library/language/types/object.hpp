@@ -14,7 +14,8 @@ class Object : public Structure {
  private:
   Object(
       Perimortem::Memory::Allocator::Arena& domain,
-      Tetrodotoxin::Language::Definition& definition);
+      Tetrodotoxin::Language::Definition& definition,
+      Bool provider_construction = True);
 
  public:
   TTX_CONTRACT(Object, Structure);
@@ -22,6 +23,13 @@ class Object : public Structure {
   static auto interpret(
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Language::Definition& definition)
+      -> Perimortem::Core::Option<Object&>;
+
+  static auto restore(
+      Archive::Reader& reader,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Concept::Abstract& host,
+      Tetrodotoxin::Language::Persistence::Profile profile)
       -> Perimortem::Core::Option<Object&>;
 
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
@@ -33,6 +41,14 @@ class Object : public Structure {
       Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor) const
       -> Perimortem::Core::Option<Model::Pack&> override;
+
+  auto create_supplied_restored(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Model::Pack& arguments,
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope)
+      const -> Perimortem::Core::Option<Model::Pack&> override;
+
+  auto persist(Archive::Writer& writer) const -> Bool override;
 
  protected:
   auto reserve_carrier(Llvm::Program& program) const

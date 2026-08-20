@@ -473,14 +473,14 @@ auto Package::Repository::Repository::select_archive(
             archive_cache.emplace(Archive::Archive(archive));
         return retained;
       },
-      [&](Archive::ReadError read_error) -> Selection {
+      [&](Archive::Reader::Error read_error) -> Selection {
         switch (read_error) {
-        case Archive::ReadError::InvalidFormat:
+        case Archive::Reader::Error::InvalidFormat:
           log_selection_failure(
               *selected, SelectionError::InvalidFormat, identity, version,
               "the Archive failed Format 1 validation."_view);
           return SelectionError::InvalidFormat;
-        case Archive::ReadError::UnsupportedFormat:
+        case Archive::Reader::Error::UnsupportedFormat:
           log_selection_failure(
               *selected, SelectionError::UnsupportedFormat, identity, version,
               "the Archive format revision is unsupported."_view);

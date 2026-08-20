@@ -14,6 +14,8 @@ class Range : public Constant {
  public:
   auto lower(Llvm::Builder& body) const -> Bool override;
 
+  auto persist(Archive::Writer& writer) const -> Bool override;
+
   TTX_CONTRACT(Range, Constant);
 
   static auto create_synthetic(

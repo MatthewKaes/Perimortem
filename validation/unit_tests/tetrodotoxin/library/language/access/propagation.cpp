@@ -2,6 +2,7 @@
 // Copyright © Matt Kaes
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/algorithm/search.hpp"
@@ -49,10 +50,6 @@ static Harness PropagationAccessTests = {
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "OptionAccessTest"_view, "option-access.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -101,7 +98,8 @@ static auto parse_expression(
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty() &&
@@ -110,7 +108,8 @@ static auto rejects_link(View::Bytes source) -> Bool {
 }
 
 static auto rejects_link(View::Bytes source, View::Bytes diagnostic) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   BAIL_IF(monograph || errors.is_empty());
@@ -150,7 +149,8 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, receiving_type_owns_target_fit) {
       "dialect : Library;\n"
       "public Maybe : alias = Option[Unsigned_64];\n"
       "private const present : Maybe = 7;"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -205,7 +205,8 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, target_fit_and_unwrap) {
       "}\n"
       "private absent_call := Options -> consume(());\n"
       "private present_call := Options -> consume(8);"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -280,7 +281,8 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_edges_and_folding) {
       "  value = ();\n"
       "  return value;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -459,9 +461,10 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, production_propagation_fixture) {
   auto source = File::read(path);
   ASSERT(source);
 
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto interpreted = workspace.interpret_source(
       errors, "PropagationAcceptance"_view, path, *source);
   ASSERT(interpreted && interpreted->is<Language::Monograph>());

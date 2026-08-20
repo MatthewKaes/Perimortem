@@ -816,6 +816,34 @@ static auto debug_visibility(Tetrodotoxin::Language::Visibility visibility)
   return llvm::DINode::FlagZero;
 }
 
+static auto create_local_variable(
+    Llvm::Program& program,
+    Llvm::Body& body,
+    const Ttx::Model::Addressable& addressable,
+    Ttx::Lexical::Anchor anchor,
+    Core::Option<Count> parameter) -> Core::Option<llvm::DILocalVariable&> {
+  auto builder = native_builder(program);
+  auto file = native_file(program);
+  auto scope = native_scope(body);
+  auto type = create_debug_type(program, addressable.get_type());
+  BAIL_IF(!builder || !file || !scope || !type);
+
+  if (parameter) {
+    auto* created = builder->createParameterVariable(
+        &*scope, native_text(addressable.get_name()),
+        Unsigned_32(*parameter + 1), &*file, Unsigned_32(source_line(anchor)),
+        &*type, true);
+    return created ? Core::Option<llvm::DILocalVariable&>(*created)
+                   : Core::Option<llvm::DILocalVariable&>();
+  }
+
+  auto* created = builder->createAutoVariable(
+      &*scope, native_text(addressable.get_name()), &*file,
+      Unsigned_32(source_line(anchor)), &*type, true);
+  return created ? Core::Option<llvm::DILocalVariable&>(*created)
+                 : Core::Option<llvm::DILocalVariable&>();
+}
+
 static auto declare_local(
     Llvm::Body& body,
     const Ttx::Model::Addressable& addressable,
@@ -832,37 +860,12 @@ static auto declare_local(
   }
 
   auto builder = native_builder(*selected_program);
-  auto file = native_file(*selected_program);
   auto scope = native_scope(*selected_body);
   auto address = selected_body->find_address(addressable);
-  if (!builder || !file || !scope || !address) {
-    return False;
-  }
+  auto variable = create_local_variable(
+      *selected_program, *selected_body, addressable, anchor, parameter);
 
-  auto type = create_debug_type(*selected_program, addressable.get_type());
-  if (!type) {
-    return False;
-  }
-
-  Core::Option<llvm::DILocalVariable&> variable;
-  if (parameter) {
-    auto* created = builder->createParameterVariable(
-        &*scope, native_text(addressable.get_name()),
-        Unsigned_32(*parameter + 1), &*file, Unsigned_32(source_line(anchor)),
-        &*type, true);
-    if (created) {
-      variable = *created;
-    }
-  } else {
-    auto* created = builder->createAutoVariable(
-        &*scope, native_text(addressable.get_name()), &*file,
-        Unsigned_32(source_line(anchor)), &*type, true);
-    if (created) {
-      variable = *created;
-    }
-  }
-
-  if (!variable) {
+  if (!builder || !scope || !address || !variable) {
     return selected_program->fail_backend(
         "LLVM could not create one local debug declaration."_view);
   }
@@ -875,6 +878,63 @@ static auto declare_local(
   builder->insertDeclare(
       llvm::unwrap(*address), &*variable, builder->createExpression(), location,
       &function.getEntryBlock());
+  return True;
+}
+
+static auto describe_local_value(
+    Llvm::Body& body,
+    const Ttx::Model::Addressable& addressable,
+    Ttx::Lexical::Anchor anchor,
+    LLVMValueRef value) -> Bool {
+  auto selected_body = select_body(body);
+  auto selected_program = select_program(body.get_program());
+  if (!selected_body || !selected_program || !value) {
+    return False;
+  }
+
+  if (selected_program->get_debug().get_level() != Llvm::Debug::Level::Full) {
+    return True;
+  }
+
+  auto builder = native_builder(*selected_program);
+  auto scope = native_scope(*selected_body);
+  auto variable = create_local_variable(
+      *selected_program, *selected_body, addressable, anchor, {});
+  auto& native =
+      *reinterpret_cast<llvm::IRBuilder<>*>(selected_body->get_builder());
+  llvm::BasicBlock* block = native.GetInsertBlock();
+  if (!builder || !scope || !variable || !block) {
+    return selected_program->fail_backend(
+        "LLVM could not create one const local debug value."_view);
+  }
+
+  llvm::Function& function =
+      *llvm::unwrap<llvm::Function>(selected_body->get_function());
+  llvm::DILocation* location = llvm::DILocation::get(
+      function.getContext(), Unsigned_32(source_line(anchor)),
+      Unsigned_32(source_column(anchor)), &*scope);
+  llvm::Value& native_value = *llvm::unwrap(value);
+  if (!native_value.getType()->isAggregateType()) {
+    builder->insertDbgValueIntrinsic(
+        &native_value, &*variable, builder->createExpression(), location,
+        block);
+    return True;
+  }
+
+  // LLVM does not preserve one aggregate constant as a DWARF location. Full
+  // debug mode materializes only its observation copy while semantic lowering
+  // continues to use the folded value directly.
+  LLVMValueRef storage = selected_body->create_entry_alloca(
+      llvm::wrap(native_value.getType()), "const.debug"_view);
+  if (!storage) {
+    return selected_program->fail_backend(
+        "LLVM could not allocate one aggregate const debug value."_view);
+  }
+
+  native.CreateStore(&native_value, llvm::unwrap(storage));
+  builder->insertDeclare(
+      llvm::unwrap(storage), &*variable, builder->createExpression(), location,
+      block);
   return True;
 }
 
@@ -1183,6 +1243,15 @@ auto Llvm::Debug::local(
   return selected && declare_local(*selected, local, anchor, {});
 }
 
+auto Llvm::Debug::value(
+    Ttx::Concept::Abstract& body,
+    const Ttx::Model::Addressable& local,
+    Ttx::Lexical::Anchor anchor,
+    LLVMValueRef value) -> Bool {
+  auto selected = body.select<Llvm::Body>();
+  return selected && describe_local_value(*selected, local, anchor, value);
+}
+
 auto Llvm::Debug::finalize(Ttx::Concept::Abstract& program) -> Bool {
   auto selected = select_program(program);
   if (!selected) {
@@ -1200,12 +1269,17 @@ auto Llvm::Debug::finalize(Ttx::Concept::Abstract& program) -> Bool {
        get_scope_types()) {
     const Ttx::Model::Type& type = retained.get();
     auto kind = selected->get_carriers().get_kind(type);
-    if (!kind) {
+    Bool source = type.get_name() == "<source>"_view;
+
+    // An imported Source may host an external Static without entering the
+    // local carrier graph. Its reserved empty scope still completes as a
+    // namespace-like debug Type.
+    if (!kind && !source) {
       return selected->fail_backend(
           "LLVM lost a Type selected by one debug scope."_view);
     }
 
-    if (*kind == Llvm::Carriers::Kind::Context) {
+    if (!kind || *kind == Llvm::Carriers::Kind::Context) {
       auto builder = native_builder(*selected);
       auto file = native_file(*selected);
       auto scope = selected->get_debug().find_scope(type);

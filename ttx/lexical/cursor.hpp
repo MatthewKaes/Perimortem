@@ -10,8 +10,9 @@
 #include "perimortem/core/writer/textual.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "ttx/lexical/associations.hpp"
+
 #include "ttx/lexical/anchor.hpp"
+#include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 

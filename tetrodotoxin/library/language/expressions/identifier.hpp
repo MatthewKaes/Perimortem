@@ -34,8 +34,22 @@ class Identifier : public Expression {
         });
   }
 
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Core::View::Bytes name) -> Identifier& {
+    return Expression::create_synthetic<Identifier>(
+        arena, [&](auto source) -> Identifier {
+          return Identifier({}, name, source);
+        });
+  }
+
   auto link(
       Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& lexical_context,
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
+      -> Bool override;
+
+  auto link_restored(
       const Ttx::Concept::Abstract& lexical_context,
       Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool override;

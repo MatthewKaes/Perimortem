@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/flow/local.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/algorithm/search.hpp"
@@ -34,10 +35,6 @@ static Harness LocalTests = {
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "LocalTest"_view, "local.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -62,13 +59,15 @@ static auto find_function(
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty();
 }
 
 static auto rejects_link_without_publication(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   if (monograph || errors.is_empty()) {
@@ -96,7 +95,8 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
       "  state named : Pair = (.right = false, .left = true);\n"
       "  return inferred;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -188,7 +188,8 @@ PERIMORTEM_UNIT_TEST(LocalTests, const_fixed_retains_folded_values) {
       "  const extracted := dense:[1];\n"
       "  return extracted;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -279,7 +280,8 @@ PERIMORTEM_UNIT_TEST(
       "  state total : Unsigned_64 = pair -> sum();\n"
       "  return total;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   EXPECT_NOT(interpret(workspace, errors, source));
   EXPECT(

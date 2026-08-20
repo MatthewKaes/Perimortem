@@ -244,6 +244,11 @@ class Builder {
       const Ttx::Model::Pack& result,
       const Ttx::Model::Pack& left,
       const Ttx::Model::Pack& right) const -> Bool;
+  auto compare_bytes(
+      Comparison operation,
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Pack& left,
+      const Ttx::Model::Pack& right) const -> Bool;
   auto construct(
       const Ttx::Model::Pack& result,
       const Ttx::Model::Type& type,
@@ -297,6 +302,11 @@ class Builder {
   auto statement(Ttx::Lexical::Anchor anchor) const -> Bool;
   auto local(const Ttx::Model::Addressable& local, Ttx::Lexical::Anchor anchor)
       const -> Bool;
+  auto has_full_debug() const -> Bool;
+  auto constant_local(
+      const Ttx::Model::Addressable& local,
+      const Ttx::Model::Pack& value,
+      Ttx::Lexical::Anchor anchor) const -> Bool;
   auto end_statement() const -> Bool;
   auto bind_local(
       const Ttx::Model::Addressable& local,

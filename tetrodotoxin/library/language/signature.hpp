@@ -25,6 +25,16 @@ class Signature {
       const Ttx::Concept::Abstract& host)
       -> Perimortem::Core::Option<Signature&>;
 
+  static auto restore(
+      Archive::Reader& reader,
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Ttx::Concept::Abstract& host)
+      -> Perimortem::Core::Option<Signature&>;
+
+  auto persist(Archive::Writer& writer) const -> Bool;
+
+  auto link_restored() -> Bool;
+
   Signature(const Signature&) = delete;
   Signature(Signature&&) = delete;
   auto operator=(const Signature&) -> Signature& = delete;

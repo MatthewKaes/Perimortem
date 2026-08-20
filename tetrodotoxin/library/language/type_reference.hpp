@@ -10,6 +10,8 @@
 
 #include "perimortem/utility/result.hpp"
 
+#include "tetrodotoxin/library/archive/reader.hpp"
+#include "tetrodotoxin/library/archive/writer.hpp"
 #include "tetrodotoxin/library/language/generic.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -27,6 +29,9 @@ namespace Tetrodotoxin::Library::Language {
 // remain source facts until the declaration owner links the shape.
 class TypeReference {
  public:
+  using Argument = Perimortem::Core::Static::
+      Union<const TypeReference&, const Ttx::Concept::Abstract&>;
+
   class Failure {
    public:
     enum class Type : Unsigned_8 {
@@ -68,6 +73,14 @@ class TypeReference {
   static auto parse_route(Ttx::Lexical::Cursor& cursor)
       -> Perimortem::Core::Option<TypeReference>;
 
+  static auto restore(
+      Archive::Reader& reader,
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Ttx::Concept::Abstract& context)
+      -> Perimortem::Core::Option<TypeReference>;
+
+  auto persist(Archive::Writer& writer) const -> Bool;
+
   auto get_size() const -> Count;
 
   auto get_name(Count index) const -> Perimortem::Core::View::Bytes;
@@ -91,6 +104,9 @@ class TypeReference {
   // materialization query that cannot mutate the literal.
   auto get_argument_reference(Count index) const
       -> Perimortem::Core::Option<const TypeReference&>;
+
+  auto get_argument(Count index) const
+      -> Perimortem::Core::Option<const Argument&>;
 
   // Owners with only a route compare the exact contextual spelling they
   // retained. Generic application is deliberately excluded because the selected
@@ -125,9 +141,6 @@ class TypeReference {
     Context,
     Lexical,
   };
-
-  using Argument = Perimortem::Core::Static::
-      Union<const TypeReference&, const Ttx::Concept::Abstract&>;
 
   auto resolve_with_root(
       const Ttx::Concept::Abstract& context,

@@ -17,6 +17,11 @@ class Contiguous : public Model::Type {
 
   virtual constexpr auto get_element_type() const -> const Model::Type& = 0;
 
+  constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
+    return get_element_type().get_declaration_anchor();
+  }
+
   auto accepts_iteration(const Ttx::Concept::Layout& bindings) const
       -> Bool override;
 

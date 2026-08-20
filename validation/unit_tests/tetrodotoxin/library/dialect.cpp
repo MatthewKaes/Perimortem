@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/dialect.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/algorithm/search.hpp"
@@ -20,6 +21,7 @@
 #include "tetrodotoxin/library/language/access/swizzle.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/flag.hpp"
+#include "tetrodotoxin/library/language/constants/option.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
@@ -46,6 +48,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/library/language/types/unsigned_8.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
+#include "tetrodotoxin/library/llvm/compiler.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -219,11 +222,9 @@ static auto import_library(
 }
 
 static auto rejects_library_source(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return False;
-  }
 
   auto interpreted = workspace.interpret_source(
       errors, "RejectedLibrary"_view, "rejected-library.ttx"_view, source);
@@ -553,9 +554,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
     auto source = File::read(rejection.path);
     ASSERT(source);
 
-    Workspace workspace;
+    auto workspace_toolchain = create_library_toolchain();
+
+    Workspace workspace(*workspace_toolchain);
     Errors errors;
-    ASSERT(workspace.install_dialect<Dialect>("Library"_view));
 
     auto interpreted = workspace.interpret_source(
         errors, "Rejected"_view, rejection.path, *source);
@@ -577,9 +579,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, foreign_workspace_acceptance) {
   auto source = File::read(path);
   ASSERT(source);
 
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto interpreted = workspace.interpret_source(
       errors, "ForeignAcceptance"_view, path, *source);
   ASSERT(interpreted && interpreted->is<Language::Monograph>());
@@ -606,9 +609,10 @@ PERIMORTEM_UNIT_TEST(
   auto source = File::read(path);
   ASSERT(source);
 
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto interpreted = workspace.interpret_source(
       errors, "PrivateParameter"_view, path, *source);
   EXPECT_NOT(interpreted);
@@ -650,9 +654,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, function_attributes_are_opaque) {
       "  @symbol(\"member\")\n"
       "  public member : func = [self] -> Bool { return true; }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto monograph = import_library(workspace, errors, "Attributes"_view, source);
   ASSERT(monograph);
 
@@ -699,9 +703,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   auto source = File::read(path);
   ASSERT(source);
 
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto interpreted = workspace.interpret_source(
       errors, "SourceAcceptance"_view, path, *source);
   ASSERT(interpreted && interpreted->is<Language::Monograph>());
@@ -834,9 +839,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
 static auto completes_fixture(View::Bytes path) -> Bool {
   auto source = File::read(path);
   BAIL_IF(!source);
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  BAIL_IF(!workspace.install_dialect<Dialect>("Library"_view));
   auto interpreted = workspace.interpret_source(
       errors, "CanonicalLibrary"_view, path, *source);
   BAIL_IF(!interpreted || !interpreted->is<Language::Monograph>());
@@ -857,9 +862,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   auto source = File::read(path);
   ASSERT(source);
 
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto interpreted =
       workspace.interpret_source(errors, "ValueAcceptance"_view, path, *source);
   ASSERT(interpreted && interpreted->is<Language::Monograph>());
@@ -1036,14 +1042,75 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
   auto source = File::read(path);
   ASSERT(source);
 
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto interpreted = workspace.interpret_source(
       errors, "ExecutableAcceptance"_view, path, *source);
   ASSERT(interpreted && interpreted->is<Language::Monograph>());
   auto& monograph = static_cast<Language::Monograph&>(*interpreted);
   EXPECT(&workspace.resolve_context("ExecutableAcceptance"_view) == &monograph);
+
+  Dialect archive_dialect;
+  auto complete = archive_dialect.encode(
+      monograph, Tetrodotoxin::Language::Persistence::Profile::Complete);
+  auto complete_again = archive_dialect.encode(
+      monograph, Tetrodotoxin::Language::Persistence::Profile::Complete);
+  auto interface = archive_dialect.encode(
+      monograph, Tetrodotoxin::Language::Persistence::Profile::Interface);
+  ASSERT(complete && complete_again && interface);
+  EXPECT(*complete == *complete_again);
+  EXPECT_NOT(*complete == *interface);
+  ASSERT(complete->get_size() >= 8 && interface->get_size() >= 8);
+  EXPECT_EQ((*complete)[6], Unsigned_8(0));
+  EXPECT_EQ((*interface)[6], Unsigned_8(1));
+  Allocator::Arena restored_arena;
+  auto restored = archive_dialect.restore(
+      restored_arena, *complete,
+      Tetrodotoxin::Language::Persistence::Profile::Complete,
+      Documentation::get_empty(), workspace);
+  ASSERT(restored);
+  ASSERT(restored->link_restored());
+  ASSERT(restored->finalize_restored());
+  auto restored_library = restored->select<Language::Monograph>();
+  ASSERT(restored_library);
+  auto restored_execute = find_function(
+      restored_library->get_source(), "executable_acceptance"_view);
+  ASSERT(restored_execute);
+  EXPECT_NOT(restored_execute->get_body());
+
+  auto restored_present =
+      find_field(restored_library->get_source(), "present"_view);
+  ASSERT(restored_present);
+  auto restored_constant = restored_present->get_constant();
+  auto restored_option =
+      restored_constant
+          ? restored_constant->select<Language::Constants::Option>()
+          : Option<Language::Constants::Option&>();
+  ASSERT(restored_option);
+  auto restored_payload = restored_option->get_payload();
+  auto restored_value =
+      restored_payload
+          ? restored_payload->select<Language::Constants::Unsigned>()
+          : Option<const Language::Constants::Unsigned&>();
+  ASSERT(restored_value);
+  EXPECT_EQ(restored_value->get_value(), Unsigned_64(5));
+
+  Allocator::Arena interface_arena;
+  auto restored_interface = archive_dialect.restore(
+      interface_arena, *interface,
+      Tetrodotoxin::Language::Persistence::Profile::Interface,
+      Documentation::get_empty(), workspace);
+  ASSERT(
+      restored_interface && restored_interface->link_restored() &&
+      restored_interface->finalize_restored());
+  EXPECT(restored_interface->resolve_context("Counter"_view)
+             .resolve()
+             .is<Language::Types::Object>());
+  EXPECT(restored_interface->resolve_context("executable_acceptance"_view)
+             .resolve()
+             .is<Invalid>());
 
   const auto& source_type = monograph.get_source();
   auto execute = find_function(source_type, "executable_acceptance"_view);

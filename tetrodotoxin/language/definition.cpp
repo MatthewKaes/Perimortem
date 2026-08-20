@@ -127,6 +127,20 @@ auto Language::Definition::create_synthetic(
   });
 }
 
+auto Language::Definition::create_restored(
+    Allocator::Arena& domain,
+    const Documentation& documentation,
+    Abstract& host,
+    View::Vector<Attribute> attributes,
+    View::Bytes name,
+    Visibility visibility) -> Definition& {
+  return domain.construct_from<Definition>([&]() -> Definition {
+    return Definition(
+        documentation, attributes, {}, visibility, {}, name, {}, {}, host,
+        Anchor::create(Span()), True);
+  });
+}
+
 auto Language::Definition::create_authored(
     Cursor& cursor,
     const Documentation& documentation,

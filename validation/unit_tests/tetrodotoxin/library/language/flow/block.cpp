@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/flow/block.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -30,10 +31,6 @@ static Harness BlockTests = {
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "BlockTest"_view, "block.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -69,7 +66,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
       "    return input;\n"
       "  }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -148,7 +146,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, free_expressions_are_statements) {
       "  Bool;\n"
       "  return;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -176,7 +175,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, nested_block_and_documentation_are_retained) {
       "  }\n"
       "  return;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -216,7 +216,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, failed_scope_is_not_published) {
       "    input;\n"
       "  }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   EXPECT_NOT(interpret(workspace, errors, source));
   EXPECT_NOT(errors.is_empty());

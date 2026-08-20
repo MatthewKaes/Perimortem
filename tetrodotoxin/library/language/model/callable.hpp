@@ -43,11 +43,15 @@ class Callable : public Ttx::Model::Callable {
     return True;
   }
 
+  virtual auto link_restored_declaration_signature() -> Bool { return True; }
+
   virtual auto reserve_declaration(Llvm::Program& program) const -> Bool;
 
   virtual auto complete_declaration(Llvm::Program& program) const -> Bool;
 
   virtual auto lower_declaration(Llvm::Program&) const -> Bool { return True; }
+
+  virtual auto persist(Archive::Writer& writer) const -> Bool;
 
   virtual auto lower_call(
       Llvm::Builder& body,

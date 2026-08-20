@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/flow/return.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -30,7 +31,6 @@ static Harness ReturnTests = {
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  BAIL_IF(!workspace.install_dialect<Dialect>("Library"_view));
   auto interpreted = workspace.interpret_source(
       errors, "ReturnTest"_view, "return.ttx"_view, source);
   BAIL_IF(!interpreted || !interpreted->is<Language::Monograph>());
@@ -38,13 +38,15 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty();
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty();
@@ -110,7 +112,8 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
       "    return packet.[];\n"
       "  }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);

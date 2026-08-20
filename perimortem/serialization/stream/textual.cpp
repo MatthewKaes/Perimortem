@@ -34,10 +34,6 @@ static auto write(storage_type& storage, value_type value) -> void {
 }
 
 template <typename storage_type>
-Stream::Textual<storage_type>::Textual(storage_type& storage)
-    : storage(storage) {}
-
-template <typename storage_type>
 auto Stream::Textual<storage_type>::operator<<(Bool flag) -> Textual& {
   write(storage, flag);
   return *this;

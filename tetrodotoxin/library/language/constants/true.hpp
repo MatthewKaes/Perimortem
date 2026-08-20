@@ -24,7 +24,8 @@ class True : public Flag {
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
-      const Tetrodotoxin::Library::Language::Model::Types::Flag& type) -> True& {
+      const Tetrodotoxin::Library::Language::Model::Types::Flag& type)
+      -> True& {
     return Expression::create_synthetic<True>(
         domain, [&](auto source) -> True { return True(type, source); });
   }

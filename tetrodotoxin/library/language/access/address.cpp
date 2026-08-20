@@ -145,7 +145,6 @@ auto Language::Access::Address::lower(Llvm::Builder& body) const -> Bool {
     return *folded;
   }
 
-
   Bool selected = lower_write_target(body);
   if (!selected) {
     return False;
@@ -159,7 +158,13 @@ auto Language::Access::Address::lower_write_target(Llvm::Builder& body) const
   auto selected = get_result().resolve().select<Language::Model::Addressable>();
   auto instance =
       receiver.get_result().resolve().select<Language::Model::Addressable>();
+  Llvm::Program& program = body.get_program();
   if (!selected) {
+    return False;
+  }
+
+  if (!selected->reserve_declaration(program) ||
+      !selected->complete_declaration(program)) {
     return False;
   }
 

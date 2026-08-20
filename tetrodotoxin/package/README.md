@@ -169,8 +169,8 @@ facts, not a copy of process memory.
 
 Package owns the Archive because it already knows the Package identity,
 dependencies, members, languages, and native artifacts that belong together.
-Each language owns the data for its own members. Linker continues to own native
-object and executable bytes.
+Each language owns the data and native member products for its own members. The
+selected build toolchain owns native archives and executable linking.
 
 It contains:
 
@@ -186,11 +186,16 @@ data.
 
 Package admits two profiles:
 
-- `Complete` stores public and private declarations together with executable
-  bodies. It can be restored and compiled again without source.
+- `Complete` stores the public and private query contracts selected by every
+  member Dialect.
 - `Interface` stores public Types, Layouts, Fields, Callable signatures,
   constants, ABI requests, relationships, and compiled artifact locations. It
-  leaves executable bodies out.
+  leaves private observations out.
+
+Neither profile stores executable bodies. A Package Archive reconstructs the
+semantic wrapper used to query compiled members, while the selected native or
+GPU artifacts provide their implementation. Source or a live Workspace is
+required to lower a member again.
 
 The selected profile also applies to child layers. For example, a Complete
 Scene contains Complete data for its Library child. The outer language stores
@@ -248,7 +253,8 @@ references are never revived.
 LLVM IR, object modules, and executables are compiled outputs. They cannot
 replace a language's Archive data because compilation has already discarded
 facts that matter to the source language. The Archive may name native artifacts
-and symbols, but Linker and the selected compiler still produce their bytes.
+and symbols, but the selected compiler and platform build toolchain still
+produce their bytes.
 
 See [Environment](../environment/README.md) for Workspace import and
 [Library](../library/README.md) for `using` and Resource consumption. The

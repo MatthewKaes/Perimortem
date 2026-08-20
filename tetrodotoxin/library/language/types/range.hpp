@@ -46,6 +46,11 @@ class Range : public Model::Type {
     return element;
   }
 
+  constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
+    return element.get_declaration_anchor();
+  }
+
  private:
   Perimortem::Core::View::Bytes name;
   const Model::Type& element;

@@ -14,6 +14,8 @@ class Flag : public Constant {
  public:
   auto lower(Llvm::Builder& body) const -> Bool override;
 
+  auto persist(Archive::Writer& writer) const -> Bool override;
+
   TTX_CONTRACT(Flag, Constant);
   using Value = Bool;
 
@@ -35,7 +37,8 @@ class Flag : public Constant {
         domain, [&](auto source) -> Flag { return Flag(type, value, source); });
   }
 
-  constexpr auto get_type() const -> const Tetrodotoxin::Library::Language::Model::Types::Flag& override {
+  constexpr auto get_type() const
+      -> const Tetrodotoxin::Library::Language::Model::Types::Flag& override {
     return type;
   }
 
@@ -52,8 +55,11 @@ class Flag : public Constant {
   }
 
   constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
-    return get_type().resolve().is<Tetrodotoxin::Library::Language::Model::Types::Flag>() &&
-           target.resolve().is<Tetrodotoxin::Library::Language::Model::Types::Flag>();
+    return get_type()
+               .resolve()
+               .is<Tetrodotoxin::Library::Language::Model::Types::Flag>() &&
+           target.resolve()
+               .is<Tetrodotoxin::Library::Language::Model::Types::Flag>();
   }
 
  protected:

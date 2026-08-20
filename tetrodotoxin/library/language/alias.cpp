@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/alias.hpp"
 
+#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/documentations/merged.hpp"
 #include "ttx/model/type.hpp"
@@ -12,6 +13,35 @@ using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
+
+auto Tetrodotoxin::Library::Language::Alias::persist(
+    Archive::Writer& writer) const -> Bool {
+  auto record = writer.begin(Archive::Tag::Alias);
+  Archive::Declaration declaration(definition);
+  BAIL_IF(
+      !declaration.write(writer) || !target_reference.persist(writer) ||
+      !writer.finish(record));
+  return True;
+}
+
+auto Tetrodotoxin::Library::Language::Alias::restore(
+    Archive::Reader& reader,
+    Allocator::Arena& arena,
+    Abstract& host) -> Option<Alias&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != Unsigned_16(Archive::Tag::Alias) ||
+      record->is_optional());
+
+  Archive::Reader contents(record->get_payload());
+  auto declaration = Archive::Declaration::read(contents, arena);
+  auto target = TypeReference::restore(contents, arena, host);
+  BAIL_IF(!declaration || !target || !contents.is_complete());
+
+  auto& definition = declaration->create_definition(arena, host);
+  return arena.construct_from<Alias>(
+      [&]() -> Alias { return Alias(arena, definition, *target); });
+}
 
 auto Tetrodotoxin::Library::Language::Alias::interpret(
     Cursor& cursor,
@@ -65,12 +95,12 @@ auto Alias::link() -> Bool {
   if (linked) {
     return True;
   }
-  const Abstract* selected = nullptr;
+  Option<const Abstract&> selected;
   target_reference.resolve_lexical(definition.get_host())
       .visit(
-          [&](const Abstract& resolved) { selected = &resolved; },
+          [&](const Abstract& resolved) { selected = resolved; },
           [](const TypeReference::Failure&) {});
-  BAIL_IF(selected == nullptr);
+  BAIL_IF(!selected);
 
   auto target = selected->select<Model::Type>();
   BAIL_IF(!target);
@@ -96,17 +126,17 @@ auto Alias::link() -> Bool {
 
 auto Alias::report_unresolved(Cursor& cursor) const -> void {
   Option<TypeReference::Failure> failure;
-  const Abstract* selected = nullptr;
+  Option<const Abstract&> selected;
   target_reference.resolve_lexical(definition.get_host())
       .visit(
-          [&](const Abstract& resolved) { selected = &resolved; },
+          [&](const Abstract& resolved) { selected = resolved; },
           [&](const TypeReference::Failure& rejected) { failure = rejected; });
   if (failure) {
     target_reference.report(cursor, *failure);
     return;
   }
 
-  if (selected != nullptr && selected->is<Model::Type>()) {
+  if (selected && selected->is<Model::Type>()) {
     return;
   }
   cursor.create_expression_error(

@@ -1177,12 +1177,18 @@ bytes.
 
 ## Persistence
 
-Library can be stored in a Package Archive and rebuilt without its source file.
-A Complete payload keeps public and private Types, Fields, Functions,
-expressions, control flow, access relationships, Foreign declarations, and the
-connections needed to compile the Library again. An Interface payload keeps the
-public Types, Layouts, Fields, Function signatures, folded public constants,
-ABI requests, and native artifact locations, but leaves out Function bodies.
+Library can be stored in a Package Archive and reconstructed without its source
+file. A Complete payload keeps its public and private Types, Fields, Function
+signatures, folded constants, Foreign declarations, ABI requests, and native
+artifact locations. An Interface payload keeps the public closure of those
+facts. Neither retains Function bodies, expressions, control flow, or access
+operations.
+
+The restored Library is a TTX wrapper over its compiled artifacts, analogous to
+a Foreign block whose ABI is TTX. It answers the Type, Addressable, Callable,
+and constant queries required for composition while stable native symbols reach
+the provider implementation. A source build or live Workspace performs another
+lowering.
 
 Neither profile stores parser state, process addresses, compiler caches, LLVM
 IR, native bytes, live Object references, or source-level debugging data.

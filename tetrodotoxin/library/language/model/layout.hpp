@@ -42,6 +42,17 @@ class Layout final : public Ttx::Concept::Layout {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Layout&>;
 
+  static auto restore(
+      Archive::Reader& reader,
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Ttx::Concept::Abstract& context)
+      -> Perimortem::Core::Option<Layout&>;
+
+  auto persist(Archive::Writer& writer) const -> Bool;
+
+  auto link_restored(const Ttx::Concept::Abstract& host, Bool parameters)
+      -> Bool;
+
   Layout(const Layout&) = delete;
   Layout(Layout&&) = delete;
   auto operator=(const Layout&) -> Layout& = delete;
@@ -82,6 +93,9 @@ class Layout final : public Ttx::Concept::Layout {
 
   auto get_slot_anchor(Count index) const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
+
+  auto get_type_reference(Count index) const
+      -> Perimortem::Core::Option<const TypeReference&>;
 
   auto fits_entry(
       const Ttx::Concept::Layout& target,

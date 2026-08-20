@@ -52,7 +52,8 @@ class Composite : public Model::Type {
   auto publish_binding(
       Ttx::Concept::Abstract& binding,
       Category category,
-      Bool published) -> Bool;
+      Bool published,
+      Bool persistent = True) -> Bool;
 
   virtual auto retain_binding(
       Ttx::Concept::Abstract& binding,
@@ -61,6 +62,13 @@ class Composite : public Model::Type {
       Ttx::Lexical::Cursor& cursor) -> Bool;
 
   auto complete_field_layout() -> void;
+
+  constexpr auto get_domain() const -> Perimortem::Memory::Allocator::Arena& {
+    return domain;
+  }
+
+  auto persist_declarations(Archive::Writer& writer, Bool public_only) const
+      -> Bool;
 
   // Source owns the closure barrier. These tree operations settle forward
   // Alias routes without making an Alias discover or complete its siblings.
@@ -112,14 +120,30 @@ class Composite : public Model::Type {
   auto link_types(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto link_fields(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto validate_layout(Ttx::Lexical::Cursor& cursor) const -> Bool override;
+
+  auto validate_layout_restored() const -> Bool;
   auto link_initializers(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto link_callable_signatures(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto link_callable_bodies(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
+  auto link_restored_types() -> Bool override;
+
+  auto link_restored_callable_signatures() -> Bool override;
+
+  auto link_restored_fields() -> Bool override;
+
+  auto link_restored_initializers() -> Bool override;
+
+  auto finalize_restored() -> Bool override;
+
   auto reserve(Llvm::Program& program) const -> Bool override;
 
   auto complete(Llvm::Program& program) const -> Bool override;
+
+  auto reserve_value(Llvm::Program& program) const -> Bool override;
+
+  auto complete_value(Llvm::Program& program) const -> Bool override;
 
   auto lower(Llvm::Program& program) const -> Bool override;
 
@@ -168,6 +192,16 @@ class Composite : public Model::Type {
     return Perimortem::Core::View::Selection(selected);
   }
 
+  constexpr auto get_declarations() const {
+    return Perimortem::Core::View::Selection(declarations.get_view());
+  }
+
+  auto is_published(const Ttx::Concept::Abstract& declaration) const -> Bool;
+
+  auto restore_declarations(
+      Archive::Reader& reader,
+      Tetrodotoxin::Language::Persistence::Profile profile) -> Bool;
+
   constexpr auto is_linked() const -> Bool {
     return stage >= Stage::FieldsLinked;
   }
@@ -201,6 +235,9 @@ class Composite : public Model::Type {
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       published_types;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      declarations;
   Perimortem::Core::Option<const Ttx::Model::Layouts::Named&> layout;
   Stage stage = Stage::Authored;
 };

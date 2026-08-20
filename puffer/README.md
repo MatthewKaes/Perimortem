@@ -31,7 +31,16 @@ request from editor or command line
 Open editor documents may contain unsaved bytes, so Puffer retains their text
 and protocol identity for the session. Environment owns Workspace lifetime and
 source completion. Package owns package selection and semantic Archives.
-Language compilers and Linker own their output formats.
+Language compilers own their native member products, while the selected build
+toolchain owns static archives and final executable linking.
+
+The LSP constructs one Environment Toolchain and lends it to every replacement
+Workspace. A Package session reads the selected manifest, recursively loads
+each exact dependency from the configured Package root, detects active cycles,
+and imports the consumer only after its dependencies complete. One shared
+Snapshot owner retains editor overlays and unchanged filesystem bytes across
+those complete graph replacements; no standard Package name is injected into
+an unrelated Package.
 
 Puffer's process model and user interface are optional. Another application can
 reuse source interpretation, Package resolution, compilation, linking, and
@@ -78,8 +87,9 @@ When the Workspace is ready, Puffer coordinates the requested products:
 
 * Library compiles CPU code with LLVM.
 * Shader produces SPIR V for the GPU.
-* Linker produces ELF programs for Linux or PE programs for Windows.
 * Package produces a Complete or Interface Archive.
+* The build toolchain combines native member products into libraries and
+  platform executables.
 
 The request chooses the CPU target, host platform, graphics backend,
 and Archive profile. Puffer passes those choices to the components that own the
@@ -126,6 +136,22 @@ their payload and selected state inline with the same value semantics as
 and release interface. Object carriers are opaque one word handles. Parameters
 borrow them, results transfer one reservation, and the generated header exposes
 the generic Perimortem retain and release entries for a host that keeps a result.
+
+### Package and application requests
+
+A Package request imports every dependency through its Interface Archive,
+imports the root source Package once, and compiles each declared member into an
+independent native object. It emits the root Complete and Interface Archives,
+one combined C and C++ declaration header, and the member products declared by
+the build action. The build supplies manifest-rooted `.ttx` candidates, while
+the Package Source table remains the sole authority for their semantic member
+names and paths. Package coordinates those products without lowering a copied
+semantic graph.
+
+An application request is source free. It restores the root Complete Archive
+and dependency Interface Archives, selects the App policy retained by the
+requested member, and emits a small native entry object. The build toolchain
+then links that entry with the Package and runtime native products.
 
 ## Restoring an Archive
 

@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -40,10 +41,6 @@ using namespace Validation;
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "EnumerationTest"_view, "enumeration.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -88,7 +85,8 @@ static auto parse_authored(
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty() &&
@@ -97,12 +95,12 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
-  BAIL_IF(!dialect);
+  auto& dialect = get_library_dialect(*workspace_toolchain);
   Allocator::Arena lexical;
-  auto monograph = parse_authored(lexical, *dialect, workspace, errors, source);
+  auto monograph = parse_authored(lexical, dialect, workspace, errors, source);
   if (!monograph) {
     return False;
   }
@@ -118,12 +116,12 @@ static auto rejects_link(View::Bytes source) -> Bool {
 }
 
 static auto rejects_finalize_without_cases(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
-  BAIL_IF(!dialect);
+  auto& dialect = get_library_dialect(*workspace_toolchain);
   Allocator::Arena lexical;
-  auto owner = parse_authored(lexical, *dialect, workspace, errors, source);
+  auto owner = parse_authored(lexical, dialect, workspace, errors, source);
   if (!owner) {
     return False;
   }
@@ -166,7 +164,8 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_values_and_equal_aliases) {
       "  hexadecimal = 0x7F;\n"
       "  same = 127;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -245,7 +244,8 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, binary_wide_boundaries) {
       "  low = -9223372036854775808;\n"
       "  high = 9223372036854775807;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -332,7 +332,8 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, visibility_and_authored_order) {
       "private Hidden : enum[Signed_16] { hidden = -1; }\n"
       "public First : enum[Unsigned_16] { first = 1; }\n"
       "public Second : enum[Unsigned_32] { second = 2; }"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);

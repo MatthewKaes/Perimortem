@@ -49,6 +49,12 @@ class Monograph : public Ttx::Concept::Abstract {
   virtual auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
   virtual auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool;
 
+  // Restored graphs cross the same Package-wide barriers without manufacturing
+  // source text or a Cursor. A persistent Dialect reports rejection through
+  // process Diagnostics while these operations preserve transaction ordering.
+  virtual auto link_restored() -> Bool;
+  virtual auto finalize_restored() -> Bool;
+
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 

@@ -46,6 +46,11 @@ class Enumeration : public Model::Type {
       Tetrodotoxin::Language::Definition& definition)
       -> Perimortem::Core::Option<Enumeration&>;
 
+  static auto restore(
+      Archive::Reader& reader,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Enumeration&>;
+
   Enumeration(const Enumeration&) = delete;
   Enumeration(Enumeration&&) = delete;
   auto operator=(const Enumeration&) -> Enumeration& = delete;
@@ -79,6 +84,10 @@ class Enumeration : public Model::Type {
   auto link_types(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
+  auto link_restored_types() -> Bool override;
+
+  auto finalize_restored() -> Bool override;
+
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const
@@ -96,6 +105,8 @@ class Enumeration : public Model::Type {
   auto reserve(Llvm::Program& program) const -> Bool override;
 
   auto complete(Llvm::Program& program) const -> Bool override;
+
+  auto persist(Archive::Writer& writer) const -> Bool override;
 
   auto accepts_iteration(const Ttx::Concept::Layout& bindings) const
       -> Bool override;

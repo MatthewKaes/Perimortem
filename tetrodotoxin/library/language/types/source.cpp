@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/library/language/types/source.hpp"
 
+#include "perimortem/core/diagnostics/log.hpp"
+
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
@@ -75,6 +77,43 @@ auto Types::Source::parse(Cursor& cursor) -> Bool {
   return True;
 }
 
+auto Types::Source::persist(Archive::Writer& writer) const -> Bool {
+  auto record = writer.begin(Archive::Tag::Source);
+  BAIL_IF(
+      !writer.write(get_documentation()) ||
+      import_routes.get_size() > Unsigned_32(-1));
+
+  writer.write(Unsigned_32(import_routes.get_size()));
+  for (const Import& import : import_routes.get_view()) {
+    BAIL_IF(!import.persist(writer));
+  }
+
+  writer.write(Unsigned_8(foreign.is_authored() ? 1 : 0));
+  BAIL_IF(foreign.is_authored() && !foreign.persist(writer));
+
+  Bool public_only = writer.get_profile() ==
+                     Tetrodotoxin::Language::Persistence::Profile::Interface;
+  BAIL_IF(!persist_declarations(writer, public_only));
+  return writer.finish(record);
+}
+
+auto Types::Source::restore(
+    Archive::Reader& contents,
+    Tetrodotoxin::Language::Persistence::Profile profile) -> Bool {
+  auto import_count = contents.read_unsigned_32();
+  BAIL_IF(!import_count);
+  for (Count index = 0; index < *import_count; index++) {
+    auto import = Import::restore(contents, get_domain(), get_host());
+    BAIL_IF(!import);
+    import_routes.insert(*import);
+  }
+
+  auto has_foreign = contents.read_unsigned_8();
+  BAIL_IF(!has_foreign || *has_foreign > 1);
+  BAIL_IF(*has_foreign == 1 && !foreign.restore(contents));
+  return restore_declarations(contents, profile);
+}
+
 auto Types::Source::link_types(Cursor& cursor) -> Bool {
   while (link_aliases() != 0) {
   }
@@ -115,6 +154,58 @@ auto Types::Source::link(Cursor& cursor, Abstract& interpretation_context)
   BAIL_IF(!link_fields(cursor));
   BAIL_IF(!link_initializers(cursor));
   return link_callable_bodies(cursor);
+}
+
+auto Types::Source::link_restored(Abstract& interpretation_context) -> Bool {
+  if (!imports_linked) {
+    for (const Import& import : import_routes.get_view()) {
+      Option<const Abstract&> selected;
+      import.get_type_reference()
+          .resolve(interpretation_context)
+          .visit(
+              [&](const Abstract& resolved) { selected = resolved; },
+              [](const TypeReference::Failure&) {});
+      if (!selected || !retain_import(selected->resolve())) {
+        Diagnostics::Log::error(
+            "Restored Library Import did not resolve in Package context."_view);
+        return False;
+      }
+    }
+    imports_linked = True;
+  }
+
+  if (!Composite::link_restored_types()) {
+    Diagnostics::Log::error("Restored Library Types failed linking."_view);
+    return False;
+  }
+  if (!foreign.link_restored()) {
+    Diagnostics::Log::error("Restored Library Foreign failed linking."_view);
+    return False;
+  }
+  if (!Composite::link_restored_callable_signatures()) {
+    Diagnostics::Log::error(
+        "Restored Library Callable signatures failed linking."_view);
+    return False;
+  }
+  if (!Composite::link_restored_fields()) {
+    Diagnostics::Log::error("Restored Library Fields failed linking."_view);
+    return False;
+  }
+  if (!validate_layout_restored()) {
+    Diagnostics::Log::error(
+        "Restored Library value Layout does not terminate."_view);
+    return False;
+  }
+  if (!Composite::link_restored_initializers()) {
+    Diagnostics::Log::error(
+        "Restored Library initializers failed linking."_view);
+    return False;
+  }
+  return True;
+}
+
+auto Types::Source::finalize_restored() -> Bool {
+  return Composite::finalize_restored() && foreign.finalize_restored();
 }
 
 auto Types::Source::can_bind_static(const Abstract& binding, Category category)
@@ -233,7 +324,7 @@ auto Types::Source::bind_static(Abstract& binding, Category category) -> Bool {
 
   // Synthetic bindings admitted through this path have no Definition and
   // therefore never enter this source's public lookup index.
-  publish_binding(binding, category, False);
+  publish_binding(binding, category, False, False);
   return True;
 }
 
@@ -309,19 +400,19 @@ auto Types::Source::resolve_imports(View::Bytes route) const
   // list. Context, access, and call queries all accept no answer as missing and
   // repeated answers only when they resolve to the same identity. Distinct
   // provider identities make the query ambiguous and therefore Invalid.
-  const Abstract* selected = nullptr;
+  Option<const Abstract&> selected;
   for (const Reference<const Abstract>& retained : imports.get_view()) {
     const Abstract& candidate = retained.get().resolve_context(route);
     if (candidate.is<Invalid>()) {
       continue;
     }
-    if (selected != nullptr && &selected->resolve() != &candidate.resolve()) {
+    if (selected && &selected->resolve() != &candidate.resolve()) {
       return Invalid::get_invalid();
     }
-    selected = &candidate;
+    selected = candidate;
   }
 
-  return selected == nullptr ? Invalid::get_invalid() : *selected;
+  return selected ? *selected : Invalid::get_invalid();
 }
 
 auto Types::Source::resolve_type_access(
@@ -333,7 +424,7 @@ auto Types::Source::resolve_type_access(
     return local;
   }
 
-  const Abstract* selected = nullptr;
+  Option<const Abstract&> selected;
   for (const Reference<const Abstract>& retained : imports.get_view()) {
     const Abstract& context = retained.get();
     const Abstract& candidate = context.visit<Type>(
@@ -346,13 +437,13 @@ auto Types::Source::resolve_type_access(
     if (candidate.is<Invalid>()) {
       continue;
     }
-    if (selected != nullptr && &selected->resolve() != &candidate.resolve()) {
+    if (selected && &selected->resolve() != &candidate.resolve()) {
       return Invalid::get_invalid();
     }
-    selected = &candidate;
+    selected = candidate;
   }
 
-  return selected == nullptr ? Invalid::get_invalid() : *selected;
+  return selected ? *selected : Invalid::get_invalid();
 }
 
 auto Types::Source::resolve_type_call(
@@ -364,7 +455,7 @@ auto Types::Source::resolve_type_call(
     return local;
   }
 
-  const Abstract* selected = nullptr;
+  Option<const Abstract&> selected;
   for (const Reference<const Abstract>& retained : imports.get_view()) {
     const Abstract& context = retained.get();
     const Abstract& candidate = context.visit<Type>(
@@ -377,13 +468,13 @@ auto Types::Source::resolve_type_call(
     if (candidate.is<Invalid>()) {
       continue;
     }
-    if (selected != nullptr && &selected->resolve() != &candidate.resolve()) {
+    if (selected && &selected->resolve() != &candidate.resolve()) {
       return Invalid::get_invalid();
     }
-    selected = &candidate;
+    selected = candidate;
   }
 
-  return selected == nullptr ? Invalid::get_invalid() : *selected;
+  return selected ? *selected : Invalid::get_invalid();
 }
 
 auto Types::Source::resolve_local(View::Bytes route, Visibility visibility)

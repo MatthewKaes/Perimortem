@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/flow/match.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -36,10 +37,6 @@ static Harness MatchTests = {
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "MatchTest"_view, "match.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -63,7 +60,8 @@ static auto find_function(
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty() &&
          &workspace.resolve_context("MatchTest"_view) ==
@@ -71,7 +69,8 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty();
@@ -91,7 +90,8 @@ PERIMORTEM_UNIT_TEST(MatchTests, ordered_cases_and_complete_flag_coverage) {
       "    }\n"
       "  }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -154,7 +154,8 @@ PERIMORTEM_UNIT_TEST(MatchTests, folded_case_and_final_default) {
       "    case _ : return 9;\n"
       "  }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -194,7 +195,8 @@ PERIMORTEM_UNIT_TEST(MatchTests, case_blocks_inherit_the_nearest_loop) {
       "  }\n"
       "  return;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -227,7 +229,8 @@ PERIMORTEM_UNIT_TEST(MatchTests, option_patterns_are_exact_and_branch_local) {
       "    case _ : return 0;\n"
       "  }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);

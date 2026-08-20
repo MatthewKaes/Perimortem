@@ -7,6 +7,10 @@
 using namespace Tetrodotoxin::Library;
 using namespace Ttx::Concept;
 
+auto Language::Model::Callable::persist(Archive::Writer&) const -> Bool {
+  return False;
+}
+
 static auto reserve_layout(Llvm::Program& program, const Layout& layout)
     -> Bool {
   for (Count index = 0; index < layout.get_size(); index++) {
@@ -21,7 +25,7 @@ static auto reserve_layout(Llvm::Program& program, const Layout& layout)
       type = addressable->get_type();
     }
 
-    if (!type || !type->reserve(program)) {
+    if (!type || !type->reserve_value(program)) {
       return False;
     }
   }
@@ -43,7 +47,7 @@ static auto complete_layout(Llvm::Program& program, const Layout& layout)
       type = addressable->get_type();
     }
 
-    if (!type || !type->complete(program)) {
+    if (!type || !type->complete_value(program)) {
       return False;
     }
   }

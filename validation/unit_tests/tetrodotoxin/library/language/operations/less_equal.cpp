@@ -388,10 +388,8 @@ PERIMORTEM_UNIT_TEST(LibraryLessEqual, recursive_provenance_and_atomicity) {
       resolve_library_unsigned(source, "Unsigned_64"_view);
   Errors success_errors;
   Tokenizer success_tokens(domain, "2 <= 2"_view, "less-equal.ttx"_view);
-  Ttx::Lexical::Associations success_associations(
-      success_tokens.get_arena());
-  Cursor success_cursor(
-      success_tokens, success_errors, success_associations);
+  Ttx::Lexical::Associations success_associations(success_tokens.get_arena());
+  Cursor success_cursor(success_tokens, success_errors, success_associations);
   Token success_left_token = success_cursor.consume();
   auto success_left_anchor =
       Anchor::create(success_left_token, Span(success_left_token));
@@ -401,10 +399,8 @@ PERIMORTEM_UNIT_TEST(LibraryLessEqual, recursive_provenance_and_atomicity) {
       source, success_cursor, success_left, Span(success_left_token));
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "2 <= true"_view, "less-equal.ttx"_view);
-  Ttx::Lexical::Associations failure_associations(
-      failure_tokens.get_arena());
-  Cursor failure_cursor(
-      failure_tokens, failure_errors, failure_associations);
+  Ttx::Lexical::Associations failure_associations(failure_tokens.get_arena());
+  Cursor failure_cursor(failure_tokens, failure_errors, failure_associations);
   Token failure_left_token = failure_cursor.consume();
   auto failure_left_anchor =
       Anchor::create(failure_left_token, Span(failure_left_token));

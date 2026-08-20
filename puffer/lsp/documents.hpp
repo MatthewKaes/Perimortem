@@ -9,11 +9,14 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/record.hpp"
+#include "perimortem/memory/dynamic/vector.hpp"
 
 #include "puffer/lsp/document.hpp"
-#include "puffer/lsp/semantic_workspace.hpp"
+#include "tetrodotoxin/environment/toolchain.hpp"
+#include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/package/snapshots.hpp"
 #include "ttx/concept/abstract.hpp"
+#include "ttx/lexical/errors.hpp"
 
 namespace Puffer::Lsp {
 
@@ -42,8 +45,7 @@ class Documents {
     Perimortem::Core::View::Bytes source_name;
   };
 
-  Documents(Perimortem::Core::View::Bytes packages_root = {})
-      : packages_root(packages_root) {}
+  Documents(Perimortem::Core::View::Bytes packages_root = {});
 
   auto upsert(
       Perimortem::Core::View::Bytes uri,
@@ -65,21 +67,33 @@ class Documents {
     Bool active = False;
     Perimortem::Memory::Dynamic::Bytes root;
     Perimortem::Core::Option<
-        Perimortem::Memory::Dynamic::Record<Tetrodotoxin::Package::Snapshots>>
-        snapshots;
-    Perimortem::Core::Option<
-        Perimortem::Memory::Dynamic::Record<SemanticWorkspace>>
-        semantics;
+        Perimortem::Memory::Dynamic::Record<Ttx::Lexical::Errors>>
+        errors;
+    Perimortem::Core::Option<Perimortem::Memory::Dynamic::Record<
+        Tetrodotoxin::Environment::Workspace>>
+        workspace;
+    Perimortem::Memory::Dynamic::Vector<Perimortem::Memory::Dynamic::Bytes>
+        dependencies;
   };
 
   auto find(Perimortem::Core::View::Bytes uri) const -> Count;
   auto find_session(Perimortem::Core::View::Bytes root) const -> Count;
-  auto get_semantics(Document& document) -> SemanticWorkspace&;
+  auto create_workspace(Document& document)
+      -> Perimortem::Core::Option<Tetrodotoxin::Environment::Workspace&>;
+  auto get_workspace(Document& document)
+      -> Perimortem::Core::Option<Tetrodotoxin::Environment::Workspace&>;
+  auto get_errors(Document& document)
+      -> Perimortem::Core::Option<const Ttx::Lexical::Errors&>;
+  auto invalidate_package(Perimortem::Core::View::Bytes root) -> void;
   auto select_session(Document& document) -> Perimortem::Core::Option<Session&>;
 
+  Tetrodotoxin::Environment::Toolchain toolchain;
+  Perimortem::Memory::Dynamic::Record<Tetrodotoxin::Package::Snapshots>
+      snapshots;
   Perimortem::Core::Static::Vector<Document, 64> records;
   Perimortem::Core::Static::Vector<Session, 16> sessions;
   Perimortem::Memory::Dynamic::Bytes packages_root;
+  Bool toolchain_ready = False;
 };
 
 }  // namespace Puffer::Lsp

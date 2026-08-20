@@ -28,7 +28,7 @@ auto Tetrodotoxin::Library::Llvm::Compiler::compile(
   Program program(
       arena, request.get_errors(), request.get_source_path(),
       request.get_source_text(), request.get_target(),
-      request.get_debug_level());
+      request.get_debug_level(), request.get_unit());
   Bool initialized = program.initialize();
   if (!initialized) {
     return Failure::ToolchainFailed;

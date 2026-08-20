@@ -31,8 +31,19 @@ class Call : public Expression {
       Ttx::Lexical::Cursor& cursor,
       Expression& receiver) -> Perimortem::Core::Option<Expression&>;
 
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Expression& receiver,
+      Perimortem::Core::View::Bytes name,
+      Language::Model::Pack& arguments) -> Call&;
+
   auto link(
       Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& lexical_context,
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
+      -> Bool override;
+
+  auto link_restored(
       const Ttx::Concept::Abstract& lexical_context,
       Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool override;
@@ -48,7 +59,6 @@ class Call : public Expression {
   auto get_layout() const -> const Ttx::Concept::Layout& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
-
   auto lower(Llvm::Builder& body) const -> Bool override;
 
   auto get_callable() const -> Perimortem::Core::Option<const Model::Callable&>;

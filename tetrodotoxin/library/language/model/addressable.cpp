@@ -7,14 +7,18 @@
 
 using namespace Tetrodotoxin::Library;
 
+auto Language::Model::Addressable::persist(Archive::Writer&) const -> Bool {
+  return False;
+}
+
 auto Language::Model::Addressable::reserve_declaration(
     Llvm::Program& program) const -> Bool {
-  return get_type().reserve(program);
+  return get_type().reserve_value(program);
 }
 
 auto Language::Model::Addressable::complete_declaration(
     Llvm::Program& program) const -> Bool {
-  Bool completed = get_type().complete(program);
+  Bool completed = get_type().complete_value(program);
   if (!completed) {
     return False;
   }

@@ -350,6 +350,26 @@ def run_test():
     check("state prefix : View[Unsigned_8]" in restored_markdown,
           "restoring an overlay rebuilds one complete Package snapshot")
 
+    renamed_system = system_source.replace(
+        "public read_line", "public renamed_line")
+    send_did_change(conn, system_uri, renamed_system, 2)
+    dependency_hover = send_hover(
+        conn, main_uri, main_source, "prefix", 14, prefix_use)
+    check(dependency_hover is not None and
+          dependency_hover.get("result") is None,
+          "editing a dependency invalidates every consuming Package graph")
+    send_did_change(conn, system_uri, system_source, 3)
+    dependency_restored_hover = send_hover(
+        conn, main_uri, main_source, "prefix", 15, prefix_use)
+    dependency_restored_result = (
+        dependency_restored_hover.get("result")
+        if dependency_restored_hover else None)
+    dependency_restored_markdown = (
+        dependency_restored_result.get("contents", {}).get("value", "")
+        if dependency_restored_result else "")
+    check("state prefix : View[Unsigned_8]" in dependency_restored_markdown,
+          "restoring a dependency overlay rebuilds its consumers")
+
     print("\n--- Semantic tokens: Library/default dialect ---")
     library_source = (
         "dialect : Library;\n"

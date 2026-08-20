@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/library/language/model/layout.hpp"
 
+#include "perimortem/core/diagnostics/log.hpp"
+
 #include "tetrodotoxin/library/language/model/parser/layout.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/parameter.hpp"
@@ -139,6 +141,95 @@ auto Language::Model::Layout::interpret(
   Layout& layout = domain.construct_from<Layout>(
       [&]() -> Layout { return Layout(domain, slots, anchor); });
   return layout;
+}
+
+auto Language::Model::Layout::persist(Archive::Writer& writer) const -> Bool {
+  auto record = writer.begin(Archive::Tag::Layout);
+  BAIL_IF(get_size() > Unsigned_32(-1));
+
+  writer.write(Unsigned_32(get_size()));
+  for (Count index = 0; index < get_size(); index++) {
+    auto name = get_name(index);
+    BAIL_IF(!writer.write(name ? *name : View::Bytes()));
+
+    auto reference = get_type_reference(index);
+    writer.write(Unsigned_8(reference ? 1 : 0));
+    BAIL_IF(reference && !reference->persist(writer));
+  }
+  return writer.finish(record);
+}
+
+auto Language::Model::Layout::restore(
+    Archive::Reader& reader,
+    Allocator::Arena& arena,
+    const Abstract& context) -> Option<Layout&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != Unsigned_16(Archive::Tag::Layout) ||
+      record->is_optional());
+
+  Archive::Reader contents(record->get_payload());
+  auto count = contents.read_unsigned_32();
+  BAIL_IF(!count || Count(*count) > record->get_payload().get_size());
+
+  Managed::Vector<Slot> slots(arena);
+  for (Count index = 0; index < *count; index++) {
+    auto name = contents.read_bytes();
+    auto has_reference = contents.read_unsigned_8();
+    BAIL_IF(!name || !has_reference || *has_reference > 1);
+
+    Option<TypeReference> reference;
+    if (*has_reference == 1) {
+      // TypeReference restoration does not resolve its route. The Layout's
+      // source-free link barrier receives the real host after every member has
+      // reserved its declaration identities.
+      auto restored = TypeReference::restore(contents, arena, context);
+      BAIL_IF(!restored);
+      reference = *restored;
+    }
+
+    slots.insert(Slot(reference, Anchor::create(Span()), arena.proxy(*name)));
+  }
+  BAIL_IF(!contents.is_complete());
+
+  return arena.construct_from<Layout>(
+      [&]() -> Layout { return Layout(arena, slots, Anchor::create(Span())); });
+}
+
+auto Language::Model::Layout::link_restored(
+    const Abstract& host,
+    Bool parameters) -> Bool {
+  if (is_linked()) {
+    return True;
+  }
+
+  for (Count index = 0; index < slots.get_size(); index++) {
+    Slot& slot = slots[index];
+    Option<const Type&> type;
+    if (!slot.type_reference) {
+      auto host_type = host.select<Type>();
+      BAIL_IF(
+          !parameters || index != 0 || slot.name != "self"_view || !host_type);
+      type = *host_type;
+    } else {
+      slot.type_reference->resolve_lexical(host).visit(
+          [&](const Abstract& selected) { type = selected.select<Type>(); },
+          [](const TypeReference::Failure&) {});
+      BAIL_IF(!type);
+    }
+
+    BAIL_IF(type->get_layout().is_empty());
+    if (parameters) {
+      auto parameter = Parameter::create_authored(domain, slot.name, *type);
+      BAIL_IF(!parameter);
+      slot.edge = Reference<const Abstract>(*parameter);
+    } else {
+      slot.edge = Reference<const Abstract>(*type);
+    }
+  }
+
+  BAIL_IF(is_named() && !has_unique_names());
+  return True;
 }
 
 auto Language::Model::Layout::link_parameters(
@@ -383,6 +474,13 @@ auto Language::Model::Layout::get_slot_anchor(Count index) const
   auto slot = get_slot(index);
   BAIL_IF(!slot);
   return slot->anchor;
+}
+
+auto Language::Model::Layout::get_type_reference(Count index) const
+    -> Option<const TypeReference&> {
+  auto slot = get_slot(index);
+  BAIL_IF(!slot || !slot->type_reference);
+  return *slot->type_reference;
 }
 
 auto Language::Model::Layout::fits_value(

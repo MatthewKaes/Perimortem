@@ -7,7 +7,10 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
+#include "perimortem/system/version.hpp"
+
 #include "tetrodotoxin/package/archive/archive.hpp"
+#include "tetrodotoxin/package/language/monograph.hpp"
 
 namespace Tetrodotoxin::Package::Archive {
 
@@ -22,6 +25,16 @@ class Writer {
   // the Format 1 limit logs a warning. Failure to reach the measured boundary
   // logs an error.
   static auto write(const Archive& archive)
+      -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
+
+  static auto write(
+      const Package::Language::Monograph& package,
+      Perimortem::Core::View::Bytes identity,
+      Perimortem::System::Version version,
+      Tetrodotoxin::Language::Persistence::Profile profile,
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes>
+          artifact_ids = {},
+      Perimortem::Core::View::Vector<Export> exports = {})
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 };
 

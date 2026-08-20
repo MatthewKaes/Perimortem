@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/flow/loop_control.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -32,10 +33,6 @@ static Harness LoopControlTests = {
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "LoopControlTest"_view, "loop_control.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -59,7 +56,8 @@ static auto find_function(
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty() &&
          &workspace.resolve_context("LoopControlTest"_view) ==
@@ -67,7 +65,8 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty();
@@ -89,7 +88,8 @@ PERIMORTEM_UNIT_TEST(LoopControlTests, nearest_loop_identity) {
       "  }\n"
       "  return;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);

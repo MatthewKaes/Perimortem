@@ -3,9 +3,12 @@
 
 #include "tetrodotoxin/library/language/types/structure.hpp"
 
+#include "perimortem/core/diagnostics/log.hpp"
+
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/llvm/builder.hpp"
@@ -15,6 +18,40 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
+
+auto Types::Structure::persist(Archive::Writer& writer) const -> Bool {
+  auto record = writer.begin(Archive::Tag::Structure);
+  Archive::Declaration declaration(get_definition());
+  Bool public_only = writer.get_profile() ==
+                     Tetrodotoxin::Language::Persistence::Profile::Interface;
+  BAIL_IF(
+      !declaration.write(writer) ||
+      !persist_declarations(writer, public_only) || !writer.finish(record));
+  return True;
+}
+
+auto Types::Structure::restore(
+    Archive::Reader& reader,
+    Allocator::Arena& arena,
+    Abstract& host,
+    Tetrodotoxin::Language::Persistence::Profile profile)
+    -> Option<Structure&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != Unsigned_16(Archive::Tag::Structure) ||
+      record->is_optional());
+
+  Archive::Reader contents(record->get_payload());
+  auto declaration = Archive::Declaration::read(contents, arena);
+  BAIL_IF(!declaration);
+
+  auto& definition = declaration->create_definition(arena, host);
+  Structure& structure = arena.construct_from<Structure>(
+      [&]() -> Structure { return Structure(arena, definition, False); });
+  BAIL_IF(!structure.restore_declarations(contents, profile));
+  structure.complete_field_layout();
+  return structure;
+}
 
 auto Types::Structure::interpret(
     Cursor& cursor,
@@ -97,32 +134,98 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
     -> Option<Model::Pack&> {
   BAIL_IF(get_layout().is_empty());
 
-  // Structure owns this exact instance Field inventory, so selecting Field is
-  // construction local to the owner rather than a consumer category switch.
-  // Authored Layout order is filled from each Field initializer before asking
-  // that Field's exact Type for its default.
-  Managed::Vector<Ttx::Concept::Reference<Model::Pack>> values(arena);
-  values.reset(get_layout().get_size());
-  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-       get_addressables()) {
-    auto field = candidate.get().select<Field>();
-    if (!field || field->get_writability() != Writability::Internal) {
-      continue;
-    }
-
-    auto initializer = field->get_initializer();
-    if (initializer) {
-      values.insert(const_cast<Model::Pack&>(*initializer));
-      continue;
-    }
-
-    auto value = field->get_type().create_default(arena);
-    BAIL_IF(!value);
-    values.insert(*value);
+  if (construction && !provider_construction) {
+    return construction->create_call(arena);
   }
 
-  return Expressions::Initializer::create_synthetic(
-      arena, *this, values.get_view());
+  if (creating_default) {
+    Perimortem::Core::Diagnostics::Log::Message<256> message(
+        Perimortem::Core::Diagnostics::Log::Level::Error,
+        Perimortem::Core::Diagnostics::Source());
+    message << "Library default construction recursively reentered Type `"_view
+            << get_name() << "`."_view;
+    return {};
+  }
+
+  creating_default = True;
+  auto result = [&]() -> Option<Model::Pack&> {
+    // Structure owns this exact instance Field inventory, so selecting Field is
+    // construction local to the owner rather than a consumer category switch.
+    // Authored Layout order is filled from each Field initializer before asking
+    // that Field's exact Type for its default.
+    Managed::Vector<Ttx::Concept::Reference<Model::Pack>> values(arena);
+    values.reset(get_layout().get_size());
+    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
+         get_addressables()) {
+      auto field = candidate.get().select<Field>();
+      if (!field || field->get_writability() != Writability::Internal) {
+        continue;
+      }
+
+      auto initializer = field->get_initializer();
+      if (initializer) {
+        values.insert(const_cast<Model::Pack&>(*initializer));
+        continue;
+      }
+
+      auto value = field->get_type().create_default(arena);
+      BAIL_IF(!value);
+      values.insert(*value);
+    }
+
+    return Expressions::Initializer::create_synthetic(
+        arena, *this, values.get_view());
+  }();
+  creating_default = False;
+  return result;
+}
+
+auto Types::Structure::complete_construction() -> Bool {
+  if (construction || get_layout().is_empty() ||
+      !is_externally_reachable(*this)) {
+    return True;
+  }
+
+  auto created =
+      Construction::create(get_domain(), *this, provider_construction);
+  BAIL_IF(!created);
+  construction = *created;
+  return True;
+}
+
+auto Types::Structure::link_fields(Cursor& cursor) -> Bool {
+  return Composite::link_fields(cursor) && complete_construction();
+}
+
+auto Types::Structure::link_restored_fields() -> Bool {
+  return Composite::link_restored_fields() && complete_construction();
+}
+
+auto Types::Structure::reserve(Llvm::Program& program) const -> Bool {
+  return Composite::reserve(program) &&
+         (!construction || construction->reserve_declaration(program));
+}
+
+auto Types::Structure::complete(Llvm::Program& program) const -> Bool {
+  return Composite::complete(program) &&
+         (!construction || construction->complete_declaration(program));
+}
+
+auto Types::Structure::lower(Llvm::Program& program) const -> Bool {
+  return Composite::lower(program) &&
+         (!construction || construction->lower_declaration(program));
+}
+
+auto Types::Structure::resolve_type_call(
+    const Abstract& host,
+    View::Bytes route,
+    Model::Type::Access access) const -> const Abstract& {
+  if (access == Model::Type::Access::Static && construction &&
+      route == construction->get_name()) {
+    return *construction;
+  }
+
+  return Composite::resolve_type_call(host, route, access);
 }
 
 auto Types::Structure::reserve_carrier(Llvm::Program& program) const

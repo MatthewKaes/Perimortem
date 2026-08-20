@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/access/swizzle.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -51,8 +52,6 @@ static auto find_return(const Language::Function& function)
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  BAIL_IF(!workspace.install_dialect<Dialect>("Library"_view));
-
   auto interpreted = workspace.interpret_source(
       errors, "SwizzleTest"_view, "swizzle.ttx"_view, source);
   BAIL_IF(!interpreted || !interpreted->is<Language::Monograph>());
@@ -60,13 +59,15 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty();
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty();
@@ -139,7 +140,8 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
       "packet.[height, width];\n"
       "private chained : Unsigned_64 = "
       "Packet -> echo(packet).[width] + 1;"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -219,7 +221,8 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, named_pack_reorders_real_producers) {
       "private right : Bool = false;\n"
       "private reordered : Pair = "
       "(.x = left, .y = right).[y, x];"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -282,7 +285,8 @@ PERIMORTEM_UNIT_TEST(
       "private reordered : Reordered = "
       "Results -> produce().[flag, count];\n"
       "private selected : Bool = Results -> produce().[flag];"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);

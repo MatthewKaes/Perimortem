@@ -3,17 +3,21 @@
 
 #include "puffer/lsp/documents.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/dynamic/vector.hpp"
 
 #include "perimortem/system/file.hpp"
 #include "perimortem/system/path.hpp"
+#include "perimortem/system/version.hpp"
 
+#include "tetrodotoxin/app/dialect.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/language/dialect.hpp"
+#include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/package/storage.hpp"
+#include "tetrodotoxin/scene/dialect.hpp"
 #include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -94,6 +98,7 @@ static auto relative_path(View::Bytes root, View::Bytes path)
 }
 
 static auto manifest_claims(
+    Environment::Toolchain& toolchain,
     View::Bytes manifest_path,
     View::Bytes manifest_source,
     View::Bytes logical_route) -> Bool {
@@ -103,11 +108,9 @@ static auto manifest_claims(
       transaction, manifest_source, manifest_path);
   Ttx::Lexical::Associations associations(transaction);
   Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
-  Environment::Workspace context;
-  Package::Dialect package;
-  Static::Vector<Tetrodotoxin::Language::Dialect*, 1> dialects = {{&package}};
+  Environment::Workspace context(toolchain);
   auto interpreted = Tetrodotoxin::Language::Dialect::interpret_source(
-      dialects.get_view(), cursor, context);
+      toolchain.get_dialects(), cursor, context);
   BAIL_IF(!interpreted);
 
   auto manifest = interpreted->select<Package::Language::Monograph>();
@@ -126,14 +129,29 @@ struct PackageLocation {
   Dynamic::Bytes route;
 };
 
-static auto find_package(View::Bytes path, View::Bytes source)
-    -> Option<PackageLocation> {
+static auto find_package(
+    Environment::Toolchain& toolchain,
+    Dynamic::Record<Package::Snapshots> snapshots,
+    View::Bytes path,
+    View::Bytes source) -> Option<PackageLocation> {
   Path normalized(path);
   View::Bytes directory = normalized.get_directory();
   View::Bytes file = normalized.get_file();
   while (!directory.is_empty()) {
     Dynamic::Bytes manifest_path = join_path(directory, "package.ttx"_view);
-    if (File::exists(manifest_path.get_view())) {
+    Allocator::Arena acquisition;
+    auto storage =
+        File::exists(manifest_path.get_view())
+            ? Package::Storage::open(acquisition, directory, snapshots)
+            : Option<Package::Storage>();
+    Option<Package::Content&> manifest;
+    if (storage) {
+      storage->read("package.ttx"_view)
+          .visit(
+              [&](Package::Content& content) { manifest = content; },
+              [](const Package::Storage::Failure&) {});
+    }
+    if (manifest) {
       Dynamic::Bytes route = relative_path(directory, normalized.get_view());
       if (!route.is_empty()) {
         Dynamic::Bytes manifest_source;
@@ -141,16 +159,13 @@ static auto find_package(View::Bytes path, View::Bytes source)
             manifest_path.get_view() == normalized.get_view()) {
           manifest_source = source;
         } else {
-          auto read = File::read(manifest_path.get_view());
-          if (read) {
-            manifest_source = static_cast<Dynamic::Bytes&&>(*read);
-          }
+          manifest_source = manifest->get_contents();
         }
 
         Bool claimed = route == "package.ttx"_view ||
                        (!manifest_source.is_empty() &&
                         manifest_claims(
-                            manifest_path.get_view(),
+                            toolchain, manifest_path.get_view(),
                             manifest_source.get_view(), route.get_view()));
         if (claimed) {
           return PackageLocation(directory, route.get_view());
@@ -167,6 +182,128 @@ static auto find_package(View::Bytes path, View::Bytes source)
   }
 
   return {};
+}
+
+class PackageRequest {
+ public:
+  PackageRequest(View::Bytes identity, Version version, View::Bytes root)
+      : identity(identity), version(version), root(root) {}
+
+  auto matches(View::Bytes selected_identity, Version selected_version) const
+      -> Bool {
+    return identity == selected_identity && version == selected_version;
+  }
+
+  constexpr auto get_root() const -> View::Bytes { return root; }
+
+ private:
+  Dynamic::Bytes identity;
+  Version version;
+  Dynamic::Bytes root;
+};
+
+static auto contains_request(
+    View::Vector<PackageRequest> requests,
+    View::Bytes identity,
+    Version version) -> Bool {
+  return requests.contains([&](const PackageRequest& request) {
+    return request.matches(identity, version);
+  });
+}
+
+static auto inspect_package(
+    Environment::Toolchain& toolchain,
+    Environment::Workspace& workspace,
+    Ttx::Lexical::Errors& errors,
+    Dynamic::Record<Package::Snapshots> snapshots,
+    View::Bytes package_root,
+    Allocator::Arena& transaction) -> Option<Package::Language::Monograph&> {
+  Allocator::Arena acquisition;
+  auto storage = Package::Storage::open(acquisition, package_root, snapshots);
+  BAIL_IF(!storage);
+
+  Option<Package::Content&> manifest;
+  storage->read("package.ttx"_view)
+      .visit(
+          [&](Package::Content& content) { manifest = content; },
+          [](const Package::Storage::Failure&) {});
+  BAIL_IF(!manifest);
+
+  View::Bytes source = transaction.proxy(manifest->get_contents());
+  View::Bytes path = transaction.proxy(manifest->get_diagnostic_path());
+  Ttx::Lexical::Tokenizer tokenizer(transaction, source, path);
+  Ttx::Lexical::Associations associations(transaction);
+  Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
+  auto interpreted = Tetrodotoxin::Language::Dialect::interpret_source(
+      toolchain.get_dialects(), cursor, workspace);
+  return interpreted ? interpreted->select<Package::Language::Monograph>()
+                     : Option<Package::Language::Monograph&>();
+}
+
+static auto import_package(
+    Environment::Toolchain& toolchain,
+    Environment::Workspace& workspace,
+    Ttx::Lexical::Errors& errors,
+    Dynamic::Record<Package::Snapshots> snapshots,
+    View::Bytes packages_root,
+    View::Bytes package_root,
+    View::Bytes semantic_name,
+    View::Bytes identity,
+    Version version,
+    Dynamic::Vector<PackageRequest>& loaded,
+    Dynamic::Vector<PackageRequest>& active) -> Bool {
+  if (contains_request(loaded, identity, version)) {
+    return True;
+  }
+
+  BAIL_IF(contains_request(active, identity, version));
+  active.emplace(PackageRequest(identity, version, package_root));
+
+  Allocator::Arena inspection;
+  auto manifest = inspect_package(
+      toolchain, workspace, errors, snapshots, package_root, inspection);
+  if (!manifest) {
+    active.remove(active.get_size() - 1);
+    return False;
+  }
+
+  Bool dependencies_loaded = True;
+  for (const Package::Language::Dependency& dependency :
+       manifest->get_dependencies()) {
+    Dynamic::Bytes dependency_root =
+        join_path(packages_root, dependency.get_package_name());
+    dependencies_loaded &= import_package(
+        toolchain, workspace, errors, snapshots, packages_root,
+        dependency_root.get_view(), dependency.get_package_name(),
+        dependency.get_package_name(), dependency.get_version(), loaded,
+        active);
+  }
+
+  Bool imported = False;
+  if (dependencies_loaded) {
+    imported = Bool(workspace.import_package(
+        errors, package_root, semantic_name, "package.ttx"_view, identity,
+        version));
+  }
+
+  active.remove(active.get_size() - 1);
+  if (imported) {
+    loaded.emplace(PackageRequest(identity, version, package_root));
+  }
+  return imported;
+}
+
+Lsp::Documents::Documents(View::Bytes selected_packages_root)
+    : snapshots(), packages_root(selected_packages_root) {
+  auto package = toolchain.install<Package::Dialect>("Package"_view);
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
+  auto app = toolchain.install<App::Dialect>("App"_view);
+  if (!package || !library || !app) {
+    return;
+  }
+
+  toolchain_ready =
+      Bool(toolchain.install<Scene::Dialect>("Scene"_view, *library));
 }
 
 auto Lsp::Documents::find(View::Bytes uri) const -> Count {
@@ -220,11 +357,12 @@ auto Lsp::Documents::upsert(View::Bytes uri, View::Bytes source) -> void {
 
   Document& document = records[slot];
   document.text = source;
-  document.standalone_semantics = {};
+  document.standalone_errors = {};
+  document.standalone_workspace = {};
 
   Dynamic::Bytes path = decode_file_uri(uri);
   if (document.package_root.is_empty() && !path.is_empty()) {
-    auto package = find_package(path.get_view(), source);
+    auto package = find_package(toolchain, snapshots, path.get_view(), source);
     if (package) {
       document.package_root = package->root;
       document.logical_route = package->route;
@@ -245,7 +383,6 @@ auto Lsp::Documents::upsert(View::Bytes uri, View::Bytes source) -> void {
       Session& created = sessions[selected];
       created.active = True;
       created.root = document.package_root;
-      created.snapshots = Dynamic::Record<Package::Snapshots>();
       session = created;
     }
   }
@@ -255,12 +392,11 @@ auto Lsp::Documents::upsert(View::Bytes uri, View::Bytes source) -> void {
     document.logical_route.clear();
   }
 
-  if (session && session->snapshots) {
-    (*session->snapshots)
-        ->overlay(
-            document.package_root.get_view(), document.logical_route.get_view(),
-            source);
-    session->semantics = {};
+  if (session) {
+    snapshots->overlay(
+        document.package_root.get_view(), document.logical_route.get_view(),
+        source);
+    invalidate_package(document.package_root.get_view());
   }
 }
 
@@ -272,12 +408,10 @@ auto Lsp::Documents::erase(View::Bytes uri) -> void {
 
   Document& document = records[slot];
   auto session = select_session(document);
-  if (session && session->snapshots) {
-    (*session->snapshots)
-        ->remove_overlay(
-            document.package_root.get_view(),
-            document.logical_route.get_view());
-    session->semantics = {};
+  if (session) {
+    snapshots->remove_overlay(
+        document.package_root.get_view(), document.logical_route.get_view());
+    invalidate_package(document.package_root.get_view());
   }
 
   Dynamic::Bytes root = document.package_root;
@@ -286,7 +420,8 @@ auto Lsp::Documents::erase(View::Bytes uri) -> void {
   document.text.clear();
   document.package_root.clear();
   document.logical_route.clear();
-  document.standalone_semantics = {};
+  document.standalone_errors = {};
+  document.standalone_workspace = {};
 
   if (root.is_empty()) {
     return;
@@ -302,8 +437,9 @@ auto Lsp::Documents::erase(View::Bytes uri) -> void {
     if (selected != Count(-1)) {
       sessions[selected].active = False;
       sessions[selected].root.clear();
-      sessions[selected].snapshots = {};
-      sessions[selected].semantics = {};
+      sessions[selected].errors = {};
+      sessions[selected].workspace = {};
+      sessions[selected].dependencies.clear();
     }
   }
 }
@@ -313,27 +449,67 @@ auto Lsp::Documents::get_text(View::Bytes uri) const -> Dynamic::Bytes {
   return slot == Count(-1) ? Dynamic::Bytes() : records[slot].text;
 }
 
-auto Lsp::Documents::get_semantics(Document& document) -> SemanticWorkspace& {
+auto Lsp::Documents::create_workspace(Document& document)
+    -> Option<Environment::Workspace&> {
+  BAIL_IF(!toolchain_ready);
+
   auto session = select_session(document);
-  if (session && session->snapshots) {
-    if (!session->semantics) {
-      session->semantics = Dynamic::Record<SemanticWorkspace>(
-          SemanticWorkspace::Mode::Package, *session->snapshots,
-          document.logical_route.get_view(), document.text.get_view(),
-          document.package_root.get_view(), packages_root.get_view());
+  if (session) {
+    session->errors = Dynamic::Record<Ttx::Lexical::Errors>();
+    session->workspace =
+        Dynamic::Record<Environment::Workspace>(toolchain, snapshots);
+    Dynamic::Vector<PackageRequest> loaded;
+    Dynamic::Vector<PackageRequest> active;
+    import_package(
+        toolchain, **session->workspace, **session->errors, snapshots,
+        packages_root.get_view(), document.package_root.get_view(),
+        "puffer.package"_view, document.package_root.get_view(), Version(1, 0),
+        loaded, active);
+    session->dependencies.clear();
+    for (const PackageRequest& dependency : loaded.get_view()) {
+      session->dependencies.insert(Dynamic::Bytes(dependency.get_root()));
     }
-
-    return **session->semantics;
+    return **session->workspace;
   }
 
-  if (!document.standalone_semantics) {
-    document.standalone_semantics = Dynamic::Record<SemanticWorkspace>(
-        SemanticWorkspace::Mode::Standalone,
-        Dynamic::Record<Package::Snapshots>(), document.uri.get_view(),
-        document.text.get_view());
+  document.standalone_errors = Dynamic::Record<Ttx::Lexical::Errors>();
+  document.standalone_workspace =
+      Dynamic::Record<Environment::Workspace>(toolchain);
+  (*document.standalone_workspace)
+      ->interpret_source(
+          **document.standalone_errors, "puffer.document"_view,
+          document.uri.get_view(), document.text.get_view());
+  return **document.standalone_workspace;
+}
+
+auto Lsp::Documents::get_workspace(Document& document)
+    -> Option<Environment::Workspace&> {
+  auto session = select_session(document);
+  if (session) {
+    return session->workspace
+               ? Option<Environment::Workspace&>(**session->workspace)
+               : create_workspace(document);
   }
 
-  return **document.standalone_semantics;
+  return document.standalone_workspace
+             ? Option<Environment::Workspace&>(**document.standalone_workspace)
+             : create_workspace(document);
+}
+
+auto Lsp::Documents::get_errors(Document& document)
+    -> Option<const Ttx::Lexical::Errors&> {
+  BAIL_IF(!get_workspace(document));
+
+  auto session = select_session(document);
+  if (session) {
+    return session->errors
+               ? Option<const Ttx::Lexical::Errors&>(**session->errors)
+               : Option<const Ttx::Lexical::Errors&>();
+  }
+
+  return document.standalone_errors
+             ? Option<const Ttx::Lexical::Errors&>(**document.standalone_errors)
+             : Option<const Ttx::Lexical::Errors&>();
 }
 
 auto Lsp::Documents::get_diagnostics(View::Bytes uri) -> Option<Diagnostics> {
@@ -341,11 +517,12 @@ auto Lsp::Documents::get_diagnostics(View::Bytes uri) -> Option<Diagnostics> {
   BAIL_IF(slot == Count(-1));
 
   Document& document = records[slot];
-  SemanticWorkspace& semantics = get_semantics(document);
+  auto errors = get_errors(document);
+  BAIL_IF(!errors);
   View::Bytes source_name = document.package_root.is_empty()
                                 ? document.uri.get_view()
                                 : document.logical_route.get_view();
-  return Diagnostics(semantics.get_errors(), source_name);
+  return Diagnostics(*errors, source_name);
 }
 
 static auto utf_16_position_to_byte(
@@ -412,7 +589,26 @@ auto Lsp::Documents::find_semantic(
   View::Bytes source_name = document.package_root.is_empty()
                                 ? document.uri.get_view()
                                 : document.logical_route.get_view();
-  return get_semantics(document).find(source_name, *offset);
+  auto workspace = get_workspace(document);
+  BAIL_IF(!workspace);
+  auto associations = workspace->get_associations(source_name);
+  return associations ? associations->find_at(*offset)
+                      : Option<const Ttx::Concept::Abstract&>();
+}
+
+auto Lsp::Documents::invalidate_package(View::Bytes root) -> void {
+  for (Count index = 0; index < sessions.get_size(); index++) {
+    Session& session = sessions[index];
+    Bool affected =
+        session.root == root || session.dependencies.get_view().contains(
+                                    [&](const Dynamic::Bytes& dependency) {
+                                      return dependency == root;
+                                    });
+    if (session.active && affected) {
+      session.errors = {};
+      session.workspace = {};
+    }
+  }
 }
 
 auto Lsp::Documents::invalidate(View::Bytes uri) -> void {
@@ -427,17 +623,19 @@ auto Lsp::Documents::invalidate(View::Bytes uri) -> void {
       continue;
     }
 
-    Bool member = path.get_size() > session.root.get_size() &&
-                  path.get_view().slice(0, session.root.get_size()) ==
-                      session.root.get_view() &&
-                  path[session.root.get_size()] == '/';
-    Bool standard_member = !packages_root.is_empty() &&
-                           path.get_size() > packages_root.get_size() &&
-                           path.get_view().slice(0, packages_root.get_size()) ==
-                               packages_root.get_view() &&
-                           path[packages_root.get_size()] == '/';
-    if (member || standard_member) {
-      session.semantics = {};
+    auto contains_path = [&](View::Bytes root) {
+      return path.get_size() > root.get_size() &&
+             path.get_view().slice(0, root.get_size()) == root &&
+             path[root.get_size()] == '/';
+    };
+    Bool affected = contains_path(session.root.get_view()) ||
+                    session.dependencies.get_view().contains(
+                        [&](const Dynamic::Bytes& dependency) {
+                          return contains_path(dependency.get_view());
+                        });
+    if (affected) {
+      session.errors = {};
+      session.workspace = {};
     }
   }
 }

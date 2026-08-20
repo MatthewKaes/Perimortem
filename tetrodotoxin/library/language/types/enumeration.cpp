@@ -10,6 +10,7 @@
 #include "perimortem/memory/dynamic/vector.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/builtin/enum/name.hpp"
 #include "tetrodotoxin/library/builtin/enum/size.hpp"
 #include "tetrodotoxin/library/language/constants/enumeration.hpp"
@@ -27,6 +28,84 @@ using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
+
+auto Types::Enumeration::persist(Archive::Writer& writer) const -> Bool {
+  auto record = writer.begin(Archive::Tag::Enumeration);
+  Archive::Declaration declaration(definition);
+  BAIL_IF(
+      !declaration.write(writer) || !storage_reference.persist(writer) ||
+      cases.get_size() > Unsigned_32(-1));
+
+  writer.write(Unsigned_32(cases.get_size()));
+  for (Count index = 0; index < cases.get_size(); index++) {
+    auto case_record = writer.begin(Archive::Tag::EnumerationCase);
+    const Ttx::Model::Alias& selected =
+        cases.get_view().get_data()[index].get();
+    auto value = get_case_value(index);
+    BAIL_IF(
+        !writer.write(selected.get_documentation()) ||
+        !writer.write(selected.get_name()) || !value);
+    writer.write(*value);
+    BAIL_IF(!writer.finish(case_record));
+  }
+  return writer.finish(record);
+}
+
+auto Types::Enumeration::restore(
+    Archive::Reader& reader,
+    Allocator::Arena& arena,
+    Abstract& host) -> Option<Enumeration&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != Unsigned_16(Archive::Tag::Enumeration) ||
+      record->is_optional());
+
+  Archive::Reader contents(record->get_payload());
+  auto declaration = Archive::Declaration::read(contents, arena);
+  auto storage = TypeReference::restore(contents, arena, host);
+  auto count = contents.read_unsigned_32();
+  BAIL_IF(!declaration || !storage || !count);
+
+  auto& definition = declaration->create_definition(arena, host);
+  Enumeration& enumeration =
+      arena.construct_from<Enumeration>([&]() -> Enumeration {
+        return Enumeration(arena, definition, *storage);
+      });
+  enumeration.source_cases.reset(*count);
+  enumeration.cases.reset(*count);
+  for (Count index = 0; index < *count; index++) {
+    auto case_record = contents.read_record();
+    BAIL_IF(
+        !case_record ||
+        case_record->get_tag() != Unsigned_16(Archive::Tag::EnumerationCase) ||
+        case_record->is_optional());
+    Archive::Reader case_contents(case_record->get_payload());
+    auto documentation = case_contents.read_documentation(arena);
+    auto name = case_contents.read_bytes();
+    auto value = case_contents.read_unsigned_64();
+    BAIL_IF(
+        !documentation || !name || name->is_empty() || !value ||
+        !case_contents.is_complete());
+
+    Core::View::Bytes retained_name = arena.proxy(*name);
+    enumeration.source_cases.insert(
+        SourceCase{
+          .name = retained_name,
+          .value = {},
+          .documentation = *documentation,
+          .anchor = Anchor::create(Span()),
+          .name_anchor = Anchor::create(Span()),
+          .value_anchor = Anchor::create(Span()),
+        });
+    const Abstract& constant =
+        Constants::Enumeration::create_synthetic(arena, enumeration, *value);
+    const Ttx::Model::Alias& alias = arena.construct<Ttx::Model::Alias>(
+        retained_name, constant, *documentation);
+    enumeration.cases.insert(alias);
+  }
+  BAIL_IF(!contents.is_complete());
+  return enumeration;
+}
 
 static auto select_intrinsic_type(
     const Types::Enumeration& enumeration,
@@ -327,6 +406,43 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::link_types(
 
   storage_type = Reference<const Model::Type>(*selected_type);
   stage = Stage::StorageLinked;
+  return True;
+}
+
+auto Types::Enumeration::link_restored_types() -> Bool {
+  Option<const Model::Type&> selected_type;
+  storage_reference.resolve_lexical(get_host())
+      .visit(
+          [&](const Abstract& selected) {
+            selected_type = selected.select<Model::Type>();
+          },
+          [](const TypeReference::Failure&) {});
+  BAIL_IF(
+      !selected_type || (!selected_type->is<Model::Types::Signed>() &&
+                         !selected_type->is<Model::Types::Unsigned>()));
+
+  auto count_type = select_intrinsic_type(*this, "Unsigned_64"_view);
+  auto unsigned_count = count_type
+                            ? count_type->select<Model::Types::Unsigned>()
+                            : Option<const Model::Types::Unsigned&>();
+  auto name_type = select_name_type(*this);
+  BAIL_IF(!unsigned_count || !name_type);
+
+  publish_callable(
+      domain, Builtin::Enum::Name::create(domain, *this, *name_type), True);
+  auto& size = Builtin::Enum::Size::create(
+      domain, *unsigned_count, source_cases.get_size());
+  generated_size = Reference<const Model::Addressable>(size);
+  storage_type = Reference<const Model::Type>(*selected_type);
+  stage = Stage::StorageLinked;
+  return True;
+}
+
+auto Types::Enumeration::finalize_restored() -> Bool {
+  BAIL_IF(
+      stage != Stage::StorageLinked ||
+      cases.get_size() != source_cases.get_size());
+  stage = Stage::Finalized;
   return True;
 }
 

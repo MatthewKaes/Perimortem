@@ -68,6 +68,12 @@ class Result : public Model::Type {
 
   constexpr auto get_value_type() const -> const Model::Type& { return value; }
   constexpr auto get_error_type() const -> const Model::Type& { return error; }
+
+  constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
+    auto selected = value.get_declaration_anchor();
+    return selected ? selected : error.get_declaration_anchor();
+  }
   constexpr auto get_flag_type() const -> const Model::Types::Flag& {
     return flag;
   }

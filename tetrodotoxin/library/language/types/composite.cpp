@@ -6,9 +6,14 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/library/language/alias.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/parser/member.hpp"
+#include "tetrodotoxin/library/language/types/enumeration.hpp"
+#include "tetrodotoxin/library/language/types/object.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/termination.hpp"
@@ -140,7 +145,8 @@ Types::Composite::Composite(
       addressables(domain),
       published_addressables(domain),
       types(domain),
-      published_types(domain) {}
+      published_types(domain),
+      declarations(domain) {}
 
 auto Types::Composite::has_private_access_to(const Type& owner) const -> Bool {
   if (this == &owner) {
@@ -241,22 +247,32 @@ auto Types::Composite::retain_binding(
 auto Types::Composite::publish_binding(
     Abstract& binding,
     Category category,
-    Bool published) -> Bool {
+    Bool published,
+    Bool persistent) -> Bool {
   // The parser or importing provider supplies the category before publication.
   // Alias resolution is deliberately absent here: delayed graph completion
   // cannot change which namespace owns the local name.
   switch (category) {
   case Category::Addressable:
     addressables.insert(binding);
+    if (persistent) {
+      declarations.insert(binding);
+    }
     if (published) {
       published_addressables.insert(binding);
     }
     return True;
   case Category::Callable:
     publish_callable(domain, binding, published);
+    if (persistent) {
+      declarations.insert(binding);
+    }
     return True;
   case Category::Type:
     types.insert(binding);
+    if (persistent) {
+      declarations.insert(binding);
+    }
     if (published) {
       published_types.insert(binding);
     }
@@ -264,6 +280,154 @@ auto Types::Composite::publish_binding(
   }
 
   return False;
+}
+
+auto Types::Composite::is_published(const Abstract& declaration) const -> Bool {
+  return retains_binding(published_addressables.get_view(), declaration) ||
+         retains_binding(published_types.get_view(), declaration) ||
+         retains_binding(
+             get_callable_bindings(Visibility::Public), declaration);
+}
+
+auto Types::Composite::persist_declarations(
+    Archive::Writer& writer,
+    Bool public_only) const -> Bool {
+  Count hidden_slot = 0;
+  for (const Reference<Abstract>& retained : declarations.get_view()) {
+    const Abstract& declaration = retained.get();
+    if (public_only && !is_published(declaration)) {
+      auto field = declaration.select<Language::Field>();
+      if (field && field->contributes_to_instance_layout()) {
+        BAIL_IF(!field->persist_slot(writer, hidden_slot));
+        hidden_slot++;
+      }
+      continue;
+    }
+
+    auto alias = declaration.select<Language::Alias>();
+    if (alias) {
+      BAIL_IF(!alias->persist(writer));
+      continue;
+    }
+
+    auto addressable = declaration.select<Model::Addressable>();
+    if (addressable) {
+      BAIL_IF(!addressable->persist(writer));
+      continue;
+    }
+
+    auto callable = declaration.select<Model::Callable>();
+    if (callable) {
+      BAIL_IF(!callable->persist(writer));
+      continue;
+    }
+
+    auto type = declaration.select<Model::Type>();
+    BAIL_IF(!type || !type->persist(writer));
+  }
+  return True;
+}
+
+auto Types::Composite::restore_declarations(
+    Archive::Reader& reader,
+    Tetrodotoxin::Language::Persistence::Profile profile) -> Bool {
+  Count hidden_slot = 0;
+  while (!reader.is_complete()) {
+    Archive::Reader probe = reader;
+    auto record = probe.read_record();
+    BAIL_IF(!record);
+
+    if (record->is_optional()) {
+      BAIL_IF(!reader.read_record());
+      continue;
+    }
+
+    Option<Abstract&> restored;
+    Category category = Category::Addressable;
+    Archive::Tag tag = Archive::Tag(record->get_tag());
+    switch (tag) {
+    case Archive::Tag::Alias: {
+      auto selected = Language::Alias::restore(reader, domain, *this);
+      BAIL_IF(!selected);
+      restored = *selected;
+      category = Category::Type;
+      break;
+    }
+    case Archive::Tag::Field: {
+      auto selected = Language::Field::restore(reader, domain, *this);
+      BAIL_IF(!selected);
+      restored = *selected;
+      category = Category::Addressable;
+      break;
+    }
+    case Archive::Tag::FieldSlot: {
+      BAIL_IF(
+          profile != Tetrodotoxin::Language::Persistence::Profile::Interface);
+      auto selected =
+          Language::Field::restore_slot(reader, domain, *this, hidden_slot);
+      BAIL_IF(!selected);
+      restored = *selected;
+      category = Category::Addressable;
+      hidden_slot++;
+      break;
+    }
+    case Archive::Tag::Function: {
+      auto selected = Language::Function::restore(reader, domain, *this);
+      BAIL_IF(!selected);
+      restored = *selected;
+      category = Category::Callable;
+      break;
+    }
+    case Archive::Tag::Structure: {
+      auto selected = Structure::restore(reader, domain, *this, profile);
+      BAIL_IF(!selected);
+      restored = *selected;
+      category = Category::Type;
+      break;
+    }
+    case Archive::Tag::Object: {
+      auto selected = Object::restore(reader, domain, *this, profile);
+      BAIL_IF(!selected);
+      restored = *selected;
+      category = Category::Type;
+      break;
+    }
+    case Archive::Tag::Enumeration: {
+      auto selected = Enumeration::restore(reader, domain, *this);
+      BAIL_IF(!selected);
+      restored = *selected;
+      category = Category::Type;
+      break;
+    }
+    default:
+      return False;
+    }
+
+    BAIL_IF(!restored);
+    Bool published = restored->visit<Language::Alias>(
+        [](const Language::Alias& selected) {
+          return selected.get_definition().is_published();
+        },
+        [](const Abstract& selected) -> Bool {
+          auto addressable = selected.select<Model::Addressable>();
+          if (addressable) {
+            auto field = addressable->select<Language::Field>();
+            return field && field->get_definition().is_published();
+          }
+          auto callable = selected.select<Language::Function>();
+          if (callable) {
+            return callable->get_definition().is_published();
+          }
+          auto composite = selected.select<Composite>();
+          if (composite) {
+            return composite->get_definition().is_published();
+          }
+          auto enumeration = selected.select<Enumeration>();
+          return enumeration && enumeration->get_definition().is_published();
+        });
+    BAIL_IF(!publish_binding(*restored, category, published));
+  }
+  return True;
 }
 
 auto Types::Composite::link_aliases() -> Count {
@@ -382,6 +546,17 @@ auto Types::Composite::validate_layout(Cursor& cursor) const -> Bool {
       get_anchor(), "Library Type Layout does not terminate."_view,
       "Break recursive value storage with one terminal Type Layout."_view);
   return False;
+}
+
+auto Types::Composite::validate_layout_restored() const -> Bool {
+  for (const Reference<Abstract>& binding : types.get_view()) {
+    auto composite = binding.get().select<Composite>();
+    BAIL_IF(composite && !composite->validate_layout_restored());
+  }
+
+  const Layout& selected_layout = get_layout();
+  return selected_layout.is_empty() ||
+         Ttx::Model::Layouts::is_terminating(*this);
 }
 
 auto Types::Composite::complete_field_layout() -> void {
@@ -519,6 +694,106 @@ auto Types::Composite::finalize(Cursor& cursor) -> Bool {
   return True;
 }
 
+auto Types::Composite::link_restored_types() -> Bool {
+  if (stage >= Stage::TypesLinked) {
+    return True;
+  }
+  BAIL_IF(stage != Stage::Authored);
+
+  while (link_aliases() != 0) {
+  }
+  for (const Reference<Abstract>& binding : types.get_view()) {
+    auto alias = binding.get().select<Language::Alias>();
+    BAIL_IF(alias && !alias->is_linked());
+  }
+  BAIL_IF(!visit_each<Model::Type>(types.get_view(), [](Model::Type& type) {
+    return type.link_restored_types();
+  }));
+
+  stage = Stage::TypesLinked;
+  return True;
+}
+
+auto Types::Composite::link_restored_callable_signatures() -> Bool {
+  if (stage >= Stage::CallableSignaturesLinked) {
+    return True;
+  }
+  BAIL_IF(stage != Stage::TypesLinked);
+
+  BAIL_IF(!visit_each<Model::Type>(types.get_view(), [](Model::Type& type) {
+    return type.link_restored_callable_signatures();
+  }));
+  BAIL_IF(!visit_each<Model::Callable>(
+      get_callable_bindings(), [](Model::Callable& callable) {
+        return callable.link_restored_declaration_signature();
+      }));
+
+  stage = Stage::CallableSignaturesLinked;
+  return True;
+}
+
+auto Types::Composite::link_restored_fields() -> Bool {
+  if (stage >= Stage::FieldsLinked) {
+    return True;
+  }
+  BAIL_IF(stage != Stage::CallableSignaturesLinked);
+
+  BAIL_IF(!visit_each<Model::Type>(types.get_view(), [](Model::Type& type) {
+    return type.link_restored_fields();
+  }));
+  BAIL_IF(!visit_each<Model::Addressable>(
+      addressables.get_view(), [](Model::Addressable& addressable) {
+        return addressable.link_restored_declaration_type();
+      }));
+
+  complete_field_layout();
+  stage = Stage::FieldsLinked;
+  return True;
+}
+
+auto Types::Composite::link_restored_initializers() -> Bool {
+  if (stage >= Stage::InitializersLinked) {
+    return True;
+  }
+  BAIL_IF(stage != Stage::FieldsLinked);
+
+  for (const Reference<Abstract>& binding : types.get_view()) {
+    auto type = binding.get().select<Model::Type>();
+    if (type && !type->link_restored_initializers()) {
+      Diagnostics::Log::Message<256> message(Diagnostics::Log::Level::Error);
+      message << "Restored Type initializer closure failed for '"_view
+              << type->get_name() << "'."_view;
+      return False;
+    }
+  }
+
+  for (const Reference<Abstract>& binding : addressables.get_view()) {
+    auto addressable = binding.get().select<Model::Addressable>();
+    if (addressable && !addressable->link_restored_declaration_initializer()) {
+      Diagnostics::Log::Message<256> message(Diagnostics::Log::Level::Error);
+      message << "Restored Addressable initializer failed for '"_view
+              << addressable->get_name() << "'."_view;
+      return False;
+    }
+  }
+
+  stage = Stage::CallablesLinked;
+  return True;
+}
+
+auto Types::Composite::finalize_restored() -> Bool {
+  if (stage == Stage::Finalized) {
+    return True;
+  }
+  BAIL_IF(stage != Stage::CallablesLinked);
+
+  BAIL_IF(!visit_each<Model::Type>(types.get_view(), [](Model::Type& type) {
+    return type.finalize_restored();
+  }));
+  stage = Stage::Finalized;
+  return True;
+}
+
 auto Types::Composite::resolve() const -> const Abstract& {
   if (stage < Stage::FieldsLinked) {
     return Invalid::get_invalid();
@@ -611,6 +886,25 @@ auto Types::Composite::reserve(Llvm::Program& program) const -> Bool {
       });
 }
 
+auto Types::Composite::reserve_value(Llvm::Program& program) const -> Bool {
+  auto reserved = reserve_carrier(program);
+  if (!reserved) {
+    return False;
+  }
+  if (!*reserved) {
+    return True;
+  }
+
+  for (const Reference<Abstract>& candidate : addressables.get_view()) {
+    auto addressable = candidate.get().select<Model::Addressable>();
+    if (addressable && addressable->contributes_to_instance_layout() &&
+        !addressable->get_type().reserve_value(program)) {
+      return False;
+    }
+  }
+  return True;
+}
+
 auto Types::Composite::complete(Llvm::Program& program) const -> Bool {
   const auto& carriers = program.get_carriers();
   auto began = carriers.begin_completion(program, *this);
@@ -647,6 +941,26 @@ auto Types::Composite::complete(Llvm::Program& program) const -> Bool {
 
   Bool carrier_completed = complete_carrier(program);
   return carrier_completed && complete_debug(program);
+}
+
+auto Types::Composite::complete_value(Llvm::Program& program) const -> Bool {
+  const auto& carriers = program.get_carriers();
+  auto began = carriers.begin_completion(program, *this);
+  if (!began) {
+    return False;
+  }
+  if (!*began) {
+    return True;
+  }
+
+  for (const Reference<Abstract>& candidate : addressables.get_view()) {
+    auto addressable = candidate.get().select<Model::Addressable>();
+    if (addressable && addressable->contributes_to_instance_layout() &&
+        !addressable->get_type().complete_value(program)) {
+      return False;
+    }
+  }
+  return complete_carrier(program) && complete_debug(program);
 }
 
 auto Types::Composite::lower(Llvm::Program& program) const -> Bool {

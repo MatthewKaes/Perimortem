@@ -27,6 +27,16 @@ static auto select_type(const Abstract& candidate)
   return candidate.resolve().select<Language::Model::Type>();
 }
 
+auto Language::Access::Call::create_synthetic(
+    Memory::Allocator::Arena& arena,
+    Expression& receiver,
+    Core::View::Bytes name,
+    Language::Model::Pack& arguments) -> Call& {
+  return Expression::create_synthetic<Call>(arena, [&](auto source) -> Call {
+    return Call(arena, receiver, {}, name, arguments, source);
+  });
+}
+
 static auto select_result_type(const Abstract& result)
     -> Core::Option<const Language::Model::Type&> {
   auto addressable = result.select<Language::Model::Addressable>();
@@ -253,6 +263,10 @@ auto Language::Access::Call::link(
     Ttx::Lexical::Cursor& cursor,
     const Abstract& lexical_context,
     Core::Option<const Abstract&> access_scope) -> Bool {
+  if (!get_anchor() && callable && output) {
+    return True;
+  }
+
   // Every access first completes its receiver. Static and Self are outcomes of
   // that result, not parser modes or retained role flags.
   BAIL_IF(!receiver.link(cursor, lexical_context, access_scope));
@@ -365,6 +379,42 @@ auto Language::Access::Call::link(
   // Call deliberately does not delegate to Expression::link. Invocations with
   // empty or multiple result Layouts are complete even though scalar get_type()
   // is Invalid. The selected Callable remains the exact result Layout owner.
+  return True;
+}
+
+auto Language::Access::Call::link_restored(
+    const Abstract& lexical_context,
+    Core::Option<const Abstract&> access_scope) -> Bool {
+  BAIL_IF(
+      !receiver.link_restored(lexical_context, access_scope) ||
+      !arguments.link_restored(lexical_context, access_scope) ||
+      &arguments.resolve() != &arguments);
+
+  const Abstract& receiver_result = receiver.get_result();
+  const Abstract& host = access_scope.visit(
+      [&]() -> const Abstract& { return lexical_context; },
+      [](const Abstract& selected) -> const Abstract& { return selected; });
+  const Abstract& candidate = receiver_result.visit<Language::Model::Type>(
+      [&](const Language::Model::Type& type) -> const Abstract& {
+        return type.resolve_type_call(
+            host, name, Language::Model::Type::Access::Static);
+      },
+      [&](const Abstract& selected) -> const Abstract& {
+        return selected.resolve_call(host, name);
+      });
+  auto selected = candidate.resolve().select<Language::Model::Callable>();
+  BAIL_IF(!selected || !selected->accepts_receiver(receiver_result, host));
+
+  const Layout& parameters = selected->get_parameters();
+  Bool fits = arguments.fits(parameters);
+  if (selected->is_type_bound()) {
+    input_layout = create_inputs(domain, receiver, arguments);
+    fits = input_layout->fits(parameters);
+  }
+  BAIL_IF(!fits || !fit_inputs(*selected, input_layout));
+
+  callable = Reference<const Language::Model::Callable>(*selected);
+  output = create_layout(domain, *this, *selected);
   return True;
 }
 
@@ -514,6 +564,12 @@ auto Language::Access::Call::fit_inputs(
 auto Language::Access::Call::lower(Llvm::Builder& body) const -> Bool {
   auto selected = get_callable();
   if (!selected) {
+    return False;
+  }
+
+  Llvm::Program& program = body.get_program();
+  if (!selected->reserve_declaration(program) ||
+      !selected->complete_declaration(program)) {
     return False;
   }
 

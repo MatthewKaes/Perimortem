@@ -426,24 +426,10 @@ auto Tetrodotoxin::Library::Llvm::Builder::invoke(
         body, "LLVM could not emit the selected Call."_view);
   }
 
-  Bool released = True;
-  for (Count index = 0; index < inputs.get_size(); index++) {
-    auto parameter = parameters.get_abstract(index);
-    auto addressable = parameter
-                           ? parameter->select<Ttx::Model::Addressable>()
-                           : Core::Option<const Ttx::Model::Addressable&>();
-    if (!addressable) {
-      return False;
-    }
-
-    released &= call_release_owned(
-        native_body, *carriers, addressable->get_type(),
-        inputs.get_data()[index]);
-  }
-
-  if (!released) {
-    return False;
-  }
+  // Callable parameters borrow their inputs. Body keeps an owned temporary
+  // through the complete Statement so a returned View can still borrow that
+  // storage while the enclosing expression consumes it. Receiving storage or
+  // a Return explicitly takes ownership before Statement cleanup.
 
   const Ttx::Concept::Layout& results = callable.get_results();
   if (result.get_layout().get_size() != results.get_size()) {
@@ -772,6 +758,84 @@ auto Tetrodotoxin::Library::Llvm::Builder::compare(
         body, carrier, result, left, right, LLVMRealOGE, LLVMIntSGE,
         LLVMIntUGE);
   }
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::compare_bytes(
+    Comparison operation,
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Pack& left,
+    const Ttx::Model::Pack& right) const -> Bool {
+  if (operation != Comparison::Equal && operation != Comparison::NotEqual) {
+    return False;
+  }
+
+  auto left_value = comparison_find_scalar(body, left);
+  auto right_value = comparison_find_scalar(body, right);
+  if (!left_value || !right_value ||
+      LLVMGetTypeKind(LLVMTypeOf(*left_value)) != LLVMStructTypeKind ||
+      LLVMGetTypeKind(LLVMTypeOf(*right_value)) != LLVMStructTypeKind) {
+    return False;
+  }
+
+  LLVMBuilderRef builder = body.get_builder();
+  LLVMValueRef left_data = LLVMBuildExtractValue(builder, *left_value, 0, "");
+  LLVMValueRef left_size = LLVMBuildExtractValue(builder, *left_value, 1, "");
+  LLVMValueRef right_data = LLVMBuildExtractValue(builder, *right_value, 0, "");
+  LLVMValueRef right_size = LLVMBuildExtractValue(builder, *right_value, 1, "");
+  if (!left_data || !left_size || !right_data || !right_size) {
+    return False;
+  }
+
+  LLVMValueRef function = body.get_function();
+  LLVMContextRef context =
+      LLVMGetModuleContext(&body.get_program().get_module());
+  LLVMBasicBlockRef unequal = LLVMGetInsertBlock(builder);
+  LLVMBasicBlockRef matching =
+      LLVMAppendBasicBlockInContext(context, function, "bytes.matching");
+  LLVMBasicBlockRef content =
+      LLVMAppendBasicBlockInContext(context, function, "bytes.content");
+  LLVMBasicBlockRef done =
+      LLVMAppendBasicBlockInContext(context, function, "bytes.done");
+  LLVMValueRef size_equal =
+      LLVMBuildICmp(builder, LLVMIntEQ, left_size, right_size, "");
+  LLVMBuildCondBr(builder, size_equal, matching, done);
+
+  LLVMPositionBuilderAtEnd(builder, matching);
+  LLVMValueRef zero_size = LLVMConstInt(LLVMTypeOf(left_size), 0, 0);
+  LLVMValueRef empty =
+      LLVMBuildICmp(builder, LLVMIntEQ, left_size, zero_size, "");
+  LLVMBuildCondBr(builder, empty, done, content);
+
+  LLVMPositionBuilderAtEnd(builder, content);
+  LLVMModuleRef module = &body.get_program().get_module();
+  LLVMValueRef compare_function = LLVMGetNamedFunction(module, "memcmp");
+  LLVMTypeRef compare_parameters[] = {
+    LLVMTypeOf(left_data), LLVMTypeOf(right_data), LLVMTypeOf(left_size)};
+  LLVMTypeRef compare_type = LLVMFunctionType(
+      LLVMInt32TypeInContext(context), compare_parameters, 3, 0);
+  if (!compare_function) {
+    compare_function = LLVMAddFunction(module, "memcmp", compare_type);
+  }
+  LLVMValueRef compare_arguments[] = {left_data, right_data, left_size};
+  LLVMValueRef comparison = LLVMBuildCall2(
+      builder, compare_type, compare_function, compare_arguments, 3, "");
+  LLVMValueRef content_equal = LLVMBuildICmp(
+      builder, LLVMIntEQ, comparison,
+      LLVMConstInt(LLVMInt32TypeInContext(context), 0, 0), "");
+  LLVMBuildBr(builder, done);
+
+  LLVMPositionBuilderAtEnd(builder, done);
+  LLVMValueRef equal =
+      LLVMBuildPhi(builder, LLVMInt1TypeInContext(context), "");
+  LLVMValueRef incoming_values[] = {
+    LLVMConstInt(LLVMInt1TypeInContext(context), 0, 0),
+    LLVMConstInt(LLVMInt1TypeInContext(context), 1, 0), content_equal};
+  LLVMBasicBlockRef incoming_blocks[] = {unequal, matching, content};
+  LLVMAddIncoming(equal, incoming_values, incoming_blocks, 3);
+  LLVMValueRef selected =
+      operation == Comparison::Equal ? equal : LLVMBuildNot(builder, equal, "");
+  Core::Static::Vector<LLVMValueRef, 1> values = {{selected}};
+  return body.publish_values(result, values.get_view());
 }
 
 // Construction assembles inline values or allocates Object payloads through
@@ -3115,4 +3179,30 @@ auto Tetrodotoxin::Library::Llvm::Builder::local(
     const Ttx::Model::Addressable& local,
     Ttx::Lexical::Anchor anchor) const -> Bool {
   return get_program().get_debug().local(body, local, anchor);
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::has_full_debug() const -> Bool {
+  return get_program().get_debug().get_level() == Llvm::Debug::Level::Full;
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::constant_local(
+    const Ttx::Model::Addressable& local,
+    const Ttx::Model::Pack& value,
+    Ttx::Lexical::Anchor anchor) const -> Bool {
+  Llvm::Program& program = get_program();
+  if (program.get_debug().get_level() != Llvm::Debug::Level::Full) {
+    return True;
+  }
+
+  auto values = body.find_values(value);
+  if (!values) {
+    return program.fail_backend(
+        "LLVM lost one const Local value before debug emission."_view);
+  }
+
+  const Carriers& carriers = program.get_carriers();
+  auto assembled = carriers.fit_and_assemble(
+      body, local.get_type(), value, values->get_view());
+  return assembled &&
+         program.get_debug().value(body, local, anchor, *assembled);
 }

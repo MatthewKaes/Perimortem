@@ -552,8 +552,9 @@ PERIMORTEM_UNIT_TEST(PackageDialect, collision_atomicity) {
       "dialect : Package;\n"
       "source First from \"./member.ttx\";\n"
       "source First from \"member.ttx\";\n"_view;
-  Environment::Workspace workspace;
-  ASSERT(workspace.install_dialect<Package::Dialect>("Package"_view));
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<Package::Dialect>("Package"_view));
+  Environment::Workspace workspace(toolchain);
 
   Errors collision_errors;
   EXPECT_NOT(workspace.interpret_source(

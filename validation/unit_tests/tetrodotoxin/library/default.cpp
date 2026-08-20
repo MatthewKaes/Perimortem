@@ -2,6 +2,7 @@
 // Copyright © Matt Kaes
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -93,9 +94,9 @@ static auto import_types(
 
 PERIMORTEM_UNIT_TEST(LibraryDefaults, scalar_payloads_and_identity) {
   Allocator::Arena domain;
-  Tetrodotoxin::Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto monograph = import_types(workspace, errors);
   ASSERT(monograph);
   const Static::Vector<const Model::Type*, 4> unsigned_types = {{
@@ -162,9 +163,9 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, scalar_payloads_and_identity) {
 
 PERIMORTEM_UNIT_TEST(LibraryDefaults, contiguous_and_optional_values) {
   Allocator::Arena domain;
-  Tetrodotoxin::Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto monograph = import_types(workspace, errors);
   ASSERT(monograph);
   const auto& unsigned_8 = static_cast<const Model::Type&>(
@@ -220,9 +221,9 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, contiguous_and_optional_values) {
 
 PERIMORTEM_UNIT_TEST(LibraryDefaults, aggregate_order_and_fresh_identity) {
   Allocator::Arena domain;
-  Tetrodotoxin::Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto monograph = import_types(workspace, errors);
   ASSERT(monograph);
   const auto& source_type = monograph->get_source();
@@ -279,9 +280,9 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, aggregate_order_and_fresh_identity) {
 
 PERIMORTEM_UNIT_TEST(LibraryDefaults, fixed_default_and_empty_rejection) {
   Allocator::Arena domain;
-  Tetrodotoxin::Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto monograph = import_types(workspace, errors);
   ASSERT(monograph);
   const auto& unsigned_8 = static_cast<const Model::Type&>(
@@ -312,9 +313,9 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, fixed_default_and_empty_rejection) {
 
 PERIMORTEM_UNIT_TEST(LibraryDefaults, enumeration_range_and_optional_default) {
   Allocator::Arena domain;
-  Tetrodotoxin::Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto monograph = import_types(workspace, errors);
   ASSERT(monograph);
   const auto& source_type = monograph->get_source();
@@ -356,9 +357,9 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, enumeration_range_and_optional_default) {
 
 PERIMORTEM_UNIT_TEST(LibraryDefaults, unsupported_domains_are_absent) {
   Allocator::Arena domain;
-  Tetrodotoxin::Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
-  ASSERT(workspace.install_dialect<Dialect>("Library"_view));
   auto monograph = import_types(workspace, errors);
   ASSERT(monograph);
 

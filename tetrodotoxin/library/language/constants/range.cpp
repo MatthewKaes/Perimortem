@@ -7,6 +7,16 @@
 
 using namespace Tetrodotoxin::Library;
 
+auto Language::Constants::Range::persist(Archive::Writer& writer) const
+    -> Bool {
+  auto record = writer.begin(Archive::Tag::ConstantRange);
+  BAIL_IF(
+      !writer.write(get_type().get_name()) ||
+      !writer.write(get_type().get_element_type().get_name()) ||
+      !writer.finish(record));
+  return True;
+}
+
 auto Language::Constants::Range::lower(Llvm::Builder& body) const -> Bool {
-  return body.empty_range(get_type(), *this);
+  return prepare_carrier(body) && body.empty_range(get_type(), *this);
 }

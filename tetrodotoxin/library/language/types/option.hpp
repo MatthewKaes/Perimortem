@@ -75,6 +75,11 @@ class Option : public Model::Type {
     return element;
   }
 
+  constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
+    return element.get_declaration_anchor();
+  }
+
   constexpr auto get_flag_type() const -> const Model::Types::Flag& {
     return flag;
   }

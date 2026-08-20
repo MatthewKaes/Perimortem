@@ -1,21 +1,22 @@
 """Canonical source Packages distributed with Tetrodotoxin."""
 
-package(default_visibility = ["//visibility:public"])
+load("//toolchain:tetrodotoxin.bzl", "ttx_package")
 
-filegroup(
-    name = "perimortem_memory_sources",
-    srcs = glob(["Perimortem.Memory/*.ttx"]),
+package(default_visibility = ["//visibility:private"])
+
+ttx_package(
+    name = "perimortem_memory",
+    package_name = "Perimortem.Memory",
+    manifest = "Perimortem.Memory/package.ttx",
+    version = [1, 0],
+    visibility = ["//visibility:public"],
 )
 
-filegroup(
-    name = "perimortem_system_sources",
-    srcs = glob(["Perimortem.System/*.ttx"]),
-)
-
-filegroup(
-    name = "standard_sources",
-    srcs = [
-        ":perimortem_memory_sources",
-        ":perimortem_system_sources",
-    ],
+ttx_package(
+    name = "perimortem_system",
+    package_name = "Perimortem.System",
+    manifest = "Perimortem.System/package.ttx",
+    version = [1, 0],
+    deps = [":perimortem_memory"],
+    visibility = ["//visibility:public"],
 )

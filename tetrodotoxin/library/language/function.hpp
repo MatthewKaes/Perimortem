@@ -34,6 +34,11 @@ class Function : public Model::Callable {
       Tetrodotoxin::Language::Definition& definition)
       -> Perimortem::Core::Option<Function&>;
 
+  static auto restore(
+      Archive::Reader& reader,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Function&>;
+
   Function(const Function&) = delete;
   Function(Function&&) = delete;
   auto operator=(const Function&) -> Function& = delete;
@@ -44,6 +49,8 @@ class Function : public Model::Callable {
 
   auto link_declaration_body(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
+  auto link_restored_declaration_signature() -> Bool override;
+
   auto finalize_declaration(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
   auto reserve_declaration(Llvm::Program& program) const -> Bool override;
@@ -51,6 +58,8 @@ class Function : public Model::Callable {
   auto complete_declaration(Llvm::Program& program) const -> Bool override;
 
   auto lower_declaration(Llvm::Program& program) const -> Bool override;
+
+  auto persist(Archive::Writer& writer) const -> Bool override;
 
   TTX_DOCUMENTATION(get_definition().get_documentation());
   TTX_NAME(definition.get_name());

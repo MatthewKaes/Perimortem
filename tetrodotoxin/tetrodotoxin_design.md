@@ -179,14 +179,14 @@ describes the contract and responsibilities in detail.
 
 ## Workspace identity and completion
 
-A Workspace is one semantic island. It installs the concrete Dialects available
-to a tool, retains every resulting Monograph, and gives their borrowed TTX edges
-a common lifetime.
+A Workspace is one semantic island. It borrows the concrete Dialects installed
+once in its host Toolchain, retains every resulting Monograph, and gives their
+borrowed TTX edges a common lifetime.
 
-A Dialect is an installed TTX Abstract context. It may keep localized graph
-state shared by its sources, but every borrowed edge and cross language query
-remains inside the one Workspace lifetime. Source-local transaction state does
-not accumulate on that installed object.
+A Dialect is a stateless installed TTX Abstract context. Its immutable name and
+downward Dialect dependencies may be shared across Workspaces, but semantic
+state, borrowed edges, and cross-language results remain inside one Workspace
+lifetime. Source-local transaction state never accumulates on the Toolchain.
 
 Environment creates one source transaction Arena, copies the opened path and
 bytes into it, and then constructs a Tokenizer, Associations index, and Cursor
@@ -205,8 +205,8 @@ whole transaction. An embedded language receives the same Cursor, Arena, and
 semantic context with its exact installed identity. It does not create another
 generic transaction wrapper, diagnostic collection, or restoration context.
 
-Installed Dialect dependencies form a strict directed acyclic graph. The tool
-constructing a Workspace injects each exact dependency instance. An outer
+Installed Dialect dependencies form a strict directed acyclic graph. The host
+constructing a Toolchain injects each exact dependency instance. An outer
 Dialect never constructs a second instance or discovers one by name. Missing
 dependencies are diagnosed before that source can complete, and a dependency
 cycle is an invalid toolchain configuration. Source ownership, namespace,
@@ -475,20 +475,26 @@ and native artifact locators. Each persistent Dialect defines the payload and
 reconstruction procedure needed to create a new Monograph.
 
 `Complete` and `Interface` are the two Archive profiles. A Complete payload
-retains the complete semantic graph required for source-independent restoration
-and re-lowering. An Interface payload retains public Types, Layouts, Fields,
-Callable signatures, folded public constants, ABI requests, publication and
-bridge relationships, and exact artifact locators, but no executable bodies.
-Debug/source correlation remains a separate Terminal product rather than a
-third semantic payload profile.
+retains the public and private query contract selected by its Dialect. An
+Interface payload retains only the public contract needed by dependent
+consumers. For Library this includes public Types, Layouts, Fields, Callable
+signatures, folded constants, ABI requests, publication relationships, and
+exact artifact locators. Neither profile stores executable bodies. Debug/source
+correlation and compiled code remain separate Terminal products.
 
 The selected profile applies recursively to every embedded layer. A Complete
-Scene contains a Complete Library child. An Interface Scene contains the
-Library interface and locators required by consumers. A Complete Shader
-contains Complete Library and Render children. Its Interface payload retains
-the public CPU and GPU contracts, bridge facts, and artifact locators. The
-outer payload length-delimits each child section, while the child Dialect alone
-validates and interprets its opaque bytes.
+Scene contains the complete query contracts of its children. An Interface Scene
+contains their public contracts and artifact locators. A Complete Shader
+contains complete Library and Render query contracts, while its Interface
+payload retains their public CPU and GPU contracts, bridge facts, and artifact
+locators. The outer payload length-delimits each child section, while the child
+Dialect alone validates and interprets its opaque bytes.
+
+A compiled Package behaves like a `foreign "TTX"` graph. Its restored owners
+answer the same Type, Addressable, Callable, and constant queries that consumers
+would ask of the live provider, while stable ABI symbols reach the separately
+compiled implementation. This is why Package persistence does not need a
+second executable graph.
 
 Replaying declaration text in a later Workspace would not provide the same
 continuity. The same spelling can select a different Type or Layout after a

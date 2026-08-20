@@ -3,9 +3,17 @@
 
 #include "tetrodotoxin/library/language/constant.hpp"
 
+#include "tetrodotoxin/library/llvm/builder.hpp"
+
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library;
+
+auto Language::Constant::prepare_carrier(Llvm::Builder& body) const -> Bool {
+  Llvm::Program& program = body.get_program();
+  return get_type().reserve_value(program) &&
+         get_type().complete_value(program);
+}
 
 auto Language::Constant::have_equal_values(
     const Model::Pack& left,

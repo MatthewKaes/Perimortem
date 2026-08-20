@@ -5,6 +5,7 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
+#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -17,6 +18,32 @@ using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
 using Tetrodotoxin::Language::Visibility;
+
+auto Language::Function::persist(Archive::Writer& writer) const -> Bool {
+  auto record = writer.begin(Archive::Tag::Function);
+  Archive::Declaration declaration(definition);
+  return declaration.write(writer) && signature.persist(writer) &&
+         writer.finish(record);
+}
+
+auto Language::Function::restore(
+    Archive::Reader& reader,
+    Allocator::Arena& arena,
+    Abstract& host) -> Option<Function&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != Unsigned_16(Archive::Tag::Function) ||
+      record->is_optional());
+
+  Archive::Reader contents(record->get_payload());
+  auto declaration = Archive::Declaration::read(contents, arena);
+  auto signature = Signature::restore(contents, arena, host);
+  BAIL_IF(!declaration || !signature || !contents.is_complete());
+
+  auto& definition = declaration->create_definition(arena, host);
+  return arena.construct_from<Function>(
+      [&]() -> Function { return Function(definition, *signature); });
+}
 
 static auto validate_authored_function(
     Cursor& cursor,
@@ -94,6 +121,10 @@ auto Language::Function::link_declaration_signature(Cursor& cursor) -> Bool {
   // same access authority as the body without making an incomplete Function
   // double as a Type resolution mode switch.
   return signature.link(cursor);
+}
+
+auto Language::Function::link_restored_declaration_signature() -> Bool {
+  return signature.link_restored();
 }
 
 auto Language::Function::link_declaration_body(Cursor& cursor) -> Bool {

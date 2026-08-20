@@ -32,6 +32,14 @@ class Constant : public Expression {
 
   virtual constexpr auto get_type() const -> const Model::Type& override = 0;
   virtual constexpr auto equals(const Constant& rhs) const -> Bool = 0;
+  virtual auto persist(Archive::Writer&) const -> Bool { return False; }
+
+  auto link_restored(
+      const Ttx::Concept::Abstract&,
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&>)
+      -> Bool override {
+    return True;
+  }
 
   constexpr auto operator==(const Constant& rhs) const -> Bool {
     return equals(rhs);
@@ -51,6 +59,8 @@ class Constant : public Expression {
     return lhs_type.is<Model::Type>() && rhs_type.is<Model::Type>() &&
            &lhs_type == &rhs_type;
   }
+
+  auto prepare_carrier(Llvm::Builder& body) const -> Bool;
 
   static auto have_equal_values(
       const Model::Pack& left,

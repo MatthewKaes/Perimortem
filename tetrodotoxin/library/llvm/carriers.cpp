@@ -82,7 +82,7 @@ static auto get_function(Tetrodotoxin::Library::Llvm::Body& body)
 static auto fail_backend(
     Ttx::Concept::Abstract& program,
     Core::View::Bytes message) -> Bool {
-  auto target = get_target(program);
+  auto target = get_target(get_program(program));
   return target ? target->fail_backend(message) : False;
 }
 
@@ -91,7 +91,7 @@ static auto fail_type(
     const Ttx::Model::Type& type,
     Core::View::Bytes message,
     Core::View::Bytes hint = {}) -> Bool {
-  auto target = get_target(program);
+  auto target = get_target(get_program(program));
   auto library_type = type.select<Language::Model::Type>();
   auto anchor = library_type ? library_type->get_declaration_anchor()
                              : Core::Option<Ttx::Lexical::Anchor>();

@@ -136,10 +136,10 @@ installed top-level Dialect.
 Some Dialects build on layers from another Dialect. Scene contains one Library
 layer for its CPU state and functions. Shader contains a Library layer for CPU
 helpers and a Render layer for GPU data. These children come from the same
-Dialect instances already installed in the Workspace, so grammar and installed
-dependencies stay consistent. Each child Monograph still owns its concrete
-Types and canonical Generic materializations. The Dialect stores no semantic
-identity.
+Dialect instances already installed in the Workspace's borrowed Toolchain, so
+grammar and installed dependencies stay consistent. Each child Monograph still
+owns its concrete Types and canonical Generic materializations. The Dialect
+stores no semantic identity.
 
 Dependencies always point toward the lower-level language. Scene depends on
 Library. Shader depends on Library and Render. App depends on Library and Scene.
@@ -227,11 +227,12 @@ TTX queries normally use a live graph, but builds and distributed Packages need
 a durable form. Package Archive records enough information to build a fresh
 Workspace without reading the original source again.
 
-The Complete profile keeps public and private declarations together with the
-bodies needed to compile them again. The Interface profile keeps the public
-contract and the locations of compiled artifacts, but leaves executable bodies
-out. The same profile applies to child layers such as the Library layer inside
-a Scene.
+The Complete profile keeps the public and private semantic contract. The
+Interface profile keeps only the public contract required by dependent
+consumers. Neither stores executable bodies. Compiled artifacts carry
+execution, while source or a live Workspace remains the input for another
+lowering. The same profile applies to child layers such as the Library layer
+inside a Scene.
 
 Restoration creates new objects rather than copying process memory. The new
 graph must expose the same names, Types, relationships, Layouts, ordering, and
@@ -244,8 +245,8 @@ reconstruction contract in detail.
 
 ## Packages and resources
 
-The Tetrodotoxin toolchain always includes Package support. A Workspace that
-interprets one standalone source does not need to install or use the Package
+Package support is available to a Tetrodotoxin Toolchain but is not installed
+implicitly. A Toolchain used only for standalone sources may omit the Package
 Dialect. Package enters a Workspace when a request composes a Package, acquires
 its resources, or restores an Archive.
 

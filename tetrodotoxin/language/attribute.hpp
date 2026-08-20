@@ -29,6 +29,13 @@ class Attribute {
   static auto parse(Ttx::Lexical::Cursor& cursor)
       -> Perimortem::Core::View::Vector<Attribute>;
 
+  static constexpr auto create_synthetic(
+      Perimortem::Core::View::Bytes key,
+      Value value = {}) -> Attribute {
+    return Attribute(
+        key, value, Ttx::Lexical::Anchor::create(Ttx::Lexical::Span()));
+  }
+
   constexpr auto get_key() const -> Perimortem::Core::View::Bytes {
     return key;
   }

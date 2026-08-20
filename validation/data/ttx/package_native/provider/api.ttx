@@ -1,0 +1,15 @@
+// Public Object construction provider.
+dialect : Library;
+
+public shared : Unsigned_64 = 40;
+
+public ten : func = [] -> Unsigned_64 : return 10;
+
+public Config : object {
+  private state hidden : Unsigned_64 = Config -> hidden_default();
+  public state value   : Unsigned_64 = 7;
+
+  public sum : func = [self] -> Unsigned_64 : return self.hidden + self.value;
+
+  private hidden_default : func = [] -> Unsigned_64 : return 5;
+}

@@ -3,6 +3,11 @@
 
 #include "tetrodotoxin/library/language/field.hpp"
 
+#include "perimortem/memory/managed/bytes.hpp"
+
+#include "perimortem/serialization/stream/textual.hpp"
+
+#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
@@ -16,6 +21,114 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
+
+auto Language::Field::persist(Archive::Writer& writer) const -> Bool {
+  auto record = writer.begin(Archive::Tag::Field);
+  Archive::Declaration declaration(definition);
+  BAIL_IF(!declaration.write(writer));
+
+  writer.write(Unsigned_8(writability));
+  writer.write(Unsigned_8(type_reference ? 1 : 0));
+  BAIL_IF(type_reference && !type_reference->persist(writer));
+
+  Bool include_constant = writability == Writability::Constant;
+  auto folded = include_constant ? get_constant() : Option<Model::Pack&>();
+  writer.write(Unsigned_8(include_constant ? 1 : 0));
+  BAIL_IF(
+      include_constant &&
+      (!folded || !Model::Pack::persist_folded(writer, *folded)));
+  return writer.finish(record);
+}
+
+auto Language::Field::persist_slot(Archive::Writer& writer, Count ordinal) const
+    -> Bool {
+  auto record = writer.begin(Archive::Tag::FieldSlot);
+  writer.write(Unsigned_64(ordinal));
+  writer.write(Unsigned_8(type_reference ? 1 : 0));
+  BAIL_IF(type_reference && !type_reference->persist(writer));
+  return writer.finish(record);
+}
+
+auto Language::Field::restore(
+    Archive::Reader& reader,
+    Allocator::Arena& arena,
+    Abstract& host) -> Option<Field&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != Unsigned_16(Archive::Tag::Field) ||
+      record->is_optional());
+
+  Archive::Reader contents(record->get_payload());
+  auto declaration = Archive::Declaration::read(contents, arena);
+  auto encoded_writability = contents.read_unsigned_8();
+  auto has_type = contents.read_unsigned_8();
+  BAIL_IF(
+      !declaration || !encoded_writability ||
+      *encoded_writability > Unsigned_8(Writability::Constant) || !has_type ||
+      *has_type > 1);
+
+  Option<TypeReference> type_reference;
+  if (*has_type == 1) {
+    auto restored = TypeReference::restore(contents, arena, host);
+    BAIL_IF(!restored);
+    type_reference = *restored;
+  }
+
+  auto has_initializer = contents.read_unsigned_8();
+  BAIL_IF(!has_initializer || *has_initializer > 1);
+  Option<Model::Pack&> initializer;
+  if (*has_initializer == 1) {
+    initializer = Model::Pack::restore_folded(contents, arena, host);
+    BAIL_IF(!initializer);
+  }
+  BAIL_IF(!contents.is_complete());
+
+  auto& definition = declaration->create_definition(arena, host);
+  return arena.construct_from<Field>([&]() -> Field {
+    return Field(
+        arena, definition, Writability(*encoded_writability), type_reference,
+        initializer);
+  });
+}
+
+auto Language::Field::restore_slot(
+    Archive::Reader& reader,
+    Allocator::Arena& arena,
+    Abstract& host,
+    Count ordinal) -> Option<Field&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != Unsigned_16(Archive::Tag::FieldSlot) ||
+      record->is_optional());
+
+  Archive::Reader contents(record->get_payload());
+  auto encoded_ordinal = contents.read_unsigned_64();
+  auto has_type = contents.read_unsigned_8();
+  BAIL_IF(
+      !encoded_ordinal || *encoded_ordinal != ordinal || !has_type ||
+      *has_type > 1);
+
+  Option<TypeReference> type_reference;
+  if (*has_type == 1) {
+    auto restored = TypeReference::restore(contents, arena, host);
+    BAIL_IF(!restored);
+    type_reference = *restored;
+  }
+
+  BAIL_IF(!contents.is_complete());
+
+  Managed::Bytes name(arena, "$slot"_view);
+  Perimortem::Serialization::Stream::Textual<Managed::Bytes> stream(name);
+  stream << ordinal;
+  auto& definition = Tetrodotoxin::Language::Definition::create_synthetic(
+      arena, Documentation::get_empty(), host, name.get_view(),
+      Tetrodotoxin::Language::Visibility::Private, Anchor::create(Span()));
+  return arena.construct_from<Field>([&]() -> Field {
+    return Field(
+        arena, definition, Writability::Internal, type_reference,
+        Option<Model::Pack&>());
+  });
+}
 
 static auto parse_writability(
     const Tetrodotoxin::Language::Definition& definition,
@@ -159,6 +272,50 @@ auto Language::Field::link_declaration_type(Cursor& cursor) -> Bool {
 
   type = Reference<const Language::Model::Type>(*selected_type);
   return True;
+}
+
+auto Language::Field::link_restored_declaration_type() -> Bool {
+  if (!type_reference) {
+    return True;
+  }
+
+  Option<const Model::Type&> selected_type;
+  type_reference->resolve_lexical(*this).visit(
+      [&](const Abstract& selected) {
+        selected_type = selected.select<Model::Type>();
+      },
+      [](const TypeReference::Failure&) {});
+  BAIL_IF(!selected_type || selected_type->get_layout().is_empty());
+  type = Reference<const Model::Type>(*selected_type);
+  return True;
+}
+
+auto Language::Field::link_restored_declaration_initializer() -> Bool {
+  if (initializer_linked) {
+    return True;
+  }
+
+  auto selected_initializer = initializer.visit(
+      []() -> Option<Model::Pack&> { return {}; },
+      [](Model::Pack& selected) -> Option<Model::Pack&> { return selected; });
+  BAIL_IF(!selected_initializer);
+  BAIL_IF(!selected_initializer->link_restored(*this, get_host()));
+  BAIL_IF(&selected_initializer->resolve() != &*selected_initializer);
+
+  if (!type) {
+    BAIL_IF(selected_initializer->get_layout().get_size() != 1);
+    const Abstract& output = selected_initializer->get_type();
+    const Abstract& resolved =
+        output.is<Model::Type>() ? output : output.resolve();
+    auto inferred = resolved.select<Model::Type>();
+    BAIL_IF(!inferred || inferred->get_layout().is_empty());
+    type = Reference<const Model::Type>(*inferred);
+  } else {
+    BAIL_IF(!selected_initializer->fits_into(type->get()));
+  }
+
+  initializer_linked = True;
+  return writability != Writability::Constant || cache_constant();
 }
 
 auto Language::Field::link_inferred_declaration_type(Cursor& cursor) -> Bool {

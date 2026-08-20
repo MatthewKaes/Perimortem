@@ -64,6 +64,21 @@ auto Language::Expressions::Identifier::link(
   return True;
 }
 
+auto Language::Expressions::Identifier::link_restored(
+    const Abstract& lexical_context,
+    Core::Option<const Abstract&>) -> Bool {
+  const Abstract& candidate =
+      resolve_alias(lexical_context.resolve_context(name));
+  const Abstract& selected =
+      candidate.is<Language::Model::Type>() ||
+              candidate.is<Language::Model::Addressable>()
+          ? candidate
+          : candidate.resolve();
+  BAIL_IF(selected.is<Invalid>());
+  result = Reference<const Abstract>(selected);
+  return True;
+}
+
 auto Language::Expressions::Identifier::get_documentation() const
     -> const Documentation& {
   return result.visit(

@@ -314,11 +314,27 @@ auto Language::Expression::link_write(
   return True;
 }
 
+auto Language::Expression::link_write_restored(
+    const Abstract& lexical_context,
+    const Language::Model::Type& access_scope,
+    Language::Model::Pack& source) -> Bool {
+  Bool failed = !link_write_target_restored(lexical_context, access_scope);
+  failed |= !source.link_restored(lexical_context, access_scope);
+  BAIL_IF(failed || &source.resolve() != &source);
+  return accepts_write(source, access_scope);
+}
+
 auto Language::Expression::link_write_target(
     Ttx::Lexical::Cursor& cursor,
     const Abstract& lexical_context,
     const Language::Model::Type& access_scope) -> Bool {
   return link(cursor, lexical_context, access_scope);
+}
+
+auto Language::Expression::link_write_target_restored(
+    const Abstract& lexical_context,
+    const Language::Model::Type& access_scope) -> Bool {
+  return link_restored(lexical_context, access_scope);
 }
 
 auto Language::Expression::accepts_write(

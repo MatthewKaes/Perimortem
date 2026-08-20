@@ -5,6 +5,7 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/llvm/builder.hpp"
@@ -17,6 +18,39 @@ using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
+
+auto Types::Object::persist(Archive::Writer& writer) const -> Bool {
+  auto record = writer.begin(Archive::Tag::Object);
+  Archive::Declaration declaration(get_definition());
+  Bool public_only = writer.get_profile() ==
+                     Tetrodotoxin::Language::Persistence::Profile::Interface;
+  BAIL_IF(
+      !declaration.write(writer) ||
+      !persist_declarations(writer, public_only) || !writer.finish(record));
+  return True;
+}
+
+auto Types::Object::restore(
+    Archive::Reader& reader,
+    Allocator::Arena& arena,
+    Abstract& host,
+    Tetrodotoxin::Language::Persistence::Profile profile) -> Option<Object&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != Unsigned_16(Archive::Tag::Object) ||
+      record->is_optional());
+
+  Archive::Reader contents(record->get_payload());
+  auto declaration = Archive::Declaration::read(contents, arena);
+  BAIL_IF(!declaration);
+
+  auto& definition = declaration->create_definition(arena, host);
+  Object& object = arena.construct_from<Object>(
+      [&]() -> Object { return Object(arena, definition, False); });
+  BAIL_IF(!object.restore_declarations(contents, profile));
+  object.complete_field_layout();
+  return object;
+}
 
 static auto select_accessible_field(
     const Abstract& candidate,
@@ -60,8 +94,9 @@ static auto select_supplied(
 
 Types::Object::Object(
     Allocator::Arena& domain,
-    Tetrodotoxin::Language::Definition& definition)
-    : Structure(domain, definition) {}
+    Tetrodotoxin::Language::Definition& definition,
+    Bool provider_construction)
+    : Structure(domain, definition, provider_construction) {}
 
 auto Types::Object::interpret(
     Cursor& cursor,
@@ -112,6 +147,20 @@ auto Types::Object::create_supplied(
     Option<const Abstract&> access_scope,
     Option<Anchor> anchor) const -> Option<Model::Pack&> {
   Allocator::Arena& arena = cursor.get_arena();
+  auto construction = get_construction();
+  if (construction && !construction->has_provider_body()) {
+    auto created = construction->create_call(arena, arguments);
+    if (!created) {
+      cursor.create_expression_error(
+          anchor,
+          "Object initializer inputs do not fit the provider construction "
+          "contract."_view,
+          "Use unique public state Fields with values accepted by their "
+          "Types."_view);
+    }
+    return created;
+  }
+
   const Layout& inputs = arguments.get_layout();
 
   Managed::Vector<Reference<const Abstract>> accessible_fields(arena);
@@ -185,6 +234,65 @@ auto Types::Object::create_supplied(
     values.insert(*fallback);
   }
 
+  return Model::Pack::create_group(arena, values.get_view());
+}
+
+auto Types::Object::create_supplied_restored(
+    Allocator::Arena& arena,
+    Model::Pack& arguments,
+    Option<const Abstract&> access_scope) const -> Option<Model::Pack&> {
+  auto construction = get_construction();
+  if (construction && !construction->has_provider_body()) {
+    return construction->create_call(arena, arguments);
+  }
+
+  const Layout& inputs = arguments.get_layout();
+  Managed::Vector<Reference<const Abstract>> accessible_fields(arena);
+  for (const Reference<Abstract>& selected : get_addressables()) {
+    auto field = select_accessible_field(selected.get(), access_scope);
+    if (field) {
+      accessible_fields.insert(*field);
+    }
+  }
+  Layouts::Fluid accessible_layout(accessible_fields.get_view());
+
+  Managed::Vector<Reference<const Abstract>> fitted_fields(arena);
+  fitted_fields.reset(inputs.get_size());
+  for (Count input_index = 0; input_index < inputs.get_size(); input_index++) {
+    for (Count field_index = 0; field_index < accessible_fields.get_size();
+         field_index++) {
+      if (inputs.fits_entry(accessible_layout, input_index, field_index)) {
+        fitted_fields.insert(accessible_fields.at(field_index));
+        break;
+      }
+    }
+  }
+  Layouts::Fluid target_layout(fitted_fields.get_view());
+  BAIL_IF(!arguments.fits(target_layout));
+
+  Managed::Vector<Reference<Model::Pack>> values(arena);
+  values.reset(get_layout().get_size());
+  for (const Reference<Abstract>& selected : get_addressables()) {
+    auto field = selected.get().select<Field>();
+    if (!field || field->get_writability() != Writability::Internal) {
+      continue;
+    }
+
+    auto supplied =
+        select_supplied(*field, arguments, fitted_fields.get_view());
+    if (supplied) {
+      values.insert(const_cast<Model::Pack&>(*supplied));
+      continue;
+    }
+    auto authored = field->get_initializer();
+    if (authored) {
+      values.insert(const_cast<Model::Pack&>(*authored));
+      continue;
+    }
+    auto fallback = field->get_type().create_default(arena);
+    BAIL_IF(!fallback);
+    values.insert(*fallback);
+  }
   return Model::Pack::create_group(arena, values.get_view());
 }
 

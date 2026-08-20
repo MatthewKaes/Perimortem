@@ -9,6 +9,20 @@ using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library::Language;
 
+auto Constants::Option::persist(Archive::Writer& writer) const -> Bool {
+  auto record = writer.begin(Archive::Tag::ConstantOption);
+  BAIL_IF(
+      !writer.write(get_type().get_name()) ||
+      !writer.write(get_type().get_element_type().get_name()));
+
+  auto selected = get_payload();
+  writer.write(Unsigned_8(selected ? 1 : 0));
+  BAIL_IF(
+      (selected && !Model::Pack::persist_folded(writer, *selected)) ||
+      !writer.finish(record));
+  return True;
+}
+
 auto Constants::Option::create_absent(
     Memory::Allocator::Arena& domain,
     const Types::Option& type) -> Option& {
@@ -94,6 +108,8 @@ auto Constants::Option::equals(const Constant& rhs) const -> Bool {
 }
 
 auto Constants::Option::lower(Llvm::Builder& body) const -> Bool {
+  BAIL_IF(!prepare_carrier(body));
+
   if (kind == Types::Option::Kind::Absent) {
     return body.absent(get_type(), *this);
   }

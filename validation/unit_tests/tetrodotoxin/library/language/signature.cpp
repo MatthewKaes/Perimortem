@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/signature.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -30,10 +31,6 @@ static auto interpret(
     Workspace& workspace,
     Ttx::Lexical::Errors& errors,
     View::Bytes source) -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "SignatureTest"_view, "signature.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -63,7 +60,8 @@ PERIMORTEM_UNIT_TEST(SignatureTests, named_parameters_and_direct_results) {
       "public inspect : func = [.input : Bool,] -> [\n"
       "    .count : Unsigned_64, .accepted : Bool,\n"
       "  ] { return (.count = 0, .accepted = false); }"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -89,9 +87,7 @@ PERIMORTEM_UNIT_TEST(SignatureTests, named_parameters_and_direct_results) {
   EXPECT(
       &*results.get_abstract(0) ==
       &monograph->resolve_context("Unsigned_64"_view));
-  EXPECT(
-      &*results.get_abstract(1) ==
-      &monograph->resolve_context("Bool"_view));
+  EXPECT(&*results.get_abstract(1) == &monograph->resolve_context("Bool"_view));
   EXPECT(results.get_abstract(0)->is<Ttx::Model::Type>());
   EXPECT(results.get_abstract(1)->is<Ttx::Model::Type>());
 
@@ -108,7 +104,8 @@ PERIMORTEM_UNIT_TEST(SignatureTests, descriptor_shape_is_strict) {
   }};
 
   for (Count i = 0; i < rejected.get_size(); i++) {
-    Workspace workspace;
+    auto workspace_toolchain = create_library_toolchain();
+    Workspace workspace(*workspace_toolchain);
     Ttx::Lexical::Errors errors;
     EXPECT_NOT(interpret(workspace, errors, rejected[i]));
     EXPECT_NOT(errors.is_empty());

@@ -18,6 +18,9 @@
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "perimortem/abi/core/cleanup.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/llvm/body.hpp"
 #include "tetrodotoxin/library/llvm/carriers.hpp"
 #include "tetrodotoxin/library/llvm/program.hpp"
@@ -34,6 +37,22 @@ static auto llvm_text(Core::View::Bytes value) -> llvm::StringRef {
 static auto get_target(Ttx::Concept::Abstract& program)
     -> Core::Option<Tetrodotoxin::Library::Llvm::Program&> {
   return program.select<Tetrodotoxin::Library::Llvm::Program>();
+}
+
+static auto is_local_definition(
+    const Tetrodotoxin::Library::Llvm::Unit& unit,
+    const Tetrodotoxin::Language::Definition& definition) -> Bool {
+  Ttx::Concept::Reference<const Ttx::Concept::Abstract> current(
+      definition.get_host());
+  while (true) {
+    auto source = current.get().select<Language::Types::Source>();
+    if (source) {
+      return unit.owns(source->get_host());
+    }
+    auto composite = current.get().select<Language::Types::Composite>();
+    BAIL_IF(!composite);
+    current = composite->get_definition().get_host();
+  }
 }
 
 static auto get_program(Ttx::Concept::Abstract& body)
@@ -133,7 +152,9 @@ auto Tetrodotoxin::Library::Llvm::Globals::reserve(
         found->value.foreign == record.foreign &&
         found->value.abi == record.abi &&
         found->value.symbol == record.symbol &&
-        found->value.writable == record.writable);
+        found->value.writable == record.writable &&
+        found->value.external == record.external &&
+        found->value.published == record.published);
     if (!same) {
       fail_backend(
           program,
@@ -154,9 +175,25 @@ auto Tetrodotoxin::Library::Llvm::Globals::reserve_static(
   auto target = get_target(program);
   BAIL_IF(!target);
 
-  Symbol symbol(target->get_arena(), addressable, Symbol::Kind::Address);
+  auto field = addressable.select<Language::Field>();
+  Bool local = !field ||
+               is_local_definition(target->get_unit(), field->get_definition());
+  if (target->get_unit().is_package_member() && !local) {
+    auto symbol = target->get_unit().find(addressable);
+    BAIL_IF(!symbol);
+    return reserve(
+        program, addressable, Record(False, {}, *symbol, True, True, False));
+  }
+
+  Symbol symbol(
+      target->get_arena(), addressable, Symbol::Kind::Address,
+      target->get_unit());
+  Bool published = Bool(
+      field && target->get_unit().is_package_member() &&
+      field->get_definition().is_published());
   return reserve(
-      program, addressable, Record(False, {}, symbol.get_view(), True));
+      program, addressable,
+      Record(False, {}, symbol.get_view(), True, False, published));
 }
 
 auto Tetrodotoxin::Library::Llvm::Globals::reserve_foreign(
@@ -222,15 +259,22 @@ auto Tetrodotoxin::Library::Llvm::Globals::complete(
 
   global->setConstant(bool(record.foreign && !record.writable));
   global->setLinkage(
-      record.foreign ? llvm::GlobalValue::ExternalLinkage
-                     : llvm::GlobalValue::InternalLinkage);
-  if (!record.foreign) {
+      record.foreign || record.external || record.published
+          ? llvm::GlobalValue::ExternalLinkage
+          : llvm::GlobalValue::InternalLinkage);
+  if (record.external || record.published) {
+    global->setVisibility(llvm::GlobalValue::HiddenVisibility);
+  }
+  if (!record.foreign && !record.external) {
     global->setInitializer(
         llvm::Constant::getNullValue(llvm::unwrap(*native_type)));
   }
 
   record.global = llvm::wrap(global);
   record.completed = True;
+  if (record.published) {
+    target->add_publication(Publication(addressable, record.symbol));
+  }
   return True;
 }
 
@@ -240,9 +284,9 @@ auto Tetrodotoxin::Library::Llvm::Globals::begin_initializer(
     -> Core::Option<LLVMValueRef> {
   auto found = records.find(&addressable);
   auto target = get_target(program);
-  if (!found || !target || found->value.foreign || !found->value.completed ||
-      !found->value.global || found->value.initializer_function ||
-      found->value.initialized) {
+  if (!found || !target || found->value.foreign || found->value.external ||
+      !found->value.completed || !found->value.global ||
+      found->value.initializer_function || found->value.initialized) {
     fail_backend(
         program, "LLVM cannot begin this Static initializer Body."_view);
     return {};

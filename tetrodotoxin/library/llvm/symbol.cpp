@@ -116,13 +116,15 @@ auto Tetrodotoxin::Library::Llvm::Symbol::validate(Core::View::Bytes value)
 Tetrodotoxin::Library::Llvm::Symbol::Symbol(
     Memory::Allocator::Arena& arena,
     const Concept::Abstract& semantic,
-    Kind kind) {
+    Kind kind,
+    Unit unit) {
   Memory::Managed::Bytes output(arena);
   switch (kind) {
   case Kind::Path:
     break;
   case Kind::FunctionStatic:
   case Kind::FunctionSelf:
+  case Kind::Construction:
     output.concat("TTX_FUNC_"_view);
     break;
   case Kind::Address:
@@ -149,11 +151,23 @@ Tetrodotoxin::Library::Llvm::Symbol::Symbol(
   }
 
   Count path_start = output.get_size();
+  Bool published_identity = kind == Kind::FunctionStatic ||
+                            kind == Kind::FunctionSelf ||
+                            kind == Kind::Construction || kind == Kind::Address;
+  if (published_identity && unit.is_package_member()) {
+    append_encoded_name(output, unit.get_package());
+    output.concat("__"_view);
+    append_encoded_name(output, unit.get_member());
+    output.concat("__"_view);
+    path_start = output.get_size();
+  }
   append_symbol_path(output, semantic, path_start);
   if (kind == Kind::FunctionStatic) {
     output.concat("_static"_view);
   } else if (kind == Kind::FunctionSelf) {
     output.concat("_self"_view);
+  } else if (kind == Kind::Construction) {
+    output.concat("__construct_static"_view);
   }
 
   value = output.get_view();

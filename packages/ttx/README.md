@@ -162,8 +162,8 @@ language observation while target storage stays a runtime fact.
 Each standard Package owns its Library source and the data needed to rebuild it.
 Package owns the Archive, its Complete or Interface profile, and native artifact
 locations. The matching Perimortem runtime component provides native behavior,
-while Linker creates object files and executables for the chosen CPU and
-operating system.
+the selected language compiler creates member objects, and the platform build
+toolchain creates native archives and executables.
 
 A Complete Archive rebuilds both public and private language objects. An
 Interface Archive rebuilds the public contracts and compiled artifact locations
@@ -174,5 +174,5 @@ source-level debugging data.
 See [Package](../../tetrodotoxin/package/README.md) for dependency and Archive
 selection, [Library](../../tetrodotoxin/library/README.md) for the concrete CPU
 semantics, [Graphics](../../tetrodotoxin/graphics/README.md) for the hosting and
-submission boundary, and [Linker](../../tetrodotoxin/linker/README.md) for
-native product ownership.
+submission boundary, and [Puffer](../../puffer/README.md) for command and
+product coordination.

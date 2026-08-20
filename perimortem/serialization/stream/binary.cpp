@@ -37,10 +37,6 @@ static auto write_blob(storage_type& storage, View::Vector<value_type> value)
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
-Stream::Binary<stream_endian, storage_type>::Binary(storage_type& storage)
-    : storage(storage) {}
-
-template <Data::ByteOrder stream_endian, typename storage_type>
 auto Stream::Binary<stream_endian, storage_type>::operator<<(Unsigned_8 value)
     -> Binary& {
   write<stream_endian>(storage, value);

@@ -196,6 +196,11 @@ class Expression : public Model::Pack {
       const Model::Type& access_scope,
       Model::Pack& source) -> Bool;
 
+  auto link_write_restored(
+      const Ttx::Concept::Abstract& lexical_context,
+      const Model::Type& access_scope,
+      Model::Pack& source) -> Bool;
+
  protected:
   // A completed fold lowers its retained Pack once and aliases this authored
   // Expression to the resulting target values. Absence keeps lowering on the
@@ -250,6 +255,10 @@ class Expression : public Model::Pack {
   // target facts without admitting an ordinary read.
   virtual auto link_write_target(
       Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& lexical_context,
+      const Model::Type& access_scope) -> Bool;
+
+  virtual auto link_write_target_restored(
       const Ttx::Concept::Abstract& lexical_context,
       const Model::Type& access_scope) -> Bool;
 

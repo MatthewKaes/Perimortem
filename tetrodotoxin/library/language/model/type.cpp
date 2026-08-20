@@ -13,6 +13,10 @@ using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library;
 
+auto Language::Model::Type::persist(Archive::Writer&) const -> Bool {
+  return False;
+}
+
 static auto retains_binding(
     Language::Model::Type::Callables callables,
     const Abstract& candidate) -> Bool {

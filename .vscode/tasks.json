@@ -81,6 +81,26 @@
       }
     },
     {
+      "label": "TTX Echo Build (Linux) [Debug]",
+      "type": "shell",
+      "command": "bazel",
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "args": [
+        "build",
+        "//apps/ttx/echo:echo",
+        "--config=debug",
+        "--jobs=2",
+        "--experimental_total_worker_memory_limit_mb=4096"
+      ],
+      "group": "build",
+      "detail": "Builds the pure TTX Echo application with full source debug information.",
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
       "label": "TTX Lsp Build",
       "type": "shell",
       "command": "${workspaceFolder}/extension/package.sh",

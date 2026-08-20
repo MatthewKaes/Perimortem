@@ -1,9 +1,9 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "validation/unit_test.hpp"
+#include "tetrodotoxin/environment/toolchain.hpp"
 
-#include "tetrodotoxin/environment/workspace.hpp"
+#include "validation/unit_test.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -16,11 +16,8 @@ class TestDialect : public Language::Dialect {
  public:
   TestDialect(View::Bytes name) : Language::Dialect(name) {}
 
-  auto interpret(
-      Cursor&,
-      const Documentation&,
-      const Anchor&,
-      Abstract&) -> Option<Language::Monograph&> override {
+  auto interpret(Cursor&, const Documentation&, const Anchor&, Abstract&)
+      -> Option<Language::Monograph&> override {
     return {};
   }
 };
@@ -70,10 +67,7 @@ class RightDialect : public TestDialect {
 
 class TopDialect : public TestDialect {
  public:
-  TopDialect(
-      View::Bytes name,
-      LeftDialect& left,
-      RightDialect& right)
+  TopDialect(View::Bytes name, LeftDialect& left, RightDialect& right)
       : TestDialect(name), left(left), right(right) {}
 
   auto get_left() const -> const LeftDialect& { return left; }
@@ -102,68 +96,66 @@ class ChildDialect : public TestDialect {
   RootDialect& root;
 };
 
-static Harness EnvironmentDialects = {
-  .name = "Tetrodotoxin::Environment::Dialects"_view,
+static Harness EnvironmentToolchain = {
+  .name = "Tetrodotoxin::Environment::Toolchain"_view,
 };
 
-PERIMORTEM_UNIT_TEST(EnvironmentDialects, dependency_free_and_chain) {
-  Environment::Workspace workspace;
+PERIMORTEM_UNIT_TEST(EnvironmentToolchain, dependency_free_and_chain) {
+  Environment::Toolchain toolchain;
 
-  auto independent =
-      workspace.install_dialect<IndependentDialect>("Independent"_view);
-  auto lower = workspace.install_dialect<LowerDialect>("Lower"_view);
+  auto independent = toolchain.install<IndependentDialect>("Independent"_view);
+  auto lower = toolchain.install<LowerDialect>("Lower"_view);
   ASSERT(independent);
   ASSERT(lower);
-  auto middle = workspace.install_dialect<MiddleDialect>("Middle"_view, *lower);
+  auto middle = toolchain.install<MiddleDialect>("Middle"_view, *lower);
 
   ASSERT(middle);
-  EXPECT(&middle->get_lower() == lower);
+  EXPECT(&middle->get_lower() == &*lower);
 }
 
-PERIMORTEM_UNIT_TEST(EnvironmentDialects, shared_diamond) {
-  Environment::Workspace workspace;
+PERIMORTEM_UNIT_TEST(EnvironmentToolchain, shared_diamond) {
+  Environment::Toolchain toolchain;
 
-  auto lower = workspace.install_dialect<LowerDialect>("Lower"_view);
+  auto lower = toolchain.install<LowerDialect>("Lower"_view);
   ASSERT(lower);
-  auto left = workspace.install_dialect<LeftDialect>("Left"_view, *lower);
-  auto right = workspace.install_dialect<RightDialect>("Right"_view, *lower);
+  auto left = toolchain.install<LeftDialect>("Left"_view, *lower);
+  auto right = toolchain.install<RightDialect>("Right"_view, *lower);
   ASSERT(left);
   ASSERT(right);
-  auto top = workspace.install_dialect<TopDialect>("Top"_view, *left, *right);
+  auto top = toolchain.install<TopDialect>("Top"_view, *left, *right);
 
   ASSERT(top);
-  EXPECT(&top->get_left() == left);
-  EXPECT(&top->get_right() == right);
-  EXPECT(&top->get_left().get_lower() == lower);
-  EXPECT(&top->get_right().get_lower() == lower);
+  EXPECT(&top->get_left() == &*left);
+  EXPECT(&top->get_right() == &*right);
+  EXPECT(&top->get_left().get_lower() == &*lower);
+  EXPECT(&top->get_right().get_lower() == &*lower);
 }
 
-PERIMORTEM_UNIT_TEST(EnvironmentDialects, rejects_unowned_dependencies) {
-  Environment::Workspace local;
-  Environment::Workspace foreign;
+PERIMORTEM_UNIT_TEST(EnvironmentToolchain, rejects_unowned_dependencies) {
+  Environment::Toolchain local;
+  Environment::Toolchain foreign;
   RootDialect missing("Missing"_view);
 
-  auto missing_result =
-      local.install_dialect<ChildDialect>("Missing"_view, missing);
-  auto foreign_root = foreign.install_dialect<RootDialect>("ForeignRoot"_view);
+  auto missing_result = local.install<ChildDialect>("Missing"_view, missing);
+  auto foreign_root = foreign.install<RootDialect>("ForeignRoot"_view);
   ASSERT(foreign_root);
   auto foreign_result =
-      local.install_dialect<ChildDialect>("Foreign"_view, *foreign_root);
+      local.install<ChildDialect>("Foreign"_view, *foreign_root);
 
   EXPECT_NOT(missing_result);
   EXPECT_NOT(foreign_result);
 }
 
-PERIMORTEM_UNIT_TEST(EnvironmentDialects, maps_names_to_instances) {
-  Environment::Workspace workspace;
+PERIMORTEM_UNIT_TEST(EnvironmentToolchain, maps_names_to_instances) {
+  Environment::Toolchain toolchain;
 
-  auto root = workspace.install_dialect<RootDialect>("Root"_view);
+  auto root = toolchain.install<RootDialect>("Root"_view);
   ASSERT(root);
-  auto child = workspace.install_dialect<ChildDialect>("Child"_view, *root);
+  auto child = toolchain.install<ChildDialect>("Child"_view, *root);
   ASSERT(child);
 
-  EXPECT_NOT(workspace.install_dialect<IndependentDialect>("Root"_view));
-  EXPECT(workspace.install_dialect<RootDialect>("SecondRoot"_view));
-  EXPECT(workspace.install_dialect<RootDialect>("ContextRoot"_view, *child));
-  EXPECT(&child->get_root() == root);
+  EXPECT_NOT(toolchain.install<IndependentDialect>("Root"_view));
+  EXPECT(toolchain.install<RootDialect>("SecondRoot"_view));
+  EXPECT(toolchain.install<RootDialect>("ContextRoot"_view, *child));
+  EXPECT(&child->get_root() == &*root);
 }

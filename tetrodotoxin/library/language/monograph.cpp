@@ -87,6 +87,30 @@ auto Library::Language::Monograph::create_authored(
   });
 }
 
+auto Library::Language::Monograph::restore(
+    Archive::Reader& reader,
+    Allocator::Arena& arena,
+    Tetrodotoxin::Language::Persistence::Profile profile,
+    const Abstract& language,
+    Abstract& context) -> Option<Monograph&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != Unsigned_16(Archive::Tag::Source) ||
+      record->is_optional() || !reader.is_complete());
+
+  Archive::Reader contents(record->get_payload());
+  auto documentation = contents.read_documentation(arena);
+  BAIL_IF(!documentation);
+
+  Monograph& monograph = arena.construct_from<Monograph>([&]() -> Monograph {
+    return Monograph(
+        arena, *documentation, Anchor::create(Span()), language, context);
+  });
+  BAIL_IF(
+      !monograph.source.restore(contents, profile) || !contents.is_complete());
+  return monograph;
+}
+
 auto Library::Language::Monograph::parse(Cursor& cursor) -> Bool {
   return source.parse(cursor);
 }
@@ -109,6 +133,14 @@ auto Library::Language::Monograph::finalize(Cursor& cursor) -> Bool {
   }
 
   return valid && source.finalize(cursor);
+}
+
+auto Library::Language::Monograph::link_restored() -> Bool {
+  return source.link_restored(context);
+}
+
+auto Library::Language::Monograph::finalize_restored() -> Bool {
+  return source.finalize_restored();
 }
 
 auto Library::Language::Monograph::lower(Llvm::Program& program) const
@@ -134,6 +166,11 @@ auto Library::Language::Monograph::lower(Llvm::Program& program) const
   }
 
   return lowered ? Option<Llvm::Program&>(program) : Option<Llvm::Program&>();
+}
+
+auto Library::Language::Monograph::persist(Archive::Writer& writer) const
+    -> Bool {
+  return source.persist(writer);
 }
 
 auto Library::Language::Monograph::get_name() const -> View::Bytes {

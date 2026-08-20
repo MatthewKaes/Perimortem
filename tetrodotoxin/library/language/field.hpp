@@ -48,6 +48,17 @@ class Field : public Model::Addressable {
       Tetrodotoxin::Language::Definition& definition)
       -> Perimortem::Core::Option<Field&>;
 
+  static auto restore(
+      Archive::Reader& reader,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Field&>;
+
+  static auto restore_slot(
+      Archive::Reader& reader,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Concept::Abstract& host,
+      Count ordinal) -> Perimortem::Core::Option<Field&>;
+
   auto link_declaration_type(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
   auto link_inferred_declaration_type(Ttx::Lexical::Cursor& cursor)
@@ -60,6 +71,10 @@ class Field : public Model::Addressable {
 
   auto link_declaration_initializer(Ttx::Lexical::Cursor& cursor)
       -> Bool override;
+
+  auto link_restored_declaration_type() -> Bool override;
+
+  auto link_restored_declaration_initializer() -> Bool override;
 
   // Const completion is a required link barrier. The initializer must reduce
   // to one exact constant Pack before any body can consume this Field.
@@ -76,6 +91,10 @@ class Field : public Model::Addressable {
   auto complete_declaration(Llvm::Program& program) const -> Bool override;
 
   auto lower_declaration(Llvm::Program& program) const -> Bool override;
+
+  auto persist(Archive::Writer& writer) const -> Bool override;
+
+  auto persist_slot(Archive::Writer& writer, Count ordinal) const -> Bool;
 
   constexpr auto contributes_to_instance_layout() const -> Bool override {
     return writability == Writability::Internal;

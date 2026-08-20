@@ -20,14 +20,10 @@ using namespace Validation;
 
 class DefaultDialect : public Language::Dialect {
  public:
-  DefaultDialect(View::Bytes name = "Default"_view)
-      : Language::Dialect(name) {}
+  DefaultDialect(View::Bytes name = "Default"_view) : Language::Dialect(name) {}
 
-  auto interpret(
-      Cursor&,
-      const Documentation&,
-      const Anchor&,
-      Abstract&) -> Option<Language::Monograph&> override {
+  auto interpret(Cursor&, const Documentation&, const Anchor&, Abstract&)
+      -> Option<Language::Monograph&> override {
     return {};
   }
 };
@@ -38,11 +34,7 @@ class DefaultMonograph : public Language::Monograph {
       Allocator::Arena& arena,
       const Language::Dialect& dialect,
       Abstract& context)
-      : Monograph(
-            arena,
-            dialect,
-            Documentation::get_empty(),
-            context) {}
+      : Monograph(arena, dialect, Documentation::get_empty(), context) {}
 
   auto get_name() const -> View::Bytes override { return "Default"_view; }
 };
@@ -69,7 +61,8 @@ class EmptyEncodingDialect final : public DefaultDialect {
  public:
   EmptyEncodingDialect() : DefaultDialect("EmptyEncoding"_view) {}
 
-  auto encode(const Abstract&) const -> Option<Dynamic::Bytes> override {
+  auto encode(const Abstract&, Language::Persistence::Profile) const
+      -> Option<Dynamic::Bytes> override {
     return Dynamic::Bytes();
   }
 };
@@ -92,13 +85,13 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_defaults) {
 
   const Bool linked = monograph.link(cursor);
   const Bool finalized = monograph.finalize(cursor);
-  auto unsupported = dialect.encode(monograph);
+  auto unsupported =
+      dialect.encode(monograph, Language::Persistence::Profile::Complete);
   auto missing = dialect.restore(
-      arena,
-      "unsupported"_view,
-      Documentation::get_empty(),
-      context);
-  auto empty = empty_dialect.encode(empty_monograph);
+      arena, "unsupported"_view, Language::Persistence::Profile::Complete,
+      Documentation::get_empty(), context);
+  auto empty = empty_dialect.encode(
+      empty_monograph, Language::Persistence::Profile::Complete);
   Bool successful_empty = empty.visit(
       []() { return False; },
       [](const Dynamic::Bytes& payload) {
@@ -139,6 +132,5 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_context_is_the_parent_query) {
   EXPECT(installed.is<Language::Dialect>());
   EXPECT(&monograph.get_language() == &installed);
   EXPECT(&monograph.resolve_context("provided"_view) == &context);
-  EXPECT(
-      &monograph.resolve_context("missing"_view) == &Invalid::get_invalid());
+  EXPECT(&monograph.resolve_context("missing"_view) == &Invalid::get_invalid());
 }

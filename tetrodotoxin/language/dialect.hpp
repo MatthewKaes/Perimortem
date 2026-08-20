@@ -10,23 +10,25 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
+#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Language {
 
-// One Dialect is the installed Abstract language context for a Workspace. It
-// owns only Workspace lifetime language state and downward dependency edges. A
-// source Cursor exposes the transaction Arena used by every identity produced
-// while reading that source.
+// One Dialect is a stateless language protocol installed in an Environment
+// Toolchain. Its immutable name and downward dependency edges are shared by
+// every Workspace borrowing that Toolchain. A source Cursor exposes the
+// transaction Arena used by every identity produced while reading that source.
 class Dialect : public Ttx::Concept::Abstract {
  public:
+  TTX_CONTRACT(Dialect, Ttx::Concept::Abstract);
+
   Dialect(Perimortem::Core::View::Bytes name);
   virtual ~Dialect() = 0;
-
-  TTX_CONTRACT(Dialect, Ttx::Concept::Abstract);
 
   virtual auto interpret(
       Ttx::Lexical::Cursor& cursor,
@@ -36,20 +38,24 @@ class Dialect : public Ttx::Concept::Abstract {
       -> Perimortem::Core::Option<Monograph&> = 0;
 
   static auto find_installed(
-      Perimortem::Core::View::Vector<Dialect*> installed,
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Dialect>>
+          installed,
       Perimortem::Core::View::Bytes name) -> Perimortem::Core::Option<Dialect&>;
 
   // Reads the one shared source envelope, selects an exact installed Dialect,
   // and returns that Dialect's sole parse result.
   static auto interpret_source(
-      Perimortem::Core::View::Vector<Dialect*> installed,
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Dialect>>
+          installed,
       Ttx::Lexical::Cursor& cursor,
       Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
 
   // Encode only the durable facts owned by this Dialect. An engaged empty byte
   // value is a successful empty payload while no value reports unsupported or
   // failed encoding.
-  virtual auto encode(const Ttx::Concept::Abstract& monograph) const
+  virtual auto encode(
+      const Ttx::Concept::Abstract& monograph,
+      Persistence::Profile profile) const
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
   // Restore one opaque payload using the same transaction context as authored
@@ -58,6 +64,7 @@ class Dialect : public Ttx::Concept::Abstract {
   virtual auto restore(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes payload,
+      Persistence::Profile profile,
       const Ttx::Concept::Documentation& documentation,
       Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
 

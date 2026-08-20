@@ -8,7 +8,8 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/record.hpp"
 
-#include "puffer/lsp/semantic_workspace.hpp"
+#include "tetrodotoxin/environment/workspace.hpp"
+#include "ttx/lexical/errors.hpp"
 
 namespace Puffer::Lsp {
 
@@ -23,8 +24,11 @@ class Document {
   Perimortem::Memory::Dynamic::Bytes package_root;
   Perimortem::Memory::Dynamic::Bytes logical_route;
   Perimortem::Core::Option<
-      Perimortem::Memory::Dynamic::Record<SemanticWorkspace>>
-      standalone_semantics;
+      Perimortem::Memory::Dynamic::Record<Ttx::Lexical::Errors>>
+      standalone_errors;
+  Perimortem::Core::Option<
+      Perimortem::Memory::Dynamic::Record<Tetrodotoxin::Environment::Workspace>>
+      standalone_workspace;
 };
 
 }  // namespace Puffer::Lsp

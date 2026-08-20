@@ -12,6 +12,7 @@
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/language/visibility.hpp"
+#include "tetrodotoxin/library/archive/writer.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
@@ -80,7 +81,20 @@ class Type : public Ttx::Model::Type {
 
   virtual auto complete(Llvm::Program&) const -> Bool { return False; }
 
+  // A value edge requires only the physical carrier closure. Declaration
+  // inventories remain owned by the Type's module traversal and are not
+  // imported merely because a Callable transports this Type.
+  virtual auto reserve_value(Llvm::Program& program) const -> Bool {
+    return reserve(program);
+  }
+
+  virtual auto complete_value(Llvm::Program& program) const -> Bool {
+    return complete(program);
+  }
+
   virtual auto lower(Llvm::Program&) const -> Bool { return True; }
+
+  virtual auto persist(Archive::Writer& writer) const -> Bool;
 
   // Iteration is selected by the exact input Type. The loop supplies its real
   // binding Layout and input Pack, while each iterable Type owns admission and
@@ -117,6 +131,14 @@ class Type : public Ttx::Model::Type {
         anchor,
         "Selected Type does not accept supplied initializer values."_view,
         "Omit the argument list to request the selected Type's default."_view);
+    return {};
+  }
+
+  virtual auto create_supplied_restored(
+      Perimortem::Memory::Allocator::Arena&,
+      Pack&,
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&>) const
+      -> Perimortem::Core::Option<Pack&> {
     return {};
   }
 
@@ -165,6 +187,16 @@ class Type : public Ttx::Model::Type {
   }
 
   virtual auto finalize(Ttx::Lexical::Cursor&) -> Bool { return True; }
+
+  virtual auto link_restored_types() -> Bool { return True; }
+
+  virtual auto link_restored_callable_signatures() -> Bool { return True; }
+
+  virtual auto link_restored_fields() -> Bool { return True; }
+
+  virtual auto link_restored_initializers() -> Bool { return True; }
+
+  virtual auto finalize_restored() -> Bool { return True; }
 
   // Visibility follows the real Type graph. A generated Type grants only its
   // own authority, while an authored contextual Type may forward through its

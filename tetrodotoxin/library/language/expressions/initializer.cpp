@@ -174,6 +174,11 @@ auto Language::Expressions::Initializer::lower(Llvm::Builder& body) const
     return False;
   }
 
+  auto completed_type = values->get_type().resolve().select<Ttx::Model::Type>();
+  if (completed_type && &*completed_type == &*type) {
+    return body.alias(*this, *values);
+  }
+
   return body.construct(*this, *type, *values);
 }
 

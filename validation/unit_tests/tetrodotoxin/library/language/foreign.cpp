@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/foreign.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/algorithm/search.hpp"
@@ -31,10 +32,6 @@ static auto interpret(
     Environment::Workspace& workspace,
     Errors& errors,
     View::Bytes source) -> Option<Library::Language::Monograph&> {
-  if (!workspace.install_dialect<Library::Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "ForeignTest"_view, "foreign.ttx"_view, source);
   if (!interpreted || !interpreted->is<Library::Language::Monograph>()) {
@@ -44,7 +41,8 @@ static auto interpret(
 }
 
 static auto rejects(View::Bytes source, View::Bytes expected) -> Bool {
-  Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   if (monograph || errors.is_empty() ||
@@ -78,7 +76,9 @@ PERIMORTEM_UNIT_TEST(ForeignTests, source_identity_and_lifecycle) {
       "  public state shared : Unsigned_64;\n"
       "}\n"_view;
 
-  Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+
+  Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -183,7 +183,9 @@ PERIMORTEM_UNIT_TEST(ForeignTests, access_invocation_and_category_separation) {
       "  return foreign -> shared(foreign.output);\n"
       "}\n"_view;
 
-  Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+
+  Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);

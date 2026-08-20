@@ -18,7 +18,9 @@
 #include "tetrodotoxin/library/llvm/functions.hpp"
 #include "tetrodotoxin/library/llvm/globals.hpp"
 #include "tetrodotoxin/library/llvm/products.hpp"
+#include "tetrodotoxin/library/llvm/publication.hpp"
 #include "tetrodotoxin/library/llvm/target.hpp"
+#include "tetrodotoxin/library/llvm/unit.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -38,7 +40,8 @@ class Program : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes source_path,
       Perimortem::Core::View::Bytes source_text,
       Target target,
-      Debug::Level debug_level);
+      Debug::Level debug_level,
+      Unit unit);
 
   ~Program();
 
@@ -47,6 +50,10 @@ class Program : public Ttx::Concept::Abstract {
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
   auto initialize() -> Bool;
+
+  // Creates one hosted process entry that invokes an already published native
+  // `[] -> []` symbol exactly once and then returns success to the host.
+  auto create_process_entry(Perimortem::Core::View::Bytes symbol) -> Bool;
 
   auto compile() -> Perimortem::Utility::Result<Products, Failure>;
 
@@ -73,7 +80,11 @@ class Program : public Ttx::Concept::Abstract {
 
   constexpr auto get_globals() const -> const Globals& { return globals; }
 
+  constexpr auto get_unit() const -> const Unit& { return unit; }
+
   auto add_export(Export value) -> void;
+
+  auto add_publication(Publication value) -> void;
 
   auto fail_backend(Perimortem::Core::View::Bytes message) -> Bool;
 
@@ -92,6 +103,7 @@ class Program : public Ttx::Concept::Abstract {
   Perimortem::Core::View::Bytes source_path;
   Perimortem::Core::View::Bytes source_text;
   Target target;
+  Unit unit;
   Debug debug;
   LLVMOpaqueContext& context;
   LLVMOpaqueModule& module;
@@ -100,6 +112,7 @@ class Program : public Ttx::Concept::Abstract {
   Functions functions;
   Globals globals;
   Perimortem::Memory::Managed::Vector<Export> exports;
+  Perimortem::Memory::Managed::Vector<Publication> publications;
   Bool source_failed = False;
   Bool tool_failed = False;
 };
