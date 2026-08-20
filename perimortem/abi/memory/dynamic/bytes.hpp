@@ -7,15 +7,15 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
 
+#include "perimortem/memory/dynamic/bytes.hpp"
+
 namespace Perimortem::Abi::Memory::Dynamic {
 
-// Bytes is the native carrier for one worker-owned Bibliotheca byte allocation.
-// The data pointer owns one reservation while size and capacity remain local to
-// this value. Copies share the allocation until a writable owner detaches it.
-//
-// The carrier cannot move between workers because Bibliotheca reservations are
-// thread affine. A borrowed View may cross a worker boundary while the backing
-// allocation remains alive, but that View supplies bounds rather than lifetime.
+// Bytes exposes the native symbols and borrowed physical carrier used by
+// generated code. Memory::Dynamic::Bytes remains the owning Perimortem value.
+// Retain and release observe the complete carrier selected by authored Type
+// Attributes. Concat transfers one newly owned value to its caller. This
+// interface adds no second lifetime or storage implementation.
 class Bytes {
  public:
   constexpr Bytes(
@@ -28,25 +28,12 @@ class Bytes {
       "perimortem_dynamic_bytes_retain"_view;
   static constexpr Perimortem::Core::View::Bytes release_symbol =
       "perimortem_dynamic_bytes_release"_view;
-
-  static auto retain(Unsigned_8* data) -> void;
-  static auto release(Unsigned_8* data) -> void;
-  static auto is_unique(Unsigned_8* data) -> Bool;
+  static constexpr Perimortem::Core::View::Bytes concat_symbol =
+      "perimortem_dynamic_bytes_concat"_view;
 
   constexpr auto get_data() const -> Unsigned_8* { return data; }
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_capacity() const -> Count { return capacity; }
-
-  constexpr auto set_size(Count selected) -> void { size = selected; }
-
-  constexpr auto replace(
-      Unsigned_8* selected_data,
-      Count selected_size,
-      Count selected_capacity) -> void {
-    data = selected_data;
-    size = selected_size;
-    capacity = selected_capacity;
-  }
 
  private:
   Unsigned_8* data;
@@ -59,5 +46,12 @@ static_assert(alignof(Bytes) == alignof(Count));
 
 }  // namespace Perimortem::Abi::Memory::Dynamic
 
-extern "C" auto perimortem_dynamic_bytes_retain(Unsigned_8* data) -> void;
-extern "C" auto perimortem_dynamic_bytes_release(Unsigned_8* data) -> void;
+extern "C" auto perimortem_dynamic_bytes_retain(
+    const Perimortem::Abi::Memory::Dynamic::Bytes* value) -> void;
+extern "C" auto perimortem_dynamic_bytes_release(
+    const Perimortem::Abi::Memory::Dynamic::Bytes* value) -> void;
+
+extern "C" auto perimortem_dynamic_bytes_concat(
+    Perimortem::Memory::Dynamic::Bytes* output,
+    Perimortem::Core::View::Bytes left,
+    Perimortem::Core::View::Bytes right) -> void;

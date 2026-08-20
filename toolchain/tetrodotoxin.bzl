@@ -302,9 +302,9 @@ ttx_library = rule(
             doc = "The Tetrodotoxin compiler binary.",
         ),
         _runtime = attr.label(
-            default = "//perimortem:memory",
+            default = "//perimortem:abi",
             providers = [CcInfo],
-            doc = "Perimortem runtime linked by generated managed values.",
+            doc = "Perimortem ABI linked by generated native values.",
         ),
     ),
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],

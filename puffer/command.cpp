@@ -34,6 +34,9 @@ static auto create_config(Memory::Allocator::Arena& arena)
   Memory::Managed::Map<Core::View::Bytes, Core::View::Bytes> variables(arena);
   variables.insert(
       "pipe"_view, "Run as an LSP server over the provided socket."_view);
+  variables.insert(
+      "packages-root"_view,
+      "Select the standard source Package root for LSP sessions."_view);
   variables.insert("format"_view, "Format each positional TTX source."_view);
   variables.insert("library"_view, "Compile one Library source."_view);
   variables.insert("backend"_view, "Select the Library backend."_view);
@@ -71,7 +74,9 @@ static auto write_error(Core::View::Bytes message) -> void {
   fwrite(newline.get_data(), 1, CppSize(newline.get_size()), stderr);
 }
 
-static auto run_lsp(Core::View::Bytes pipe_name) -> Signed_32 {
+static auto run_lsp(
+    Core::View::Bytes pipe_name,
+    Core::View::Bytes packages_root) -> Signed_32 {
   if (pipe_name.is_empty() || pipe_name == "true"_view) {
     write_error("puffer: -pipe needs a socket path"_view);
     return 2;
@@ -79,7 +84,7 @@ static auto run_lsp(Core::View::Bytes pipe_name) -> Signed_32 {
 
   Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::console_sink);
   Core::Diagnostics::Log::set_disable_header(True);
-  Puffer::Lsp::Executor executor;
+  Puffer::Lsp::Executor executor(packages_root);
   executor.execute(pipe_name);
   return 0;
 }
@@ -321,7 +326,7 @@ auto Puffer::Command::run() const -> Signed_32 {
   }
 
   if (pipe) {
-    return run_lsp(value(args, "pipe"_view));
+    return run_lsp(value(args, "pipe"_view), value(args, "packages-root"_view));
   } else if (format) {
     return run_format(args);
   } else {

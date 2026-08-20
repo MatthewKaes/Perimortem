@@ -1,0 +1,26 @@
+// Dynamic values backed by the Perimortem Memory ABI.
+dialect : Library;
+
+foreign "C" {
+  public func perimortem_dynamic_bytes_concat[
+    .left : View[Unsigned_8],
+    .right : View[Unsigned_8],
+  ] -> Bytes;
+}
+
+@retain("perimortem_dynamic_bytes_retain") @release("perimortem_dynamic_bytes_release")
+public Bytes : struct {
+  private state storage  : View[Unsigned_8];
+  private state capacity : Unsigned_64;
+
+  public concat : func = [
+    .left : View[Unsigned_8],
+    .right : View[Unsigned_8],
+  ] -> Bytes : return foreign -> perimortem_dynamic_bytes_concat(left, right);
+
+  public get_size : func = [self] -> Unsigned_64 : return self.storage -> get_size();
+  public get_view : func = [self] -> View[Unsigned_8] : return self.storage;
+  public slice : func = [self, .start : Unsigned_64, .count : Unsigned_64] -> View[
+    Unsigned_8,
+  ] : return self.storage -> slice(start, count);
+}

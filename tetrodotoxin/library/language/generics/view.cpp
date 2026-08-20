@@ -21,6 +21,7 @@ auto Generics::View::create(Perimortem::Core::View::Vector<Argument> arguments)
   if (element == nullptr) {
     return {};
   }
+
   if (element->get_layout().is_empty()) {
     return {};
   }

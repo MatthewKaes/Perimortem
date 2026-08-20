@@ -70,10 +70,16 @@ static auto publish_diagnostics(
     View::Bytes uri) -> Lsp::Rpc::Response {
   Allocator::Arena& arena = message.get_arena();
   Managed::Vector<Json::Node> diagnostics(arena);
-  auto errors = documents.get_errors(uri);
-  if (errors) {
-    for (Count index = 0; index < errors->get_size(); index++) {
-      Ttx::Lexical::Anchor anchor = errors->get_anchor(index);
+  auto selected = documents.get_diagnostics(uri);
+  if (selected) {
+    const Ttx::Lexical::Errors& errors = selected->get_errors();
+    View::Bytes source_name = selected->get_source_name();
+    for (Count index = 0; index < errors.get_size(); index++) {
+      if (errors.get_source_name(index) != source_name) {
+        continue;
+      }
+
+      Ttx::Lexical::Anchor anchor = errors.get_anchor(index);
       Ttx::Lexical::Token token = anchor.get_token();
       Ttx::Lexical::Span span = anchor.get_span();
       if (!token && span) {
@@ -101,7 +107,7 @@ static auto publish_diagnostics(
                }},
               {"severity"_view, Signed_64(1)},
               {"source"_view, "ttx"_view},
-              {"message"_view, errors->get_message(index)},
+              {"message"_view, errors.get_message(index)},
             }}.construct(arena));
     }
   }
@@ -226,6 +232,18 @@ auto Puffer::Lsp::did_close(Documents& documents, const Rpc::Message& message)
   return publish_diagnostics(documents, message, uri);
 }
 
+auto Puffer::Lsp::did_change_watched_files(
+    Documents& documents,
+    const Rpc::Message& message) -> Rpc::Response {
+  Json::Array changes = message.get_params()["changes"_view].get_array();
+  for (const Json::Node& change : changes) {
+    View::Bytes uri = change["uri"_view].decode_string(message.get_arena());
+    documents.invalidate(uri);
+  }
+
+  return {};
+}
+
 auto Puffer::Lsp::semantic_tokens(
     Documents& documents,
     const Rpc::Message& message) -> Rpc::Response {
@@ -254,5 +272,6 @@ auto Puffer::Lsp::hover(Documents& documents, const Rpc::Message& message)
   if (!semantic) {
     return message.report_result(Json::Node());
   }
+
   return message.report_result(semantic_hover(message.get_arena(), *semantic));
 }

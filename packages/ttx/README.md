@@ -1,17 +1,36 @@
 # Standard Tetrodotoxin Packages
 
-The standard Tetrodotoxin packages provide reusable Math, System, and Graphics
-features. They are ordinary Packages rather than hidden compiler built-ins. A
-source declares them as dependencies, and an Archive can provide the same
-public behavior when source is unavailable.
+The standard Tetrodotoxin packages provide reusable Memory, Math, System, and
+Graphics features. They are ordinary Packages rather than hidden compiler
+built-ins. A source declares them as dependencies, and an Archive can provide
+the same public behavior when source is unavailable.
 
 An application can use these packages for Perimortem's runtime services, while
 another host can provide different Packages for the same roles. The compiler
-does not create an implicit `System`, `Math`, or `Graphics` namespace.
+does not create an implicit `Memory`, `System`, `Math`, or `Graphics` namespace.
 
 Similar shapes do not erase meaning. A four-component math vector, a color
 tone, and a Render Stage value may have matching Layouts while remaining
 different Types.
+
+## Perimortem.Memory
+
+`Perimortem.Memory` publishes the exact `Dynamic::Bytes` identity shared by
+Packages that exchange owned byte values. A dependent Package declares Memory
+in its manifest and uses its context explicitly:
+
+```ttx
+resolve Memory : Perimortem.Memory = "1.0";
+```
+
+```ttx
+using Memory;
+```
+
+The Memory source authors the inline byte carrier, its native lifecycle
+Attributes, and its Callables. Consumers therefore share one Type identity
+rather than materializing matching but unrelated byte carriers in every source
+root.
 
 ## Perimortem.Math
 
@@ -30,28 +49,20 @@ Stage is meant to exchange that value.
 `Perimortem.System` publishes CPU-facing Library Types and Callables backed by
 explicit Foreign declarations. Package native locators connect those declared
 symbols to the Perimortem System runtime. Neither Library nor Workspace knows a
-special System namespace.
+special System namespace. System depends on `Perimortem.Memory`, so its Terminal
+Callables and their callers exchange the same `Dynamic::Bytes` identity.
 
 ### Terminal lines
 
-`System::Terminal -> read_line()` returns one nonnull `System::Line` Object. It
-owns the returned bytes and keeps their read-only View stable for the Line
-identity's lifetime. Its public observations are:
+`System::Terminal -> read_line()` returns `Option[Dynamic::Bytes]`. A selected
+value owns the complete line without its terminator. Immediate end of input or
+a read failure is absent. The caller may borrow a View from the owned bytes and
+uses ordinary Option propagation when either condition ends its current flow.
 
-- `available` is true for a completed line, including an empty line
-- `failed` is true for an input failure
-- `value` is the `View[Unsigned_8]` without its line terminator
-
-End of input leaves both flags false, while an input error sets `failed`. A
-three-state Line is useful here because `Option[View[Unsigned_8]]` could not
-distinguish the end of input from an error. This result belongs to Terminal
-rather than introducing one universal error Type for unrelated systems.
-
-Terminal publishes two `write_line` Callables. One writes a single byte View.
-The other writes a prefix View followed by a value View. Both append exactly one
-line terminator and report success as `Bool`. Keeping the Views separate allows
-scatter and gather output without adding byte concatenation to Library's
-numeric `+` operation.
+`System::Terminal -> write_line(line)` borrows one `Dynamic::Bytes`, appends one
+line terminator, flushes the terminal, and returns its completion as `Bool`.
+`Dynamic::Bytes -> concat(left, right)` copies two byte Views into one owned
+value before the call.
 
 The canonical Echo loop therefore remains ordinary Library control flow:
 
@@ -60,18 +71,12 @@ const prefix : View[Unsigned_8] = "Echo: ":[0, 6];
 const quit : View[Unsigned_8] = "quit":[0, 4];
 const exit : View[Unsigned_8] = "exit":[0, 4];
 
-while (true) {
-  const line := System::Terminal -> read_line();
-  if (line.failed or !line.available) {
-    return;
-  }
-  if (line.value == quit or line.value == exit) {
-    return;
-  }
-  const written := System::Terminal -> write_line(prefix, line.value);
-  if (!written) {
-    return;
-  }
+while true {
+  state line := System::Terminal -> read_line()?;
+  state view := line -> get_view();
+  if view == quit or view == exit : return;
+
+  System::Terminal -> write_line(Dynamic::Bytes -> concat(prefix, view))?;
 }
 ```
 

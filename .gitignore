@@ -8,6 +8,7 @@ MODULE.bazel.lock
 # LSP Client
 extension/package-lock.json
 extension/puffer
+extension/packages/
 extension/ttx-lang-server
 extension/tsconfig.tsbuildinfo
 extension/*.vsix

@@ -100,25 +100,6 @@ static auto get_attribute_text(
                   : Core::Option<const Core::View::Bytes&>();
 }
 
-static auto is_c_identifier(Core::View::Bytes value) -> Bool {
-  if (value.is_empty()) {
-    return False;
-  }
-
-  for (Count index = 0; index < value.get_size(); index++) {
-    Unsigned_8 byte = value[index];
-    Bool letter =
-        Bool((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z'));
-    Bool valid = Bool(
-        letter || byte == '_' || (index != 0 && byte >= '0' && byte <= '9'));
-    if (!valid) {
-      return False;
-    }
-  }
-
-  return True;
-}
-
 static auto select_function_attributes(
     Ttx::Concept::Abstract& program,
     const Tetrodotoxin::Language::Definition& definition,
@@ -167,7 +148,7 @@ static auto select_function_attributes(
             : "LLVM supports only the C ABI requested by this Callable."_view);
   }
 
-  if (symbol && !is_c_identifier(*symbol)) {
+  if (symbol && !Llvm::Symbol::validate(*symbol)) {
     return fail_callable(
         program, definition,
         "The native symbol is not a valid C identifier."_view,
@@ -311,7 +292,7 @@ auto Tetrodotoxin::Library::Llvm::Functions::reserve_foreign(
     return {};
   }
 
-  if (!is_c_identifier(symbol)) {
+  if (!Llvm::Symbol::validate(symbol)) {
     fail_callable(
         program, {},
         "The Foreign Callable symbol is not a valid C identifier."_view);

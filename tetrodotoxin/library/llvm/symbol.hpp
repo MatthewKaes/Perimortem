@@ -26,12 +26,15 @@ class Symbol {
     StructureType,
     ObjectType,
     ObjectFinalizer,
+    ObjectDescriptor,
   };
 
   Symbol(
       Perimortem::Memory::Allocator::Arena& arena,
       const Ttx::Concept::Abstract& semantic,
       Kind kind);
+
+  static auto validate(Perimortem::Core::View::Bytes value) -> Bool;
 
   constexpr auto get_view() const -> Perimortem::Core::View::Bytes {
     return value;

@@ -622,10 +622,12 @@ auto Tetrodotoxin::Library::Llvm::Builder::slice_view(
   auto native_element =
       element ? carriers->get_type(*element) : Core::Option<LLVMTypeRef>();
   auto native_result = carriers->get_type(result_type);
+  Count receiver_fields =
+      LLVMGetTypeKind(LLVMTypeOf(receiver)) == LLVMStructTypeKind
+          ? LLVMCountStructElementTypes(LLVMTypeOf(receiver))
+          : 0;
   if (!element || !native_element || !native_result ||
-      result.get_layout().get_size() != 1 ||
-      LLVMGetTypeKind(LLVMTypeOf(receiver)) != LLVMStructTypeKind ||
-      LLVMCountStructElementTypes(LLVMTypeOf(receiver)) != 2 ||
+      result.get_layout().get_size() != 1 || receiver_fields != 2 ||
       LLVMGetTypeKind(*native_result) != LLVMStructTypeKind ||
       LLVMCountStructElementTypes(*native_result) != 2) {
     return call_fail_backend(
@@ -666,8 +668,11 @@ auto Tetrodotoxin::Library::Llvm::Builder::slice_view(
   LLVMValueRef view = LLVMGetUndef(*native_result);
   view = LLVMBuildInsertValue(builder, view, view_data, 0, "slice.view.data");
   view = LLVMBuildInsertValue(builder, view, size, 1, "slice.view.size");
-  if (!view ||
-      !call_release_owned(native_body, *carriers, receiver_type, receiver)) {
+  if (!view) {
+    return False;
+  }
+
+  if (!call_release_owned(native_body, *carriers, receiver_type, receiver)) {
     return False;
   }
 

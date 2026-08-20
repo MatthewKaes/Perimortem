@@ -3,10 +3,11 @@
 
 // LLVM must enter before Perimortem so the standard placement declaration is
 // visible before the freestanding fallback used by Perimortem headers.
-// clang-format off
+#if __has_include("llvm/IR/IRBuilder.h")
 #include "llvm/IR/IRBuilder.h"
-#include "tetrodotoxin/library/llvm/debug.hpp"
-// clang-format on
+#else
+#error LLVM IRBuilder is required by the Library native compiler
+#endif
 
 #include "llvm-c/Core.h"
 #include "llvm-c/DebugInfo.h"
@@ -23,6 +24,7 @@
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/SHA256.h"
 #include "tetrodotoxin/library/llvm/body.hpp"
+#include "tetrodotoxin/library/llvm/debug.hpp"
 #include "tetrodotoxin/library/llvm/program.hpp"
 
 using namespace Perimortem;

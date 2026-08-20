@@ -1,0 +1,18 @@
+// Terminal input and output backed by the Perimortem runtime ABI.
+dialect : Library;
+
+using Memory;
+
+foreign "C" {
+  public func perimortem_system_terminal_read_line[] -> Option[Dynamic::Bytes];
+  public func perimortem_system_terminal_write_line[.line : Dynamic::Bytes] -> Bool;
+}
+
+public Terminal : struct {
+  public read_line : func = [] -> Option[
+    Dynamic::Bytes,
+  ] : return foreign -> perimortem_system_terminal_read_line();
+  public write_line : func = [
+    .line : Dynamic::Bytes,
+  ] -> Bool : return foreign -> perimortem_system_terminal_write_line(line);
+}

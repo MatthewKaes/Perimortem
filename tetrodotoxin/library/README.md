@@ -100,7 +100,7 @@ identifier.
 
 ### Type access
 
-Postfix `::` is a Type access Expression:
+Postfix `::` advances a contextual Type route:
 
 ```ttx
 Graphics::Image
@@ -108,11 +108,13 @@ System::Terminal
 Option[Graphics::Image]
 ```
 
-It evaluates its receiver, requires that receiver's exact semantic result to be
-a Library Type, and selects one Library Type from that context. The access
-result is the exact selected Type with no value output, so another `::` or a
-Static invocation can use the result without treating the selected Type as one
-of its own values. An ordinary value cannot use `::`.
+It evaluates its receiver and asks that exact semantic result for the next
+context. Package, Monograph, and namespace results may continue through another
+`::`; a Static invocation requires the terminal result to be one Library Type.
+A Package Source Alias continues to retain its real Monograph. When that source
+publishes a root Type matching the authored Source route, expression Type access
+selects that Type without changing what Package and `using` queries observe.
+The access produces no runtime value. An ordinary value cannot use `::`.
 
 Contextual declaration routes through Alias, Package, Monograph, Library
 source, and Type objects remain references with no identity. They do not become
@@ -347,6 +349,30 @@ returns the empty View. Access deliberately loses write authority through this
 operation. This borrowed subview is distinct from `:[start, count]`, which
 produces exactly `count` independent values and supplies defaults outside the
 receiver.
+
+`Dynamic::Bytes` is the worker-local copy-on-write byte value. Its native
+carrier is one owned data pointer, size, and capacity. Copying the value retains
+the allocation, while a writable operation detaches shared storage before
+exposing it. `bytes -> get_view()` borrows the complete contents and
+`bytes -> slice(start, count)` borrows the clipped suffix using the same rules
+as View. The Memory Package owns construction such as
+`Dynamic::Bytes -> concat(left, right)` because View has no dependency on an
+owning runtime Type. Byte Views and Dynamic::Bytes are standard interchange
+carriers, so receiving those exact contracts across Library source roots does
+not depend on the roots sharing one Generic materialization cache.
+
+An authored inline Structure may bind a native value lifecycle with matching
+`@retain("symbol")` and `@release("symbol")` Attributes. LLVM consumes those
+Attributes as `void symbol(const Type *value)` functions and emits the matching
+declarations in its C header. The hooks own the complete copy and destruction
+policy for that Structure, while its authored Fields remain the physical ABI
+layout and its ordinary Functions remain the semantic operation surface.
+
+Both Attributes are required together, accept one C identifier each, and may
+appear once. Types without them continue to derive ownership recursively from
+their exact field Types. This lets `Perimortem.Memory` author
+`Dynamic::Bytes` as a View plus capacity without teaching Library or View that
+the Perimortem runtime exists.
 
 Each Library root Generic owns its canonical materialized identities in that
 root's source transaction Arena. The Monograph reaches them through its root
@@ -736,6 +762,12 @@ including release of its contained Object Fields, before returning the storage.
 Source code has no finalizer, weak reference, explicit release, or observable
 reclamation callback.
 
+The native carrier remains one payload pointer. LLVM emits one immutable
+descriptor per Object Type containing its payload size, alignment, and generated
+finalizer. Perimortem Core stores only a pointer to that descriptor beside the
+allocation. Bibliotheca owns the reservation count and allocation bucket but
+never becomes an Object Type or runtime vtable.
+
 Object references remain on their owning worker. An interface between workers
 may borrow read only data through a View for the duration of one completed call.
 The receiving worker copies anything it retains and constructs a new Object
@@ -1106,9 +1138,9 @@ never discovers, links, finalizes, or owns a provider closure.
 
 Semantic publication and native publication answer different questions. A
 public Callable can be selected by another Monograph without promising an
-unmangled platform symbol. Function keeps every authored Attribute as ordered
+unmangled platform symbol. Definition keeps every authored Attribute as ordered
 source data and assigns no Attribute a Library wide meaning. A native compiler
-may consume requests such as:
+may consume Function publication requests such as:
 
 ```ttx
 @abi("C")
@@ -1121,12 +1153,12 @@ The compiler may generate a native name for that interface. An embedding
 boundary that must match an existing platform spelling may additionally request
 the exact override `@symbol("library_native")`.
 
-The consumer decides whether `abi` or `symbol` is relevant, which values and
-repetitions it supports, and whether the Function's visibility, receiver shape,
-and target representation satisfy that request. Function does not preconfirm
-those choices because another compiler or an embedding Dialect may assign the
-same authored facts different policy. Unknown keys remain available to future
-consumers without changing Function.
+The consumer decides whether `abi`, `symbol`, `retain`, or `release` is relevant,
+which values and repetitions it supports, and whether the selected declaration
+and target representation satisfy that request. The semantic owner does not
+preconfirm those choices because another compiler or an embedding Dialect may
+assign the same authored facts different policy. Unknown keys remain available
+to future consumers without changing the declaration.
 
 When a Library CPU compiler chooses to honor a C ABI request, it checks that
 every parameter and result Type has a valid C representation for the selected
@@ -1212,4 +1244,4 @@ both compilation and restoration.
 See [TTX semantics](../../ttx/ttx_semantics.md) for the shared contracts and
 [Package](../package/README.md) for `using` and resource contexts. The
 [standard packages](../../packages/ttx/README.md) apply these contracts to the
-provided Math, System, and Graphics surfaces.
+provided Memory, Math, System, and Graphics surfaces.

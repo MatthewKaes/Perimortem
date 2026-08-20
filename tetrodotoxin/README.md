@@ -152,8 +152,8 @@ stable frame submissions while Render, Shader, and the selected backend retain
 their own semantics.
 
 The [standard packages](../packages/ttx/README.md) provide ordinary Package and
-Library definitions for Math, System, and Graphics. They are linked by authored
-Package dependencies and do not become compiler builtins.
+Library definitions for Memory, Math, System, and Graphics. They are linked by
+authored Package dependencies and do not become compiler builtins.
 
 The repository publishes canonical grammar references for authored language
 shape and parse order. The complete source entries are

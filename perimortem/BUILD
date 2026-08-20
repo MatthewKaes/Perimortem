@@ -26,15 +26,14 @@ cc_library(
     name = "abi",
     srcs = glob([
         "abi/**/*.cpp",
-        "abi/core/cleanup.hpp",
     ]),
-    hdrs = glob(
-        ["abi/**/*.hpp"],
-        exclude = ["abi/core/cleanup.hpp"],
-    ),
+    hdrs = glob(["abi/**/*.hpp"]),
+    copts = ["-Wreturn-type-c-linkage"],
     includes = ["."],
     deps = [
         ":core",
+        ":memory",
+        ":system",
     ],
 )
 
@@ -45,6 +44,7 @@ cc_library(
         "core/bibliotheca.cpp",
         "core/diagnostics/log.cpp",
         "core/diagnostics/source.cpp",
+        "core/object.cpp",
         "core/reader/binary.cpp",
         "core/reader/serial.cpp",
         "core/reader/textual.cpp",
@@ -94,7 +94,6 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        ":abi",
         ":core",
         ":utility",
     ],

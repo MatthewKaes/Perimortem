@@ -8,6 +8,11 @@
 
 using namespace Perimortem;
 
+static auto get_cleanup_inventory() -> Abi::Core::Cleanup& {
+  thread_local Abi::Core::Cleanup inventory;
+  return inventory;
+}
+
 Abi::Core::Cleanup::~Cleanup() {
   while (latest) {
     Entry& selected = *latest;
@@ -24,4 +29,11 @@ auto Abi::Core::Cleanup::insert(Destructor destructor) -> void {
   Entry* entry = Perimortem::Core::Data::cast<Entry>(allocation.ptr);
   new (entry) Entry(destructor, latest);
   latest = *entry;
+}
+
+extern "C" auto perimortem_core_cleanup_register(
+    Abi::Core::Cleanup::Destructor destructor) -> void {
+  Core::Bibliotheca::Allocation order = Core::Bibliotheca::check_out(1);
+  Core::Bibliotheca::remit(order.ptr);
+  get_cleanup_inventory().insert(destructor);
 }

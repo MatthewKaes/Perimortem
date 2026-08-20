@@ -98,9 +98,9 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
   BAIL_IF(get_layout().is_empty());
 
   // Structure owns this exact instance Field inventory, so selecting Field is
-  // owner-local construction rather than a consumer category switch. Authored
-  // Layout order is filled from each Field initializer before asking that
-  // Field's exact Type for its default.
+  // construction local to the owner rather than a consumer category switch.
+  // Authored Layout order is filled from each Field initializer before asking
+  // that Field's exact Type for its default.
   Managed::Vector<Ttx::Concept::Reference<Model::Pack>> values(arena);
   values.reset(get_layout().get_size());
   for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
@@ -131,7 +131,7 @@ auto Types::Structure::reserve_carrier(Llvm::Program& program) const
   Llvm::Carriers::Kind kind = get_layout().is_empty()
                                   ? Llvm::Carriers::Kind::Context
                                   : Llvm::Carriers::Kind::Structure;
-  return carriers.reserve(program, *this, kind);
+  return carriers.reserve(program, *this, kind, get_definition());
 }
 
 auto Types::Structure::complete_carrier(Llvm::Program& program) const -> Bool {

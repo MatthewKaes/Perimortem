@@ -7,15 +7,13 @@
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/hash.hpp"
 
-#include "perimortem/abi/memory/dynamic/bytes.hpp"
-
 namespace Perimortem::Memory::Dynamic {
 
-// A copy-on-write byte value backed by one worker-local Bibliotheca allocation.
-// Copies share their allocation until a writable operation detaches one owner.
+// Bytes uses one Bibliotheca allocation local to its worker. Copies share that
+// allocation until a writable operation detaches one owner.
 class Bytes {
  public:
-  constexpr Bytes() {};
+  constexpr Bytes() = default;
   Bytes(Count reserved_capacity);
   Bytes(Core::View::Bytes view);
   Bytes(const Dynamic::Bytes& rhs);
@@ -45,8 +43,8 @@ class Bytes {
   // Resizes the container but attempts to preserve as much of the original
   // buffer as will fit in the new size.
   //
-  // Shrinking the size of the buffer is non-destructive and can be recovered by
-  // resetting the size back to it's old value.
+  // Shrinking preserves the remaining buffer so restoring the old size can
+  // recover its bytes.
   auto resize(Count new_size) -> void;
   // Ensures there is enough room to store a required size, but declares we
   // don't care about the buffer's existing contents.
@@ -67,12 +65,10 @@ class Bytes {
   auto convert(Unsigned_8 source, Unsigned_8 target) -> void;
   auto slice(Count start, Count size) const -> Core::View::Bytes;
 
-  constexpr auto get_size() const -> Count { return storage.get_size(); }
-  constexpr auto get_capacity() const -> Count {
-    return storage.get_capacity();
-  }
-  constexpr auto get_view() const -> const Core::View::Bytes {
-    return Core::View::Bytes(storage.get_data(), storage.get_size());
+  constexpr auto get_size() const -> Count { return size; }
+  constexpr auto get_capacity() const -> Count { return capacity; }
+  constexpr auto get_view() const -> Core::View::Bytes {
+    return Core::View::Bytes(data, size);
   }
 
   // Access promises writable storage, so a shared allocation detaches before
@@ -83,7 +79,7 @@ class Bytes {
     return Core::Hash(get_view()).get_value();
   }
 
-  constexpr auto is_empty() const -> Bool { return storage.get_size() == 0; }
+  constexpr auto is_empty() const -> Bool { return size == 0; }
 
   auto clear() -> void;
   auto reset() -> void;
@@ -92,10 +88,17 @@ class Bytes {
  private:
   auto prepare_write(Count required_capacity) -> void;
   auto release() -> void;
+  auto replace(
+      Unsigned_8* selected_data,
+      Count selected_size,
+      Count selected_capacity) -> void;
 
-  Perimortem::Abi::Memory::Dynamic::Bytes storage;
+  Unsigned_8* data = nullptr;
+  Count size = 0;
+  Count capacity = 0;
 };
 
-static_assert(sizeof(Bytes) == sizeof(Perimortem::Abi::Memory::Dynamic::Bytes));
+static_assert(sizeof(Bytes) == sizeof(Unsigned_8*) + sizeof(Count) * 2);
+static_assert(alignof(Bytes) == alignof(Count));
 
 }  // namespace Perimortem::Memory::Dynamic

@@ -446,10 +446,10 @@ backend. Scene keeps exact Field and Object identity, Render and Shader keep
 their semantic contracts, and target resources remain with the backend
 consumer.
 
-The standard Math, System, and Graphics surfaces are ordinary Packages. They
-use the same dependency, Library, Foreign, persistence, and native publication
-contracts as application Packages. The compiler gives them no private lookup
-path or implicit namespace.
+The standard Memory, Math, System, and Graphics surfaces are ordinary Packages.
+They use the same dependency, Library, Foreign, persistence, and native
+publication contracts as application Packages. The compiler gives them no
+private lookup path or implicit namespace.
 
 These languages share only the TTX facts needed at their boundaries. Their
 differences remain visible to the consumers that understand them.

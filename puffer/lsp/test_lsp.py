@@ -197,7 +197,12 @@ def run_test():
             print(f"ASAN: {asan_path}")
 
     proc = subprocess.Popen(
-        [BINARY, f"--pipe={SOCKET_PATH}"],
+        [
+            BINARY,
+            f"--pipe={SOCKET_PATH}",
+            "--packages-root=" + os.path.join(
+                REPO_ROOT, "packages", "ttx"),
+        ],
         stderr=subprocess.PIPE,
         text=True,
         env=env,
@@ -258,6 +263,92 @@ def run_test():
         "params": {},
     }))
     time.sleep(0.1)
+
+    print("\n--- Package session: cross-source and System ABI ---")
+    package_root = os.path.join(
+        REPO_ROOT, "validation", "data", "ttx", "package_session")
+    helper_path = os.path.join(package_root, "helper.ttx")
+    main_path = os.path.join(package_root, "main.ttx")
+    package_path = os.path.join(package_root, "package.ttx")
+    with open(helper_path, "r", encoding="utf-8") as f:
+        helper_source = f.read()
+    with open(main_path, "r", encoding="utf-8") as f:
+        main_source = f.read()
+    with open(package_path, "r", encoding="utf-8") as f:
+        package_source = f.read()
+    helper_uri = "file://" + helper_path
+    main_uri = "file://" + main_path
+    package_uri = "file://" + package_path
+    system_path = os.path.join(
+        REPO_ROOT, "packages", "ttx", "Perimortem.System", "terminal.ttx")
+    system_package_path = os.path.join(
+        REPO_ROOT, "packages", "ttx", "Perimortem.System", "package.ttx")
+    with open(system_path, "r", encoding="utf-8") as f:
+        system_source = f.read()
+    with open(system_package_path, "r", encoding="utf-8") as f:
+        system_package_source = f.read()
+    system_uri = "file://" + system_path
+    system_package_uri = "file://" + system_package_path
+    system_package_diagnostics = send_did_open(
+        conn, system_package_uri, system_package_source)
+    system_diagnostics = send_did_open(conn, system_uri, system_source)
+    package_diagnostics = send_did_open(conn, package_uri, package_source)
+    helper_diagnostics = send_did_open(conn, helper_uri, helper_source)
+    main_diagnostics = send_did_open(conn, main_uri, main_source)
+    check(helper_diagnostics is not None and not helper_diagnostics.get(
+        "params", {}).get("diagnostics", []),
+        "Package helper publishes without diagnostics")
+    check(system_diagnostics is not None and not system_diagnostics.get(
+        "params", {}).get("diagnostics", []),
+        "Perimortem.System source Package publishes without diagnostics")
+    check(system_package_diagnostics is not None and
+          not system_package_diagnostics.get(
+              "params", {}).get("diagnostics", []),
+          "Perimortem.System manifest publishes without diagnostics")
+    package_messages = (package_diagnostics or {}).get(
+        "params", {}).get("diagnostics", [])
+    if package_messages:
+        print("  Consumer Package diagnostics:")
+        for diagnostic in package_messages:
+            print("   ", diagnostic.get("message"))
+    check(package_diagnostics is not None and not package_diagnostics.get(
+        "params", {}).get("diagnostics", []),
+        "consumer Package manifest publishes without diagnostics")
+    main_messages = (main_diagnostics or {}).get(
+        "params", {}).get("diagnostics", [])
+    if main_messages:
+        print("  Consumer member diagnostics:")
+        for diagnostic in main_messages:
+            print("   ", diagnostic.get("message"))
+    check(main_diagnostics is not None and not main_diagnostics.get(
+        "params", {}).get("diagnostics", []),
+        "Package member resolves its sibling and Perimortem.System")
+    prefix_use = main_source.index("Dynamic::Bytes -> concat")
+    system_hover = send_hover(
+        conn, main_uri, main_source, "prefix", 11, prefix_use)
+    system_result = system_hover.get("result") if system_hover else None
+    system_markdown = (
+        system_result.get("contents", {}).get("value", "")
+        if system_result else "")
+    check("state prefix : View[Unsigned_8]" in system_markdown,
+          "Package hover uses the shared cross-source analysis snapshot")
+
+    renamed_helper = helper_source.replace("public prefix", "public renamed")
+    send_did_change(conn, helper_uri, renamed_helper, 2)
+    invalidated_hover = send_hover(
+        conn, main_uri, main_source, "prefix", 12, prefix_use)
+    check(invalidated_hover is not None and
+          invalidated_hover.get("result") is None,
+          "editing one member invalidates the complete Package graph")
+    send_did_change(conn, helper_uri, helper_source, 3)
+    restored_hover = send_hover(
+        conn, main_uri, main_source, "prefix", 13, prefix_use)
+    restored_result = restored_hover.get("result") if restored_hover else None
+    restored_markdown = (
+        restored_result.get("contents", {}).get("value", "")
+        if restored_result else "")
+    check("state prefix : View[Unsigned_8]" in restored_markdown,
+          "restoring an overlay rebuilds one complete Package snapshot")
 
     print("\n--- Semantic tokens: Library/default dialect ---")
     library_source = (

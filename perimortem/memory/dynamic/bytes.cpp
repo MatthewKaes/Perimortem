@@ -5,6 +5,8 @@
 
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -15,7 +17,7 @@ Dynamic::Bytes::Bytes(Count reserved_capacity) {
   }
 
   auto alloc = Bibliotheca::check_out(reserved_capacity);
-  storage.replace(alloc.ptr, 0, alloc.capacity);
+  replace(alloc.ptr, 0, alloc.capacity);
 }
 
 Dynamic::Bytes::Bytes(const Core::View::Bytes view) {
@@ -25,15 +27,19 @@ Dynamic::Bytes::Bytes(const Core::View::Bytes view) {
 
   auto alloc = Bibliotheca::check_out(view.get_size());
   memcpy(alloc.ptr, view.get_data(), view.get_size());
-  storage.replace(alloc.ptr, view.get_size(), alloc.capacity);
+  replace(alloc.ptr, view.get_size(), alloc.capacity);
 }
 
-Dynamic::Bytes::Bytes(const Bytes& rhs) : storage(rhs.storage) {
-  Abi::Memory::Dynamic::Bytes::retain(storage.get_data());
+Dynamic::Bytes::Bytes(const Bytes& rhs)
+    : data(rhs.data), size(rhs.size), capacity(rhs.capacity) {
+  if (data) {
+    Bibliotheca::reserve(data);
+  }
 }
 
-Dynamic::Bytes::Bytes(Bytes&& rhs) : storage(rhs.storage) {
-  rhs.storage.replace(nullptr, 0, 0);
+Dynamic::Bytes::Bytes(Bytes&& rhs)
+    : data(rhs.data), size(rhs.size), capacity(rhs.capacity) {
+  rhs.replace(nullptr, 0, 0);
 }
 
 auto Dynamic::Bytes::operator=(Core::View::Bytes view) -> Bytes& {
@@ -46,9 +52,12 @@ auto Dynamic::Bytes::operator=(const Bytes& rhs) -> Bytes& {
     return *this;
   }
 
-  Abi::Memory::Dynamic::Bytes::retain(rhs.storage.get_data());
+  if (rhs.data) {
+    Bibliotheca::reserve(rhs.data);
+  }
+
   release();
-  storage = rhs.storage;
+  replace(rhs.data, rhs.size, rhs.capacity);
   return *this;
 }
 
@@ -58,8 +67,8 @@ auto Dynamic::Bytes::operator=(Bytes&& rhs) -> Bytes& {
   }
 
   release();
-  storage = rhs.storage;
-  rhs.storage.replace(nullptr, 0, 0);
+  replace(rhs.data, rhs.size, rhs.capacity);
+  rhs.replace(nullptr, 0, 0);
   return *this;
 }
 
@@ -70,8 +79,8 @@ Dynamic::Bytes::~Bytes() {
 auto Dynamic::Bytes::append(Unsigned_8 byte) -> void {
   Count size = get_size();
   prepare_write(size + 1);
-  storage.get_data()[size] = byte;
-  storage.set_size(size + 1);
+  data[size] = byte;
+  this->size = size + 1;
 }
 
 auto Dynamic::Bytes::append(Unsigned_8 byte, Count amount) -> void {
@@ -81,8 +90,8 @@ auto Dynamic::Bytes::append(Unsigned_8 byte, Count amount) -> void {
 
   Count size = get_size();
   prepare_write(size + amount);
-  Data::set(storage.get_data() + size, byte, amount);
-  storage.set_size(size + amount);
+  Data::set(data + size, byte, amount);
+  this->size = size + amount;
 }
 
 auto Dynamic::Bytes::concat(Core::View::Bytes view) -> void {
@@ -90,14 +99,18 @@ auto Dynamic::Bytes::concat(Core::View::Bytes view) -> void {
     return;
   }
 
+  if (view.get_size() > Count(-1) - get_size()) {
+    Diagnostics::Log::fatal(
+        "Dynamic Bytes concatenation exceeds the addressable size."_view);
+  }
+
   Count size = get_size();
   Count required_size = size + view.get_size();
-  Unsigned_8* data = storage.get_data();
-  Bool can_write = Abi::Memory::Dynamic::Bytes::is_unique(data) &&
+  Bool can_write = (!data || Bibliotheca::reservation_count(data) == 1) &&
                    required_size <= get_capacity();
   if (can_write) {
     Data::copy(data + size, view.get_data(), view.get_size());
-    storage.set_size(required_size);
+    this->size = required_size;
     return;
   }
 
@@ -109,17 +122,16 @@ auto Dynamic::Bytes::concat(Core::View::Bytes view) -> void {
   }
   Data::copy(allocation.ptr + size, view.get_data(), view.get_size());
   release();
-  storage.replace(allocation.ptr, required_size, allocation.capacity);
+  replace(allocation.ptr, required_size, allocation.capacity);
 }
 
 auto Dynamic::Bytes::get_access() -> Core::Access::Bytes {
   prepare_write(get_size());
-  return Core::Access::Bytes(storage.get_data(), get_size());
+  return Core::Access::Bytes(data, get_size());
 }
 
 auto Dynamic::Bytes::prepare_write(Count required_capacity) -> void {
-  Unsigned_8* data = storage.get_data();
-  Bool can_write = Abi::Memory::Dynamic::Bytes::is_unique(data) &&
+  Bool can_write = (!data || Bibliotheca::reservation_count(data) == 1) &&
                    required_capacity <= get_capacity();
   if (can_write) {
     return;
@@ -137,7 +149,7 @@ auto Dynamic::Bytes::prepare_write(Count required_capacity) -> void {
     Data::copy(allocation.ptr, data, size);
   }
   release();
-  storage.replace(allocation.ptr, size, allocation.capacity);
+  replace(allocation.ptr, size, allocation.capacity);
 }
 
 auto Dynamic::Bytes::proxy(Core::View::Bytes view) -> void {
@@ -149,7 +161,7 @@ auto Dynamic::Bytes::proxy(Core::View::Bytes view) -> void {
   Bibliotheca::Allocation allocation = Bibliotheca::check_out(view.get_size());
   Data::copy(allocation.ptr, view.get_data(), view.get_size());
   release();
-  storage.replace(allocation.ptr, view.get_size(), allocation.capacity);
+  replace(allocation.ptr, view.get_size(), allocation.capacity);
 }
 
 auto Dynamic::Bytes::set(Unsigned_8 target) -> void {
@@ -158,14 +170,14 @@ auto Dynamic::Bytes::set(Unsigned_8 target) -> void {
   }
 
   prepare_write(get_size());
-  Data::set(storage.get_data(), target, get_size());
+  Data::set(data, target, get_size());
 }
 
 auto Dynamic::Bytes::convert(Unsigned_8 source, Unsigned_8 target) -> void {
   prepare_write(get_size());
   for (Count i = 0; i < get_size(); i++) {
-    if (storage.get_data()[i] == source) {
-      storage.get_data()[i] = target;
+    if (data[i] == source) {
+      data[i] = target;
     }
   }
 }
@@ -175,13 +187,12 @@ auto Dynamic::Bytes::slice(Count start, Count size) const -> Core::View::Bytes {
     return Core::View::Bytes();
   }
 
-  return Core::View::Bytes(
-      storage.get_data() + start, Math::min(size, get_size() - start));
+  return Core::View::Bytes(data + start, Math::min(size, get_size() - start));
 }
 
 auto Dynamic::Bytes::resize(Count new_size) -> void {
   ensure_capacity(new_size);
-  storage.set_size(new_size);
+  size = new_size;
 }
 
 auto Dynamic::Bytes::forgetful_resize(Count required_size) -> void {
@@ -191,8 +202,8 @@ auto Dynamic::Bytes::forgetful_resize(Count required_size) -> void {
   // new block.
   Count capacity = get_capacity();
   Bool reusable = required_size <= capacity && required_size > (capacity >> 1);
-  if (reusable && Abi::Memory::Dynamic::Bytes::is_unique(storage.get_data())) {
-    storage.set_size(required_size);
+  if (reusable && (!data || Bibliotheca::reservation_count(data) == 1)) {
+    size = required_size;
     return;
   }
 
@@ -203,7 +214,7 @@ auto Dynamic::Bytes::forgetful_resize(Count required_size) -> void {
 
   auto alloc = Bibliotheca::check_out(required_size);
   release();
-  storage.replace(alloc.ptr, required_size, alloc.capacity);
+  replace(alloc.ptr, required_size, alloc.capacity);
 }
 
 auto Dynamic::Bytes::shrink(Count bytes_to_remove) -> void {
@@ -219,8 +230,8 @@ auto Dynamic::Bytes::shrink(Count bytes_to_remove) -> void {
 
   prepare_write(size);
   Count remaining = size - bytes_to_remove;
-  memmove(storage.get_data(), storage.get_data() + bytes_to_remove, remaining);
-  storage.set_size(remaining);
+  memmove(data, data + bytes_to_remove, remaining);
+  this->size = remaining;
 }
 
 auto Dynamic::Bytes::operator[](Count index) const -> Unsigned_8 {
@@ -232,12 +243,15 @@ auto Dynamic::Bytes::at(Count index) const -> Unsigned_8 {
 }
 
 auto Dynamic::Bytes::clear() -> void {
-  storage.set_size(0);
+  size = 0;
 }
 
 auto Dynamic::Bytes::release() -> void {
-  Abi::Memory::Dynamic::Bytes::release(storage.get_data());
-  storage.replace(nullptr, 0, 0);
+  if (data) {
+    Bibliotheca::remit(data);
+  }
+
+  replace(nullptr, 0, 0);
 }
 
 auto Dynamic::Bytes::reset() -> void {
@@ -253,11 +267,20 @@ auto Dynamic::Bytes::ensure_capacity(Count required_size) -> void {
   // Since the current block doesn't fit in the current archive fetch and
   // transfer to a new block.
   auto alloc = Bibliotheca::check_out(required_size);
-  if (storage.get_data()) {
-    memcpy(alloc.ptr, storage.get_data(), get_size());
+  if (data) {
+    memcpy(alloc.ptr, data, get_size());
   }
 
   Count size = get_size();
   release();
-  storage.replace(alloc.ptr, size, alloc.capacity);
+  replace(alloc.ptr, size, alloc.capacity);
+}
+
+auto Dynamic::Bytes::replace(
+    Unsigned_8* selected_data,
+    Count selected_size,
+    Count selected_capacity) -> void {
+  data = selected_data;
+  size = selected_size;
+  capacity = selected_capacity;
 }

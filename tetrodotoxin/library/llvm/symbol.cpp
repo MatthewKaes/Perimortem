@@ -93,6 +93,26 @@ static auto append_symbol_path(
   append_encoded_name(output, value.get_name());
 }
 
+auto Tetrodotoxin::Library::Llvm::Symbol::validate(Core::View::Bytes value)
+    -> Bool {
+  if (value.is_empty()) {
+    return False;
+  }
+
+  for (Count index = 0; index < value.get_size(); index++) {
+    Unsigned_8 byte = value[index];
+    Bool letter =
+        Bool((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z'));
+    Bool valid = Bool(
+        letter || byte == '_' || (index != 0 && byte >= '0' && byte <= '9'));
+    if (!valid) {
+      return False;
+    }
+  }
+
+  return True;
+}
+
 Tetrodotoxin::Library::Llvm::Symbol::Symbol(
     Memory::Allocator::Arena& arena,
     const Concept::Abstract& semantic,
@@ -122,6 +142,9 @@ Tetrodotoxin::Library::Llvm::Symbol::Symbol(
     break;
   case Kind::ObjectFinalizer:
     output.concat("__ttx_object_finalize_"_view);
+    break;
+  case Kind::ObjectDescriptor:
+    output.concat("__ttx_object_descriptor_"_view);
     break;
   }
 

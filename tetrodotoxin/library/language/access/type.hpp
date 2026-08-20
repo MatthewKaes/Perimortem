@@ -16,9 +16,9 @@ namespace Tetrodotoxin::Library::Language::Access {
 
 // Type is one postfix `:: Name` Expression. It retains the receiver and exact
 // authored Token without binding during parsing. Linking evaluates the
-// receiver result, requires a semantic Type, and selects the next Type through
-// that owner's context. The selected Type remains available through
-// get_result() for another access operation but produces no runtime value.
+// receiver result and selects the next context through that owner. Intermediate
+// Package, Monograph, and namespace contexts remain available to another `::`,
+// while a terminal Type can enter Static invocation or declaration flow.
 class Type : public Expression {
  public:
   TTX_CONTRACT(Type, Expression);
@@ -57,7 +57,9 @@ class Type : public Expression {
   Expression& receiver;
   Ttx::Lexical::Token token;
   Perimortem::Core::View::Bytes name;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>> selected;
+  Perimortem::Core::Option<
+      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
+      selected;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

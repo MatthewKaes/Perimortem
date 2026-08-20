@@ -6,7 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/dynamic/object.hpp"
+#include "perimortem/memory/dynamic/record.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
@@ -15,6 +15,7 @@
 
 #include "tetrodotoxin/environment/dialects.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/package/snapshots.hpp"
 #include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/errors.hpp"
 
@@ -24,7 +25,10 @@ namespace Tetrodotoxin::Environment {
 // sources and fixed Package source tables complete atomically here.
 class Workspace : public Ttx::Concept::Abstract {
  public:
-  Workspace();
+  Workspace(
+      Perimortem::Core::Option<
+          Perimortem::Memory::Dynamic::Record<Package::Snapshots>> snapshots =
+          {});
   ~Workspace() override;
 
   // Installs a distinct stateful Dialect under one exact authored name.
@@ -61,6 +65,9 @@ class Workspace : public Ttx::Concept::Abstract {
   auto get_associations(const Language::Monograph& monograph) const
       -> Perimortem::Core::Option<const Ttx::Lexical::Associations&>;
 
+  auto get_associations(Perimortem::Core::View::Bytes diagnostic_path) const
+      -> Perimortem::Core::Option<const Ttx::Lexical::Associations&>;
+
   auto get_name() const -> Perimortem::Core::View::Bytes override;
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
@@ -77,7 +84,8 @@ class Workspace : public Ttx::Concept::Abstract {
   // One committed source record keeps its transaction alive and publishes its
   // immutable authored source index. The operation Cursor is not retained.
   struct PublishedSource {
-    Perimortem::Memory::Dynamic::Object<Perimortem::Memory::Allocator::Arena>
+    Perimortem::Core::View::Bytes diagnostic_path;
+    Perimortem::Memory::Dynamic::Record<Perimortem::Memory::Allocator::Arena>
         transaction;
     Language::Monograph& monograph;
     const Ttx::Lexical::Associations& associations;
@@ -85,6 +93,9 @@ class Workspace : public Ttx::Concept::Abstract {
 
   // Declaration order is lifetime order. Reverse destruction releases
   // retained Monographs before their installed Dialects.
+  Perimortem::Core::Option<
+      Perimortem::Memory::Dynamic::Record<Package::Snapshots>>
+      snapshots;
   Perimortem::Memory::Allocator::Arena arena;
   Dialects dialects;
   Perimortem::Memory::Dynamic::Vector<PublishedSource> published_sources;

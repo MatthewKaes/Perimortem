@@ -132,6 +132,7 @@ auto Library::Language::Monograph::lower(Llvm::Program& program) const
     Perimortem::Core::Diagnostics::Log::error(
         "Library LLVM lowering failed while emitting source declarations."_view);
   }
+
   return lowered ? Option<Llvm::Program&>(program) : Option<Llvm::Program&>();
 }
 
@@ -147,6 +148,7 @@ auto Library::Language::Monograph::resolve_context(View::Bytes route) const
   if (route == "source"_view) {
     return source;
   }
+
   if (route == "foreign"_view && source.get_foreign().is_authored()) {
     return source.get_foreign();
   }
@@ -160,6 +162,7 @@ auto Library::Language::Monograph::resolve_context(View::Bytes route) const
   if (!root.is<Invalid>()) {
     return root;
   }
+
   return source.resolve_imports(route);
 }
 

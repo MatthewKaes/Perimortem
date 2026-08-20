@@ -134,13 +134,13 @@ int run_runtime_integration(void) {
       !propagated_object_error.value_selected &&
       propagated_object_error.error == object;
   if (object_value.value_selected) {
-    perimortem_dynamic_object_release(object_value.value);
+    perimortem_core_object_release(object_value.value);
   }
   if (propagated_object.value_selected) {
-    perimortem_dynamic_object_release(propagated_object.value);
+    perimortem_core_object_release(propagated_object.value);
   }
   if (!propagated_object_error.value_selected) {
-    perimortem_dynamic_object_release(propagated_object_error.error);
+    perimortem_core_object_release(propagated_object_error.error);
   }
   const ttx_results_llvm_5fobject_5fresults object_results =
       llvm_object_results(object);
@@ -148,13 +148,13 @@ int run_runtime_integration(void) {
                                    object_results.optional.value == object &&
                                    object_results.count == UINT64_C(7);
   if (object_results.optional.set) {
-    perimortem_dynamic_object_release(object_results.optional.value);
+    perimortem_core_object_release(object_results.optional.value);
   }
-  perimortem_dynamic_object_retain(object);
-  perimortem_dynamic_object_release(object);
+  perimortem_core_object_retain(object);
+  perimortem_core_object_release(object);
   const uint64_t changed_object = llvm_object_add(object, UINT64_C(5));
   const uint64_t read_object = llvm_object_read(object);
-  perimortem_dynamic_object_release(object);
+  perimortem_core_object_release(object);
   if (pair.left != UINT64_C(9) || pair.right != UINT64_C(4) ||
       large.first != UINT64_C(4) || large.second != UINT64_C(5) ||
       large.third != UINT64_C(6) || llvm_large_sum(large) != UINT64_C(15) ||
@@ -168,7 +168,8 @@ int run_runtime_integration(void) {
       wide_error.error.second != UINT64_C(5) ||
       wide_error.error.third != UINT64_C(6) ||
       llvm_result_error(result_value) || !llvm_result_error(result_error) ||
-      llvm_nonobject() != UINT64_C(21) || access_total != UINT64_C(91)) {
+      llvm_nonobject() != UINT64_C(21) || access_total != UINT64_C(91) ||
+      llvm_bytes_concat_size() != UINT64_C(5)) {
     return 1;
   }
   if (initial_object != UINT64_C(7) || changed_object != UINT64_C(12) ||

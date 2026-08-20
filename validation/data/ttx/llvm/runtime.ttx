@@ -4,6 +4,10 @@ dialect : Library;
 foreign "C" {
   public func llvm_dense_access[] -> Access[Unsigned_64];
   public func llvm_dense_view[] -> View[Unsigned_64];
+  public func perimortem_dynamic_bytes_concat[
+    .left : View[Unsigned_8],
+    .right : View[Unsigned_8],
+  ] -> Dynamic::Bytes;
   public func ttx_system_print[.value : Unsigned_64] -> [];
 }
 
@@ -65,6 +69,16 @@ public borrow_iteration : func = [] -> Unsigned_64 {
   for [.entry : Unsigned_64] in readonly : total += entry;
 
   return total;
+}
+
+@abi("C") @symbol("llvm_bytes_concat_size")
+public bytes_concat_size : func = [] -> Unsigned_64 {
+  const left   : View[Unsigned_8] = "Hi" -> get_view();
+  const right  : View[Unsigned_8] = "!" -> get_view();
+  state joined := Dynamic::Bytes -> concat(left, right);
+  state tail   := joined -> slice(1, 99);
+  state view   := joined -> get_view();
+  return view -> get_size() + tail -> get_size();
 }
 
 @abi("C") @symbol("llvm_enumeration_iteration")
@@ -275,6 +289,25 @@ public Counter : object {
   public add : func = [self, .amount : Unsigned_64] -> Unsigned_64 {
     self.value += amount;
     return self.value;
+  }
+}
+
+public Dynamic : struct {
+  @retain("perimortem_dynamic_bytes_retain") @release("perimortem_dynamic_bytes_release")
+  public Bytes : struct {
+    private state storage  : View[Unsigned_8];
+    private state capacity : Unsigned_64;
+
+    public concat : func = [
+      .left : View[Unsigned_8],
+      .right : View[Unsigned_8],
+    ] -> Bytes : return foreign -> perimortem_dynamic_bytes_concat(left, right);
+
+    public get_size : func = [self] -> Unsigned_64 : return self.storage -> get_size();
+    public get_view : func = [self] -> View[Unsigned_8] : return self.storage;
+    public slice : func = [self, .start : Unsigned_64, .count : Unsigned_64] -> View[
+      Unsigned_8,
+    ] : return self.storage -> slice(start, count);
   }
 }
 

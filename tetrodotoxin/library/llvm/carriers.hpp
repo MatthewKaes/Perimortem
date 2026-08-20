@@ -10,6 +10,7 @@
 #include "perimortem/memory/dynamic/vector.hpp"
 
 #include "llvm-c/Types.h"
+#include "tetrodotoxin/language/definition.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/addressable.hpp"
@@ -44,6 +45,16 @@ class Carriers {
       Ttx::Concept::Abstract& program,
       const Ttx::Model::Type& type,
       Kind kind) const -> Perimortem::Core::Option<Bool>;
+
+  // Authored Structures lend their complete Definition because LLVM alone
+  // consumes native lifecycle Attributes. Carriers retains only the selected
+  // symbol text beside the physical Type fact.
+  auto reserve(
+      Ttx::Concept::Abstract& program,
+      const Ttx::Model::Type& type,
+      Kind kind,
+      const Tetrodotoxin::Language::Definition& definition) const
+      -> Perimortem::Core::Option<Bool>;
 
   auto begin_completion(
       Ttx::Concept::Abstract& program,
@@ -80,6 +91,12 @@ class Carriers {
 
   auto get_fields(const Ttx::Model::Type& type) const
       -> Perimortem::Core::Option<const Ttx::Concept::Layout&>;
+
+  auto get_retain_symbol(const Ttx::Model::Type& type) const
+      -> Perimortem::Core::Option<Perimortem::Core::View::Bytes>;
+
+  auto get_release_symbol(const Ttx::Model::Type& type) const
+      -> Perimortem::Core::Option<Perimortem::Core::View::Bytes>;
 
   auto get_field_index(const Ttx::Model::Addressable& field) const
       -> Perimortem::Core::Option<Count>;
@@ -143,7 +160,7 @@ class Carriers {
       Perimortem::Core::View::Vector<LLVMValueRef> values) const
       -> Perimortem::Core::Option<LLVMValueRef>;
 
-  auto get_object_finalizer(
+  auto get_object_descriptor(
       Ttx::Concept::Abstract& program,
       const Ttx::Model::Type& type) const
       -> Perimortem::Core::Option<LLVMValueRef>;
@@ -161,10 +178,13 @@ class Carriers {
     Perimortem::Core::Option<LLVMTypeRef> native;
     Perimortem::Core::Option<LLVMTypeRef> payload;
     Perimortem::Core::Option<LLVMValueRef> finalizer;
+    Perimortem::Core::Option<LLVMValueRef> descriptor;
     Perimortem::Core::Option<const Ttx::Model::Type&> element;
     Perimortem::Core::Option<const Ttx::Model::Type&> error;
     Perimortem::Core::Option<const Ttx::Model::Type&> flag;
     Perimortem::Core::Option<const Ttx::Concept::Layout&> fields;
+    Perimortem::Core::Option<Perimortem::Core::View::Bytes> retain_symbol;
+    Perimortem::Core::Option<Perimortem::Core::View::Bytes> release_symbol;
     Count extent = 0;
     Bool real = False;
     Bool signed_value = False;
@@ -215,6 +235,12 @@ class Carriers {
       Perimortem::Memory::Dynamic::Vector<
           Ttx::Concept::Reference<const Ttx::Model::Type>>& active) const
       -> Bool;
+
+  auto apply_lifecycle(
+      Ttx::Concept::Abstract& body,
+      const Ttx::Model::Type& type,
+      LLVMValueRef value,
+      Perimortem::Core::View::Bytes symbol) const -> Bool;
 
   mutable Perimortem::Memory::Dynamic::Map<const Ttx::Model::Type*, Carrier>
       carriers;

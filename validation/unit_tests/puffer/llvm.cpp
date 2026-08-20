@@ -91,6 +91,22 @@ PERIMORTEM_UNIT_TEST(LlvmTests, standalone_runtime_integration) {
   EXPECT(observation.runner_error.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(LlvmTests, system_abi_integration) {
+  Process::Request request = {
+    .executable = ".bin/bin/validation/system_abi_integration"_view,
+    .standard_input = "Hello System\n"_view,
+  };
+  Process::Observation observation = Process::run(request);
+
+  EXPECT(observation.launched);
+  EXPECT_NOT(observation.timed_out);
+  EXPECT_EQ(observation.exit_status, 0);
+  EXPECT_TEXT(observation.standard_input, "Hello System\n"_view);
+  EXPECT_TEXT(observation.standard_output, "Hello System\n"_view);
+  EXPECT(observation.standard_error.is_empty());
+  EXPECT(observation.runner_error.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
   auto source = File::read("validation/data/ttx/llvm/runtime.ttx"_view);
   ASSERT(source);
@@ -206,6 +222,25 @@ PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),
+          "@__ttx_object_descriptor_Counter = internal constant { i64, i64, "
+          "ptr } { i64 8, i64 8, ptr @__ttx_object_finalize_Counter }"_view) !=
+      Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
+          "@perimortem_core_object_allocate(ptr "
+          "@__ttx_object_descriptor_Counter)"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
+          "@perimortem_core_object_retain(ptr null)"_view) == Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
+          "@perimortem_core_object_release(ptr null)"_view) == Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
           "define void @llvm_large(ptr noalias sret(%ttx.struct.Large)"_view) !=
       Count(-1));
   EXPECT(
@@ -223,6 +258,16 @@ PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
           first_products->get_header(),
           "typedef struct ttx_View_5bUnsigned_5f64_5d {\n"
           "  const uint64_t *data;\n"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_header(),
+          "void perimortem_dynamic_bytes_retain(const ttx_Bytes *value);"_view) !=
+      Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
+          "%ttx.struct.Dynamic__Bytes = type { { ptr, i64 }, i64 }"_view) !=
+      Count(-1));
   EXPECT(
       Algorithm::search(first_products->get_llvm_ir(), "__ttx_fn_"_view) ==
       Count(-1));
@@ -278,7 +323,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, backend_rejections_report_source) {
     View::Bytes source;
     View::Bytes message;
   };
-  static constexpr Static::Vector<Rejection, 4> rejections = {{
+  static constexpr Static::Vector<Rejection, 6> rejections = {{
     Rejection{
       "// Missing ABI.\ndialect : Library;\n@symbol(\"entry\")\npublic "
       "entry : func = [] -> [] { return; }\n"_view,
@@ -301,6 +346,18 @@ PERIMORTEM_UNIT_TEST(LlvmTests, backend_rejections_report_source) {
       "public Recursive : struct { public state next : Option[Recursive]; }\n"
       "@abi(\"C\")\npublic entry : func = [] -> [] { return; }\n"_view,
       "recursively contains itself"_view,
+    },
+    {
+      "// Incomplete lifecycle.\ndialect : Library;\n"
+      "@retain(\"native_retain\")\n"
+      "public Value : struct { public state value : Unsigned_64; }\n"_view,
+      "requires both retain and release"_view,
+    },
+    {
+      "// Invalid lifecycle symbol.\ndialect : Library;\n"
+      "@retain(\"bad-symbol\")\n@release(\"native_release\")\n"
+      "public Value : struct { public state value : Unsigned_64; }\n"_view,
+      "require one native symbol string"_view,
     },
   }};
 

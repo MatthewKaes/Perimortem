@@ -1,0 +1,4 @@
+// Cross-source helper.
+dialect : Library;
+
+public prefix : func = [] -> View[Unsigned_8] : return "Echo: " -> get_view();

@@ -38,15 +38,18 @@ export function start_language_client(
   context.subscriptions.push(ttx_channel);
 
   const server_path = context.asAbsolutePath(path.join(".", "puffer"));
+  const packages_root = context.asAbsolutePath("packages");
   ttx_channel.appendLine(`Launching Puffer LSP using path: ${server_path}`);
 
   const server_options: ServerOptions = {
     run: {
       command: server_path,
+      args: [`-packages-root=${packages_root}`],
       transport: TransportKind.pipe,
     },
     debug: {
       command: server_path,
+      args: [`-packages-root=${packages_root}`],
       transport: TransportKind.pipe,
     },
   };

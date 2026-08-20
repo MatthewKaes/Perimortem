@@ -68,6 +68,7 @@ static auto cleanup_tree(View::Bytes root) -> void {
   remove_member(root, "resource.bin"_view);
   remove_member(root, "empty.bin"_view);
   remove_member(root, "stable.bin"_view);
+  remove_member(root, "snapshot.bin"_view);
   remove_member(root, "replacement.bin"_view);
   remove_member(root, "later.bin"_view);
   remove_member(root, "identity.bin"_view);
@@ -499,6 +500,63 @@ PERIMORTEM_UNIT_TEST(PackageStorage, opened_root_identity) {
   Package::Content* identity = select_content(identity_read);
   ASSERT(identity != nullptr);
   EXPECT_TEXT(identity->get_contents(), "original root"_view);
+}
+
+PERIMORTEM_UNIT_TEST(PackageStorage, snapshots_survive_storage_transactions) {
+  TemporaryPackage temporary;
+  ASSERT(temporary);
+  ASSERT(temporary.write("snapshot.bin"_view, "first"_view));
+
+  Dynamic::Record<Package::Snapshots> snapshots;
+  View::Bytes first_contents;
+  {
+    Allocator::Arena arena;
+    auto storage =
+        Package::Storage::open(arena, temporary.get_root(), snapshots);
+    ASSERT(storage);
+    auto read = storage->read("snapshot.bin"_view);
+    Package::Content* content = select_content(read);
+    ASSERT(content != nullptr);
+    EXPECT_TEXT(content->get_contents(), "first"_view);
+    first_contents = content->get_contents();
+  }
+
+  {
+    Allocator::Arena arena;
+    auto storage =
+        Package::Storage::open(arena, temporary.get_root(), snapshots);
+    ASSERT(storage);
+    auto read = storage->read("snapshot.bin"_view);
+    Package::Content* content = select_content(read);
+    ASSERT(content != nullptr);
+    EXPECT(content->get_contents().get_data() == first_contents.get_data());
+  }
+
+  ASSERT(snapshots->overlay(
+      temporary.get_root(), "snapshot.bin"_view, "editor"_view));
+  {
+    Allocator::Arena arena;
+    auto storage =
+        Package::Storage::open(arena, temporary.get_root(), snapshots);
+    ASSERT(storage);
+    auto read = storage->read("snapshot.bin"_view);
+    Package::Content* content = select_content(read);
+    ASSERT(content != nullptr);
+    EXPECT_TEXT(content->get_contents(), "editor"_view);
+  }
+
+  ASSERT(snapshots->remove_overlay(temporary.get_root(), "snapshot.bin"_view));
+  ASSERT(temporary.write("snapshot.bin"_view, "second"_view));
+  {
+    Allocator::Arena arena;
+    auto storage =
+        Package::Storage::open(arena, temporary.get_root(), snapshots);
+    ASSERT(storage);
+    auto read = storage->read("snapshot.bin"_view);
+    Package::Content* content = select_content(read);
+    ASSERT(content != nullptr);
+    EXPECT_TEXT(content->get_contents(), "second"_view);
+  }
 }
 
 PERIMORTEM_UNIT_TEST(PackageStorage, route_rejections) {

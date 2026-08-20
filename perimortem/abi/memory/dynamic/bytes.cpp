@@ -4,29 +4,34 @@
 #include "perimortem/abi/memory/dynamic/bytes.hpp"
 
 #include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem;
 
-auto Abi::Memory::Dynamic::Bytes::retain(Unsigned_8* data) -> void {
-  if (data) {
-    Core::Bibliotheca::reserve(data);
+extern "C" auto perimortem_dynamic_bytes_retain(
+    const Abi::Memory::Dynamic::Bytes* value) -> void {
+  if (value && value->get_data()) {
+    Core::Bibliotheca::reserve(value->get_data());
   }
 }
 
-auto Abi::Memory::Dynamic::Bytes::release(Unsigned_8* data) -> void {
-  if (data) {
-    Core::Bibliotheca::remit(data);
+extern "C" auto perimortem_dynamic_bytes_release(
+    const Abi::Memory::Dynamic::Bytes* value) -> void {
+  if (value && value->get_data()) {
+    Core::Bibliotheca::remit(value->get_data());
   }
 }
 
-auto Abi::Memory::Dynamic::Bytes::is_unique(Unsigned_8* data) -> Bool {
-  return !data || Core::Bibliotheca::reservation_count(data) == 1;
-}
+extern "C" auto perimortem_dynamic_bytes_concat(
+    Memory::Dynamic::Bytes* output,
+    Core::View::Bytes left,
+    Core::View::Bytes right) -> void {
+  if (!output) {
+    Core::Diagnostics::Log::fatal(
+        "Dynamic Bytes ABI received an empty result address."_view);
+  }
 
-extern "C" auto perimortem_dynamic_bytes_retain(Unsigned_8* data) -> void {
-  Abi::Memory::Dynamic::Bytes::retain(data);
-}
-
-extern "C" auto perimortem_dynamic_bytes_release(Unsigned_8* data) -> void {
-  Abi::Memory::Dynamic::Bytes::release(data);
+  new (output) Memory::Dynamic::Bytes(left);
+  output->concat(right);
 }

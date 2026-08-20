@@ -17,7 +17,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
-#include "perimortem/abi/memory/dynamic/object.hpp"
+#include "perimortem/abi/core/cleanup.hpp"
 #include "tetrodotoxin/library/llvm/body.hpp"
 #include "tetrodotoxin/library/llvm/carriers.hpp"
 #include "tetrodotoxin/library/llvm/program.hpp"
@@ -117,8 +117,7 @@ static auto register_destructor(
       llvm::Type::getVoidTy(context), {llvm::PointerType::getUnqual(context)},
       false);
   llvm::FunctionCallee registration = module.getOrInsertFunction(
-      llvm_text(Abi::Memory::Dynamic::Object::register_cleanup_symbol),
-      &signature);
+      llvm_text(Abi::Core::cleanup_register_symbol), &signature);
 
   get_builder(body).CreateCall(registration, {llvm::unwrap(destructor)});
   return True;

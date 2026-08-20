@@ -113,6 +113,12 @@ language. A dependency Alias borrows an exact Package identity and version that
 was already completed in the Workspace. Authored import never recursively
 restores or imports a missing dependency.
 
+The Alias remains the result of a Package or `using` query. When expression
+Type access reaches a Source and that Monograph publishes a root Type matching
+the Source route's leaf, the language may select that real Type. This is how an
+ordinary `Terminal` source can publish `System::Terminal` without replacing the
+Package Alias with a copied Type.
+
 Contextual lookup returns those retained identities. It does not copy Library
 Types, App lifecycle facts, or Shader declarations into a separate Package
 model.

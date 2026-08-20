@@ -160,6 +160,7 @@ class Preface {
 
 // Blocks are always cached aligned by having the preface small allows us to be
 static_assert(sizeof(Preface) == 64);
+static_assert(sizeof(Preface) == Bibliotheca::allocation_alignment);
 
 class Archive {
  public:

@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include "perimortem/core/option.hpp"
-
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/documentations/comment.hpp"
@@ -33,9 +31,12 @@ class View : public Contiguous {
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
+  auto accepts(const Model::Pack& source) const -> Bool override;
+
   auto reserve(Llvm::Program& program) const -> Bool override;
 
   auto complete(Llvm::Program& program) const -> Bool override;
+
   TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_element_type() const -> const Model::Type& override {

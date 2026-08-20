@@ -11,14 +11,17 @@ using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
 
-auto Package::Storage::open(Allocator::Arena& arena, View::Bytes location)
-    -> Option<Storage> {
+auto Package::Storage::open(
+    Allocator::Arena& arena,
+    View::Bytes location,
+    Dynamic::Record<Package::Snapshots> snapshots) -> Option<Storage> {
   // Holding the opened descriptor keeps every read on the same package root
   // even if the pathname is renamed or replaced after Storage construction.
   return File::Root::open(location).visit(
       []() { return Option<Storage>(); },
-      [&arena](File::Root& root) {
-        return Option<Storage>(Storage(arena, Data::take(root)));
+      [&](File::Root& root) {
+        return Option<Storage>(
+            Storage(arena, snapshots, arena.proxy(location), Data::take(root)));
       });
 }
 
@@ -44,9 +47,7 @@ auto Package::Storage::read(View::Bytes logical_route)
     return cached->value;
   }
 
-  // Reading directly into the acquisition Arena avoids a Dynamic intermediate.
-  // Semantic owners copy only successful content they actually retain.
-  auto contents = root.read(arena, diagnostic_path);
+  auto contents = snapshots->read(root, root_path, diagnostic_path);
   if (!contents) {
     return Failure(normalized, Failure::Error::Unreadable);
   }

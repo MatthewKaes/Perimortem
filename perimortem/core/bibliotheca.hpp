@@ -11,7 +11,7 @@ namespace Perimortem::Core {
 //
 // Provides Thread local allocator for isolating and caching thread allocations.
 // Can be mixed with the standard library but using STL objects with the
-// Bibliotheca is ill-advised.
+// Bibliotheca is not recommended.
 //
 // Any memory fetched from the Bibliotheca is guaranteed to be cleaned up on
 // thread exit. Until thread exit memory is perserved and is allocated into
@@ -32,6 +32,11 @@ class Bibliotheca {
   // Algorithms and types that use the underwrite buffer are incompatable with
   // the C++ standard library so it should be used sparingly.
   static constexpr auto legal_underwrite_size = 16;
+
+  // Every corpus begins after one cache line sized Preface. Slab pages preserve
+  // that boundary, so consumers may construct values with alignment no greater
+  // than this contract.
+  static constexpr auto allocation_alignment = 64;
 
   struct Allocation {
     Unsigned_8* ptr;

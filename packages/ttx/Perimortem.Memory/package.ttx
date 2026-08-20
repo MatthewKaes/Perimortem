@@ -1,0 +1,4 @@
+// Perimortem Memory Package.
+dialect : Package;
+
+source Dynamic from "dynamic.ttx";

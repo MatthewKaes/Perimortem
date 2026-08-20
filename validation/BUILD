@@ -58,6 +58,33 @@ ttx_library(
     library_name = "Runtime",
 )
 
+ttx_library(
+    name = "memory_source_llvm",
+    srcs = ["//packages/ttx:Perimortem.Memory/dynamic.ttx"],
+    library_name = "MemorySource",
+)
+
+ttx_library(
+    name = "system_abi_llvm",
+    srcs = ["data/ttx/llvm/system_abi.ttx"],
+    library_name = "SystemAbi",
+)
+
+cc_binary(
+    name = "system_abi_integration",
+    srcs = ["data/ttx/llvm/system_abi_harness.c"],
+    copts = [
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    deps = [
+        ":system_abi_llvm",
+        "//perimortem:abi",
+    ],
+)
+
 cc_library(
     name = "runtime_integration",
     srcs = ["data/ttx/llvm/runtime_harness.c"],
@@ -108,14 +135,15 @@ cc_binary(
         "unit_tests/ttx/**/*.cpp",
         "unit_tests/tetrodotoxin/**/*.cpp",
     ]) + ["unit_test.cpp"],
-    copts = ["-Wreturn-type-c-linkage"],
     data = glob(
         ["data/**/*.ttx"],
         exclude = ["data/ttx/shader_artifact/**"],
     ) + [
         "data/ttx/package_resources/resources/empty.bin",
         "data/ttx/package_resources/resources/table.bin",
+        ":memory_source_llvm",
         ":runtime_link_integration",
+        ":system_abi_integration",
         "//apps/ttx/scene_lifetime:sources",
     ],
     includes = ["."],

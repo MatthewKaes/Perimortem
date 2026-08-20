@@ -12,7 +12,7 @@
 
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "perimortem/abi/memory/dynamic/object.hpp"
+#include "perimortem/abi/core/object.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/callable.hpp"
 #include "ttx/model/type.hpp"
@@ -568,10 +568,27 @@ auto Llvm::Header::create(
 
   output << "#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n"_view;
   if (uses_objects) {
-    output << "void "_view << Abi::Memory::Dynamic::Object::retain_symbol
-           << "(void *value);\nvoid "_view
-           << Abi::Memory::Dynamic::Object::release_symbol
+    output << "void "_view << Abi::Core::object_retain_symbol
+           << "(void *value);\nvoid "_view << Abi::Core::object_release_symbol
            << "(void *value);\n"_view;
+  }
+
+  for (const Ttx::Model::Type* type : ordered.get_view()) {
+    auto retain = carriers.get_retain_symbol(*type);
+    auto release = carriers.get_release_symbol(*type);
+    if (!retain || !release) {
+      continue;
+    }
+
+    output << "void "_view << *retain << "(const "_view;
+    if (!write_type_name(output, carriers, *type)) {
+      return {};
+    }
+    output << " *value);\nvoid "_view << *release << "(const "_view;
+    if (!write_type_name(output, carriers, *type)) {
+      return {};
+    }
+    output << " *value);\n"_view;
   }
 
   for (const Llvm::Export& exported : exports) {

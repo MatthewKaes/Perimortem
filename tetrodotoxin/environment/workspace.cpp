@@ -5,7 +5,7 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
-#include "perimortem/memory/dynamic/object.hpp"
+#include "perimortem/memory/dynamic/record.hpp"
 
 #include "perimortem/system/path.hpp"
 
@@ -45,8 +45,10 @@ static auto append_storage_failure(
       });
 }
 
-Environment::Workspace::Workspace()
-    : arena(),
+Environment::Workspace::Workspace(
+    Option<Dynamic::Record<Package::Snapshots>> selected_snapshots)
+    : snapshots(selected_snapshots),
+      arena(),
       dialects(arena),
       published_sources(),
       source_monographs(arena),
@@ -62,7 +64,7 @@ auto Environment::Workspace::interpret_source(
   // Source backed graph objects retain views into this candidate Arena. Keeping
   // the complete lexical and semantic transaction under one handle makes every
   // rejection release those views as one lifetime decision.
-  Dynamic::Object<Allocator::Arena> transaction;
+  Dynamic::Record<Allocator::Arena> transaction;
   View::Bytes retained_contents = transaction->proxy(contents);
   View::Bytes retained_path = transaction->proxy(diagnostic_path);
   Tokenizer& tokenizer = transaction->construct<Tokenizer>(
@@ -121,6 +123,7 @@ auto Environment::Workspace::interpret_source(
   // Publication follows complete source semantics. Until this point the
   // Workspace has no lookup edge or retained Arena for the candidate graph.
   published_sources.insert({
+    .diagnostic_path = retained_path,
     .transaction = transaction,
     .monograph = *monograph,
     .associations = associations,
@@ -142,7 +145,11 @@ auto Environment::Workspace::import_package(
   // later failure uses the matching source Cursor.
   Allocator::Arena acquisition;
 
-  auto storage = Package::Storage::open(acquisition, package_root);
+  if (!snapshots) {
+    snapshots = Dynamic::Record<Package::Snapshots>();
+  }
+
+  auto storage = Package::Storage::open(acquisition, package_root, *snapshots);
   if (!storage) {
     Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Error);
     message
@@ -170,7 +177,7 @@ auto Environment::Workspace::import_package(
 
   // The manifest begins the candidate graph. Its bytes, Tokens, Cursor, and
   // Package Monograph share one Arena so any rejection releases them together.
-  Dynamic::Object<Allocator::Arena> root_transaction;
+  Dynamic::Record<Allocator::Arena> root_transaction;
   View::Bytes root_contents = root_transaction->proxy(manifest->get_contents());
   View::Bytes root_path =
       root_transaction->proxy(manifest->get_diagnostic_path());
@@ -243,8 +250,12 @@ auto Environment::Workspace::import_package(
 
   // Dependencies are completed Workspace facts, not nested import requests.
   // Exact identity and version matching keeps this transaction's scope fixed.
-  for (const Package::Language::Dependency& dependency :
-       root.get_dependencies()) {
+  View::Vector<Package::Language::Dependency> dependencies =
+      root.get_dependencies();
+  for (Count dependency_index = 0; dependency_index < dependencies.get_size();
+       dependency_index++) {
+    const Package::Language::Dependency& dependency =
+        dependencies.get_data()[dependency_index];
     const ImportedPackage* selected = nullptr;
     for (Count i = 0; i < packages.get_size(); i++) {
       const ImportedPackage& imported = packages[i];
@@ -285,13 +296,15 @@ auto Environment::Workspace::import_package(
 
   // Workspace keeps every candidate Arena local while Package records only
   // borrowed mappings. An early return destroys the complete candidate set.
-  Dynamic::Vector<Dynamic::Object<Allocator::Arena>> candidate_transactions(
+  Dynamic::Vector<Dynamic::Record<Allocator::Arena>> candidate_transactions(
       root.get_sources().get_size() + 1);
   Managed::Vector<Language::Monograph*> candidates(acquisition);
   Managed::Vector<Cursor*> cursors(acquisition);
+  Managed::Vector<View::Bytes> diagnostic_paths(acquisition);
   candidate_transactions.insert(root_transaction);
   candidates.insert(&root);
   cursors.insert(&root_cursor);
+  diagnostic_paths.insert(root_path);
 
   // Each declared Source gets its own owner and Cursor so source backed values
   // and diagnostics retain the member's exact text and location.
@@ -314,7 +327,7 @@ auto Environment::Workspace::import_package(
       continue;
     }
 
-    Dynamic::Object<Allocator::Arena> source_transaction;
+    Dynamic::Record<Allocator::Arena> source_transaction;
     View::Bytes source_contents =
         source_transaction->proxy(content->get_contents());
     View::Bytes source_path =
@@ -359,6 +372,7 @@ auto Environment::Workspace::import_package(
     candidate_transactions.insert(source_transaction);
     candidates.insert(&*member);
     cursors.insert(&cursor);
+    diagnostic_paths.insert(source_path);
   }
   // Source parsing is the only stage with storage access. Linking observes a
   // sealed Package context whose semantic candidates can no longer expand.
@@ -382,6 +396,7 @@ auto Environment::Workspace::import_package(
       linked = False;
     }
   }
+
   if (!linked) {
     return {};
   }
@@ -400,6 +415,7 @@ auto Environment::Workspace::import_package(
       finalized = False;
     }
   }
+
   if (!finalized) {
     return {};
   }
@@ -408,6 +424,7 @@ auto Environment::Workspace::import_package(
   // durable only with their owners, and every failure above publishes nothing.
   for (Count i = 0; i < candidate_transactions.get_size(); i++) {
     published_sources.insert({
+      .diagnostic_path = diagnostic_paths[i],
       .transaction = candidate_transactions[i],
       .monograph = *candidates[i],
       .associations = cursors[i]->get_associations(),
@@ -423,6 +440,18 @@ auto Environment::Workspace::import_package(
   View::Bytes retained_name = arena.proxy(root_semantic_name);
   source_monographs.launder(retained_name, root);
   return root;
+}
+
+auto Environment::Workspace::get_associations(View::Bytes diagnostic_path) const
+    -> Option<const Associations&> {
+  for (Count i = 0; i < published_sources.get_size(); i++) {
+    const PublishedSource& source = published_sources[i];
+    if (source.diagnostic_path == diagnostic_path) {
+      return source.associations;
+    }
+  }
+
+  return {};
 }
 
 auto Environment::Workspace::get_associations(

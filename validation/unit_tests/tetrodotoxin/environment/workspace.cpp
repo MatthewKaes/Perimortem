@@ -344,6 +344,33 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, package_is_a_completed_table) {
 
 PERIMORTEM_UNIT_TEST(
     EnvironmentWorkspace,
+    package_replacements_share_embedded_file_snapshots) {
+  Dynamic::Record<Package::Snapshots> snapshots;
+  Environment::Workspace first(snapshots);
+  ASSERT(first.install_dialect<Package::Dialect>("Package"_view));
+  ASSERT(first.install_dialect<Library::Dialect>("Library"_view));
+  Errors first_errors;
+  auto first_package = first.import_package(
+      first_errors, "validation/data/ttx/package_resources"_view,
+      "FirstResources"_view, "package.ttx"_view, "Validation.Resources"_view,
+      Version(1, 0));
+  ASSERT(first_package);
+  EXPECT(first_errors.is_empty());
+
+  Environment::Workspace replacement(snapshots);
+  ASSERT(replacement.install_dialect<Package::Dialect>("Package"_view));
+  ASSERT(replacement.install_dialect<Library::Dialect>("Library"_view));
+  Errors replacement_errors;
+  auto replacement_package = replacement.import_package(
+      replacement_errors, "validation/data/ttx/package_resources"_view,
+      "ReplacementResources"_view, "package.ttx"_view,
+      "Validation.Resources"_view, Version(1, 0));
+  ASSERT(replacement_package);
+  EXPECT(replacement_errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(
+    EnvironmentWorkspace,
     source_free_package_failures_are_system_logs) {
   Environment::Workspace workspace;
   Errors errors;

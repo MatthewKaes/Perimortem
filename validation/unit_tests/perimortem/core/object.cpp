@@ -1,19 +1,22 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
 
-#include "perimortem/memory/dynamic/object.hpp"
+#include "perimortem/core/object.hpp"
 
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/dynamic/map.hpp"
+#include "perimortem/memory/dynamic/record.hpp"
+
+#include "perimortem/abi/core/object.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Validation;
 
-static Harness DynamicObject = {
-  .name = "Dynamic::Object"_view,
+static Harness CoreObject = {
+  .name = "Core::Object and Memory::Dynamic::Record"_view,
 };
 
 class RaiiProbe {
@@ -30,7 +33,8 @@ class RaiiProbe {
   Count value = 0;
 };
 
-static_assert(sizeof(Dynamic::Object<RaiiProbe>) == sizeof(void*));
+static_assert(
+    sizeof(Dynamic::Record<RaiiProbe>) == sizeof(Perimortem::Core::Object));
 
 static Count native_finalizations = 0;
 
@@ -38,26 +42,35 @@ static auto finalize_native_object(Unsigned_8*) -> void {
   native_finalizations++;
 }
 
-PERIMORTEM_UNIT_TEST(DynamicObject, native_runtime_surface) {
+static constexpr Perimortem::Core::Object::Descriptor native_descriptor(
+    sizeof(Unsigned_64),
+    alignof(Unsigned_64),
+    finalize_native_object);
+
+PERIMORTEM_UNIT_TEST(CoreObject, native_runtime_surface) {
   native_finalizations = 0;
-  Unsigned_8* object = perimortem_dynamic_object_allocate(
-      sizeof(Unsigned_64), finalize_native_object);
-  perimortem_dynamic_object_retain(object);
-  perimortem_dynamic_object_release(object);
+  Unsigned_8* object = perimortem_core_object_allocate(&native_descriptor);
+  const Perimortem::Core::Object::Descriptor& descriptor =
+      Perimortem::Core::Object(object).get_descriptor();
+  EXPECT_EQ(descriptor.get_size(), Count(sizeof(Unsigned_64)));
+  EXPECT_EQ(descriptor.get_alignment(), Count(alignof(Unsigned_64)));
+  EXPECT(descriptor.get_finalizer() == finalize_native_object);
+  perimortem_core_object_retain(object);
+  perimortem_core_object_release(object);
   EXPECT_EQ(native_finalizations, Count(0));
-  perimortem_dynamic_object_release(object);
+  perimortem_core_object_release(object);
   EXPECT_EQ(native_finalizations, Count(1));
 }
 
-PERIMORTEM_UNIT_TEST(DynamicObject, shared_lifetime) {
+PERIMORTEM_UNIT_TEST(CoreObject, shared_lifetime) {
   Count destructor_count = 0;
 
   {
-    Dynamic::Object<RaiiProbe> probe(destructor_count, 42);
+    Dynamic::Record<RaiiProbe> probe(destructor_count, 42);
     EXPECT_EQ(probe->get_value(), Count(42));
 
     {
-      Dynamic::Object<RaiiProbe> second = probe;
+      Dynamic::Record<RaiiProbe> second = probe;
       EXPECT_EQ(second->get_value(), Count(42));
       EXPECT_EQ(destructor_count, Count(0));
     }
@@ -68,12 +81,12 @@ PERIMORTEM_UNIT_TEST(DynamicObject, shared_lifetime) {
   EXPECT_EQ(destructor_count, Count(1));
 }
 
-PERIMORTEM_UNIT_TEST(DynamicObject, assignment) {
+PERIMORTEM_UNIT_TEST(CoreObject, assignment) {
   Count destructor_count = 0;
 
   {
-    Dynamic::Object<RaiiProbe> first(destructor_count, 1);
-    Dynamic::Object<RaiiProbe> second(destructor_count, 2);
+    Dynamic::Record<RaiiProbe> first(destructor_count, 1);
+    Dynamic::Record<RaiiProbe> second(destructor_count, 2);
 
     second = first;
     EXPECT_EQ(destructor_count, Count(1));
@@ -83,13 +96,13 @@ PERIMORTEM_UNIT_TEST(DynamicObject, assignment) {
   EXPECT_EQ(destructor_count, Count(2));
 }
 
-PERIMORTEM_UNIT_TEST(DynamicObject, shared_assignment_preserves_reservations) {
+PERIMORTEM_UNIT_TEST(CoreObject, shared_assignment_preserves_reservations) {
   Count destructor_count = 0;
 
   {
-    Dynamic::Object<RaiiProbe> first(destructor_count, 3);
-    Dynamic::Object<RaiiProbe> second = first;
-    const Dynamic::Object<RaiiProbe>& alias = first;
+    Dynamic::Record<RaiiProbe> first(destructor_count, 3);
+    Dynamic::Record<RaiiProbe> second = first;
+    const Dynamic::Record<RaiiProbe>& alias = first;
 
     first = alias;
     second = first;
@@ -99,15 +112,15 @@ PERIMORTEM_UNIT_TEST(DynamicObject, shared_assignment_preserves_reservations) {
   EXPECT_EQ(destructor_count, Count(1));
 }
 
-PERIMORTEM_UNIT_TEST(DynamicObject, move_assignment) {
+PERIMORTEM_UNIT_TEST(CoreObject, move_assignment) {
   Count destructor_count = 0;
 
   {
-    Dynamic::Object<RaiiProbe> first(destructor_count, 1);
+    Dynamic::Record<RaiiProbe> first(destructor_count, 1);
     {
-      Dynamic::Object<RaiiProbe> second(destructor_count, 2);
+      Dynamic::Record<RaiiProbe> second(destructor_count, 2);
 
-      first = static_cast<Dynamic::Object<RaiiProbe>&&>(second);
+      first = static_cast<Dynamic::Record<RaiiProbe>&&>(second);
       EXPECT_EQ(first->get_value(), Count(2));
       EXPECT_EQ(destructor_count, Count(0));
     }
@@ -119,14 +132,14 @@ PERIMORTEM_UNIT_TEST(DynamicObject, move_assignment) {
   EXPECT_EQ(destructor_count, Count(2));
 }
 
-PERIMORTEM_UNIT_TEST(DynamicObject, move_construction) {
+PERIMORTEM_UNIT_TEST(CoreObject, move_construction) {
   Count destructor_count = 0;
 
   {
-    Dynamic::Object<RaiiProbe> first(destructor_count, 3);
+    Dynamic::Record<RaiiProbe> first(destructor_count, 3);
     {
-      Dynamic::Object<RaiiProbe> second(
-          static_cast<Dynamic::Object<RaiiProbe>&&>(first));
+      Dynamic::Record<RaiiProbe> second(
+          static_cast<Dynamic::Record<RaiiProbe>&&>(first));
       EXPECT_EQ(second->get_value(), Count(3));
     }
 
@@ -136,12 +149,12 @@ PERIMORTEM_UNIT_TEST(DynamicObject, move_construction) {
   EXPECT_EQ(destructor_count, Count(1));
 }
 
-PERIMORTEM_UNIT_TEST(DynamicObject, map_owner) {
+PERIMORTEM_UNIT_TEST(CoreObject, map_owner) {
   Count destructor_count = 0;
-  Dynamic::Map<Count, Dynamic::Object<RaiiProbe>> values;
+  Dynamic::Map<Count, Dynamic::Record<RaiiProbe>> values;
 
   {
-    Dynamic::Object<RaiiProbe> probe(destructor_count, 7);
+    Dynamic::Record<RaiiProbe> probe(destructor_count, 7);
     values.insert(0, probe);
   }
 
@@ -154,11 +167,11 @@ PERIMORTEM_UNIT_TEST(DynamicObject, map_owner) {
   EXPECT_EQ(destructor_count, Count(1));
 }
 
-PERIMORTEM_UNIT_TEST(DynamicObject, map_rehash) {
+PERIMORTEM_UNIT_TEST(CoreObject, map_rehash) {
   Count destructor_count = 0;
-  Dynamic::Map<Count, Dynamic::Object<RaiiProbe>> values;
+  Dynamic::Map<Count, Dynamic::Record<RaiiProbe>> values;
   for (Count i = 0; i < 16; i++) {
-    Dynamic::Object<RaiiProbe> probe(destructor_count, i);
+    Dynamic::Record<RaiiProbe> probe(destructor_count, i);
     values.insert(i, probe);
   }
 
