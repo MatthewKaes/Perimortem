@@ -27,6 +27,7 @@ class Access : public Contiguous {
       Perimortem::Core::View::Bytes name,
       const Model::Type& element,
       const Model::Type& size_type,
+      const Model::Type& flag_type,
       const Model::Type& view_type);
 
   TTX_NAME(name);

@@ -318,9 +318,12 @@ Type with a nonempty Layout. `View` is a borrowed contiguous view.
 `Range` describes a lazy ascending integer sequence. `Option[T]` represents a
 value that may be absent in an otherwise nonnullable language. The Option Type
 always has a nonempty Layout. Its state either carries one exact `T` or carries
-no payload. Native Library targets use the Perimortem value carrier: one inline
-payload slot followed by its selected state. The payload is live only when
-selected, and Option adds no allocation, reference count, or shared identity.
+no payload. Native Library targets normally use the Perimortem value carrier:
+one inline payload slot followed by its selected state. An Option over one
+nonnull authored Object uses the invalid null handle as its absent state and
+therefore remains one word. Empty-capable `Object[T]` retains the ordinary tag.
+The payload is live only when selected, and Option adds no allocation,
+reference count, or shared identity.
 `Result[T, E]` stores exactly one live value or error alternative in an inline
 union followed by Bool state. `T` and `E` must be distinct nonempty Types so raw
 received flow selects exactly one alternative. Result adds no allocation or
@@ -335,12 +338,13 @@ Callables through one callable surface. A Generic installs its required
 Callables when it materializes the exact Type, so lookup, reflection, and
 completion enumerate the same identities regardless of their origin.
 `view -> get_size()` and `access -> get_size()` return the runtime element count
-as exact `Unsigned_64`. `fixed -> get_view()` borrows the complete Fixed storage
-without changing its read only authority. Byte literals remain Fixed values and
-therefore use this explicit conversion when a View is required. A writable Fixed
-Addressable may additionally produce `Access[T]` with `fixed -> get_access()`.
-Neither operation copies the Fixed, and every returned borrow is valid only
-while its backing storage remains alive.
+as exact `Unsigned_64`; `is_empty()` reports whether that count is zero and
+folds for immutable Views. `fixed -> get_view()` borrows the complete Fixed
+storage without changing its read only authority. Byte literals remain Fixed
+values and therefore use this explicit conversion when a View is required. A
+writable Fixed Addressable may additionally produce `Access[T]` with
+`fixed -> get_access()`. Neither operation copies the Fixed, and every returned
+borrow is valid only while its backing storage remains alive.
 
 `view -> slice(start, count)` and `access -> slice(start, count)` return one
 read only `View[T]`. When `start` is within the receiver, its size is the lesser
@@ -350,29 +354,46 @@ operation. This borrowed subview is distinct from `:[start, count]`, which
 produces exactly `count` independent values and supplies defaults outside the
 receiver.
 
+`Object[T]` is the empty-capable worker-local managed buffer formula. Its
+one-word handle retains one Bibliotheca allocation while capacity remains
+recoverable from that allocation. `object -> get_capacity()` returns the
+allocated element count. `get_view()` borrows every allocated element, while
+`get_access()` borrows the same writable buffer observed by every alias.
+`reserve(count)` is a no-op when the current capacity is sufficient; otherwise
+it replaces that receiver handle with a larger copied buffer and returns Access
+covering the new capacity. Other aliases retain the old Object. `is_shared()`
+reports whether another owned handle retains the current buffer, and `clone()`
+explicitly replaces a writable receiver with an independent buffer copy. Empty
+Object storage returns zero capacity and empty bounds without exposing its
+internal null representation. Buffer element Types may be scalar or Structures
+whose recursive Fields own no Objects. This restriction belongs to buffer-wide
+destruction; authored nonnull Objects still destroy their contained Object
+Fields recursively.
+
 `Dynamic::Bytes` is the worker-local copy-on-write byte value. Its native
-carrier is one owned data pointer, size, and capacity. Copying the value retains
-the allocation, while a writable operation detaches shared storage before
-exposing it. `bytes -> get_view()` borrows the complete contents and
+carrier is `Object[Unsigned_8]` plus one logical size. Copying the value retains
+the Object, while a writable operation detaches shared storage before exposing
+it. Capacity remains owned by Bibliotheca rather than duplicated in Bytes.
+`bytes -> get_view()` borrows the complete contents and
 `bytes -> slice(start, count)` borrows the clipped suffix using the same rules
-as View. The Memory Package owns construction such as
-`Dynamic::Bytes -> concat(left, right)` because View has no dependency on an
-owning runtime Type. Byte Views and Dynamic::Bytes are standard interchange
+as View. Bytes is an inline value whose Self Callables receive its address.
+Transformations update that receiver and return the same reference with the
+scalar result `self`, enabling chains without copying the Bytes carrier. Before
+writing, Bytes reserves the required capacity. Growth already produces a
+private Object; when existing capacity is sufficient, `is_shared()` selects
+`clone()` before writable Access escapes. Copy-on-write policy therefore
+belongs to Bytes rather than Object.
+The Memory Package owns `copy`, append, concat, resize, shrink, clear, and
+reserve behavior directly over Object; it exposes no Access that could bypass
+the logical size. Static `Dynamic::Bytes -> concat(left, right)` and receiver
+`bytes -> concat(view)` may share one spelling because they have distinct
+receiver roles. Byte Views and Dynamic::Bytes are standard interchange
 carriers, so receiving those exact contracts across Library source roots does
 not depend on the roots sharing one Generic materialization cache.
 
-An authored inline Structure may bind a native value lifecycle with matching
-`@retain("symbol")` and `@release("symbol")` Attributes. LLVM consumes those
-Attributes as `void symbol(const Type *value)` functions and emits the matching
-declarations in its C header. The hooks own the complete copy and destruction
-policy for that Structure, while its authored Fields remain the physical ABI
-layout and its ordinary Functions remain the semantic operation surface.
-
-Both Attributes are required together, accept one C identifier each, and may
-appear once. Types without them continue to derive ownership recursively from
-their exact field Types. This lets `Perimortem.Memory` author
-`Dynamic::Bytes` as a View plus capacity without teaching Library or View that
-the Perimortem runtime exists.
+Structure ownership is derived recursively from its exact Fields. Object Fields
+retain and release their Core handles, so a runtime-backed value needs no
+native lifecycle Attribute or compiler-specific hook.
 
 Each Library root Generic owns its canonical materialized identities in that
 root's source transaction Arena. The Monograph reaches them through its root
@@ -891,12 +912,27 @@ Math -> add(2, 3)
 A Callable derives type binding from its signature's parameter Layout: it is
 type bound exactly when entry zero is the reserved `self` Addressable. A
 Function with that shape is Self. That entry has the selected receiver's exact
-Type, and every following parameter is named. The Function is selected through
-an addressable value:
+Type, is always passed by reference, and every following parameter is named.
+The Function is selected through an addressable value:
 
 ```ttx
 packet -> area()
 ```
+
+The reserved scalar result `self` returns that same reference. It is the
+canonical shorthand for the explicit one-entry `[self]` Layout and enables
+effectful chaining without copying the receiver:
+
+```ttx
+public clear : func = [self] -> self {
+  self.size = 0;
+}
+
+packet -> clear() -> reset();
+```
+
+Reaching the end of a `self`-returning Function returns that reference
+implicitly. `return self;` remains the explicit early-exit form.
 
 Static and Self Callables may share a name because their receiver roles
 distinguish the invocation. A Composite rejects a second Callable with the same
@@ -1049,9 +1085,10 @@ rejected because the inner Assignment supplies no value to the outer one.
 `return` retains one Pack and fits its complete output Layout against the
 Function result Layout. `return;` and `return ();` supply empty flow.
 `return value;` supplies one value. Positional and named parenthesized forms may
-supply several. Ordinary fallthrough is legal only for an empty result Layout.
-`()` fits `[]` directly. It also fits a single `Option[T]` result by creating
-the state with no payload. A Function with a nonempty result must return on
+supply several. Ordinary fallthrough is legal for an empty result Layout and
+for the reserved scalar result `self`, which implicitly returns the receiver
+reference. `()` fits `[]` directly. It also fits a single `Option[T]` result by
+creating the state with no payload. Every other nonempty result must return on
 every reachable path.
 
 `if` and `while` consume a Pack and use its first produced value for the control

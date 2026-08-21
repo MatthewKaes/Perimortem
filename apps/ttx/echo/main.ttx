@@ -17,6 +17,7 @@ public run : func = [] -> [] {
     state view := line -> get_view();
     if view == quit or view == exit : return;
 
-    System::Terminal -> write_line(Dynamic::Bytes -> concat(prefix, view))?;
+    state output := Dynamic::Bytes -> copy(prefix);
+    System::Terminal -> write_line(output -> concat(view))?;
   }
 }

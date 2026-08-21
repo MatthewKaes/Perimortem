@@ -36,6 +36,7 @@ enum class Tag : Unsigned_16 {
   ConstantResult = 25,
   Layout = 26,
   FieldSlot = 27,
+  ConstantObject = 28,
 };
 
 }  // namespace Tetrodotoxin::Library::Archive

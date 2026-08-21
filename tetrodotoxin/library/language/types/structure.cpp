@@ -234,7 +234,7 @@ auto Types::Structure::reserve_carrier(Llvm::Program& program) const
   Llvm::Carriers::Kind kind = get_layout().is_empty()
                                   ? Llvm::Carriers::Kind::Context
                                   : Llvm::Carriers::Kind::Structure;
-  return carriers.reserve(program, *this, kind, get_definition());
+  return carriers.reserve(program, *this, kind);
 }
 
 auto Types::Structure::complete_carrier(Llvm::Program& program) const -> Bool {

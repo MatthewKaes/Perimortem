@@ -8,14 +8,14 @@
 
 namespace Perimortem::Memory::Dynamic {
 
-// Record adds typed C++ lifetime management around the Core Object carrier.
-// It is a worker local convenience owner for compiler and tooling state, not a
-// language Type or another ABI representation.
+// Record adapts the Core Object carrier to C++ object lifetime rules. It is a
+// worker-local convenience owner for compiler and tooling state, not a language
+// Type or another ABI representation.
 template <typename value_type>
 class Record {
  public:
   template <typename... arg_types>
-  Record(arg_types&&... args) : object(Core::Object::create(descriptor)) {
+  Record(arg_types&&... args) : object(Core::Object<>::create(descriptor)) {
     new (object.get_payload()) value_type(static_cast<arg_types&&>(args)...);
   }
 
@@ -59,12 +59,12 @@ class Record {
     return Core::Data::cast<value_type>(object.get_payload());
   }
 
-  inline static constexpr Core::Object::Descriptor descriptor{
+  inline static constexpr Core::Object<>::Descriptor descriptor{
     sizeof(value_type), alignof(value_type), destroy};
 
-  Core::Object object;
+  Core::Object<> object;
 };
 
-static_assert(sizeof(Record<Unsigned_8>) == sizeof(Core::Object));
+static_assert(sizeof(Record<Unsigned_8>) == sizeof(Core::Object<>));
 
 }  // namespace Perimortem::Memory::Dynamic

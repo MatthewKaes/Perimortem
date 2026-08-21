@@ -16,6 +16,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CBindingWrapping.h"
+#include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/llvm/body.hpp"
@@ -247,24 +248,41 @@ static auto select_result_types(
     Memory::Dynamic::Vector<llvm::Type*>& native,
     Memory::Dynamic::Vector<const Ttx::Model::Type*>& semantic) -> Bool {
   const Ttx::Concept::Layout& layout = callable.get_results();
+  auto library_callable = callable.select<Language::Model::Callable>();
+  auto self_result = library_callable
+                         ? library_callable->get_self_result()
+                         : Core::Option<const Ttx::Model::Addressable&>();
+  auto target = select_program(program);
   for (Count index = 0; index < layout.get_size(); index++) {
     auto entry = layout.get_abstract(index);
-    auto type = entry ? entry->resolve().select<Ttx::Model::Type>()
-                      : Core::Option<const Ttx::Model::Type&>();
-    if (!type) {
+    auto addressable = entry ? entry->select<Ttx::Model::Addressable>()
+                             : Core::Option<const Ttx::Model::Addressable&>();
+    auto type =
+        addressable
+            ? Core::Option<const Ttx::Model::Type&>(addressable->get_type())
+        : entry ? entry->resolve().select<Ttx::Model::Type>()
+                : Core::Option<const Ttx::Model::Type&>();
+    if (!type || !target) {
       return fail_backend(
           program,
           "LLVM received a Callable result without an exact Type."_view);
     }
 
-    auto carrier = carriers.get_type(*type);
+    llvm::Type* carrier =
+        self_result && addressable && &*self_result == &*addressable
+            ? llvm::PointerType::getUnqual(get_context(*target))
+            : carriers.get_type(*type).visit(
+                  []() -> llvm::Type* { return nullptr; },
+                  [](LLVMTypeRef selected) -> llvm::Type* {
+                    return llvm::unwrap(selected);
+                  });
     if (!carrier) {
       return fail_backend(
           program,
           "LLVM cannot find the completed carrier for a Callable result."_view);
     }
 
-    native.insert(llvm::unwrap(*carrier));
+    native.insert(carrier);
     semantic.insert(&*type);
   }
 
@@ -388,16 +406,19 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
   Bool c_boundary = Bool(record.kind == Kind::Foreign);
   Bool c_publication = False;
   Bool package_publication = False;
-  if (record.kind == Kind::Function && record.definition) {
+  if ((record.kind == Kind::Function || record.kind == Kind::External) &&
+      record.definition) {
     if (!select_function_attributes(program, *record.definition, abi, symbol)) {
       return False;
     }
 
     c_boundary = Bool(abi);
-    c_publication = c_boundary;
-    package_publication = Bool(
-        target->get_unit().is_package_member() &&
-        record.definition->is_published() && !c_publication);
+    if (record.kind == Kind::Function) {
+      c_publication = c_boundary;
+      package_publication = Bool(
+          target->get_unit().is_package_member() &&
+          record.definition->is_published() && !c_publication);
+    }
   } else if (record.kind == Kind::Function && record.construction) {
     package_publication = target->get_unit().is_package_member();
   } else if (record.kind == Kind::Function) {
@@ -457,8 +478,11 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
   }
 
   record.indirect_parameters.clear();
-  for (llvm::Type* parameter : parameter_types.get_view()) {
-    Bool indirect = Bool(c_boundary && uses_memory_abi(*target, *parameter));
+  for (Count index = 0; index < parameter_types.get_size(); index++) {
+    llvm::Type* parameter = parameter_types[index];
+    Bool self_reference = Bool(index == 0 && declares_self(callable));
+    Bool indirect = self_reference ||
+                    Bool(c_boundary && uses_memory_abi(*target, *parameter));
     record.indirect_parameters.insert(indirect);
     native_parameters.insert(
         indirect ? llvm::PointerType::getUnqual(context) : parameter);
@@ -490,7 +514,8 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
   }
 
   for (Count index = 0; index < parameter_types.get_size(); index++) {
-    if (!record.indirect_parameters[index]) {
+    Bool self_reference = Bool(index == 0 && declares_self(callable));
+    if (!record.indirect_parameters[index] || self_reference) {
       continue;
     }
 
@@ -511,7 +536,9 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
     }
   }
 
-  if (semantic_results.get_size() == 1) {
+  auto library_callable = callable.select<Language::Model::Callable>();
+  if (semantic_results.get_size() == 1 &&
+      !(library_callable && library_callable->get_self_result())) {
     auto extension = get_extension(*carriers, *semantic_results[0]);
     if (extension) {
       function.addRetAttr(*extension);
@@ -672,18 +699,37 @@ auto Tetrodotoxin::Library::Llvm::Functions::end_body(
   if (!block) {
     completed = target->fail_backend(
         "LLVM completed a Callable Body without an insertion block."_view);
-  } else if (!block->getTerminator() && callable.get_results().is_empty()) {
-    completed = native_body->emit_storage_cleanup(0);
-    completed &= native_body->emit_temporary_cleanup();
-    completed &= native_body->create_return();
   } else if (!block->getTerminator()) {
-    auto found = records.find(&callable);
-    completed = fail_callable(
-        get_program(body),
-        found ? found->value.definition
-              : Core::Option<const Tetrodotoxin::Language::Definition&>(),
-        "A value returning Callable reached the end of its Body."_view,
-        "Return the complete declared result Layout on every reachable path."_view);
+    auto library_callable = callable.select<Language::Model::Callable>();
+    auto self_result = library_callable
+                           ? library_callable->get_self_result()
+                           : Core::Option<const Ttx::Model::Addressable&>();
+    if (self_result) {
+      auto address = native_body->find_address(*self_result);
+      completed = Bool(
+          address && llvm::unwrap(*address)->getType() ==
+                         block->getParent()->getReturnType());
+      if (completed) {
+        completed = native_body->emit_storage_cleanup(0);
+        completed &= native_body->emit_temporary_cleanup();
+        completed &= native_body->create_return(*address);
+      } else {
+        completed = target->fail_backend(
+            "LLVM could not return the fallthrough Self reference."_view);
+      }
+    } else if (callable.get_results().is_empty()) {
+      completed = native_body->emit_storage_cleanup(0);
+      completed &= native_body->emit_temporary_cleanup();
+      completed &= native_body->create_return();
+    } else {
+      auto found = records.find(&callable);
+      completed = fail_callable(
+          get_program(body),
+          found ? found->value.definition
+                : Core::Option<const Tetrodotoxin::Language::Definition&>(),
+          "A value returning Callable reached the end of its Body."_view,
+          "Return the complete declared result Layout on every reachable path."_view);
+    }
   }
 
   return completed;

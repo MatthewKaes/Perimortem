@@ -27,10 +27,43 @@ resolve Memory : Perimortem.Memory = "1.0";
 using Memory;
 ```
 
-The Memory source authors the inline byte carrier, its native lifecycle
-Attributes, and its Callables. Consumers therefore share one Type identity
-rather than materializing matching but unrelated byte carriers in every source
-root.
+The Memory source authors the two-word byte carrier as one
+`Object[Unsigned_8]` plus its logical size. Ordinary recursive Structure
+ownership retains and releases that Object without native lifecycle Attributes.
+Consumers therefore share one Type identity rather than materializing matching
+but unrelated byte carriers in every source root.
+
+Bytes transformations use a referenced Self receiver. `copy(view)` creates an
+owned value. `append(byte, count)`, receiver `concat`, `resize`, `shrink`,
+`clear`, and `reserve` mutate that receiver and return `self`, so calls may be
+chained without copying the Bytes value. Parameter defaults are not yet part of
+the Function signature model, so callers pass `1` for a single-byte append:
+
+```ttx
+line -> concat(suffix) -> append(byte, 1);
+buffer -> clear();
+```
+
+`self` is passed by reference, and the scalar result spelling `-> self` returns
+that same reference. Reaching the end of such a Function returns `self`
+implicitly; an explicit `return self;` remains available for early exit. Before
+a buffer write, Bytes reserves the required size. Growth already supplies a
+private Object buffer; otherwise `is_shared()` causes an explicit `clone()`
+before writable access. Object itself remains an ordinary shared buffer rather
+than owning copy-on-write policy.
+
+Static and Self `concat` share one spelling because receiver role is part of
+the Callable signature. Static `concat(left, right)` creates an owned value,
+while receiver `concat(view)` extends a value. `clear` preserves capacity;
+ordinary default construction creates the empty zero-capacity reset value.
+`get_size`, `get_capacity`, `get_view`, `slice`, and `is_empty` inspect the
+result without changing it.
+
+The package deliberately exposes no writable Access to the backing capacity:
+that would bypass the logical size owned by Bytes. Safe element reads remain
+available through `get_view():[index]`. It also has no forgetful resize that
+would expose invalid elements and no host-specific hash operation without a
+Library hash contract.
 
 ## Perimortem.Math
 
@@ -62,7 +95,7 @@ uses ordinary Option propagation when either condition ends its current flow.
 `System::Terminal -> write_line(line)` borrows one `Dynamic::Bytes`, appends one
 line terminator, flushes the terminal, and returns its completion as `Bool`.
 `Dynamic::Bytes -> concat(left, right)` copies two byte Views into one owned
-value before the call.
+value entirely through authored Memory Package behavior.
 
 The canonical Echo loop therefore remains ordinary Library control flow:
 
@@ -76,7 +109,9 @@ while true {
   state view := line -> get_view();
   if view == quit or view == exit : return;
 
-  System::Terminal -> write_line(Dynamic::Bytes -> concat(prefix, view))?;
+  state output := Dynamic::Bytes -> copy(prefix);
+  output = output -> concat(view);
+  System::Terminal -> write_line(output)?;
 }
 ```
 

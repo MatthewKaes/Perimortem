@@ -333,6 +333,38 @@ def run_test():
     check("state prefix : View[Unsigned_8]" in system_markdown,
           "Package hover uses the shared cross-source analysis snapshot")
 
+    bytes_hover = send_hover(
+        conn, main_uri, main_source, "Bytes", 16, prefix_use)
+    bytes_result = bytes_hover.get("result") if bytes_hover else None
+    bytes_markdown = (
+        bytes_result.get("contents", {}).get("value", "")
+        if bytes_result else "")
+    check("type Bytes" in bytes_markdown and
+          "copy-on-write container of Unsigned_8 values" in bytes_markdown,
+          "Package hover preserves exported Bytes Type documentation")
+
+    concat_hover = send_hover(
+        conn, main_uri, main_source, "concat", 17, prefix_use)
+    concat_result = concat_hover.get("result") if concat_hover else None
+    concat_markdown = (
+        concat_result.get("contents", {}).get("value", "")
+        if concat_result else "")
+    check("func concat" in concat_markdown and
+          "every element of left followed by" in concat_markdown,
+          "Package hover preserves exported Bytes Callable documentation")
+
+    get_view_use = main_source.index("line -> get_view")
+    get_view_hover = send_hover(
+        conn, main_uri, main_source, "get_view", 18, get_view_use)
+    get_view_result = (
+        get_view_hover.get("result") if get_view_hover else None)
+    get_view_markdown = (
+        get_view_result.get("contents", {}).get("value", "")
+        if get_view_result else "")
+    check("func get_view" in get_view_markdown and
+          "exactly the logical bytes" in get_view_markdown,
+          "Package hover preserves receiver Callable documentation")
+
     renamed_helper = helper_source.replace("public prefix", "public renamed")
     send_did_change(conn, helper_uri, renamed_helper, 2)
     invalidated_hover = send_hover(
@@ -485,6 +517,17 @@ def run_test():
     check("= (5, 6, 7, 8)" in frozen_markdown,
           "hover displays the const Fixed Local's folded values")
 
+    bytes_use = hover_source.index("Dynamic::Bytes -> concat(left, right)")
+    bytes_resp = send_hover(
+        conn, hover_uri, hover_source, "left", 33, bytes_use)
+    bytes_markdown = (
+        bytes_resp.get("result", {}).get("contents", {}).get("value", "")
+        if bytes_resp else "")
+    check("const left : View[Unsigned_8]" in bytes_markdown,
+          "hover resolves the const byte View and exact Type")
+    check('= "Hi"' in bytes_markdown,
+          "hover displays the const byte View as an escaped string")
+
     execute_start = hover_source.index("public execute : func")
     dense_use = hover_source.index("total += dense", execute_start)
     dense_resp = send_hover(
@@ -528,6 +571,8 @@ def run_test():
         "// Alias documentation.\n"
         "public BucketAlias : alias = Bucket;\n"
         "private inspect : func = [] -> Unsigned_64 {\n"
+        "  const escaped : View[Unsigned_8] = "
+        "0x[09 0A 0D 22 5C 60 41 FF] -> get_view();\n"
         "  state bucket : BucketAlias = (.value = 2);\n"
         "  return bucket.value;\n"
         "}\n"
@@ -573,8 +618,17 @@ def run_test():
           "**Type:** `Bucket`" in local_markdown,
           "hover resolves a state Local declaration and resolved Type")
 
+    escaped_start = detail_source.index("const escaped")
+    escaped_resp = send_hover(
+        conn, detail_uri, detail_source, "escaped", 37, escaped_start)
+    escaped_markdown = (
+        (escaped_resp.get("result") or {}).get("contents", {}).get("value", "")
+        if escaped_resp else "")
+    check(r'= "\t\n\r\"\\\x60A\xFF"' in escaped_markdown,
+          "byte View hover escapes controls, quotes, slashes, and Markdown")
+
     alias_resp = send_hover(
-        conn, detail_uri, detail_source, "BucketAlias", 37, local_start)
+        conn, detail_uri, detail_source, "BucketAlias", 38, local_start)
     alias_markdown = (
         (alias_resp.get("result") or {}).get("contents", {}).get("value", "")
         if alias_resp else "")

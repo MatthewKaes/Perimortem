@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/types/view.hpp"
 
+#include "tetrodotoxin/library/builtin/view/is_empty.hpp"
 #include "tetrodotoxin/library/builtin/view/size.hpp"
 #include "tetrodotoxin/library/builtin/view/slice.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
@@ -17,11 +18,14 @@ Types::View::View(
     Perimortem::Memory::Allocator::Arena& domain,
     Perimortem::Core::View::Bytes name,
     const Model::Type& element,
-    const Model::Type& size_type)
+    const Model::Type& size_type,
+    const Model::Type& flag_type)
     : name(name), element(element) {
   auto& get_size = Builtin::View::Size::create(domain, *this, size_type);
+  auto& is_empty = Builtin::View::IsEmpty::create(domain, *this, flag_type);
   auto& slice = Builtin::View::Slice::create(domain, *this, size_type, *this);
   publish_callable(domain, get_size, True);
+  publish_callable(domain, is_empty, True);
   publish_callable(domain, slice, True);
 }
 

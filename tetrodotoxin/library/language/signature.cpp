@@ -48,8 +48,8 @@ auto Language::Signature::restore(
       record->is_optional());
 
   Archive::Reader contents(record->get_payload());
-  auto parameters = Model::Layout::restore(contents, arena, host);
-  auto results = Model::Layout::restore(contents, arena, host);
+  auto parameters = Model::Layout::restore(contents, arena, host, True);
+  auto results = Model::Layout::restore(contents, arena, host, False);
   BAIL_IF(!parameters || !results || !contents.is_complete());
 
   return arena.construct_from<Signature>(
@@ -57,15 +57,22 @@ auto Language::Signature::restore(
 }
 
 auto Language::Signature::link_restored() -> Bool {
-  return parameters.link_restored(host, True) &&
-         results.link_restored(host, False);
+  BAIL_IF(!parameters.link_restored(host, True));
+  auto first = parameters.get_abstract(0);
+  auto self = first ? first->select<Ttx::Model::Addressable>()
+                    : Option<const Ttx::Model::Addressable&>();
+  return results.link_restored(host, False, self);
 }
 
 auto Language::Signature::link(Cursor& cursor) -> Bool {
   // Both models run so one malformed parameter cannot hide an independent
   // result diagnostic. Each model owns idempotence for its exact staged edges.
   Bool parameters_linked = parameters.link_parameters(cursor, host);
-  Bool results_linked = results.link_types(cursor, host);
+  auto first = parameters_linked ? parameters.get_abstract(0)
+                                 : Option<const Abstract&>();
+  auto self = first ? first->select<Ttx::Model::Addressable>()
+                    : Option<const Ttx::Model::Addressable&>();
+  Bool results_linked = results.link_types(cursor, host, self);
   return parameters_linked && results_linked;
 }
 

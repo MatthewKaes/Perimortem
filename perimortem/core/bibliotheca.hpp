@@ -52,6 +52,18 @@ class Bibliotheca {
   // Returns the number of active reservations on the block.
   static auto reservation_count(Unsigned_8* entry) -> Count;
 
+  // Returns the usable byte capacity selected when this block was checked out.
+  // An empty entry has zero capacity.
+  static auto capacity(Unsigned_8* entry) -> Count;
+
+  // Associates one immutable runtime descriptor with a checked-out Object
+  // block without consuming the algorithm underwrite region.
+  static auto bind_object(Unsigned_8* entry, const void* descriptor) -> void;
+
+  // Returns the descriptor associated with an Object block or no descriptor
+  // for an ordinary allocation.
+  static auto get_object(Unsigned_8* entry) -> const void*;
+
   // Removes a reservation from the block.
   // If the number of reservations is zero then the block is checked in to the
   // Bibliotheca for future use.

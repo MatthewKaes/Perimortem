@@ -48,6 +48,9 @@ _Static_assert(
 _Static_assert(
     sizeof(ttx_Counter) == sizeof(void*),
     "Object must use one opaque pointer carrier");
+_Static_assert(
+    sizeof(ttx_Option_5bCounter_5d) == sizeof(void*),
+    "Option[Object] must use the null handle niche");
 
 static uint64_t dense_storage[] = {
   UINT64_C(1), UINT64_C(2), UINT64_C(3), UINT64_C(4)};
@@ -72,6 +75,10 @@ ttx_View_5bUnsigned_5f64_5d llvm_dense_view(void) {
     .data = view_storage,
     .size = sizeof(view_storage) / sizeof(view_storage[0]),
   };
+}
+
+uint64_t llvm_object_identity(ttx_Object_5bUnsigned_5f8_5d value) {
+  return (uint64_t)(uintptr_t)value;
 }
 
 int run_runtime_integration(void) {
@@ -144,11 +151,10 @@ int run_runtime_integration(void) {
   }
   const ttx_results_llvm_5fobject_5fresults object_results =
       llvm_object_results(object);
-  const int object_results_valid = object_results.optional.set &&
-                                   object_results.optional.value == object &&
-                                   object_results.count == UINT64_C(7);
-  if (object_results.optional.set) {
-    perimortem_core_object_release(object_results.optional.value);
+  const int object_results_valid =
+      object_results.optional == object && object_results.count == UINT64_C(7);
+  if (object_results.optional) {
+    perimortem_core_object_release(object_results.optional);
   }
   perimortem_core_object_retain(object);
   perimortem_core_object_release(object);
@@ -169,7 +175,9 @@ int run_runtime_integration(void) {
       wide_error.error.third != UINT64_C(6) ||
       llvm_result_error(result_value) || !llvm_result_error(result_error) ||
       llvm_nonobject() != UINT64_C(21) || access_total != UINT64_C(91) ||
-      llvm_bytes_concat_size() != UINT64_C(5)) {
+      llvm_bytes_concat_size() != UINT64_C(5) ||
+      llvm_bytes_api() != UINT64_C(777) ||
+      llvm_object_storage() != UINT64_C(18)) {
     return 1;
   }
   if (initial_object != UINT64_C(7) || changed_object != UINT64_C(12) ||

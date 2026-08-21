@@ -12,6 +12,7 @@
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/access/unwrap.hpp"
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
+#include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
 #include "tetrodotoxin/library/language/operations/add_assignment.hpp"
@@ -196,6 +197,13 @@ static auto parse_primary(const Abstract& context, Cursor& cursor)
     -> Option<Library::Language::Model::Pack&> {
   if (cursor.matches(Code::Type::PackingStart)) {
     return Library::Language::Model::Parser::Pack::parse(context, cursor, True);
+  }
+
+  if (Library::Language::Expressions::Initializer::is_next(cursor)) {
+    auto initializer =
+        Library::Language::Expressions::Initializer::parse(context, cursor);
+    BAIL_IF(!initializer);
+    return static_cast<Library::Language::Model::Pack&>(*initializer);
   }
 
   if (cursor.matches(Code::Type::Type) ||

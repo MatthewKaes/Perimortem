@@ -120,9 +120,9 @@ PERIMORTEM_UNIT_TEST(AppDialect, echo_selects_exact_program_entry) {
   EXPECT_EQ(
       Perimortem::Core::Algorithm::search(*memory_interface, "storage"_view),
       Count(-1));
-  EXPECT_EQ(
-      Perimortem::Core::Algorithm::search(*memory_interface, "capacity"_view),
-      Count(-1));
+  EXPECT(
+      Perimortem::Core::Algorithm::search(
+          *memory_interface, "get_capacity"_view) != Count(-1));
   Perimortem::Memory::Allocator::Arena memory_restore_arena;
   auto restored_memory = library_archive_dialect.restore(
       memory_restore_arena, *memory_interface,

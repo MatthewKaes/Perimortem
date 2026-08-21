@@ -41,12 +41,12 @@ static auto interpret(
 }
 
 static auto find_function(
-    Language::Types::Composite& composite,
-    View::Bytes name) -> Option<Language::Function&> {
+    const Language::Types::Composite& composite,
+    View::Bytes name) -> Option<const Language::Function&> {
   for (Reference<Abstract> candidate : composite.get_callables()) {
     if (candidate.get().get_name() == name &&
         candidate.get().is<Language::Function>()) {
-      return static_cast<Language::Function&>(candidate.get());
+      return static_cast<const Language::Function&>(candidate.get());
     }
   }
 
@@ -94,13 +94,48 @@ PERIMORTEM_UNIT_TEST(SignatureTests, named_parameters_and_direct_results) {
   EXPECT(errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(SignatureTests, self_result_retains_parameter_reference) {
+  static constexpr View::Bytes source =
+      "// Self reference result.\n"
+      "dialect : Library;\n"
+      "public Buffer : struct {\n"
+      "  private state size : Unsigned_64;\n"
+      "  public clear : func = [self] -> self {\n"
+      "    self.size = 0;\n"
+      "  }\n"
+      "}\n"_view;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
+  Ttx::Lexical::Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  auto buffer = monograph->get_source()
+                    .resolve_context("Buffer"_view)
+                    .select<Language::Types::Composite>();
+  ASSERT(buffer);
+  auto clear = find_function(*buffer, "clear"_view);
+  ASSERT(clear);
+
+  auto parameter = clear->get_parameters().get_abstract(0);
+  auto returned = clear->get_results().get_abstract(0);
+  ASSERT(parameter && returned);
+  EXPECT(parameter->is<Language::Parameter>());
+  EXPECT(&*parameter == &*returned);
+  EXPECT(clear->get_self_result());
+  EXPECT_NOT(clear->get_results().get_name(0));
+  EXPECT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(SignatureTests, descriptor_shape_is_strict) {
-  static constexpr Static::Vector<View::Bytes, 5> rejected = {{
+  static constexpr Static::Vector<View::Bytes, 7> rejected = {{
     "// Bare parameter.\ndialect : Library; private invalid : func = Bool -> [] {}"_view,
     "// Positional parameter.\ndialect : Library; private invalid : func = [Bool] -> [] {}"_view,
     "// Mixed parameter.\ndialect : Library; public Packet : struct { public value : Bool; private invalid : func = [self, Bool] -> [] {} }"_view,
     "// Duplicate parameter.\ndialect : Library; private invalid : func = [.value : Bool, .value : Bool] -> [] {}"_view,
     "// Value-label separator.\ndialect : Library; private invalid : func = [.value = Bool] -> [] {}"_view,
+    "// Static self result.\ndialect : Library; private invalid : func = [] -> self { return; }"_view,
+    "// Self mixed with value results.\ndialect : Library; public Packet : struct { private invalid : func = [self] -> [self, Bool] { return self; } }"_view,
   }};
 
   for (Count i = 0; i < rejected.get_size(); i++) {

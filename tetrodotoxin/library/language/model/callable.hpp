@@ -102,6 +102,28 @@ class Callable : public Ttx::Model::Callable {
     auto binding = get_type_binding();
     return binding && &*binding == &receiver;
   }
+
+  // `[self]` returns the exact receiver Addressable rather than one copied
+  // value. Keeping the identity check here gives every semantic and lowering
+  // consumer one canonical test for the reserved reference result.
+  auto get_self_result() const
+      -> Perimortem::Core::Option<const Ttx::Model::Addressable&> {
+    auto first = get_parameters().get_abstract(0);
+    auto self =
+        first ? first->select<Ttx::Model::Addressable>()
+              : Perimortem::Core::Option<const Ttx::Model::Addressable&>();
+    auto returned =
+        get_results().get_size() == 1
+            ? get_results().get_abstract(0)
+            : Perimortem::Core::Option<const Ttx::Concept::Abstract&>();
+    auto reference =
+        returned ? returned->select<Ttx::Model::Addressable>()
+                 : Perimortem::Core::Option<const Ttx::Model::Addressable&>();
+    return self && self->get_name() == "self"_view && reference &&
+                   &*self == &*reference
+               ? reference
+               : Perimortem::Core::Option<const Ttx::Model::Addressable&>();
+  }
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Model

@@ -33,8 +33,12 @@ static auto fail_header(Core::View::Bytes message) -> Bool {
 static auto require_result_type(const Ttx::Concept::Layout& layout, Count index)
     -> Core::Option<const Ttx::Model::Type&> {
   auto entry = layout.get_abstract(index);
-  return entry ? entry->resolve().select<Ttx::Model::Type>()
-               : Core::Option<const Ttx::Model::Type&>();
+  auto addressable = entry ? entry->select<Ttx::Model::Addressable>()
+                           : Core::Option<const Ttx::Model::Addressable&>();
+  return addressable
+             ? Core::Option<const Ttx::Model::Type&>(addressable->get_type())
+         : entry ? entry->resolve().select<Ttx::Model::Type>()
+                 : Core::Option<const Ttx::Model::Type&>();
 }
 
 static auto require_parameter(const Ttx::Concept::Layout& layout, Count index)
@@ -62,6 +66,7 @@ static auto collect_type(
   collected.insert(&type, True);
   switch (*kind) {
   case Llvm::Carriers::Kind::Value:
+  case Llvm::Carriers::Kind::ObjectStorage:
   case Llvm::Carriers::Kind::Object:
     ordered.insert(&type);
     return True;
@@ -222,6 +227,7 @@ static auto write_type_name(
   case Llvm::Carriers::Kind::View:
   case Llvm::Carriers::Kind::Access:
   case Llvm::Carriers::Kind::Structure:
+  case Llvm::Carriers::Kind::ObjectStorage:
   case Llvm::Carriers::Kind::Object:
     output << "ttx_"_view;
     write_encoded_name(output, type.get_name());
@@ -245,6 +251,7 @@ static auto write_type_definition(
   case Llvm::Carriers::Kind::Enumeration:
     return True;
 
+  case Llvm::Carriers::Kind::ObjectStorage:
   case Llvm::Carriers::Kind::Object:
     output << "typedef struct ttx_"_view;
     write_encoded_name(output, type.get_name());
@@ -358,15 +365,27 @@ static auto write_type_definition(
   }
 
   case Llvm::Carriers::Kind::Option: {
-    output << "typedef struct ttx_"_view;
-    write_encoded_name(output, type.get_name());
-    output << " {\n"_view;
-
     auto element = carriers.get_element(type);
     if (!element) {
       return fail_header(
           "The C header cannot define Option without its element."_view);
     }
+
+    if (carriers.is_object(*element)) {
+      output << "typedef "_view;
+      if (!write_type_name(output, carriers, *element)) {
+        return False;
+      }
+
+      output << " ttx_"_view;
+      write_encoded_name(output, type.get_name());
+      output << ";\n\n"_view;
+      return True;
+    }
+
+    output << "typedef struct ttx_"_view;
+    write_encoded_name(output, type.get_name());
+    output << " {\n"_view;
 
     output << "  "_view;
     if (!write_type_name(output, carriers, *element)) {
@@ -457,6 +476,13 @@ static auto write_result_definition(
   return True;
 }
 
+static auto declares_self(const Ttx::Model::Callable& callable) -> Bool {
+  auto first = callable.get_parameters().get_abstract(0);
+  auto parameter = first ? first->select<Ttx::Model::Addressable>()
+                         : Core::Option<const Ttx::Model::Addressable&>();
+  return parameter && parameter->get_name() == "self"_view;
+}
+
 static auto write_signature(
     HeaderStream& output,
     const Llvm::Carriers& carriers,
@@ -470,6 +496,10 @@ static auto write_signature(
     if (!result || !write_type_name(output, carriers, *result)) {
       return fail_header(
           "The C header found a result without an exact carrier."_view);
+    }
+    auto entry = results.get_abstract(0);
+    if (entry && entry->is<Ttx::Model::Addressable>()) {
+      output << "*"_view;
     }
   } else {
     write_result_name(output, symbol);
@@ -493,6 +523,9 @@ static auto write_signature(
           "The C header found a parameter without an exact carrier."_view);
     }
 
+    if (index == 0 && declares_self(callable)) {
+      output << "*"_view;
+    }
     output << " "_view;
     auto name = parameters.get_name(index);
     if (name) {
@@ -571,24 +604,6 @@ auto Llvm::Header::create(
     output << "void "_view << Abi::Core::object_retain_symbol
            << "(void *value);\nvoid "_view << Abi::Core::object_release_symbol
            << "(void *value);\n"_view;
-  }
-
-  for (const Ttx::Model::Type* type : ordered.get_view()) {
-    auto retain = carriers.get_retain_symbol(*type);
-    auto release = carriers.get_release_symbol(*type);
-    if (!retain || !release) {
-      continue;
-    }
-
-    output << "void "_view << *retain << "(const "_view;
-    if (!write_type_name(output, carriers, *type)) {
-      return {};
-    }
-    output << " *value);\nvoid "_view << *release << "(const "_view;
-    if (!write_type_name(output, carriers, *type)) {
-      return {};
-    }
-    output << " *value);\n"_view;
   }
 
   for (const Llvm::Export& exported : exports) {

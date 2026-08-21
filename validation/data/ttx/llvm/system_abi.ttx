@@ -13,9 +13,8 @@ public system_roundtrip : func = [] -> Bool {
 }
 
 public Dynamic : struct {
-  @retain("perimortem_dynamic_bytes_retain") @release("perimortem_dynamic_bytes_release")
   public Bytes : struct {
-    private state storage  : View[Unsigned_8];
-    private state capacity : Unsigned_64;
+    private state data : Object[Unsigned_8];
+    private state size : Unsigned_64;
   }
 }

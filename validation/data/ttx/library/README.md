@@ -52,7 +52,8 @@ selection, argument Pack fitting, and result Pack flow are one source construct.
 
 `Packet` deliberately declares both Static and Self Callables named `identity`.
 Static has no implicit Self parameter. Self reserves parameter entry zero for
-the selected receiver value.
+the selected receiver reference. A scalar `self` result returns that same
+reference for chaining; `[self]` is its explicit one-entry Layout form.
 
 ## Layouts and Packs
 

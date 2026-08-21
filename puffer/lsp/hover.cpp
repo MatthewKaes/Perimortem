@@ -40,6 +40,40 @@ static auto append_pack(
     const Model::Pack& pack,
     Count depth) -> void;
 
+static auto append_bytes(
+    Stream::Textual<Managed::Bytes>& output,
+    View::Bytes value) -> void {
+  constexpr Count preview_limit = 32;
+  constexpr View::Bytes hexadecimal = "0123456789ABCDEF"_view;
+  Count visible =
+      value.get_size() < preview_limit ? value.get_size() : preview_limit;
+
+  output << "\""_view;
+  for (Count index = 0; index < visible; index++) {
+    Unsigned_8 byte = value[index];
+    if (byte == 0x09) {
+      output << "\\t"_view;
+    } else if (byte == 0x0A) {
+      output << "\\n"_view;
+    } else if (byte == 0x0D) {
+      output << "\\r"_view;
+    } else if (byte == 0x22) {
+      output << "\\\""_view;
+    } else if (byte == 0x5C) {
+      output << "\\\\"_view;
+    } else if (byte >= 0x20 && byte <= 0x7E && byte != 0x60) {
+      output << View::Bytes(&byte, 1);
+    } else {
+      output << "\\x"_view << hexadecimal.slice(byte >> 4, 1)
+             << hexadecimal.slice(byte & 0x0F, 1);
+    }
+  }
+  if (value.get_size() > visible) {
+    output << "…"_view;
+  }
+  output << "\""_view;
+}
+
 static auto append_constant(
     Stream::Textual<Managed::Bytes>& output,
     const Constant& constant,
@@ -79,9 +113,7 @@ static auto append_constant(
     return;
   }
   if (auto value = constant.select<Constants::Bytes>()) {
-    // Embedded payloads can be large. Hover reports their exact byte count and
-    // never copies the complete resource into Markdown.
-    output << "bytes["_view << value->get_value().get_size() << "]"_view;
+    append_bytes(output, value->get_value());
     return;
   }
   output << "<constant>"_view;

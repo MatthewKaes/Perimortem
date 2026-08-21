@@ -323,13 +323,11 @@ PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
   EXPECT(
       Algorithm::search(
           first_products->get_header(),
-          "void perimortem_dynamic_bytes_retain(const ttx_Bytes *value);"_view) !=
-      Count(-1));
+          "uint64_t llvm_bytes_api(void);"_view) != Count(-1));
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),
-          "%ttx.struct.Dynamic__Bytes = type { { ptr, i64 }, i64 }"_view) !=
-      Count(-1));
+          "%ttx.struct.Dynamic__Bytes = type { ptr, i64 }"_view) != Count(-1));
   EXPECT(
       Algorithm::search(first_products->get_llvm_ir(), "__ttx_fn_"_view) ==
       Count(-1));
@@ -385,7 +383,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, backend_rejections_report_source) {
     View::Bytes source;
     View::Bytes message;
   };
-  static constexpr Static::Vector<Rejection, 6> rejections = {{
+  static constexpr Static::Vector<Rejection, 5> rejections = {{
     Rejection{
       "// Missing ABI.\ndialect : Library;\n@symbol(\"entry\")\npublic "
       "entry : func = [] -> [] { return; }\n"_view,
@@ -410,16 +408,11 @@ PERIMORTEM_UNIT_TEST(LlvmTests, backend_rejections_report_source) {
       "recursively contains itself"_view,
     },
     {
-      "// Incomplete lifecycle.\ndialect : Library;\n"
-      "@retain(\"native_retain\")\n"
-      "public Value : struct { public state value : Unsigned_64; }\n"_view,
-      "requires both retain and release"_view,
-    },
-    {
-      "// Invalid lifecycle symbol.\ndialect : Library;\n"
-      "@retain(\"bad-symbol\")\n@release(\"native_release\")\n"
-      "public Value : struct { public state value : Unsigned_64; }\n"_view,
-      "require one native symbol string"_view,
+      "// Object buffer owning element.\ndialect : Library;\n"
+      "public Node : object { public state value : Unsigned_64; }\n"
+      "@abi(\"C\")\npublic entry : func = [.value : Object[Node]] -> [] "
+      "{ return; }\n"_view,
+      "requires one value-only element Type"_view,
     },
   }};
 

@@ -134,7 +134,8 @@ auto Language::Function::link_declaration_body(Cursor& cursor) -> Bool {
   // Signature edges publish before Block linking so every Identifier can reach
   // the exact Parameter object created for its authored declaration.
   BAIL_IF(!body->link(cursor));
-  if (!get_results().is_empty() && body->reaches_next_statement()) {
+  if (!get_results().is_empty() && !get_self_result() &&
+      body->reaches_next_statement()) {
     cursor.create_expression_error(
         body->get_anchor(),
         "Function result Layout requires a terminal return statement."_view,

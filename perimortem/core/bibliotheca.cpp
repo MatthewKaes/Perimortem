@@ -144,11 +144,13 @@ class Preface {
   Preface* next;
   // The archive index is an invariant of the block so store it in the header.
   Unsigned_64 archive_index;
+  // Language Objects retain their immutable descriptor in allocator metadata
+  // so algorithms keep the complete underwrite region below the corpus.
+  const void* object_descriptor;
 #if PERI_DEBUG
   Unsigned_64 block_stamp;
-  [[maybe_unused]] Unsigned_64 __reserved[1];
 #else
-  [[maybe_unused]] Unsigned_64 __reserved[2];
+  [[maybe_unused]] Unsigned_64 __reserved[1];
 #endif
 
   // Bibliotheca allocations reserve 16 bytes of "under_write" buffer.
@@ -321,6 +323,7 @@ auto Bibliotheca::check_out(Count requested_bytes) -> Allocation {
     entry->archive_index = archive_index;
     entry->reservations = 1;
     entry->block_size = actual_bytes - sizeof(Preface);
+    entry->object_descriptor = {};
     entry->next = nullptr;
     return Allocation{
       .ptr = preface_to_corpus(entry), .capacity = entry->get_usable_bytes()};
@@ -332,6 +335,7 @@ auto Bibliotheca::check_out(Count requested_bytes) -> Allocation {
 
   // Rehydrate the reservation data.
   entry->reservations = 1;
+  entry->object_descriptor = {};
   entry->next = nullptr;
   return Allocation{
     .ptr = preface_to_corpus(entry), .capacity = entry->get_usable_bytes()};
@@ -345,6 +349,38 @@ auto Bibliotheca::reserve(Unsigned_8* data) -> Count {
 auto Bibliotheca::reservation_count(Unsigned_8* data) -> Count {
   auto entry = corpus_to_preface(data);
   return entry->reservations;
+}
+
+auto Bibliotheca::capacity(Unsigned_8* data) -> Count {
+  if (!data) {
+    return 0;
+  }
+
+  return corpus_to_preface(data)->get_usable_bytes();
+}
+
+auto Bibliotheca::bind_object(Unsigned_8* data, const void* descriptor)
+    -> void {
+  if (!data || !descriptor) {
+    Diagnostics::Log::fatal(
+        "Bibliotheca received an invalid Object descriptor binding."_view);
+  }
+
+  Preface* entry = corpus_to_preface(data);
+  if (entry->object_descriptor) {
+    Diagnostics::Log::fatal(
+        "Bibliotheca received a duplicate Object descriptor binding."_view);
+  }
+
+  entry->object_descriptor = descriptor;
+}
+
+auto Bibliotheca::get_object(Unsigned_8* data) -> const void* {
+  if (!data) {
+    return {};
+  }
+
+  return corpus_to_preface(data)->object_descriptor;
 }
 
 auto Bibliotheca::remit(Unsigned_8* data) -> Count {

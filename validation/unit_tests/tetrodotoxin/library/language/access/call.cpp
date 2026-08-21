@@ -11,6 +11,7 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/builtin/fixed/access.hpp"
 #include "tetrodotoxin/library/builtin/fixed/view.hpp"
+#include "tetrodotoxin/library/builtin/view/is_empty.hpp"
 #include "tetrodotoxin/library/builtin/view/size.hpp"
 #include "tetrodotoxin/library/builtin/view/slice.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -118,6 +119,8 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
       "  state borrowed : Access[Unsigned_64] = dense -> get_access();\n"
       "  state viewed : View[Unsigned_64];\n"
       "  viewed -> get_size();\n"
+      "  viewed -> is_empty();\n"
+      "  borrowed -> is_empty();\n"
       "  return borrowed -> get_size();\n"
       "}"_view;
   auto workspace_toolchain = create_library_toolchain();
@@ -137,7 +140,7 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
   }
   ASSERT(run && run->get_body());
   auto statements = run->get_body()->get_statements();
-  ASSERT_EQ(statements.get_size(), Count(5));
+  ASSERT_EQ(statements.get_size(), Count(7));
 
   const auto& dense = static_cast<const Language::Flow::Local&>(
       statements.get_data()[0].get_root());
@@ -161,6 +164,12 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
   ASSERT(access_size);
   EXPECT(access_size->is<Builtin::View::Size>());
 
+  auto access_empty = find_type_callable(
+      borrowed.get_type(), "is_empty"_view,
+      Tetrodotoxin::Language::Visibility::Public);
+  ASSERT(access_empty);
+  EXPECT(access_empty->is<Builtin::View::IsEmpty>());
+
   auto access_slice = find_type_callable(
       borrowed.get_type(), "slice"_view,
       Tetrodotoxin::Language::Visibility::Public);
@@ -175,6 +184,12 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
   ASSERT(view_size);
   EXPECT(view_size->is<Builtin::View::Size>());
 
+  auto view_empty = find_type_callable(
+      viewed.get_type(), "is_empty"_view,
+      Tetrodotoxin::Language::Visibility::Public);
+  ASSERT(view_empty);
+  EXPECT(view_empty->is<Builtin::View::IsEmpty>());
+
   auto view_slice = find_type_callable(
       viewed.get_type(), "slice"_view,
       Tetrodotoxin::Language::Visibility::Public);
@@ -186,6 +201,16 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
       statements.get_data()[3].get_root());
   ASSERT(view_call.get_callable());
   EXPECT(&*view_call.get_callable() == &*view_size);
+  ASSERT(statements.get_data()[4].get_root().is<Language::Access::Call>());
+  const auto& view_empty_call = static_cast<const Language::Access::Call&>(
+      statements.get_data()[4].get_root());
+  ASSERT(view_empty_call.get_callable());
+  EXPECT(&*view_empty_call.get_callable() == &*view_empty);
+  ASSERT(statements.get_data()[5].get_root().is<Language::Access::Call>());
+  const auto& access_empty_call = static_cast<const Language::Access::Call&>(
+      statements.get_data()[5].get_root());
+  ASSERT(access_empty_call.get_callable());
+  EXPECT(&*access_empty_call.get_callable() == &*access_empty);
   ASSERT(borrowed.get_initializer());
   ASSERT(borrowed.get_initializer()->is<Language::Access::Call>());
   const auto& get_access =
@@ -195,7 +220,7 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
   EXPECT(get_access.get_type().resolve().is<Language::Types::Access>());
 
   const auto& returned = static_cast<const Language::Flow::Return&>(
-      statements.get_data()[4].get_root());
+      statements.get_data()[6].get_root());
   ASSERT(returned.get_pack().is<Language::Access::Call>());
   const auto& get_size =
       static_cast<const Language::Access::Call&>(returned.get_pack());

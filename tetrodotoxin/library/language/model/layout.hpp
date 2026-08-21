@@ -14,6 +14,7 @@
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/model/addressable.hpp"
 #include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model {
@@ -45,12 +46,15 @@ class Layout final : public Ttx::Concept::Layout {
   static auto restore(
       Archive::Reader& reader,
       Perimortem::Memory::Allocator::Arena& arena,
-      const Ttx::Concept::Abstract& context)
-      -> Perimortem::Core::Option<Layout&>;
+      const Ttx::Concept::Abstract& context,
+      Bool parameters) -> Perimortem::Core::Option<Layout&>;
 
   auto persist(Archive::Writer& writer) const -> Bool;
 
-  auto link_restored(const Ttx::Concept::Abstract& host, Bool parameters)
+  auto link_restored(
+      const Ttx::Concept::Abstract& host,
+      Bool parameters,
+      Perimortem::Core::Option<const Ttx::Model::Addressable&> self = {})
       -> Bool;
 
   Layout(const Layout&) = delete;
@@ -59,16 +63,19 @@ class Layout final : public Ttx::Concept::Layout {
   auto operator=(Layout&&) -> Layout& = delete;
 
   // Both paths resolve the same authored TypeReference facts. Parameters
-  // materialize a real Addressable while results retain the selected Type
-  // directly. Every authored Type slot must provide a value. Only `[]` carries
-  // an empty descriptor.
+  // materialize real Addressables, ordinary results retain selected Types, and
+  // the reserved scalar result `self` retains parameter entry zero itself.
+  // Every authored Type slot must provide a value. Only `[]` carries an empty
+  // descriptor.
   auto link_parameters(
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& host) -> Bool;
 
   auto link_types(
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& host) -> Bool;
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::Option<const Ttx::Model::Addressable&> self = {})
+      -> Bool;
 
   // Named lookup returns the exact semantic entry retained by this Layout.
   // Positional, incomplete, or missing selections resolve Invalid.
@@ -141,8 +148,9 @@ class Layout final : public Ttx::Concept::Layout {
   Layout(
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Memory::Managed::Vector<Slot> slots,
-      Ttx::Lexical::Anchor anchor)
-      : domain(domain), slots(slots), anchor(anchor) {}
+      Ttx::Lexical::Anchor anchor,
+      Bool parameters)
+      : domain(domain), slots(slots), anchor(anchor), parameters(parameters) {}
 
   static auto interpret(
       Ttx::Lexical::Cursor& cursor,
@@ -152,7 +160,8 @@ class Layout final : public Ttx::Concept::Layout {
   auto link(
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& host,
-      Bool parameters) -> Bool;
+      Bool parameters,
+      Perimortem::Core::Option<const Ttx::Model::Addressable&> self) -> Bool;
 
   auto is_named() const -> Bool;
   auto get_slot(Count index) const -> Perimortem::Core::Option<const Slot&>;
@@ -165,6 +174,7 @@ class Layout final : public Ttx::Concept::Layout {
   Perimortem::Memory::Allocator::Arena& domain;
   Perimortem::Memory::Managed::Vector<Slot> slots;
   Ttx::Lexical::Anchor anchor;
+  Bool parameters;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Model

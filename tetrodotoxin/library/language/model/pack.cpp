@@ -11,6 +11,7 @@
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/enumeration.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
+#include "tetrodotoxin/library/language/constants/object.hpp"
 #include "tetrodotoxin/library/language/constants/option.hpp"
 #include "tetrodotoxin/library/language/constants/range.hpp"
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -24,6 +25,7 @@
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
+#include "tetrodotoxin/library/language/types/object_storage.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
 #include "tetrodotoxin/library/language/types/result.hpp"
@@ -698,6 +700,20 @@ auto Language::Model::Pack::restore_folded(
     BAIL_IF(!type);
     return Language::Constants::Bytes::create_synthetic(
         arena, *type, arena.proxy(*value));
+  }
+  case Archive::Tag::ConstantObject: {
+    auto ignored_type_name = contents.read_bytes();
+    auto element_name = contents.read_bytes();
+    auto element = element_name ? resolve_type(lexical_context, *element_name)
+                                : Core::Option<const Language::Model::Type&>();
+    BAIL_IF(!ignored_type_name || !element || !contents.is_complete());
+    Core::Static::Vector<Language::Generic::Argument, 1> arguments = {{
+      Language::Generic::Argument(*element),
+    }};
+    auto type =
+        materialize_type(lexical_context, "Object"_view, arguments.get_view());
+    BAIL_IF(!type || !type->is<Language::Types::ObjectStorage>());
+    return Language::Constants::Object::create(arena, *type);
   }
   case Archive::Tag::ConstantEnumeration: {
     auto type_name = contents.read_bytes();

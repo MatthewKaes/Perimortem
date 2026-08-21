@@ -214,7 +214,9 @@ class Builder {
   auto invoke(
       const Ttx::Model::Pack& result,
       const Ttx::Model::Callable& callable,
-      Perimortem::Core::View::Vector<LLVMValueRef> inputs) const -> Bool;
+      Perimortem::Core::View::Vector<LLVMValueRef> inputs,
+      Perimortem::Core::Option<const Ttx::Model::Pack&> receiver_source) const
+      -> Bool;
   auto fit_input(
       const Ttx::Model::Addressable& parameter,
       const Ttx::Model::Pack& source,
@@ -225,6 +227,47 @@ class Builder {
       const Ttx::Model::Type& result_type,
       const Ttx::Model::Type& receiver_type,
       LLVMValueRef receiver) const -> Bool;
+  auto contiguous_is_empty(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      LLVMValueRef receiver) const -> Bool;
+  auto object_capacity(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      LLVMValueRef receiver) const -> Bool;
+  auto object_is_shared(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      const Ttx::Model::Pack& receiver_source,
+      LLVMValueRef receiver) const -> Bool;
+  auto object_clone(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& receiver_type,
+      const Ttx::Model::Pack& receiver_source,
+      LLVMValueRef receiver) const -> Bool;
+  auto object_view(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      LLVMValueRef receiver) const -> Bool;
+  auto object_access(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      const Ttx::Model::Pack& receiver_source,
+      LLVMValueRef receiver,
+      const Ttx::Model::Pack& element_default) const -> Bool;
+  auto object_reserve(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      const Ttx::Model::Pack& receiver_source,
+      LLVMValueRef receiver,
+      LLVMValueRef count,
+      const Ttx::Model::Pack& element_default) const -> Bool;
   auto borrow_fixed(
       const Ttx::Model::Pack& result,
       const Ttx::Model::Type& result_type,
@@ -327,6 +370,9 @@ class Builder {
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Pack& result,
       Perimortem::Core::View::Bytes value) const -> Bool;
+  auto object_value(
+      const Ttx::Model::Type& carrier,
+      const Ttx::Model::Pack& result) const -> Bool;
   auto enumeration_name(
       const Ttx::Model::Pack& result,
       const Ttx::Model::Type& result_type,

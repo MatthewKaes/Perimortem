@@ -79,6 +79,7 @@ auto Language::Model::Callable::lower_call(
     Llvm::Builder& body,
     const Ttx::Model::Pack& result,
     Perimortem::Core::View::Vector<LLVMValueRef> inputs,
-    Perimortem::Core::Option<const Ttx::Model::Pack&>) const -> Bool {
-  return body.invoke(result, *this, inputs);
+    Perimortem::Core::Option<const Ttx::Model::Pack&> receiver_source) const
+    -> Bool {
+  return body.invoke(result, *this, inputs, receiver_source);
 }

@@ -93,10 +93,12 @@ auto Language::Model::Layout::interpret(
       cursor,
       [&](Cursor& entry, Count index, Option<Token> name_token) -> Bool {
         if (entry.matches(Code::Type::Self)) {
-          if (!parameters || index != 0 || !name_token ||
-              name_token->get_code() != Code::Type::Self) {
+          Bool bracketed =
+              name_token && name_token->get_code() == Code::Type::Self;
+          Bool scalar_result = !parameters && !name_token;
+          if (index != 0 || (!bracketed && !scalar_result)) {
             entry.create_token_error(
-                "Library `self` must be the first Function parameter."_view);
+                "Library `self` must be the first Function Layout entry."_view);
             return False;
           }
 
@@ -136,10 +138,18 @@ auto Language::Model::Layout::interpret(
         "Use `[]` for no parameters or name every entry as `.name : Type`."_view);
     return {};
   }
+  if (!parameters && !slots.is_empty() && !slots.at(0).type_reference &&
+      slots.get_size() != 1) {
+    cursor.create_expression_error(
+        slots.at(0).anchor,
+        "Library `[self]` must be the complete Function result Layout."_view,
+        "Return only the receiver reference or use authored result Types."_view);
+    return {};
+  }
 
   Anchor anchor = Anchor::create(opening, Span(opening, *closing));
   Layout& layout = domain.construct_from<Layout>(
-      [&]() -> Layout { return Layout(domain, slots, anchor); });
+      [&]() -> Layout { return Layout(domain, slots, anchor, parameters); });
   return layout;
 }
 
@@ -149,8 +159,7 @@ auto Language::Model::Layout::persist(Archive::Writer& writer) const -> Bool {
 
   writer.write(Unsigned_32(get_size()));
   for (Count index = 0; index < get_size(); index++) {
-    auto name = get_name(index);
-    BAIL_IF(!writer.write(name ? *name : View::Bytes()));
+    BAIL_IF(!writer.write(slots.at(index).name));
 
     auto reference = get_type_reference(index);
     writer.write(Unsigned_8(reference ? 1 : 0));
@@ -162,7 +171,8 @@ auto Language::Model::Layout::persist(Archive::Writer& writer) const -> Bool {
 auto Language::Model::Layout::restore(
     Archive::Reader& reader,
     Allocator::Arena& arena,
-    const Abstract& context) -> Option<Layout&> {
+    const Abstract& context,
+    Bool parameters) -> Option<Layout&> {
   auto record = reader.read_record();
   BAIL_IF(
       !record || record->get_tag() != Unsigned_16(Archive::Tag::Layout) ||
@@ -192,13 +202,15 @@ auto Language::Model::Layout::restore(
   }
   BAIL_IF(!contents.is_complete());
 
-  return arena.construct_from<Layout>(
-      [&]() -> Layout { return Layout(arena, slots, Anchor::create(Span())); });
+  return arena.construct_from<Layout>([&]() -> Layout {
+    return Layout(arena, slots, Anchor::create(Span()), parameters);
+  });
 }
 
 auto Language::Model::Layout::link_restored(
     const Abstract& host,
-    Bool parameters) -> Bool {
+    Bool parameters,
+    Option<const Ttx::Model::Addressable&> self) -> Bool {
   if (is_linked()) {
     return True;
   }
@@ -207,9 +219,20 @@ auto Language::Model::Layout::link_restored(
     Slot& slot = slots[index];
     Option<const Type&> type;
     if (!slot.type_reference) {
+      if (!parameters) {
+        BAIL_IF(
+            index != 0 || slots.get_size() != 1 || slot.name != "self"_view ||
+            !self);
+        if (slot.edge) {
+          BAIL_IF(&slot.edge->get() != &*self);
+        } else {
+          slot.edge = Reference<const Abstract>(*self);
+        }
+        continue;
+      }
+
       auto host_type = host.select<Type>();
-      BAIL_IF(
-          !parameters || index != 0 || slot.name != "self"_view || !host_type);
+      BAIL_IF(index != 0 || slot.name != "self"_view || !host_type);
       type = *host_type;
     } else {
       slot.type_reference->resolve_lexical(host).visit(
@@ -235,30 +258,55 @@ auto Language::Model::Layout::link_restored(
 auto Language::Model::Layout::link_parameters(
     Ttx::Lexical::Cursor& cursor,
     const Abstract& host) -> Bool {
-  return link(cursor, host, True);
+  return link(cursor, host, True, {});
 }
 
 auto Language::Model::Layout::link_types(
     Ttx::Lexical::Cursor& cursor,
-    const Abstract& host) -> Bool {
-  return link(cursor, host, False);
+    const Abstract& host,
+    Option<const Ttx::Model::Addressable&> self) -> Bool {
+  return link(cursor, host, False, self);
 }
 
 auto Language::Model::Layout::link(
     Ttx::Lexical::Cursor& cursor,
     const Abstract& host,
-    Bool parameters) -> Bool {
+    Bool parameters,
+    Option<const Ttx::Model::Addressable&> self) -> Bool {
   // Linking settles every slot before exposing the Layout. Parameter Layouts
-  // replace their authored slot with one real Parameter identity while result
-  // Layouts retain the selected Type itself.
+  // replace their authored slot with one real Parameter identity. Ordinary
+  // results retain their selected Type, while `self` reuses parameter zero.
   Bool failed = False;
   for (Count i = 0; i < slots.get_size(); i++) {
     Slot& slot = slots[i];
     Option<const Type&> type;
     if (!slot.type_reference) {
+      if (!parameters) {
+        if (i != 0 || slots.get_size() != 1 || slot.name != "self"_view ||
+            !self) {
+          cursor.create_expression_error(
+              slot.anchor,
+              "Function result `[self]` requires one Self Callable receiver."_view,
+              "Declare `self` as parameter entry zero or return an authored Type."_view);
+          failed = True;
+          continue;
+        }
+
+        if (slot.edge && &slot.edge->get() != &*self) {
+          cursor.create_expression_error(
+              slot.anchor,
+              "Repeated `[self]` result linking selected a different receiver."_view,
+              "Preserve the Function's original self Parameter identity."_view);
+          failed = True;
+        } else if (!slot.edge) {
+          slot.edge = Reference<const Abstract>(*self);
+        }
+        continue;
+      }
+
       // Self is derived from the exact host because its reserved spelling is a
       // receiver role rather than a route that another context may intercept.
-      if (!parameters || i != 0 || slot.name != "self"_view) {
+      if (i != 0 || slot.name != "self"_view) {
         cursor.create_expression_error(
             slot.anchor,
             "Only a leading Function parameter may derive its Type from "
@@ -440,6 +488,10 @@ auto Language::Model::Layout::is_linked() const -> Bool {
 }
 
 auto Language::Model::Layout::is_named() const -> Bool {
+  if (!parameters && slots.get_size() == 1 && slots.at(0).name == "self"_view &&
+      !slots.at(0).type_reference) {
+    return False;
+  }
   return slots.is_empty() || !slots.at(0).name.is_empty();
 }
 

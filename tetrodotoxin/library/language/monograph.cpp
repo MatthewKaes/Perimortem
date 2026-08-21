@@ -7,6 +7,7 @@
 
 #include "tetrodotoxin/library/language/generics/access.hpp"
 #include "tetrodotoxin/library/language/generics/fixed.hpp"
+#include "tetrodotoxin/library/language/generics/object.hpp"
 #include "tetrodotoxin/library/language/generics/option.hpp"
 #include "tetrodotoxin/library/language/generics/range.hpp"
 #include "tetrodotoxin/library/language/generics/result.hpp"
@@ -66,6 +67,7 @@ Library::Language::Monograph::Monograph(
     &domain.construct<Generics::Access>(domain, *this),
     &domain.construct<Generics::Fixed>(domain, *this),
     &domain.construct<Generics::Option>(domain, *this),
+    &domain.construct<Generics::Object>(domain, *this),
     &domain.construct<Generics::Range>(domain, *this),
     &domain.construct<Generics::Result>(domain, *this),
     &domain.construct<Generics::View>(domain, *this),

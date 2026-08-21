@@ -30,7 +30,11 @@ auto Generics::Access::create(
                        .resolve_context("Unsigned_64"_view)
                        .resolve()
                        .select<Language::Model::Type>();
-  if (!size_type) {
+  auto flag_type = get_context()
+                       .resolve_context("Bool"_view)
+                       .resolve()
+                       .select<Language::Model::Type>();
+  if (!size_type || !flag_type) {
     return {};
   }
 
@@ -63,5 +67,5 @@ auto Generics::Access::create(
   name.concat(element->get_name());
   name.concat("]"_view);
   return arena.construct<Types::Access>(
-      arena, name.get_view(), *element, *size_type, *view_type);
+      arena, name.get_view(), *element, *size_type, *flag_type, *view_type);
 }

@@ -5,6 +5,8 @@
 
 #include "perimortem/system/terminal.hpp"
 
+#include "perimortem/abi/core/object.hpp"
+
 using namespace Perimortem;
 
 extern "C" auto perimortem_system_terminal_read_line()
@@ -16,8 +18,8 @@ extern "C" auto perimortem_system_terminal_read_line()
   }
 
   Abi::Memory::Dynamic::Bytes result = Abi::Memory::Dynamic::Bytes::create(
-      line->get_view().get_data(), line->get_size(), line->get_capacity());
-  perimortem_dynamic_bytes_retain(&result);
+      line->get_view().get_data(), line->get_size());
+  perimortem_core_object_retain(const_cast<Unsigned_8*>(result.get_data()));
   return Abi::Core::Option<Abi::Memory::Dynamic::Bytes>::create(result);
 }
 

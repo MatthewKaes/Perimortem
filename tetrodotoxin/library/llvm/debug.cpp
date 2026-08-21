@@ -23,6 +23,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/SHA256.h"
+#include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/llvm/body.hpp"
 #include "tetrodotoxin/library/llvm/debug.hpp"
 #include "tetrodotoxin/library/llvm/program.hpp"
@@ -447,6 +448,23 @@ static auto create_debug_type(
       return created;
     }
 
+    if (*kind == Llvm::Carriers::Kind::ObjectStorage) {
+      auto element = program.get_carriers().get_element(selected);
+      auto debug_element = element ? create_type(create_type, *element, 0)
+                                   : Core::Option<llvm::DIType&>();
+      if (!debug_element) {
+        return {};
+      }
+
+      llvm::DIType& pointer = *builder->createPointerType(
+          &*debug_element, size, Unsigned_32(alignment));
+      if (!program.get_debug().publish_type(selected, llvm::wrap(&pointer))) {
+        return {};
+      }
+
+      return pointer;
+    }
+
     if (*kind == Llvm::Carriers::Kind::Object) {
       auto payload_handle = program.get_carriers().get_payload(selected);
       if (!payload_handle) {
@@ -531,6 +549,25 @@ static auto create_debug_type(
       }
 
       return pointer;
+    }
+
+    if (*kind == Llvm::Carriers::Kind::Option) {
+      auto element = program.get_carriers().get_element(selected);
+      if (element && program.get_carriers().is_object(*element)) {
+        auto debug_element = create_type(create_type, *element, 0);
+        if (!debug_element) {
+          return {};
+        }
+
+        llvm::DIType& alias = *builder->createTypedef(
+            &*debug_element, native_text(selected.get_name()), &*file,
+            Unsigned_32(selected_line), &*file, Unsigned_32(alignment));
+        if (!program.get_debug().publish_type(selected, llvm::wrap(&alias))) {
+          return {};
+        }
+
+        return alias;
+      }
     }
 
     auto* native_struct = llvm::dyn_cast<llvm::StructType>(&native);
@@ -1063,6 +1100,13 @@ auto Llvm::Debug::global(
   return True;
 }
 
+static auto declares_self(const Ttx::Model::Callable& callable) -> Bool {
+  auto first = callable.get_parameters().get_abstract(0);
+  auto parameter = first ? first->select<Ttx::Model::Addressable>()
+                         : Core::Option<const Ttx::Model::Addressable&>();
+  return parameter && parameter->get_name() == "self"_view;
+}
+
 auto Llvm::Debug::begin_function(
     Ttx::Concept::Abstract& body,
     const Ttx::Model::Callable& callable,
@@ -1103,6 +1147,15 @@ auto Llvm::Debug::begin_function(
                                : Core::Option<llvm::DIType&>();
     if (!debug_result) {
       return False;
+    }
+
+    auto library_callable = callable.select<Language::Model::Callable>();
+    if (library_callable && library_callable->get_self_result()) {
+      llvm::Module& module = native_module(*selected_program);
+      llvm::Type& pointer = *llvm::PointerType::getUnqual(module.getContext());
+      debug_result = *builder->createPointerType(
+          &*debug_result, size_in_bits(*selected_program, pointer),
+          Unsigned_32(alignment_in_bits(*selected_program, pointer)));
     }
 
     signature_types.push_back(&*debug_result);
@@ -1157,6 +1210,14 @@ auto Llvm::Debug::begin_function(
                   : Core::Option<llvm::DIType&>();
     if (!debug_parameter) {
       return False;
+    }
+
+    if (index == 0 && declares_self(callable)) {
+      llvm::Module& module = native_module(*selected_program);
+      llvm::Type& pointer = *llvm::PointerType::getUnqual(module.getContext());
+      debug_parameter = *builder->createPointerType(
+          &*debug_parameter, size_in_bits(*selected_program, pointer),
+          Unsigned_32(alignment_in_bits(*selected_program, pointer)));
     }
 
     signature_types.push_back(&*debug_parameter);

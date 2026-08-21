@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"

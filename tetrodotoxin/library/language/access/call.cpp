@@ -427,6 +427,17 @@ auto Language::Access::Call::get_documentation() const -> const Documentation& {
       });
 }
 
+auto Language::Access::Call::get_result() const -> const Abstract& {
+  return callable.visit(
+      [this]() -> const Abstract& { return *this; },
+      [this](const Reference<const Language::Model::Callable>& selected)
+          -> const Abstract& {
+        auto self = selected.get().get_self_result();
+        return self ? static_cast<const Abstract&>(*self)
+                    : static_cast<const Abstract&>(*this);
+      });
+}
+
 auto Language::Access::Call::get_type() const -> const Abstract& {
   if (!callable) {
     return Invalid::get_invalid();

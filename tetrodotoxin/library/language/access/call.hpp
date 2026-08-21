@@ -51,6 +51,7 @@ class Call : public Expression {
   TTX_NAME(name);
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
+  auto get_result() const -> const Ttx::Concept::Abstract& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_value_type(Count index) const
       -> const Ttx::Concept::Abstract& override;
