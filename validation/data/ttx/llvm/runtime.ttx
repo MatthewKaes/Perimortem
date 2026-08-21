@@ -434,8 +434,10 @@ public Dynamic : struct {
     public get_view : func = [self] -> View[Unsigned_8] : return self.data -> get_view() ->
         slice(0, self.size);
     public is_empty : func = [self] -> Bool : return self.size == 0;
-    public reserve : func = [self, .required_size : Unsigned_64] -> self : if required_size >
-        self.data -> get_capacity() : self.data -> reserve(required_size);
+    public reserve : func = [
+      self,
+      .required_size : Unsigned_64,
+    ] -> self : if required_size > self.data -> get_capacity() : self.data -> reserve(required_size);
     public resize : func = [self, .new_size : Unsigned_64] -> self {
       if new_size > self.data -> get_capacity() : self.data -> reserve(new_size);
 

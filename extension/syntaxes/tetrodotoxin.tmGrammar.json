@@ -43,7 +43,10 @@
           "include": "#discard"
         },
         {
-          "include": "#builtin_types"
+          "include": "#intrinsic_types"
+        },
+        {
+          "include": "#generic_formulas"
         },
         {
           "include": "#function_declarations"
@@ -80,8 +83,24 @@
       "match": "/>.*$"
     },
     "modifiers": {
-      "name": "storage.modifier.tetrodotoxin",
-      "match": "\\b(?:public|private|expose|state|const)\\b"
+      "patterns": [
+        {
+          "name": "keyword.other.visibility.public.tetrodotoxin",
+          "match": "\\bpublic\\b"
+        },
+        {
+          "name": "keyword.other.visibility.private.tetrodotoxin",
+          "match": "\\bprivate\\b"
+        },
+        {
+          "name": "keyword.other.visibility.expose.tetrodotoxin",
+          "match": "\\bexpose\\b"
+        },
+        {
+          "name": "keyword.other.policy.tetrodotoxin",
+          "match": "\\b(?:state|const)\\b"
+        }
+      ]
     },
     "attributes": {
       "name": "entity.other.attribute-name.tetrodotoxin",
@@ -143,9 +162,13 @@
         }
       ]
     },
-    "builtin_types": {
-      "name": "support.type.tetrodotoxin",
-      "match": "(?<![A-Za-z0-9_])(Bits_(?:8|16|32|64)|Signed_(?:8|16|32|64)|Real_(?:32|64|128)|Bool|Bytes|Count|Void|Text|Blob|List|Vec(?:2|3|4)D|Vec|Layout|View|Access|Object|Fragment|Const|Sampler2D|Range|TTX)(?![A-Za-z0-9_])"
+    "intrinsic_types": {
+      "name": "entity.name.type.intrinsic.tetrodotoxin",
+      "match": "(?<![A-Za-z0-9_])(?:Unsigned_(?:8|16|32|64)|Signed_(?:8|16|32|64)|Real_(?:32|64)|Bool)(?![A-Za-z0-9_])"
+    },
+    "generic_formulas": {
+      "name": "entity.name.type.generic.tetrodotoxin",
+      "match": "(?<![A-Za-z0-9_])(?:Access|Fixed|Object|Option|Range|Result|View)(?![A-Za-z0-9_])"
     },
     "function_declarations": {
       "match": "\\b(func)\\s+([a-z_][a-zA-Z0-9_]*)",
@@ -218,8 +241,19 @@
           "match": "\\.{3}"
         },
         {
+          "match": "([.:])(\\[)",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.access.tetrodotoxin"
+            },
+            "2": {
+              "name": "punctuation.section.brackets.tetrodotoxin"
+            }
+          }
+        },
+        {
           "name": "keyword.operator.tetrodotoxin",
-          "match": "\\.\\[|:\\[|::|==|!=|<=|>=|\\+=|-=|[+\\-*/%^&|!<>=]"
+          "match": "::|==|!=|<=|>=|\\+=|-=|[+\\-*/%^&|!<>=]"
         }
       ]
     },

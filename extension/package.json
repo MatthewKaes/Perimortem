@@ -9,7 +9,7 @@
   "author": "Matt Kaes",
   "license": "MIT",
   "icon": "media/icon.png",
-  "version": "0.1.23",
+  "version": "0.1.24",
   "keywords": [
     "TTX",
     "Tetrodotoxin",
@@ -109,9 +109,31 @@
             }
           },
           {
-            "scope": "storage.modifier.tetrodotoxin",
+            "scope": "keyword.other.visibility.public.tetrodotoxin",
             "settings": {
-              "foreground": "#ad4a52"
+              "foreground": "#d4646a",
+              "fontStyle": ""
+            }
+          },
+          {
+            "scope": "keyword.other.visibility.private.tetrodotoxin",
+            "settings": {
+              "foreground": "#9a444a",
+              "fontStyle": ""
+            }
+          },
+          {
+            "scope": "keyword.other.visibility.expose.tetrodotoxin",
+            "settings": {
+              "foreground": "#b6545a",
+              "fontStyle": ""
+            }
+          },
+          {
+            "scope": "keyword.other.policy.tetrodotoxin",
+            "settings": {
+              "foreground": "#ad4a52",
+              "fontStyle": ""
             }
           },
           {
@@ -147,13 +169,20 @@
               "constant.numeric.integer.tetrodotoxin"
             ],
             "settings": {
-              "foreground": "#e8c058"
+              "foreground": "#e4c168"
             }
           },
           {
             "scope": "string.quoted.double.tetrodotoxin",
             "settings": {
               "foreground": "#ebd07b"
+            }
+          },
+          {
+            "scope": "string.other.embedded.tetrodotoxin",
+            "settings": {
+              "foreground": "#e4c168",
+              "fontStyle": ""
             }
           },
           {
@@ -181,7 +210,7 @@
             "scope": "entity.name.type.member.tetrodotoxin",
             "settings": {
               "foreground": "#f7a3a7",
-              "fontStyle": "italic"
+              "fontStyle": ""
             }
           },
           {
@@ -217,19 +246,29 @@
             }
           },
           {
-            "scope": "support.type.tetrodotoxin",
+            "scope": "entity.name.type.intrinsic.tetrodotoxin",
             "settings": {
-              "foreground": "#dd6d72"
+              "foreground": "#dd6d72",
+              "fontStyle": ""
+            }
+          },
+          {
+            "scope": "entity.name.type.generic.tetrodotoxin",
+            "settings": {
+              "foreground": "#ed868a",
+              "fontStyle": ""
             }
           },
           {
             "scope": "entity.name.type.tetrodotoxin",
             "settings": {
-              "foreground": "#f7a3a7"
+              "foreground": "#f7a3a7",
+              "fontStyle": ""
             }
           },
           {
             "scope": [
+              "keyword.operator.access.tetrodotoxin",
               "keyword.operator.tetrodotoxin",
               "keyword.operator.range.tetrodotoxin"
             ],
