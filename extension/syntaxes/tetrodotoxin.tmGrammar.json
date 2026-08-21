@@ -157,8 +157,12 @@
           "match": "\\b(and|or)\\b"
         },
         {
+          "name": "keyword.other.foreign.tetrodotoxin",
+          "match": "\\bforeign\\b"
+        },
+        {
           "name": "keyword.other.tetrodotoxin",
-          "match": "\\b(dialect|func|self|new|object|struct|enum|foreign|alias|emit|resolve|source|using|from)\\b"
+          "match": "\\b(dialect|func|self|new|object|struct|enum|alias|emit|resolve|source|using|from)\\b"
         }
       ]
     },

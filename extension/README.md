@@ -9,6 +9,7 @@ Tetrodotoxin TTX adds editor support for `.ttx` source files.
 - `.ttx` file association and a Tetrodotoxin file icon
 - TextMate syntax highlighting for comments, modifiers, attributes, Types,
   Addressables, Callables, literals, operators, and punctuation
+- bracket matching and optional editor bracket-pair colorization
 - optional semantic highlighting from the bundled language server
 - full-document synchronization for open files
 - source diagnostics with editor ranges
