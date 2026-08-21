@@ -9,7 +9,7 @@ Tetrodotoxin TTX adds editor support for `.ttx` source files.
 - `.ttx` file association and a Tetrodotoxin file icon
 - TextMate syntax highlighting for comments, modifiers, attributes, Types,
   Addressables, Callables, literals, operators, and punctuation
-- bracket matching and optional editor bracket-pair colorization
+- bracket matching with bracket-pair colorization disabled by default
 - optional semantic highlighting from the bundled language server
 - full-document synchronization for open files
 - source diagnostics with editor ranges
@@ -30,6 +30,17 @@ provide token categories:
 ```json
 {
   "tetrodotoxin.semanticHighlighting.enabled": true
+}
+```
+
+Bracket matching remains active independently. To opt TTX into the editor's
+bracket-pair colors, add the language-specific override:
+
+```json
+{
+  "[tetrodotoxin]": {
+    "editor.bracketPairColorization.enabled": true
+  }
 }
 ```
 
