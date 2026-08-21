@@ -7,6 +7,8 @@
 
 #include "perimortem/core/null_terminated.hpp"
 
+#include "perimortem/abi/core/option.hpp"
+
 using namespace Perimortem::Core;
 using namespace Validation;
 
@@ -47,6 +49,16 @@ class StackValue {
 static auto create_stack_value(Count& destructions) -> Option<StackValue> {
   StackValue value(41, destructions);
   return Data::take(value);
+}
+
+PERIMORTEM_UNIT_TEST(CoreOption, abi_carrier) {
+  auto absent = Perimortem::Abi::Core::Option<Unsigned_64>::create();
+  auto present =
+      Perimortem::Abi::Core::Option<Unsigned_64>::create(Unsigned_64(42));
+
+  EXPECT(!absent);
+  EXPECT(present);
+  EXPECT_EQ(*present, Unsigned_64(42));
 }
 
 PERIMORTEM_UNIT_TEST(CoreOption, visits_none) {

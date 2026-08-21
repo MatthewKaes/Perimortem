@@ -22,8 +22,8 @@ class Layout {
 
   // Parses either one bare descriptor or one complete bracketed Layout. An
   // explicit name is consumed before the callback, leaving the Cursor on the
-  // descriptor after `.name :`. Reserved `self` remains unconsumed because an
-  // authored parameter Layout derives its Type from the Function host.
+  // descriptor after `.name :`. Reserved `self` remains unconsumed because a
+  // Function Layout may derive its receiver reference from that spelling.
   template <typename consume_type>
   static auto parse(Ttx::Lexical::Cursor& cursor, consume_type&& consume)
       -> Perimortem::Core::Option<Ttx::Lexical::Token> {

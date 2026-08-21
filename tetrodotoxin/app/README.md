@@ -6,9 +6,9 @@ configuration. An App selects how a completed program starts, which
 presentation surface it requires, and how its long-lived state is controlled.
 
 App points directly to the Library Functions or Scenes that take part in that
-policy. Library compiles the CPU code and Linker builds the platform program.
-App keeps the startup and lifecycle choices visible without becoming a machine
-instruction or linking language.
+policy. Library compiles the CPU code and the selected platform toolchain links
+the completed native products. App keeps the startup and lifecycle choices
+visible without becoming a machine instruction or linking language.
 
 Canonical grammar reference: [App.g4](grammar/App.g4).
 
@@ -135,9 +135,10 @@ profile.
 
 ## Persistence
 
-App supports both Package Archive profiles. Complete stores the full startup and
-lifecycle policy. Interface stores the public policy and the location of the
-compiled program, without executable bodies.
+App supports both Package Archive profiles. Complete stores the public and
+private startup and lifecycle policy. Interface stores its public policy and
+compiled program location. App execution remains in compiled artifacts rather
+than either semantic payload.
 
 Referenced Scenes remain separate Package members. App stores the relationships
 to those members instead of copying their data. Neither profile stores a live
@@ -150,8 +151,9 @@ Building an App selects both a CPU target and a platform host. The CPU target
 defines how functions and values are represented. The Linux or Windows host
 provides process startup, loading, terminals, windows, and events.
 
-Library compiles CPU code with LLVM. Linker produces the final ELF or PE
-program without making LLVM part of App behavior.
+Library compiles CPU code with LLVM. The selected platform toolchain links the
+member objects, runtime libraries, and generated App entry without making LLVM
+or native linking part of App behavior.
 
 See [Scene](../scene/README.md) for Scene roles,
 [Library](../library/README.md) for Callable and named Layout semantics, and the

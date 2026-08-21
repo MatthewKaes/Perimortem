@@ -18,7 +18,10 @@ Scene::Language::Monograph::Monograph(
     Abstract& context,
     Library::Language::Monograph& library)
     : Tetrodotoxin::Language::Monograph(
-          arena, language, documentation, context),
+          arena,
+          language,
+          documentation,
+          context),
       library(library) {}
 
 auto Scene::Language::Monograph::get_layer(const Abstract& requested) const

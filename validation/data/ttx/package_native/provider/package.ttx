@@ -1,0 +1,4 @@
+// Native Package provider.
+dialect : Package;
+
+source Api from "api.ttx";

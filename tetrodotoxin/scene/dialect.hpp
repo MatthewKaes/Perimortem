@@ -12,6 +12,8 @@ namespace Tetrodotoxin::Scene {
 // Library Dialect that constructs the one semantic child beneath it.
 class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
+  TTX_CONTRACT(Dialect, Tetrodotoxin::Language::Dialect);
+
   Dialect(
       Perimortem::Core::View::Bytes name,
       Tetrodotoxin::Library::Dialect& library)

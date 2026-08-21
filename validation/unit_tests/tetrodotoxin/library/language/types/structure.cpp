@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/algorithm/search.hpp"
@@ -63,10 +64,6 @@ static auto has_diagnostic(const Errors& errors, View::Bytes fragment) -> Bool {
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "StructureTest"_view, "structure.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -111,19 +108,20 @@ static auto parse_authored(
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty();
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
-  BAIL_IF(!dialect);
+  auto& dialect = get_library_dialect(*workspace_toolchain);
   Allocator::Arena lexical;
-  auto monograph = parse_authored(lexical, *dialect, workspace, errors, source);
+  auto monograph = parse_authored(lexical, dialect, workspace, errors, source);
   if (!monograph) {
     return False;
   }
@@ -137,12 +135,12 @@ static auto rejects_link(View::Bytes source) -> Bool {
 }
 
 static auto rejects_finalize(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
-  BAIL_IF(!dialect);
+  auto& dialect = get_library_dialect(*workspace_toolchain);
   Allocator::Arena lexical;
-  auto monograph = parse_authored(lexical, *dialect, workspace, errors, source);
+  auto monograph = parse_authored(lexical, dialect, workspace, errors, source);
   if (!monograph) {
     return False;
   }
@@ -177,12 +175,12 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
       "  private flag : Flag;\n"
       "}\n"
       "public Selected : alias = Packet::Visible;"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
-  ASSERT(dialect);
+  auto& dialect = get_library_dialect(*workspace_toolchain);
   Allocator::Arena lexical;
-  auto owner = parse_authored(lexical, *dialect, workspace, errors, source);
+  auto owner = parse_authored(lexical, dialect, workspace, errors, source);
   ASSERT(owner);
   auto& monograph = *owner;
   const auto& source_type = monograph.get_source();
@@ -252,7 +250,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, contextual_type_routes_keep_locality) {
       "  public state redirected : Visible;\n"
       "  private state qualified : Outer::Inner::Leaf;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -310,7 +309,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, independent_access_axes) {
       "  public const const_public : Bool = false;\n"
       "  private const const_private : Bool = false;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -382,7 +382,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, declaration_reorder) {
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
-    Workspace workspace;
+    auto workspace_toolchain = create_library_toolchain();
+    Workspace workspace(*workspace_toolchain);
     Errors errors;
     auto monograph = interpret(workspace, errors, sources[i]);
     ASSERT(monograph);
@@ -414,7 +415,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, category_names_coexist) {
     "public Packet : struct { public state value : Bool; public inspect : func = [self, .value : Bool] -> Bool { return value; } }"_view,
   }};
   for (Count i = 0; i < accepted.get_size(); i++) {
-    Workspace workspace;
+    auto workspace_toolchain = create_library_toolchain();
+    Workspace workspace(*workspace_toolchain);
     Errors errors;
     auto monograph = interpret(workspace, errors, accepted[i]);
     ASSERT(monograph);
@@ -451,7 +453,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, explicit_self_field_access) {
       "  private state value : Bool;\n"
       "  public read : func = [self] -> Bool { return self.value; }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -532,7 +535,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, empty_types_are_static_only) {
       "public Empty : struct { public create : func = [] -> [] {} }\n"
       "private first_empty_result : func = [] -> [] {}\n"
       "private empty_result : func = [] -> [] {}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -620,7 +624,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, private_exposure_retained_locally) {
       "}\n"
       "}\n"
       "private root : func = [.value : Hidden] -> Hidden { return value; }"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -665,12 +670,12 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
       "  private copy : Bool = exact;\n"
       "  private narrow : Unsigned_8 = 255;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
-  ASSERT(dialect);
+  auto& dialect = get_library_dialect(*workspace_toolchain);
   Allocator::Arena lexical;
-  auto owner = parse_authored(lexical, *dialect, workspace, errors, source);
+  auto owner = parse_authored(lexical, dialect, workspace, errors, source);
   ASSERT(owner);
   auto& monograph = *owner;
   const Abstract& selected = monograph.resolve_context("Packet"_view);
@@ -728,12 +733,12 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
       "  private scalar := 7;\n"
       "  private scalar_copy := scalar;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
-  ASSERT(dialect);
+  auto& dialect = get_library_dialect(*workspace_toolchain);
   Allocator::Arena lexical;
-  auto owner = parse_authored(lexical, *dialect, workspace, errors, source);
+  auto owner = parse_authored(lexical, dialect, workspace, errors, source);
   ASSERT(owner);
   auto& monograph = *owner;
   const auto& source_type = monograph.get_source();
@@ -815,13 +820,13 @@ PERIMORTEM_UNIT_TEST(StructureTests, inference_failure_rolls_back) {
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
-    Workspace workspace;
+    auto workspace_toolchain = create_library_toolchain();
+    Workspace workspace(*workspace_toolchain);
     Errors errors;
-    auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
-    ASSERT(dialect);
+    auto& dialect = get_library_dialect(*workspace_toolchain);
     Allocator::Arena lexical;
     auto owner =
-        parse_authored(lexical, *dialect, workspace, errors, sources[i]);
+        parse_authored(lexical, dialect, workspace, errors, sources[i]);
     ASSERT(owner);
     auto& monograph = *owner;
     const auto& source_type = monograph.get_source();
@@ -855,12 +860,12 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_public_type_reachability) {
       "private Hidden : struct { private state value : Bool; }\n"
       "private seed : Hidden;\n"
       "public revealed := seed;"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
-  auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
-  ASSERT(dialect);
+  auto& dialect = get_library_dialect(*workspace_toolchain);
   Allocator::Arena lexical;
-  auto owner = parse_authored(lexical, *dialect, workspace, errors, source);
+  auto owner = parse_authored(lexical, dialect, workspace, errors, source);
   ASSERT(owner);
   auto& monograph = *owner;
   Allocator::Arena completion;
@@ -889,13 +894,13 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
-    Workspace workspace;
+    auto workspace_toolchain = create_library_toolchain();
+    Workspace workspace(*workspace_toolchain);
     Errors errors;
-    auto* dialect = workspace.install_dialect<Dialect>("Library"_view);
-    ASSERT(dialect);
+    auto& dialect = get_library_dialect(*workspace_toolchain);
     Allocator::Arena lexical;
     auto owner =
-        parse_authored(lexical, *dialect, workspace, errors, sources[i]);
+        parse_authored(lexical, dialect, workspace, errors, sources[i]);
     ASSERT(owner);
     auto& monograph = *owner;
     const auto& source_type = monograph.get_source();

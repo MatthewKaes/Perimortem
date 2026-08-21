@@ -1,0 +1,83 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#include "validation/unit_test.hpp"
+
+#include "perimortem/core/static/vector.hpp"
+
+#include "tetrodotoxin/library/archive/writer.hpp"
+
+using namespace Perimortem::Core;
+using namespace Tetrodotoxin;
+using namespace Validation;
+
+static Harness LibraryArchive = {
+  .name = "Tetrodotoxin::Library::Archive"_view,
+};
+
+PERIMORTEM_UNIT_TEST(LibraryArchive, frozen_format_one_tags) {
+  static constexpr Static::Vector<Library::Archive::Tag, 27> tags = {{
+    Library::Archive::Tag::Source,
+    Library::Archive::Tag::Import,
+    Library::Archive::Tag::Foreign,
+    Library::Archive::Tag::ForeignState,
+    Library::Archive::Tag::ForeignFunction,
+    Library::Archive::Tag::Alias,
+    Library::Archive::Tag::Structure,
+    Library::Archive::Tag::Object,
+    Library::Archive::Tag::Enumeration,
+    Library::Archive::Tag::EnumerationCase,
+    Library::Archive::Tag::Field,
+    Library::Archive::Tag::Function,
+    Library::Archive::Tag::Signature,
+    Library::Archive::Tag::TypeReference,
+    Library::Archive::Tag::PackGroup,
+    Library::Archive::Tag::ConstantFalse,
+    Library::Archive::Tag::ConstantTrue,
+    Library::Archive::Tag::ConstantUnsigned,
+    Library::Archive::Tag::ConstantSigned,
+    Library::Archive::Tag::ConstantReal,
+    Library::Archive::Tag::ConstantBytes,
+    Library::Archive::Tag::ConstantEnumeration,
+    Library::Archive::Tag::ConstantRange,
+    Library::Archive::Tag::ConstantOption,
+    Library::Archive::Tag::ConstantResult,
+    Library::Archive::Tag::Layout,
+    Library::Archive::Tag::FieldSlot,
+  }};
+  static constexpr Static::Vector<Unsigned_16, 27> golden = {{
+    1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+  }};
+
+  for (Count index = 0; index < tags.get_size(); index++) {
+    EXPECT_EQ(Unsigned_16(tags[index]), golden[index]);
+  }
+}
+
+PERIMORTEM_UNIT_TEST(LibraryArchive, frozen_format_one_framing) {
+  static constexpr Static::Vector<Unsigned_8, 16> golden = {{
+    0x54,
+    0x54,
+    0x58,
+    0x4C,
+    0x01,
+    0x00,
+    0x00,
+    0x00,
+    0x01,
+    0x00,
+    0x01,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+  }};
+
+  Library::Archive::Writer writer(Language::Persistence::Profile::Complete);
+  auto record = writer.begin(Library::Archive::Tag::Source, True);
+  ASSERT(writer.finish(record));
+  auto bytes = writer.take();
+  EXPECT_HEX(bytes.get_view(), golden.get_view().get_bytes());
+}

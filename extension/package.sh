@@ -16,6 +16,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 VSIX_DIR="$REPO_ROOT/.vscode"
 SERVER_BIN="$REPO_ROOT/.bin/bin/puffer/puffer"
 PACKAGE_SERVER="$SCRIPT_DIR/puffer"
+PACKAGE_MEMORY="$SCRIPT_DIR/packages/Perimortem.Memory"
+PACKAGE_SYSTEM="$SCRIPT_DIR/packages/Perimortem.System"
 
 INSTALL=0
 SYNC=0
@@ -45,6 +47,12 @@ echo "==> Copying latest language server into extension package..."
 rm -f "$PACKAGE_SERVER" "$SCRIPT_DIR/ttx-lang-server"
 cp -L "$SERVER_BIN" "$PACKAGE_SERVER"
 chmod 755 "$PACKAGE_SERVER"
+
+echo "==> Copying standard Packages into extension package..."
+rm -rf "$PACKAGE_MEMORY" "$PACKAGE_SYSTEM"
+mkdir -p "$PACKAGE_MEMORY" "$PACKAGE_SYSTEM"
+cp "$REPO_ROOT/packages/ttx/Perimortem.Memory/"*.ttx "$PACKAGE_MEMORY/"
+cp "$REPO_ROOT/packages/ttx/Perimortem.System/"*.ttx "$PACKAGE_SYSTEM/"
 
 if [ -L "$PACKAGE_SERVER" ]; then
   echo "Packaged server must be a real file, not a symlink: $PACKAGE_SERVER" >&2

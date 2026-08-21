@@ -9,6 +9,7 @@
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/model/types/value.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/language/types/view.hpp"
 #include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -23,16 +24,25 @@ static auto select_operand_type(
     const Language::Expression& right) -> const Abstract& {
   const Abstract& left_resolved = left.get_type().resolve();
   const Abstract& right_resolved = right.get_type().resolve();
-  if (!left_resolved.is<Language::Model::Type>() ||
-      &left_resolved != &right_resolved) {
+  auto left_type = left_resolved.select<Language::Model::Type>();
+  auto right_type = right_resolved.select<Language::Model::Type>();
+  if (!left_type || !right_type) {
     return Invalid::get_invalid();
   }
 
-  if (left_resolved
-          .is<Tetrodotoxin::Library::Language::Model::Types::Value>() ||
-      (left.is<Language::Constants::Bytes>() &&
-       right.is<Language::Constants::Bytes>())) {
+  if (&left_resolved == &right_resolved &&
+      (left_resolved
+           .is<Tetrodotoxin::Library::Language::Model::Types::Value>() ||
+       (left.is<Language::Constants::Bytes>() &&
+        right.is<Language::Constants::Bytes>()))) {
     return left_resolved;
+  }
+
+  auto left_view = left_type->select<Language::Types::View>();
+  auto right_view = right_type->select<Language::Types::View>();
+  if (left_view && right_view && left_view->accepts(right) &&
+      right_view->accepts(left)) {
+    return *left_view;
   }
 
   // Bytes is a complete Constant payload domain rather than a universal Type
@@ -60,8 +70,9 @@ static auto accepts_constant(
     return scalar->accepts_constant(constant);
   }
 
-  return constant.is<Language::Constants::Bytes>() &&
-         &constant.get_type().resolve() == &selected;
+  auto type = selected.select<Language::Model::Type>();
+  return type && constant.is<Language::Constants::Bytes>() &&
+         type->accepts(constant);
 }
 
 TTX_BINARY_PARSE(Equal, CmpOp);
@@ -86,6 +97,11 @@ auto Language::Operations::Equal::lower(Llvm::Builder& body) const -> Bool {
   Bool lowered = lower_inputs(body);
   if (!lowered) {
     return False;
+  }
+
+  if (carrier->is<Language::Types::View>()) {
+    return body.compare_bytes(
+        Llvm::Builder::Comparison::Equal, *this, left, right);
   }
 
   return body.compare(

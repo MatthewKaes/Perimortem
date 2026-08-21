@@ -39,6 +39,11 @@ class Alias : public Ttx::Model::Alias {
       Tetrodotoxin::Language::Definition& definition)
       -> Perimortem::Core::Option<Alias&>;
 
+  static auto restore(
+      Archive::Reader& reader,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Alias&>;
+
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
   constexpr auto get_definition() const
@@ -54,6 +59,8 @@ class Alias : public Ttx::Model::Alias {
   // itself only resolves its retained route and binds the resulting Type.
   auto link() -> Bool;
   auto report_unresolved(Ttx::Lexical::Cursor& cursor) const -> void;
+
+  auto persist(Archive::Writer& writer) const -> Bool;
 
   constexpr auto is_linked() const -> Bool { return linked; }
 

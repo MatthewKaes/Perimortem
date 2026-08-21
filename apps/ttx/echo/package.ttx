@@ -5,7 +5,7 @@
 // transaction resolves those requests before publishing any member Source.
 dialect : Package;
 
+resolve Memory : Perimortem.Memory = "1.0";
 resolve System : Perimortem.System = "1.0";
-
 source Main from "main.ttx";
 source App from "app.ttx";

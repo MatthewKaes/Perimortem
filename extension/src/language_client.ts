@@ -38,15 +38,18 @@ export function start_language_client(
   context.subscriptions.push(ttx_channel);
 
   const server_path = context.asAbsolutePath(path.join(".", "puffer"));
+  const packages_root = context.asAbsolutePath("packages");
   ttx_channel.appendLine(`Launching Puffer LSP using path: ${server_path}`);
 
   const server_options: ServerOptions = {
     run: {
       command: server_path,
+      args: [`-packages-root=${packages_root}`],
       transport: TransportKind.pipe,
     },
     debug: {
       command: server_path,
+      args: [`-packages-root=${packages_root}`],
       transport: TransportKind.pipe,
     },
   };
@@ -134,33 +137,6 @@ export function start_language_client(
     })
   );
 
-  context.subscriptions.push(
-    vscode.languages.registerDocumentFormattingEditProvider(language_selector, {
-      async provideDocumentFormattingEdits(
-        document: vscode.TextDocument
-      ): Promise<vscode.TextEdit[]> {
-        const encoded_source = Buffer.from(document.getText()).toString(
-          "base64"
-        );
-        const result = await language_client.sendRequest<{ document: string }>(
-          "format",
-          {
-            source: encoded_source,
-            name: document.fileName,
-          }
-        );
-        const decoded_document = Buffer.from(
-          result.document,
-          "base64"
-        ).toString("utf8");
-        const document_range = new vscode.Range(
-          new vscode.Position(0, 0),
-          document.positionAt(document.getText().length)
-        );
-        return [vscode.TextEdit.replace(document_range, decoded_document)];
-      },
-    })
-  );
 }
 
 export function deactivate_language_client(): Thenable<void> | undefined {

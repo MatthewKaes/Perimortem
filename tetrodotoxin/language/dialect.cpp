@@ -18,12 +18,12 @@ Language::Dialect::Dialect(View::Bytes name) : name(name) {}
 Language::Dialect::~Dialect() {}
 
 auto Language::Dialect::find_installed(
-    View::Vector<Dialect*> installed,
+    View::Vector<Reference<Dialect>> installed,
     View::Bytes name) -> Option<Dialect&> {
   for (Count i = 0; i < installed.get_size(); i++) {
-    Dialect* dialect = installed.get_data()[i];
-    if (dialect != nullptr && dialect->get_name() == name) {
-      return *dialect;
+    Dialect& dialect = installed.get_data()[i].get();
+    if (dialect.get_name() == name) {
+      return dialect;
     }
   }
 
@@ -31,7 +31,7 @@ auto Language::Dialect::find_installed(
 }
 
 auto Language::Dialect::interpret_source(
-    View::Vector<Dialect*> installed,
+    View::Vector<Reference<Dialect>> installed,
     Cursor& cursor,
     Abstract& context) -> Option<Monograph&> {
   // The common envelope is consumed before protocol dispatch so every Dialect
@@ -72,7 +72,7 @@ auto Language::Dialect::interpret_source(
         if (i != 0) {
           hint << ", "_view;
         }
-        hint << installed.get_data()[i]->get_name();
+        hint << installed.get_data()[i].get().get_name();
       }
     }
     hint << "."_view;
@@ -82,7 +82,7 @@ auto Language::Dialect::interpret_source(
   return dialect->interpret(cursor, documentation, source_anchor, context);
 }
 
-auto Language::Dialect::encode(const Abstract&) const
+auto Language::Dialect::encode(const Abstract&, Persistence::Profile) const
     -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes> {
   return {};
 }
@@ -90,6 +90,7 @@ auto Language::Dialect::encode(const Abstract&) const
 auto Language::Dialect::restore(
     Allocator::Arena&,
     View::Bytes,
+    Persistence::Profile,
     const Documentation&,
     Abstract&) -> Option<Monograph&> {
   return {};

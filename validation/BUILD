@@ -21,7 +21,7 @@ Run the full benchmark suite:
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("//toolchain:tetrodotoxin.bzl", "ttx_library")
+load("//toolchain:tetrodotoxin.bzl", "ttx_library", "ttx_package")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -56,6 +56,54 @@ ttx_library(
     srcs = ["data/ttx/llvm/runtime.ttx"],
     debug = "full",
     library_name = "Runtime",
+)
+
+ttx_library(
+    name = "system_abi_llvm",
+    srcs = ["data/ttx/llvm/system_abi.ttx"],
+    library_name = "SystemAbi",
+)
+
+cc_binary(
+    name = "system_abi_integration",
+    srcs = ["data/ttx/llvm/system_abi_harness.c"],
+    copts = [
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    deps = [
+        ":system_abi_llvm",
+        "//perimortem:abi",
+    ],
+)
+
+ttx_package(
+    name = "package_native_provider",
+    package_name = "Validation.Provider",
+    manifest = "data/ttx/package_native/provider/package.ttx",
+    version = [1, 0],
+)
+
+ttx_package(
+    name = "package_native_consumer",
+    package_name = "Validation.Consumer",
+    manifest = "data/ttx/package_native/consumer/package.ttx",
+    version = [1, 0],
+    deps = [":package_native_provider"],
+)
+
+cc_binary(
+    name = "package_native_integration",
+    srcs = ["data/ttx/package_native/harness.c"],
+    copts = [
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    deps = [":package_native_consumer"],
 )
 
 cc_library(
@@ -108,15 +156,20 @@ cc_binary(
         "unit_tests/ttx/**/*.cpp",
         "unit_tests/tetrodotoxin/**/*.cpp",
     ]) + ["unit_test.cpp"],
-    copts = ["-Wreturn-type-c-linkage"],
     data = glob(
         ["data/**/*.ttx"],
         exclude = ["data/ttx/shader_artifact/**"],
     ) + [
         "data/ttx/package_resources/resources/empty.bin",
         "data/ttx/package_resources/resources/table.bin",
+        ":package_native_integration",
         ":runtime_link_integration",
+        ":system_abi_integration",
+        "//apps/ttx/echo:echo",
+        "//apps/ttx/echo:package",
         "//apps/ttx/scene_lifetime:sources",
+        "//packages/ttx:perimortem_memory",
+        "//packages/ttx:perimortem_system",
     ],
     includes = ["."],
     deps = [
@@ -127,14 +180,15 @@ cc_binary(
         "//tetrodotoxin:library_llvm",
         "//perimortem",
         "//tetrodotoxin:diagnostics",
+        "//tetrodotoxin:app",
         "//tetrodotoxin:environment",
         "//tetrodotoxin:language",
         "//tetrodotoxin:library",
-        "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
         "//tetrodotoxin:scene",
         "//tetrodotoxin:shader",
         "//ttx",
+        "//packages/ttx:perimortem_system",
     ],
 )
 

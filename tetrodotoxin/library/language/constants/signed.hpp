@@ -15,6 +15,8 @@ class Signed : public Constant {
  public:
   auto lower(Llvm::Builder& body) const -> Bool override;
 
+  auto persist(Archive::Writer& writer) const -> Bool override;
+
   TTX_CONTRACT(Signed, Constant);
   using Value = Signed_64;
 
@@ -37,7 +39,8 @@ class Signed : public Constant {
         [&](auto source) -> Signed { return Signed(type, value, source); });
   }
 
-  constexpr auto get_type() const -> const Tetrodotoxin::Library::Language::Model::Types::Signed& override {
+  constexpr auto get_type() const
+      -> const Tetrodotoxin::Library::Language::Model::Types::Signed& override {
     return type;
   }
 
@@ -54,27 +57,32 @@ class Signed : public Constant {
   }
 
   constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
-    if (!get_type().resolve().is<Tetrodotoxin::Library::Language::Model::Types::Signed>()) {
+    if (!get_type()
+             .resolve()
+             .is<Tetrodotoxin::Library::Language::Model::Types::Signed>()) {
       return ::False;
     }
 
     const Ttx::Concept::Abstract& target_type = target.resolve();
-    return target_type.visit<Tetrodotoxin::Library::Language::Model::Types::Signed>(
-        [this](const Tetrodotoxin::Library::Language::Model::Types::Signed& selected) {
-          Count size = selected.get_size();
-          if (size == 0) {
-            return ::False;
-          }
+    return target_type
+        .visit<Tetrodotoxin::Library::Language::Model::Types::Signed>(
+            [this](
+                const Tetrodotoxin::Library::Language::Model::Types::Signed&
+                    selected) {
+              Count size = selected.get_size();
+              if (size == 0) {
+                return ::False;
+              }
 
-          if (size >= sizeof(Signed_64)) {
-            return ::True;
-          }
+              if (size >= sizeof(Signed_64)) {
+                return ::True;
+              }
 
-          Signed_64 limit = Signed_64(1) << (size * 8 - 1);
-          return get_value() >= -limit && get_value() < limit ? ::True
-                                                              : ::False;
-        },
-        [](const Ttx::Concept::Abstract&) { return ::False; });
+              Signed_64 limit = Signed_64(1) << (size * 8 - 1);
+              return get_value() >= -limit && get_value() < limit ? ::True
+                                                                  : ::False;
+            },
+            [](const Ttx::Concept::Abstract&) { return ::False; });
   }
 
  private:

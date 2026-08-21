@@ -11,8 +11,9 @@
 
 namespace Tetrodotoxin::Library::Language::Access {
 
-// Propagate observes one Option. Presence continues with the exact element
-// value while absence returns one empty Pack from the enclosing Function.
+// Propagate delegates its continuation and escape edges to the exact receiver
+// Type. Option and inactive Flags escape with empty flow, while Result supplies
+// one typed error Pack that the enclosing Function must receive explicitly.
 class Propagate : public Expression {
  public:
   TTX_CONTRACT(Propagate, Expression);
@@ -39,8 +40,8 @@ class Propagate : public Expression {
 
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
 
-  constexpr auto get_empty_return() const -> const Model::Pack& {
-    return empty_return;
+  constexpr auto get_escape() const -> const Model::Pack& {
+    return escape.get();
   }
 
  protected:
@@ -49,16 +50,39 @@ class Propagate : public Expression {
       Expression::Error> override;
 
  private:
+  class ErrorEscape : public Expression {
+   public:
+    TTX_CONTRACT(ErrorEscape, Expression);
+    TTX_NAME("Propagation error"_view);
+    TTX_EMPTY_DOCUMENTATION();
+
+    constexpr auto get_type() const -> const Model::Type& override {
+      return type;
+    }
+
+   private:
+    friend class Propagate;
+
+    constexpr explicit ErrorEscape(const Model::Type& type)
+        : Expression({}), type(type) {}
+
+    const Model::Type& type;
+  };
+
   constexpr Propagate(
       Expression& receiver,
-      Model::Pack& empty_return,
+      Model::Pack& empty_escape,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Expression(anchor), receiver(receiver), empty_return(empty_return) {}
+      : Expression(anchor), receiver(receiver), escape(empty_escape) {}
 
   Expression& receiver;
-  Model::Pack& empty_return;
+  Ttx::Concept::Reference<Model::Pack> escape;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
-      element_type;
+      receiver_type;
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
+      continuation_type;
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
+      error_type;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

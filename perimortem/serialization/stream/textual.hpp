@@ -11,7 +11,7 @@ namespace Perimortem::Serialization::Stream {
 template <typename storage_type>
 class Textual {
  public:
-  Textual(storage_type& storage);
+  constexpr Textual(storage_type& storage) : storage(storage) {}
 
   auto operator<<(Bool flag) -> Textual&;
   auto operator<<(Unsigned_8 byte) -> Textual&;

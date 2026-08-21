@@ -1,0 +1,25 @@
+// Perimortem Engine
+// Copyright © Matt Kaes
+
+#pragma once
+
+#include "perimortem/memory/dynamic/bytes.hpp"
+
+#include "ttx/lexical/tokenizer.hpp"
+
+namespace Ttx::Lexical {
+
+// Formatter projects one complete lexical graph into canonical TTX source.
+// Unknown and incomplete Tokens remain ordinary inputs, so formatting never
+// depends on semantic completion and never drops malformed authored content.
+class Formatter {
+ public:
+  constexpr Formatter(const Tokenizer& tokenizer) : tokenizer(tokenizer) {}
+
+  auto format() const -> Perimortem::Memory::Dynamic::Bytes;
+
+ private:
+  const Tokenizer& tokenizer;
+};
+
+}  // namespace Ttx::Lexical

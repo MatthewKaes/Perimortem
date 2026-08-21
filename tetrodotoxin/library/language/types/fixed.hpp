@@ -32,7 +32,8 @@ class Fixed : public Contiguous {
       Perimortem::Core::View::Bytes name,
       const Model::Type& element,
       ::Unsigned_64 extent,
-      const Model::Type& access_type);
+      const Model::Type& access_type,
+      const Model::Type& view_type);
 
   TTX_NAME(name);
 

@@ -13,7 +13,8 @@ namespace Tetrodotoxin::Library::Language::Generics {
 
 // View is the read only contiguous storage formula. Its materialized Types
 // retain the element identity while View keeps only the immutable rule that
-// constructs them.
+// constructs them. The owning Monograph supplies the exact byte result from
+// Memory so byte concatenation preserves identity across source roots.
 class View : public Generic {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "View"_view;

@@ -55,8 +55,8 @@ parser only preserves the authored data.
 
 ## Dialect
 
-A Dialect interprets one kind of source body. Environment installs each concrete
-Dialect under the exact name accepted by the source envelope:
+A Dialect interprets one kind of source body. Environment Toolchain installs
+each concrete Dialect under the exact name accepted by the source envelope:
 
 ```ttx
 // Reusable source.
@@ -74,20 +74,20 @@ Arena and publishing it.
 An installed Dialect is itself an ordinary TTX Abstract context. Its exact live
 identity selects Monograph layers, its installed name answers source dispatch,
 and its contextual resolution exposes immutable language vocabulary. A Dialect
-owns only state shared across source interpretations in its Workspace. The
-operation-local Cursor traverses the source and publishes textual reports,
-while Workspace's local Arena handle carries the produced root until the
-Workspace retains or releases it.
+is stateless after Toolchain construction and can serve every Workspace that
+borrows that Toolchain. The operation-local Cursor traverses the source and
+publishes textual reports, while Workspace's local Arena handle carries the
+produced root until the Workspace retains or releases it.
 
 The context local to a source during interpretation is an ordinary TTX
 Abstract. A direct source may receive the Workspace. A Package member may
 receive its Package Monograph. The concrete Dialect decides which contextual
 queries that object supports.
 
-Package is part of the Tetrodotoxin toolchain without becoming an implicit
-context for every source. A Workspace that interprets one standalone source may
-omit the Package Dialect. Package participates when the request composes a
-Package, acquires its resources, or restores an Archive.
+Package can be installed in a Tetrodotoxin Toolchain without becoming an
+implicit context for every source. A standalone Toolchain may omit the Package
+Dialect. Package participates when the request composes a Package, acquires its
+resources, or restores an Archive.
 
 ## Source transaction
 
@@ -167,7 +167,7 @@ shape.
 A Monograph may contain a small, fixed set of child layers built by its language
 dependencies. A Scene contains one Library layer. A Shader contains one Library
 layer and one Render layer. Tools can ask the outer Monograph for a layer by
-using the same Dialect instance that the Workspace installed.
+using the same Dialect instance installed in the borrowed Toolchain.
 
 This lookup is intentionally narrow. It does not search by name, follow Aliases,
 or create a wrapper around the child. A top-level Monograph answers with itself.
@@ -257,12 +257,15 @@ the corresponding member and leaves its contents to that language.
 
 Persistent payloads have two profiles:
 
-- `Complete` keeps public and private declarations, executable bodies,
-  expressions, control flow, access edges, and the relationships needed to
-  restore and compile the graph again.
-- `Interface` retains public Types, Layouts, Fields, Callable signatures,
-  folded public constants, ABI requests, publication relationships, bridge
-  facts, and compiled artifact locations, but no executable bodies.
+- `Complete` keeps the public and private observations promised by the
+  persistent Dialect.
+- `Interface` keeps only the public observations required by dependent
+  consumers.
+
+Neither profile implies executable bodies. Each Dialect retains the smallest
+closed set of facts that can reconstruct an equivalent graph for its promised
+queries. Native objects, SPIR-V, and other compiled implementations remain
+separate Terminal products.
 
 The selected profile also applies to child layers. The outer language stores a
 separate section for each child, but only the child's language reads and checks

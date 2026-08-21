@@ -1,13 +1,11 @@
 // Perimortem Engine
 // Copyright © Matt Kaes
-
 dialect : Shader;
 
 shader TestShader : Formats::Simple {
   func Fragment[.color : Math::Vec4D] -> [.color : Math::Vec4D] {
-    state divisor : Math::Vec4D =
-      (.x = 1.0, .y = 1.0, .z = 1.0, .w = 1.0);
-    state copied : Math::Vec4D = color / divisor;
+    state divisor : Math::Vec4D = (.x = 1.0, .y = 1.0, .z = 1.0, .w = 1.0);
+    state copied  : Math::Vec4D = color / divisor;
     return (.color = copied);
   }
 }

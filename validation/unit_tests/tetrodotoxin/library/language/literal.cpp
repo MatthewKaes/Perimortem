@@ -105,8 +105,7 @@ class LiteralContext : public Abstract {
 static auto create_monograph(
     Allocator::Arena& domain,
     Library::Dialect& dialect,
-    Abstract& context)
-    -> Option<Library::Language::Monograph&> {
+    Abstract& context) -> Option<Library::Language::Monograph&> {
   Errors errors;
   Tokenizer tokenizer(domain, ""_view, "literal-source.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
@@ -132,8 +131,7 @@ static auto parse_one(
   Tokenizer tokenizer(domain, source, "literal.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
-  auto parsed =
-      Library::Language::Parser::Literal::parse(context, cursor);
+  auto parsed = Library::Language::Parser::Literal::parse(context, cursor);
   if (parsed && !cursor.matches(Code::Type::Terminal)) {
     return {};
   }
@@ -150,8 +148,7 @@ static auto rejects(
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
   Token start = cursor.current();
-  auto parsed =
-      Library::Language::Parser::Literal::parse(context, cursor);
+  auto parsed = Library::Language::Parser::Literal::parse(context, cursor);
   return !parsed && matches_token(cursor, start) && !errors.is_empty();
 }
 
@@ -164,8 +161,7 @@ static auto render_rejection(
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
   Token start = cursor.current();
-  auto parsed =
-      Library::Language::Parser::Literal::parse(context, cursor);
+  auto parsed = Library::Language::Parser::Literal::parse(context, cursor);
   if (parsed || !matches_token(cursor, start) || errors.get_size() != 1) {
     return Dynamic::Bytes("unexpected literal diagnostic state"_view);
   }
@@ -192,16 +188,11 @@ PERIMORTEM_UNIT_TEST(LiteralTests, scalar_inference) {
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
 
-  auto true_value =
-      Library::Language::Parser::Literal::parse(graph, cursor);
-  auto false_value =
-      Library::Language::Parser::Literal::parse(graph, cursor);
-  auto decimal =
-      Library::Language::Parser::Literal::parse(graph, cursor);
-  auto hexadecimal =
-      Library::Language::Parser::Literal::parse(graph, cursor);
-  auto signed_value =
-      Library::Language::Parser::Literal::parse(graph, cursor);
+  auto true_value = Library::Language::Parser::Literal::parse(graph, cursor);
+  auto false_value = Library::Language::Parser::Literal::parse(graph, cursor);
+  auto decimal = Library::Language::Parser::Literal::parse(graph, cursor);
+  auto hexadecimal = Library::Language::Parser::Literal::parse(graph, cursor);
+  auto signed_value = Library::Language::Parser::Literal::parse(graph, cursor);
   auto real = Library::Language::Parser::Literal::parse(graph, cursor);
 
   ASSERT(
@@ -264,10 +255,8 @@ PERIMORTEM_UNIT_TEST(LiteralTests, byte_domains) {
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
 
-  auto quoted =
-      Library::Language::Parser::Literal::parse(graph, cursor);
-  auto hexadecimal =
-      Library::Language::Parser::Literal::parse(graph, cursor);
+  auto quoted = Library::Language::Parser::Literal::parse(graph, cursor);
+  auto hexadecimal = Library::Language::Parser::Literal::parse(graph, cursor);
   auto empty = Library::Language::Parser::Literal::parse(graph, cursor);
 
   ASSERT(quoted && hexadecimal && empty);
@@ -384,11 +373,9 @@ PERIMORTEM_UNIT_TEST(LiteralTests, embedded_resolution) {
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
 
-  auto table =
-      Library::Language::Parser::Literal::parse(source, cursor);
+  auto table = Library::Language::Parser::Literal::parse(source, cursor);
   EXPECT(observations.table_seen);
-  auto empty =
-      Library::Language::Parser::Literal::parse(source, cursor);
+  auto empty = Library::Language::Parser::Literal::parse(source, cursor);
   EXPECT(observations.empty_seen);
 
   Errors postfix_errors;
@@ -439,8 +426,7 @@ PERIMORTEM_UNIT_TEST(LiteralTests, contextual_error) {
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
 
-  auto parsed =
-      Library::Language::Parser::Literal::parse(source, cursor);
+  auto parsed = Library::Language::Parser::Literal::parse(source, cursor);
   View::Bytes rendered = errors.render_message(render_arena, 0);
 
   EXPECT_NOT(parsed);

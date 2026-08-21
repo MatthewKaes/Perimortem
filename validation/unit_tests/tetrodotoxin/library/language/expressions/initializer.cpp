@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/algorithm/search.hpp"
 
@@ -32,10 +33,6 @@ using namespace Validation;
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "InitializerTest"_view, "initializer.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -48,7 +45,8 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
 static auto rejects_interpretation(
     View::Bytes source,
     View::Bytes diagnostic = {}) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   BAIL_IF(interpret(workspace, errors, source) || errors.is_empty());
   if (diagnostic.is_empty()) {
@@ -66,7 +64,8 @@ static auto rejects_interpretation(
 }
 
 static auto rejects_link_without_publication(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   if (monograph || errors.is_empty()) {
@@ -115,7 +114,8 @@ PERIMORTEM_UNIT_TEST(InitializerTests, non_object_omission_uses_type_default) {
       "public scalar : Unsigned_32 = new[Unsigned_32];\n"
       "public bytes : Fixed[Unsigned_8, 4] = "
       "new[Fixed[Unsigned_8, 4]];"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -176,7 +176,8 @@ PERIMORTEM_UNIT_TEST(InitializerTests, object_omission_and_supplied_arguments) {
       "public empty : Defaults = new[Defaults];\n"
       "public configured : Required = "
       "new[Required](.second = true, .first = 4,);"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -247,7 +248,8 @@ PERIMORTEM_UNIT_TEST(InitializerTests, descendant_private_field) {
       "    private value : Owner = new[Owner](.hidden = true);\n"
       "  }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -260,7 +262,8 @@ PERIMORTEM_UNIT_TEST(InitializerTests, inferred_carries_object_type) {
       "dialect : Library;\n"
       "public Session : object { public state active : Bool; }\n"
       "public inferred := new[Session];"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -329,7 +332,8 @@ PERIMORTEM_UNIT_TEST(InitializerTests, omission_uses_type_default) {
       "dialect : Library;\n"
       "public Session : object { public state value : Unsigned_64; }\n"
       "public created : Session = new[Session];"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -370,7 +374,8 @@ PERIMORTEM_UNIT_TEST(InitializerTests, nested_defaults) {
       "  private state inner : Inner; private state enabled : Bool;\n"
       "}\n"
       "public created : Outer = new[Outer];"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -442,7 +447,8 @@ PERIMORTEM_UNIT_TEST(InitializerTests, mandatory_cycle_rejected) {
       "dialect : Library;\n"
       "public Node : object { private state next : Option[Node]; }\n"
       "public valid : Node = new[Node];"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, optional);
   ASSERT(monograph);

@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -21,6 +22,7 @@
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/model/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library;
@@ -35,10 +37,6 @@ static Harness RangeLoopTests = {
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "RangeLoopTest"_view, "range_loop.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -62,18 +60,27 @@ static auto find_function(
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty();
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty() &&
          &workspace.resolve_context("RangeLoopTest"_view) ==
              &Invalid::get_invalid();
+}
+
+static auto get_binding(const Language::Flow::RangeLoop& loop, Count index)
+    -> Option<const Ttx::Model::Addressable&> {
+  auto entry = loop.get_bindings().get_abstract(index);
+  return entry ? entry->select<Ttx::Model::Addressable>()
+               : Option<const Ttx::Model::Addressable&>();
 }
 
 PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
@@ -89,7 +96,8 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
       "  }\n"
       "  return total;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -105,15 +113,17 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
 
   const auto& loop = static_cast<const Language::Flow::RangeLoop&>(
       statements.get_data()[2].get_root());
-  EXPECT_TEXT(loop.get_name(), "entry"_view);
-  EXPECT(loop.get_type().is<Language::Model::Types::Unsigned>());
+  auto binding = get_binding(loop, 0);
+  ASSERT(binding);
+  EXPECT_TEXT(binding->get_name(), "entry"_view);
+  EXPECT(binding->get_type().is<Language::Model::Types::Unsigned>());
   const Abstract& range_type = loop.get_input().get_type().resolve();
   ASSERT(range_type.is<Language::Types::Range>());
   EXPECT(
       &static_cast<const Language::Types::Range&>(range_type)
-           .get_element_type() == &loop.get_type());
-  EXPECT(&loop.resolve_context("entry"_view) == &loop);
-  EXPECT(&loop.get_body().resolve_context("entry"_view) == &loop);
+           .get_element_type() == &binding->get_type());
+  EXPECT(&loop.resolve_context("entry"_view) == &*binding);
+  EXPECT(&loop.get_body().resolve_context("entry"_view) == &*binding);
   EXPECT(
       &function->get_body()->resolve_context("entry"_view) ==
       &statements.get_data()[0].get_root());
@@ -164,7 +174,8 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, view_and_access_are_iterable) {
       "  for [.entry : Unsigned_64] in readonly {}\n"
       "  return;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -179,11 +190,13 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, view_and_access_are_iterable) {
                .is<Language::Flow::RangeLoop>());
     const auto& loop = static_cast<const Language::Flow::RangeLoop&>(
         statements.get_data()[index].get_root());
+    auto binding = get_binding(loop, 0);
+    ASSERT(binding);
     const Abstract& input_type = loop.get_input().get_type().resolve();
     ASSERT(input_type.is<Language::Types::Contiguous>());
     EXPECT(
         &static_cast<const Language::Types::Contiguous&>(input_type)
-             .get_element_type() == &loop.get_type());
+             .get_element_type() == &binding->get_type());
   }
   EXPECT(errors.is_empty());
 }
@@ -214,10 +227,11 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, body_control_targets_exact_loop) {
       "// Range control.\n"
       "dialect : Library;\n"
       "public scan : func = [] -> [] {\n"
-      "  for [.entry : Unsigned_64] in 0...2 { break; }\n"
+      "  for [.entry : Unsigned_64] in 0...2 : break;\n"
       "  return;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -234,15 +248,17 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, body_control_targets_exact_loop) {
 }
 
 PERIMORTEM_UNIT_TEST(RangeLoopTests, malformed_binding_is_rejected) {
-  static constexpr Static::Vector<View::Bytes, 5> sources = {{
+  static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Bare binding.\ndialect : Library; private invalid : func = [] -> [] { for .entry : Unsigned_64 in 0...3 {} return; }"_view,
     "// Empty binding.\ndialect : Library; private invalid : func = [] -> [] { for [] in 0...3 {} return; }"_view,
     "// Positional binding.\ndialect : Library; private invalid : func = [] -> [] { for [Unsigned_64] in 0...3 {} return; }"_view,
-    "// Multiple bindings.\ndialect : Library; private invalid : func = [] -> [] { for [.left : Unsigned_64, .right : Unsigned_64] in 0...3 {} return; }"_view,
     "// Missing body.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : Unsigned_64] in 0...3 return; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
     EXPECT(rejects_interpretation(sources[i]));
   }
+
+  EXPECT(rejects_link(
+      "// Multiple bindings.\ndialect : Library; private invalid : func = [] -> [] { for [.left : Unsigned_64, .right : Unsigned_64] in 0...3 {} return; }"_view));
 }

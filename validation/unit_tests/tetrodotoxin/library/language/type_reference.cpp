@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/type_reference.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/algorithm/search.hpp"
@@ -75,8 +76,6 @@ static auto interpret(
     Errors& errors,
     View::Bytes semantic_name,
     View::Bytes source) -> Option<Language::Monograph&> {
-  BAIL_IF(!workspace.install_dialect<Dialect>("Library"_view));
-
   auto interpreted = workspace.interpret_source(
       errors, semantic_name, "type-reference.ttx"_view, source);
   BAIL_IF(!interpreted || !interpreted->is<Language::Monograph>());
@@ -144,7 +143,8 @@ PERIMORTEM_UNIT_TEST(
       "  public state ready : Bool;\n"
       "  public children : View[Node];\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph =
       interpret(workspace, errors, "GenericTypeReference"_view, source);
@@ -231,7 +231,8 @@ PERIMORTEM_UNIT_TEST(
       "  public NestedAlias : alias = Later;\n"
       "}\n"
       "public Later : struct { public state ready : Bool; }"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph =
       interpret(workspace, errors, "GenericAliasTypeReference"_view, source);
@@ -271,7 +272,8 @@ PERIMORTEM_UNIT_TEST(
       "dialect : Library;\n"
       "public First : alias = View[Second];\n"
       "public Second : alias = View[First];"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph =
       interpret(workspace, errors, "RecursiveGenericAlias"_view, source);
@@ -361,7 +363,8 @@ PERIMORTEM_UNIT_TEST(
 
   for (Count i = 0; i < rejections.get_size(); i++) {
     const Rejection& rejection = rejections.get_data()[i];
-    Workspace workspace;
+    auto workspace_toolchain = create_library_toolchain();
+    Workspace workspace(*workspace_toolchain);
     Errors errors;
     auto monograph =
         interpret(workspace, errors, rejection.semantic_name, rejection.source);

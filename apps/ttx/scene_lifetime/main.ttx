@@ -11,15 +11,13 @@ dialect : App;
 //      support.
 //   2. `Terminal`: Native terminal startup with standard input and output.
 //   3. `Headless`: Background startup without a presentation surface.
-runtime = Windowed {
+runtime = Windowed(
   .title = "Scene Lifetime",
   .icon = $[resources/icon.png],
   .width = 800,
   .height = 600,
   .resizable = true,
-}
-
-// Scene lifecycle hooks together a set of Scene objects with managed startup
+) // Scene lifecycle hooks together a set of Scene objects with managed startup
 // and transition logic. `update` receives only scalar delta time and input is
 // queried from retained `Perimortem.System` state.
 //

@@ -51,9 +51,8 @@ class AddExpression : public Expression {
   const Abstract& type;
 };
 
-static auto link_operation(
-    Operation& operation,
-    const Abstract& context) -> Bool {
+static auto link_operation(Operation& operation, const Abstract& context)
+    -> Bool {
   Allocator::Arena transaction;
   Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(transaction, {}, "<operation>"_view);
@@ -320,8 +319,8 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, rejects_nonnumeric_and_mixed_domains) {
   Types::Fixed bytes_type(
       "Fixed[Unsigned_8,1]"_view,
       resolve_library_unsigned(source, "Unsigned_8"_view), 1);
-  auto& truth = Constants::True::create_synthetic(
-      domain, resolve_library_flag(source));
+  auto& truth =
+      Constants::True::create_synthetic(domain, resolve_library_flag(source));
   auto& bytes = Constants::Bytes::create_synthetic(domain, bytes_type, {});
   auto& unsigned_value =
       Constants::Unsigned::create_synthetic(domain, unsigned_8, 1);

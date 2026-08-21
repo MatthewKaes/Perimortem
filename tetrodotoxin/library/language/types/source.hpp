@@ -39,6 +39,10 @@ class Source : public Composite {
       Ttx::Concept::Abstract& host,
       const Ttx::Lexical::Anchor& source_anchor) -> Source&;
 
+  auto restore(
+      Archive::Reader& contents,
+      Tetrodotoxin::Language::Persistence::Profile profile) -> Bool;
+
   Source(const Source&) = delete;
   Source(Source&&) = delete;
   auto operator=(const Source&) -> Source& = delete;
@@ -50,6 +54,10 @@ class Source : public Composite {
       Ttx::Lexical::Cursor& cursor,
       Ttx::Concept::Abstract& interpretation_context) -> Bool;
 
+  auto link_restored(Ttx::Concept::Abstract& interpretation_context) -> Bool;
+
+  auto finalize_restored() -> Bool override;
+
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
   auto reserve(Llvm::Program& program) const -> Bool override;
@@ -57,6 +65,8 @@ class Source : public Composite {
   auto complete(Llvm::Program& program) const -> Bool override;
 
   auto lower(Llvm::Program& program) const -> Bool override;
+
+  auto persist(Archive::Writer& writer) const -> Bool override;
 
   constexpr auto get_foreign() -> Foreign& { return foreign; }
 
@@ -97,6 +107,8 @@ class Source : public Composite {
       Tetrodotoxin::Language::Visibility visibility =
           Tetrodotoxin::Language::Visibility::Public) const
       -> const Ttx::Concept::Abstract&;
+
+  constexpr auto get_imports() const { return import_routes.get_view(); }
 
  protected:
   auto reserve_carrier(Llvm::Program& program) const

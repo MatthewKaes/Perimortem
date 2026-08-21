@@ -17,6 +17,9 @@ using DispatchFunc = Response (*)(Documents&, const Message&);
 template <const auto& dispatch_table>
 class Executor {
  public:
+  constexpr Executor(Perimortem::Core::View::Bytes packages_root = {})
+      : documents(packages_root) {}
+
   auto execute(Perimortem::Core::View::Bytes pipe_name) -> void;
 
  private:

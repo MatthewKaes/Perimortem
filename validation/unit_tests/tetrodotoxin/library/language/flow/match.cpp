@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/flow/match.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -36,10 +37,6 @@ static Harness MatchTests = {
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "MatchTest"_view, "match.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -63,7 +60,8 @@ static auto find_function(
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty() &&
          &workspace.resolve_context("MatchTest"_view) ==
@@ -71,7 +69,8 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty();
@@ -84,14 +83,15 @@ PERIMORTEM_UNIT_TEST(MatchTests, ordered_cases_and_complete_flag_coverage) {
       "public choose : func = [.selector : Bool] -> Unsigned_64 {\n"
       "  state outer : Unsigned_64 = 9;\n"
       "  match selector {\n"
-      "    case false : { return outer; }\n"
-      "    case true : {\n"
+      "    case false : return outer;\n"
+      "    case true {\n"
       "      state outer : Unsigned_64 = 4;\n"
       "      return outer;\n"
       "    }\n"
       "  }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -124,8 +124,8 @@ PERIMORTEM_UNIT_TEST(MatchTests, ordered_cases_and_complete_flag_coverage) {
   EXPECT_TEXT(
       match.get_anchor().get_span().caculate_text(source),
       "match selector {\n"
-      "    case false : { return outer; }\n"
-      "    case true : {\n"
+      "    case false : return outer;\n"
+      "    case true {\n"
       "      state outer : Unsigned_64 = 4;\n"
       "      return outer;\n"
       "    }\n"
@@ -150,11 +150,12 @@ PERIMORTEM_UNIT_TEST(MatchTests, folded_case_and_final_default) {
       "dialect : Library;\n"
       "public choose : func = [] -> Unsigned_64 {\n"
       "  match 2 {\n"
-      "    case 1 + 1 : { return 7; }\n"
-      "    case _ : { return 9; }\n"
+      "    case 1 + 1 : return 7;\n"
+      "    case _ : return 9;\n"
       "  }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -188,13 +189,14 @@ PERIMORTEM_UNIT_TEST(MatchTests, case_blocks_inherit_the_nearest_loop) {
       "public run : func = [] -> [] {\n"
       "  while true {\n"
       "    match true {\n"
-      "      case false : { continue; }\n"
-      "      case true : { break; }\n"
+      "      case false : continue;\n"
+      "      case true : break;\n"
       "    }\n"
       "  }\n"
       "  return;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -223,11 +225,12 @@ PERIMORTEM_UNIT_TEST(MatchTests, option_patterns_are_exact_and_branch_local) {
       "public Maybe : alias = Option[Unsigned_64];\n"
       "public choose : func = [.value : Maybe] -> Unsigned_64 {\n"
       "  match value {\n"
-      "    case item : { return item; }\n"
-      "    case _ : { return 0; }\n"
+      "    case item : return item;\n"
+      "    case _ : return 0;\n"
       "  }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -269,9 +272,9 @@ PERIMORTEM_UNIT_TEST(MatchTests, option_patterns_are_exact_and_branch_local) {
 
 PERIMORTEM_UNIT_TEST(MatchTests, constructor_patterns_are_rejected) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
-    "// Empty constructor.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case some() : {} case _ : {} } return; }"_view,
-    "// Payload constructor.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case some(item) : {} case _ : {} } return; }"_view,
-    "// Missing close.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case some(item : {} case _ : {} } return; }"_view,
+    "// Empty constructor.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case some() {} case _ {} } return; }"_view,
+    "// Payload constructor.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case some(item) {} case _ {} } return; }"_view,
+    "// Missing close.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case some(item {} case _ {} } return; }"_view,
   }};
 
   for (Count index = 0; index < sources.get_size(); index++) {
@@ -281,10 +284,10 @@ PERIMORTEM_UNIT_TEST(MatchTests, constructor_patterns_are_rejected) {
 
 PERIMORTEM_UNIT_TEST(MatchTests, invalid_option_case_sets_are_rejected) {
   static constexpr Static::Vector<View::Bytes, 5> sources = {{
-    "// Missing absent case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case item : {} } return; }"_view,
-    "// Missing value case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case _ : {} } return; }"_view,
-    "// Duplicate value case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case first : {} case second : {} case _ : {} } return; }"_view,
-    "// Constant value case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case 7 : {} case _ : {} } return; }"_view,
+    "// Missing absent case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case item {} } return; }"_view,
+    "// Missing value case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case _ {} } return; }"_view,
+    "// Duplicate value case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case first {} case second {} case _ {} } return; }"_view,
+    "// Constant value case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case 7 {} case _ {} } return; }"_view,
     "// Empty element Type.\ndialect : Library; public Empty : struct {} private invalid : func = [.value : Option[Empty]] -> [] { return; }"_view,
   }};
 
@@ -298,9 +301,9 @@ PERIMORTEM_UNIT_TEST(MatchTests, pack_inputs_and_cases_are_rejected) {
     "// Empty input.\ndialect : Library; private invalid : func = [] -> [] { match () {} return; }"_view,
     "// Named input.\ndialect : Library; private invalid : func = [] -> [] { match (.value = true) {} return; }"_view,
     "// Composed input.\ndialect : Library; private invalid : func = [] -> [] { match (true, false) {} return; }"_view,
-    "// Empty case.\ndialect : Library; private invalid : func = [] -> [] { match true { case () : {} } return; }"_view,
-    "// Named case.\ndialect : Library; private invalid : func = [] -> [] { match true { case (.value = true) : {} } return; }"_view,
-    "// Composed case.\ndialect : Library; private invalid : func = [] -> [] { match true { case (true, false) : {} } return; }"_view,
+    "// Empty case.\ndialect : Library; private invalid : func = [] -> [] { match true { case () {} } return; }"_view,
+    "// Named case.\ndialect : Library; private invalid : func = [] -> [] { match true { case (.value = true) {} } return; }"_view,
+    "// Composed case.\ndialect : Library; private invalid : func = [] -> [] { match true { case (true, false) {} } return; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -310,9 +313,9 @@ PERIMORTEM_UNIT_TEST(MatchTests, pack_inputs_and_cases_are_rejected) {
 
 PERIMORTEM_UNIT_TEST(MatchTests, malformed_default_is_rejected) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
-    "// Nonfinal default.\ndialect : Library; private invalid : func = [] -> [] { match true { case _ : {} case true : {} } return; }"_view,
-    "// Duplicate default.\ndialect : Library; private invalid : func = [] -> [] { match true { case _ : {} case _ : {} } return; }"_view,
-    "// Missing define.\ndialect : Library; private invalid : func = [] -> [] { match true { case true {} } return; }"_view,
+    "// Nonfinal default.\ndialect : Library; private invalid : func = [] -> [] { match true { case _ {} case true {} } return; }"_view,
+    "// Duplicate default.\ndialect : Library; private invalid : func = [] -> [] { match true { case _ {} case _ {} } return; }"_view,
+    "// Missing Block.\ndialect : Library; private invalid : func = [] -> [] { match true { case true return; } return; }"_view,
     "// Missing case.\ndialect : Library; private invalid : func = [] -> [] { match true { true : {} } return; }"_view,
   }};
 
@@ -323,11 +326,11 @@ PERIMORTEM_UNIT_TEST(MatchTests, malformed_default_is_rejected) {
 
 PERIMORTEM_UNIT_TEST(MatchTests, invalid_case_sets_are_rejected) {
   static constexpr Static::Vector<View::Bytes, 5> sources = {{
-    "// Duplicate Constant.\ndialect : Library; private invalid : func = [] -> [] { match 1 { case 1 : {} case 0 + 1 : {} } return; }"_view,
-    "// Dynamic case.\ndialect : Library; private invalid : func = [.value : Unsigned_64] -> [] { match value { case value : {} case _ : {} } return; }"_view,
-    "// Different Type.\ndialect : Library; private invalid : func = [] -> [] { match 1 { case -1 : {} case _ : {} } return; }"_view,
-    "// Incomplete coverage.\ndialect : Library; private invalid : func = [.value : Bool] -> Unsigned_64 { match value { case true : { return 1; } } }"_view,
-    "// Statement after coverage.\ndialect : Library; private invalid : func = [] -> [] { match true { case false : { return; } case true : { return; } } return; }"_view,
+    "// Duplicate Constant.\ndialect : Library; private invalid : func = [] -> [] { match 1 { case 1 {} case 0 + 1 {} } return; }"_view,
+    "// Dynamic case.\ndialect : Library; private invalid : func = [.value : Unsigned_64] -> [] { match value { case value {} case _ {} } return; }"_view,
+    "// Different Type.\ndialect : Library; private invalid : func = [] -> [] { match 1 { case -1 {} case _ {} } return; }"_view,
+    "// Incomplete coverage.\ndialect : Library; private invalid : func = [.value : Bool] -> Unsigned_64 { match value { case true { return 1; } } }"_view,
+    "// Statement after coverage.\ndialect : Library; private invalid : func = [] -> [] { match true { case false { return; } case true { return; } } return; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {

@@ -347,6 +347,14 @@ followed by the graph owner's validation, completion, and publication contract.
 Its supporting shape and process addresses may differ because they are not
 public semantic observations.
 
+Equivalence is relative to the Terminal's declared query contract rather than
+the complete source graph. A compiled library can reconstruct the Types,
+Addressables, Callables, and folded constants that another graph may query while
+its object module carries executable behavior. This is the semantic equivalent
+of a Foreign wrapper: the reconstructed graph describes how to interact with
+the compiled implementation without preserving the operations that produced
+it. A different Dialect may retain a different closed observation set.
+
 The reconstruction payload may therefore be much smaller than a memory image.
 It records sufficient owner facts rather than private graph structure. This is
 a format benefit rather than a requirement that every language support

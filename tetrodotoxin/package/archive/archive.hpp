@@ -8,6 +8,7 @@
 
 #include "perimortem/system/version.hpp"
 
+#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/package/archive/export.hpp"
 #include "tetrodotoxin/package/archive/member.hpp"
 #include "tetrodotoxin/package/language/dependency.hpp"
@@ -47,13 +48,16 @@ class Archive {
       Perimortem::Core::View::Vector<Member> members,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes>
           artifact_ids,
-      Perimortem::Core::View::Vector<Export> exports)
+      Perimortem::Core::View::Vector<Export> exports,
+      Tetrodotoxin::Language::Persistence::Profile profile =
+          Tetrodotoxin::Language::Persistence::Profile::Complete)
       : identity(identity),
         version(version),
         dependencies(dependencies),
         members(members),
         artifact_ids(artifact_ids),
-        exports(exports) {};
+        exports(exports),
+        profile(profile) {};
 
   constexpr auto get_identity() const -> Perimortem::Core::View::Bytes {
     return identity;
@@ -81,6 +85,11 @@ class Archive {
     return exports;
   }
 
+  constexpr auto get_profile() const
+      -> Tetrodotoxin::Language::Persistence::Profile {
+    return profile;
+  }
+
  private:
   Perimortem::Core::View::Bytes identity;
   Perimortem::System::Version version;
@@ -88,6 +97,7 @@ class Archive {
   Perimortem::Core::View::Vector<Member> members;
   Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> artifact_ids;
   Perimortem::Core::View::Vector<Export> exports;
+  Tetrodotoxin::Language::Persistence::Profile profile;
 };
 
 }  // namespace Tetrodotoxin::Package::Archive

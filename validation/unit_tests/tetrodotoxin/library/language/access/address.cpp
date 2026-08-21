@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/access/address.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -28,10 +29,6 @@ static auto interpret(
     Environment::Workspace& workspace,
     Errors& errors,
     View::Bytes source) -> Option<Library::Language::Monograph&> {
-  if (!workspace.install_dialect<Library::Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "AddressTest"_view, "address.ttx"_view, source);
   if (!interpreted || !interpreted->is<Library::Language::Monograph>()) {
@@ -53,7 +50,8 @@ PERIMORTEM_UNIT_TEST(AddressTests, descendant_private_authority) {
       "    }\n"
       "  }\n"
       "}"_view;
-  Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -72,7 +70,8 @@ PERIMORTEM_UNIT_TEST(AddressTests, sibling_private_denied) {
       "    }\n"
       "  }\n"
       "}"_view;
-  Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   EXPECT_NOT(monograph);
@@ -95,7 +94,8 @@ PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage_categories) {
       "private from_instance := data.instance_value;\n"
       "private const_from_type := Data.fixed;\n"
       "private const_from_instance := data.fixed;"_view;
-  Environment::Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, accepted);
   ASSERT(monograph);
@@ -127,7 +127,8 @@ PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage_categories) {
     "// Type rejects state.\ndialect : Library; public Data : struct { public state instance_value : Bool; } private invalid := Data.instance_value;"_view,
   }};
   for (Count index = 0; index < rejected.get_size(); index++) {
-    Environment::Workspace rejected_workspace;
+    auto rejected_workspace_toolchain = create_library_toolchain();
+    Environment::Workspace rejected_workspace(*rejected_workspace_toolchain);
     Errors rejected_errors;
     auto rejected_monograph =
         interpret(rejected_workspace, rejected_errors, rejected[index]);

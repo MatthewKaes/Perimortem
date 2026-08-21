@@ -21,6 +21,7 @@ auto Generics::View::create(Perimortem::Core::View::Vector<Argument> arguments)
   if (element == nullptr) {
     return {};
   }
+
   if (element->get_layout().is_empty()) {
     return {};
   }
@@ -29,7 +30,11 @@ auto Generics::View::create(Perimortem::Core::View::Vector<Argument> arguments)
                        .resolve_context("Unsigned_64"_view)
                        .resolve()
                        .select<Language::Model::Type>();
-  if (!size_type) {
+  auto flag_type = get_context()
+                       .resolve_context("Bool"_view)
+                       .resolve()
+                       .select<Language::Model::Type>();
+  if (!size_type || !flag_type) {
     return {};
   }
 
@@ -38,5 +43,5 @@ auto Generics::View::create(Perimortem::Core::View::Vector<Argument> arguments)
   name.concat(element->get_name());
   name.concat("]"_view);
   return arena.construct<Types::View>(
-      arena, name.get_view(), *element, *size_type);
+      arena, name.get_view(), *element, *size_type, *flag_type);
 }

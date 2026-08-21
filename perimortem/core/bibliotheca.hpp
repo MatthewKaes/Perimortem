@@ -11,7 +11,7 @@ namespace Perimortem::Core {
 //
 // Provides Thread local allocator for isolating and caching thread allocations.
 // Can be mixed with the standard library but using STL objects with the
-// Bibliotheca is ill-advised.
+// Bibliotheca is not recommended.
 //
 // Any memory fetched from the Bibliotheca is guaranteed to be cleaned up on
 // thread exit. Until thread exit memory is perserved and is allocated into
@@ -33,6 +33,11 @@ class Bibliotheca {
   // the C++ standard library so it should be used sparingly.
   static constexpr auto legal_underwrite_size = 16;
 
+  // Every corpus begins after one cache line sized Preface. Slab pages preserve
+  // that boundary, so consumers may construct values with alignment no greater
+  // than this contract.
+  static constexpr auto allocation_alignment = 64;
+
   struct Allocation {
     Unsigned_8* ptr;
     Count capacity;
@@ -46,6 +51,18 @@ class Bibliotheca {
 
   // Returns the number of active reservations on the block.
   static auto reservation_count(Unsigned_8* entry) -> Count;
+
+  // Returns the usable byte capacity selected when this block was checked out.
+  // An empty entry has zero capacity.
+  static auto capacity(Unsigned_8* entry) -> Count;
+
+  // Associates one immutable runtime descriptor with a checked-out Object
+  // block without consuming the algorithm underwrite region.
+  static auto bind_object(Unsigned_8* entry, const void* descriptor) -> void;
+
+  // Returns the descriptor associated with an Object block or no descriptor
+  // for an ordinary allocation.
+  static auto get_object(Unsigned_8* entry) -> const void*;
 
   // Removes a reservation from the block.
   // If the number of reservations is zero then the block is checked in to the

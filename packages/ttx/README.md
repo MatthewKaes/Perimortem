@@ -1,17 +1,69 @@
 # Standard Tetrodotoxin Packages
 
-The standard Tetrodotoxin packages provide reusable Math, System, and Graphics
-features. They are ordinary Packages rather than hidden compiler built-ins. A
-source declares them as dependencies, and an Archive can provide the same
-public behavior when source is unavailable.
+The standard Tetrodotoxin packages provide reusable Memory, Math, System, and
+Graphics features. They are ordinary Packages rather than hidden compiler
+built-ins. A source declares them as dependencies, and an Archive can provide
+the same public behavior when source is unavailable.
 
 An application can use these packages for Perimortem's runtime services, while
 another host can provide different Packages for the same roles. The compiler
-does not create an implicit `System`, `Math`, or `Graphics` namespace.
+does not create an implicit `Memory`, `System`, `Math`, or `Graphics` namespace.
 
 Similar shapes do not erase meaning. A four-component math vector, a color
 tone, and a Render Stage value may have matching Layouts while remaining
 different Types.
+
+## Perimortem.Memory
+
+`Perimortem.Memory` publishes the exact `Dynamic::Bytes` identity shared by
+Packages that exchange owned byte values. A dependent Package declares Memory
+in its manifest and uses its context explicitly:
+
+```ttx
+resolve Memory : Perimortem.Memory = "1.0";
+```
+
+```ttx
+using Memory;
+```
+
+The Memory source authors the two-word byte carrier as one
+`Object[Unsigned_8]` plus its logical size. Ordinary recursive Structure
+ownership retains and releases that Object without native lifecycle Attributes.
+Consumers therefore share one Type identity rather than materializing matching
+but unrelated byte carriers in every source root.
+
+Bytes transformations use a referenced Self receiver. `copy(view)` creates an
+owned value. `append(byte, count)`, receiver `concat`, `resize`, `shrink`,
+`clear`, and `reserve` mutate that receiver and return `self`, so calls may be
+chained without copying the Bytes value. Parameter defaults are not yet part of
+the Function signature model, so callers pass `1` for a single-byte append:
+
+```ttx
+line -> concat(suffix) -> append(byte, 1);
+buffer -> clear();
+```
+
+`self` is passed by reference, and the scalar result spelling `-> self` returns
+that same reference. Reaching the end of such a Function returns `self`
+implicitly; an explicit `return self;` remains available for early exit. Before
+a buffer write, Bytes reserves the required size. Growth already supplies a
+private Object buffer; otherwise `is_shared()` causes an explicit `clone()`
+before writable access. Object itself remains an ordinary shared buffer rather
+than owning copy-on-write policy.
+
+Static and Self `concat` share one spelling because receiver role is part of
+the Callable signature. Static `concat(left, right)` creates an owned value,
+while receiver `concat(view)` extends a value. `clear` preserves capacity;
+ordinary default construction creates the empty zero-capacity reset value.
+`get_size`, `get_capacity`, `get_view`, `slice`, and `is_empty` inspect the
+result without changing it.
+
+The package deliberately exposes no writable Access to the backing capacity:
+that would bypass the logical size owned by Bytes. Safe element reads remain
+available through `get_view():[index]`. It also has no forgetful resize that
+would expose invalid elements and no host-specific hash operation without a
+Library hash contract.
 
 ## Perimortem.Math
 
@@ -30,28 +82,20 @@ Stage is meant to exchange that value.
 `Perimortem.System` publishes CPU-facing Library Types and Callables backed by
 explicit Foreign declarations. Package native locators connect those declared
 symbols to the Perimortem System runtime. Neither Library nor Workspace knows a
-special System namespace.
+special System namespace. System depends on `Perimortem.Memory`, so its Terminal
+Callables and their callers exchange the same `Dynamic::Bytes` identity.
 
 ### Terminal lines
 
-`System::Terminal -> read_line()` returns one nonnull `System::Line` Object. It
-owns the returned bytes and keeps their read-only View stable for the Line
-identity's lifetime. Its public observations are:
+`System::Terminal -> read_line()` returns `Option[Dynamic::Bytes]`. A selected
+value owns the complete line without its terminator. Immediate end of input or
+a read failure is absent. The caller may borrow a View from the owned bytes and
+uses ordinary Option propagation when either condition ends its current flow.
 
-- `available` is true for a completed line, including an empty line
-- `failed` is true for an input failure
-- `value` is the `View[Unsigned_8]` without its line terminator
-
-End of input leaves both flags false, while an input error sets `failed`. A
-three-state Line is useful here because `Option[View[Unsigned_8]]` could not
-distinguish the end of input from an error. This result belongs to Terminal
-rather than introducing one universal error Type for unrelated systems.
-
-Terminal publishes two `write_line` Callables. One writes a single byte View.
-The other writes a prefix View followed by a value View. Both append exactly one
-line terminator and report success as `Bool`. Keeping the Views separate allows
-scatter and gather output without adding byte concatenation to Library's
-numeric `+` operation.
+`System::Terminal -> write_line(line)` borrows one `Dynamic::Bytes`, appends one
+line terminator, flushes the terminal, and returns its completion as `Bool`.
+`Dynamic::Bytes -> concat(left, right)` copies two byte Views into one owned
+value entirely through authored Memory Package behavior.
 
 The canonical Echo loop therefore remains ordinary Library control flow:
 
@@ -60,18 +104,14 @@ const prefix : View[Unsigned_8] = "Echo: ":[0, 6];
 const quit : View[Unsigned_8] = "quit":[0, 4];
 const exit : View[Unsigned_8] = "exit":[0, 4];
 
-while (true) {
-  const line := System::Terminal -> read_line();
-  if (line.failed or !line.available) {
-    return;
-  }
-  if (line.value == quit or line.value == exit) {
-    return;
-  }
-  const written := System::Terminal -> write_line(prefix, line.value);
-  if (!written) {
-    return;
-  }
+while true {
+  state line := System::Terminal -> read_line()?;
+  state view := line -> get_view();
+  if view == quit or view == exit : return;
+
+  state output := Dynamic::Bytes -> copy(prefix);
+  output = output -> concat(view);
+  System::Terminal -> write_line(output)?;
 }
 ```
 
@@ -157,8 +197,8 @@ language observation while target storage stays a runtime fact.
 Each standard Package owns its Library source and the data needed to rebuild it.
 Package owns the Archive, its Complete or Interface profile, and native artifact
 locations. The matching Perimortem runtime component provides native behavior,
-while Linker creates object files and executables for the chosen CPU and
-operating system.
+the selected language compiler creates member objects, and the platform build
+toolchain creates native archives and executables.
 
 A Complete Archive rebuilds both public and private language objects. An
 Interface Archive rebuilds the public contracts and compiled artifact locations
@@ -169,5 +209,5 @@ source-level debugging data.
 See [Package](../../tetrodotoxin/package/README.md) for dependency and Archive
 selection, [Library](../../tetrodotoxin/library/README.md) for the concrete CPU
 semantics, [Graphics](../../tetrodotoxin/graphics/README.md) for the hosting and
-submission boundary, and [Linker](../../tetrodotoxin/linker/README.md) for
-native product ownership.
+submission boundary, and [Puffer](../../puffer/README.md) for command and
+product coordination.

@@ -11,7 +11,6 @@
 
 #include "tetrodotoxin/package/archive/export.hpp"
 #include "tetrodotoxin/package/archive/member.hpp"
-#include "tetrodotoxin/package/archive/read_error.hpp"
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/archive/writer.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
@@ -130,30 +129,30 @@ static auto body_splice(
 }
 
 static auto selected_archive(
-    Result<Package::Archive::Archive, Package::Archive::ReadError>& result)
+    Result<Package::Archive::Archive, Package::Archive::Reader::Error>& result)
     -> Package::Archive::Archive* {
   return result.visit(
       [](Package::Archive::Archive& archive) { return &archive; },
-      [](Package::Archive::ReadError) {
+      [](Package::Archive::Reader::Error) {
         return static_cast<Package::Archive::Archive*>(nullptr);
       });
 }
 
 static auto returns_read_error(
-    const Result<Package::Archive::Archive, Package::Archive::ReadError>&
+    const Result<Package::Archive::Archive, Package::Archive::Reader::Error>&
         result,
-    Package::Archive::ReadError expected) -> Bool {
+    Package::Archive::Reader::Error expected) -> Bool {
   return result.visit(
       [](const Package::Archive::Archive&) { return False; },
-      [&](Package::Archive::ReadError error) {
+      [&](Package::Archive::Reader::Error error) {
         return error == expected ? True : False;
       });
 }
 
 static auto rejects(
     View::Bytes input,
-    Package::Archive::ReadError expected =
-        Package::Archive::ReadError::InvalidFormat) -> Bool {
+    Package::Archive::Reader::Error expected =
+        Package::Archive::Reader::Error::InvalidFormat) -> Bool {
   Allocator::Arena arena;
 
   auto rejected = Package::Archive::Reader::read(arena, input);
@@ -180,7 +179,8 @@ PERIMORTEM_UNIT_TEST(PackageArchive, typed_read_outcomes) {
   Allocator::Arena arena;
 
   auto empty = Package::Archive::Reader::read(arena, View::Bytes());
-  EXPECT(returns_read_error(empty, Package::Archive::ReadError::InvalidFormat));
+  EXPECT(returns_read_error(
+      empty, Package::Archive::Reader::Error::InvalidFormat));
   EXPECT(
       Test::error_contains(
           "Package::Archive::Reader Format 1 read failed. stage=header "
@@ -192,7 +192,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, typed_read_outcomes) {
   set_u16(future, 4, 2);
   auto unsupported = Package::Archive::Reader::read(arena, future);
   EXPECT(returns_read_error(
-      unsupported, Package::Archive::ReadError::UnsupportedFormat));
+      unsupported, Package::Archive::Reader::Error::UnsupportedFormat));
   EXPECT(
       Test::error_contains(
           "Package::Archive::Reader Format 1 read failed. stage=header "
@@ -219,6 +219,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_one) {
 
   auto archive = selected_archive(decoded);
   ASSERT(archive);
+  EXPECT(archive->get_profile() == Language::Persistence::Profile::Complete);
   EXPECT_TEXT(archive->get_identity(), "Pkg.Core"_view);
   EXPECT_EQ(archive->get_version().get_major(), Unsigned_16(1));
   EXPECT_EQ(archive->get_version().get_minor(), Unsigned_16(2));
@@ -509,11 +510,23 @@ PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
 
   Dynamic::Bytes bad_format(golden());
   set_u16(bad_format, 4, 2);
-  EXPECT(rejects(bad_format, Package::Archive::ReadError::UnsupportedFormat));
+  EXPECT(
+      rejects(bad_format, Package::Archive::Reader::Error::UnsupportedFormat));
 
   Dynamic::Bytes header_flags(golden());
   set_u16(header_flags, 6, 1);
-  EXPECT(rejects(header_flags));
+  Allocator::Arena interface_arena;
+  auto interface =
+      Package::Archive::Reader::read(interface_arena, header_flags);
+  auto interface_archive = selected_archive(interface);
+  ASSERT(interface_archive);
+  EXPECT(
+      interface_archive->get_profile() ==
+      Language::Persistence::Profile::Interface);
+
+  Dynamic::Bytes unknown_header_flags(golden());
+  set_u16(unknown_header_flags, 6, 2);
+  EXPECT(rejects(unknown_header_flags));
 
   Dynamic::Bytes short_body(golden());
   set_u32(short_body, 8, 252);

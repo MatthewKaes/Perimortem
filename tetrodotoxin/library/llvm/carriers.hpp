@@ -31,10 +31,12 @@ class Carriers {
     Enumeration,
     Fixed,
     Option,
+    Result,
     Range,
     View,
     Access,
     Structure,
+    ObjectStorage,
     Object,
     Context,
   };
@@ -69,6 +71,9 @@ class Carriers {
       -> Perimortem::Core::Option<const Ttx::Model::Type&>;
 
   auto get_flag(const Ttx::Model::Type& type) const
+      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
+
+  auto get_error(const Ttx::Model::Type& type) const
       -> Perimortem::Core::Option<const Ttx::Model::Type&>;
 
   auto get_extent(const Ttx::Model::Type& type) const
@@ -106,6 +111,12 @@ class Carriers {
       const Ttx::Model::Type& type,
       LLVMValueRef value) const -> Bool;
 
+  auto select_result(
+      Ttx::Concept::Abstract& body,
+      const Ttx::Model::Type& type,
+      LLVMValueRef value,
+      Bool value_selected) const -> Perimortem::Core::Option<LLVMValueRef>;
+
   auto assemble(
       Ttx::Concept::Abstract& body,
       const Ttx::Model::Type& type,
@@ -133,7 +144,7 @@ class Carriers {
       Perimortem::Core::View::Vector<LLVMValueRef> values) const
       -> Perimortem::Core::Option<LLVMValueRef>;
 
-  auto get_object_finalizer(
+  auto get_object_descriptor(
       Ttx::Concept::Abstract& program,
       const Ttx::Model::Type& type) const
       -> Perimortem::Core::Option<LLVMValueRef>;
@@ -151,7 +162,9 @@ class Carriers {
     Perimortem::Core::Option<LLVMTypeRef> native;
     Perimortem::Core::Option<LLVMTypeRef> payload;
     Perimortem::Core::Option<LLVMValueRef> finalizer;
+    Perimortem::Core::Option<LLVMValueRef> descriptor;
     Perimortem::Core::Option<const Ttx::Model::Type&> element;
+    Perimortem::Core::Option<const Ttx::Model::Type&> error;
     Perimortem::Core::Option<const Ttx::Model::Type&> flag;
     Perimortem::Core::Option<const Ttx::Concept::Layout&> fields;
     Count extent = 0;
@@ -190,6 +203,14 @@ class Carriers {
       Perimortem::Core::View::Vector<LLVMValueRef> values) const
       -> Perimortem::Core::Option<
           Perimortem::Memory::Dynamic::Vector<LLVMValueRef>>;
+
+  auto assemble_result(
+      Ttx::Concept::Abstract& body,
+      const Ttx::Model::Type& type,
+      const Ttx::Model::Type& alternative,
+      Bool value_selected,
+      Perimortem::Core::View::Vector<LLVMValueRef> elements) const
+      -> Perimortem::Core::Option<LLVMValueRef>;
 
   auto owns_resources(
       const Ttx::Model::Type& type,

@@ -64,12 +64,12 @@ class RejectingLibraryDialect : public Library::Dialect {
 
 PERIMORTEM_UNIT_TEST(SceneDialect, empty_source_owns_exact_layers) {
   static constexpr View::Bytes source = "//\ndialect : Scene;"_view;
-  Environment::Workspace workspace;
-  auto* library = workspace.install_dialect<Library::Dialect>("Library"_view);
+  Environment::Toolchain toolchain;
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
   ASSERT(library);
-  auto* dialect =
-      workspace.install_dialect<Scene::Dialect>("Scene"_view, *library);
+  auto dialect = toolchain.install<Scene::Dialect>("Scene"_view, *library);
   ASSERT(dialect);
+  Environment::Workspace workspace(toolchain);
   Errors errors;
 
   auto interpreted = workspace.interpret_source(
@@ -106,11 +106,11 @@ PERIMORTEM_UNIT_TEST(SceneDialect, empty_source_owns_exact_layers) {
 
 PERIMORTEM_UNIT_TEST(SceneDialect, child_failure_rejects_outer_once) {
   static constexpr View::Bytes scene_source = "//\ndialect : Scene;"_view;
-  Environment::Workspace workspace;
-  auto* library =
-      workspace.install_dialect<RejectingLibraryDialect>("Library"_view);
+  Environment::Toolchain toolchain;
+  auto library = toolchain.install<RejectingLibraryDialect>("Library"_view);
   ASSERT(library);
-  ASSERT(workspace.install_dialect<Scene::Dialect>("Scene"_view, *library));
+  ASSERT(toolchain.install<Scene::Dialect>("Scene"_view, *library));
+  Environment::Workspace workspace(toolchain);
   Errors errors;
   auto interpreted = workspace.interpret_source(
       errors, "Broken"_view, "broken-scene.ttx"_view, scene_source);
@@ -125,10 +125,11 @@ PERIMORTEM_UNIT_TEST(SceneDialect, declarations_wait_for_their_owner) {
       "//\n"
       "dialect : Scene;\n"
       "signal later;"_view;
-  Environment::Workspace workspace;
-  auto* library = workspace.install_dialect<Library::Dialect>("Library"_view);
+  Environment::Toolchain toolchain;
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
   ASSERT(library);
-  ASSERT(workspace.install_dialect<Scene::Dialect>("Scene"_view, *library));
+  ASSERT(toolchain.install<Scene::Dialect>("Scene"_view, *library));
+  Environment::Workspace workspace(toolchain);
   Errors errors;
 
   auto interpreted = workspace.interpret_source(

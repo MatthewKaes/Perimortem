@@ -44,42 +44,38 @@ auto Language::Access::Type::link(
   BAIL_IF(!receiver.link(cursor, lexical_context, access_scope));
 
   const Abstract& receiver_result = receiver.get_result();
-  auto receiver_type = receiver_result.select<Language::Model::Type>();
-  if (!receiver_type) {
+  const Abstract& binding = receiver_result.resolve_context(name).resolve();
+  // Package Source Aliases retain their Monograph as promised. A source may
+  // publish one matching root Type under that authored route. Expression Type
+  // access selects that Type while declaration and using queries still observe
+  // the real Monograph binding.
+  const Abstract& nested = binding.resolve_context(name).resolve();
+  const Abstract& result =
+      nested.is<Language::Model::Type>() ? nested : binding;
+  if (result.is<Invalid>()) {
     cursor.create_expression_error(
-        get_anchor(), "Type access receiver did not produce a Type."_view,
-        "Use `::` only after an Expression whose result is a semantic Type."_view);
+        get_anchor(), "Type access did not select a semantic context."_view,
+        "Publish the named context or Type on the receiver before linking this access."_view);
     return False;
   }
 
-  // Type qualification is ordinary contextual traversal on the selected
-  // identity. Keeping caller authority out of this operation prevents `::`
-  // from growing a second visibility and lookup protocol beside the graph.
-  const Abstract& resolved = receiver_type->resolve_context(name).resolve();
-  auto result = resolved.select<Language::Model::Type>();
-  if (!result) {
-    cursor.create_expression_error(
-        get_anchor(), "Type access did not select one semantic Type."_view,
-        "Publish the named Type on the receiver before linking this access."_view);
-    return False;
-  }
-
-  if (selected && &selected->get() != &*result) {
+  if (selected && &selected->get() != &result) {
     cursor.create_expression_error(
         get_anchor(), "Type access cannot change its selected result."_view,
         "Keep one exact Type bound to this authored Token."_view);
     return False;
   }
 
-  selected = Reference<const Language::Model::Type>(*result);
+  selected = Reference<const Abstract>(result);
   return True;
 }
 
 auto Language::Access::Type::get_documentation() const -> const Documentation& {
   return selected.visit(
       []() -> const Documentation& { return Documentation::get_empty(); },
-      [](const Reference<const Language::Model::Type>& type)
-          -> const Documentation& { return type.get().get_documentation(); });
+      [](const Reference<const Abstract>& selected) -> const Documentation& {
+        return selected.get().get_documentation();
+      });
 }
 
 auto Language::Access::Type::get_type() const -> const Abstract& {
@@ -89,8 +85,9 @@ auto Language::Access::Type::get_type() const -> const Abstract& {
 auto Language::Access::Type::get_result() const -> const Abstract& {
   return selected.visit(
       []() -> const Abstract& { return Invalid::get_invalid(); },
-      [](const Reference<const Language::Model::Type>& type)
-          -> const Abstract& { return type.get(); });
+      [](const Reference<const Abstract>& selected) -> const Abstract& {
+        return selected.get();
+      });
 }
 
 auto Language::Access::Type::finalize(Cursor& cursor) -> void {

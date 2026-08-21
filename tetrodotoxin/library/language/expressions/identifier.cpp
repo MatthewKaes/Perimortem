@@ -64,6 +64,21 @@ auto Language::Expressions::Identifier::link(
   return True;
 }
 
+auto Language::Expressions::Identifier::link_restored(
+    const Abstract& lexical_context,
+    Core::Option<const Abstract&>) -> Bool {
+  const Abstract& candidate =
+      resolve_alias(lexical_context.resolve_context(name));
+  const Abstract& selected =
+      candidate.is<Language::Model::Type>() ||
+              candidate.is<Language::Model::Addressable>()
+          ? candidate
+          : candidate.resolve();
+  BAIL_IF(selected.is<Invalid>());
+  result = Reference<const Abstract>(selected);
+  return True;
+}
+
 auto Language::Expressions::Identifier::get_documentation() const
     -> const Documentation& {
   return result.visit(
@@ -102,6 +117,10 @@ auto Language::Expressions::Identifier::get_result() const -> const Abstract& {
 
 auto Language::Expressions::Identifier::lower(Llvm::Builder& body) const
     -> Bool {
+  if (get_result().resolve().is<Language::Model::Type>()) {
+    return True;
+  }
+
   auto folded = lower_folded(body);
   if (folded) {
     return *folded;

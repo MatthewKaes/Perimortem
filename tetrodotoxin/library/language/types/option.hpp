@@ -42,6 +42,20 @@ class Option : public Model::Type {
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
+  constexpr auto get_propagated_type() const
+      -> Perimortem::Core::Option<const Model::Type&> override {
+    return element;
+  }
+
+  auto fold_propagation(Model::Pack& source) const -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Model::Pack&>, Bool> override;
+
+  auto lower_propagation(
+      Llvm::Builder& body,
+      const Model::Pack& result,
+      const Model::Pack& source,
+      const Model::Pack& escape) const -> Bool override;
+
   auto accepts(const Model::Pack& source) const -> Bool override;
 
   auto create_fitted(
@@ -53,10 +67,17 @@ class Option : public Model::Type {
 
   auto complete(Llvm::Program& program) const -> Bool override;
 
+  auto validate_layout(Ttx::Lexical::Cursor& cursor) const -> Bool override;
+
   TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_element_type() const -> const Model::Type& {
     return element;
+  }
+
+  constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
+    return element.get_declaration_anchor();
   }
 
   constexpr auto get_flag_type() const -> const Model::Types::Flag& {

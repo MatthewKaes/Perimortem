@@ -28,22 +28,30 @@
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
 
+static auto llvm_text(Core::View::Bytes value) -> llvm::StringRef {
+  return llvm::StringRef(
+      reinterpret_cast<const char*>(value.get_data()), value.get_size());
+}
+
 Llvm::Program::Program(
     Memory::Allocator::Arena& arena,
     Ttx::Lexical::Errors& errors,
     Core::View::Bytes source_path,
     Core::View::Bytes source_text,
     Target target,
-    Debug::Level debug_level)
+    Debug::Level debug_level,
+    Unit unit)
     : arena(arena),
       errors(errors),
       source_path(source_path),
       source_text(source_text),
       target(target),
+      unit(unit),
       debug(debug_level),
       context(*LLVMContextCreate()),
       module(*LLVMModuleCreateWithNameInContext("tetrodotoxin", &context)),
-      exports(arena) {}
+      exports(arena),
+      publications(arena) {}
 
 auto Llvm::Program::get_name() const -> Core::View::Bytes {
   return "Program"_view;
@@ -105,6 +113,38 @@ auto Llvm::Program::initialize() -> Bool {
   return debug.initialize(*this, source_path, source_text);
 }
 
+auto Llvm::Program::create_process_entry(Core::View::Bytes symbol) -> Bool {
+  if (symbol.is_empty()) {
+    return fail_backend(
+        "The App entry requires one nonempty native symbol."_view);
+  }
+
+  llvm::Module& native_module = *llvm::unwrap(&module);
+  if (native_module.getFunction("main") ||
+      native_module.getFunction(llvm_text(symbol))) {
+    return fail_backend(
+        "The App entry collides with an existing native symbol."_view);
+  }
+
+  llvm::LLVMContext& native_context = *llvm::unwrap(&context);
+  llvm::FunctionType& entry_type = *llvm::FunctionType::get(
+      llvm::Type::getVoidTy(native_context), {}, false);
+  llvm::Function& entry = *llvm::Function::Create(
+      &entry_type, llvm::GlobalValue::ExternalLinkage, llvm_text(symbol),
+      native_module);
+  llvm::FunctionType& main_type = *llvm::FunctionType::get(
+      llvm::Type::getInt32Ty(native_context), {}, false);
+  llvm::Function& main = *llvm::Function::Create(
+      &main_type, llvm::GlobalValue::ExternalLinkage, "main", native_module);
+  llvm::BasicBlock& block =
+      *llvm::BasicBlock::Create(native_context, "entry", &main);
+  llvm::IRBuilder<> builder(&block);
+  builder.CreateCall(&entry_type, &entry);
+  builder.CreateRet(
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(native_context), 0));
+  return True;
+}
+
 auto Llvm::Program::compile() -> Utility::Result<Products, Failure> {
   if (!debug.finalize(*this)) {
     return Failure::ToolchainFailed;
@@ -164,7 +204,7 @@ auto Llvm::Program::compile() -> Utility::Result<Products, Failure> {
       reinterpret_cast<const Unsigned_8*>(object.data()), object.size());
   return Products(
       get_arena().proxy(ir_view), get_arena().proxy(object_view),
-      header->get_view());
+      header->get_view(), publications.get_view());
 }
 
 auto Llvm::Program::resolve_context(Core::View::Bytes) const
@@ -172,7 +212,23 @@ auto Llvm::Program::resolve_context(Core::View::Bytes) const
   return Ttx::Concept::Invalid::get_invalid();
 }
 
+auto Llvm::Program::add_publication(Publication value) -> void {
+  for (const Publication& existing : publications.get_view()) {
+    if (&existing.get_semantic() == &value.get_semantic() &&
+        existing.get_symbol() == value.get_symbol()) {
+      return;
+    }
+  }
+  publications.insert(value);
+}
+
 auto Llvm::Program::add_export(Export value) -> void {
+  for (const Export& existing : exports.get_view()) {
+    if (&existing.get_callable() == &value.get_callable() &&
+        existing.get_symbol() == value.get_symbol()) {
+      return;
+    }
+  }
   exports.insert(value);
 }
 

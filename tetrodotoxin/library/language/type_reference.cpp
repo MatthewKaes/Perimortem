@@ -8,10 +8,17 @@
 #include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/library/language/constants/false.hpp"
+#include "tetrodotoxin/library/language/constants/signed.hpp"
+#include "tetrodotoxin/library/language/constants/true.hpp"
+#include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/generic.hpp"
 #include "tetrodotoxin/library/language/model/parser/layout.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
+#include "tetrodotoxin/library/language/model/types/flag.hpp"
+#include "tetrodotoxin/library/language/model/types/signed.hpp"
+#include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/parser/literal.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
@@ -29,6 +36,116 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
         return alias.resolve();
       },
       [](const Abstract& direct) -> const Abstract& { return direct; });
+}
+
+enum class PersistedArgument : Unsigned_8 {
+  Reference,
+  Unsigned,
+  Signed,
+  False,
+  True,
+};
+
+static auto write_argument(
+    Archive::Writer& writer,
+    const Language::TypeReference::Argument& argument) -> Bool {
+  return argument.visit(
+      []() -> Bool { return False; },
+      [&](const Language::TypeReference& reference) -> Bool {
+        writer.write(Unsigned_8(PersistedArgument::Reference));
+        return reference.persist(writer);
+      },
+      [&](const Abstract& selected) -> Bool {
+        auto unsigned_value = selected.select<Language::Constants::Unsigned>();
+        if (unsigned_value) {
+          writer.write(Unsigned_8(PersistedArgument::Unsigned));
+          writer.write(unsigned_value->get_value());
+          return True;
+        }
+
+        auto signed_value = selected.select<Language::Constants::Signed>();
+        if (signed_value) {
+          writer.write(Unsigned_8(PersistedArgument::Signed));
+          writer.write(signed_value->get_value());
+          return True;
+        }
+
+        if (selected.is<Language::Constants::False>()) {
+          writer.write(Unsigned_8(PersistedArgument::False));
+          return True;
+        }
+        if (selected.is<Language::Constants::True>()) {
+          writer.write(Unsigned_8(PersistedArgument::True));
+          return True;
+        }
+        return False;
+      });
+}
+
+static auto resolve_root_type(const Abstract& context, Core::View::Bytes name)
+    -> Core::Option<const Language::Model::Type&> {
+  return context.resolve_context(name)
+      .resolve()
+      .select<Language::Model::Type>();
+}
+
+static auto read_argument(
+    Archive::Reader& reader,
+    Memory::Allocator::Arena& arena,
+    const Abstract& context)
+    -> Core::Option<Language::TypeReference::Argument> {
+  auto kind = reader.read_unsigned_8();
+  BAIL_IF(!kind);
+
+  switch (PersistedArgument(*kind)) {
+  case PersistedArgument::Reference: {
+    auto reference = Language::TypeReference::restore(reader, arena, context);
+    BAIL_IF(!reference);
+    const auto& retained = arena.construct<Language::TypeReference>(*reference);
+    return Language::TypeReference::Argument(retained);
+  }
+  case PersistedArgument::Unsigned: {
+    auto value = reader.read_unsigned_64();
+    auto type = resolve_root_type(context, "Unsigned_64"_view);
+    auto selected =
+        type ? type->select<Language::Model::Types::Unsigned>()
+             : Core::Option<const Language::Model::Types::Unsigned&>();
+    BAIL_IF(!value || !selected);
+    const auto& constant = Language::Constants::Unsigned::create_synthetic(
+        arena, *selected, *value);
+    return Language::TypeReference::Argument(
+        static_cast<const Abstract&>(constant));
+  }
+  case PersistedArgument::Signed: {
+    auto value = reader.read_signed_64();
+    auto type = resolve_root_type(context, "Signed_64"_view);
+    auto selected = type
+                        ? type->select<Language::Model::Types::Signed>()
+                        : Core::Option<const Language::Model::Types::Signed&>();
+    BAIL_IF(!value || !selected);
+    const auto& constant =
+        Language::Constants::Signed::create_synthetic(arena, *selected, *value);
+    return Language::TypeReference::Argument(
+        static_cast<const Abstract&>(constant));
+  }
+  case PersistedArgument::False:
+  case PersistedArgument::True: {
+    auto type = resolve_root_type(context, "Bool"_view);
+    auto selected = type ? type->select<Language::Model::Types::Flag>()
+                         : Core::Option<const Language::Model::Types::Flag&>();
+    BAIL_IF(!selected);
+    const Abstract& constant =
+        PersistedArgument(*kind) == PersistedArgument::True
+            ? static_cast<const Abstract&>(
+                  Language::Constants::True::create_synthetic(arena, *selected))
+            : static_cast<const Abstract&>(
+                  Language::Constants::False::create_synthetic(
+                      arena, *selected));
+    return Language::TypeReference::Argument(constant);
+  }
+  }
+
+  return {};
 }
 
 auto Language::TypeReference::parse(const Abstract& context, Cursor& cursor)
@@ -189,8 +306,57 @@ auto Language::TypeReference::get_argument_reference(Count index) const
   BAIL_IF(!arguments || index >= arguments->get_size());
   const TypeReference* reference =
       arguments->get_data()[index].find<const TypeReference&>();
-  BAIL_IF(reference == nullptr);
+  BAIL_IF(!reference);
   return *reference;
+}
+
+auto Language::TypeReference::get_argument(Count index) const
+    -> Core::Option<const Argument&> {
+  BAIL_IF(!arguments || index >= arguments->get_size());
+  return arguments->get_data()[index];
+}
+
+auto Language::TypeReference::persist(Archive::Writer& writer) const -> Bool {
+  auto record = writer.begin(Archive::Tag::TypeReference);
+  BAIL_IF(!writer.write(route) || get_argument_size() > Unsigned_32(-1));
+
+  writer.write(Unsigned_32(get_argument_size()));
+  for (Count index = 0; index < get_argument_size(); index++) {
+    auto argument = get_argument(index);
+    BAIL_IF(!argument || !write_argument(writer, *argument));
+  }
+  return writer.finish(record);
+}
+
+auto Language::TypeReference::restore(
+    Archive::Reader& reader,
+    Memory::Allocator::Arena& arena,
+    const Abstract& context) -> Core::Option<TypeReference> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record ||
+      record->get_tag() != Unsigned_16(Archive::Tag::TypeReference) ||
+      record->is_optional());
+
+  Archive::Reader contents(record->get_payload());
+  auto route = contents.read_bytes();
+  auto count = contents.read_unsigned_32();
+  BAIL_IF(!route || route->is_empty() || !count);
+
+  Memory::Managed::Vector<Argument> restored(arena);
+  for (Count index = 0; index < *count; index++) {
+    auto argument = read_argument(contents, arena, context);
+    BAIL_IF(!argument);
+    restored.insert(*argument);
+  }
+  BAIL_IF(!contents.is_complete());
+
+  Core::Option<Core::View::Vector<Argument>> selected_arguments;
+  if (*count != 0) {
+    selected_arguments = restored.get_view();
+  }
+  return TypeReference(
+      arena.proxy(*route), Anchor::create(Span()), selected_arguments);
 }
 
 static auto map_failure(
@@ -277,19 +443,19 @@ auto Language::TypeReference::resolve_with_root(
   for (Count i = 0; i < arguments->get_size(); i++) {
     const Argument& argument = argument_data[i];
     const TypeReference* reference = argument.find<const TypeReference&>();
-    if (reference != nullptr) {
-      const Abstract* nested = nullptr;
+    if (reference) {
+      Core::Option<const Abstract&> nested;
       Core::Option<Failure> nested_failure;
       reference->resolve_with_root(context, root, cursor)
           .visit(
               [&](const Abstract& resolved) {
-                nested = &resolve_alias(resolved);
+                nested = resolve_alias(resolved);
               },
               [&](const Failure& failure) { nested_failure = failure; });
       if (nested_failure) {
         return *nested_failure;
       }
-      if (nested == nullptr || !nested->is<Language::Model::Type>()) {
+      if (!nested || !nested->is<Language::Model::Type>()) {
         return Failure(Failure::Type::Argument, anchor, i);
       }
       linked.insert(*nested);
@@ -297,7 +463,7 @@ auto Language::TypeReference::resolve_with_root(
     }
 
     const Abstract* literal = argument.find<const Abstract&>();
-    if (literal == nullptr) {
+    if (!literal) {
       return Failure(Failure::Type::Argument, anchor, i);
     }
     linked.insert(*literal);
@@ -322,13 +488,12 @@ auto Language::TypeReference::resolve_with_root(
           const Argument& argument = arguments->get_data()[index];
           const TypeReference* reference =
               argument.find<const TypeReference&>();
-          if (reference != nullptr) {
+          if (reference) {
             failure_anchor = reference->get_anchor();
           } else {
             const Abstract* literal = argument.find<const Abstract&>();
-            auto expression = literal == nullptr
-                                  ? Core::Option<const Expression&>()
-                                  : literal->select<Expression>();
+            auto expression = literal ? literal->select<Expression>()
+                                      : Core::Option<const Expression&>();
             if (expression && expression->get_anchor()) {
               failure_anchor = *expression->get_anchor();
             }

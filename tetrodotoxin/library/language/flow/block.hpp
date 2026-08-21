@@ -22,6 +22,8 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // identity-free Statement memberships in source order while every entry keeps
 // its exact graph object and source-backed Documentation. Its lexical parent,
 // owning Function, and host Type remain independent facts.
+// `{` admits an empty or multi Statement body, while `:` admits exactly one
+// Statement without constructing a different semantic owner.
 // This is not a lowered basic block and owns no predecessor arguments, result
 // Layout, SSA edges, or target control flow.
 class Block : public Scope {

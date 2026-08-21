@@ -168,12 +168,11 @@ Embedded assets resolve beneath the source Package root. Package keeps those
 resources confined and alive while Scene or its Library child interprets their
 bytes.
 
-Scene can be stored in a Package Archive and rebuilt without its source file. A
-Complete payload keeps its Signals, lifecycle and render relationships, and a
-Complete Library child so it can be compiled again. An Interface payload keeps
-the public Scene contract, Signal and lifecycle relationships, render
-relationships, Library interface, and compiled artifact locations without
-executable bodies.
+Scene can be stored in a Package Archive and reconstructed without its source
+file. A Complete payload keeps its public and private Signal, lifecycle,
+render, and Library query contracts. An Interface payload keeps their public
+closure and compiled artifact locations. Executable Scene behavior remains in
+the compiled artifacts.
 
 Neither profile stores a live Scene instance, current Object values, queued
 frame events, elapsed time, input state, backend resources, or source-level

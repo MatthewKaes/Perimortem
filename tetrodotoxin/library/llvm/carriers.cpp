@@ -3,17 +3,19 @@
 
 // The native bridge enters LLVM before the Perimortem owner so LLVM's standard
 // declarations remain confined to this implementation unit.
-// clang-format off
+#if __has_include("llvm/IR/BasicBlock.h")
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
-#include "tetrodotoxin/library/llvm/carriers.hpp"
-// clang-format on
+#else
+#error LLVM BasicBlock is required by the Library native compiler
+#endif
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "perimortem/abi/memory/dynamic/object.hpp"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "perimortem/abi/core/object.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/model/types/real.hpp"
@@ -23,11 +25,14 @@
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
+#include "tetrodotoxin/library/language/types/object_storage.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
+#include "tetrodotoxin/library/language/types/result.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "tetrodotoxin/library/llvm/body.hpp"
+#include "tetrodotoxin/library/llvm/carriers.hpp"
 #include "tetrodotoxin/library/llvm/program.hpp"
 #include "tetrodotoxin/library/llvm/symbol.hpp"
 
@@ -78,7 +83,7 @@ static auto get_function(Tetrodotoxin::Library::Llvm::Body& body)
 static auto fail_backend(
     Ttx::Concept::Abstract& program,
     Core::View::Bytes message) -> Bool {
-  auto target = get_target(program);
+  auto target = get_target(get_program(program));
   return target ? target->fail_backend(message) : False;
 }
 
@@ -87,7 +92,7 @@ static auto fail_type(
     const Ttx::Model::Type& type,
     Core::View::Bytes message,
     Core::View::Bytes hint = {}) -> Bool {
-  auto target = get_target(program);
+  auto target = get_target(get_program(program));
   auto library_type = type.select<Language::Model::Type>();
   auto anchor = library_type ? library_type->get_declaration_anchor()
                              : Core::Option<Ttx::Lexical::Anchor>();
@@ -202,6 +207,14 @@ auto Tetrodotoxin::Library::Llvm::Carriers::reserve(
         program, type, Carrier{.kind = kind, .native = llvm::wrap(&native)});
   }
 
+  case Kind::Result: {
+    Symbol name(target->get_arena(), type, Symbol::Kind::ResultType);
+    llvm::StructType& native = *llvm::StructType::create(
+        get_context(*target), llvm_text(name.get_view()));
+    return publish(
+        program, type, Carrier{.kind = kind, .native = llvm::wrap(&native)});
+  }
+
   case Kind::View:
   case Kind::Access: {
     Core::Static::Vector<llvm::Type*, 2> members = {{
@@ -226,6 +239,12 @@ auto Tetrodotoxin::Library::Llvm::Carriers::reserve(
           .native = llvm::wrap(&native),
           .payload = llvm::wrap(&native),
         });
+  }
+
+  case Kind::ObjectStorage: {
+    llvm::Type& native = *llvm::PointerType::getUnqual(get_context(*target));
+    return publish(
+        program, type, Carrier{.kind = kind, .native = llvm::wrap(&native)});
   }
 
   case Kind::Object: {
@@ -339,8 +358,10 @@ auto Tetrodotoxin::Library::Llvm::Carriers::complete(
     auto element_carrier = carriers.find(&element);
     auto native = get_type(element);
     Bool element_ready = Bool(
-        element_carrier && (element_carrier->value.phase == Phase::Complete ||
-                            element_carrier->value.kind == Kind::Object));
+        element_carrier &&
+        (element_carrier->value.phase == Phase::Complete ||
+         element_carrier->value.kind == Kind::Object ||
+         element_carrier->value.kind == Kind::ObjectStorage));
     if (!carrier || !element_ready || !native || extent == 0) {
       return fail_backend(
           program,
@@ -369,7 +390,8 @@ auto Tetrodotoxin::Library::Llvm::Carriers::complete(
     auto payload = get_type(element);
     auto selected = get_type(flag);
     if (element_carrier && element_carrier->value.phase == Phase::Completing &&
-        element_carrier->value.kind != Kind::Object) {
+        element_carrier->value.kind != Kind::Object &&
+        element_carrier->value.kind != Kind::ObjectStorage) {
       return fail_type(
           program, element,
           "Library Type recursively contains itself through inline target storage."_view,
@@ -377,8 +399,10 @@ auto Tetrodotoxin::Library::Llvm::Carriers::complete(
     }
 
     Bool element_ready = Bool(
-        element_carrier && (element_carrier->value.phase == Phase::Complete ||
-                            element_carrier->value.kind == Kind::Object));
+        element_carrier &&
+        (element_carrier->value.phase == Phase::Complete ||
+         element_carrier->value.kind == Kind::Object ||
+         element_carrier->value.kind == Kind::ObjectStorage));
     if (!carrier || !carrier->native || !element_ready || !flag_carrier ||
         flag_carrier->value.phase != Phase::Complete || !payload || !selected) {
       return fail_backend(
@@ -386,10 +410,100 @@ auto Tetrodotoxin::Library::Llvm::Carriers::complete(
           "LLVM cannot complete Option before its payload and flag carriers."_view);
     }
 
+    if (element_carrier->value.kind == Kind::Object) {
+      carrier->native = *payload;
+    } else {
+      auto& native =
+          *llvm::cast<llvm::StructType>(llvm::unwrap(*carrier->native));
+      native.setBody({llvm::unwrap(*payload), llvm::unwrap(*selected)}, false);
+    }
+    carrier->element = element;
+    carrier->flag = flag;
+    carrier->phase = Phase::Complete;
+    return True;
+  }
+
+  case Kind::Result: {
+    auto result = select_contract<Language::Types::Result>(program, type);
+    if (!result) {
+      return False;
+    }
+
+    const Ttx::Model::Type& value = result->get_value_type();
+    const Ttx::Model::Type& error = result->get_error_type();
+    const Ttx::Model::Type& flag = result->get_flag_type();
+    auto carrier = select_completion(program, type, kind);
+    auto value_carrier = carriers.find(&value);
+    auto error_carrier = carriers.find(&error);
+    auto flag_carrier = carriers.find(&flag);
+    auto native_value = get_type(value);
+    auto native_error = get_type(error);
+    auto native_flag = get_type(flag);
+    Bool recursive_value = Bool(
+        value_carrier && value_carrier->value.phase == Phase::Completing &&
+        value_carrier->value.kind != Kind::Object &&
+        value_carrier->value.kind != Kind::ObjectStorage);
+    Bool recursive_error = Bool(
+        error_carrier && error_carrier->value.phase == Phase::Completing &&
+        error_carrier->value.kind != Kind::Object &&
+        error_carrier->value.kind != Kind::ObjectStorage);
+    if (recursive_value || recursive_error) {
+      return fail_type(
+          program, type,
+          "Library Result recursively contains itself through inline target storage."_view,
+          "Break the value cycle with Object or another reference carrier."_view);
+    }
+
+    Bool value_ready = Bool(
+        value_carrier && (value_carrier->value.phase == Phase::Complete ||
+                          value_carrier->value.kind == Kind::Object ||
+                          value_carrier->value.kind == Kind::ObjectStorage));
+    Bool error_ready = Bool(
+        error_carrier && (error_carrier->value.phase == Phase::Complete ||
+                          error_carrier->value.kind == Kind::Object ||
+                          error_carrier->value.kind == Kind::ObjectStorage));
+    if (!carrier || !carrier->native || !value_ready || !error_ready ||
+        !flag_carrier || flag_carrier->value.phase != Phase::Complete ||
+        !native_value || !native_error || !native_flag) {
+      return fail_backend(
+          program,
+          "LLVM cannot complete Result before both alternatives and its flag carrier."_view);
+    }
+
+    auto target = get_target(program);
+    if (!target) {
+      return False;
+    }
+
+    const llvm::DataLayout& layout = get_module(*target).getDataLayout();
+    llvm::Type* value_type = llvm::unwrap(*native_value);
+    llvm::Type* error_type = llvm::unwrap(*native_error);
+    Count value_size = layout.getTypeAllocSize(value_type).getFixedValue();
+    Count error_size = layout.getTypeAllocSize(error_type).getFixedValue();
+    Count value_alignment = layout.getABITypeAlign(value_type).value();
+    Count error_alignment = layout.getABITypeAlign(error_type).value();
+    llvm::Type* alignment_type =
+        value_alignment >= error_alignment ? value_type : error_type;
+    Count alignment_size =
+        layout.getTypeAllocSize(alignment_type).getFixedValue();
+    Count union_size = Core::Math::max(value_size, error_size);
+    Count padding =
+        union_size > alignment_size ? union_size - alignment_size : 0;
+    llvm::SmallVector<llvm::Type*, 2> storage_members = {alignment_type};
+    if (padding != 0) {
+      storage_members.push_back(
+          llvm::ArrayType::get(
+              llvm::Type::getInt8Ty(get_context(*target)), padding));
+    }
+
+    llvm::StructType& storage =
+        *llvm::StructType::get(get_context(*target), storage_members, false);
     auto& native =
         *llvm::cast<llvm::StructType>(llvm::unwrap(*carrier->native));
-    native.setBody({llvm::unwrap(*payload), llvm::unwrap(*selected)}, false);
-    carrier->element = element;
+    native.setBody({&storage, llvm::unwrap(*native_flag)}, false);
+    carrier->payload = llvm::wrap(&storage);
+    carrier->element = value;
+    carrier->error = error;
     carrier->flag = flag;
     carrier->phase = Phase::Complete;
     return True;
@@ -458,6 +572,30 @@ auto Tetrodotoxin::Library::Llvm::Carriers::complete(
     return complete_aggregate(program, type, object->get_layout(), kind);
   }
 
+  case Kind::ObjectStorage: {
+    auto object =
+        select_contract<Language::Types::ObjectStorage>(program, type);
+    if (!object) {
+      return False;
+    }
+
+    auto carrier = select_completion(program, type, kind);
+    const Ttx::Model::Type& element = object->get_element_type();
+    auto element_carrier = carriers.find(&element);
+    if (!carrier || !element_carrier ||
+        element_carrier->value.phase != Phase::Complete ||
+        owns_resources(element)) {
+      return fail_type(
+          program, element,
+          "LLVM Object[T] currently requires one value-only element Type."_view,
+          "Use a scalar or Structure whose fields do not own Objects."_view);
+    }
+
+    carrier->element = element;
+    carrier->phase = Phase::Complete;
+    return True;
+  }
+
   case Kind::Context: {
     auto carrier = select_completion(program, type, kind);
     if (!carrier) {
@@ -519,7 +657,9 @@ auto Tetrodotoxin::Library::Llvm::Carriers::complete_aggregate(
 
     Bool recursive_inline = Bool(
         field_carrier->value.phase == Phase::Completing &&
-        field_carrier->value.kind != Kind::Object && kind != Kind::Object);
+        field_carrier->value.kind != Kind::Object &&
+        field_carrier->value.kind != Kind::ObjectStorage &&
+        kind != Kind::Object);
     if (recursive_inline) {
       return fail_type(
           program, type,
@@ -598,6 +738,17 @@ auto Tetrodotoxin::Library::Llvm::Carriers::get_flag(
   }
 
   return *found->value.flag;
+}
+
+auto Tetrodotoxin::Library::Llvm::Carriers::get_error(
+    const Ttx::Model::Type& type) const
+    -> Core::Option<const Ttx::Model::Type&> {
+  auto found = carriers.find(&type);
+  if (!found || found->value.phase != Phase::Complete || !found->value.error) {
+    return {};
+  }
+
+  return *found->value.error;
 }
 
 auto Tetrodotoxin::Library::Llvm::Carriers::get_extent(
@@ -691,7 +842,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::owns_resources(
   }
 
   const Carrier& carrier = found->value;
-  if (carrier.kind == Kind::Object) {
+  if (carrier.kind == Kind::Object || carrier.kind == Kind::ObjectStorage) {
     return True;
   }
 
@@ -705,6 +856,9 @@ auto Tetrodotoxin::Library::Llvm::Carriers::owns_resources(
   if ((carrier.kind == Kind::Option || carrier.kind == Kind::Fixed) &&
       carrier.element) {
     result = owns_resources(*carrier.element, active);
+  } else if (carrier.kind == Kind::Result && carrier.element && carrier.error) {
+    result = owns_resources(*carrier.element, active) ||
+             owns_resources(*carrier.error, active);
   } else if (carrier.kind == Kind::Structure && carrier.fields) {
     for (Count index = 0; index < carrier.fields->get_size(); index++) {
       auto field = select_field_type(*carrier.fields, index);
@@ -738,7 +892,11 @@ auto Tetrodotoxin::Library::Llvm::Carriers::retain(
     return True;
   }
 
-  if (carrier.kind == Kind::Object) {
+  if (carrier.kind == Kind::Object || carrier.kind == Kind::ObjectStorage) {
+    if (llvm::isa<llvm::ConstantPointerNull>(&native_value)) {
+      return True;
+    }
+
     auto target = get_target(get_program(body));
     if (!target) {
       return False;
@@ -749,17 +907,32 @@ auto Tetrodotoxin::Library::Llvm::Carriers::retain(
         {llvm::PointerType::getUnqual(get_context(*target))}, false);
     builder.CreateCall(
         get_module(*target).getOrInsertFunction(
-            llvm_text(Abi::Memory::Dynamic::Object::retain_symbol), &signature),
+            llvm_text(Abi::Core::object_retain_symbol), &signature),
         {&native_value});
   } else if (carrier.kind == Kind::Option && carrier.element) {
+    if (is_object(*carrier.element)) {
+      return retain(body, *carrier.element, value);
+    }
+
+    llvm::Value& selected =
+        *builder.CreateExtractValue(&native_value, Unsigned_32(1));
+    auto constant = llvm::dyn_cast<llvm::ConstantInt>(&selected);
+    if (constant) {
+      if (constant->isZero()) {
+        return True;
+      }
+
+      llvm::Value& payload =
+          *builder.CreateExtractValue(&native_value, Unsigned_32(0));
+      return retain(body, *carrier.element, llvm::wrap(&payload));
+    }
+
     llvm::BasicBlock& copy = *llvm::BasicBlock::Create(
         get_function(*native_body).getContext(), "option.copy",
         &get_function(*native_body));
     llvm::BasicBlock& done = *llvm::BasicBlock::Create(
         get_function(*native_body).getContext(), "option.copy.done",
         &get_function(*native_body));
-    llvm::Value& selected =
-        *builder.CreateExtractValue(&native_value, Unsigned_32(1));
     builder.CreateCondBr(&selected, &copy, &done);
     builder.SetInsertPoint(&copy);
     llvm::Value& payload =
@@ -768,6 +941,43 @@ auto Tetrodotoxin::Library::Llvm::Carriers::retain(
       return False;
     }
 
+    builder.CreateBr(&done);
+    builder.SetInsertPoint(&done);
+  } else if (carrier.kind == Kind::Result && carrier.element && carrier.error) {
+    llvm::Value& selected =
+        *builder.CreateExtractValue(&native_value, Unsigned_32(1));
+    auto constant = llvm::dyn_cast<llvm::ConstantInt>(&selected);
+    if (constant) {
+      Bool value_selected = !constant->isZero();
+      auto selected_result = select_result(body, type, value, value_selected);
+      const Ttx::Model::Type& selected_type =
+          value_selected ? *carrier.element : *carrier.error;
+      return selected_result && retain(body, selected_type, *selected_result);
+    }
+
+    llvm::BasicBlock& value_block = *llvm::BasicBlock::Create(
+        get_function(*native_body).getContext(), "result.copy.value",
+        &get_function(*native_body));
+    llvm::BasicBlock& error_block = *llvm::BasicBlock::Create(
+        get_function(*native_body).getContext(), "result.copy.error",
+        &get_function(*native_body));
+    llvm::BasicBlock& done = *llvm::BasicBlock::Create(
+        get_function(*native_body).getContext(), "result.copy.done",
+        &get_function(*native_body));
+    builder.CreateCondBr(&selected, &value_block, &error_block);
+
+    builder.SetInsertPoint(&value_block);
+    auto selected_value = select_result(body, type, value, True);
+    if (!selected_value || !retain(body, *carrier.element, *selected_value)) {
+      return False;
+    }
+    builder.CreateBr(&done);
+
+    builder.SetInsertPoint(&error_block);
+    auto selected_error = select_result(body, type, value, False);
+    if (!selected_error || !retain(body, *carrier.error, *selected_error)) {
+      return False;
+    }
     builder.CreateBr(&done);
     builder.SetInsertPoint(&done);
   } else if (carrier.kind == Kind::Fixed && carrier.element) {
@@ -827,7 +1037,11 @@ auto Tetrodotoxin::Library::Llvm::Carriers::release(
     return True;
   }
 
-  if (carrier.kind == Kind::Object) {
+  if (carrier.kind == Kind::Object || carrier.kind == Kind::ObjectStorage) {
+    if (llvm::isa<llvm::ConstantPointerNull>(&native_value)) {
+      return True;
+    }
+
     auto target = get_target(get_program(body));
     if (!target) {
       return False;
@@ -838,18 +1052,32 @@ auto Tetrodotoxin::Library::Llvm::Carriers::release(
         {llvm::PointerType::getUnqual(get_context(*target))}, false);
     builder.CreateCall(
         get_module(*target).getOrInsertFunction(
-            llvm_text(Abi::Memory::Dynamic::Object::release_symbol),
-            &signature),
+            llvm_text(Abi::Core::object_release_symbol), &signature),
         {&native_value});
   } else if (carrier.kind == Kind::Option && carrier.element) {
+    if (is_object(*carrier.element)) {
+      return release(body, *carrier.element, value);
+    }
+
+    llvm::Value& selected =
+        *builder.CreateExtractValue(&native_value, Unsigned_32(1));
+    auto constant = llvm::dyn_cast<llvm::ConstantInt>(&selected);
+    if (constant) {
+      if (constant->isZero()) {
+        return True;
+      }
+
+      llvm::Value& payload =
+          *builder.CreateExtractValue(&native_value, Unsigned_32(0));
+      return release(body, *carrier.element, llvm::wrap(&payload));
+    }
+
     llvm::BasicBlock& drop = *llvm::BasicBlock::Create(
         get_function(*native_body).getContext(), "option.drop",
         &get_function(*native_body));
     llvm::BasicBlock& done = *llvm::BasicBlock::Create(
         get_function(*native_body).getContext(), "option.drop.done",
         &get_function(*native_body));
-    llvm::Value& selected =
-        *builder.CreateExtractValue(&native_value, Unsigned_32(1));
     builder.CreateCondBr(&selected, &drop, &done);
     builder.SetInsertPoint(&drop);
     llvm::Value& payload =
@@ -858,6 +1086,43 @@ auto Tetrodotoxin::Library::Llvm::Carriers::release(
       return False;
     }
 
+    builder.CreateBr(&done);
+    builder.SetInsertPoint(&done);
+  } else if (carrier.kind == Kind::Result && carrier.element && carrier.error) {
+    llvm::Value& selected =
+        *builder.CreateExtractValue(&native_value, Unsigned_32(1));
+    auto constant = llvm::dyn_cast<llvm::ConstantInt>(&selected);
+    if (constant) {
+      Bool value_selected = !constant->isZero();
+      auto selected_result = select_result(body, type, value, value_selected);
+      const Ttx::Model::Type& selected_type =
+          value_selected ? *carrier.element : *carrier.error;
+      return selected_result && release(body, selected_type, *selected_result);
+    }
+
+    llvm::BasicBlock& value_block = *llvm::BasicBlock::Create(
+        get_function(*native_body).getContext(), "result.drop.value",
+        &get_function(*native_body));
+    llvm::BasicBlock& error_block = *llvm::BasicBlock::Create(
+        get_function(*native_body).getContext(), "result.drop.error",
+        &get_function(*native_body));
+    llvm::BasicBlock& done = *llvm::BasicBlock::Create(
+        get_function(*native_body).getContext(), "result.drop.done",
+        &get_function(*native_body));
+    builder.CreateCondBr(&selected, &value_block, &error_block);
+
+    builder.SetInsertPoint(&value_block);
+    auto selected_value = select_result(body, type, value, True);
+    if (!selected_value || !release(body, *carrier.element, *selected_value)) {
+      return False;
+    }
+    builder.CreateBr(&done);
+
+    builder.SetInsertPoint(&error_block);
+    auto selected_error = select_result(body, type, value, False);
+    if (!selected_error || !release(body, *carrier.error, *selected_error)) {
+      return False;
+    }
     builder.CreateBr(&done);
     builder.SetInsertPoint(&done);
   } else if (carrier.kind == Kind::Fixed && carrier.element) {
@@ -896,6 +1161,85 @@ auto Tetrodotoxin::Library::Llvm::Carriers::release(
   }
 
   return True;
+}
+
+auto Tetrodotoxin::Library::Llvm::Carriers::select_result(
+    Ttx::Concept::Abstract& body,
+    const Ttx::Model::Type& type,
+    LLVMValueRef value,
+    Bool value_selected) const -> Core::Option<LLVMValueRef> {
+  auto native_body = get_body(body);
+  auto found = carriers.find(&type);
+  auto native = get_type(type);
+  if (!native_body || !found || !native || !value ||
+      found->value.kind != Kind::Result || !found->value.element ||
+      !found->value.error ||
+      llvm::unwrap(value)->getType() != llvm::unwrap(*native)) {
+    fail_backend(
+        get_program(body),
+        "LLVM cannot select an alternative from an incomplete Result carrier."_view);
+    return {};
+  }
+
+  const Ttx::Model::Type& alternative =
+      value_selected ? *found->value.element : *found->value.error;
+  auto native_alternative = get_type(alternative);
+  if (!native_alternative) {
+    return {};
+  }
+
+  llvm::IRBuilder<>& builder = get_builder(*native_body);
+  LLVMValueRef address = native_body->create_entry_alloca(
+      *native, value_selected ? "result.value"_view : "result.error"_view);
+  builder.CreateStore(llvm::unwrap(value), llvm::unwrap(address));
+  llvm::Value* storage = builder.CreateStructGEP(
+      llvm::unwrap(*native), llvm::unwrap(address), Unsigned_32(0));
+  return llvm::wrap(
+      builder.CreateLoad(llvm::unwrap(*native_alternative), storage));
+}
+
+auto Tetrodotoxin::Library::Llvm::Carriers::assemble_result(
+    Ttx::Concept::Abstract& body,
+    const Ttx::Model::Type& type,
+    const Ttx::Model::Type& alternative,
+    Bool value_selected,
+    Core::View::Vector<LLVMValueRef> elements) const
+    -> Core::Option<LLVMValueRef> {
+  auto native_body = get_body(body);
+  auto found = carriers.find(&type);
+  auto native = get_type(type);
+  if (!native_body || !found || !native || found->value.kind != Kind::Result ||
+      !found->value.element || !found->value.error) {
+    return {};
+  }
+
+  const Ttx::Model::Type& expected =
+      value_selected ? *found->value.element : *found->value.error;
+  if (&expected != &alternative) {
+    return {};
+  }
+
+  auto payload = assemble(body, alternative, elements);
+  if (!payload || !native_body->acquire(alternative, *payload)) {
+    return {};
+  }
+
+  llvm::IRBuilder<>& builder = get_builder(*native_body);
+  llvm::Type* native_type = llvm::unwrap(*native);
+  llvm::Value* aggregate = llvm::UndefValue::get(native_type);
+  aggregate = builder.CreateInsertValue(
+      aggregate, value_selected ? builder.getTrue() : builder.getFalse(),
+      Unsigned_32(1));
+  LLVMValueRef address = native_body->create_entry_alloca(
+      *native, value_selected ? "result.value"_view : "result.error"_view);
+  builder.CreateStore(aggregate, llvm::unwrap(address));
+  llvm::Value* storage = builder.CreateStructGEP(
+      native_type, llvm::unwrap(address), Unsigned_32(0));
+  builder.CreateStore(llvm::unwrap(*payload), storage);
+  llvm::Value* selected =
+      builder.CreateLoad(native_type, llvm::unwrap(address));
+  native_body->mark_owned(type, llvm::wrap(selected));
+  return llvm::wrap(selected);
 }
 
 auto Tetrodotoxin::Library::Llvm::Carriers::assemble(
@@ -940,6 +1284,11 @@ auto Tetrodotoxin::Library::Llvm::Carriers::assemble(
       return {};
     }
 
+    if (is_object(*carrier.element)) {
+      native_body->mark_owned(type, *payload);
+      return payload;
+    }
+
     llvm::Value& aggregate = *llvm::UndefValue::get(&native_type);
     llvm::Value& with_payload = *builder.CreateInsertValue(
         &aggregate, llvm::unwrap(*payload), Unsigned_32(0));
@@ -947,7 +1296,13 @@ auto Tetrodotoxin::Library::Llvm::Carriers::assemble(
         &with_payload, builder.getTrue(), Unsigned_32(1));
     native_body->mark_owned(type, llvm::wrap(&selected));
     return llvm::wrap(&selected);
-  } else if (carrier.kind == Kind::Object) {
+  } else if (carrier.kind == Kind::Result) {
+    fail_backend(
+        get_program(body),
+        "LLVM Result assembly requires one explicitly selected alternative."_view);
+    return {};
+  } else if (
+      carrier.kind == Kind::Object || carrier.kind == Kind::ObjectStorage) {
     fail_backend(
         get_program(body),
         "LLVM cannot assemble an Object handle from inline payload values."_view);
@@ -1121,6 +1476,32 @@ auto Tetrodotoxin::Library::Llvm::Carriers::fit_and_assemble(
                   : Core::Option<LLVMValueRef>();
   }
 
+  if (carrier.kind == Kind::Result && carrier.element && carrier.error) {
+    auto semantic = source.select<Language::Model::Pack>();
+    Bool value = semantic ? semantic->fits_into(*carrier.element) : False;
+    Bool error = semantic ? semantic->fits_into(*carrier.error) : False;
+    if (value == error) {
+      fail_backend(
+          get_program(body),
+          "LLVM cannot select exactly one Result alternative for received flow."_view);
+      return {};
+    }
+
+    const Ttx::Model::Type& alternative =
+        value ? *carrier.element : *carrier.error;
+    auto native_alternative = get_type(alternative);
+    if (elements.get_size() == 1 && native_alternative &&
+        llvm::unwrap(elements[0])->getType() ==
+            llvm::unwrap(*native_alternative)) {
+      return assemble_result(body, type, alternative, value, elements);
+    }
+
+    auto fitted = fit_values(body, source, alternative.get_layout(), elements);
+    return fitted ? assemble_result(
+                        body, type, alternative, value, fitted->get_view())
+                  : Core::Option<LLVMValueRef>();
+  }
+
   auto fitted = fit_values(body, source, type.get_layout(), elements);
   return fitted ? assemble(body, type, fitted->get_view())
                 : Core::Option<LLVMValueRef>();
@@ -1135,22 +1516,68 @@ auto Tetrodotoxin::Library::Llvm::Carriers::fit(
   return fit_values(body, source, target, values);
 }
 
-auto Tetrodotoxin::Library::Llvm::Carriers::get_object_finalizer(
+auto Tetrodotoxin::Library::Llvm::Carriers::get_object_descriptor(
     Ttx::Concept::Abstract& program,
     const Ttx::Model::Type& type) const -> Core::Option<LLVMValueRef> {
   auto found = carriers.find(&type);
-  if (!found || found->value.kind != Kind::Object ||
-      found->value.phase != Phase::Complete || !found->value.payload ||
-      !found->value.fields) {
+  if (!found || found->value.phase != Phase::Complete) {
     fail_backend(
         program,
-        "LLVM cannot select an Object finalizer before carrier completion."_view);
+        "LLVM cannot select an Object descriptor before carrier completion."_view);
     return {};
   }
 
   Carrier& carrier = found->value;
   auto target = get_target(program);
   if (!target) {
+    return {};
+  }
+
+  if (carrier.kind == Kind::ObjectStorage) {
+    auto native_element = carrier.element ? get_type(*carrier.element)
+                                          : Core::Option<LLVMTypeRef>();
+    if (!native_element) {
+      fail_backend(
+          program,
+          "LLVM cannot describe Object[T] before its element carrier."_view);
+      return {};
+    }
+
+    if (!carrier.descriptor) {
+      llvm::Type& count = *llvm::Type::getInt64Ty(get_context(*target));
+      llvm::Type& pointer = *llvm::PointerType::getUnqual(get_context(*target));
+      llvm::StructType& descriptor_type = *llvm::StructType::get(
+          get_context(*target), {&count, &count, &pointer});
+      const llvm::DataLayout& layout = get_module(*target).getDataLayout();
+      llvm::Constant& size = *llvm::ConstantInt::get(
+          &count, layout.getTypeAllocSize(llvm::unwrap(*native_element))
+                      .getFixedValue());
+      llvm::Constant& alignment = *llvm::ConstantInt::get(
+          &count,
+          layout.getABITypeAlign(llvm::unwrap(*native_element)).value());
+      llvm::FunctionType& finalizer_type = *llvm::FunctionType::get(
+          llvm::Type::getVoidTy(get_context(*target)), {&pointer}, false);
+      llvm::Constant& finalizer = *llvm::cast<llvm::Constant>(
+          get_module(*target)
+              .getOrInsertFunction(
+                  llvm_text(Abi::Core::object_finalize_trivial_symbol),
+                  &finalizer_type)
+              .getCallee());
+      llvm::Constant& descriptor_value = *llvm::ConstantStruct::get(
+          &descriptor_type, {&size, &alignment, &finalizer});
+      Symbol name(target->get_arena(), type, Symbol::Kind::ObjectDescriptor);
+      carrier.descriptor = llvm::wrap(new llvm::GlobalVariable(
+          get_module(*target), &descriptor_type, true,
+          llvm::GlobalValue::InternalLinkage, &descriptor_value,
+          llvm_text(name.get_view())));
+    }
+
+    return carrier.descriptor;
+  }
+
+  if (carrier.kind != Kind::Object || !carrier.payload || !carrier.fields) {
+    fail_backend(
+        program, "LLVM selected a descriptor for a non-Object carrier."_view);
     return {};
   }
 
@@ -1167,47 +1594,67 @@ auto Tetrodotoxin::Library::Llvm::Carriers::get_object_finalizer(
 
   llvm::Function& finalizer =
       *llvm::cast<llvm::Function>(llvm::unwrap(*carrier.finalizer));
-  if (!finalizer.empty()) {
-    return llvm::wrap(&finalizer);
+  if (finalizer.empty()) {
+    Body body(*target, type, llvm::wrap(&finalizer));
+    llvm::IRBuilder<>& builder = get_builder(body);
+    llvm::BasicBlock& entry =
+        *llvm::BasicBlock::Create(finalizer.getContext(), "entry", &finalizer);
+    builder.SetInsertPoint(&entry);
+    llvm::Value& payload = *finalizer.getArg(0);
+    for (Count index = carrier.fields->get_size(); index != 0; index--) {
+      auto field = select_field_type(*carrier.fields, index - 1);
+      if (!field) {
+        fail_backend(
+            program,
+            "LLVM cannot finalize an Object with an invalid Field edge."_view);
+        return {};
+      }
+
+      if (!owns_resources(*field)) {
+        continue;
+      }
+
+      auto native = get_type(*field);
+      if (!native) {
+        fail_backend(
+            program,
+            "LLVM cannot emit an Object finalizer without every Field carrier."_view);
+        return {};
+      }
+
+      llvm::Value& address = *builder.CreateStructGEP(
+          llvm::unwrap(*carrier.payload), &payload, Unsigned_32(index - 1));
+      llvm::Value& value = *builder.CreateLoad(llvm::unwrap(*native), &address);
+      if (!release(body, *field, llvm::wrap(&value))) {
+        return {};
+      }
+    }
+
+    builder.CreateRetVoid();
   }
 
-  Body body(*target, type, llvm::wrap(&finalizer));
-  llvm::IRBuilder<>& builder = get_builder(body);
-  llvm::BasicBlock& entry =
-      *llvm::BasicBlock::Create(finalizer.getContext(), "entry", &finalizer);
-  builder.SetInsertPoint(&entry);
-  llvm::Value& payload = *finalizer.getArg(0);
-  for (Count index = carrier.fields->get_size(); index != 0; index--) {
-    auto field = select_field_type(*carrier.fields, index - 1);
-    if (!field) {
-      fail_backend(
-          program,
-          "LLVM cannot finalize an Object with an invalid Field edge."_view);
-      return {};
-    }
-
-    if (!owns_resources(*field)) {
-      continue;
-    }
-
-    auto native = get_type(*field);
-    if (!native) {
-      fail_backend(
-          program,
-          "LLVM cannot emit an Object finalizer without every Field carrier."_view);
-      return {};
-    }
-
-    llvm::Value& address = *builder.CreateStructGEP(
-        llvm::unwrap(*carrier.payload), &payload, Unsigned_32(index - 1));
-    llvm::Value& value = *builder.CreateLoad(llvm::unwrap(*native), &address);
-    if (!release(body, *field, llvm::wrap(&value))) {
-      return {};
-    }
+  if (!carrier.descriptor) {
+    llvm::Type& count = *llvm::Type::getInt64Ty(get_context(*target));
+    llvm::Type& pointer = *llvm::PointerType::getUnqual(get_context(*target));
+    llvm::StructType& descriptor_type = *llvm::StructType::get(
+        get_context(*target), {&count, &count, &pointer});
+    const llvm::DataLayout& layout = get_module(*target).getDataLayout();
+    llvm::Constant& size = *llvm::ConstantInt::get(
+        &count, layout.getTypeAllocSize(llvm::unwrap(*carrier.payload))
+                    .getFixedValue());
+    llvm::Constant& alignment = *llvm::ConstantInt::get(
+        &count, layout.getABITypeAlign(llvm::unwrap(*carrier.payload)).value());
+    llvm::Constant& finalizer_pointer = finalizer;
+    llvm::Constant& descriptor_value = *llvm::ConstantStruct::get(
+        &descriptor_type, {&size, &alignment, &finalizer_pointer});
+    Symbol name(target->get_arena(), type, Symbol::Kind::ObjectDescriptor);
+    carrier.descriptor = llvm::wrap(new llvm::GlobalVariable(
+        get_module(*target), &descriptor_type, true,
+        llvm::GlobalValue::InternalLinkage, &descriptor_value,
+        llvm_text(name.get_view())));
   }
 
-  builder.CreateRetVoid();
-  return llvm::wrap(&finalizer);
+  return carrier.descriptor;
 }
 
 auto Tetrodotoxin::Library::Llvm::Carriers::construct(
@@ -1223,8 +1670,8 @@ auto Tetrodotoxin::Library::Llvm::Carriers::construct(
 
   Carrier& carrier = found->value;
   auto target = get_target(get_program(body));
-  auto finalizer = get_object_finalizer(get_program(body), type);
-  if (!native_body || !target || !carrier.payload || !finalizer ||
+  auto descriptor = get_object_descriptor(get_program(body), type);
+  if (!native_body || !target || !carrier.payload || !descriptor ||
       !carrier.fields || values.get_size() != carrier.fields->get_size()) {
     fail_backend(
         get_program(body),
@@ -1234,19 +1681,12 @@ auto Tetrodotoxin::Library::Llvm::Carriers::construct(
 
   llvm::FunctionType& signature = *llvm::FunctionType::get(
       llvm::PointerType::getUnqual(get_context(*target)),
-      {llvm::Type::getInt64Ty(get_context(*target)),
-       llvm::PointerType::getUnqual(get_context(*target))},
-      false);
+      {llvm::PointerType::getUnqual(get_context(*target))}, false);
   llvm::IRBuilder<>& builder = get_builder(*native_body);
   llvm::Value& payload = *builder.CreateCall(
       get_module(*target).getOrInsertFunction(
-          llvm_text(Abi::Memory::Dynamic::Object::allocate_symbol), &signature),
-      {builder.getInt64(get_module(*target)
-                            .getDataLayout()
-                            .getTypeAllocSize(llvm::unwrap(*carrier.payload))
-                            .getFixedValue()),
-       llvm::unwrap(*finalizer)},
-      "object");
+          llvm_text(Abi::Core::object_allocate_symbol), &signature),
+      {llvm::unwrap(*descriptor)}, "object");
   for (Count index = 0; index < carrier.fields->get_size(); index++) {
     auto field_type = select_field_type(*carrier.fields, index);
     if (!field_type) {

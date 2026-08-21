@@ -30,11 +30,49 @@ auto Language::Signature::interpret(Cursor& cursor, const Abstract& host)
   return signature;
 }
 
+auto Language::Signature::persist(Archive::Writer& writer) const -> Bool {
+  auto record = writer.begin(Archive::Tag::Signature);
+  BAIL_IF(
+      !parameters.persist(writer) || !results.persist(writer) ||
+      !writer.finish(record));
+  return True;
+}
+
+auto Language::Signature::restore(
+    Archive::Reader& reader,
+    Allocator::Arena& arena,
+    const Abstract& host) -> Option<Signature&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != Unsigned_16(Archive::Tag::Signature) ||
+      record->is_optional());
+
+  Archive::Reader contents(record->get_payload());
+  auto parameters = Model::Layout::restore(contents, arena, host, True);
+  auto results = Model::Layout::restore(contents, arena, host, False);
+  BAIL_IF(!parameters || !results || !contents.is_complete());
+
+  return arena.construct_from<Signature>(
+      [&]() -> Signature { return Signature(host, *parameters, *results); });
+}
+
+auto Language::Signature::link_restored() -> Bool {
+  BAIL_IF(!parameters.link_restored(host, True));
+  auto first = parameters.get_abstract(0);
+  auto self = first ? first->select<Ttx::Model::Addressable>()
+                    : Option<const Ttx::Model::Addressable&>();
+  return results.link_restored(host, False, self);
+}
+
 auto Language::Signature::link(Cursor& cursor) -> Bool {
   // Both models run so one malformed parameter cannot hide an independent
   // result diagnostic. Each model owns idempotence for its exact staged edges.
   Bool parameters_linked = parameters.link_parameters(cursor, host);
-  Bool results_linked = results.link_types(cursor, host);
+  auto first = parameters_linked ? parameters.get_abstract(0)
+                                 : Option<const Abstract&>();
+  auto self = first ? first->select<Ttx::Model::Addressable>()
+                    : Option<const Ttx::Model::Addressable&>();
+  Bool results_linked = results.link_types(cursor, host, self);
   return parameters_linked && results_linked;
 }
 

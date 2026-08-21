@@ -1,0 +1,12 @@
+// System ABI Package consumer.
+dialect : Library;
+
+using Helper;
+using Memory;
+
+public run : func = [] -> [] {
+  state prefix := Helper -> prefix();
+  state line   := System::Terminal -> read_line()?;
+  state view   := line -> get_view();
+  System::Terminal -> write_line(Dynamic::Bytes -> concat(prefix, view))?;
+}

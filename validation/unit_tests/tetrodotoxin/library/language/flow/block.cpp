@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/flow/block.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -30,10 +31,6 @@ static Harness BlockTests = {
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "BlockTest"_view, "block.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -62,14 +59,15 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
       "// Block owner.\n"
       "dialect : Library;\n"
       "public Packet : struct {\n"
-      "  public touch : func = [] -> [] { return; }\n"
+      "  public touch : func = [] -> [] : return;\n"
       "  public empty : func = [] -> [] {}\n"
       "  public body : func = [.input : Unsigned_64] -> Unsigned_64 {\n"
       "    (Packet -> touch());\n"
       "    return input;\n"
       "  }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -81,17 +79,27 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
       static_cast<const Language::Types::Structure&>(packet_identity);
   auto empty = find_function(packet, "empty"_view);
   auto body = find_function(packet, "body"_view);
+  auto touch = find_function(packet, "touch"_view);
   ASSERT(empty && empty->get_body());
   ASSERT(body && body->get_body());
+  ASSERT(touch && touch->get_body());
 
   const Language::Flow::Block& empty_block = *empty->get_body();
   const Language::Flow::Block& populated = *body->get_body();
+  const Language::Flow::Block& single = *touch->get_body();
   EXPECT(empty_block.get_statements().is_empty());
   EXPECT(
       empty_block.get_anchor().get_span().caculate_text(source) == "{}"_view);
   EXPECT(
       populated.get_anchor().get_span().caculate_text(source) ==
       "{\n    (Packet -> touch());\n    return input;\n  }"_view);
+  ASSERT_EQ(single.get_statements().get_size(), Count(1));
+  EXPECT(single.get_statements()
+             .get_data()[0]
+             .get_root()
+             .is<Language::Flow::Return>());
+  EXPECT_TEXT(
+      single.get_anchor().get_span().caculate_text(source), ": return;"_view);
 
   auto statements = populated.get_statements();
   ASSERT_EQ(statements.get_size(), Count(2));
@@ -138,7 +146,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, free_expressions_are_statements) {
       "  Bool;\n"
       "  return;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -166,7 +175,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, nested_block_and_documentation_are_retained) {
       "  }\n"
       "  return;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -206,7 +216,8 @@ PERIMORTEM_UNIT_TEST(BlockTests, failed_scope_is_not_published) {
       "    input;\n"
       "  }\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   EXPECT_NOT(interpret(workspace, errors, source));
   EXPECT_NOT(errors.is_empty());

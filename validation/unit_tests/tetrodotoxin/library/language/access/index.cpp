@@ -170,8 +170,7 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, scalar_write_target_rejects_value_read) {
       parse_index(domain, monograph, "storage[1]"_view, unsigned_errors);
   ASSERT(unsigned_index);
   Tokenizer unsigned_tokens(domain, "storage[1]"_view, "index.ttx"_view);
-  Ttx::Lexical::Associations unsigned_associations(
-      unsigned_tokens.get_arena());
+  Ttx::Lexical::Associations unsigned_associations(unsigned_tokens.get_arena());
   Cursor unsigned_cursor(
       unsigned_tokens, unsigned_errors, unsigned_associations);
   Errors source_errors;
@@ -211,10 +210,8 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, scalar_write_target_rejects_value_read) {
       parse_index(domain, monograph, "storage[-1]"_view, signed_errors);
   ASSERT(signed_index);
   Tokenizer signed_tokens(domain, "storage[-1]"_view, "index.ttx"_view);
-  Ttx::Lexical::Associations signed_associations(
-      signed_tokens.get_arena());
-  Cursor signed_cursor(
-      signed_tokens, signed_errors, signed_associations);
+  Ttx::Lexical::Associations signed_associations(signed_tokens.get_arena());
+  Cursor signed_cursor(signed_tokens, signed_errors, signed_associations);
   EXPECT(signed_index->link_write(signed_cursor, context, element, *source));
   EXPECT(&signed_index->get_element_type() == &element);
   EXPECT(signed_errors.is_empty());
@@ -255,8 +252,7 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, ranged_write_is_complete_pack_atomic) {
   auto short_source = parse_pack(domain, monograph, "1"_view, short_errors);
   ASSERT(short_source);
   Tokenizer short_tokens(domain, "storage[1, 2]"_view, "index.ttx"_view);
-  Ttx::Lexical::Associations short_associations(
-      short_tokens.get_arena());
+  Ttx::Lexical::Associations short_associations(short_tokens.get_arena());
   Cursor short_cursor(short_tokens, short_errors, short_associations);
   EXPECT_NOT(index->link_write(short_cursor, context, element, *short_source));
   EXPECT_NOT(short_errors.is_empty());
@@ -281,8 +277,7 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, invalid_domains_are_rejected) {
       domain, receiver_source, "value[1]"_view, receiver_parse_errors);
   ASSERT(invalid_receiver);
   Tokenizer receiver_tokens(domain, "value[1]"_view, "index.ttx"_view);
-  Ttx::Lexical::Associations receiver_associations(
-      receiver_tokens.get_arena());
+  Ttx::Lexical::Associations receiver_associations(receiver_tokens.get_arena());
   Cursor receiver_cursor(
       receiver_tokens, receiver_parse_errors, receiver_associations);
   EXPECT_NOT(invalid_receiver->link(receiver_cursor, value_context));
@@ -296,10 +291,8 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, invalid_domains_are_rejected) {
       domain, index_source, "storage[true]"_view, index_parse_errors);
   ASSERT(invalid_index);
   Tokenizer index_tokens(domain, "storage[true]"_view, "index.ttx"_view);
-  Ttx::Lexical::Associations index_associations(
-      index_tokens.get_arena());
-  Cursor index_cursor(
-      index_tokens, index_parse_errors, index_associations);
+  Ttx::Lexical::Associations index_associations(index_tokens.get_arena());
+  Cursor index_cursor(index_tokens, index_parse_errors, index_associations);
   EXPECT_NOT(invalid_index->link(index_cursor, storage_context));
   EXPECT_NOT(index_parse_errors.is_empty());
 }

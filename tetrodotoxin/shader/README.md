@@ -122,11 +122,11 @@ leaking into Library, Render, or Shader's shared bridge.
 
 ## Persistence
 
-Shader can be stored in a Package Archive and rebuilt without its source file.
-A Complete payload keeps the stage organization, contracts, bridge details, and
-Complete Library and Render children needed to compile it again. An Interface
-payload keeps the public CPU and GPU contracts, bridge details, and compiled
-artifact locations, but leaves out executable bodies.
+Shader can be stored in a Package Archive and reconstructed without its source
+file. A Complete payload keeps its public and private stage, bridge, Library,
+and Render query contracts. An Interface payload keeps their public CPU and GPU
+closure plus compiled artifact locations. Shader operations and stage bodies
+remain source or live Workspace facts.
 
 Neither profile stores live backend handles, commands, device resources,
 generated SPIR-V, or source-level debugging data.

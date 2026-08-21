@@ -4,14 +4,19 @@
 #include "tetrodotoxin/library/language/access/call.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
+#include "tetrodotoxin/library/builtin/fixed/access.hpp"
+#include "tetrodotoxin/library/builtin/fixed/view.hpp"
+#include "tetrodotoxin/library/builtin/view/is_empty.hpp"
+#include "tetrodotoxin/library/builtin/view/size.hpp"
+#include "tetrodotoxin/library/builtin/view/slice.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/access/address.hpp"
-#include "tetrodotoxin/library/language/builtins/get_access.hpp"
-#include "tetrodotoxin/library/language/builtins/get_size.hpp"
+#include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/flow/local.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
@@ -52,10 +57,6 @@ static auto find_call(const Language::Function& function)
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "CallTest"_view, "call.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -66,7 +67,8 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   if (monograph || errors.is_empty()) {
@@ -77,7 +79,8 @@ static auto rejects_link(View::Bytes source) -> Bool {
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   if (monograph || errors.is_empty()) {
@@ -116,9 +119,12 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
       "  state borrowed : Access[Unsigned_64] = dense -> get_access();\n"
       "  state viewed : View[Unsigned_64];\n"
       "  viewed -> get_size();\n"
+      "  viewed -> is_empty();\n"
+      "  borrowed -> is_empty();\n"
       "  return borrowed -> get_size();\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -134,7 +140,7 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
   }
   ASSERT(run && run->get_body());
   auto statements = run->get_body()->get_statements();
-  ASSERT_EQ(statements.get_size(), Count(5));
+  ASSERT_EQ(statements.get_size(), Count(7));
 
   const auto& dense = static_cast<const Language::Flow::Local&>(
       statements.get_data()[0].get_root());
@@ -142,7 +148,13 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
       dense.get_type(), "get_access"_view,
       Tetrodotoxin::Language::Visibility::Public);
   ASSERT(fixed_access);
-  EXPECT(fixed_access->is<Language::Builtins::GetAccess>());
+  EXPECT(fixed_access->is<Builtin::Fixed::Access>());
+
+  auto fixed_view = find_type_callable(
+      dense.get_type(), "get_view"_view,
+      Tetrodotoxin::Language::Visibility::Public);
+  ASSERT(fixed_view);
+  EXPECT(fixed_view->is<Builtin::Fixed::View>());
 
   const auto& borrowed = static_cast<const Language::Flow::Local&>(
       statements.get_data()[1].get_root());
@@ -150,7 +162,19 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
       borrowed.get_type(), "get_size"_view,
       Tetrodotoxin::Language::Visibility::Public);
   ASSERT(access_size);
-  EXPECT(access_size->is<Language::Builtins::GetSize>());
+  EXPECT(access_size->is<Builtin::View::Size>());
+
+  auto access_empty = find_type_callable(
+      borrowed.get_type(), "is_empty"_view,
+      Tetrodotoxin::Language::Visibility::Public);
+  ASSERT(access_empty);
+  EXPECT(access_empty->is<Builtin::View::IsEmpty>());
+
+  auto access_slice = find_type_callable(
+      borrowed.get_type(), "slice"_view,
+      Tetrodotoxin::Language::Visibility::Public);
+  ASSERT(access_slice);
+  EXPECT(access_slice->is<Builtin::View::Slice>());
 
   const auto& viewed = static_cast<const Language::Flow::Local&>(
       statements.get_data()[2].get_root());
@@ -158,28 +182,50 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
       viewed.get_type(), "get_size"_view,
       Tetrodotoxin::Language::Visibility::Public);
   ASSERT(view_size);
-  EXPECT(view_size->is<Language::Builtins::GetSize>());
+  EXPECT(view_size->is<Builtin::View::Size>());
+
+  auto view_empty = find_type_callable(
+      viewed.get_type(), "is_empty"_view,
+      Tetrodotoxin::Language::Visibility::Public);
+  ASSERT(view_empty);
+  EXPECT(view_empty->is<Builtin::View::IsEmpty>());
+
+  auto view_slice = find_type_callable(
+      viewed.get_type(), "slice"_view,
+      Tetrodotoxin::Language::Visibility::Public);
+  ASSERT(view_slice);
+  EXPECT(view_slice->is<Builtin::View::Slice>());
 
   ASSERT(statements.get_data()[3].get_root().is<Language::Access::Call>());
   const auto& view_call = static_cast<const Language::Access::Call&>(
       statements.get_data()[3].get_root());
   ASSERT(view_call.get_callable());
   EXPECT(&*view_call.get_callable() == &*view_size);
+  ASSERT(statements.get_data()[4].get_root().is<Language::Access::Call>());
+  const auto& view_empty_call = static_cast<const Language::Access::Call&>(
+      statements.get_data()[4].get_root());
+  ASSERT(view_empty_call.get_callable());
+  EXPECT(&*view_empty_call.get_callable() == &*view_empty);
+  ASSERT(statements.get_data()[5].get_root().is<Language::Access::Call>());
+  const auto& access_empty_call = static_cast<const Language::Access::Call&>(
+      statements.get_data()[5].get_root());
+  ASSERT(access_empty_call.get_callable());
+  EXPECT(&*access_empty_call.get_callable() == &*access_empty);
   ASSERT(borrowed.get_initializer());
   ASSERT(borrowed.get_initializer()->is<Language::Access::Call>());
   const auto& get_access =
       static_cast<const Language::Access::Call&>(*borrowed.get_initializer());
   ASSERT(get_access.get_callable());
-  EXPECT(get_access.get_callable()->is<Language::Builtins::GetAccess>());
+  EXPECT(get_access.get_callable()->is<Builtin::Fixed::Access>());
   EXPECT(get_access.get_type().resolve().is<Language::Types::Access>());
 
   const auto& returned = static_cast<const Language::Flow::Return&>(
-      statements.get_data()[4].get_root());
+      statements.get_data()[6].get_root());
   ASSERT(returned.get_pack().is<Language::Access::Call>());
   const auto& get_size =
       static_cast<const Language::Access::Call&>(returned.get_pack());
   ASSERT(get_size.get_callable());
-  EXPECT(get_size.get_callable()->is<Language::Builtins::GetSize>());
+  EXPECT(get_size.get_callable()->is<Builtin::View::Size>());
   EXPECT_TEXT(get_size.get_type().resolve().get_name(), "Unsigned_64"_view);
 
   const Abstract& custom_identity =
@@ -190,6 +236,69 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
       *custom, "get_size"_view, Tetrodotoxin::Language::Visibility::Public);
   ASSERT(custom_size);
   EXPECT(custom_size->is<Language::Function>());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(CallTests, contiguous_borrow_operations_link) {
+  static constexpr View::Bytes source =
+      "// Contiguous borrowing operations.\n"
+      "dialect : Library;\n"
+      "private run : func = [] -> Unsigned_64 {\n"
+      "  const label : View[Unsigned_8] = \"Echo\" -> get_view();\n"
+      "  const start : Unsigned_64 = 1;\n"
+      "  const count : Unsigned_64 = 99;\n"
+      "  const label_tail : View[Unsigned_8] = "
+      "label -> slice(.start = start, .count = count);\n"
+      "  state dense : Fixed[Unsigned_64, 3] = (1, 2, 3);\n"
+      "  state viewed : View[Unsigned_64] = dense -> get_view();\n"
+      "  state writable : Access[Unsigned_64] = dense -> get_access();\n"
+      "  state tail : View[Unsigned_64] = viewed -> slice(1, 99);\n"
+      "  state write_tail : View[Unsigned_64] = writable -> slice(9, 1);\n"
+      "  return label -> get_size() + tail -> get_size() + "
+      "write_tail -> get_size();\n"
+      "}"_view;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  Option<const Language::Function&> run;
+  for (const Reference<Abstract>& callable :
+       monograph->get_source().get_callables()) {
+    if (callable.get().get_name() == "run"_view &&
+        callable.get().is<Language::Function>()) {
+      run = static_cast<const Language::Function&>(callable.get());
+      break;
+    }
+  }
+  ASSERT(run && run->get_body());
+  auto statements = run->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(10));
+
+  const auto& label = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[0].get_root());
+  ASSERT(label.get_initializer());
+  auto get_view = label.get_initializer()->select<Language::Access::Call>();
+  ASSERT(get_view && get_view->get_callable());
+  EXPECT(get_view->get_receiver()
+             .get_type()
+             .resolve()
+             .is<Language::Types::Fixed>());
+  EXPECT(get_view->get_callable()->is<Builtin::Fixed::View>());
+  auto folded = label.get_constant();
+  ASSERT(folded && folded->is<Language::Constants::Bytes>());
+  EXPECT_TEXT(
+      static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
+      "Echo"_view);
+
+  const auto& label_tail = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[3].get_root());
+  folded = label_tail.get_constant();
+  ASSERT(folded && folded->is<Language::Constants::Bytes>());
+  EXPECT_TEXT(
+      static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
+      "cho"_view);
   EXPECT(errors.is_empty());
 }
 
@@ -259,7 +368,8 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
       "  }\n"
       "}\n"
       "public Later : struct { public state value : Bool; }"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -388,7 +498,8 @@ PERIMORTEM_UNIT_TEST(CallTests, definition_host_grants_private_authority) {
       "}\n"
       "public VaultAlias : alias = Vault;\n"
       "private public_alias := VaultAlias -> open();"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, accepted);
   ASSERT(monograph);
@@ -448,7 +559,8 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
       "  seed -> self_none();\n"
       "  seed -> self_one();\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -525,7 +637,8 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
       "}\n"
       "private seed : Packet;\n"
       "private invalid := Results -> identity(seed).value;"_view;
-  Workspace invalid_workspace;
+  auto invalid_workspace_toolchain = create_library_toolchain();
+  Workspace invalid_workspace(*invalid_workspace_toolchain);
   Errors invalid_errors;
   auto invalid_monograph =
       interpret(invalid_workspace, invalid_errors, invalid_source);

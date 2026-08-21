@@ -84,10 +84,12 @@ static auto log_file_warning(
 // Classifies and sizes the same opened object that will provide the content.
 // Reading metadata through its descriptor prevents a pathname replacement from
 // changing which object the transaction observes.
-static auto get_file_size(FILE* file, View::Bytes operation, View::Bytes path)
-    -> Option<Count> {
+static auto get_file_fingerprint(
+    Signed_32 descriptor,
+    View::Bytes operation,
+    View::Bytes path) -> Option<File::Fingerprint> {
   struct stat64 status;
-  Signed_32 status_read = fstat64(fileno(file), &status);
+  Signed_32 status_read = fstat64(descriptor, &status);
   if (status_read != 0) {
     Signed_32 status_error = errno;
     log_file_warning(
@@ -115,7 +117,10 @@ static auto get_file_size(FILE* file, View::Bytes operation, View::Bytes path)
     return {};
   }
 
-  return Option<Count>(Count(size));
+  return File::Fingerprint(
+      Unsigned_64(status.st_dev), Unsigned_64(status.st_ino), size,
+      Signed_64(status.st_mtim.tv_sec), Signed_64(status.st_mtim.tv_nsec),
+      Signed_64(status.st_ctim.tv_sec), Signed_64(status.st_ctim.tv_nsec));
 }
 
 // Fills either a Dynamic or Managed Bytes by resizing it to the valid size and
@@ -125,14 +130,16 @@ template <typename bytes_type>
 static auto read_file(
     FILE* file,
     bytes_type& data,
+    File::Fingerprint& fingerprint,
     View::Bytes operation,
     View::Bytes path) -> Bool {
-  auto file_size = get_file_size(file, operation, path);
-  if (!file_size) {
+  auto selected = get_file_fingerprint(fileno(file), operation, path);
+  if (!selected) {
     return False;
   }
 
-  Count size = *file_size;
+  fingerprint = *selected;
+  Count size = selected->get_size();
   data.resize(size);
   if (size == 0) {
     return True;
@@ -287,7 +294,8 @@ template <typename bytes_type>
 static auto read_root_member(
     Signed_32 descriptor,
     View::Bytes relative_path,
-    bytes_type& data) -> Bool {
+    bytes_type& data,
+    File::Fingerprint& fingerprint) -> Bool {
   // Stage 1: Produce the bounded relative spelling shared by diagnostics and
   // kernel resolution. Empty, rooted, and malformed routes never reach open.
   Static::Bytes<max_path_size> path_buffer;
@@ -326,7 +334,8 @@ static auto read_root_member(
 
   // Stage 3: Classify and fill the selected byte owner from the same stream.
   // Checked closure completes the transaction even when content already read.
-  Bool read = read_file(file, data, root_read_operation, relative_path);
+  Bool read =
+      read_file(file, data, fingerprint, root_read_operation, relative_path);
   Bool closed = close_stream(file, root_read_operation, relative_path);
   return read && closed;
 #else
@@ -360,7 +369,8 @@ static auto read_file(View::Bytes location, bytes_type& data) -> Bool {
 
   // Stage 3: Fill the storage selected by the public overload and include
   // stream closure in the reported result.
-  Bool read = read_file(file, data, file_read_operation, location);
+  File::Fingerprint fingerprint;
+  Bool read = read_file(file, data, fingerprint, file_read_operation, location);
   Bool closed = close_stream(file, file_read_operation, location);
   return read && closed;
 }
@@ -437,7 +447,8 @@ auto File::Root::read(View::Bytes relative_path) const
     -> Option<Dynamic::Bytes> {
   // Dynamic storage gives this overload an independently owned result.
   Dynamic::Bytes data;
-  Bool read = read_root_member(descriptor, relative_path, data);
+  File::Fingerprint fingerprint;
+  Bool read = read_root_member(descriptor, relative_path, data, fingerprint);
   if (!read) {
     return {};
   }
@@ -445,12 +456,51 @@ auto File::Root::read(View::Bytes relative_path) const
   return Option<Dynamic::Bytes>(static_cast<Dynamic::Bytes&&>(data));
 }
 
+auto File::Root::read_snapshot(View::Bytes relative_path) const
+    -> Option<File::Snapshot> {
+  Dynamic::Bytes data;
+  File::Fingerprint fingerprint;
+  Bool read = read_root_member(descriptor, relative_path, data, fingerprint);
+  if (!read) {
+    return {};
+  }
+
+  return File::Snapshot(Data::take(data), fingerprint);
+}
+
+auto File::Root::fingerprint(View::Bytes relative_path) const
+    -> Option<File::Fingerprint> {
+  Static::Bytes<max_path_size> path_buffer;
+  auto path = create_relative_path(path_buffer, relative_path);
+  if (!path) {
+    return {};
+  }
+
+  const char* native_path = Data::cast<const char>((*path).get_data());
+
+#ifdef PERI_LINUX
+  Signed_32 member = open_root_member(
+      descriptor, native_path, Unsigned_64(O_RDONLY | O_CLOEXEC));
+  if (member < 0) {
+    return {};
+  }
+
+  auto selected =
+      get_file_fingerprint(member, root_read_operation, relative_path);
+  Bool closed = close_descriptor(member, root_read_operation, relative_path);
+  return closed ? selected : Option<File::Fingerprint>();
+#else
+#error Perimortem does not have a file implementation for this platform.
+#endif
+}
+
 auto File::Root::read(Allocator::Arena& arena, View::Bytes relative_path) const
     -> Option<View::Bytes> {
   // Arena storage makes the returned view stable for the caller's Arena
   // lifetime while using the same file transaction as the Dynamic overload.
   Managed::Bytes data(arena);
-  Bool read = read_root_member(descriptor, relative_path, data);
+  File::Fingerprint fingerprint;
+  Bool read = read_root_member(descriptor, relative_path, data, fingerprint);
   if (!read) {
     return {};
   }

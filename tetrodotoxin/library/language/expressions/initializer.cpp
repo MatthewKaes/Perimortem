@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 
+#include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -137,6 +138,23 @@ auto Language::Expressions::Initializer::get_completed_values() const
           -> Core::Option<const Model::Pack&> { return selected.get(); });
 }
 
+auto Language::Expressions::Initializer::evaluate()
+    -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
+  return completed_values.visit(
+      []() -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
+        return Core::Option<Model::Pack&>();
+      },
+      [&](Reference<Model::Pack>& selected)
+          -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
+        auto constant = selected.get().select<Constant>();
+        return constant && expected_type &&
+                       &constant->get_type().resolve() ==
+                           &expected_type->get().resolve()
+                   ? Core::Option<Model::Pack&>(selected.get())
+                   : Core::Option<Model::Pack&>();
+      });
+}
+
 auto Language::Expressions::Initializer::lower(Llvm::Builder& body) const
     -> Bool {
   auto folded = lower_folded(body);
@@ -154,6 +172,11 @@ auto Language::Expressions::Initializer::lower(Llvm::Builder& body) const
   Bool lowered = values->lower(body);
   if (!lowered) {
     return False;
+  }
+
+  auto completed_type = values->get_type().resolve().select<Ttx::Model::Type>();
+  if (completed_type && &*completed_type == &*type) {
+    return body.alias(*this, *values);
   }
 
   return body.construct(*this, *type, *values);

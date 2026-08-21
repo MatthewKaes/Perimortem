@@ -108,11 +108,11 @@ It does not redefine Render grammar or Shader identity.
 
 ## Persistence
 
-Render can be stored in a Package Archive and rebuilt without its source file.
-A Complete payload keeps the public and private declarations, Attributes,
-Layouts, expressions, and stage bodies needed to compile it again. An Interface
-payload keeps the public contract and Layouts needed by other code, but leaves
-out executable bodies.
+Render can be stored in a Package Archive and reconstructed without its source
+file. A Complete payload keeps its public and private render contracts, while
+an Interface payload keeps the public Attributes, Layouts, bridge facts, and
+artifact locations needed by other code. Expressions and stage bodies remain
+source or live Workspace facts.
 
 When Render belongs to a Shader, it uses the same Complete or Interface profile
 as its parent. Render does not store chosen GPU storage classes, target bindings,

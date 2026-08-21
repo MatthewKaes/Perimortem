@@ -70,23 +70,3 @@ auto Terminal::write_line(View::Bytes data) -> Bool {
 
   return !failed;
 }
-
-// Foreign uses the C symbol namespace while generated native callers still
-// share Perimortem value layouts. Limit Clang's C source warning to these two
-// intentional language boundary definitions.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
-
-extern "C" auto perimortem_system_terminal_read_line()
-    -> Option<Dynamic::Bytes> {
-  Terminal terminal;
-  return terminal.read_line();
-}
-
-extern "C" auto perimortem_system_terminal_write_line(View::Bytes data)
-    -> Bool {
-  Terminal terminal;
-  return terminal.write_line(data);
-}
-
-#pragma clang diagnostic pop

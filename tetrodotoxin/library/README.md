@@ -100,7 +100,7 @@ identifier.
 
 ### Type access
 
-Postfix `::` is a Type access Expression:
+Postfix `::` advances a contextual Type route:
 
 ```ttx
 Graphics::Image
@@ -108,11 +108,13 @@ System::Terminal
 Option[Graphics::Image]
 ```
 
-It evaluates its receiver, requires that receiver's exact semantic result to be
-a Library Type, and selects one Library Type from that context. The access
-result is the exact selected Type with no value output, so another `::` or a
-Static invocation can use the result without treating the selected Type as one
-of its own values. An ordinary value cannot use `::`.
+It evaluates its receiver and asks that exact semantic result for the next
+context. Package, Monograph, and namespace results may continue through another
+`::`; a Static invocation requires the terminal result to be one Library Type.
+A Package Source Alias continues to retain its real Monograph. When that source
+publishes a root Type matching the authored Source route, expression Type access
+selects that Type without changing what Package and `using` queries observe.
+The access produces no runtime value. An ordinary value cannot use `::`.
 
 Contextual declaration routes through Alias, Package, Monograph, Library
 source, and Type objects remain references with no identity. They do not become
@@ -306,6 +308,7 @@ View[Fixed[Unsigned_8, 4]]
 Access[Unsigned_8]
 Range[Unsigned_64]
 Option[View[Unsigned_8]]
+Result[View[Unsigned_8], ParseError]
 ```
 
 `Fixed[T, extent]` requires its `extent` to be a positive exact `Unsigned_64`
@@ -315,9 +318,16 @@ Type with a nonempty Layout. `View` is a borrowed contiguous view.
 `Range` describes a lazy ascending integer sequence. `Option[T]` represents a
 value that may be absent in an otherwise nonnullable language. The Option Type
 always has a nonempty Layout. Its state either carries one exact `T` or carries
-no payload. Native Library targets use the Perimortem value carrier: one inline
-payload slot followed by its selected state. The payload is live only when
-selected, and Option adds no allocation, reference count, or shared identity.
+no payload. Native Library targets normally use the Perimortem value carrier:
+one inline payload slot followed by its selected state. An Option over one
+nonnull authored Object uses the invalid null handle as its absent state and
+therefore remains one word. Empty-capable `Object[T]` retains the ordinary tag.
+The payload is live only when selected, and Option adds no allocation,
+reference count, or shared identity.
+`Result[T, E]` stores exactly one live value or error alternative in an inline
+union followed by Bool state. `T` and `E` must be distinct nonempty Types so raw
+received flow selects exactly one alternative. Result adds no allocation or
+shared identity.
 An explicit empty list applies a formula with no arguments.
 Omitting the list instead requires the route to name a Type. Applying the same
 formula to the same semantic arguments returns the same Type identity.
@@ -327,15 +337,63 @@ same semantic graph. Every Library Type publishes authored and generated
 Callables through one callable surface. A Generic installs its required
 Callables when it materializes the exact Type, so lookup, reflection, and
 completion enumerate the same identities regardless of their origin.
-`view -> get_size()` and `access -> get_size()` return the
-runtime element count as exact `Unsigned_64`. A writable Fixed Addressable may
-produce `Access[T]` over its complete existing storage with
-`fixed -> get_access()`. This operation does not copy the Fixed or make a View
-writable. A const Fixed, a computed Fixed value without writable storage, and a
-View cannot grant that Callable's required authority. The returned Access
-borrows the Fixed storage and is valid only while that storage remains alive.
-Its ordinary `[index]` and `[start, count]` operators provide scalar and ranged
-writable selection.
+`view -> get_size()` and `access -> get_size()` return the runtime element count
+as exact `Unsigned_64`; `is_empty()` reports whether that count is zero and
+folds for immutable Views. `fixed -> get_view()` borrows the complete Fixed
+storage without changing its read only authority. Byte literals remain Fixed
+values and therefore use this explicit conversion when a View is required. A
+writable Fixed Addressable may additionally produce `Access[T]` with
+`fixed -> get_access()`. Neither operation copies the Fixed, and every returned
+borrow is valid only while its backing storage remains alive.
+
+`view -> slice(start, count)` and `access -> slice(start, count)` return one
+read only `View[T]`. When `start` is within the receiver, its size is the lesser
+of `count` and the available suffix. A start at or beyond the receiver size
+returns the empty View. Access deliberately loses write authority through this
+operation. This borrowed subview is distinct from `:[start, count]`, which
+produces exactly `count` independent values and supplies defaults outside the
+receiver.
+
+`Object[T]` is the empty-capable worker-local managed buffer formula. Its
+one-word handle retains one Bibliotheca allocation while capacity remains
+recoverable from that allocation. `object -> get_capacity()` returns the
+allocated element count. `get_view()` borrows every allocated element, while
+`get_access()` borrows the same writable buffer observed by every alias.
+`reserve(count)` is a no-op when the current capacity is sufficient; otherwise
+it replaces that receiver handle with a larger copied buffer and returns Access
+covering the new capacity. Other aliases retain the old Object. `is_shared()`
+reports whether another owned handle retains the current buffer, and `clone()`
+explicitly replaces a writable receiver with an independent buffer copy. Empty
+Object storage returns zero capacity and empty bounds without exposing its
+internal null representation. Buffer element Types may be scalar or Structures
+whose recursive Fields own no Objects. This restriction belongs to buffer-wide
+destruction; authored nonnull Objects still destroy their contained Object
+Fields recursively.
+
+`Dynamic::Bytes` is the worker-local copy-on-write byte value. Its native
+carrier is `Object[Unsigned_8]` plus one logical size. Copying the value retains
+the Object, while a writable operation detaches shared storage before exposing
+it. Capacity remains owned by Bibliotheca rather than duplicated in Bytes.
+`bytes -> get_view()` borrows the complete contents and
+`bytes -> slice(start, count)` borrows the clipped suffix using the same rules
+as View. Bytes is an inline value whose Self Callables receive its address.
+Transformations update that receiver and return the same reference with the
+scalar result `self`, enabling chains without copying the Bytes carrier. Before
+writing, Bytes reserves the required capacity. Growth already produces a
+private Object; when existing capacity is sufficient, `is_shared()` selects
+`clone()` before writable Access escapes. Copy-on-write policy therefore
+belongs to Bytes rather than Object.
+The Memory Package owns `copy`, append, concat, resize, shrink, clear, and
+reserve behavior directly over Object; it exposes no Access that could bypass
+the logical size. Static `Dynamic::Bytes -> concat(left, right)` and receiver
+`bytes -> concat(view)` may share one spelling because they have distinct
+receiver roles. Byte Views and Dynamic::Bytes are standard interchange
+carriers, so receiving those exact contracts across Library source roots does
+not depend on the roots sharing one Generic materialization cache.
+
+Structure ownership is derived recursively from its exact Fields. Object Fields
+retain and release their Core handles, so a runtime-backed value needs no
+native lifecycle Attribute or compiler-specific hook.
 
 Each Library root Generic owns its canonical materialized identities in that
 root's source transaction Arena. The Monograph reaches them through its root
@@ -365,14 +423,21 @@ concrete target. Ordinary Types retain exact Layout fitting, while Option extend
 the same query with its absent and present states. Adding another target
 conversion therefore changes only the Type that defines it.
 
+Result uses the same receiving protocol. A Pack accepted only by `T` constructs
+its value state, while a Pack accepted only by `E` constructs its error state.
+Flow accepted by both alternatives is ambiguous and rejected. Result has no
+named construction Callables.
+
 This is Pack fitting rather than Layout fitting. `[]` does not fit
 `Option[T]`, and Option never acquires an empty Layout. Its absent state can
 produce `()` only through the flow control owned by postfix `?`.
 
-Option is a built-in Library Generic Type. It does not make Objects nullable and
-it is not supplied by a standard Package. A user-defined operation that may fail
-is written as a Static factory returning an Option. Object initialization itself
-never publishes a partly initialized value.
+Option and Result are built-in Library Generic Types rather than standard
+Packages. Option represents recoverable absence without making Objects nullable.
+Result represents one handled error Type that cannot be discarded by
+propagation. A user-defined fallible operation is a Static factory returning the
+appropriate sum. Object initialization itself never publishes a partly
+initialized value.
 
 ### Default values
 
@@ -402,6 +467,7 @@ each default independently of the storage chosen by a compiler:
 - `View[T]` and `Access[T]` use empty read-only and writable views respectively.
 - `Range[T]` uses the empty range.
 - `Option[T]` uses the state with no payload and does not construct `T`.
+- `Result[T, E]` uses the value state containing the default of `T`.
 - `Fixed[T, count]` contains `count` default `T` values.
 - A Structure initializes state Fields in source order from each Field's
   authored initializer when present and otherwise from that Field Type's
@@ -415,10 +481,10 @@ Type selection remains outside value flow. `Descriptor` is consequently an
 ordinary source name rather than a reserved internal Type. Before construction,
 Library asks each completed value Layout whether its real Type and Addressable
 edges reach terminal leaves. Target storage must also remain finite. `Option[T]`
-stores an inline payload slot, so it cannot make a Structure recursively contain
-itself by value. It can break an Object construction cycle because an Object
-payload is a finite reference carrier and the absent state does not construct
-that referenced identity.
+and `Result[T, E]` store inline alternative slots, so neither can make a
+Structure recursively contain itself by value. Option can break an Object
+construction cycle because an Object payload is a finite reference carrier and
+the absent state does not construct that referenced identity.
 
 Cleared memory may make initialization faster, but it does not define these
 defaults. Every initializer required by the Type still runs. An empty
@@ -717,6 +783,12 @@ including release of its contained Object Fields, before returning the storage.
 Source code has no finalizer, weak reference, explicit release, or observable
 reclamation callback.
 
+The native carrier remains one payload pointer. LLVM emits one immutable
+descriptor per Object Type containing its payload size, alignment, and generated
+finalizer. Perimortem Core stores only a pointer to that descriptor beside the
+allocation. Bibliotheca owns the reservation count and allocation bucket but
+never becomes an Object Type or runtime vtable.
+
 Object references remain on their owning worker. An interface between workers
 may borrow read only data through a View for the duration of one completed call.
 The receiving worker copies anything it retains and constructs a new Object
@@ -773,17 +845,46 @@ declares named integer cases:
 
 ```ttx
 public Mode : enum[Unsigned_8] {
-  Idle = 0,
-  Running = 1,
-  Stopped = 2,
+  idle = 0;
+  running = 1;
+  stopped = 2;
 }
 ```
 
-Each case has its own Alias and Constant identity. Two case names may carry the
-same integer value without becoming the same semantic identity.
+Each case has its own Alias and exact Enumeration Constant identity. Two case
+names may carry the same integer value without becoming the same semantic
+identity.
 The Enumeration default is the exact Enumeration value whose underlying
 integer is zero. That representable value remains valid even when no case Alias
 names it.
+
+Every Enumeration publishes one Static const `size` Addressable and one Self
+`get_name()` Callable. `Mode.size` is the exact compile time `Unsigned_64` case
+count. `mode -> get_name()` returns the authored case name as
+`View[Unsigned_8]`, or an empty View when no case names that representable
+value. When several cases share that value, it returns the first authored name.
+Case name bytes are immutable program data.
+
+An Enumeration Type is itself iterable in authored case order. A value Layout
+binds each exact Enumeration value:
+
+```ttx
+for [.value : Mode] in Mode {
+  value -> consume();
+}
+```
+
+A name Layout instead binds the exact storage value and its authored name:
+
+```ttx
+for [.value : Unsigned_8, .name : View[Unsigned_8]] in Mode {
+  name -> consume();
+}
+```
+
+The first Type must be the Enumeration's exact storage Type. The second Type is
+exactly `View[Unsigned_8]`. The reserved `value` and `name` binding names make
+the two iteration contracts unambiguous.
 
 ## Functions and invocation roles
 
@@ -811,12 +912,27 @@ Math -> add(2, 3)
 A Callable derives type binding from its signature's parameter Layout: it is
 type bound exactly when entry zero is the reserved `self` Addressable. A
 Function with that shape is Self. That entry has the selected receiver's exact
-Type, and every following parameter is named. The Function is selected through
-an addressable value:
+Type, is always passed by reference, and every following parameter is named.
+The Function is selected through an addressable value:
 
 ```ttx
 packet -> area()
 ```
+
+The reserved scalar result `self` returns that same reference. It is the
+canonical shorthand for the explicit one-entry `[self]` Layout and enables
+effectful chaining without copying the receiver:
+
+```ttx
+public clear : func = [self] -> self {
+  self.size = 0;
+}
+
+packet -> clear() -> reset();
+```
+
+Reaching the end of a `self`-returning Function returns that reference
+implicitly. `return self;` remains the explicit early-exit form.
 
 Static and Self Callables may share a name because their receiver roles
 distinguish the invocation. A Composite rejects a second Callable with the same
@@ -854,23 +970,29 @@ Integer overflow and division by zero are semantic failures in their owning
 operation. Safe
 `:[...]` selection uses a default value instead of publishing a bounds failure.
 
-Postfix `?` makes a chain of fallible operations concise without introducing
-nullable values or truthiness. Its left side must be `Option[T]`. A present
-payload continues the chain as exact `T`. A state with no payload returns an
-empty Pack from the enclosing Function and evaluates nothing to the right.
+Postfix `?` makes a chain of fallible operations concise. Its exact receiver Type
+owns both the continuation and escape flow:
 
-The enclosing Function must accept that empty flow. Its result is either `[]`
-or one `Option[R]`. An empty Pack fits the latter as absence, while a successful
-`R` Pack fits it as presence:
+- `Option[T]` continues with `T` when present and otherwise escapes with empty
+  flow.
+- An active Flag such as Bool continues with that exact Flag value, while an
+  inactive value escapes with empty flow.
+- `Result[T, E]` continues with `T` for its value state and escapes with exact
+  `E` for its error state.
+
+The enclosing Function must receive the complete escape Pack. Empty flow fits
+`[]` or one `Option[R]`. A Result error fits exact `E` or a receiving
+`Result[R, E]`; it cannot disappear into `[]` or Option. Different error Types
+do not convert:
 
 ```ttx
 state parsed := Parser -> parse(source)?;
 return parsed -> finish();
 ```
 
-The same operator works as an early return in a Function with result `[]` when
-the successful value is consumed before the final `return;`. Propagation into
-a Function with several result entries is reserved for future language support.
+The same operator works with Bool as a concise success check in a Function with
+result `[]`. Propagation into a Function with several result entries is reserved
+for future language support.
 
 Binary `+` accepts exact signed, unsigned, or real operands and returns that
 same Type. It does not concatenate Bytes or Views. An output owner that accepts
@@ -894,6 +1016,31 @@ Block selected by grammar. Statement never becomes another Abstract, copies
 the root's facts, or requires Block to inspect every concrete statement
 category. Lowering derives target blocks and branches only after the body is
 complete.
+
+Block owns both authored body spellings. `{ ... }` contains an empty or ordered
+multi Statement body. `:` contains exactly one following Statement, so the
+same Block model supports compact Functions and control flow without a wrapper
+or caller specific parse path:
+
+```ttx
+private classify : func = [.value : Unsigned_64] -> Unsigned_64 : return value;
+
+if ready : total += 1; else : total = 0;
+```
+
+The formatter selects `:` for one directly retained non-control Statement and
+braces for several Statements or a nested control Statement whose braces
+preserve unambiguous `else` binding. An empty-result Function omits redundant
+trailing bare returns. If no other Statement remains, its canonical body is
+`: return;`. This is a mechanical presentation rule: nested returns and text
+following an earlier return remain authored content. An empty body for any
+other Block remains `{}`.
+
+One paragraph contains Definitions, ordinary Statements, zero or more
+compressed `:` Blocks, then at most one braced Block. A later item from an
+earlier stage starts a new paragraph. Consecutive compressed Blocks therefore
+stay together, while an ordinary Statement following them receives a blank
+line.
 
 Statement processing preserves the Library transaction stages. Parsing chooses
 and retains the exact owner. Linking visits those owners in source order, makes
@@ -938,9 +1085,10 @@ rejected because the inner Assignment supplies no value to the outer one.
 `return` retains one Pack and fits its complete output Layout against the
 Function result Layout. `return;` and `return ();` supply empty flow.
 `return value;` supplies one value. Positional and named parenthesized forms may
-supply several. Ordinary fallthrough is legal only for an empty result Layout.
-`()` fits `[]` directly. It also fits a single `Option[T]` result by creating
-the state with no payload. A Function with a nonempty result must return on
+supply several. Ordinary fallthrough is legal for an empty result Layout and
+for the reserved scalar result `self`, which implicitly returns the receiver
+reference. `()` fits `[]` directly. It also fits a single `Option[T]` result by
+creating the state with no payload. Every other nonempty result must return on
 every reachable path.
 
 `if` and `while` consume a Pack and use its first produced value for the control
@@ -949,10 +1097,13 @@ interprets the completed value as active or inactive. Parentheses may be omitted
 when the Pack is otherwise unambiguous, and additional produced values do not
 change which entry controls the branch. `for` consumes one `Range[T]` or
 contiguous `Fixed[T, extent]`, `View[T]`, or `Access[T]` and fits its read only
-loop binding against exact `T`. `break` and `continue` target the nearest
-enclosing loop and are illegal outside one. An `else if` retains its exact
-Branch as a Statement, including its leading Documentation, rather than
-acquiring synthetic braces or a second alternate representation.
+loop binding against exact `T`. Enumeration iteration uses either of the named
+Layouts defined in the Enumeration section. The exact input Type owns its
+iteration contracts, so a future Type can add iteration without extending one
+closed loop category list. `break` and `continue` target the nearest enclosing
+loop and are illegal outside one. An `else if` retains its exact Branch as a
+Statement, including its leading Documentation, rather than acquiring
+synthetic braces or a second alternate representation.
 
 `match` evaluates its input once and compares cases in source order. An ordinary
 case must fold to a Constant with the input's exact Type. The first equal case
@@ -965,11 +1116,8 @@ case:
 
 ```ttx
 match value {
-  case item: {
-    item -> consume();
-  }
-  case _: {
-  }
+  case item : item -> consume();
+  case _ {}
 }
 ```
 
@@ -1027,9 +1175,9 @@ never discovers, links, finalizes, or owns a provider closure.
 
 Semantic publication and native publication answer different questions. A
 public Callable can be selected by another Monograph without promising an
-unmangled platform symbol. Function keeps every authored Attribute as ordered
+unmangled platform symbol. Definition keeps every authored Attribute as ordered
 source data and assigns no Attribute a Library wide meaning. A native compiler
-may consume requests such as:
+may consume Function publication requests such as:
 
 ```ttx
 @abi("C")
@@ -1042,12 +1190,12 @@ The compiler may generate a native name for that interface. An embedding
 boundary that must match an existing platform spelling may additionally request
 the exact override `@symbol("library_native")`.
 
-The consumer decides whether `abi` or `symbol` is relevant, which values and
-repetitions it supports, and whether the Function's visibility, receiver shape,
-and target representation satisfy that request. Function does not preconfirm
-those choices because another compiler or an embedding Dialect may assign the
-same authored facts different policy. Unknown keys remain available to future
-consumers without changing Function.
+The consumer decides whether `abi`, `symbol`, `retain`, or `release` is relevant,
+which values and repetitions it supports, and whether the selected declaration
+and target representation satisfy that request. The semantic owner does not
+preconfirm those choices because another compiler or an embedding Dialect may
+assign the same authored facts different policy. Unknown keys remain available
+to future consumers without changing the declaration.
 
 When a Library CPU compiler chooses to honor a C ABI request, it checks that
 every parameter and result Type has a valid C representation for the selected
@@ -1066,12 +1214,18 @@ bytes.
 
 ## Persistence
 
-Library can be stored in a Package Archive and rebuilt without its source file.
-A Complete payload keeps public and private Types, Fields, Functions,
-expressions, control flow, access relationships, Foreign declarations, and the
-connections needed to compile the Library again. An Interface payload keeps the
-public Types, Layouts, Fields, Function signatures, folded public constants,
-ABI requests, and native artifact locations, but leaves out Function bodies.
+Library can be stored in a Package Archive and reconstructed without its source
+file. A Complete payload keeps its public and private Types, Fields, Function
+signatures, folded constants, Foreign declarations, ABI requests, and native
+artifact locations. An Interface payload keeps the public closure of those
+facts. Neither retains Function bodies, expressions, control flow, or access
+operations.
+
+The restored Library is a TTX wrapper over its compiled artifacts, analogous to
+a Foreign block whose ABI is TTX. It answers the Type, Addressable, Callable,
+and constant queries required for composition while stable native symbols reach
+the provider implementation. A source build or live Workspace performs another
+lowering.
 
 Neither profile stores parser state, process addresses, compiler caches, LLVM
 IR, native bytes, live Object references, or source-level debugging data.
@@ -1133,4 +1287,4 @@ both compilation and restoration.
 See [TTX semantics](../../ttx/ttx_semantics.md) for the shared contracts and
 [Package](../package/README.md) for `using` and resource contexts. The
 [standard packages](../../packages/ttx/README.md) apply these contracts to the
-provided Math, System, and Graphics surfaces.
+provided Memory, Math, System, and Graphics surfaces.

@@ -6,13 +6,16 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/hash.hpp"
+#include "perimortem/core/object.hpp"
 
 namespace Perimortem::Memory::Dynamic {
 
-// A vector of dynamically managed bytes with value semantics.
+// Bytes owns copy-on-write value policy over one worker-local Object buffer.
+// Object itself preserves ordinary reference identity while Bytes alone decides
+// when a shared allocation must be copied before mutation.
 class Bytes {
  public:
-  constexpr Bytes() {};
+  constexpr Bytes() = default;
   Bytes(Count reserved_capacity);
   Bytes(Core::View::Bytes view);
   Bytes(const Dynamic::Bytes& rhs);
@@ -30,10 +33,10 @@ class Bytes {
     return get_view() == rhs;
   }
 
-  ~Bytes();
+  ~Bytes() = default;
 
-  constexpr operator Core::View::Bytes() const { return get_view(); }
-  constexpr operator Core::Access::Bytes() { return get_access(); }
+  operator Core::View::Bytes() const { return get_view(); }
+  operator Core::Access::Bytes() { return get_access(); }
 
   auto append(Unsigned_8 byte) -> void;
   auto append(Unsigned_8 byte, Count amount) -> void;
@@ -42,8 +45,8 @@ class Bytes {
   // Resizes the container but attempts to preserve as much of the original
   // buffer as will fit in the new size.
   //
-  // Shrinking the size of the buffer is non-destructive and can be recovered by
-  // resetting the size back to it's old value.
+  // Shrinking preserves the remaining buffer so restoring the old size can
+  // recover its bytes.
   auto resize(Count new_size) -> void;
   // Ensures there is enough room to store a required size, but declares we
   // don't care about the buffer's existing contents.
@@ -65,16 +68,17 @@ class Bytes {
   auto slice(Count start, Count size) const -> Core::View::Bytes;
 
   constexpr auto get_size() const -> Count { return size; }
-  constexpr auto get_capacity() const -> Count { return capacity; }
-  constexpr auto get_view() const -> const Core::View::Bytes {
-    return Core::View::Bytes(source_block, size);
+  auto get_capacity() const -> Count { return data.get_capacity(); }
+  auto get_view() const -> Core::View::Bytes {
+    return Core::View::Bytes(data.get_view().get_data(), size);
   }
 
-  constexpr auto get_access() -> Core::Access::Bytes {
-    return Core::Access::Bytes(source_block, size);
-  }
+  // Access promises writable Bytes value storage, so Bytes detaches a shared
+  // Object before its address escapes. The returned bounds do not extend the
+  // Bytes lifetime.
+  auto get_access() -> Core::Access::Bytes;
 
-  constexpr auto hash() const -> Unsigned_64 {
+  auto hash() const -> Unsigned_64 {
     return Core::Hash(get_view()).get_value();
   }
 
@@ -85,9 +89,13 @@ class Bytes {
   auto ensure_capacity(Count required_size) -> void;
 
  private:
-  Unsigned_8* source_block = nullptr;
+  auto prepare_write(Count required_capacity) -> Core::Access::Bytes;
+
+  Core::Object<Unsigned_8> data;
   Count size = 0;
-  Count capacity = 0;
 };
+
+static_assert(sizeof(Bytes) == sizeof(Unsigned_8*) + sizeof(Count));
+static_assert(alignof(Bytes) == alignof(Count));
 
 }  // namespace Perimortem::Memory::Dynamic

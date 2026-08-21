@@ -184,20 +184,33 @@ auto Language::Flow::Block::interpret(
     const Language::Model::Type& access_scope,
     Option<Reference<const Abstract>> enclosing_loop) -> Option<Block&> {
   Allocator::Arena& domain = cursor.get_arena();
-  Token opening = cursor.require(
-      Code::Type::ScopeStart,
-      "Library Function bodies require a scope beginning with `{`."_view);
-  BAIL_IF(!opening);
+  Code::Type opening_code = cursor.get_code().get_type();
+  if (opening_code != Code::Type::ScopeStart &&
+      opening_code != Code::Type::Define) {
+    cursor.create_token_error(
+        "Library Blocks require `{` for several Statements or `:` for one "
+        "Statement."_view);
+    return {};
+  }
 
+  Token opening = cursor.consume();
+  Bool single = opening_code == Code::Type::Define;
+
+  // Both spellings construct the same candidate before any Statement enters
+  // the graph. The delimiter changes only whether this ordered parse stops
+  // after one Statement or at the matching scope end.
   Block& block = domain.construct_from<Block>([&]() -> Block {
     return Block(
         domain, lexical_context, function, access_scope, enclosing_loop);
   });
 
-  while (!cursor.matches(Code::Type::ScopeEnd)) {
+  while (single || !cursor.matches(Code::Type::ScopeEnd)) {
     if (cursor.matches(Code::Type::Terminal)) {
       cursor.create_token_error(
-          "Library Function body reached the end of source before `}`."_view);
+          single ? "Single Statement Block requires one "
+                   "Statement after `:`."_view
+                 : "Library Block reached the end of source "
+                   "before `}`."_view);
       return {};
     }
 
@@ -205,10 +218,16 @@ auto Language::Flow::Block::interpret(
     const Documentation& documentation =
         Tetrodotoxin::Language::Parser::Comment::parse(cursor);
     if (cursor.matches(Code::Type::ScopeEnd)) {
-      cursor.create_token_error(
-          statement_start,
-          "Library Statement Documentation requires one following form."_view,
-          "Move this comment before the Statement it describes."_view);
+      if (documentation.is_empty()) {
+        cursor.create_token_error(
+            statement_start,
+            "Single Statement Block requires one Statement after `:`."_view);
+      } else {
+        cursor.create_token_error(
+            statement_start,
+            "Library Statement Documentation requires one following form."_view,
+            "Move this comment before the Statement it describes."_view);
+      }
       return {};
     }
 
@@ -231,9 +250,12 @@ auto Language::Flow::Block::interpret(
     }
 
     block.statements.insert(*statement);
+    if (single) {
+      break;
+    }
   }
 
-  Token closing = cursor.consume();
+  Token closing = single ? cursor.peek(-1) : cursor.consume();
   block.anchor = Anchor::create(opening, Span(opening, closing));
   return block;
 }

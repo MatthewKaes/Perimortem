@@ -9,6 +9,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "ttx/concept/reference.hpp"
@@ -45,6 +46,11 @@ class Enumeration : public Model::Type {
       Tetrodotoxin::Language::Definition& definition)
       -> Perimortem::Core::Option<Enumeration&>;
 
+  static auto restore(
+      Archive::Reader& reader,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Enumeration&>;
+
   Enumeration(const Enumeration&) = delete;
   Enumeration(Enumeration&&) = delete;
   auto operator=(const Enumeration&) -> Enumeration& = delete;
@@ -78,9 +84,19 @@ class Enumeration : public Model::Type {
   auto link_types(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
+  auto link_restored_types() -> Bool override;
+
+  auto finalize_restored() -> Bool override;
+
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto resolve_type_access(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route,
+      Model::Type::Access access) const
       -> const Ttx::Concept::Abstract& override;
 
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
@@ -90,10 +106,32 @@ class Enumeration : public Model::Type {
 
   auto complete(Llvm::Program& program) const -> Bool override;
 
+  auto persist(Archive::Writer& writer) const -> Bool override;
+
+  auto accepts_iteration(const Ttx::Concept::Layout& bindings) const
+      -> Bool override;
+
+  auto begin_iteration(
+      Llvm::Builder& body,
+      const Ttx::Concept::Abstract& owner,
+      const Ttx::Concept::Layout& bindings,
+      const Ttx::Model::Pack& input) const -> Bool override;
+
   auto get_storage_type() const -> Perimortem::Core::Option<const Model::Type&>;
 
   auto get_cases() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<const Ttx::Model::Alias>>;
+
+  constexpr auto get_case_count() const -> Count {
+    return source_cases.get_size();
+  }
+
+  auto get_case_value(Count index) const
+      -> Perimortem::Core::Option<Unsigned_64>;
+
+  auto get_case_name(Count index) const -> Perimortem::Core::View::Bytes;
+
+  auto find_case_name(Unsigned_64 value) const -> Perimortem::Core::View::Bytes;
 
  private:
   enum class Stage : ::Unsigned_8 {
@@ -111,6 +149,8 @@ class Enumeration : public Model::Type {
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Model::Alias>>
       cases;
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Addressable>>
+      generated_size;
   Stage stage = Stage::Authored;
 };
 

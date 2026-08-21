@@ -10,10 +10,10 @@ file defines the exact production behavior it observes.
 | --- | --- |
 | [`source_acceptance.ttx`](source_acceptance.ttx) | focused production Workspace acceptance for completed Definition identities and native Function requests |
 | [`value_acceptance.ttx`](value_acceptance.ttx) | focused production Workspace acceptance for defaults, scalar operations, value access, invocation, Address chaining, and Swizzle fitting |
-| [`option_acceptance.ttx`](option_acceptance.ttx) | focused production Workspace acceptance for Option fitting, defaults, unwrap, propagation, and Match elimination |
+| [`propagation.ttx`](propagation.ttx) | focused production Workspace acceptance for Option and Result fitting, defaults, typed propagation, Bool propagation, unwrap, and Match elimination |
 | [`broad.ttx`](broad.ttx) | broad Library source corpus covering declarations, Layouts, access chains, expressions, control flow, Foreign, Struct, Object, and Enumeration syntax |
 | [`foreign.ttx`](foreign.ttx) | consolidated Foreign semantics and repeated state C interoperability |
-| [`runtime.ttx`](../llvm/runtime.ttx) | executable Library and LLVM matrix for Locals, calls, control flow, safe access, Options, and logging owned by TTX |
+| [`runtime.ttx`](../llvm/runtime.ttx) | executable Library and LLVM matrix for Locals, calls, control flow, safe access, Option and Result ownership, Enumeration iteration, and logging owned by TTX |
 | [`foreign_harness.c`](../llvm/foreign_harness.c) | generated C header interoperability provider used by the validation binary |
 | [`runtime_harness.c`](../llvm/runtime_harness.c) | generated C header runtime observer used by the validation binary |
 
@@ -52,7 +52,8 @@ selection, argument Pack fitting, and result Pack flow are one source construct.
 
 `Packet` deliberately declares both Static and Self Callables named `identity`.
 Static has no implicit Self parameter. Self reserves parameter entry zero for
-the selected receiver value.
+the selected receiver reference. A scalar `self` result returns that same
+reference for chaining; `[self]` is its explicit one-entry Layout form.
 
 ## Layouts and Packs
 

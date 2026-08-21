@@ -16,7 +16,6 @@ auto Scene::Dialect::interpret(
     const Documentation& documentation,
     const Anchor& source_anchor,
     Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
-
   // This leaf admits only the empty canonical body. Scene declarations remain
   // with their later semantic owners instead of entering a partial inventory.
   if (!cursor.matches(Code::Type::Terminal)) {

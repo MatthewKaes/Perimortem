@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/types/object.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
@@ -28,10 +29,6 @@ using namespace Validation;
 
 static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
     -> Option<Language::Monograph&> {
-  if (!workspace.install_dialect<Dialect>("Library"_view)) {
-    return {};
-  }
-
   auto interpreted = workspace.interpret_source(
       errors, "ObjectTest"_view, "object.ttx"_view, source);
   if (!interpreted || !interpreted->is<Language::Monograph>()) {
@@ -42,21 +39,24 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty();
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty();
 }
 
 static auto rejects_finalize(View::Bytes source) -> Bool {
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty();
@@ -78,7 +78,8 @@ PERIMORTEM_UNIT_TEST(ObjectTests, field_writability) {
       "  public const fixed : Bool = false;\n"
       "  private const hidden_const : Bool = false;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -135,7 +136,8 @@ PERIMORTEM_UNIT_TEST(ObjectTests, exact_collision_domain) {
     "// Object test.\ndialect : Library; public Session : object { private state value : Bool = false; public value : func = [] -> [] {} }"_view,
   }};
   for (Count i = 0; i < accepted.get_size(); i++) {
-    Workspace workspace;
+    auto workspace_toolchain = create_library_toolchain();
+    Workspace workspace(*workspace_toolchain);
     Errors errors;
     auto monograph = interpret(workspace, errors, accepted[i]);
     ASSERT(monograph);
@@ -196,7 +198,8 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface_retained_locally) {
       "}\n"
       "}\n"
       "private root : func = [.value : Hidden] -> Hidden { return value; }"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
@@ -237,7 +240,8 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inherited_initializer_mismatch) {
       "// Object initializer test.\n"
       "dialect : Library;\n"
       "public Session : object { private state value : Unsigned_8 = false; }"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   EXPECT_NOT(monograph);
@@ -251,7 +255,8 @@ PERIMORTEM_UNIT_TEST(ObjectTests, link_failure_keeps_publication_empty) {
       "// Object test.\n"
       "dialect : Library;\n"
       "public Session : object { expose state value : Bool = missing; }"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   EXPECT_NOT(monograph);
@@ -277,7 +282,8 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inferred_object_identity) {
       "  private child : Child;\n"
       "  private copy := child;\n"
       "}"_view;
-  Workspace workspace;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);

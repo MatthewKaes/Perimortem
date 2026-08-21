@@ -6,15 +6,17 @@
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/dynamic/object.hpp"
+#include "perimortem/memory/dynamic/record.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/system/version.hpp"
 
-#include "tetrodotoxin/environment/dialects.hpp"
+#include "tetrodotoxin/environment/toolchain.hpp"
+#include "tetrodotoxin/package/archive/archive.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/package/snapshots.hpp"
 #include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/errors.hpp"
 
@@ -24,16 +26,12 @@ namespace Tetrodotoxin::Environment {
 // sources and fixed Package source tables complete atomically here.
 class Workspace : public Ttx::Concept::Abstract {
  public:
-  Workspace();
+  Workspace(
+      Toolchain& toolchain,
+      Perimortem::Core::Option<
+          Perimortem::Memory::Dynamic::Record<Package::Snapshots>> snapshots =
+          {});
   ~Workspace() override;
-
-  // Installs a distinct stateful Dialect under one exact authored name.
-  template <typename TargetDialect, typename... DependencyDialects>
-  auto install_dialect(
-      Perimortem::Core::View::Bytes name,
-      DependencyDialects&... dependencies) -> TargetDialect* {
-    return dialects.install<TargetDialect>(name, dependencies...);
-  }
 
   // Completes one direct source transaction before publishing its semantic
   // name. Parse, link, or finalization failure publishes nothing.
@@ -56,9 +54,19 @@ class Workspace : public Ttx::Concept::Abstract {
       Perimortem::System::Version root_package_version)
       -> Perimortem::Core::Option<Language::Monograph&>;
 
+  // Reconstructs one source-free Package from validated Archive facts. Every
+  // dependency must already be restored in this Workspace.
+  auto restore_package(
+      const Package::Archive::Archive& archive,
+      Perimortem::Core::View::Bytes root_semantic_name)
+      -> Perimortem::Core::Option<Language::Monograph&>;
+
   // Returns the immutable authored source index published with one completed
   // Monograph. The borrowed identities share the retained source transaction.
   auto get_associations(const Language::Monograph& monograph) const
+      -> Perimortem::Core::Option<const Ttx::Lexical::Associations&>;
+
+  auto get_associations(Perimortem::Core::View::Bytes diagnostic_path) const
       -> Perimortem::Core::Option<const Ttx::Lexical::Associations&>;
 
   auto get_name() const -> Perimortem::Core::View::Bytes override;
@@ -77,17 +85,24 @@ class Workspace : public Ttx::Concept::Abstract {
   // One committed source record keeps its transaction alive and publishes its
   // immutable authored source index. The operation Cursor is not retained.
   struct PublishedSource {
-    Perimortem::Memory::Dynamic::Object<Perimortem::Memory::Allocator::Arena>
+    Perimortem::Core::View::Bytes diagnostic_path;
+    Perimortem::Memory::Dynamic::Record<Perimortem::Memory::Allocator::Arena>
         transaction;
     Language::Monograph& monograph;
     const Ttx::Lexical::Associations& associations;
   };
 
-  // Declaration order is lifetime order. Reverse destruction releases
-  // retained Monographs before their installed Dialects.
+  // Toolchain outlives every Workspace and therefore every Monograph that
+  // retains one of its stateless Dialect identities.
+  Toolchain& toolchain;
+  Perimortem::Core::Option<
+      Perimortem::Memory::Dynamic::Record<Package::Snapshots>>
+      snapshots;
   Perimortem::Memory::Allocator::Arena arena;
-  Dialects dialects;
   Perimortem::Memory::Dynamic::Vector<PublishedSource> published_sources;
+  Perimortem::Memory::Dynamic::Vector<
+      Perimortem::Memory::Dynamic::Record<Perimortem::Memory::Allocator::Arena>>
+      restored_transactions;
   Perimortem::Memory::Managed::
       Map<Perimortem::Core::View::Bytes, Language::Monograph&>
           source_monographs;

@@ -389,10 +389,8 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, recursive_provenance_and_atomicity) {
   const auto& parser_type = resolve_library_signed(source, "Signed_64"_view);
   Errors success_errors;
   Tokenizer success_tokens(domain, "-7 % -3"_view, "modulo.ttx"_view);
-  Ttx::Lexical::Associations success_associations(
-      success_tokens.get_arena());
-  Cursor success_cursor(
-      success_tokens, success_errors, success_associations);
+  Ttx::Lexical::Associations success_associations(success_tokens.get_arena());
+  Cursor success_cursor(success_tokens, success_errors, success_associations);
   Token success_left_trigger = success_cursor.consume();
   Token success_left_end = success_cursor.consume();
   auto success_left_anchor = Anchor::create(
@@ -404,10 +402,8 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, recursive_provenance_and_atomicity) {
       Span(success_left_trigger, success_left_end));
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "-7 % true"_view, "modulo.ttx"_view);
-  Ttx::Lexical::Associations failure_associations(
-      failure_tokens.get_arena());
-  Cursor failure_cursor(
-      failure_tokens, failure_errors, failure_associations);
+  Ttx::Lexical::Associations failure_associations(failure_tokens.get_arena());
+  Cursor failure_cursor(failure_tokens, failure_errors, failure_associations);
   Token failure_left_trigger = failure_cursor.consume();
   Token failure_left_end = failure_cursor.consume();
   auto failure_left_anchor = Anchor::create(

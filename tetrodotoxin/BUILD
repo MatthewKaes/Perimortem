@@ -42,6 +42,25 @@ cc_library(
 )
 
 cc_library(
+    name = "app",
+    srcs = glob([
+        "app/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "app/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":language",
+        ":library",
+        "//perimortem",
+        "//ttx:concept",
+        "//ttx:lexical",
+        "//ttx:model",
+    ],
+)
+
+cc_library(
     name = "library",
     srcs = glob([
         "library/**/*.cpp",
@@ -151,19 +170,5 @@ cc_library(
         "//perimortem",
         "//ttx:concept",
         "//ttx:model",
-    ],
-)
-
-cc_library(
-    name = "linker",
-    srcs = glob([
-        "linker/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "linker/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        "//perimortem",
     ],
 )

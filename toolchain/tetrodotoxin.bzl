@@ -1,13 +1,12 @@
 """
 Starlark rules for the Tetrodotoxin (TTX) language.
 
-The TTX compiler aims to provide a way to compile TTX directly to static
-libraries that can be consumed by the regular `cc_toolchain`, alongside
-Puffer Buffers that carry terminal source facts for Tetrodotoxin tooling.
+The TTX compiler emits semantic Package Archives and native objects consumed
+by the regular `cc_toolchain`.
 
 Usage in a BUILD file:
 
-    load("//toolchain:tetrodotoxin.bzl", "ttx_library", "ttx_package_folder")
+    load("//toolchain:tetrodotoxin.bzl", "ttx_library", "ttx_package")
 
     ttx_library(
         name = "my_lib",
@@ -15,12 +14,11 @@ Usage in a BUILD file:
         srcs = ["library.ttx"],
     )
 
-    ttx_package_folder(
+    ttx_package(
         name = "my_package",
-        root = "perimortem/graphics",
-        package_name = "Perimortem.Graphics",
-        major = 1,
-        minor = 0,
+        manifest = "package.ttx",
+        package_name = "Example.MyPackage",
+        version = [1, 0],
         deps = [":my_dependency"],
     )
 
@@ -34,11 +32,14 @@ Standalone Library actions use `//puffer:puffer` and the in process LLVM
 backend. Puffer emits one object and C header. Bazel's selected C++ toolchain
 owns archive creation and publishes the resulting CcInfo.
 
-Executable application targets belong here once App lowering produces real
-declarations. Until then, these rules do not generate host bridge code that
-guesses at TTX runtime types.
+Package dependency semantics travel through Interface Archives. Complete
+Archives preserve the root Package, while LLVM IR and native objects remain
+separate target products. The Package manifest owns its semantic Source table;
+the public macro discovers candidate `.ttx` files beneath that manifest and
+never repeats member names in BUILD syntax.
 """
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load(
     "@rules_cc//cc:find_cc_toolchain.bzl",
     "CC_TOOLCHAIN_ATTRS",
@@ -48,140 +49,16 @@ load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 
 TtxPackageInfo = provider(
-    doc = (
-        "Transitive package Puffer Buffers visible to Tetrodotoxin."
-    ),
+    doc = "Semantic and target identity published by one TTX Package.",
     fields = {
-        "puffer_buffers": (
-            "depset of .puffer Puffer Buffer package interfaces emitted for " +
-            "Tetrodotoxin resolution."
-        ),
+        "identity": "Exact authored Package identity.",
+        "version": "Authored Package [major, minor] version.",
+        "complete_archive": "Complete semantic Package Archive.",
+        "interface_archive": "Interface semantic Package Archive.",
+        "transitive_interfaces": "Dependency-first Interface Archive depset.",
+        "artifact_id": "Exact native artifact identifier.",
     },
 )
-
-def _collect_puffer_buffers(deps):
-    return depset(transitive = [
-        dep[TtxPackageInfo].puffer_buffers
-        for dep in deps
-    ])
-
-def _ttx_compile_impl(ctx, package):
-    unit_name = ctx.attr.package_name if package else ctx.attr.library_name
-    if package:
-        if ctx.attr.major < 0 or ctx.attr.major > 65535:
-            fail("ttx_package major must fit in Unsigned_16")
-        if ctx.attr.minor < 0 or ctx.attr.minor > 65535:
-            fail("ttx_package minor must fit in Unsigned_16")
-        if ctx.attr.major == 0 and ctx.attr.minor == 0:
-            fail("ttx_package version 0.0 is reserved for an unset version")
-        artifact_root = "%s/%d.%d/" % (
-            unit_name,
-            ctx.attr.major,
-            ctx.attr.minor,
-        )
-    else:
-        artifact_root = unit_name + "/"
-    archive = ctx.actions.declare_file(artifact_root + "x86_64.a")
-    header = ctx.actions.declare_file(artifact_root + "cpp_abi.hpp")
-    puffer_buffer = None
-    outputs = [archive, header]
-    if package:
-        puffer_buffer = ctx.actions.declare_file(
-            artifact_root + "binary_archive.puffer",
-        )
-        outputs.append(puffer_buffer)
-
-    include_root = ctx.bin_dir.path
-    if ctx.label.package:
-        include_root += "/" + ctx.label.package
-
-    args = [
-        "-package" if package else "-library",
-        "-output=%s" % archive.path,
-        "-header=%s" % header.path,
-    ]
-    if package:
-        args.append("-puffer=%s" % puffer_buffer.path)
-        args.append("-major=%d" % ctx.attr.major)
-        args.append("-minor=%d" % ctx.attr.minor)
-
-    args.append("-name=%s" % unit_name)
-
-    dependency_puffer_buffers = _collect_puffer_buffers(ctx.attr.deps)
-    for dep_buffer in dependency_puffer_buffers.to_list():
-        args.append("-dep=%s" % dep_buffer.path)
-
-    for src in ctx.files.srcs:
-        args.append("-source=%s" % src.path)
-
-    kind = "package" if package else "library"
-    ctx.actions.run(
-        inputs = depset(
-            direct = ctx.files.srcs,
-            transitive = [dependency_puffer_buffers],
-        ),
-        outputs = outputs,
-        executable = ctx.executable._compiler,
-        arguments = args,
-        mnemonic = "TtxCompile",
-        progress_message = "Compiling TTX %s %s" % (kind, ctx.label),
-    )
-
-    # Wrap the generated archive in CcInfo so cc_binary can depend on this
-    # target without any extra boilerplate.
-    cc_toolchain = find_cc_toolchain(ctx)
-    feature_configuration = cc_common.configure_features(
-        ctx = ctx,
-        cc_toolchain = cc_toolchain,
-        requested_features = ctx.features,
-        unsupported_features = ctx.disabled_features,
-    )
-
-    lib = cc_common.create_library_to_link(
-        actions = ctx.actions,
-        feature_configuration = feature_configuration,
-        cc_toolchain = cc_toolchain,
-        static_library = archive,
-    )
-
-    linking_context = cc_common.create_linking_context(
-        linker_inputs = depset([
-            cc_common.create_linker_input(
-                owner = ctx.label,
-                libraries = depset([lib]),
-            ),
-        ]),
-    )
-
-    # Each authored unit is a module directory. Exposing the Bazel package's
-    # output root keeps the logical include stable when the target moves to a
-    # different Bazel package or an external repository.
-    compilation_context = cc_common.create_compilation_context(
-        headers = depset([header]),
-        system_includes = depset([include_root]),
-    )
-
-    package_buffers = []
-    if package:
-        package_buffers.append(puffer_buffer)
-
-    output_files = [archive, header]
-    if package:
-        output_files.append(puffer_buffer)
-
-    return [
-        CcInfo(
-            compilation_context = compilation_context,
-            linking_context = linking_context,
-        ),
-        TtxPackageInfo(
-            puffer_buffers = depset(
-                direct = package_buffers,
-                transitive = [dependency_puffer_buffers],
-            ),
-        ),
-        DefaultInfo(files = depset(output_files)),
-    ]
 
 def _ttx_library_impl(ctx):
     if len(ctx.files.srcs) != 1:
@@ -261,14 +138,150 @@ def _ttx_library_impl(ctx):
             direct_cc_infos = [generated_cc_info],
             cc_infos = [ctx.attr._runtime[CcInfo]],
         ),
-        TtxPackageInfo(puffer_buffers = depset()),
         DefaultInfo(files = depset(output_files)),
     ]
 
 def _ttx_package_impl(ctx):
-    return _ttx_compile_impl(ctx, True)
+    if len(ctx.attr.version) != 2:
+        fail("ttx_package version must contain [major, minor]")
+    major = ctx.attr.version[0]
+    minor = ctx.attr.version[1]
+    if major < 0 or major > 65535:
+        fail("ttx_package major must fit in Unsigned_16")
+    if minor < 0 or minor > 65535:
+        fail("ttx_package minor must fit in Unsigned_16")
+    if major == 0 and minor == 0:
+        fail("ttx_package version 0.0 is reserved for an unset version")
+    if not ctx.files.sources:
+        fail("ttx_package requires at least one candidate source")
 
-ttx_library = rule(
+    artifact_id = "x86_64-sysv-linux"
+    artifact_root = "%s/%d.%d/" % (
+        ctx.attr.package_name,
+        major,
+        minor,
+    )
+    complete_archive = ctx.actions.declare_file(artifact_root + "complete.txa")
+    interface_archive = ctx.actions.declare_file(artifact_root + "interface.txa")
+    header = ctx.actions.declare_file(artifact_root + "c_abi.h")
+    arguments = ctx.actions.args()
+    arguments.add("-package")
+    arguments.add(ctx.file.manifest, format = "-manifest=%s")
+    arguments.add("-name=%s" % ctx.attr.package_name)
+    arguments.add("-version=%d.%d" % (major, minor))
+    arguments.add("-artifact=%s" % artifact_id)
+    arguments.add("-debug=%s" % ctx.attr.debug)
+    arguments.add(complete_archive, format = "-complete=%s")
+    arguments.add(interface_archive, format = "-interface=%s")
+    arguments.add(header, format = "-header=%s")
+
+    dependency_interfaces = depset(
+        direct = [
+            dep[TtxPackageInfo].interface_archive
+            for dep in ctx.attr.deps
+        ],
+        transitive = [
+            dep[TtxPackageInfo].transitive_interfaces
+            for dep in ctx.attr.deps
+        ],
+        order = "postorder",
+    )
+    for interface in dependency_interfaces.to_list():
+        arguments.add(interface, format = "-dep=%s")
+
+    llvm_ir = []
+    object_files = []
+    outputs = [complete_archive, interface_archive, header]
+    for index, source in enumerate(ctx.files.sources):
+        source_name = source.basename[:-4]
+        unit_name = "unit_%d_%s" % (index, source_name)
+        ir = ctx.actions.declare_file(artifact_root + unit_name + ".ll")
+        object_file = ctx.actions.declare_file(
+            artifact_root + unit_name + ".o",
+        )
+        arguments.add_joined(
+            [source.path, ir.path, object_file.path],
+            join_with = "|",
+            format_joined = "-unit=%s",
+        )
+        llvm_ir.append(ir)
+        object_files.append(object_file)
+        outputs.extend([ir, object_file])
+
+    ctx.actions.run(
+        inputs = depset(
+            direct = [ctx.file.manifest] + ctx.files.sources,
+            transitive = [dependency_interfaces],
+        ),
+        outputs = outputs,
+        executable = ctx.executable._compiler,
+        arguments = [arguments],
+        mnemonic = "TtxPackageCompile",
+        progress_message = "Compiling TTX Package %s" % ctx.label,
+    )
+
+    cc_toolchain = find_cc_toolchain(ctx)
+    feature_configuration = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = cc_toolchain,
+        requested_features = ctx.features,
+        unsupported_features = ctx.disabled_features,
+    )
+    compilation_outputs = cc_common.create_compilation_outputs(
+        objects = depset(object_files),
+        pic_objects = depset(object_files),
+    )
+    linking_context, linking_outputs = (
+        cc_common.create_linking_context_from_compilation_outputs(
+            actions = ctx.actions,
+            name = ctx.label.name,
+            compilation_outputs = compilation_outputs,
+            cc_toolchain = cc_toolchain,
+            feature_configuration = feature_configuration,
+            disallow_dynamic_library = True,
+        )
+    )
+
+    include_root = ctx.bin_dir.path
+    if ctx.label.package:
+        include_root += "/" + ctx.label.package
+    compilation_context = cc_common.create_compilation_context(
+        headers = depset([header]),
+        system_includes = depset([include_root]),
+    )
+    generated_cc_info = CcInfo(
+        compilation_context = compilation_context,
+        linking_context = linking_context,
+    )
+    dependency_cc_infos = [dep[CcInfo] for dep in ctx.attr.deps]
+    package_interfaces = depset(
+        direct = [interface_archive],
+        transitive = [dependency_interfaces],
+        order = "postorder",
+    )
+    library = linking_outputs.library_to_link
+    if library.static_library:
+        outputs.append(library.static_library)
+    if library.pic_static_library and library.pic_static_library != library.static_library:
+        outputs.append(library.pic_static_library)
+
+    return [
+        cc_common.merge_cc_infos(
+            direct_cc_infos = [generated_cc_info],
+            cc_infos = dependency_cc_infos + [ctx.attr._runtime[CcInfo]],
+        ),
+        TtxPackageInfo(
+            identity = ctx.attr.package_name,
+            version = ctx.attr.version,
+            complete_archive = complete_archive,
+            interface_archive = interface_archive,
+            transitive_interfaces = package_interfaces,
+            artifact_id = artifact_id,
+        ),
+        DefaultInfo(files = depset(outputs)),
+    ]
+
+_ttx_library = rule(
     implementation = _ttx_library_impl,
     attrs = dict(
         CC_TOOLCHAIN_ATTRS,
@@ -279,8 +292,8 @@ ttx_library = rule(
         deps = attr.label_list(
             providers = [TtxPackageInfo],
             doc = (
-                "TTX package dependencies whose Puffer Buffers must be " +
-                "visible during package loading."
+                "TTX package dependencies whose Interface Archives must be " +
+                "visible during loading."
             ),
         ),
         library_name = attr.string(
@@ -302,9 +315,9 @@ ttx_library = rule(
             doc = "The Tetrodotoxin compiler binary.",
         ),
         _runtime = attr.label(
-            default = "//perimortem:memory",
+            default = "//perimortem:abi",
             providers = [CcInfo],
-            doc = "Perimortem runtime linked by generated managed values.",
+            doc = "Perimortem ABI linked by generated native values.",
         ),
     ),
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
@@ -315,21 +328,25 @@ ttx_library = rule(
     ),
 )
 
-ttx_package = rule(
+_ttx_package = rule(
     implementation = _ttx_package_impl,
     attrs = dict(
         CC_TOOLCHAIN_ATTRS,
-        srcs = attr.label_list(
+        manifest = attr.label(
+            mandatory = True,
+            allow_single_file = [".ttx"],
+            doc = "The one explicit package.ttx manifest.",
+        ),
+        sources = attr.label_list(
+            mandatory = True,
             allow_files = [".ttx"],
-            doc = (
-                "Package manifest and owned TTX source files for this module."
-            ),
+            doc = "Candidate source files rooted beside the Package manifest.",
         ),
         deps = attr.label_list(
             providers = [TtxPackageInfo],
             doc = (
-                "Dependent TTX packages whose Puffer Buffers must be " +
-                "visible while loading this module."
+                "Dependent TTX Packages whose Interface Archives and native " +
+                "libraries are consumed by this Package."
             ),
         ),
         package_name = attr.string(
@@ -339,16 +356,148 @@ ttx_package = rule(
                 "beneath its explicit version directory."
             ),
         ),
-        major = attr.int(
+        version = attr.int_list(
             mandatory = True,
-            doc = "Authored package Major version. Zero is valid with a nonzero Minor.",
+            doc = "Authored Package version as [major, minor].",
         ),
-        minor = attr.int(
-            mandatory = True,
-            doc = "Authored package Minor version. Version 0.0 is reserved as unset.",
+        debug = attr.string(
+            default = "none",
+            values = ["none", "line", "full"],
+            doc = "LLVM debug information mode for every member object.",
         ),
         _compiler = attr.label(
-            default = "//tetrodotoxin:puffer",
+            default = "//puffer:puffer",
+            executable = True,
+            cfg = "exec",
+            doc = "The Tetrodotoxin compiler binary.",
+        ),
+        _runtime = attr.label(
+            default = "//perimortem:abi",
+            providers = [CcInfo],
+            doc = "Perimortem ABI linked by generated native values.",
+        ),
+    ),
+    toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
+    fragments = ["cpp"],
+    doc = (
+        "Compiles one authored TTX Package into Complete and Interface " +
+        "Archives plus separate native member objects."
+    ),
+)
+
+def ttx_library(name, **kwargs):
+    """Builds one standalone Library with mode-matched debug information."""
+    if "debug" not in kwargs:
+        kwargs["debug"] = select({
+            "//toolchain:debug_mode": "full",
+            "//conditions:default": "none",
+        })
+    _ttx_library(
+        name = name,
+        **kwargs
+    )
+
+def ttx_package(name, manifest, version, **kwargs):
+    """Builds one manifest-owned Package without duplicating its Source table."""
+    if type(manifest) != "string":
+        fail("ttx_package manifest must be one package-relative path")
+
+    segments = manifest.split("/")
+    root = "/".join(segments[:-1])
+    prefix = root + "/" if root else ""
+    sources = native.glob(
+        [prefix + "**/*.ttx"],
+        exclude = [manifest],
+    )
+    if "debug" not in kwargs:
+        kwargs["debug"] = select({
+            "//toolchain:debug_mode": "full",
+            "//conditions:default": "none",
+        })
+    _ttx_package(
+        name = name,
+        manifest = manifest,
+        sources = sources,
+        version = version,
+        **kwargs
+    )
+
+def _ttx_application_entry_impl(ctx):
+    package = ctx.attr.package[TtxPackageInfo]
+    if package.artifact_id != "x86_64-sysv-linux":
+        fail("ttx_application requires the x86_64-sysv-linux artifact")
+
+    artifact_root = ctx.label.name + "/"
+    llvm_ir = ctx.actions.declare_file(artifact_root + "entry.ll")
+    object_file = ctx.actions.declare_file(artifact_root + "entry.o")
+    arguments = ctx.actions.args()
+    arguments.add("-application")
+    arguments.add(package.complete_archive, format = "-complete=%s")
+    arguments.add("-app-member=%s" % ctx.attr.app_member)
+    arguments.add("-artifact=%s" % package.artifact_id)
+    arguments.add(llvm_ir, format = "-ir=%s")
+    arguments.add(object_file, format = "-object=%s")
+    dependency_interfaces = [
+        interface
+        for interface in package.transitive_interfaces.to_list()
+        if interface.path != package.interface_archive.path
+    ]
+    for interface in dependency_interfaces:
+        arguments.add(interface, format = "-dep=%s")
+
+    ctx.actions.run(
+        inputs = depset([package.complete_archive] + dependency_interfaces),
+        outputs = [llvm_ir, object_file],
+        executable = ctx.executable._compiler,
+        arguments = [arguments],
+        mnemonic = "TtxApplicationEntry",
+        progress_message = "Compiling TTX Application entry %s" % ctx.label,
+    )
+
+    cc_toolchain = find_cc_toolchain(ctx)
+    feature_configuration = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = cc_toolchain,
+        requested_features = ctx.features,
+        unsupported_features = ctx.disabled_features,
+    )
+    compilation_outputs = cc_common.create_compilation_outputs(
+        objects = depset([object_file]),
+        pic_objects = depset([object_file]),
+    )
+    linking_context, _ = cc_common.create_linking_context_from_compilation_outputs(
+        actions = ctx.actions,
+        name = ctx.label.name,
+        compilation_outputs = compilation_outputs,
+        cc_toolchain = cc_toolchain,
+        feature_configuration = feature_configuration,
+        disallow_dynamic_library = True,
+    )
+    entry_cc_info = CcInfo(linking_context = linking_context)
+
+    return [
+        cc_common.merge_cc_infos(
+            direct_cc_infos = [entry_cc_info],
+            cc_infos = [ctx.attr.package[CcInfo]],
+        ),
+        DefaultInfo(files = depset([llvm_ir, object_file])),
+    ]
+
+_ttx_application_entry = rule(
+    implementation = _ttx_application_entry_impl,
+    attrs = dict(
+        CC_TOOLCHAIN_ATTRS,
+        package = attr.label(
+            mandatory = True,
+            providers = [TtxPackageInfo, CcInfo],
+            doc = "The root Package supplying the Complete Archive and native objects.",
+        ),
+        app_member = attr.string(
+            mandatory = True,
+            doc = "The exact member containing the App policy.",
+        ),
+        _compiler = attr.label(
+            default = "//puffer:puffer",
             executable = True,
             cfg = "exec",
             doc = "The Tetrodotoxin compiler binary.",
@@ -356,32 +505,18 @@ ttx_package = rule(
     ),
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
     fragments = ["cpp"],
-    doc = (
-        "Compiles an authored TTX module rooted by dialect : Package and " +
-        "exports its manifest to dependent TTX targets."
-    ),
 )
 
-def ttx_package_folder(
-        name,
-        root,
-        package_name,
-        major,
-        minor,
-        deps = None,
-        **kwargs):
-    """Compiles a TTX package folder rooted at a package.ttx file.
-
-    Bazel still sees the concrete .ttx files through native.glob, but BUILD
-    files can name the source package as the authored folder instead of
-    repeating every implementation file.
-    """
-    ttx_package(
+def ttx_application(name, package, app_member, **kwargs):
+    """Links one source-free App policy through Bazel's C++ toolchain."""
+    entry_name = name + "_entry"
+    _ttx_application_entry(
+        name = entry_name,
+        package = package,
+        app_member = app_member,
+    )
+    cc_binary(
         name = name,
-        srcs = native.glob([root + "/**/*.ttx"]),
-        deps = deps or [],
-        package_name = package_name,
-        major = major,
-        minor = minor,
+        deps = [":" + entry_name],
         **kwargs
     )

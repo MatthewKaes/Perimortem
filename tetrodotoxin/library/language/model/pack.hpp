@@ -8,6 +8,8 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
+#include "tetrodotoxin/library/archive/reader.hpp"
+#include "tetrodotoxin/library/archive/writer.hpp"
 #include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
@@ -41,6 +43,11 @@ class Pack : public Ttx::Model::Pack {
   // Lowering visits the retained producer graph in evaluation order. The
   // target Body records physical outputs under this exact Pack identity.
   virtual auto lower(Llvm::Builder& body) const -> Bool = 0;
+
+  virtual auto link_restored(
+      const Ttx::Concept::Abstract& lexical_context,
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
+      -> Bool;
 
   // The scalar output query is a convenience over the Pack's completed Layout.
   // It is Invalid for empty or multiple value flow and never materializes an
@@ -89,6 +96,19 @@ class Pack : public Ttx::Model::Pack {
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor = {}) -> Pack&;
 
+  // Persisted Package constants retain their completed value flow rather than
+  // the Expression graph that produced it. Composite constant flow is
+  // flattened to its exact ordered outputs before crossing the Terminal
+  // boundary.
+  static auto persist_folded(Archive::Writer& writer, const Pack& value)
+      -> Bool;
+
+  static auto restore_folded(
+      Archive::Reader& reader,
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Ttx::Concept::Abstract& lexical_context)
+      -> Perimortem::Core::Option<Pack&>;
+
   // A concrete producer may compose already retained child Packs when its
   // semantic result is genuinely grouped flow. Positional composition flattens
   // child Layouts. Named composition requires one produced value per name. The
@@ -105,6 +125,15 @@ class Pack : public Ttx::Model::Pack {
   static auto create_folded(
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<Pack>> entries)
+      -> Pack&;
+
+  // Generated execution owners may compose an already linked named Pack.
+  // Unlike authored groups, every supplied entry is already a completed graph
+  // edge and no lexical pass may replace it.
+  static auto create_completed(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Pack>> entries,
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names = {})
       -> Pack&;
 
  protected:

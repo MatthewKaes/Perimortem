@@ -18,7 +18,7 @@
 namespace Tetrodotoxin::Library::Llvm {
 
 // Builder exposes the physical operations for one executable lowering
-// transaction. Library owners retain semantic traversal and control-flow state
+// transaction. Library owners retain semantic traversal and control flow state
 // while Builder writes directly into the Body owned by this transaction.
 class Builder {
  public:
@@ -214,7 +214,9 @@ class Builder {
   auto invoke(
       const Ttx::Model::Pack& result,
       const Ttx::Model::Callable& callable,
-      Perimortem::Core::View::Vector<LLVMValueRef> inputs) const -> Bool;
+      Perimortem::Core::View::Vector<LLVMValueRef> inputs,
+      Perimortem::Core::Option<const Ttx::Model::Pack&> receiver_source) const
+      -> Bool;
   auto fit_input(
       const Ttx::Model::Addressable& parameter,
       const Ttx::Model::Pack& source,
@@ -225,15 +227,68 @@ class Builder {
       const Ttx::Model::Type& result_type,
       const Ttx::Model::Type& receiver_type,
       LLVMValueRef receiver) const -> Bool;
-  auto get_access(
+  auto contiguous_is_empty(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      LLVMValueRef receiver) const -> Bool;
+  auto object_capacity(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      LLVMValueRef receiver) const -> Bool;
+  auto object_is_shared(
       const Ttx::Model::Pack& result,
       const Ttx::Model::Type& result_type,
       const Ttx::Model::Type& receiver_type,
       const Ttx::Model::Pack& receiver_source,
       LLVMValueRef receiver) const -> Bool;
+  auto object_clone(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& receiver_type,
+      const Ttx::Model::Pack& receiver_source,
+      LLVMValueRef receiver) const -> Bool;
+  auto object_view(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      LLVMValueRef receiver) const -> Bool;
+  auto object_access(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      const Ttx::Model::Pack& receiver_source,
+      LLVMValueRef receiver,
+      const Ttx::Model::Pack& element_default) const -> Bool;
+  auto object_reserve(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      const Ttx::Model::Pack& receiver_source,
+      LLVMValueRef receiver,
+      LLVMValueRef count,
+      const Ttx::Model::Pack& element_default) const -> Bool;
+  auto borrow_fixed(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      const Ttx::Model::Pack& receiver_source,
+      LLVMValueRef receiver) const -> Bool;
+  auto slice_view(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      const Ttx::Model::Type& receiver_type,
+      LLVMValueRef receiver,
+      LLVMValueRef start,
+      LLVMValueRef count) const -> Bool;
   auto compare(
       Comparison operation,
       const Ttx::Model::Type& carrier,
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Pack& left,
+      const Ttx::Model::Pack& right) const -> Bool;
+  auto compare_bytes(
+      Comparison operation,
       const Ttx::Model::Pack& result,
       const Ttx::Model::Pack& left,
       const Ttx::Model::Pack& right) const -> Bool;
@@ -253,10 +308,17 @@ class Builder {
       const Ttx::Concept::Abstract& owner,
       const Ttx::Model::Pack& condition) const -> Bool;
   auto end_while(const Ttx::Concept::Abstract& owner) const -> Bool;
-  auto begin_range(
+  auto begin_sequence(
+      const Ttx::Concept::Abstract& owner,
       const Ttx::Model::Addressable& binding,
       const Ttx::Model::Pack& input) const -> Bool;
-  auto end_range(const Ttx::Model::Addressable& binding) const -> Bool;
+  auto begin_enumeration(
+      const Ttx::Concept::Abstract& owner,
+      const Ttx::Concept::Layout& bindings,
+      Perimortem::Core::View::Vector<Unsigned_64> values,
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names) const
+      -> Bool;
+  auto end_iteration(const Ttx::Concept::Abstract& owner) const -> Bool;
   auto begin_match(const Ttx::Model::Pack& input) const
       -> Perimortem::Core::Option<Match>;
   auto begin_constant_case(Match& state, const Ttx::Model::Pack& constant) const
@@ -283,6 +345,11 @@ class Builder {
   auto statement(Ttx::Lexical::Anchor anchor) const -> Bool;
   auto local(const Ttx::Model::Addressable& local, Ttx::Lexical::Anchor anchor)
       const -> Bool;
+  auto has_full_debug() const -> Bool;
+  auto constant_local(
+      const Ttx::Model::Addressable& local,
+      const Ttx::Model::Pack& value,
+      Ttx::Lexical::Anchor anchor) const -> Bool;
   auto end_statement() const -> Bool;
   auto bind_local(
       const Ttx::Model::Addressable& local,
@@ -303,6 +370,16 @@ class Builder {
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Pack& result,
       Perimortem::Core::View::Bytes value) const -> Bool;
+  auto object_value(
+      const Ttx::Model::Type& carrier,
+      const Ttx::Model::Pack& result) const -> Bool;
+  auto enumeration_name(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& result_type,
+      LLVMValueRef value,
+      Perimortem::Core::View::Vector<Unsigned_64> values,
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names) const
+      -> Bool;
   auto logical_not(
       const Ttx::Model::Pack& result,
       const Ttx::Model::Pack& operand) const -> Bool;
@@ -320,6 +397,10 @@ class Builder {
       const Ttx::Model::Type& element,
       const Ttx::Model::Pack& result,
       const Ttx::Model::Pack& payload) const -> Bool;
+  auto result(
+      const Ttx::Model::Type& carrier,
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Pack& payload) const -> Bool;
   auto begin_unwrap(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Type& element,
@@ -329,11 +410,24 @@ class Builder {
       const Ttx::Model::Type& element,
       const Ttx::Model::Pack& result,
       const Ttx::Model::Pack& fallback) const -> Bool;
-  auto propagate(
+  auto propagate_option(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Type& element,
       const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& option) const -> Bool;
+      const Ttx::Model::Pack& option,
+      const Ttx::Model::Pack& escape) const -> Bool;
+  auto propagate_flag(
+      const Ttx::Model::Type& carrier,
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Pack& flag,
+      const Ttx::Model::Pack& escape) const -> Bool;
+  auto propagate_result(
+      const Ttx::Model::Type& carrier,
+      const Ttx::Model::Type& value,
+      const Ttx::Model::Type& error,
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Pack& source,
+      const Ttx::Model::Pack& escape) const -> Bool;
   auto range(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Pack& result,

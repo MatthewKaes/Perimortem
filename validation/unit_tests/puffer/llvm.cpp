@@ -38,11 +38,12 @@ static auto compile_source(
     View::Bytes source,
     Library::Llvm::Debug::Level debug) -> Perimortem::Utility::
     Result<Library::Llvm::Products, Library::Llvm::Failure> {
-  Environment::Workspace workspace;
-  auto dialect = workspace.install_dialect<Library::Dialect>("Library"_view);
+  Environment::Toolchain toolchain;
+  auto dialect = toolchain.install<Library::Dialect>("Library"_view);
   if (!dialect) {
     return Library::Llvm::Failure::ToolchainFailed;
   }
+  Environment::Workspace workspace(toolchain);
 
   auto interpreted =
       workspace.interpret_source(errors, "LlvmTest"_view, path, source);
@@ -83,6 +84,70 @@ PERIMORTEM_UNIT_TEST(LlvmTests, standalone_runtime_integration) {
   };
   Process::Observation observation = Process::run(request);
 
+  EXPECT(observation.launched);
+  EXPECT_NOT(observation.timed_out);
+  EXPECT_EQ(observation.exit_status, 0);
+  EXPECT(observation.standard_output.is_empty());
+  EXPECT(observation.standard_error.is_empty());
+  EXPECT(observation.runner_error.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(LlvmTests, system_abi_integration) {
+  Process::Request request = {
+    .executable = ".bin/bin/validation/system_abi_integration"_view,
+    .standard_input = "Hello System\n"_view,
+  };
+  Process::Observation observation = Process::run(request);
+
+  EXPECT(observation.launched);
+  EXPECT_NOT(observation.timed_out);
+  EXPECT_EQ(observation.exit_status, 0);
+  EXPECT_TEXT(observation.standard_input, "Hello System\n"_view);
+  EXPECT_TEXT(observation.standard_output, "Hello System\n"_view);
+  EXPECT(observation.standard_error.is_empty());
+  EXPECT(observation.runner_error.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(LlvmTests, package_native_integration) {
+  Process::Request request = {
+    .executable = ".bin/bin/validation/package_native_integration"_view,
+  };
+  Process::Observation observation = Process::run(request);
+
+  EXPECT(observation.launched);
+  EXPECT_NOT(observation.timed_out);
+  EXPECT_EQ(observation.exit_status, 0);
+  EXPECT(observation.standard_output.is_empty());
+  EXPECT(observation.standard_error.is_empty());
+  EXPECT(observation.runner_error.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(LlvmTests, echo_package_integration) {
+  Process::Request request = {
+    .executable = ".bin/bin/apps/ttx/echo/echo"_view,
+    .standard_input = "hello\n\nquit\n"_view,
+  };
+  Process::Observation observation = Process::run(request);
+
+  EXPECT(observation.launched);
+  EXPECT_NOT(observation.timed_out);
+  EXPECT_EQ(observation.exit_status, 0);
+  EXPECT_TEXT(observation.standard_input, "hello\n\nquit\n"_view);
+  EXPECT_TEXT(observation.standard_output, "Echo: hello\nEcho: \n"_view);
+  EXPECT(observation.standard_error.is_empty());
+  EXPECT(observation.runner_error.is_empty());
+
+  request.standard_input = "exit\n"_view;
+  observation = Process::run(request);
+  EXPECT(observation.launched);
+  EXPECT_NOT(observation.timed_out);
+  EXPECT_EQ(observation.exit_status, 0);
+  EXPECT(observation.standard_output.is_empty());
+  EXPECT(observation.standard_error.is_empty());
+  EXPECT(observation.runner_error.is_empty());
+
+  request.standard_input = {};
+  observation = Process::run(request);
   EXPECT(observation.launched);
   EXPECT_NOT(observation.timed_out);
   EXPECT_EQ(observation.exit_status, 0);
@@ -167,6 +232,19 @@ PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),
+          "!DILocalVariable(name: \"frozen_dense\""_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
+          "store [4 x i64] [i64 5, i64 6, i64 7, i64 8], ptr %const.debug"_view) !=
+      Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
+          "#dbg_declare(ptr %const.debug"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
           "!DICompositeType(tag: DW_TAG_structure_type, name: \"source\""_view) !=
       Count(-1));
   EXPECT(
@@ -206,6 +284,25 @@ PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),
+          "@__ttx_object_descriptor_Counter = internal constant { i64, i64, "
+          "ptr } { i64 8, i64 8, ptr @__ttx_object_finalize_Counter }"_view) !=
+      Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
+          "@perimortem_core_object_allocate(ptr "
+          "@__ttx_object_descriptor_Counter)"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
+          "@perimortem_core_object_retain(ptr null)"_view) == Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
+          "@perimortem_core_object_release(ptr null)"_view) == Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
           "define void @llvm_large(ptr noalias sret(%ttx.struct.Large)"_view) !=
       Count(-1));
   EXPECT(
@@ -223,6 +320,14 @@ PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
           first_products->get_header(),
           "typedef struct ttx_View_5bUnsigned_5f64_5d {\n"
           "  const uint64_t *data;\n"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_header(),
+          "uint64_t llvm_bytes_api(void);"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_llvm_ir(),
+          "%ttx.struct.Dynamic__Bytes = type { ptr, i64 }"_view) != Count(-1));
   EXPECT(
       Algorithm::search(first_products->get_llvm_ir(), "__ttx_fn_"_view) ==
       Count(-1));
@@ -278,7 +383,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, backend_rejections_report_source) {
     View::Bytes source;
     View::Bytes message;
   };
-  static constexpr Static::Vector<Rejection, 4> rejections = {{
+  static constexpr Static::Vector<Rejection, 5> rejections = {{
     Rejection{
       "// Missing ABI.\ndialect : Library;\n@symbol(\"entry\")\npublic "
       "entry : func = [] -> [] { return; }\n"_view,
@@ -301,6 +406,13 @@ PERIMORTEM_UNIT_TEST(LlvmTests, backend_rejections_report_source) {
       "public Recursive : struct { public state next : Option[Recursive]; }\n"
       "@abi(\"C\")\npublic entry : func = [] -> [] { return; }\n"_view,
       "recursively contains itself"_view,
+    },
+    {
+      "// Object buffer owning element.\ndialect : Library;\n"
+      "public Node : object { public state value : Unsigned_64; }\n"
+      "@abi(\"C\")\npublic entry : func = [.value : Object[Node]] -> [] "
+      "{ return; }\n"_view,
+      "requires one value-only element Type"_view,
     },
   }};
 

@@ -83,6 +83,11 @@ class Generic : public Ttx::Concept::Abstract {
   auto materialize(const Ttx::Concept::Layout& arguments) const
       -> Materialization;
 
+  // Forward Type arguments may settle their Layouts after materialization.
+  // Validate every retained result only after the complete authored graph
+  // links.
+  auto validate_materializations(Ttx::Lexical::Cursor& cursor) const -> Bool;
+
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 

@@ -31,11 +31,51 @@ request from editor or command line
 Open editor documents may contain unsaved bytes, so Puffer retains their text
 and protocol identity for the session. Environment owns Workspace lifetime and
 source completion. Package owns package selection and semantic Archives.
-Language compilers and Linker own their output formats.
+Language compilers own their native member products, while the selected build
+toolchain owns static archives and final executable linking.
+
+The LSP constructs one Environment Toolchain and lends it to every replacement
+Workspace. A Package session reads the selected manifest, recursively loads
+each exact dependency from the configured Package root, detects active cycles,
+and imports the consumer only after its dependencies complete. One shared
+Snapshot owner retains editor overlays and unchanged filesystem bytes across
+those complete graph replacements; no standard Package name is injected into
+an unrelated Package.
 
 Puffer's process model and user interface are optional. Another application can
 reuse source interpretation, Package resolution, compilation, linking, and
 Archive support without adopting either one.
+
+Puffer can canonically format any TTX token stream without requiring semantic
+completion:
+
+```text
+puffer -format source.ttx another.ttx
+```
+
+Formatting rewrites each source transactionally. It preserves unknown and
+incomplete tokens, applies the same declaration and whitespace rules to every
+equivalent token stream, and supplies placeholder source documentation when the
+leading document is absent. Comment markers, hexadecimal widths, byte groups,
+and single Statement Blocks receive one prescribed spelling. Packs and Layouts
+stay on one line through the 100 column limit, then place one top level entry on
+each line with a trailing comma. Adjacent declarations and plain assignments
+align their `:` and `=` columns only when the required padding is at most eight
+columns and the aligned prefix remains short. Documentation, Attributes, and
+Blocks end an alignment island.
+
+Within one scope paragraph, formatting accepts Definitions, ordinary
+Statements, any number of compressed `:` Blocks, then at most one braced Block.
+Returning to an earlier stage inserts one blank line. Documentation begins its
+own stage before the item it describes.
+
+An empty-result Function does not retain redundant trailing `return;`
+Statements. Formatting removes every consecutive trailing bare return from a
+multi-Statement body. If that leaves no Statement, the canonical spelling is
+`: return;`; an explicitly authored one-line `: return;` is preserved. Returns
+inside nested Blocks and content following an earlier return are not analyzed
+or removed. The language server exposes the same formatter as standard
+document formatting for open editor buffers.
 
 ## Terminal production
 
@@ -47,8 +87,9 @@ When the Workspace is ready, Puffer coordinates the requested products:
 
 * Library compiles CPU code with LLVM.
 * Shader produces SPIR V for the GPU.
-* Linker produces ELF programs for Linux or PE programs for Windows.
 * Package produces a Complete or Interface Archive.
+* The build toolchain combines native member products into libraries and
+  platform executables.
 
 The request chooses the CPU target, host platform, graphics backend,
 and Archive profile. Puffer passes those choices to the components that own the
@@ -95,6 +136,22 @@ their payload and selected state inline with the same value semantics as
 and release interface. Object carriers are opaque one word handles. Parameters
 borrow them, results transfer one reservation, and the generated header exposes
 the generic Perimortem retain and release entries for a host that keeps a result.
+
+### Package and application requests
+
+A Package request imports every dependency through its Interface Archive,
+imports the root source Package once, and compiles each declared member into an
+independent native object. It emits the root Complete and Interface Archives,
+one combined C and C++ declaration header, and the member products declared by
+the build action. The build supplies manifest-rooted `.ttx` candidates, while
+the Package Source table remains the sole authority for their semantic member
+names and paths. Package coordinates those products without lowering a copied
+semantic graph.
+
+An application request is source free. It restores the root Complete Archive
+and dependency Interface Archives, selects the App policy retained by the
+requested member, and emits a small native entry object. The build toolchain
+then links that entry with the Package and runtime native products.
 
 ## Restoring an Archive
 

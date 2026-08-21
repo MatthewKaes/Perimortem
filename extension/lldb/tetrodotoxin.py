@@ -45,6 +45,12 @@ def _render_value(value):
 def option_summary(value, _internal_dictionary):
     raw = _raw(value)
     selected = raw.GetChildMemberWithName("set")
+    niche = raw.GetType().GetCanonicalType().IsPointerType()
+    if not selected.IsValid() and niche:
+        if raw.GetValueAsUnsigned() == 0:
+            return "empty"
+        return "{ " + _render_value(raw.Dereference()) + " }"
+
     if not selected.IsValid() or selected.GetValueAsUnsigned() == 0:
         return "empty"
 
@@ -62,6 +68,12 @@ class OptionSyntheticProvider:
     def update(self):
         raw = _raw(self.value)
         state = raw.GetChildMemberWithName("set")
+        niche = raw.GetType().GetCanonicalType().IsPointerType()
+        if not state.IsValid() and niche:
+            self.selected = raw.GetValueAsUnsigned() != 0
+            self.payload = raw.Dereference() if self.selected else lldb.SBValue()
+            return False
+
         self.selected = (
             state.IsValid() and state.GetValueAsUnsigned() != 0
         )
@@ -84,7 +96,12 @@ class OptionSyntheticProvider:
 def _contiguous_state(value):
     raw = _raw(value)
     data = raw.GetChildMemberWithName("data")
-    size = raw.GetChildMemberWithName("size").GetValueAsUnsigned()
+    if not data.IsValid():
+        data = raw.GetChildAtIndex(0)
+    size_value = raw.GetChildMemberWithName("size")
+    if not size_value.IsValid():
+        size_value = raw.GetChildAtIndex(1)
+    size = size_value.GetValueAsUnsigned()
     element_type = data.GetType().GetPointeeType()
     element_size = (
         element_type.GetByteSize() if element_type.IsValid() else 0
@@ -108,19 +125,54 @@ def _contiguous_child(value, index, state):
     )
 
 
+def _quote_bytes(value, state):
+    address, size, _element_type, _element_size = state
+    visible = min(size, _SUMMARY_LIMIT)
+    error = lldb.SBError()
+    data = value.GetProcess().ReadMemory(address, visible, error)
+    if not error.Success():
+        return "<unavailable>"
+
+    escaped = []
+    for byte in data:
+        if byte == 0x09:
+            escaped.append("\\t")
+        elif byte == 0x0A:
+            escaped.append("\\n")
+        elif byte == 0x0D:
+            escaped.append("\\r")
+        elif byte == 0x22:
+            escaped.append('\\"')
+        elif byte == 0x5C:
+            escaped.append("\\\\")
+        elif 0x20 <= byte <= 0x7E:
+            escaped.append(chr(byte))
+        else:
+            escaped.append(f"\\x{byte:02X}")
+
+    if size > visible:
+        escaped.append("…")
+    return '"' + "".join(escaped) + '"'
+
+
 def contiguous_summary(value, _internal_dictionary):
     state = _contiguous_state(value)
+    type_name = _raw(value).GetType().GetName()
+    dynamic_bytes = type_name in ("Bytes", "Dynamic::Bytes")
     if state[1] == 0:
-        return "empty"
+        return 'Dynamic::Bytes("")' if dynamic_bytes else "empty"
 
-    visible = min(state[1], _SUMMARY_LIMIT)
-    rendered = [
-        _render_value(_contiguous_child(value, index, state))
-        for index in range(visible)
-    ]
-    if state[1] > visible:
-        rendered.append("…")
-    return "{ " + ", ".join(rendered) + " }"
+    opening = type_name.find("[") if type_name else -1
+    element_name = (
+        type_name[opening + 1 : -1]
+        if opening >= 0 and type_name.endswith("]")
+        else state[2].GetCanonicalType().GetName()
+    )
+    if dynamic_bytes or element_name == "Unsigned_8":
+        quoted = _quote_bytes(value, state)
+        return f"Dynamic::Bytes({quoted})" if dynamic_bytes else quoted
+
+    return f"{state[1]} {element_name}"
 
 
 class ContiguousSyntheticProvider:
@@ -178,12 +230,13 @@ def __lldb_init_module(debugger, _internal_dictionary):
     )
     debugger.HandleCommand(
         "type summary add -w tetrodotoxin --python-function "
-        "tetrodotoxin.contiguous_summary -x '^(View|Access)\\[.*\\]$'"
+        "tetrodotoxin.contiguous_summary "
+        "-x '^((View|Access)\\[.*\\]|(Dynamic::)?Bytes)$'"
     )
     debugger.HandleCommand(
         "type synthetic add -w tetrodotoxin --python-class "
         "tetrodotoxin.ContiguousSyntheticProvider "
-        "-x '^(View|Access)\\[.*\\]$'"
+        "-x '^((View|Access)\\[.*\\]|(Dynamic::)?Bytes)$'"
     )
     debugger.HandleCommand(
         "type summary add -w tetrodotoxin --python-function "

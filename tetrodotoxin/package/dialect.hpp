@@ -11,6 +11,8 @@ namespace Tetrodotoxin::Package {
 // root. Workspace owns source acquisition, completion, and lifetime.
 class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
+  TTX_CONTRACT(Dialect, Tetrodotoxin::Language::Dialect);
+
   Dialect(Perimortem::Core::View::Bytes name = "Package"_view)
       : Tetrodotoxin::Language::Dialect(name) {}
 

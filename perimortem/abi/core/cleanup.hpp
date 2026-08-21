@@ -3,9 +3,14 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/option.hpp"
 
 namespace Perimortem::Abi::Core {
+
+inline constexpr Perimortem::Core::View::Bytes cleanup_register_symbol =
+    "perimortem_core_cleanup_register"_view;
 
 // Cleanup is the ABI handler for dynamically registered destructors whose
 // owned data follows Bibliotheca lifetime. Each worker owns one reverse ordered
@@ -41,3 +46,6 @@ class Cleanup {
 };
 
 }  // namespace Perimortem::Abi::Core
+
+extern "C" auto perimortem_core_cleanup_register(
+    Perimortem::Abi::Core::Cleanup::Destructor destructor) -> void;

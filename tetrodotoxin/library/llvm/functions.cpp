@@ -3,10 +3,11 @@
 
 // The native bridge enters LLVM before the Perimortem owner so LLVM's standard
 // declarations remain confined to this implementation unit.
-// clang-format off
+#if __has_include("llvm/IR/Function.h")
 #include "llvm/IR/Function.h"
-#include "tetrodotoxin/library/llvm/functions.hpp"
-// clang-format on
+#else
+#error LLVM Function is required by the Library native compiler
+#endif
 
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
@@ -15,9 +16,13 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CBindingWrapping.h"
+#include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/llvm/body.hpp"
 #include "tetrodotoxin/library/llvm/carriers.hpp"
 #include "tetrodotoxin/library/llvm/export.hpp"
+#include "tetrodotoxin/library/llvm/functions.hpp"
 #include "tetrodotoxin/library/llvm/program.hpp"
 #include "tetrodotoxin/library/llvm/symbol.hpp"
 #include "ttx/model/addressable.hpp"
@@ -33,6 +38,22 @@ static auto llvm_text(Core::View::Bytes value) -> llvm::StringRef {
 static auto select_program(Ttx::Concept::Abstract& program)
     -> Core::Option<Tetrodotoxin::Library::Llvm::Program&> {
   return program.select<Tetrodotoxin::Library::Llvm::Program>();
+}
+
+static auto is_local_definition(
+    const Tetrodotoxin::Library::Llvm::Unit& unit,
+    const Tetrodotoxin::Language::Definition& definition) -> Bool {
+  Ttx::Concept::Reference<const Ttx::Concept::Abstract> current(
+      definition.get_host());
+  while (true) {
+    auto source = current.get().select<Language::Types::Source>();
+    if (source) {
+      return unit.owns(source->get_host());
+    }
+    auto composite = current.get().select<Language::Types::Composite>();
+    BAIL_IF(!composite);
+    current = composite->get_definition().get_host();
+  }
 }
 
 static auto get_program(Ttx::Concept::Abstract& body)
@@ -98,25 +119,6 @@ static auto get_attribute_text(
                   : Core::Option<const Core::View::Bytes&>();
 }
 
-static auto is_c_identifier(Core::View::Bytes value) -> Bool {
-  if (value.is_empty()) {
-    return False;
-  }
-
-  for (Count index = 0; index < value.get_size(); index++) {
-    Unsigned_8 byte = value[index];
-    Bool letter =
-        Bool((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z'));
-    Bool valid = Bool(
-        letter || byte == '_' || (index != 0 && byte >= '0' && byte <= '9'));
-    if (!valid) {
-      return False;
-    }
-  }
-
-  return True;
-}
-
 static auto select_function_attributes(
     Ttx::Concept::Abstract& program,
     const Tetrodotoxin::Language::Definition& definition,
@@ -165,7 +167,7 @@ static auto select_function_attributes(
             : "LLVM supports only the C ABI requested by this Callable."_view);
   }
 
-  if (symbol && !is_c_identifier(*symbol)) {
+  if (symbol && !Llvm::Symbol::validate(*symbol)) {
     return fail_callable(
         program, definition,
         "The native symbol is not a valid C identifier."_view,
@@ -246,24 +248,41 @@ static auto select_result_types(
     Memory::Dynamic::Vector<llvm::Type*>& native,
     Memory::Dynamic::Vector<const Ttx::Model::Type*>& semantic) -> Bool {
   const Ttx::Concept::Layout& layout = callable.get_results();
+  auto library_callable = callable.select<Language::Model::Callable>();
+  auto self_result = library_callable
+                         ? library_callable->get_self_result()
+                         : Core::Option<const Ttx::Model::Addressable&>();
+  auto target = select_program(program);
   for (Count index = 0; index < layout.get_size(); index++) {
     auto entry = layout.get_abstract(index);
-    auto type = entry ? entry->resolve().select<Ttx::Model::Type>()
-                      : Core::Option<const Ttx::Model::Type&>();
-    if (!type) {
+    auto addressable = entry ? entry->select<Ttx::Model::Addressable>()
+                             : Core::Option<const Ttx::Model::Addressable&>();
+    auto type =
+        addressable
+            ? Core::Option<const Ttx::Model::Type&>(addressable->get_type())
+        : entry ? entry->resolve().select<Ttx::Model::Type>()
+                : Core::Option<const Ttx::Model::Type&>();
+    if (!type || !target) {
       return fail_backend(
           program,
           "LLVM received a Callable result without an exact Type."_view);
     }
 
-    auto carrier = carriers.get_type(*type);
+    llvm::Type* carrier =
+        self_result && addressable && &*self_result == &*addressable
+            ? llvm::PointerType::getUnqual(get_context(*target))
+            : carriers.get_type(*type).visit(
+                  []() -> llvm::Type* { return nullptr; },
+                  [](LLVMTypeRef selected) -> llvm::Type* {
+                    return llvm::unwrap(selected);
+                  });
     if (!carrier) {
       return fail_backend(
           program,
           "LLVM cannot find the completed carrier for a Callable result."_view);
     }
 
-    native.insert(llvm::unwrap(*carrier));
+    native.insert(carrier);
     semantic.insert(&*type);
   }
 
@@ -295,7 +314,22 @@ auto Tetrodotoxin::Library::Llvm::Functions::reserve_function(
     const Ttx::Model::Callable& callable,
     const Tetrodotoxin::Language::Definition& definition) const
     -> Core::Option<Bool> {
-  return reserve(program, callable, Record(Kind::Function, {}, {}, definition));
+  auto target = select_program(program);
+  if (!target || !target->get_unit().is_package_member() ||
+      is_local_definition(target->get_unit(), definition)) {
+    return reserve(
+        program, callable, Record(Kind::Function, {}, {}, definition));
+  }
+
+  auto symbol = target->get_unit().find(callable);
+  if (!symbol) {
+    fail_callable(
+        program, definition,
+        "LLVM Package member is missing one external Callable binding."_view);
+    return {};
+  }
+  return reserve(
+      program, callable, Record(Kind::External, {}, *symbol, definition));
 }
 
 auto Tetrodotoxin::Library::Llvm::Functions::reserve_foreign(
@@ -309,7 +343,7 @@ auto Tetrodotoxin::Library::Llvm::Functions::reserve_foreign(
     return {};
   }
 
-  if (!is_c_identifier(symbol)) {
+  if (!Llvm::Symbol::validate(symbol)) {
     fail_callable(
         program, {},
         "The Foreign Callable symbol is not a valid C identifier."_view);
@@ -325,16 +359,25 @@ auto Tetrodotoxin::Library::Llvm::Functions::reserve_foreign(
   return reserved;
 }
 
-auto Tetrodotoxin::Library::Llvm::Functions::reserve_get_size(
+auto Tetrodotoxin::Library::Llvm::Functions::reserve_construction(
     Ttx::Concept::Abstract& program,
-    const Ttx::Model::Callable& callable) const -> Core::Option<Bool> {
-  return reserve(program, callable, Record(Kind::GetSize));
-}
+    const Ttx::Model::Callable& callable,
+    const Ttx::Model::Type& owner) const -> Core::Option<Bool> {
+  auto target = select_program(program);
+  BAIL_IF(!target);
 
-auto Tetrodotoxin::Library::Llvm::Functions::reserve_get_access(
-    Ttx::Concept::Abstract& program,
-    const Ttx::Model::Callable& callable) const -> Core::Option<Bool> {
-  return reserve(program, callable, Record(Kind::GetAccess));
+  auto external = target->get_unit().find(callable);
+  if (target->get_unit().is_package_member() && external) {
+    return reserve(
+        program, callable, Record(Kind::External, {}, *external, {}, True));
+  }
+
+  Symbol symbol(
+      target->get_arena(), owner, Symbol::Kind::Construction,
+      target->get_unit());
+  return reserve(
+      program, callable,
+      Record(Kind::Function, {}, symbol.get_view(), {}, True));
 }
 
 auto Tetrodotoxin::Library::Llvm::Functions::complete(
@@ -352,11 +395,6 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
     return True;
   }
 
-  if (record.kind == Kind::GetSize || record.kind == Kind::GetAccess) {
-    record.completed = True;
-    return True;
-  }
-
   auto target = select_program(program);
   auto carriers = select_carriers(program);
   if (!target || !carriers) {
@@ -366,25 +404,37 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
   Core::Option<Core::View::Bytes> abi;
   Core::Option<Core::View::Bytes> symbol;
   Bool c_boundary = Bool(record.kind == Kind::Foreign);
-  Bool exported = False;
-  if (record.kind == Kind::Function) {
-    if (!record.definition ||
-        !select_function_attributes(program, *record.definition, abi, symbol)) {
+  Bool c_publication = False;
+  Bool package_publication = False;
+  if ((record.kind == Kind::Function || record.kind == Kind::External) &&
+      record.definition) {
+    if (!select_function_attributes(program, *record.definition, abi, symbol)) {
       return False;
     }
 
     c_boundary = Bool(abi);
-    exported = c_boundary;
+    if (record.kind == Kind::Function) {
+      c_publication = c_boundary;
+      package_publication = Bool(
+          target->get_unit().is_package_member() &&
+          record.definition->is_published() && !c_publication);
+    }
+  } else if (record.kind == Kind::Function && record.construction) {
+    package_publication = target->get_unit().is_package_member();
+  } else if (record.kind == Kind::Function) {
+    return fail_backend(
+        program, "LLVM Function lowering lost its declaration owner."_view);
   }
 
   Core::View::Bytes selected_symbol = record.symbol;
   if (record.kind == Kind::Function && symbol) {
     selected_symbol = *symbol;
-  } else if (record.kind == Kind::Function) {
+  } else if (record.kind == Kind::Function && !record.construction) {
     Symbol generated(
         target->get_arena(), callable,
         declares_self(callable) ? Symbol::Kind::FunctionSelf
-                                : Symbol::Kind::FunctionStatic);
+                                : Symbol::Kind::FunctionStatic,
+        target->get_unit());
     selected_symbol = generated.get_view();
   }
 
@@ -428,8 +478,11 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
   }
 
   record.indirect_parameters.clear();
-  for (llvm::Type* parameter : parameter_types.get_view()) {
-    Bool indirect = Bool(c_boundary && uses_memory_abi(*target, *parameter));
+  for (Count index = 0; index < parameter_types.get_size(); index++) {
+    llvm::Type* parameter = parameter_types[index];
+    Bool self_reference = Bool(index == 0 && declares_self(callable));
+    Bool indirect = self_reference ||
+                    Bool(c_boundary && uses_memory_abi(*target, *parameter));
     record.indirect_parameters.insert(indirect);
     native_parameters.insert(
         indirect ? llvm::PointerType::getUnqual(context) : parameter);
@@ -441,11 +494,15 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
           native_parameters.get_data(), native_parameters.get_size()),
       false);
   llvm::GlobalValue::LinkageTypes linkage =
-      record.kind == Kind::Foreign || exported
+      record.kind == Kind::Foreign || record.kind == Kind::External ||
+              c_publication || package_publication
           ? llvm::GlobalValue::ExternalLinkage
           : llvm::GlobalValue::InternalLinkage;
   llvm::Function& function = *llvm::Function::Create(
       signature, linkage, llvm_text(selected_symbol), module);
+  if (record.kind == Kind::External || package_publication) {
+    function.setVisibility(llvm::GlobalValue::HiddenVisibility);
+  }
   Count parameter_offset = sret ? 1 : 0;
   if (sret) {
     function.addParamAttr(
@@ -457,7 +514,8 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
   }
 
   for (Count index = 0; index < parameter_types.get_size(); index++) {
-    if (!record.indirect_parameters[index]) {
+    Bool self_reference = Bool(index == 0 && declares_self(callable));
+    if (!record.indirect_parameters[index] || self_reference) {
       continue;
     }
 
@@ -478,7 +536,9 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
     }
   }
 
-  if (semantic_results.get_size() == 1) {
+  auto library_callable = callable.select<Language::Model::Callable>();
+  if (semantic_results.get_size() == 1 &&
+      !(library_callable && library_callable->get_self_result())) {
     auto extension = get_extension(*carriers, *semantic_results[0]);
     if (extension) {
       function.addRetAttr(*extension);
@@ -489,8 +549,12 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
   record.symbol = selected_symbol;
   record.function = llvm::wrap(&function);
   record.completed = True;
-  if (exported) {
+  if (c_publication || package_publication) {
     target->add_export(Export(callable, selected_symbol));
+  }
+  if (target->get_unit().is_package_member() &&
+      (c_publication || package_publication)) {
+    target->add_publication(Publication(callable, selected_symbol));
   }
 
   return True;
@@ -635,18 +699,37 @@ auto Tetrodotoxin::Library::Llvm::Functions::end_body(
   if (!block) {
     completed = target->fail_backend(
         "LLVM completed a Callable Body without an insertion block."_view);
-  } else if (!block->getTerminator() && callable.get_results().is_empty()) {
-    completed = native_body->emit_storage_cleanup(0);
-    completed &= native_body->emit_temporary_cleanup();
-    completed &= native_body->create_return();
   } else if (!block->getTerminator()) {
-    auto found = records.find(&callable);
-    completed = fail_callable(
-        get_program(body),
-        found ? found->value.definition
-              : Core::Option<const Tetrodotoxin::Language::Definition&>(),
-        "A value returning Callable reached the end of its Body."_view,
-        "Return the complete declared result Layout on every reachable path."_view);
+    auto library_callable = callable.select<Language::Model::Callable>();
+    auto self_result = library_callable
+                           ? library_callable->get_self_result()
+                           : Core::Option<const Ttx::Model::Addressable&>();
+    if (self_result) {
+      auto address = native_body->find_address(*self_result);
+      completed = Bool(
+          address && llvm::unwrap(*address)->getType() ==
+                         block->getParent()->getReturnType());
+      if (completed) {
+        completed = native_body->emit_storage_cleanup(0);
+        completed &= native_body->emit_temporary_cleanup();
+        completed &= native_body->create_return(*address);
+      } else {
+        completed = target->fail_backend(
+            "LLVM could not return the fallthrough Self reference."_view);
+      }
+    } else if (callable.get_results().is_empty()) {
+      completed = native_body->emit_storage_cleanup(0);
+      completed &= native_body->emit_temporary_cleanup();
+      completed &= native_body->create_return();
+    } else {
+      auto found = records.find(&callable);
+      completed = fail_callable(
+          get_program(body),
+          found ? found->value.definition
+                : Core::Option<const Tetrodotoxin::Language::Definition&>(),
+          "A value returning Callable reached the end of its Body."_view,
+          "Return the complete declared result Layout on every reachable path."_view);
+    }
   }
 
   return completed;

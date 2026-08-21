@@ -38,6 +38,14 @@ auto Language::Monograph::finalize(Cursor&) -> Bool {
   return True;
 }
 
+auto Language::Monograph::link_restored() -> Bool {
+  return True;
+}
+
+auto Language::Monograph::finalize_restored() -> Bool {
+  return True;
+}
+
 auto Language::Monograph::resolve_context(View::Bytes route) const
     -> const Abstract& {
   // A base Monograph contributes no synthetic lookup surface. Concrete roots

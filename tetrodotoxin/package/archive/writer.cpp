@@ -6,6 +6,13 @@
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/writer/binary.hpp"
 
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/dynamic/vector.hpp"
+#include "perimortem/memory/managed/vector.hpp"
+
+#include "tetrodotoxin/language/dialect.hpp"
+#include "ttx/concept/invalid.hpp"
+
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
@@ -16,6 +23,7 @@ using LittleWriter = Perimortem::Core::Writer::Binary<Data::ByteOrder::Little>;
 static constexpr Unsigned_64 format_limit = Unsigned_32(-1);
 static constexpr Unsigned_32 section_header_size = 8;
 static constexpr Unsigned_16 required_field = 1;
+static constexpr Unsigned_16 interface_profile = 1;
 static constexpr Unsigned_64 section_count =
     Unsigned_8(Package::Archive::Archive::Sections::Exports);
 
@@ -156,7 +164,11 @@ auto Package::Archive::Writer::write(const Archive& archive)
   // Establish the fixed Format 1 header before emitting any section payload.
   writer << "TTXA"_view;
   writer << Unsigned_16(1);
-  writer << Unsigned_16(0);
+  writer << Unsigned_16(
+      archive.get_profile() ==
+              Tetrodotoxin::Language::Persistence::Profile::Interface
+          ? interface_profile
+          : 0);
   writer << sizes.body;
 
   // Encode Package identity as the first required sized byte value.
@@ -236,4 +248,40 @@ auto Package::Archive::Writer::write(const Archive& archive)
 
   // Transfer ownership only after the complete canonical envelope is proven.
   return Option<Dynamic::Bytes>(static_cast<Dynamic::Bytes&&>(output));
+}
+
+auto Package::Archive::Writer::write(
+    const Package::Language::Monograph& package,
+    View::Bytes identity,
+    Perimortem::System::Version version,
+    Tetrodotoxin::Language::Persistence::Profile profile,
+    View::Vector<View::Bytes> artifact_ids,
+    View::Vector<Export> exports) -> Option<Dynamic::Bytes> {
+  BAIL_IF(identity.is_empty());
+
+  Allocator::Arena arena;
+  Dynamic::Vector<Dynamic::Bytes> payloads(package.get_sources().get_size());
+  Managed::Vector<Member> members(arena);
+  for (const Package::Language::Source& source : package.get_sources()) {
+    const Ttx::Concept::Abstract& selected =
+        package.resolve_context(source.get_local_name()).resolve();
+    auto member = selected.select<Tetrodotoxin::Language::Monograph>();
+    auto dialect =
+        member
+            ? member->get_language().select<Tetrodotoxin::Language::Dialect>()
+            : Option<const Tetrodotoxin::Language::Dialect&>();
+    BAIL_IF(!member || !dialect);
+
+    auto payload = dialect->encode(*member, profile);
+    BAIL_IF(!payload);
+    payloads.emplace(static_cast<Dynamic::Bytes&&>(*payload));
+    members.insert(Member(
+        source.get_local_name(), dialect->get_name(),
+        payloads[payloads.get_size() - 1].get_view()));
+  }
+
+  Archive archive(
+      identity, version, package.get_dependencies(), members.get_view(),
+      artifact_ids, exports, profile);
+  return write(archive);
 }

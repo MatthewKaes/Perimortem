@@ -93,7 +93,9 @@ auto Language::Flow::Branch::interpret(
           [](const Branch& selected) {
             return selected.reaches_next_statement();
           });
-    } else if (cursor.matches(Code::Type::ScopeStart)) {
+    } else if (
+        cursor.matches(Code::Type::ScopeStart) ||
+        cursor.matches(Code::Type::Define)) {
       auto parsed = Block::interpret(
           cursor, lexical_context, function, access_scope, enclosing_loop);
       BAIL_IF(!parsed);
@@ -110,7 +112,8 @@ auto Language::Flow::Branch::interpret(
           });
     } else {
       cursor.create_token_error(
-          "Library `else` requires one nested `if` or Block."_view);
+          "Library `else` requires one nested `if` or Block beginning with "
+          "`{` or `:`."_view);
       return {};
     }
   }

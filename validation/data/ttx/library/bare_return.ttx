@@ -1,6 +1,4 @@
 //
 dialect : Library;
 
-public invalid_empty_return : func = [] -> [] {
-  return;
-}
+public invalid_empty_return : func = [] -> [] : return;

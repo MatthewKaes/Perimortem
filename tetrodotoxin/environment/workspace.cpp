@@ -5,11 +5,13 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
-#include "perimortem/memory/dynamic/object.hpp"
+#include "perimortem/memory/dynamic/record.hpp"
 
 #include "perimortem/system/path.hpp"
 
 #include "tetrodotoxin/package/content.hpp"
+#include "tetrodotoxin/package/dialect.hpp"
+#include "tetrodotoxin/package/language/parser/name.hpp"
 #include "tetrodotoxin/package/storage.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -45,9 +47,12 @@ static auto append_storage_failure(
       });
 }
 
-Environment::Workspace::Workspace()
-    : arena(),
-      dialects(arena),
+Environment::Workspace::Workspace(
+    Toolchain& selected_toolchain,
+    Option<Dynamic::Record<Package::Snapshots>> selected_snapshots)
+    : toolchain(selected_toolchain),
+      snapshots(selected_snapshots),
+      arena(),
       published_sources(),
       source_monographs(arena),
       packages(arena) {}
@@ -62,7 +67,7 @@ auto Environment::Workspace::interpret_source(
   // Source backed graph objects retain views into this candidate Arena. Keeping
   // the complete lexical and semantic transaction under one handle makes every
   // rejection release those views as one lifetime decision.
-  Dynamic::Object<Allocator::Arena> transaction;
+  Dynamic::Record<Allocator::Arena> transaction;
   View::Bytes retained_contents = transaction->proxy(contents);
   View::Bytes retained_path = transaction->proxy(diagnostic_path);
   Tokenizer& tokenizer = transaction->construct<Tokenizer>(
@@ -81,7 +86,7 @@ auto Environment::Workspace::interpret_source(
 
   Count source_error_count = errors.get_size();
   auto monograph = Language::Dialect::interpret_source(
-      dialects.get_dialects(), cursor, *this);
+      toolchain.get_dialects(), cursor, *this);
   if (!monograph) {
     if (errors.get_size() == source_error_count) {
       cursor.create_error(
@@ -121,6 +126,7 @@ auto Environment::Workspace::interpret_source(
   // Publication follows complete source semantics. Until this point the
   // Workspace has no lookup edge or retained Arena for the candidate graph.
   published_sources.insert({
+    .diagnostic_path = retained_path,
     .transaction = transaction,
     .monograph = *monograph,
     .associations = associations,
@@ -142,7 +148,11 @@ auto Environment::Workspace::import_package(
   // later failure uses the matching source Cursor.
   Allocator::Arena acquisition;
 
-  auto storage = Package::Storage::open(acquisition, package_root);
+  if (!snapshots) {
+    snapshots = Dynamic::Record<Package::Snapshots>();
+  }
+
+  auto storage = Package::Storage::open(acquisition, package_root, *snapshots);
   if (!storage) {
     Diagnostics::Log::Message<768> message(Diagnostics::Log::Level::Error);
     message
@@ -170,7 +180,7 @@ auto Environment::Workspace::import_package(
 
   // The manifest begins the candidate graph. Its bytes, Tokens, Cursor, and
   // Package Monograph share one Arena so any rejection releases them together.
-  Dynamic::Object<Allocator::Arena> root_transaction;
+  Dynamic::Record<Allocator::Arena> root_transaction;
   View::Bytes root_contents = root_transaction->proxy(manifest->get_contents());
   View::Bytes root_path =
       root_transaction->proxy(manifest->get_diagnostic_path());
@@ -214,7 +224,7 @@ auto Environment::Workspace::import_package(
   // description table before Workspace acquires any member.
   Count root_error_count = errors.get_size();
   auto root_owner = Language::Dialect::interpret_source(
-      dialects.get_dialects(), root_cursor, *this);
+      toolchain.get_dialects(), root_cursor, *this);
   if (!root_owner) {
     if (errors.get_size() == root_error_count) {
       root_cursor.create_error(
@@ -243,18 +253,22 @@ auto Environment::Workspace::import_package(
 
   // Dependencies are completed Workspace facts, not nested import requests.
   // Exact identity and version matching keeps this transaction's scope fixed.
-  for (const Package::Language::Dependency& dependency :
-       root.get_dependencies()) {
-    const ImportedPackage* selected = nullptr;
+  View::Vector<Package::Language::Dependency> dependencies =
+      root.get_dependencies();
+  for (Count dependency_index = 0; dependency_index < dependencies.get_size();
+       dependency_index++) {
+    const Package::Language::Dependency& dependency =
+        dependencies.get_data()[dependency_index];
+    Option<const ImportedPackage&> selected;
     for (Count i = 0; i < packages.get_size(); i++) {
       const ImportedPackage& imported = packages[i];
       if (imported.identity == dependency.get_package_name()) {
-        selected = &imported;
+        selected = imported;
         break;
       }
     }
 
-    if (selected == nullptr) {
+    if (!selected) {
       root_cursor.create_expression_error(
           dependency.get_span(),
           "Package dependency is not already imported in this Workspace."_view,
@@ -285,13 +299,15 @@ auto Environment::Workspace::import_package(
 
   // Workspace keeps every candidate Arena local while Package records only
   // borrowed mappings. An early return destroys the complete candidate set.
-  Dynamic::Vector<Dynamic::Object<Allocator::Arena>> candidate_transactions(
+  Dynamic::Vector<Dynamic::Record<Allocator::Arena>> candidate_transactions(
       root.get_sources().get_size() + 1);
   Managed::Vector<Language::Monograph*> candidates(acquisition);
   Managed::Vector<Cursor*> cursors(acquisition);
+  Managed::Vector<View::Bytes> diagnostic_paths(acquisition);
   candidate_transactions.insert(root_transaction);
   candidates.insert(&root);
   cursors.insert(&root_cursor);
+  diagnostic_paths.insert(root_path);
 
   // Each declared Source gets its own owner and Cursor so source backed values
   // and diagnostics retain the member's exact text and location.
@@ -314,7 +330,7 @@ auto Environment::Workspace::import_package(
       continue;
     }
 
-    Dynamic::Object<Allocator::Arena> source_transaction;
+    Dynamic::Record<Allocator::Arena> source_transaction;
     View::Bytes source_contents =
         source_transaction->proxy(content->get_contents());
     View::Bytes source_path =
@@ -327,7 +343,7 @@ auto Environment::Workspace::import_package(
         source_transaction->construct<Cursor>(tokenizer, errors, associations);
     Count source_error_count = errors.get_size();
     auto member = Language::Dialect::interpret_source(
-        dialects.get_dialects(), cursor, root);
+        toolchain.get_dialects(), cursor, root);
     if (!member) {
       if (errors.get_size() == source_error_count) {
         cursor.create_error(
@@ -359,6 +375,7 @@ auto Environment::Workspace::import_package(
     candidate_transactions.insert(source_transaction);
     candidates.insert(&*member);
     cursors.insert(&cursor);
+    diagnostic_paths.insert(source_path);
   }
   // Source parsing is the only stage with storage access. Linking observes a
   // sealed Package context whose semantic candidates can no longer expand.
@@ -382,6 +399,7 @@ auto Environment::Workspace::import_package(
       linked = False;
     }
   }
+
   if (!linked) {
     return {};
   }
@@ -400,6 +418,7 @@ auto Environment::Workspace::import_package(
       finalized = False;
     }
   }
+
   if (!finalized) {
     return {};
   }
@@ -408,6 +427,7 @@ auto Environment::Workspace::import_package(
   // durable only with their owners, and every failure above publishes nothing.
   for (Count i = 0; i < candidate_transactions.get_size(); i++) {
     published_sources.insert({
+      .diagnostic_path = diagnostic_paths[i],
       .transaction = candidate_transactions[i],
       .monograph = *candidates[i],
       .associations = cursors[i]->get_associations(),
@@ -423,6 +443,142 @@ auto Environment::Workspace::import_package(
   View::Bytes retained_name = arena.proxy(root_semantic_name);
   source_monographs.launder(retained_name, root);
   return root;
+}
+
+auto Environment::Workspace::restore_package(
+    const Package::Archive::Archive& archive,
+    View::Bytes root_semantic_name) -> Option<Language::Monograph&> {
+  if (root_semantic_name.is_empty() ||
+      source_monographs.contains(root_semantic_name)) {
+    Diagnostics::Log::error(
+        "Package restoration requires one unpublished semantic name."_view);
+    return {};
+  }
+
+  for (Count index = 0; index < packages.get_size(); index++) {
+    const ImportedPackage& imported = packages[index];
+    if (imported.identity == archive.get_identity()) {
+      Diagnostics::Log::error(
+          "Package restoration cannot publish one identity twice."_view);
+      return {};
+    }
+  }
+
+  Dynamic::Record<Allocator::Arena> root_transaction;
+  Managed::Vector<Package::Language::Dependency> dependencies(
+      *root_transaction);
+  for (const Package::Language::Dependency& dependency :
+       archive.get_dependencies()) {
+    dependencies.insert(
+        Package::Language::Dependency(
+            Package::Language::Parser::Name(
+                root_transaction->proxy(dependency.get_local_name())),
+            root_transaction->proxy(dependency.get_package_name()),
+            dependency.get_version()));
+  }
+  auto package_dialect = toolchain.find("Package"_view);
+  if (!package_dialect || !package_dialect->is<Package::Dialect>()) {
+    Diagnostics::Log::error(
+        "Package restoration requires the installed Package Dialect."_view);
+    return {};
+  }
+  Package::Language::Monograph& root =
+      Package::Language::Monograph::create_synthetic(
+          *root_transaction, *package_dialect, *this, dependencies.get_view());
+
+  View::Vector<Package::Language::Dependency> restored_dependencies =
+      root.get_dependencies();
+  for (Count dependency_index = 0;
+       dependency_index < restored_dependencies.get_size();
+       dependency_index++) {
+    const Package::Language::Dependency& dependency =
+        restored_dependencies.get_data()[dependency_index];
+    Option<const ImportedPackage&> selected;
+    for (Count index = 0; index < packages.get_size(); index++) {
+      const ImportedPackage& imported = packages[index];
+      if (imported.identity == dependency.get_package_name() &&
+          imported.version == dependency.get_version()) {
+        selected = imported;
+        break;
+      }
+    }
+    if (!selected || !root.bind_dependency(dependency, *selected->monograph)) {
+      Diagnostics::Log::error(
+          "Package restoration could not bind one exact dependency."_view);
+      return {};
+    }
+  }
+
+  Dynamic::Vector<Dynamic::Record<Allocator::Arena>> candidates;
+  Managed::Vector<Language::Monograph*> monographs(*root_transaction);
+  candidates.insert(root_transaction);
+  monographs.insert(&root);
+  for (const Package::Archive::Member& member : archive.get_members()) {
+    auto dialect = toolchain.find(member.get_dialect_name());
+    if (!dialect) {
+      Diagnostics::Log::error(
+          "Package restoration requires every member Dialect installed."_view);
+      return {};
+    }
+
+    Dynamic::Record<Allocator::Arena> transaction;
+    auto restored = dialect->restore(
+        *transaction, member.get_payload(), archive.get_profile(),
+        Documentation::get_empty(), root);
+    View::Bytes member_name =
+        root_transaction->proxy(member.get_semantic_name());
+    if (!restored || restored->is<Package::Language::Monograph>() ||
+        !root.bind_member(
+            Package::Language::Parser::Name(member_name), *restored)) {
+      Diagnostics::Log::error(
+          "Package restoration rejected one semantic member."_view);
+      return {};
+    }
+
+    candidates.insert(transaction);
+    monographs.insert(&*restored);
+  }
+
+  for (Count index = 0; index < monographs.get_size(); index++) {
+    if (!monographs[index]->link_restored()) {
+      Diagnostics::Log::error(
+          "Package restoration failed while linking member graphs."_view);
+      return {};
+    }
+  }
+  for (Count index = 0; index < monographs.get_size(); index++) {
+    if (!monographs[index]->finalize_restored()) {
+      Diagnostics::Log::error(
+          "Package restoration failed while finalizing member graphs."_view);
+      return {};
+    }
+  }
+
+  for (const Dynamic::Record<Allocator::Arena>& candidate :
+       candidates.get_view()) {
+    restored_transactions.insert(candidate);
+  }
+  View::Bytes retained_identity = arena.proxy(archive.get_identity());
+  packages.insert({
+    .identity = retained_identity,
+    .version = archive.get_version(),
+    .monograph = &root,
+  });
+  View::Bytes retained_name = arena.proxy(root_semantic_name);
+  source_monographs.launder(retained_name, root);
+  return root;
+}
+
+auto Environment::Workspace::get_associations(View::Bytes diagnostic_path) const
+    -> Option<const Associations&> {
+  for (Count i = 0; i < published_sources.get_size(); i++) {
+    const PublishedSource& source = published_sources[i];
+    if (source.diagnostic_path == diagnostic_path) {
+      return source.associations;
+    }
+  }
+
+  return {};
 }
 
 auto Environment::Workspace::get_associations(

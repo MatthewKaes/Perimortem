@@ -16,7 +16,7 @@ template <
     typename storage_type>
 class Binary {
  public:
-  Binary(storage_type& storage);
+  constexpr Binary(storage_type& storage) : storage(storage) {}
 
   auto operator<<(Unsigned_8 value) -> Binary&;
   auto operator<<(Unsigned_16 value) -> Binary&;

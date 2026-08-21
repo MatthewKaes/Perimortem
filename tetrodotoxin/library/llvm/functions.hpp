@@ -13,6 +13,7 @@
 #include "tetrodotoxin/language/definition.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/callable.hpp"
+#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Llvm {
 
@@ -65,15 +66,10 @@ class Functions {
       Perimortem::Core::View::Bytes symbol) const
       -> Perimortem::Core::Option<Bool>;
 
-  auto reserve_get_size(
+  auto reserve_construction(
       Ttx::Concept::Abstract& program,
-      const Ttx::Model::Callable& callable) const
-      -> Perimortem::Core::Option<Bool>;
-
-  auto reserve_get_access(
-      Ttx::Concept::Abstract& program,
-      const Ttx::Model::Callable& callable) const
-      -> Perimortem::Core::Option<Bool>;
+      const Ttx::Model::Callable& callable,
+      const Ttx::Model::Type& owner) const -> Perimortem::Core::Option<Bool>;
 
   auto complete(
       Ttx::Concept::Abstract& program,
@@ -110,9 +106,8 @@ class Functions {
  private:
   enum class Kind : Unsigned_8 {
     Function,
+    External,
     Foreign,
-    GetSize,
-    GetAccess,
   };
 
   class Record {
@@ -122,14 +117,20 @@ class Functions {
         Perimortem::Core::View::Bytes abi = {},
         Perimortem::Core::View::Bytes symbol = {},
         Perimortem::Core::Option<const Tetrodotoxin::Language::Definition&>
-            definition = {})
-        : kind(kind), abi(abi), symbol(symbol), definition(definition) {}
+            definition = {},
+        Bool construction = False)
+        : kind(kind),
+          abi(abi),
+          symbol(symbol),
+          definition(definition),
+          construction(construction) {}
 
     Kind kind;
     Perimortem::Core::View::Bytes abi;
     Perimortem::Core::View::Bytes symbol;
     Perimortem::Core::Option<const Tetrodotoxin::Language::Definition&>
         definition;
+    Bool construction;
     Perimortem::Core::Option<LLVMValueRef> function;
     Perimortem::Core::Option<LLVMTypeRef> sret_type;
     Perimortem::Memory::Dynamic::Vector<Bool> indirect_parameters;

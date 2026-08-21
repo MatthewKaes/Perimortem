@@ -89,6 +89,12 @@ class Errors {
                                      : Anchor::create(Span());
   }
 
+  constexpr auto get_source_name(Count index) const
+      -> Perimortem::Core::View::Bytes {
+    return index < errors.get_size() ? errors.at(index).source_name
+                                     : Perimortem::Core::View::Bytes();
+  }
+
   constexpr auto is_empty() const -> Bool { return get_size() == 0; }
   constexpr auto get_size() const -> Count { return errors.get_size(); }
 

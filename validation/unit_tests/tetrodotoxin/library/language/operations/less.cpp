@@ -37,9 +37,8 @@ static Harness LibraryLess = {
   .name = "Tetrodotoxin::Library::Language::Operations::Less"_view,
 };
 
-static auto link_operation(
-    Operation& operation,
-    const Abstract& context) -> Bool {
+static auto link_operation(Operation& operation, const Abstract& context)
+    -> Bool {
   Allocator::Arena transaction;
   Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(transaction, {}, "<operation>"_view);
@@ -102,8 +101,8 @@ PERIMORTEM_UNIT_TEST(LibraryLess, type_selection_and_partial) {
       Constants::Unsigned::create_synthetic(domain, unsigned_64, 12);
   auto& other_constant =
       Constants::Unsigned::create_synthetic(domain, unsigned_16, 12);
-  auto& truth = Constants::True::create_synthetic(
-      domain, resolve_library_flag(source));
+  auto& truth =
+      Constants::True::create_synthetic(domain, resolve_library_flag(source));
   auto& bytes =
       Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
   auto& exact = Operations::Less::create_synthetic(domain, left, same);
@@ -136,8 +135,7 @@ PERIMORTEM_UNIT_TEST(LibraryLess, type_selection_and_partial) {
 
   EXPECT(&exact.get_type() == &resolve_library_flag(source));
   EXPECT(mixed_left.get_type().resolve().is<Invalid>());
-  EXPECT(
-      &signed_exact.get_type() == &resolve_library_flag(source));
+  EXPECT(&signed_exact.get_type() == &resolve_library_flag(source));
   EXPECT(&real_exact.get_type() == &resolve_library_flag(source));
   EXPECT_NOT(exact_result);
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
@@ -181,8 +179,7 @@ PERIMORTEM_UNIT_TEST(LibraryLess, integer_ordering) {
   EXPECT(unsigned_no->is<Constants::False>());
   EXPECT(signed_yes->is<Constants::True>());
   EXPECT(signed_no->is<Constants::False>());
-  EXPECT(
-      &unsigned_yes->get_type() == &resolve_library_flag(source));
+  EXPECT(&unsigned_yes->get_type() == &resolve_library_flag(source));
   EXPECT(&signed_no->get_type() == &resolve_library_flag(source));
 }
 

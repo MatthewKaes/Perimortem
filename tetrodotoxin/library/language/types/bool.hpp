@@ -19,6 +19,20 @@ class Boolean : public Model::Types::Flag {
       -> Perimortem::Core::Option<Bool> override;
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
+
+  constexpr auto get_propagated_type() const
+      -> Perimortem::Core::Option<const Model::Type&> override {
+    return *this;
+  }
+
+  auto fold_propagation(Model::Pack& source) const -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Model::Pack&>, Bool> override;
+
+  auto lower_propagation(
+      Llvm::Builder& body,
+      const Model::Pack& result,
+      const Model::Pack& source,
+      const Model::Pack& escape) const -> Bool override;
   constexpr auto get_width() const -> Count override { return 1; }
   constexpr auto get_size() const -> Count override { return sizeof(::Bool); }
   constexpr auto get_alignment() const -> Count override {

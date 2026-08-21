@@ -6,25 +6,18 @@
 //
 dialect : Library;
 
-public func run[] -> Void {
-  const prefix : View[Unsigned_8] = "Echo: ":[0, 6];
-  const quit : View[Unsigned_8] = "quit":[0, 4];
-  const exit : View[Unsigned_8] = "exit":[0, 4];
+using Memory;
 
-  while (true) {
-    const line := System::Terminal -> read_line();
+public run : func = [] -> [] {
+  const prefix : View[Unsigned_8] = "Echo: " -> get_view();
+  const quit   : View[Unsigned_8] = "quit" -> get_view();
+  const exit   : View[Unsigned_8] = "exit" -> get_view();
+  while true {
+    state line := System::Terminal -> read_line()?;
+    state view := line -> get_view();
+    if view == quit or view == exit : return;
 
-    if (line.failed or !line.available) {
-      return;
-    }
-
-    if (line.value == quit or line.value == exit) {
-      return;
-    }
-
-    const written := System::Terminal -> write_line(prefix, line.value);
-    if (!written) {
-      return;
-    }
+    state output := Dynamic::Bytes -> copy(prefix);
+    System::Terminal -> write_line(output -> concat(view))?;
   }
 }

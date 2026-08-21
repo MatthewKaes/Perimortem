@@ -3,16 +3,21 @@
 
 // LLVM must enter before Perimortem so the standard placement declaration is
 // visible before the freestanding fallback used by Perimortem headers.
-// clang-format off
+#if __has_include("llvm/IR/IRBuilder.h")
 #include "llvm/IR/IRBuilder.h"
-#include "tetrodotoxin/library/llvm/builder.hpp"
-// clang-format on
+#else
+#error LLVM IRBuilder is required by the Library native compiler
+#endif
 
 #include "perimortem/core/static/vector.hpp"
 
 #include "llvm-c/Core.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Module.h"
+#include "perimortem/abi/core/object.hpp"
+#include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "tetrodotoxin/library/llvm/carriers.hpp"
 #include "tetrodotoxin/library/llvm/functions.hpp"
 #include "tetrodotoxin/library/llvm/globals.hpp"
@@ -321,7 +326,8 @@ auto Tetrodotoxin::Library::Llvm::Builder::fit_input(
 auto Tetrodotoxin::Library::Llvm::Builder::invoke(
     const Ttx::Model::Pack& result,
     const Ttx::Model::Callable& callable,
-    Core::View::Vector<LLVMValueRef> inputs) const -> Bool {
+    Core::View::Vector<LLVMValueRef> inputs,
+    Core::Option<const Ttx::Model::Pack&> receiver_source) const -> Bool {
   Llvm::Body& native_body = body;
   auto carriers = call_select_carriers(body);
   auto functions = call_select_functions(body);
@@ -359,6 +365,8 @@ auto Tetrodotoxin::Library::Llvm::Builder::invoke(
       inputs.get_size() + 1);
   auto sret_type = functions->find_sret_type(callable);
   Core::Option<LLVMValueRef> returned_storage;
+  Core::Option<const Ttx::Model::Type&> temporary_self_type;
+  Core::Option<LLVMValueRef> temporary_self_address;
   if (sret_type) {
     returned_storage =
         native_body.create_entry_alloca(*sret_type, "call.result"_view);
@@ -390,20 +398,50 @@ auto Tetrodotoxin::Library::Llvm::Builder::invoke(
             "LLVM cannot pass a parameter indirectly without its carrier."_view);
       }
 
+      Bool self_reference =
+          Bool(index == 0 && addressable->get_name() == "self"_view);
+      Core::Option<LLVMValueRef> selected_address;
+      if (self_reference && receiver_source) {
+        auto target = native_body.find_target_address(*receiver_source);
+        if (target && &target->get_type() == &type) {
+          selected_address = target->get_address();
+        }
+      }
+
       LLVMValueRef address =
-          native_body.create_entry_alloca(*native, "call.argument"_view);
+          selected_address
+              ? *selected_address
+              : native_body.create_entry_alloca(*native, "call.argument"_view);
       if (!address) {
         return call_fail_backend(
             body,
             "LLVM could not reserve one indirect Callable argument."_view);
       }
 
-      LLVMValueRef stored =
-          LLVMBuildStore(native_body.get_builder(), argument, address);
-      if (!stored) {
-        return call_fail_backend(
-            body,
-            "LLVM could not materialize one indirect Callable argument."_view);
+      if (!selected_address) {
+        if (self_reference && carriers->owns_resources(type) &&
+            !native_body.take_owned(argument) &&
+            !carriers->retain(native_body, type, argument)) {
+          return False;
+        }
+
+        LLVMValueRef stored =
+            LLVMBuildStore(native_body.get_builder(), argument, address);
+        if (!stored) {
+          return call_fail_backend(
+              body,
+              "LLVM could not materialize one indirect Callable argument."_view);
+        }
+
+        if (self_reference) {
+          temporary_self_type = type;
+          temporary_self_address = address;
+        }
+      } else if (
+          self_reference && carriers->owns_resources(type) &&
+          native_body.take_owned(argument) &&
+          !carriers->release(native_body, type, argument)) {
+        return False;
       }
 
       argument = address;
@@ -415,6 +453,7 @@ auto Tetrodotoxin::Library::Llvm::Builder::invoke(
   LLVMTypeRef signature = LLVMGlobalGetValueType(*function);
   LLVMTypeRef native_result = LLVMGetReturnType(signature);
   Bool returns_void = Bool(LLVMGetTypeKind(native_result) == LLVMVoidTypeKind);
+
   LLVMValueRef invoked = LLVMBuildCall2(
       native_body.get_builder(), signature, *function,
       native_arguments.get_data(), Unsigned_32(native_arguments.get_size()),
@@ -424,26 +463,49 @@ auto Tetrodotoxin::Library::Llvm::Builder::invoke(
         body, "LLVM could not emit the selected Call."_view);
   }
 
-  Bool released = True;
-  for (Count index = 0; index < inputs.get_size(); index++) {
-    auto parameter = parameters.get_abstract(index);
-    auto addressable = parameter
-                           ? parameter->select<Ttx::Model::Addressable>()
-                           : Core::Option<const Ttx::Model::Addressable&>();
-    if (!addressable) {
-      return False;
-    }
-
-    released &= call_release_owned(
-        native_body, *carriers, addressable->get_type(),
-        inputs.get_data()[index]);
-  }
-
-  if (!released) {
-    return False;
-  }
-
   const Ttx::Concept::Layout& results = callable.get_results();
+  auto library_callable = callable.select<Language::Model::Callable>();
+  auto self_result = library_callable
+                         ? library_callable->get_self_result()
+                         : Core::Option<const Ttx::Model::Addressable&>();
+  if (temporary_self_type && temporary_self_address) {
+    if (self_result) {
+      if (!native_body.register_storage(
+              *temporary_self_type, *temporary_self_address)) {
+        return call_fail_backend(
+            body, "LLVM could not retain one returned Self reference."_view);
+      }
+    } else {
+      auto native = carriers->get_type(*temporary_self_type);
+      LLVMValueRef value = native
+                               ? LLVMBuildLoad2(
+                                     native_body.get_builder(), *native,
+                                     *temporary_self_address, "self.temporary")
+                               : nullptr;
+      if (!value ||
+          !carriers->release(native_body, *temporary_self_type, value)) {
+        return call_fail_backend(
+            body, "LLVM could not release one temporary Self receiver."_view);
+      }
+    }
+  }
+
+  if (self_result) {
+    if (returns_void || returned_storage ||
+        LLVMGetTypeKind(LLVMTypeOf(invoked)) != LLVMPointerTypeKind ||
+        !native_body.publish_target_address(
+            result, self_result->get_type(), invoked)) {
+      return call_fail_backend(
+          body, "LLVM could not publish one returned Self reference."_view);
+    }
+    return load(result);
+  }
+
+  // Callable parameters borrow their inputs. Body keeps an owned temporary
+  // through the complete Statement so a returned View can still borrow that
+  // storage while the enclosing expression consumes it. Receiving storage or
+  // a Return explicitly takes ownership before Statement cleanup.
+
   if (result.get_layout().get_size() != results.get_size()) {
     return call_fail_backend(
         body,
@@ -508,13 +570,364 @@ auto Tetrodotoxin::Library::Llvm::Builder::get_size(
   return native_body.publish_values(result, values.get_view());
 }
 
-auto Tetrodotoxin::Library::Llvm::Builder::get_access(
+auto Tetrodotoxin::Library::Llvm::Builder::contiguous_is_empty(
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& result_type,
+    const Ttx::Model::Type& receiver_type,
+    LLVMValueRef receiver) const -> Bool {
+  Llvm::Body& native_body = body;
+  auto carriers = call_select_carriers(body);
+  auto native =
+      carriers ? carriers->get_type(result_type) : Core::Option<LLVMTypeRef>();
+  if (!carriers || !native || result.get_layout().get_size() != 1 ||
+      LLVMGetTypeKind(LLVMTypeOf(receiver)) != LLVMStructTypeKind ||
+      LLVMCountStructElementTypes(LLVMTypeOf(receiver)) < 2) {
+    return call_fail_backend(
+        body,
+        "LLVM cannot test the completed contiguous receiver carrier for emptiness."_view);
+  }
+
+  LLVMValueRef size =
+      LLVMBuildExtractValue(native_body.get_builder(), receiver, 1, "size");
+  LLVMValueRef zero = size ? LLVMConstNull(LLVMTypeOf(size)) : nullptr;
+  LLVMValueRef empty =
+      zero ? LLVMBuildICmp(
+                 native_body.get_builder(), LLVMIntEQ, size, zero, "empty")
+           : nullptr;
+  if (!empty || LLVMTypeOf(empty) != *native ||
+      !call_release_owned(native_body, *carriers, receiver_type, receiver)) {
+    return False;
+  }
+
+  Core::Static::Vector<LLVMValueRef, 1> values = {{empty}};
+  native_body.mark_owned(result_type, empty);
+  return native_body.publish_values(result, values.get_view());
+}
+
+static auto object_element_size(
+    Llvm::Body& body,
+    const Llvm::Carriers& carriers,
+    const Ttx::Model::Type& receiver_type) -> Core::Option<Count> {
+  auto element = carriers.get_element(receiver_type);
+  auto native =
+      element ? carriers.get_type(*element) : Core::Option<LLVMTypeRef>();
+  if (!element || !native) {
+    return {};
+  }
+
+  auto& module = *llvm::unwrap(&body.get_program().get_module());
+  return module.getDataLayout()
+      .getTypeAllocSize(llvm::unwrap(*native))
+      .getFixedValue();
+}
+
+static auto object_capacity_value(
+    Llvm::Body& body,
+    const Llvm::Carriers& carriers,
+    const Ttx::Model::Type& receiver_type,
+    LLVMValueRef receiver) -> Core::Option<LLVMValueRef> {
+  auto element_size = object_element_size(body, carriers, receiver_type);
+  if (!element_size || *element_size == 0) {
+    return {};
+  }
+
+  auto& module = *llvm::unwrap(&body.get_program().get_module());
+  llvm::LLVMContext& context = module.getContext();
+  llvm::Type& pointer = *llvm::PointerType::getUnqual(context);
+  llvm::Type& count = *llvm::Type::getInt64Ty(context);
+  llvm::FunctionType& signature =
+      *llvm::FunctionType::get(&count, {&pointer}, false);
+  llvm::IRBuilder<>& builder =
+      *reinterpret_cast<llvm::IRBuilder<>*>(body.get_builder());
+  llvm::StringRef symbol(
+      reinterpret_cast<const char*>(
+          Abi::Core::object_capacity_symbol.get_data()),
+      Abi::Core::object_capacity_symbol.get_size());
+  llvm::Value& bytes = *builder.CreateCall(
+      module.getOrInsertFunction(symbol, &signature), {llvm::unwrap(receiver)},
+      "object.bytes");
+  llvm::Value& divisor = *llvm::ConstantInt::get(&count, *element_size);
+  return llvm::wrap(builder.CreateUDiv(&bytes, &divisor, "object.capacity"));
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::object_capacity(
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& result_type,
+    const Ttx::Model::Type& receiver_type,
+    LLVMValueRef receiver) const -> Bool {
+  auto carriers = call_select_carriers(body);
+  auto native_result =
+      carriers ? carriers->get_type(result_type) : Core::Option<LLVMTypeRef>();
+  auto capacity =
+      carriers ? object_capacity_value(body, *carriers, receiver_type, receiver)
+               : Core::Option<LLVMValueRef>();
+  if (!carriers || !native_result || !capacity ||
+      LLVMTypeOf(*capacity) != *native_result ||
+      !call_release_owned(body, *carriers, receiver_type, receiver)) {
+    return call_fail_backend(
+        body, "LLVM cannot read capacity from Object[T]."_view);
+  }
+
+  Core::Static::Vector<LLVMValueRef, 1> values = {{*capacity}};
+  body.mark_owned(result_type, *capacity);
+  return body.publish_values(result, values.get_view());
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::object_is_shared(
     const Ttx::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     const Ttx::Model::Type& receiver_type,
     const Ttx::Model::Pack& receiver_source,
     LLVMValueRef receiver) const -> Bool {
-  Llvm::Body& native_body = body;
+  auto carriers = call_select_carriers(body);
+  auto native_result =
+      carriers ? carriers->get_type(result_type) : Core::Option<LLVMTypeRef>();
+  auto native_receiver = carriers ? carriers->get_type(receiver_type)
+                                  : Core::Option<LLVMTypeRef>();
+  if (!carriers || !native_result || result.get_layout().get_size() != 1 ||
+      !native_receiver || LLVMTypeOf(receiver) != *native_receiver) {
+    return call_fail_backend(
+        body, "LLVM cannot query Object[T] sharing state."_view);
+  }
+
+  auto& module = *llvm::unwrap(&body.get_program().get_module());
+  llvm::LLVMContext& context = module.getContext();
+  llvm::Type& pointer = *llvm::PointerType::getUnqual(context);
+  llvm::Type& count = *llvm::Type::getInt64Ty(context);
+  llvm::FunctionType& signature =
+      *llvm::FunctionType::get(&count, {&pointer}, false);
+  llvm::IRBuilder<>& builder =
+      *reinterpret_cast<llvm::IRBuilder<>*>(body.get_builder());
+  llvm::StringRef symbol(
+      reinterpret_cast<const char*>(
+          Abi::Core::object_reservations_symbol.get_data()),
+      Abi::Core::object_reservations_symbol.get_size());
+  llvm::Value& reservations = *builder.CreateCall(
+      module.getOrInsertFunction(symbol, &signature), {llvm::unwrap(receiver)},
+      "object.reservations");
+
+  // Loading a stored Object creates one owned evaluation value in addition to
+  // its storage owner. A computed Object has only that evaluation owner. The
+  // query excludes exactly those local reservations from its public result.
+  Unsigned_64 local_reservations =
+      body.find_target_address(receiver_source) ? 2 : 1;
+  llvm::Value& local = *llvm::ConstantInt::get(&count, local_reservations);
+  LLVMValueRef shared =
+      llvm::wrap(builder.CreateICmpUGT(&reservations, &local, "object.shared"));
+  if (!shared || LLVMTypeOf(shared) != *native_result ||
+      !call_release_owned(body, *carriers, receiver_type, receiver)) {
+    return False;
+  }
+
+  Core::Static::Vector<LLVMValueRef, 1> values = {{shared}};
+  body.mark_owned(result_type, shared);
+  return body.publish_values(result, values.get_view());
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::object_clone(
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Pack& receiver_source,
+    LLVMValueRef receiver) const -> Bool {
+  auto carriers = call_select_carriers(body);
+  auto target = body.find_target_address(receiver_source);
+  auto element_size = carriers
+                          ? object_element_size(body, *carriers, receiver_type)
+                          : Core::Option<Count>();
+  auto descriptor = carriers ? carriers->get_object_descriptor(
+                                   body.get_program(), receiver_type)
+                             : Core::Option<LLVMValueRef>();
+  if (!carriers || !target || &target->get_type() != &receiver_type ||
+      !element_size || !descriptor || !result.get_layout().is_empty()) {
+    return call_fail_backend(
+        body, "LLVM cannot clone the selected Object[T] buffer."_view);
+  }
+
+  if (body.take_owned(receiver) &&
+      !carriers->release(body, receiver_type, receiver)) {
+    return False;
+  }
+
+  auto& module = *llvm::unwrap(&body.get_program().get_module());
+  llvm::LLVMContext& context = module.getContext();
+  llvm::Type& pointer = *llvm::PointerType::getUnqual(context);
+  llvm::Type& count = *llvm::Type::getInt64Ty(context);
+  llvm::FunctionType& signature =
+      *llvm::FunctionType::get(&pointer, {&pointer, &pointer, &count}, false);
+  llvm::IRBuilder<>& builder =
+      *reinterpret_cast<llvm::IRBuilder<>*>(body.get_builder());
+  llvm::StringRef symbol(
+      reinterpret_cast<const char*>(Abi::Core::object_clone_symbol.get_data()),
+      Abi::Core::object_clone_symbol.get_size());
+  llvm::Value& size = *llvm::ConstantInt::get(&count, *element_size);
+  llvm::Value& cloned = *builder.CreateCall(
+      module.getOrInsertFunction(symbol, &signature),
+      {llvm::unwrap(receiver), llvm::unwrap(*descriptor), &size},
+      "object.clone");
+  builder.CreateStore(&cloned, llvm::unwrap(target->get_address()));
+  return call_publish_empty(body, result);
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::object_view(
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& result_type,
+    const Ttx::Model::Type& receiver_type,
+    LLVMValueRef receiver) const -> Bool {
+  auto carriers = call_select_carriers(body);
+  auto native_result =
+      carriers ? carriers->get_type(result_type) : Core::Option<LLVMTypeRef>();
+  auto capacity =
+      carriers ? object_capacity_value(body, *carriers, receiver_type, receiver)
+               : Core::Option<LLVMValueRef>();
+  if (!native_result || !capacity ||
+      LLVMGetTypeKind(*native_result) != LLVMStructTypeKind ||
+      LLVMCountStructElementTypes(*native_result) != 2) {
+    return call_fail_backend(
+        body, "LLVM cannot borrow Object[T] storage."_view);
+  }
+
+  LLVMValueRef view = LLVMGetUndef(*native_result);
+  view = LLVMBuildInsertValue(
+      body.get_builder(), view, receiver, 0, "object.data");
+  view = LLVMBuildInsertValue(
+      body.get_builder(), view, *capacity, 1, "object.size");
+  Core::Static::Vector<LLVMValueRef, 1> values = {{view}};
+  return view && body.publish_values(result, values.get_view());
+}
+
+static auto reserve_object(
+    Llvm::Body& body,
+    const Llvm::Carriers& carriers,
+    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Pack& receiver_source,
+    LLVMValueRef receiver,
+    LLVMValueRef count,
+    const Ttx::Model::Pack& element_default) -> Core::Option<LLVMValueRef> {
+  auto target = body.find_target_address(receiver_source);
+  auto element = carriers.get_element(receiver_type);
+  auto native_element =
+      element ? carriers.get_type(*element) : Core::Option<LLVMTypeRef>();
+  auto element_size = object_element_size(body, carriers, receiver_type);
+  auto defaults = body.find_values(element_default);
+  auto default_value =
+      element && defaults
+          ? carriers.fit_and_assemble(
+                body, *element, element_default, defaults->get_view())
+          : Core::Option<LLVMValueRef>();
+  auto descriptor = body.get_program().get_carriers().get_object_descriptor(
+      body.get_program(), receiver_type);
+  if (!target || &target->get_type() != &receiver_type || !element ||
+      !native_element || !element_size || !default_value || !descriptor) {
+    return {};
+  }
+
+  LLVMValueRef default_address =
+      body.create_entry_alloca(*native_element, "object.default"_view);
+  LLVMBuildStore(body.get_builder(), *default_value, default_address);
+
+  if (body.take_owned(receiver) &&
+      !carriers.release(body, receiver_type, receiver)) {
+    return {};
+  }
+
+  auto& module = *llvm::unwrap(&body.get_program().get_module());
+  llvm::LLVMContext& context = module.getContext();
+  llvm::Type& pointer = *llvm::PointerType::getUnqual(context);
+  llvm::Type& native_count = *llvm::Type::getInt64Ty(context);
+  llvm::FunctionType& signature = *llvm::FunctionType::get(
+      &pointer, {&pointer, &pointer, &native_count, &native_count, &pointer},
+      false);
+  llvm::IRBuilder<>& builder =
+      *reinterpret_cast<llvm::IRBuilder<>*>(body.get_builder());
+  llvm::StringRef symbol(
+      reinterpret_cast<const char*>(
+          Abi::Core::object_reserve_symbol.get_data()),
+      Abi::Core::object_reserve_symbol.get_size());
+  llvm::Value& size = *llvm::ConstantInt::get(&native_count, *element_size);
+  llvm::Value& selected = *builder.CreateCall(
+      module.getOrInsertFunction(symbol, &signature),
+      {llvm::unwrap(receiver), llvm::unwrap(*descriptor), llvm::unwrap(count),
+       &size, llvm::unwrap(default_address)},
+      "object.reserve");
+  builder.CreateStore(&selected, llvm::unwrap(target->get_address()));
+  return llvm::wrap(&selected);
+}
+
+static auto publish_object_access(
+    Llvm::Body& body,
+    const Llvm::Carriers& carriers,
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& result_type,
+    const Ttx::Model::Type& receiver_type,
+    LLVMValueRef data) -> Bool {
+  auto native_result = carriers.get_type(result_type);
+  auto capacity = object_capacity_value(body, carriers, receiver_type, data);
+  if (!native_result || !capacity ||
+      LLVMGetTypeKind(*native_result) != LLVMStructTypeKind ||
+      LLVMCountStructElementTypes(*native_result) != 2) {
+    return False;
+  }
+
+  LLVMValueRef access = LLVMGetUndef(*native_result);
+  access =
+      LLVMBuildInsertValue(body.get_builder(), access, data, 0, "object.data");
+  access = LLVMBuildInsertValue(
+      body.get_builder(), access, *capacity, 1, "object.size");
+  Core::Static::Vector<LLVMValueRef, 1> values = {{access}};
+  return access && body.publish_values(result, values.get_view());
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::object_access(
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& result_type,
+    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Pack& receiver_source,
+    LLVMValueRef receiver,
+    const Ttx::Model::Pack& element_default) const -> Bool {
+  auto carriers = call_select_carriers(body);
+  auto count =
+      carriers ? object_capacity_value(body, *carriers, receiver_type, receiver)
+               : Core::Option<LLVMValueRef>();
+  auto selected = carriers && count
+                      ? reserve_object(
+                            body, *carriers, receiver_type, receiver_source,
+                            receiver, *count, element_default)
+                      : Core::Option<LLVMValueRef>();
+  return carriers && selected &&
+         publish_object_access(
+             body, *carriers, result, result_type, receiver_type, *selected);
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::object_reserve(
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& result_type,
+    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Pack& receiver_source,
+    LLVMValueRef receiver,
+    LLVMValueRef count,
+    const Ttx::Model::Pack& element_default) const -> Bool {
+  auto carriers = call_select_carriers(body);
+  auto selected = carriers
+                      ? reserve_object(
+                            body, *carriers, receiver_type, receiver_source,
+                            receiver, count, element_default)
+                      : Core::Option<LLVMValueRef>();
+  return carriers && selected &&
+         publish_object_access(
+             body, *carriers, result, result_type, receiver_type, *selected);
+}
+
+// A borrow needs storage that outlives receiver evaluation. An Addressable
+// supplies that storage directly. A computed Fixed moves into one Body owned
+// slot so the borrowed pointer remains valid through enclosing scope cleanup.
+static auto create_fixed_borrow(
+    Tetrodotoxin::Library::Llvm::Body& body,
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& result_type,
+    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Pack& receiver_source,
+    LLVMValueRef receiver) -> Bool {
+  auto& native_body = body;
   auto carriers = call_select_carriers(body);
   if (!carriers) {
     return False;
@@ -524,24 +937,43 @@ auto Tetrodotoxin::Library::Llvm::Builder::get_access(
   const Ttx::Model::Type& fixed_type = receiver_type;
   auto fixed_native = carriers->get_type(fixed_type);
   auto extent = carriers->get_extent(fixed_type);
-  auto access_native = carriers->get_type(result_type);
-  if (!storage || &storage->get_type() != &fixed_type || !fixed_native ||
-      !extent || !access_native || result.get_layout().get_size() != 1 ||
+  auto view_native = carriers->get_type(result_type);
+  if ((storage && &storage->get_type() != &fixed_type) || !fixed_native ||
+      !extent || !view_native || result.get_layout().get_size() != 1 ||
       LLVMGetTypeKind(*fixed_native) != LLVMArrayTypeKind ||
       LLVMGetArrayLength2(*fixed_native) != *extent ||
-      LLVMGetTypeKind(*access_native) != LLVMStructTypeKind ||
-      LLVMCountStructElementTypes(*access_native) != 2) {
+      LLVMGetTypeKind(*view_native) != LLVMStructTypeKind ||
+      LLVMCountStructElementTypes(*view_native) != 2) {
     return call_fail_backend(
         body,
-        "LLVM cannot borrow writable Access from the exact Fixed storage carrier."_view);
+        "LLVM cannot borrow contiguous data from the exact Fixed storage carrier."_view);
+  }
+
+  Core::Option<LLVMValueRef> address;
+  Bool releases_receiver = True;
+  if (storage) {
+    address = storage->get_address();
+  } else {
+    LLVMValueRef allocated =
+        native_body.create_entry_alloca(*fixed_native, "fixed.borrow"_view);
+    LLVMBuildStore(native_body.get_builder(), receiver, allocated);
+    if (!native_body.acquire(fixed_type, receiver) ||
+        !native_body.register_storage(fixed_type, allocated) ||
+        !native_body.publish_target_address(
+            receiver_source, fixed_type, allocated)) {
+      return False;
+    }
+
+    address = allocated;
+    releases_receiver = False;
   }
 
   LLVMContextRef context = LLVMGetTypeContext(*fixed_native);
   LLVMValueRef zero = LLVMConstInt(LLVMInt64TypeInContext(context), 0, 0);
   Core::Static::Vector<LLVMValueRef, 2> indices = {{zero, zero}};
   LLVMValueRef data = LLVMBuildInBoundsGEP2(
-      native_body.get_builder(), *fixed_native, storage->get_address(),
-      indices.get_data(), Unsigned_32(indices.get_size()), "access.data");
+      native_body.get_builder(), *fixed_native, *address, indices.get_data(),
+      Unsigned_32(indices.get_size()), "fixed.data");
   if (!data) {
     return call_fail_backend(
         body, "LLVM could not select the first element of Fixed storage."_view);
@@ -549,23 +981,110 @@ auto Tetrodotoxin::Library::Llvm::Builder::get_access(
 
   LLVMValueRef count =
       LLVMConstInt(LLVMInt64TypeInContext(context), Unsigned_64(*extent), 0);
-  LLVMValueRef access = LLVMGetUndef(*access_native);
-  access = LLVMBuildInsertValue(
-      native_body.get_builder(), access, data, 0, "access.data");
-  access = LLVMBuildInsertValue(
-      native_body.get_builder(), access, count, 1, "access.size");
-  if (!access) {
+  LLVMValueRef view = LLVMGetUndef(*view_native);
+  view = LLVMBuildInsertValue(
+      native_body.get_builder(), view, data, 0, "fixed.data");
+  view = LLVMBuildInsertValue(
+      native_body.get_builder(), view, count, 1, "fixed.size");
+  if (!view) {
     return call_fail_backend(
         body,
-        "LLVM could not construct writable Access for the selected Fixed storage."_view);
+        "LLVM could not construct a borrow over the selected Fixed storage."_view);
   }
 
-  if (!call_release_owned(native_body, *carriers, fixed_type, receiver)) {
+  if (releases_receiver &&
+      !call_release_owned(native_body, *carriers, fixed_type, receiver)) {
     return False;
   }
 
-  Core::Static::Vector<LLVMValueRef, 1> values = {{access}};
-  native_body.mark_owned(result_type, access);
+  Core::Static::Vector<LLVMValueRef, 1> values = {{view}};
+  native_body.mark_owned(result_type, view);
+  return native_body.publish_values(result, values.get_view());
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::borrow_fixed(
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& result_type,
+    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Pack& receiver_source,
+    LLVMValueRef receiver) const -> Bool {
+  return create_fixed_borrow(
+      body, result, result_type, receiver_type, receiver_source, receiver);
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::slice_view(
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& result_type,
+    const Ttx::Model::Type& receiver_type,
+    LLVMValueRef receiver,
+    LLVMValueRef start,
+    LLVMValueRef count) const -> Bool {
+  Llvm::Body& native_body = body;
+  auto carriers = call_select_carriers(body);
+  if (!carriers) {
+    return False;
+  }
+
+  auto element = carriers->get_element(receiver_type);
+  auto native_element =
+      element ? carriers->get_type(*element) : Core::Option<LLVMTypeRef>();
+  auto native_result = carriers->get_type(result_type);
+  Count receiver_fields =
+      LLVMGetTypeKind(LLVMTypeOf(receiver)) == LLVMStructTypeKind
+          ? LLVMCountStructElementTypes(LLVMTypeOf(receiver))
+          : 0;
+  if (!element || !native_element || !native_result ||
+      result.get_layout().get_size() != 1 || receiver_fields != 2 ||
+      LLVMGetTypeKind(*native_result) != LLVMStructTypeKind ||
+      LLVMCountStructElementTypes(*native_result) != 2) {
+    return call_fail_backend(
+        body,
+        "LLVM cannot slice the completed contiguous receiver carrier."_view);
+  }
+
+  LLVMBuilderRef builder = native_body.get_builder();
+  LLVMValueRef data = LLVMBuildExtractValue(builder, receiver, 0, "slice.data");
+  LLVMValueRef length =
+      LLVMBuildExtractValue(builder, receiver, 1, "slice.length");
+  if (!data || !length || LLVMTypeOf(start) != LLVMTypeOf(length) ||
+      LLVMTypeOf(count) != LLVMTypeOf(length)) {
+    return call_fail_backend(
+        body, "LLVM cannot align slice indices with the receiver size."_view);
+  }
+
+  // Perimortem clipping keeps the available suffix and uses a canonical empty
+  // View when the requested start is unavailable.
+  LLVMValueRef present =
+      LLVMBuildICmp(builder, LLVMIntULT, start, length, "slice.present");
+  LLVMValueRef remaining =
+      LLVMBuildSub(builder, length, start, "slice.remaining");
+  LLVMValueRef short_request =
+      LLVMBuildICmp(builder, LLVMIntULT, count, remaining, "slice.short");
+  LLVMValueRef selected_count =
+      LLVMBuildSelect(builder, short_request, count, remaining, "slice.count");
+  LLVMValueRef zero = LLVMConstNull(LLVMTypeOf(length));
+  LLVMValueRef size =
+      LLVMBuildSelect(builder, present, selected_count, zero, "slice.size");
+  LLVMValueRef offset = start;
+  LLVMValueRef selected_data = LLVMBuildGEP2(
+      builder, *native_element, data, &offset, 1, "slice.selected.data");
+  LLVMValueRef empty_data = LLVMConstNull(LLVMTypeOf(data));
+  LLVMValueRef view_data = LLVMBuildSelect(
+      builder, present, selected_data, empty_data, "slice.view.data");
+
+  LLVMValueRef view = LLVMGetUndef(*native_result);
+  view = LLVMBuildInsertValue(builder, view, view_data, 0, "slice.view.data");
+  view = LLVMBuildInsertValue(builder, view, size, 1, "slice.view.size");
+  if (!view) {
+    return False;
+  }
+
+  if (!call_release_owned(native_body, *carriers, receiver_type, receiver)) {
+    return False;
+  }
+
+  Core::Static::Vector<LLVMValueRef, 1> values = {{view}};
+  native_body.mark_owned(result_type, view);
   return native_body.publish_values(result, values.get_view());
 }
 
@@ -662,6 +1181,84 @@ auto Tetrodotoxin::Library::Llvm::Builder::compare(
   }
 }
 
+auto Tetrodotoxin::Library::Llvm::Builder::compare_bytes(
+    Comparison operation,
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Pack& left,
+    const Ttx::Model::Pack& right) const -> Bool {
+  if (operation != Comparison::Equal && operation != Comparison::NotEqual) {
+    return False;
+  }
+
+  auto left_value = comparison_find_scalar(body, left);
+  auto right_value = comparison_find_scalar(body, right);
+  if (!left_value || !right_value ||
+      LLVMGetTypeKind(LLVMTypeOf(*left_value)) != LLVMStructTypeKind ||
+      LLVMGetTypeKind(LLVMTypeOf(*right_value)) != LLVMStructTypeKind) {
+    return False;
+  }
+
+  LLVMBuilderRef builder = body.get_builder();
+  LLVMValueRef left_data = LLVMBuildExtractValue(builder, *left_value, 0, "");
+  LLVMValueRef left_size = LLVMBuildExtractValue(builder, *left_value, 1, "");
+  LLVMValueRef right_data = LLVMBuildExtractValue(builder, *right_value, 0, "");
+  LLVMValueRef right_size = LLVMBuildExtractValue(builder, *right_value, 1, "");
+  if (!left_data || !left_size || !right_data || !right_size) {
+    return False;
+  }
+
+  LLVMValueRef function = body.get_function();
+  LLVMContextRef context =
+      LLVMGetModuleContext(&body.get_program().get_module());
+  LLVMBasicBlockRef unequal = LLVMGetInsertBlock(builder);
+  LLVMBasicBlockRef matching =
+      LLVMAppendBasicBlockInContext(context, function, "bytes.matching");
+  LLVMBasicBlockRef content =
+      LLVMAppendBasicBlockInContext(context, function, "bytes.content");
+  LLVMBasicBlockRef done =
+      LLVMAppendBasicBlockInContext(context, function, "bytes.done");
+  LLVMValueRef size_equal =
+      LLVMBuildICmp(builder, LLVMIntEQ, left_size, right_size, "");
+  LLVMBuildCondBr(builder, size_equal, matching, done);
+
+  LLVMPositionBuilderAtEnd(builder, matching);
+  LLVMValueRef zero_size = LLVMConstInt(LLVMTypeOf(left_size), 0, 0);
+  LLVMValueRef empty =
+      LLVMBuildICmp(builder, LLVMIntEQ, left_size, zero_size, "");
+  LLVMBuildCondBr(builder, empty, done, content);
+
+  LLVMPositionBuilderAtEnd(builder, content);
+  LLVMModuleRef module = &body.get_program().get_module();
+  LLVMValueRef compare_function = LLVMGetNamedFunction(module, "memcmp");
+  LLVMTypeRef compare_parameters[] = {
+    LLVMTypeOf(left_data), LLVMTypeOf(right_data), LLVMTypeOf(left_size)};
+  LLVMTypeRef compare_type = LLVMFunctionType(
+      LLVMInt32TypeInContext(context), compare_parameters, 3, 0);
+  if (!compare_function) {
+    compare_function = LLVMAddFunction(module, "memcmp", compare_type);
+  }
+  LLVMValueRef compare_arguments[] = {left_data, right_data, left_size};
+  LLVMValueRef comparison = LLVMBuildCall2(
+      builder, compare_type, compare_function, compare_arguments, 3, "");
+  LLVMValueRef content_equal = LLVMBuildICmp(
+      builder, LLVMIntEQ, comparison,
+      LLVMConstInt(LLVMInt32TypeInContext(context), 0, 0), "");
+  LLVMBuildBr(builder, done);
+
+  LLVMPositionBuilderAtEnd(builder, done);
+  LLVMValueRef equal =
+      LLVMBuildPhi(builder, LLVMInt1TypeInContext(context), "");
+  LLVMValueRef incoming_values[] = {
+    LLVMConstInt(LLVMInt1TypeInContext(context), 0, 0),
+    LLVMConstInt(LLVMInt1TypeInContext(context), 1, 0), content_equal};
+  LLVMBasicBlockRef incoming_blocks[] = {unequal, matching, content};
+  LLVMAddIncoming(equal, incoming_values, incoming_blocks, 3);
+  LLVMValueRef selected =
+      operation == Comparison::Equal ? equal : LLVMBuildNot(builder, equal, "");
+  Core::Static::Vector<LLVMValueRef, 1> values = {{selected}};
+  return body.publish_values(result, values.get_view());
+}
+
 // Construction assembles inline values or allocates Object payloads through
 // the carrier selected by the exact source Type.
 
@@ -731,10 +1328,11 @@ static auto control_leave_loop(
   return True;
 }
 
-auto Tetrodotoxin::Library::Llvm::Builder::return_values(
-    const Ttx::Model::Pack& values) const -> Bool {
-  Llvm::Body& native_body = body;
-  auto carriers = control_select_carriers(body);
+static auto control_return_values(
+    Llvm::Body& native_body,
+    const Ttx::Model::Pack& values,
+    Bool preserve_tracking) -> Bool {
+  auto carriers = control_select_carriers(native_body);
   if (!carriers) {
     return False;
   }
@@ -752,19 +1350,32 @@ auto Tetrodotoxin::Library::Llvm::Builder::return_values(
       return False;
     }
   } else if (results.get_size() == 1) {
-    auto type = results.get_abstract(0)->resolve().select<Ttx::Model::Type>();
+    auto entry = results.get_abstract(0);
+    auto reference = entry ? entry->select<Ttx::Model::Addressable>()
+                           : Core::Option<const Ttx::Model::Addressable&>();
+    auto type =
+        reference ? Core::Option<const Ttx::Model::Type&>(reference->get_type())
+        : entry   ? entry->resolve().select<Ttx::Model::Type>()
+                  : Core::Option<const Ttx::Model::Type&>();
     if (!type) {
       return False;
     }
 
-    if (returned->get_size() == 0) {
-      native_return = carriers->zero(body.get_program(), *type);
+    if (reference) {
+      auto address = native_body.find_target_address(values);
+      if (!address || &address->get_type() != &*type) {
+        return False;
+      }
+      native_return = address->get_address();
+    } else if (returned->get_size() == 0) {
+      native_return = carriers->zero(native_body.get_program(), *type);
     } else {
       native_return = carriers->fit_and_assemble(
           native_body, *type, values, returned->get_view());
     }
 
-    if (!native_return || !native_body.acquire(*type, *native_return)) {
+    if (!native_return ||
+        (!reference && !native_body.acquire(*type, *native_return))) {
       return False;
     }
   } else {
@@ -804,21 +1415,27 @@ auto Tetrodotoxin::Library::Llvm::Builder::return_values(
                   : control_native_function(native_body).getReturnType();
     llvm::Value* aggregate = llvm::UndefValue::get(aggregate_type);
     for (Count index = 0; index < received.get_size(); index++) {
-      aggregate = control_native_builder(native_body)
-                      .CreateInsertValue(
-                          aggregate, llvm::unwrap(received[index]),
-                          static_cast<unsigned>(index));
+      aggregate =
+          control_native_builder(native_body)
+              .CreateInsertValue(
+                  aggregate, llvm::unwrap(received[index]), Unsigned_32(index));
     }
 
     native_return = llvm::wrap(aggregate);
   }
 
   if (!native_body.emit_storage_cleanup(0) ||
-      !native_body.clear_temporary_cleanup()) {
+      !(preserve_tracking ? native_body.emit_temporary_cleanup()
+                          : native_body.clear_temporary_cleanup())) {
     return False;
   }
 
   return native_body.create_return(native_return);
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::return_values(
+    const Ttx::Model::Pack& values) const -> Bool {
+  return control_return_values(body, values, False);
 }
 
 auto Tetrodotoxin::Library::Llvm::Builder::leave_loop(
@@ -843,6 +1460,9 @@ auto Tetrodotoxin::Library::Llvm::Builder::begin_branch(
       function.getContext(), "if.alternate", &function);
   llvm::BasicBlock& done =
       *llvm::BasicBlock::Create(function.getContext(), "if.done", &function);
+  if (!native_body.clear_temporary_cleanup()) {
+    return {};
+  }
   builder.CreateCondBr(&*selected, &branch, &alternate);
   builder.SetInsertPoint(&branch);
   return Branch(llvm::wrap(&alternate), llvm::wrap(&done));
@@ -923,6 +1543,9 @@ auto Tetrodotoxin::Library::Llvm::Builder::select_while(
   llvm::BasicBlock& branch =
       *llvm::BasicBlock::Create(function.getContext(), "while.body", &function);
   llvm::IRBuilder<>& builder = control_native_builder(native_body);
+  if (!native_body.clear_temporary_cleanup()) {
+    return False;
+  }
   builder.CreateCondBr(
       &*selected, &branch, llvm::unwrap(loop->get_break_target()));
   builder.SetInsertPoint(&branch);
@@ -953,7 +1576,91 @@ auto Tetrodotoxin::Library::Llvm::Builder::end_while(
   return True;
 }
 
-auto Tetrodotoxin::Library::Llvm::Builder::begin_range(
+static auto create_bytes_view(
+    Tetrodotoxin::Library::Llvm::Program& program,
+    LLVMTypeRef type,
+    Core::View::Bytes value) -> Core::Option<LLVMValueRef> {
+  if (LLVMGetTypeKind(type) != LLVMStructTypeKind ||
+      LLVMCountStructElementTypes(type) != 2) {
+    return {};
+  }
+
+  LLVMContextRef context = &program.get_context();
+  LLVMModuleRef module = &program.get_module();
+  LLVMValueRef data = LLVMConstNull(LLVMPointerTypeInContext(context, 0));
+  if (!value.is_empty()) {
+    LLVMValueRef contents = LLVMConstStringInContext2(
+        context, reinterpret_cast<const char*>(value.get_data()),
+        value.get_size(), 1);
+    LLVMValueRef global =
+        LLVMAddGlobal(module, LLVMTypeOf(contents), "__ttx_bytes");
+    LLVMSetGlobalConstant(global, 1);
+    LLVMSetInitializer(global, contents);
+    LLVMSetLinkage(global, LLVMPrivateLinkage);
+    LLVMSetUnnamedAddress(global, LLVMGlobalUnnamedAddr);
+    data = global;
+  }
+
+  LLVMValueRef count =
+      LLVMConstInt(LLVMInt64TypeInContext(context), value.get_size(), 0);
+  Core::Static::Vector<LLVMValueRef, 2> elements = {{data, count}};
+  return LLVMConstNamedStruct(
+      type, elements.get_data(), Unsigned_32(elements.get_size()));
+}
+
+static auto select_enumeration_value(
+    llvm::IRBuilder<>& builder,
+    llvm::Value& index,
+    llvm::IntegerType& type,
+    Core::View::Vector<Unsigned_64> values) -> llvm::Value& {
+  llvm::Value* selected = llvm::ConstantInt::get(&type, 0);
+  for (Count value_index = 0; value_index < values.get_size(); value_index++) {
+    llvm::Value* matches = builder.CreateICmpEQ(
+        &index, builder.getInt64(value_index), "enum.index");
+    selected = builder.CreateSelect(
+        matches, llvm::ConstantInt::get(&type, values[value_index]), selected,
+        "enum.value");
+  }
+
+  return *selected;
+}
+
+static auto select_enumeration_name(
+    Tetrodotoxin::Library::Llvm::Program& program,
+    llvm::IRBuilder<>& builder,
+    llvm::Value& index,
+    llvm::StructType& type,
+    Core::View::Vector<Core::View::Bytes> names) -> Core::Option<llvm::Value&> {
+  auto empty = create_bytes_view(program, llvm::wrap(&type), {});
+  BAIL_IF(!empty);
+
+  llvm::Value* selected_data =
+      builder.CreateExtractValue(llvm::unwrap(*empty), 0);
+  llvm::Value* selected_size =
+      builder.CreateExtractValue(llvm::unwrap(*empty), 1);
+  for (Count name_index = 0; name_index < names.get_size(); name_index++) {
+    auto candidate =
+        create_bytes_view(program, llvm::wrap(&type), names[name_index]);
+    BAIL_IF(!candidate);
+
+    llvm::Value* matches = builder.CreateICmpEQ(
+        &index, builder.getInt64(name_index), "enum.name.index");
+    selected_data = builder.CreateSelect(
+        matches, builder.CreateExtractValue(llvm::unwrap(*candidate), 0),
+        selected_data, "enum.name.data");
+    selected_size = builder.CreateSelect(
+        matches, builder.CreateExtractValue(llvm::unwrap(*candidate), 1),
+        selected_size, "enum.name.size");
+  }
+
+  llvm::Value* result = llvm::UndefValue::get(&type);
+  result = builder.CreateInsertValue(result, selected_data, 0);
+  result = builder.CreateInsertValue(result, selected_size, 1);
+  return *result;
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::begin_sequence(
+    const Ttx::Concept::Abstract& owner,
     const Ttx::Model::Addressable& binding,
     const Ttx::Model::Pack& input) const -> Bool {
   Llvm::Body& native_body = body;
@@ -1050,14 +1757,133 @@ auto Tetrodotoxin::Library::Llvm::Builder::begin_range(
           stepped, llvm::ConstantInt::get(start->getType(), 1)),
       index_address);
   step_builder.CreateBr(&condition);
-  return native_body.publish_loop(
-      binding, llvm::wrap(&done), llvm::wrap(&step));
+  return native_body.publish_loop(owner, llvm::wrap(&done), llvm::wrap(&step));
 }
 
-auto Tetrodotoxin::Library::Llvm::Builder::end_range(
-    const Ttx::Model::Addressable& binding) const -> Bool {
+auto Tetrodotoxin::Library::Llvm::Builder::begin_enumeration(
+    const Ttx::Concept::Abstract& owner,
+    const Ttx::Concept::Layout& bindings,
+    Core::View::Vector<Unsigned_64> values,
+    Core::View::Vector<Core::View::Bytes> names) const -> Bool {
   Llvm::Body& native_body = body;
-  auto loop = native_body.find_loop(binding);
+  auto carriers = control_select_carriers(body);
+  if (!carriers || (bindings.get_size() != 1 && bindings.get_size() != 2) ||
+      (!names.is_empty() && names.get_size() != values.get_size())) {
+    return False;
+  }
+
+  auto value_entry = bindings.get_abstract(0);
+  auto value_binding = value_entry
+                           ? value_entry->select<Ttx::Model::Addressable>()
+                           : Core::Option<const Ttx::Model::Addressable&>();
+  auto value_type = value_binding
+                        ? carriers->get_type(value_binding->get_type())
+                        : Core::Option<LLVMTypeRef>();
+  Core::Option<llvm::IntegerType&> native_value;
+  if (value_type) {
+    auto selected =
+        llvm::dyn_cast<llvm::IntegerType>(llvm::unwrap(*value_type));
+    if (selected) {
+      native_value = *selected;
+    }
+  }
+
+  if (!value_binding || !native_value) {
+    return False;
+  }
+
+  Core::Option<const Ttx::Model::Addressable&> name_binding;
+  Core::Option<llvm::StructType&> name_type;
+  if (bindings.get_size() == 2) {
+    auto name_entry = bindings.get_abstract(1);
+    name_binding = name_entry ? name_entry->select<Ttx::Model::Addressable>()
+                              : Core::Option<const Ttx::Model::Addressable&>();
+    auto native_name = name_binding
+                           ? carriers->get_type(name_binding->get_type())
+                           : Core::Option<LLVMTypeRef>();
+    Core::Option<llvm::StructType&> selected_name;
+    if (native_name) {
+      auto selected =
+          llvm::dyn_cast<llvm::StructType>(llvm::unwrap(*native_name));
+      if (selected) {
+        selected_name = *selected;
+      }
+    }
+
+    if (!name_binding || !selected_name ||
+        names.is_empty() != values.is_empty()) {
+      return False;
+    }
+
+    name_type = *selected_name;
+  }
+
+  llvm::IRBuilder<>& builder = control_native_builder(native_body);
+  LLVMValueRef index_handle = native_body.create_entry_alloca(
+      llvm::wrap(builder.getInt64Ty()), "for.index"_view);
+  LLVMValueRef value_handle =
+      native_body.create_entry_alloca(*value_type, "for.value"_view);
+  llvm::Value* index_address = llvm::unwrap(index_handle);
+  llvm::Value* value_address = llvm::unwrap(value_handle);
+  builder.CreateStore(builder.getInt64(0), index_address);
+  if (!native_body.publish_address(*value_binding, value_handle)) {
+    return False;
+  }
+
+  Core::Option<LLVMValueRef> name_handle;
+  if (name_binding && name_type) {
+    name_handle = native_body.create_entry_alloca(
+        llvm::wrap(&*name_type), "for.name"_view);
+    if (!native_body.publish_address(*name_binding, *name_handle)) {
+      return False;
+    }
+  }
+
+  llvm::Function& function = control_native_function(native_body);
+  llvm::BasicBlock& condition = *llvm::BasicBlock::Create(
+      function.getContext(), "for.condition", &function);
+  llvm::BasicBlock& branch =
+      *llvm::BasicBlock::Create(function.getContext(), "for.body", &function);
+  llvm::BasicBlock& step =
+      *llvm::BasicBlock::Create(function.getContext(), "for.step", &function);
+  llvm::BasicBlock& done =
+      *llvm::BasicBlock::Create(function.getContext(), "for.done", &function);
+  builder.CreateBr(&condition);
+
+  builder.SetInsertPoint(&condition);
+  llvm::Value* current =
+      builder.CreateLoad(builder.getInt64Ty(), index_address);
+  llvm::Value* active =
+      builder.CreateICmpULT(current, builder.getInt64(values.get_size()));
+  builder.CreateCondBr(active, &branch, &done);
+
+  builder.SetInsertPoint(&branch);
+  llvm::Value& selected =
+      select_enumeration_value(builder, *current, *native_value, values);
+  builder.CreateStore(&selected, value_address);
+  if (name_handle && name_type) {
+    auto selected_name = select_enumeration_name(
+        native_body.get_program(), builder, *current, *name_type, names);
+    if (!selected_name) {
+      return False;
+    }
+
+    builder.CreateStore(&*selected_name, llvm::unwrap(*name_handle));
+  }
+
+  llvm::IRBuilder<> step_builder(&step);
+  llvm::Value* stepped =
+      step_builder.CreateLoad(builder.getInt64Ty(), index_address);
+  step_builder.CreateStore(
+      step_builder.CreateAdd(stepped, step_builder.getInt64(1)), index_address);
+  step_builder.CreateBr(&condition);
+  return native_body.publish_loop(owner, llvm::wrap(&done), llvm::wrap(&step));
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::end_iteration(
+    const Ttx::Concept::Abstract& owner) const -> Bool {
+  Llvm::Body& native_body = body;
+  auto loop = native_body.find_loop(owner);
   if (!loop) {
     return False;
   }
@@ -1070,7 +1896,7 @@ auto Tetrodotoxin::Library::Llvm::Builder::end_range(
     builder.CreateBr(llvm::unwrap(step));
   }
 
-  if (!native_body.remove_loop(binding)) {
+  if (!native_body.remove_loop(owner)) {
     return False;
   }
 
@@ -1375,30 +2201,11 @@ auto Tetrodotoxin::Library::Llvm::Builder::bytes_value(
   BAIL_IF(!type);
 
   LLVMContextRef context = &selected->program.get_context();
-  LLVMModuleRef module = &selected->program.get_module();
   LLVMTypeKind kind = LLVMGetTypeKind(*type);
   if (kind == LLVMStructTypeKind) {
-    LLVMValueRef data = LLVMConstNull(LLVMPointerTypeInContext(context, 0));
-    if (!value.is_empty()) {
-      LLVMValueRef contents = LLVMConstStringInContext2(
-          context, reinterpret_cast<const char*>(value.get_data()),
-          value.get_size(), 1);
-      LLVMValueRef global =
-          LLVMAddGlobal(module, LLVMTypeOf(contents), "__ttx_bytes");
-      LLVMSetGlobalConstant(global, 1);
-      LLVMSetInitializer(global, contents);
-      LLVMSetLinkage(global, LLVMPrivateLinkage);
-      LLVMSetUnnamedAddress(global, LLVMGlobalUnnamedAddr);
-      data = global;
-    }
-
-    LLVMValueRef count =
-        LLVMConstInt(LLVMInt64TypeInContext(context), value.get_size(), 0);
-    Core::Static::Vector<LLVMValueRef, 2> elements = {{data, count}};
-    return publish_literal(
-        selected->body, result,
-        LLVMConstNamedStruct(
-            *type, elements.get_data(), Unsigned_32(elements.get_size())));
+    auto bytes = create_bytes_view(selected->program, *type, value);
+    BAIL_IF(!bytes);
+    return publish_literal(selected->body, result, *bytes);
   }
 
   if (kind != LLVMArrayTypeKind ||
@@ -1411,6 +2218,75 @@ auto Tetrodotoxin::Library::Llvm::Builder::bytes_value(
       context, reinterpret_cast<const char*>(value.get_data()),
       value.get_size(), 1);
   return publish_literal(selected->body, result, constant);
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::object_value(
+    const Ttx::Model::Type& carrier,
+    const Ttx::Model::Pack& result) const -> Bool {
+  auto selected = select_literal_target(body);
+  BAIL_IF(!selected);
+
+  auto type = selected->carriers.get_type(carrier);
+  BAIL_IF(!type || LLVMGetTypeKind(*type) != LLVMPointerTypeKind);
+  return publish_literal(selected->body, result, LLVMConstNull(*type));
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::enumeration_name(
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& result_type,
+    LLVMValueRef value,
+    Core::View::Vector<Unsigned_64> values,
+    Core::View::Vector<Core::View::Bytes> names) const -> Bool {
+  auto selected = select_literal_target(body);
+  BAIL_IF(!selected || !value || values.get_size() != names.get_size());
+
+  auto native_result = selected->carriers.get_type(result_type);
+  Core::Option<llvm::StructType&> view_type;
+  if (native_result) {
+    auto selected =
+        llvm::dyn_cast<llvm::StructType>(llvm::unwrap(*native_result));
+    if (selected) {
+      view_type = *selected;
+    }
+  }
+
+  Core::Option<llvm::IntegerType&> native_value;
+  auto selected_value =
+      llvm::dyn_cast<llvm::IntegerType>(llvm::unwrap(LLVMTypeOf(value)));
+  if (selected_value) {
+    native_value = *selected_value;
+  }
+  BAIL_IF(!view_type || !native_value);
+
+  llvm::IRBuilder<>& builder = control_native_builder(selected->body);
+  auto empty = create_bytes_view(selected->program, *native_result, {});
+  BAIL_IF(!empty);
+  llvm::Value* selected_data =
+      builder.CreateExtractValue(llvm::unwrap(*empty), 0);
+  llvm::Value* selected_size =
+      builder.CreateExtractValue(llvm::unwrap(*empty), 1);
+  for (Count remaining = values.get_size(); remaining != 0; remaining--) {
+    Count index = remaining - 1;
+    auto candidate =
+        create_bytes_view(selected->program, *native_result, names[index]);
+    BAIL_IF(!candidate);
+
+    llvm::Value* matches = builder.CreateICmpEQ(
+        llvm::unwrap(value),
+        llvm::ConstantInt::get(&*native_value, values[index]),
+        "enum.name.value");
+    selected_data = builder.CreateSelect(
+        matches, builder.CreateExtractValue(llvm::unwrap(*candidate), 0),
+        selected_data, "enum.name.data");
+    selected_size = builder.CreateSelect(
+        matches, builder.CreateExtractValue(llvm::unwrap(*candidate), 1),
+        selected_size, "enum.name.size");
+  }
+
+  llvm::Value* native = llvm::UndefValue::get(&*view_type);
+  native = builder.CreateInsertValue(native, selected_data, 0);
+  native = builder.CreateInsertValue(native, selected_size, 1);
+  return publish_literal(selected->body, result, llvm::wrap(native));
 }
 
 // Short circuit logic returns its merge blocks to And or Or so no hidden
@@ -1562,6 +2438,11 @@ auto Tetrodotoxin::Library::Llvm::Builder::present(
     return False;
   }
 
+  if (carriers->is_object(element)) {
+    native_body.mark_owned(carrier, *native_payload);
+    return publish_option(native_body, result, *native_payload);
+  }
+
   llvm::IRBuilder<>& builder = option_native_builder(native_body);
   llvm::Value& empty = *llvm::UndefValue::get(llvm::unwrap(*native_carrier));
   llvm::Value& with_payload =
@@ -1571,6 +2452,22 @@ auto Tetrodotoxin::Library::Llvm::Builder::present(
   LLVMValueRef selected_handle = llvm::wrap(&selected);
   native_body.mark_owned(carrier, selected_handle);
   return publish_option(native_body, result, selected_handle);
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::result(
+    const Ttx::Model::Type& carrier,
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Pack& payload) const -> Bool {
+  Llvm::Body& native_body = body;
+  auto carriers = option_select_carriers(body);
+  auto payload_values = native_body.find_values(payload);
+  if (!carriers || !payload_values) {
+    return False;
+  }
+
+  auto selected = carriers->fit_and_assemble(
+      native_body, carrier, payload, payload_values->get_view());
+  return selected && publish_option(native_body, result, *selected);
 }
 
 auto Tetrodotoxin::Library::Llvm::Builder::begin_unwrap(
@@ -1593,8 +2490,10 @@ auto Tetrodotoxin::Library::Llvm::Builder::begin_unwrap(
 
   llvm::IRBuilder<>& builder = option_native_builder(native_body);
   llvm::Function& function = option_native_function(native_body);
+  Bool niche = carriers->is_object(element);
   llvm::Value& present =
-      *builder.CreateExtractValue(llvm::unwrap(*native_option), 1);
+      niche ? *builder.CreateIsNotNull(llvm::unwrap(*native_option))
+            : *builder.CreateExtractValue(llvm::unwrap(*native_option), 1);
   llvm::BasicBlock& payload_block = *llvm::BasicBlock::Create(
       function.getContext(), "option.payload", &function);
   llvm::BasicBlock& default_block = *llvm::BasicBlock::Create(
@@ -1605,7 +2504,8 @@ auto Tetrodotoxin::Library::Llvm::Builder::begin_unwrap(
 
   builder.SetInsertPoint(&payload_block);
   llvm::Value& payload =
-      *builder.CreateExtractValue(llvm::unwrap(*native_option), 0);
+      niche ? *llvm::unwrap(*native_option)
+            : *builder.CreateExtractValue(llvm::unwrap(*native_option), 0);
   if (!carriers->retain(native_body, element, llvm::wrap(&payload))) {
     return {};
   }
@@ -1662,11 +2562,12 @@ auto Tetrodotoxin::Library::Llvm::Builder::end_unwrap(
   return publish_option(native_body, result, selected_handle);
 }
 
-auto Tetrodotoxin::Library::Llvm::Builder::propagate(
+auto Tetrodotoxin::Library::Llvm::Builder::propagate_option(
     const Ttx::Model::Type& carrier,
     const Ttx::Model::Type& element,
     const Ttx::Model::Pack& result,
-    const Ttx::Model::Pack& option) const -> Bool {
+    const Ttx::Model::Pack& option,
+    const Ttx::Model::Pack& escape) const -> Bool {
   Llvm::Body& native_body = body;
   auto carriers = option_select_carriers(body);
   if (!carriers) {
@@ -1675,8 +2576,7 @@ auto Tetrodotoxin::Library::Llvm::Builder::propagate(
 
   auto native_option = native_body.find_value(option);
   auto native_carrier = carriers->get_type(carrier);
-  auto callable = native_body.get_callable();
-  if (!native_option || !native_carrier || !callable ||
+  if (!native_option || !native_carrier ||
       llvm::unwrap(*native_option)->getType() !=
           llvm::unwrap(*native_carrier)) {
     return False;
@@ -1690,39 +2590,22 @@ auto Tetrodotoxin::Library::Llvm::Builder::propagate(
       function.getContext(), "propagate.absent", &function);
   llvm::BasicBlock& continued = *llvm::BasicBlock::Create(
       function.getContext(), "propagate.continue", &function);
+  Bool niche = carriers->is_object(element);
   llvm::Value& present =
-      *builder.CreateExtractValue(llvm::unwrap(*native_option), 1);
+      niche ? *builder.CreateIsNotNull(llvm::unwrap(*native_option))
+            : *builder.CreateExtractValue(llvm::unwrap(*native_option), 1);
   builder.CreateCondBr(&present, &payload_block, &absent_block);
 
   builder.SetInsertPoint(&absent_block);
-  if (!native_body.emit_storage_cleanup(0) ||
-      !native_body.emit_temporary_cleanup()) {
+  if (!native_body.publish_values(escape, Core::View::Vector<LLVMValueRef>()) ||
+      !control_return_values(native_body, escape, True)) {
     return False;
-  }
-
-  const Ttx::Concept::Layout& results = callable->get_results();
-  if (results.is_empty()) {
-    if (!native_body.create_return()) {
-      return False;
-    }
-  } else {
-    auto result_type =
-        results.get_size() == 1
-            ? results.get_abstract(0)->resolve().select<Ttx::Model::Type>()
-            : Core::Option<const Ttx::Model::Type&>();
-    if (!result_type) {
-      return False;
-    }
-
-    auto absent = carriers->zero(body.get_program(), *result_type);
-    if (!absent || !native_body.create_return(*absent)) {
-      return False;
-    }
   }
 
   builder.SetInsertPoint(&payload_block);
   llvm::Value& payload =
-      *builder.CreateExtractValue(llvm::unwrap(*native_option), 0);
+      niche ? *llvm::unwrap(*native_option)
+            : *builder.CreateExtractValue(llvm::unwrap(*native_option), 0);
   if (!carriers->retain(native_body, element, llvm::wrap(&payload))) {
     return False;
   }
@@ -1732,6 +2615,98 @@ auto Tetrodotoxin::Library::Llvm::Builder::propagate(
   LLVMValueRef payload_handle = llvm::wrap(&payload);
   native_body.mark_owned(element, payload_handle);
   return publish_option(native_body, result, payload_handle);
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::propagate_flag(
+    const Ttx::Model::Type& carrier,
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Pack& flag,
+    const Ttx::Model::Pack& escape) const -> Bool {
+  Llvm::Body& native_body = body;
+  auto carriers = option_select_carriers(body);
+  auto native_flag = native_body.find_value(flag);
+  auto native_carrier =
+      carriers ? carriers->get_type(carrier) : Core::Option<LLVMTypeRef>();
+  if (!carriers || !native_flag || !native_carrier ||
+      !carriers->is_flag(carrier) ||
+      LLVMTypeOf(*native_flag) != *native_carrier) {
+    return False;
+  }
+
+  llvm::IRBuilder<>& builder = option_native_builder(native_body);
+  llvm::Function& function = option_native_function(native_body);
+  llvm::BasicBlock& continued = *llvm::BasicBlock::Create(
+      function.getContext(), "propagate.continue", &function);
+  llvm::BasicBlock& inactive = *llvm::BasicBlock::Create(
+      function.getContext(), "propagate.inactive", &function);
+  builder.CreateCondBr(llvm::unwrap(*native_flag), &continued, &inactive);
+
+  builder.SetInsertPoint(&inactive);
+  if (!native_body.publish_values(escape, Core::View::Vector<LLVMValueRef>()) ||
+      !control_return_values(native_body, escape, True)) {
+    return False;
+  }
+
+  builder.SetInsertPoint(&continued);
+  Core::Static::Vector<LLVMValueRef, 1> value = {{*native_flag}};
+  return native_body.publish_values(result, value.get_view());
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::propagate_result(
+    const Ttx::Model::Type& carrier,
+    const Ttx::Model::Type& value,
+    const Ttx::Model::Type& error,
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Pack& source,
+    const Ttx::Model::Pack& escape) const -> Bool {
+  Llvm::Body& native_body = body;
+  auto carriers = option_select_carriers(body);
+  auto native_result = native_body.find_value(source);
+  auto native_carrier =
+      carriers ? carriers->get_type(carrier) : Core::Option<LLVMTypeRef>();
+  if (!carriers || !native_result || !native_carrier ||
+      LLVMTypeOf(*native_result) != *native_carrier) {
+    return False;
+  }
+
+  llvm::IRBuilder<>& builder = option_native_builder(native_body);
+  llvm::Function& function = option_native_function(native_body);
+  llvm::Value& value_selected =
+      *builder.CreateExtractValue(llvm::unwrap(*native_result), Unsigned_32(1));
+  llvm::BasicBlock& value_block = *llvm::BasicBlock::Create(
+      function.getContext(), "propagate.value", &function);
+  llvm::BasicBlock& error_block = *llvm::BasicBlock::Create(
+      function.getContext(), "propagate.error", &function);
+  llvm::BasicBlock& continued = *llvm::BasicBlock::Create(
+      function.getContext(), "propagate.continue", &function);
+  builder.CreateCondBr(&value_selected, &value_block, &error_block);
+
+  builder.SetInsertPoint(&error_block);
+  auto native_error =
+      carriers->select_result(native_body, carrier, *native_result, False);
+  if (!native_error || !carriers->retain(native_body, error, *native_error)) {
+    return False;
+  }
+
+  native_body.mark_owned(error, *native_error);
+  Core::Static::Vector<LLVMValueRef, 1> escaped = {{*native_error}};
+  if (!native_body.publish_values(escape, escaped.get_view()) ||
+      !control_return_values(native_body, escape, True)) {
+    return False;
+  }
+
+  builder.SetInsertPoint(&value_block);
+  auto native_value =
+      carriers->select_result(native_body, carrier, *native_result, True);
+  if (!native_value || !carriers->retain(native_body, value, *native_value)) {
+    return False;
+  }
+
+  builder.CreateBr(&continued);
+  builder.SetInsertPoint(&continued);
+  native_body.mark_owned(value, *native_value);
+  Core::Static::Vector<LLVMValueRef, 1> continued_value = {{*native_value}};
+  return native_body.publish_values(result, continued_value.get_view());
 }
 
 // Sequence operations preserve contiguous pointer and length carriers while
@@ -2214,6 +3189,15 @@ auto Tetrodotoxin::Library::Llvm::Builder::select_member(
         "LLVM could not create the selected member address."_view);
   }
 
+  if (!selected->carriers.is_object(*host)) {
+    auto receiver_value = selected->body.find_value(receiver);
+    if (receiver_value &&
+        !call_release_owned(
+            selected->body, selected->carriers, *host, *receiver_value)) {
+      return False;
+    }
+  }
+
   return selected->body.publish_target_address(
       result, addressable.get_type(), member);
 }
@@ -2360,7 +3344,7 @@ static auto begin_indexed_store(
     LLVMValueRef first,
     LLVMValueRef length,
     Core::Option<Count> range_size) -> Core::Option<WriteBranches> {
-  LLVMValueRef condition = nullptr;
+  Core::Option<LLVMValueRef> condition;
   if (!range_size) {
     condition = LLVMBuildICmp(
         selected.body.get_builder(), LLVMIntULT, first, length, "index.valid");
@@ -2391,7 +3375,7 @@ static auto begin_indexed_store(
   LLVMBasicBlockRef done =
       LLVMAppendBasicBlockInContext(context, function, "write.done");
   if (!write || !done ||
-      !LLVMBuildCondBr(selected.body.get_builder(), condition, write, done)) {
+      !LLVMBuildCondBr(selected.body.get_builder(), *condition, write, done)) {
     return {};
   }
 
@@ -2666,4 +3650,30 @@ auto Tetrodotoxin::Library::Llvm::Builder::local(
     const Ttx::Model::Addressable& local,
     Ttx::Lexical::Anchor anchor) const -> Bool {
   return get_program().get_debug().local(body, local, anchor);
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::has_full_debug() const -> Bool {
+  return get_program().get_debug().get_level() == Llvm::Debug::Level::Full;
+}
+
+auto Tetrodotoxin::Library::Llvm::Builder::constant_local(
+    const Ttx::Model::Addressable& local,
+    const Ttx::Model::Pack& value,
+    Ttx::Lexical::Anchor anchor) const -> Bool {
+  Llvm::Program& program = get_program();
+  if (program.get_debug().get_level() != Llvm::Debug::Level::Full) {
+    return True;
+  }
+
+  auto values = body.find_values(value);
+  if (!values) {
+    return program.fail_backend(
+        "LLVM lost one const Local value before debug emission."_view);
+  }
+
+  const Carriers& carriers = program.get_carriers();
+  auto assembled = carriers.fit_and_assemble(
+      body, local.get_type(), value, values->get_view());
+  return assembled &&
+         program.get_debug().value(body, local, anchor, *assembled);
 }

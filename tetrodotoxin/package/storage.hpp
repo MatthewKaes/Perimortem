@@ -7,6 +7,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/dynamic/record.hpp"
 #include "perimortem/memory/managed/map.hpp"
 
 #include "perimortem/system/file.hpp"
@@ -15,6 +16,7 @@
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/package/content.hpp"
+#include "tetrodotoxin/package/snapshots.hpp"
 
 namespace Tetrodotoxin::Package {
 
@@ -69,7 +71,9 @@ class Storage {
 
   static auto open(
       Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Bytes root) -> Perimortem::Core::Option<Storage>;
+      Perimortem::Core::View::Bytes root,
+      Perimortem::Memory::Dynamic::Record<Snapshots> snapshots = {})
+      -> Perimortem::Core::Option<Storage>;
 
   auto read(Perimortem::Core::View::Bytes logical_route)
       -> Perimortem::Utility::Result<Content&, Failure>;
@@ -77,12 +81,18 @@ class Storage {
  private:
   Storage(
       Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Memory::Dynamic::Record<Snapshots> snapshots,
+      Perimortem::Core::View::Bytes root_path,
       Perimortem::System::File::Root&& root)
       : arena(arena),
+        snapshots(snapshots),
+        root_path(root_path),
         root(static_cast<Perimortem::System::File::Root&&>(root)),
         cache(arena) {}
 
   Perimortem::Memory::Allocator::Arena& arena;
+  Perimortem::Memory::Dynamic::Record<Snapshots> snapshots;
+  Perimortem::Core::View::Bytes root_path;
   Perimortem::System::File::Root root;
   Perimortem::Memory::Managed::Map<Perimortem::Core::View::Bytes, Content&>
       cache;

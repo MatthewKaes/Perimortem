@@ -1,0 +1,20 @@
+// Perimortem System ABI integration.
+dialect : Library;
+
+foreign "C" {
+  public func perimortem_system_terminal_read_line[] -> Option[Dynamic::Bytes];
+  public func perimortem_system_terminal_write_line[.line : Dynamic::Bytes] -> Bool;
+}
+
+@abi("C") @symbol("llvm_system_roundtrip")
+public system_roundtrip : func = [] -> Bool {
+  state line := foreign -> perimortem_system_terminal_read_line()!;
+  return foreign -> perimortem_system_terminal_write_line(line);
+}
+
+public Dynamic : struct {
+  public Bytes : struct {
+    private state data : Object[Unsigned_8];
+    private state size : Unsigned_64;
+  }
+}

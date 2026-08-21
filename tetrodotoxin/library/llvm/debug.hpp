@@ -155,6 +155,12 @@ class Debug {
       const Ttx::Model::Addressable& local,
       Ttx::Lexical::Anchor anchor) -> Bool;
 
+  auto value(
+      Ttx::Concept::Abstract& body,
+      const Ttx::Model::Addressable& local,
+      Ttx::Lexical::Anchor anchor,
+      LLVMValueRef value) -> Bool;
+
  private:
   Level level;
   Perimortem::Core::Option<LLVMOpaqueDIBuilder&> builder;

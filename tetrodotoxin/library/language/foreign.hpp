@@ -48,6 +48,11 @@ class Foreign final : public Ttx::Concept::Abstract {
         const Ttx::Concept::Documentation& documentation,
         Perimortem::Core::View::Bytes abi) -> Perimortem::Core::Option<State&>;
 
+    static auto restore(
+        Archive::Reader& reader,
+        Perimortem::Memory::Allocator::Arena& arena,
+        Foreign& host) -> Perimortem::Core::Option<State&>;
+
     State(const State&) = delete;
     State(State&&) = delete;
     auto operator=(const State&) -> State& = delete;
@@ -55,9 +60,13 @@ class Foreign final : public Ttx::Concept::Abstract {
 
     auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
 
+    auto link_restored_declaration_type() -> Bool override;
+
     auto reserve_declaration(Llvm::Program& program) const -> Bool override;
 
     auto complete_declaration(Llvm::Program& program) const -> Bool override;
+
+    auto persist(Archive::Writer& writer) const -> Bool override;
 
     TTX_DOCUMENTATION(get_definition().get_documentation());
     TTX_NAME(definition.get_name());
@@ -122,6 +131,11 @@ class Foreign final : public Ttx::Concept::Abstract {
         Perimortem::Core::View::Bytes abi)
         -> Perimortem::Core::Option<Function&>;
 
+    static auto restore(
+        Archive::Reader& reader,
+        Perimortem::Memory::Allocator::Arena& arena,
+        Foreign& host) -> Perimortem::Core::Option<Function&>;
+
     Function(const Function&) = delete;
     Function(Function&&) = delete;
     auto operator=(const Function&) -> Function& = delete;
@@ -129,9 +143,13 @@ class Foreign final : public Ttx::Concept::Abstract {
 
     auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
 
+    auto link_restored_declaration_signature() -> Bool override;
+
     auto reserve_declaration(Llvm::Program& program) const -> Bool override;
 
     auto complete_declaration(Llvm::Program& program) const -> Bool override;
+
+    auto persist(Archive::Writer& writer) const -> Bool override;
 
     TTX_DOCUMENTATION(get_definition().get_documentation());
     TTX_NAME(definition.get_name());
@@ -189,6 +207,13 @@ class Foreign final : public Ttx::Concept::Abstract {
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Concept::Abstract& parent);
 
+  static auto restore(
+      Archive::Reader& reader,
+      Perimortem::Memory::Allocator::Arena& arena,
+      Ttx::Concept::Abstract& parent) -> Perimortem::Core::Option<Foreign&>;
+
+  auto restore(Archive::Reader& reader) -> Bool;
+
   Foreign(const Foreign&) = delete;
   Foreign(Foreign&&) = delete;
   auto operator=(const Foreign&) -> Foreign& = delete;
@@ -206,11 +231,17 @@ class Foreign final : public Ttx::Concept::Abstract {
   auto link_callables(Ttx::Lexical::Cursor& cursor) -> Bool;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool;
 
+  auto link_restored() -> Bool;
+
+  auto finalize_restored() -> Bool;
+
   auto reserve(Llvm::Program& program) const -> Bool;
 
   auto complete(Llvm::Program& program) const -> Bool;
 
   auto lower(Llvm::Program& program) const -> Bool;
+
+  auto persist(Archive::Writer& writer) const -> Bool;
 
   constexpr auto is_authored() const -> Bool { return Bool(abi); }
 
@@ -224,6 +255,8 @@ class Foreign final : public Ttx::Concept::Abstract {
   constexpr auto get_states() const { return states.get_view(); }
 
   constexpr auto get_functions() const { return functions.get_view(); }
+
+  constexpr auto get_declarations() const { return declarations.get_view(); }
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
@@ -251,6 +284,9 @@ class Foreign final : public Ttx::Concept::Abstract {
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<State>> states;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Function>>
       functions;
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+      declarations;
   Stage stage = Stage::Authored;
 };
 

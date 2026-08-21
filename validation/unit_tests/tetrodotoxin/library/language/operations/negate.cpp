@@ -35,9 +35,8 @@ static Harness LibraryNegate = {
   .name = "Tetrodotoxin::Library::Language::Operations::Negate"_view,
 };
 
-static auto link_operation(
-    Operation& operation,
-    const Abstract& context) -> Bool {
+static auto link_operation(Operation& operation, const Abstract& context)
+    -> Bool {
   Allocator::Arena transaction;
   Ttx::Lexical::Errors errors;
   Ttx::Lexical::Tokenizer tokenizer(transaction, {}, "<operation>"_view);

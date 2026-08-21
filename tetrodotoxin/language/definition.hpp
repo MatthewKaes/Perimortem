@@ -37,6 +37,14 @@ class Definition {
       Visibility visibility,
       Ttx::Lexical::Anchor anchor) -> Definition&;
 
+  static auto create_restored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Concept::Documentation& documentation,
+      Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Vector<Attribute> attributes,
+      Perimortem::Core::View::Bytes name,
+      Visibility visibility) -> Definition&;
+
   // Creates one complete Definition after a concrete grammar has accepted its
   // exact authored form. This keeps alternate declaration orders in their
   // concrete language without copying common declaration facts into the

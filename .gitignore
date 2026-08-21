@@ -8,6 +8,7 @@ MODULE.bazel.lock
 # LSP Client
 extension/package-lock.json
 extension/puffer
+extension/packages/
 extension/ttx-lang-server
 extension/tsconfig.tsbuildinfo
 extension/*.vsix
@@ -27,3 +28,4 @@ perf.*
 build_trace.data
 AGENTS.md
 puffer/lsp/__pycache__/*
+extension/lldb/__pycache__/*

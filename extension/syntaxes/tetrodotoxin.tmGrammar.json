@@ -145,7 +145,7 @@
     },
     "builtin_types": {
       "name": "support.type.tetrodotoxin",
-      "match": "(?<![A-Za-z0-9_])(Bits_(?:8|16|32|64)|Signed_(?:8|16|32|64)|Real_(?:32|64|128)|Bool|Bytes|Count|Void|Text|Blob|List|Vec(?:2|3|4)D|Vec|Layout|View|Access|Fragment|Const|Sampler2D|Range|TTX)(?![A-Za-z0-9_])"
+      "match": "(?<![A-Za-z0-9_])(Bits_(?:8|16|32|64)|Signed_(?:8|16|32|64)|Real_(?:32|64|128)|Bool|Bytes|Count|Void|Text|Blob|List|Vec(?:2|3|4)D|Vec|Layout|View|Access|Object|Fragment|Const|Sampler2D|Range|TTX)(?![A-Za-z0-9_])"
     },
     "function_declarations": {
       "match": "\\b(func)\\s+([a-z_][a-zA-Z0-9_]*)",
@@ -159,15 +159,23 @@
       }
     },
     "function_calls": {
-      "match": "(->)\\s*([a-z_][a-zA-Z0-9_]*)",
-      "captures": {
-        "1": {
-          "name": "punctuation.accessor.tetrodotoxin"
+      "patterns": [
+        {
+          "match": "(->)[\\t ]*((?!self\\b)[a-z_][a-zA-Z0-9_]*)(?=[\\t ]*\\()",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.tetrodotoxin"
+            },
+            "2": {
+              "name": "entity.name.function.tetrodotoxin"
+            }
+          }
         },
-        "2": {
-          "name": "entity.name.function.tetrodotoxin"
+        {
+          "name": "entity.name.function.tetrodotoxin",
+          "match": "\\b(?!self\\b)[a-z_][a-zA-Z0-9_]*(?=[\\t ]*\\()"
         }
-      }
+      ]
     },
     "declaration_name": {
       "name": "entity.name.class.tetrodotoxin",

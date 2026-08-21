@@ -3,10 +3,11 @@
 
 // LLVM must enter before Perimortem so the standard placement declaration is
 // visible before the freestanding fallback used by Perimortem headers.
-// clang-format off
+#if __has_include("llvm/IR/IRBuilder.h")
 #include "llvm/IR/IRBuilder.h"
-#include "tetrodotoxin/library/llvm/debug.hpp"
-// clang-format on
+#else
+#error LLVM IRBuilder is required by the Library native compiler
+#endif
 
 #include "llvm-c/Core.h"
 #include "llvm-c/DebugInfo.h"
@@ -22,7 +23,9 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/SHA256.h"
+#include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/llvm/body.hpp"
+#include "tetrodotoxin/library/llvm/debug.hpp"
 #include "tetrodotoxin/library/llvm/program.hpp"
 
 using namespace Perimortem;
@@ -445,6 +448,23 @@ static auto create_debug_type(
       return created;
     }
 
+    if (*kind == Llvm::Carriers::Kind::ObjectStorage) {
+      auto element = program.get_carriers().get_element(selected);
+      auto debug_element = element ? create_type(create_type, *element, 0)
+                                   : Core::Option<llvm::DIType&>();
+      if (!debug_element) {
+        return {};
+      }
+
+      llvm::DIType& pointer = *builder->createPointerType(
+          &*debug_element, size, Unsigned_32(alignment));
+      if (!program.get_debug().publish_type(selected, llvm::wrap(&pointer))) {
+        return {};
+      }
+
+      return pointer;
+    }
+
     if (*kind == Llvm::Carriers::Kind::Object) {
       auto payload_handle = program.get_carriers().get_payload(selected);
       if (!payload_handle) {
@@ -531,6 +551,25 @@ static auto create_debug_type(
       return pointer;
     }
 
+    if (*kind == Llvm::Carriers::Kind::Option) {
+      auto element = program.get_carriers().get_element(selected);
+      if (element && program.get_carriers().is_object(*element)) {
+        auto debug_element = create_type(create_type, *element, 0);
+        if (!debug_element) {
+          return {};
+        }
+
+        llvm::DIType& alias = *builder->createTypedef(
+            &*debug_element, native_text(selected.get_name()), &*file,
+            Unsigned_32(selected_line), &*file, Unsigned_32(alignment));
+        if (!program.get_debug().publish_type(selected, llvm::wrap(&alias))) {
+          return {};
+        }
+
+        return alias;
+      }
+    }
+
     auto* native_struct = llvm::dyn_cast<llvm::StructType>(&native);
     if (!native_struct) {
       return {};
@@ -580,6 +619,49 @@ static auto create_debug_type(
       members.push_back(&create_member(
           program, *builder, *file, *temporary, *native_struct, 1, "set"_view,
           *debug_flag));
+    } else if (*kind == Llvm::Carriers::Kind::Result) {
+      auto value = program.get_carriers().get_element(selected);
+      auto error = program.get_carriers().get_error(selected);
+      auto flag = program.get_carriers().get_flag(selected);
+      auto storage = program.get_carriers().get_payload(selected);
+      auto native_value = value ? program.get_carriers().get_type(*value)
+                                : Core::Option<LLVMTypeRef>();
+      auto native_error = error ? program.get_carriers().get_type(*error)
+                                : Core::Option<LLVMTypeRef>();
+      if (!value || !error || !flag || !storage || !native_value ||
+          !native_error) {
+        return {};
+      }
+
+      auto debug_value = create_type(create_type, *value, 0);
+      auto debug_error = create_type(create_type, *error, 0);
+      auto debug_flag = create_type(create_type, *flag, 0);
+      if (!debug_value || !debug_error || !debug_flag) {
+        return {};
+      }
+
+      llvm::SmallVector<llvm::Metadata*, 2> alternatives;
+      alternatives.push_back(builder->createMemberType(
+          temporary, "value", &*file, 0,
+          size_in_bits(program, *llvm::unwrap(*native_value)),
+          Unsigned_32(alignment_in_bits(program, *llvm::unwrap(*native_value))),
+          0, llvm::DINode::FlagZero, &*debug_value));
+      alternatives.push_back(builder->createMemberType(
+          temporary, "error", &*file, 0,
+          size_in_bits(program, *llvm::unwrap(*native_error)),
+          Unsigned_32(alignment_in_bits(program, *llvm::unwrap(*native_error))),
+          0, llvm::DINode::FlagZero, &*debug_error));
+      llvm::DICompositeType* debug_storage = builder->createUnionType(
+          temporary, "storage", &*file, 0,
+          size_in_bits(program, *llvm::unwrap(*storage)),
+          Unsigned_32(alignment_in_bits(program, *llvm::unwrap(*storage))),
+          llvm::DINode::FlagZero, builder->getOrCreateArray(alternatives));
+      members.push_back(&create_member(
+          program, *builder, *file, *temporary, *native_struct, 0,
+          "storage"_view, *debug_storage));
+      members.push_back(&create_member(
+          program, *builder, *file, *temporary, *native_struct, 1,
+          "value_selected"_view, *debug_flag));
     } else if (
         *kind == Llvm::Carriers::Kind::View ||
         *kind == Llvm::Carriers::Kind::Access) {
@@ -771,6 +853,34 @@ static auto debug_visibility(Tetrodotoxin::Language::Visibility visibility)
   return llvm::DINode::FlagZero;
 }
 
+static auto create_local_variable(
+    Llvm::Program& program,
+    Llvm::Body& body,
+    const Ttx::Model::Addressable& addressable,
+    Ttx::Lexical::Anchor anchor,
+    Core::Option<Count> parameter) -> Core::Option<llvm::DILocalVariable&> {
+  auto builder = native_builder(program);
+  auto file = native_file(program);
+  auto scope = native_scope(body);
+  auto type = create_debug_type(program, addressable.get_type());
+  BAIL_IF(!builder || !file || !scope || !type);
+
+  if (parameter) {
+    auto* created = builder->createParameterVariable(
+        &*scope, native_text(addressable.get_name()),
+        Unsigned_32(*parameter + 1), &*file, Unsigned_32(source_line(anchor)),
+        &*type, true);
+    return created ? Core::Option<llvm::DILocalVariable&>(*created)
+                   : Core::Option<llvm::DILocalVariable&>();
+  }
+
+  auto* created = builder->createAutoVariable(
+      &*scope, native_text(addressable.get_name()), &*file,
+      Unsigned_32(source_line(anchor)), &*type, true);
+  return created ? Core::Option<llvm::DILocalVariable&>(*created)
+                 : Core::Option<llvm::DILocalVariable&>();
+}
+
 static auto declare_local(
     Llvm::Body& body,
     const Ttx::Model::Addressable& addressable,
@@ -787,37 +897,12 @@ static auto declare_local(
   }
 
   auto builder = native_builder(*selected_program);
-  auto file = native_file(*selected_program);
   auto scope = native_scope(*selected_body);
   auto address = selected_body->find_address(addressable);
-  if (!builder || !file || !scope || !address) {
-    return False;
-  }
+  auto variable = create_local_variable(
+      *selected_program, *selected_body, addressable, anchor, parameter);
 
-  auto type = create_debug_type(*selected_program, addressable.get_type());
-  if (!type) {
-    return False;
-  }
-
-  Core::Option<llvm::DILocalVariable&> variable;
-  if (parameter) {
-    auto* created = builder->createParameterVariable(
-        &*scope, native_text(addressable.get_name()),
-        Unsigned_32(*parameter + 1), &*file, Unsigned_32(source_line(anchor)),
-        &*type, true);
-    if (created) {
-      variable = *created;
-    }
-  } else {
-    auto* created = builder->createAutoVariable(
-        &*scope, native_text(addressable.get_name()), &*file,
-        Unsigned_32(source_line(anchor)), &*type, true);
-    if (created) {
-      variable = *created;
-    }
-  }
-
-  if (!variable) {
+  if (!builder || !scope || !address || !variable) {
     return selected_program->fail_backend(
         "LLVM could not create one local debug declaration."_view);
   }
@@ -830,6 +915,63 @@ static auto declare_local(
   builder->insertDeclare(
       llvm::unwrap(*address), &*variable, builder->createExpression(), location,
       &function.getEntryBlock());
+  return True;
+}
+
+static auto describe_local_value(
+    Llvm::Body& body,
+    const Ttx::Model::Addressable& addressable,
+    Ttx::Lexical::Anchor anchor,
+    LLVMValueRef value) -> Bool {
+  auto selected_body = select_body(body);
+  auto selected_program = select_program(body.get_program());
+  if (!selected_body || !selected_program || !value) {
+    return False;
+  }
+
+  if (selected_program->get_debug().get_level() != Llvm::Debug::Level::Full) {
+    return True;
+  }
+
+  auto builder = native_builder(*selected_program);
+  auto scope = native_scope(*selected_body);
+  auto variable = create_local_variable(
+      *selected_program, *selected_body, addressable, anchor, {});
+  auto& native =
+      *reinterpret_cast<llvm::IRBuilder<>*>(selected_body->get_builder());
+  llvm::BasicBlock* block = native.GetInsertBlock();
+  if (!builder || !scope || !variable || !block) {
+    return selected_program->fail_backend(
+        "LLVM could not create one const local debug value."_view);
+  }
+
+  llvm::Function& function =
+      *llvm::unwrap<llvm::Function>(selected_body->get_function());
+  llvm::DILocation* location = llvm::DILocation::get(
+      function.getContext(), Unsigned_32(source_line(anchor)),
+      Unsigned_32(source_column(anchor)), &*scope);
+  llvm::Value& native_value = *llvm::unwrap(value);
+  if (!native_value.getType()->isAggregateType()) {
+    builder->insertDbgValueIntrinsic(
+        &native_value, &*variable, builder->createExpression(), location,
+        block);
+    return True;
+  }
+
+  // LLVM does not preserve one aggregate constant as a DWARF location. Full
+  // debug mode materializes only its observation copy while semantic lowering
+  // continues to use the folded value directly.
+  LLVMValueRef storage = selected_body->create_entry_alloca(
+      llvm::wrap(native_value.getType()), "const.debug"_view);
+  if (!storage) {
+    return selected_program->fail_backend(
+        "LLVM could not allocate one aggregate const debug value."_view);
+  }
+
+  native.CreateStore(&native_value, llvm::unwrap(storage));
+  builder->insertDeclare(
+      llvm::unwrap(storage), &*variable, builder->createExpression(), location,
+      block);
   return True;
 }
 
@@ -958,6 +1100,13 @@ auto Llvm::Debug::global(
   return True;
 }
 
+static auto declares_self(const Ttx::Model::Callable& callable) -> Bool {
+  auto first = callable.get_parameters().get_abstract(0);
+  auto parameter = first ? first->select<Ttx::Model::Addressable>()
+                         : Core::Option<const Ttx::Model::Addressable&>();
+  return parameter && parameter->get_name() == "self"_view;
+}
+
 auto Llvm::Debug::begin_function(
     Ttx::Concept::Abstract& body,
     const Ttx::Model::Callable& callable,
@@ -998,6 +1147,15 @@ auto Llvm::Debug::begin_function(
                                : Core::Option<llvm::DIType&>();
     if (!debug_result) {
       return False;
+    }
+
+    auto library_callable = callable.select<Language::Model::Callable>();
+    if (library_callable && library_callable->get_self_result()) {
+      llvm::Module& module = native_module(*selected_program);
+      llvm::Type& pointer = *llvm::PointerType::getUnqual(module.getContext());
+      debug_result = *builder->createPointerType(
+          &*debug_result, size_in_bits(*selected_program, pointer),
+          Unsigned_32(alignment_in_bits(*selected_program, pointer)));
     }
 
     signature_types.push_back(&*debug_result);
@@ -1052,6 +1210,14 @@ auto Llvm::Debug::begin_function(
                   : Core::Option<llvm::DIType&>();
     if (!debug_parameter) {
       return False;
+    }
+
+    if (index == 0 && declares_self(callable)) {
+      llvm::Module& module = native_module(*selected_program);
+      llvm::Type& pointer = *llvm::PointerType::getUnqual(module.getContext());
+      debug_parameter = *builder->createPointerType(
+          &*debug_parameter, size_in_bits(*selected_program, pointer),
+          Unsigned_32(alignment_in_bits(*selected_program, pointer)));
     }
 
     signature_types.push_back(&*debug_parameter);
@@ -1138,6 +1304,15 @@ auto Llvm::Debug::local(
   return selected && declare_local(*selected, local, anchor, {});
 }
 
+auto Llvm::Debug::value(
+    Ttx::Concept::Abstract& body,
+    const Ttx::Model::Addressable& local,
+    Ttx::Lexical::Anchor anchor,
+    LLVMValueRef value) -> Bool {
+  auto selected = body.select<Llvm::Body>();
+  return selected && describe_local_value(*selected, local, anchor, value);
+}
+
 auto Llvm::Debug::finalize(Ttx::Concept::Abstract& program) -> Bool {
   auto selected = select_program(program);
   if (!selected) {
@@ -1155,12 +1330,17 @@ auto Llvm::Debug::finalize(Ttx::Concept::Abstract& program) -> Bool {
        get_scope_types()) {
     const Ttx::Model::Type& type = retained.get();
     auto kind = selected->get_carriers().get_kind(type);
-    if (!kind) {
+    Bool source = type.get_name() == "<source>"_view;
+
+    // An imported Source may host an external Static without entering the
+    // local carrier graph. Its reserved empty scope still completes as a
+    // namespace-like debug Type.
+    if (!kind && !source) {
       return selected->fail_backend(
           "LLVM lost a Type selected by one debug scope."_view);
     }
 
-    if (*kind == Llvm::Carriers::Kind::Context) {
+    if (!kind || *kind == Llvm::Carriers::Kind::Context) {
       auto builder = native_builder(*selected);
       auto file = native_file(*selected);
       auto scope = selected->get_debug().find_scope(type);

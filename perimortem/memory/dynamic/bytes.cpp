@@ -3,53 +3,27 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 
-Dynamic::Bytes::Bytes(Count reserved_capacity) {
-  auto alloc = Bibliotheca::check_out(reserved_capacity);
-  source_block = alloc.ptr;
-  capacity = alloc.capacity;
-}
+Dynamic::Bytes::Bytes(Count reserved_capacity) : data(reserved_capacity) {}
 
-Dynamic::Bytes::Bytes(const Core::View::Bytes view) : size(view.get_size()) {
-  if (view.get_size() == 0) {
-    capacity = 0;
-    source_block = nullptr;
-    return;
+Dynamic::Bytes::Bytes(const Core::View::Bytes view)
+    : data(view.get_size()), size(view.get_size()) {
+  if (!view.is_empty()) {
+    Data::copy(data.get_access().get_data(), view.get_data(), view.get_size());
   }
-
-  auto alloc = Bibliotheca::check_out(view.get_size());
-  source_block = alloc.ptr;
-  capacity = alloc.capacity;
-  memcpy(source_block, view.get_data(), view.get_size());
 }
 
-Dynamic::Bytes::Bytes(const Bytes& rhs) {
-  capacity = rhs.capacity;
-  size = rhs.size;
-  if (rhs.size == 0) {
-    return;
-  }
+Dynamic::Bytes::Bytes(const Bytes& rhs) : data(rhs.data), size(rhs.size) {}
 
-  // Bytes don't require any special handling so just memcpy.
-  auto alloc = Bibliotheca::check_out(rhs.size);
-  source_block = alloc.ptr;
-  capacity = alloc.capacity;
-  memcpy(source_block, rhs.source_block, size);
-}
-
-Dynamic::Bytes::Bytes(Bytes&& rhs) {
-  size = rhs.size;
-  capacity = rhs.capacity;
-  source_block = rhs.source_block;
-
-  rhs.source_block = nullptr;
+Dynamic::Bytes::Bytes(Bytes&& rhs)
+    : data(static_cast<Core::Object<Unsigned_8>&&>(rhs.data)), size(rhs.size) {
   rhs.size = 0;
-  rhs.capacity = 0;
 }
 
 auto Dynamic::Bytes::operator=(Core::View::Bytes view) -> Bytes& {
@@ -58,70 +32,100 @@ auto Dynamic::Bytes::operator=(Core::View::Bytes view) -> Bytes& {
 }
 
 auto Dynamic::Bytes::operator=(const Bytes& rhs) -> Bytes& {
-  proxy(rhs);
+  if (this == &rhs) {
+    return *this;
+  }
+
+  data = rhs.data;
+  size = rhs.size;
   return *this;
 }
 
 auto Dynamic::Bytes::operator=(Bytes&& rhs) -> Bytes& {
+  if (this == &rhs) {
+    return *this;
+  }
+
+  data = static_cast<Core::Object<Unsigned_8>&&>(rhs.data);
   size = rhs.size;
-  capacity = rhs.capacity;
-
   rhs.size = 0;
-  rhs.capacity = 0;
-
-  // Swap source blocks and since move isn't "destructive" we can rely on the
-  // destructor form the donor bytes.
-  Data::swap(source_block, rhs.source_block);
   return *this;
 }
 
-Dynamic::Bytes::~Bytes() {
-  reset();
-}
-
 auto Dynamic::Bytes::append(Unsigned_8 byte) -> void {
-  ensure_capacity(size + 1);
-  source_block[size++] = byte;
+  Count size = get_size();
+  auto access = prepare_write(size + 1);
+  access.get_data()[size] = byte;
+  this->size = size + 1;
 }
 
 auto Dynamic::Bytes::append(Unsigned_8 byte, Count amount) -> void {
-  ensure_capacity(size + amount);
-  Data::set(source_block + size, byte, amount);
-  size += amount;
+  if (amount == 0) {
+    return;
+  }
+
+  Count size = get_size();
+  auto access = prepare_write(size + amount);
+  Data::set(access.get_data() + size, byte, amount);
+  this->size = size + amount;
 }
 
 auto Dynamic::Bytes::concat(Core::View::Bytes view) -> void {
-  ensure_capacity(size + view.get_size());
+  if (view.is_empty()) {
+    return;
+  }
 
-  Data::copy(source_block + size, view.get_data(), view.get_size());
-  size += view.get_size();
+  if (view.get_size() > Count(-1) - get_size()) {
+    Diagnostics::Log::fatal(
+        "Dynamic Bytes concatenation exceeds the addressable size."_view);
+  }
+
+  Count size = get_size();
+  Count required_size = size + view.get_size();
+  auto access = prepare_write(required_size);
+  Data::copy(access.get_data() + size, view.get_data(), view.get_size());
+  this->size = required_size;
+}
+
+auto Dynamic::Bytes::get_access() -> Core::Access::Bytes {
+  return prepare_write(get_size());
+}
+
+auto Dynamic::Bytes::prepare_write(Count required_capacity)
+    -> Core::Access::Bytes {
+  data.reserve(required_capacity);
+  if (data.is_shared()) {
+    data.clone();
+  }
+
+  return Core::Access::Bytes(data.get_access().get_data(), get_size());
 }
 
 auto Dynamic::Bytes::proxy(Core::View::Bytes view) -> void {
-  forgetful_resize(view.get_size());
-
-  Data::copy(source_block, view.get_data(), view.get_size());
+  Bytes replacement(view);
+  *this = static_cast<Bytes&&>(replacement);
 }
 
 auto Dynamic::Bytes::set(Unsigned_8 target) -> void {
-  Data::set(source_block, target, get_size());
+  if (is_empty()) {
+    return;
+  }
+
+  auto access = prepare_write(get_size());
+  Data::set(access.get_data(), target, get_size());
 }
 
 auto Dynamic::Bytes::convert(Unsigned_8 source, Unsigned_8 target) -> void {
-  for (int i = 0; i < size; i++) {
-    if (source_block[i] == source) {
-      source_block[i] = target;
+  auto access = prepare_write(get_size());
+  for (Count index = 0; index < get_size(); index++) {
+    if (access.get_data()[index] == source) {
+      access.get_data()[index] = target;
     }
   }
 }
 
 auto Dynamic::Bytes::slice(Count start, Count size) const -> Core::View::Bytes {
-  if (start >= get_size()) {
-    return Core::View::Bytes();
-  }
-
-  return Core::View::Bytes(
-      source_block + start, Math::min(size, get_size() - start));
+  return get_view().slice(start, size);
 }
 
 auto Dynamic::Bytes::resize(Count new_size) -> void {
@@ -130,34 +134,32 @@ auto Dynamic::Bytes::resize(Count new_size) -> void {
 }
 
 auto Dynamic::Bytes::forgetful_resize(Count required_size) -> void {
-  // Always set the size.
-  size = required_size;
-
-  // Get the capacity bounds and check if we need a realloc.
-  // If the block fits in the current Bibliotheca archive then reuse it.
-  // If the block size requires at least one step up or step down then request a
-  // new block.
-  if (required_size <= capacity && required_size > (capacity >> 1)) {
+  Count capacity = get_capacity();
+  Bool reusable = required_size <= capacity && required_size > (capacity >> 1);
+  if (reusable && !data.is_shared()) {
+    size = required_size;
     return;
   }
 
-  if (source_block) {
-    Core::Bibliotheca::remit(source_block);
-  }
-
-  auto alloc = Bibliotheca::check_out(required_size);
-  source_block = alloc.ptr;
-  capacity = alloc.capacity;
+  data = Core::Object<Unsigned_8>(required_size);
+  size = required_size;
 }
 
 auto Dynamic::Bytes::shrink(Count bytes_to_remove) -> void {
-  if (bytes_to_remove > size) {
+  Count size = get_size();
+  if (bytes_to_remove >= size) {
     clear();
     return;
   }
 
-  size -= bytes_to_remove;
-  memmove(source_block, source_block + bytes_to_remove, size);
+  if (bytes_to_remove == 0) {
+    return;
+  }
+
+  auto access = prepare_write(size);
+  Count remaining = size - bytes_to_remove;
+  memmove(access.get_data(), access.get_data() + bytes_to_remove, remaining);
+  this->size = remaining;
 }
 
 auto Dynamic::Bytes::operator[](Count index) const -> Unsigned_8 {
@@ -173,29 +175,12 @@ auto Dynamic::Bytes::clear() -> void {
 }
 
 auto Dynamic::Bytes::reset() -> void {
+  data = Core::Object<Unsigned_8>();
   size = 0;
-
-  // In the event the data was moved.
-  if (source_block) {
-    Bibliotheca::remit(source_block);
-  }
 }
 
 auto Dynamic::Bytes::ensure_capacity(Count required_size) -> void {
-  // Check if we can already fit required buffer.
-  if (required_size <= get_capacity()) {
-    return;
+  if (required_size > get_capacity()) {
+    data.reserve(required_size);
   }
-
-  // Since the current block doesn't fit in the current archive fetch and
-  // transfer to a new block.
-  auto alloc = Bibliotheca::check_out(required_size);
-  if (source_block) {
-    memcpy(alloc.ptr, source_block, size);
-    Bibliotheca::remit(source_block);
-  }
-
-  // Update block and get the new capacity.
-  source_block = alloc.ptr;
-  capacity = alloc.capacity;
 }
