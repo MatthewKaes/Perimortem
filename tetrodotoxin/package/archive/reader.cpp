@@ -24,13 +24,13 @@ using LittleReader = Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>;
 // Low level logs use one stable operation identity so a higher layer can pair
 // its source diagnostic with the complete Archive validation trace.
 static constexpr View::Bytes archive_read_operation =
-    "Package::Archive::Reader Format 1 read"_view;
+    "Package::Archive::Reader Format 2 read"_view;
 static constexpr Unsigned_16 required_field = 1;
 static constexpr Unsigned_16 interface_profile = 1;
 static constexpr Unsigned_8 first_section =
     Unsigned_8(Package::Archive::Archive::Sections::Identity);
 static constexpr Unsigned_8 last_section =
-    Unsigned_8(Package::Archive::Archive::Sections::Exports);
+    Unsigned_8(Package::Archive::Archive::Sections::ArtifactMetadata);
 
 // Archive qualification rules name their lexical separator Codes once and
 // leave every segment and separator spelling check with the shared Lexicon.
@@ -110,6 +110,7 @@ static auto validate(
     View::Vector<Package::Language::Dependency> dependencies,
     View::Vector<Package::Archive::Member> members,
     View::Vector<View::Bytes> artifact_ids,
+    View::Vector<Package::Archive::Artifact> artifacts,
     View::Vector<Package::Archive::Export> exports) -> Bool {
   if (!Lexicon::validate(
           Code::Type::Type, identity, package_identity_separators)) {
@@ -126,7 +127,7 @@ static auto validate(
 
   if (members.is_empty()) {
     Diagnostics::Log::debug(
-        "Package::Archive::Reader Format 1 read failed validation. "
+        "Package::Archive::Reader Format 2 read failed validation. "
         "inventory=Members reason=at least one semantic member is required."_view);
     return False;
   }
@@ -134,6 +135,7 @@ static auto validate(
   const auto* dependency_data = dependencies.get_data();
   const auto* member_data = members.get_data();
   const auto* artifact_id_data = artifact_ids.get_data();
+  const auto* artifact_data = artifacts.get_data();
   const auto* export_data = exports.get_data();
 
   // Dependencies retain authored order but require unique local aliases and
@@ -214,8 +216,8 @@ static auto validate(
     }
   }
 
-  // Artifact IDs remain direct opaque byte values. Package proves only their
-  // presence and uniqueness before an Export can refer to one.
+  // Artifact IDs remain direct Export references and require one matching
+  // metadata record with the same identity.
   for (Count i = 0; i < artifact_ids.get_size(); i++) {
     View::Bytes id = artifact_id_data[i];
     if (!is_opaque_identifier(id)) {
@@ -227,6 +229,53 @@ static auto validate(
     for (Count earlier = 0; earlier < i; earlier++) {
       if (artifact_id_data[earlier] == id) {
         return log_duplicate_value("Artifact IDs"_view, id, earlier, i);
+      }
+    }
+  }
+
+  if (artifact_ids.get_size() != artifacts.get_size()) {
+    return log_invalid_value(
+        "Artifact metadata"_view, Count(-1), {},
+        "every Artifact ID requires one metadata record."_view);
+  }
+  for (Count i = 0; i < artifacts.get_size(); i++) {
+    const Package::Archive::Artifact& artifact = artifact_data[i];
+    View::Bytes id = artifact.get_id();
+    if (!is_opaque_identifier(id) || !artifact_ids.contains(id)) {
+      return log_invalid_value(
+          "Artifact metadata IDs"_view, i, id,
+          "the value is missing from the Artifact ID inventory."_view);
+    }
+    if (!is_opaque_identifier(artifact.get_target())) {
+      return log_invalid_value(
+          "Artifact targets"_view, i, artifact.get_target(),
+          "the value is empty or contains a NUL byte."_view);
+    }
+
+    auto imports = artifact.get_imports();
+    for (Count import_index = 0; import_index < imports.get_size();
+         import_index++) {
+      const Linker::Import& import = imports.get_data()[import_index];
+      if (!is_opaque_identifier(import.get_abi()) ||
+          !is_opaque_identifier(import.get_symbol()) ||
+          !is_opaque_identifier(import.get_provider())) {
+        return log_invalid_value(
+            "Artifact imports"_view, import_index, import.get_symbol(),
+            "ABI symbol and provider must be nonempty NUL free values."_view);
+      }
+      for (Count earlier = 0; earlier < import_index; earlier++) {
+        if (imports.get_data()[earlier].get_symbol() == import.get_symbol()) {
+          return log_duplicate_value(
+              "Artifact import symbols"_view, import.get_symbol(), earlier,
+              import_index);
+        }
+      }
+    }
+
+    for (Count earlier = 0; earlier < i; earlier++) {
+      if (artifact_data[earlier].get_id() == id) {
+        return log_duplicate_value(
+            "Artifact metadata IDs"_view, id, earlier, i);
       }
     }
   }
@@ -406,7 +455,7 @@ static auto parse_members(
   return reader.get_location() == reader.get_size();
 }
 
-// Decodes each artifact record to the one logical ID retained by Archive.
+// Decodes the direct Artifact ID inventory used by Export records.
 static auto parse_artifact_ids(
     View::Bytes payload,
     Dynamic::Vector<View::Bytes>& artifact_ids) -> Bool {
@@ -417,7 +466,7 @@ static auto parse_artifact_ids(
                                count, payload, reader.get_location(), 9));
 
   artifact_ids = Dynamic::Vector<View::Bytes>(count);
-  for (Unsigned_32 i = 0; i < count; i++) {
+  for (Unsigned_32 index = 0; index < count; index++) {
     Unsigned_32 record_size = reader.read_unsigned_32();
     View::Bytes record = reader.read_bytes(record_size);
     BAIL_IF(!is_valid(reader));
@@ -427,8 +476,73 @@ static auto parse_artifact_ids(
     Bool id_read = read_sized_bytes(record_reader, id);
     BAIL_IF(
         !id_read || record_reader.get_location() != record_reader.get_size());
-
     artifact_ids.emplace(View::Bytes(id));
+  }
+  return reader.get_location() == reader.get_size();
+}
+
+// Decodes each Artifact and keeps its selected Import records in transaction
+// storage until the complete Archive reaches the caller Arena.
+static auto parse_artifact_metadata(
+    View::Bytes payload,
+    Dynamic::Vector<Package::Archive::Artifact>& artifacts,
+    Dynamic::Vector<Dynamic::Vector<Linker::Import>>& artifact_imports)
+    -> Bool {
+  LittleReader reader(payload);
+  Unsigned_32 count = reader.read_unsigned_32();
+  BAIL_IF(
+      !is_valid(reader) || !can_allocate_records<Package::Archive::Artifact>(
+                               count, payload, reader.get_location(), 25));
+
+  artifacts = Dynamic::Vector<Package::Archive::Artifact>(count);
+  artifact_imports = Dynamic::Vector<Dynamic::Vector<Linker::Import>>(count);
+  for (Unsigned_32 i = 0; i < count; i++) {
+    Unsigned_32 record_size = reader.read_unsigned_32();
+    View::Bytes record = reader.read_bytes(record_size);
+    BAIL_IF(!is_valid(reader));
+
+    LittleReader record_reader(record);
+    View::Bytes id;
+    View::Bytes target;
+    Bool id_read = read_sized_bytes(record_reader, id);
+    Bool target_read = read_sized_bytes(record_reader, target);
+    Unsigned_64 fingerprint = record_reader.read_unsigned_64();
+    Unsigned_32 import_count = record_reader.read_unsigned_32();
+    BAIL_IF(
+        !id_read || !target_read || !is_valid(record_reader) ||
+        !can_allocate_records<Linker::Import>(
+            import_count, record, record_reader.get_location(), 17));
+
+    Dynamic::Vector<Linker::Import> imports(import_count);
+    for (Unsigned_32 import_index = 0; import_index < import_count;
+         import_index++) {
+      Unsigned_32 import_size = record_reader.read_unsigned_32();
+      View::Bytes import_record = record_reader.read_bytes(import_size);
+      BAIL_IF(!is_valid(record_reader));
+
+      LittleReader import_reader(import_record);
+      Unsigned_8 kind = import_reader.read_unsigned_8();
+      View::Bytes abi;
+      View::Bytes symbol;
+      View::Bytes provider;
+      Bool abi_read = read_sized_bytes(import_reader, abi);
+      Bool symbol_read = read_sized_bytes(import_reader, symbol);
+      Bool provider_read = read_sized_bytes(import_reader, provider);
+      BAIL_IF(
+          kind > Unsigned_8(Linker::Import::Kind::WritableState) || !abi_read ||
+          !symbol_read || !provider_read ||
+          import_reader.get_location() != import_reader.get_size());
+      imports.emplace(
+          Linker::Import(Linker::Import::Kind(kind), abi, symbol, provider));
+    }
+    BAIL_IF(record_reader.get_location() != record_reader.get_size());
+
+    artifact_imports.emplace(
+        static_cast<Dynamic::Vector<Linker::Import>&&>(imports));
+    artifacts.emplace(
+        Package::Archive::Artifact(
+            id, target, Linker::Fingerprint(fingerprint),
+            artifact_imports[artifact_imports.get_size() - 1].get_view()));
   }
 
   return reader.get_location() == reader.get_size();
@@ -510,24 +624,31 @@ static auto retain_archive(
     Version version,
     View::Vector<Package::Language::Dependency> dependencies,
     View::Vector<Package::Archive::Member> members,
-    View::Vector<View::Bytes> artifact_ids,
+    View::Vector<Package::Archive::Artifact> artifacts,
     View::Vector<Package::Archive::Export> exports,
     Tetrodotoxin::Language::Persistence::Profile profile)
     -> Package::Archive::Archive {
   auto retained_dependencies = retain_records(arena, dependencies);
   auto retained_members = retain_records(arena, members);
-  auto retained_artifact_ids = retain_records(arena, artifact_ids);
   auto retained_exports = retain_records(arena, exports);
+  Managed::Vector<Package::Archive::Artifact> retained_artifacts(arena);
+  for (const Package::Archive::Artifact& artifact : artifacts) {
+    auto retained_imports = retain_records(arena, artifact.get_imports());
+    retained_artifacts.insert(
+        Package::Archive::Artifact(
+            artifact.get_id(), artifact.get_target(),
+            artifact.get_fingerprint(), retained_imports));
+  }
 
   return Package::Archive::Archive(
       identity, version, retained_dependencies, retained_members,
-      retained_artifact_ids, retained_exports, profile);
+      retained_artifacts.get_view(), retained_exports, profile);
 }
 
 auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     -> Result<Archive, Error> {
   // Decode the complete fixed header first. Accepted input must carry the
-  // Format 1 magic and version while leaving every reserved flag clear.
+  // Format 2 magic and version while leaving every reserved flag clear.
   LittleReader reader(input);
   View::Bytes magic = reader.read_bytes(4);
   Unsigned_16 format = reader.read_unsigned_16();
@@ -549,12 +670,12 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   }
 
   // A readable revision is the only rejection that gives callers a recovery
-  // decision beyond invalid Format 1 bytes. Keep the exact revision in the
+  // decision beyond invalid Format 2 bytes. Keep the exact revision in the
   // Debug record while the returned category stays small.
-  if (format != 1) {
+  if (format != 2) {
     Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
     message << archive_read_operation
-            << " failed. stage=header byte_offset=4 expected_format=1 "
+            << " failed. stage=header byte_offset=4 expected_format=2 "
                "actual_format="_view
             << format;
     return Error::UnsupportedFormat;
@@ -587,14 +708,16 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     return Error::InvalidFormat;
   }
 
-  // Hold decoded views in transaction storage until all six sections and their
-  // semantic relationships pass. A malformed envelope therefore cannot retain
-  // partial Archive state in the caller Arena.
+  // Hold decoded views in transaction storage until all seven sections and
+  // their semantic relationships pass. A malformed envelope therefore cannot
+  // retain partial Archive state in the caller Arena.
   View::Bytes identity;
   Version version;
   Dynamic::Vector<Language::Dependency> dependencies;
   Dynamic::Vector<Member> members;
   Dynamic::Vector<View::Bytes> artifact_ids;
+  Dynamic::Vector<Artifact> artifacts;
+  Dynamic::Vector<Dynamic::Vector<Linker::Import>> artifact_imports;
   Dynamic::Vector<Export> exports;
   Unsigned_8 expected_section = first_section;
 
@@ -617,7 +740,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
       return Error::InvalidFormat;
     }
 
-    // Bit zero is the only Format 1 section flag. Any other bit would assign
+    // Bit zero is the only Format 2 section flag. Any other bit would assign
     // semantics that this Reader cannot prove.
     if ((flags & ~required_field) != 0) {
       Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
@@ -680,6 +803,9 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     case Archive::Sections::Exports:
       parsed = parse_exports(payload, exports);
       break;
+    case Archive::Sections::ArtifactMetadata:
+      parsed = parse_artifact_metadata(payload, artifacts, artifact_imports);
+      break;
     default:
       parsed = False;
       break;
@@ -711,13 +837,14 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   // Validate Package names, versions, uniqueness, and Export references after
   // every section is structurally complete.
   if (!validate(
-          identity, version, dependencies, members, artifact_ids, exports)) {
+          identity, version, dependencies, members, artifact_ids, artifacts,
+          exports)) {
     return Error::InvalidFormat;
   }
 
   // Retain the typed record ranges in the caller Arena without copying input
   // bytes. The returned Archive itself remains an ordinary value.
   return retain_archive(
-      arena, identity, version, dependencies, members, artifact_ids, exports,
+      arena, identity, version, dependencies, members, artifacts, exports,
       profile);
 }

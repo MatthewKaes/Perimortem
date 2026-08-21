@@ -88,7 +88,7 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
       "// Range loop graph.\n"
       "dialect : Library;\n"
       "public sum : func = [] -> Unsigned_64 {\n"
-      "  state entry : Unsigned_64 = 7;\n"
+      "  state initial : Unsigned_64 = 7;\n"
       "  state total : Unsigned_64 = 0;\n"
       "  for [.entry : Unsigned_64] in 0...3 {\n"
       "    state copy : Unsigned_64 = entry;\n"
@@ -126,7 +126,7 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
   EXPECT(&loop.get_body().resolve_context("entry"_view) == &*binding);
   EXPECT(
       &function->get_body()->resolve_context("entry"_view) ==
-      &statements.get_data()[0].get_root());
+      &Invalid::get_invalid());
   EXPECT(
       &loop.get_body().resolve_context("total"_view) ==
       &statements.get_data()[1].get_root());
@@ -151,11 +151,12 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
 }
 
 PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_and_range_must_match) {
-  static constexpr Static::Vector<View::Bytes, 4> sources = {{
+  static constexpr Static::Vector<View::Bytes, 5> sources = {{
     "// Different integer Type.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : Signed_64] in 0...3 {} return; }"_view,
     "// Not a Range.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : Unsigned_64] in 3 {} return; }"_view,
     "// Multiple Range values.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : Unsigned_64] in (0...3, 4...6) {} return; }"_view,
     "// Empty binding Type.\ndialect : Library; private Empty : struct {} private invalid : func = [] -> [] { for [.entry : Empty] in 0...3 {} return; }"_view,
+    "// Shadowed binding.\ndialect : Library; private invalid : func = [] -> [] { state entry : Unsigned_64 = 0; for [.entry : Unsigned_64] in 0...3 {} return; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {

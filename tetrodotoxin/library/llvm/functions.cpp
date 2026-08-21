@@ -350,10 +350,18 @@ auto Tetrodotoxin::Library::Llvm::Functions::reserve_foreign(
     return {};
   }
 
+  auto target = select_program(program);
+  BAIL_IF(!target);
+
   auto reserved =
       reserve(program, callable, Record(Kind::Foreign, abi, symbol));
   if (reserved && *reserved) {
     foreign_callables.insert(callable);
+    if (!target->add_import(
+            Tetrodotoxin::Linker::Import(
+                Tetrodotoxin::Linker::Import::Kind::Function, abi, symbol))) {
+      return {};
+    }
   }
 
   return reserved;

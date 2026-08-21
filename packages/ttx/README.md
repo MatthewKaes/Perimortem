@@ -85,6 +85,11 @@ symbols to the Perimortem System runtime. Neither Library nor Workspace knows a
 special System namespace. System depends on `Perimortem.Memory`, so its Terminal
 Callables and their callers exchange the same `Dynamic::Bytes` identity.
 
+The build selects `Perimortem.System.Host` as the logical provider for the
+current target. Package records that choice beside each imported symbol in its
+Archive artifact and Linker ABI Manifest, while the Foreign graph remains the
+same across host implementations.
+
 ### Terminal lines
 
 `System::Terminal -> read_line()` returns `Option[Dynamic::Bytes]`. A selected

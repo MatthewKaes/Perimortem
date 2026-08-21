@@ -248,6 +248,42 @@ PERIMORTEM_UNIT_TEST(LocalTests, malformed_declarations_are_atomic) {
   }
 }
 
+PERIMORTEM_UNIT_TEST(LocalTests, reachable_names_cannot_be_shadowed) {
+  static constexpr Static::Vector<View::Bytes, 2> sources = {{
+    "// Function parameter.\ndialect : Library; private invalid : func = [.value : Bool] -> [] { state value : Bool; return; }"_view,
+    "// Enclosing Block.\ndialect : Library; private invalid : func = [] -> [] { state value : Bool; while false { state value : Bool; } return; }"_view,
+  }};
+
+  for (Count index = 0; index < sources.get_size(); index++) {
+    EXPECT(rejects_link_without_publication(sources[index]));
+  }
+}
+
+PERIMORTEM_UNIT_TEST(LocalTests, shadow_note_names_original_declaration) {
+  static constexpr View::Bytes source =
+      "// Shadow diagnostic.\n"
+      "dialect : Library;\n"
+      "private invalid : func = [] -> [] {\n"
+      "  state value : Bool;\n"
+      "  while false {\n"
+      "    state value : Bool;\n"
+      "  }\n"
+      "  return;\n"
+      "}"_view;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
+  Errors errors;
+  EXPECT_NOT(interpret(workspace, errors, source));
+  ASSERT_EQ(errors.get_size(), Count(1));
+
+  Perimortem::Memory::Allocator::Arena rendered;
+  View::Bytes diagnostic = errors.render_message(rendered, 0);
+  EXPECT(
+      Algorithm::search(
+          diagnostic, "Original declaration: local.ttx:4:9."_view) !=
+      Count(-1));
+}
+
 PERIMORTEM_UNIT_TEST(LocalTests, invalid_type_flow_is_not_published) {
   static constexpr Static::Vector<View::Bytes, 5> sources = {{
     "// Forward Local.\ndialect : Library; private invalid : func = [] -> Bool { const first := later; const later : Bool = true; return first; }"_view,

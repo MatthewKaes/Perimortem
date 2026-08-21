@@ -39,10 +39,17 @@ PERIMORTEM_UNIT_TEST(
   auto focused = associations.find_at(tokens[1].get_offset());
   auto containing = associations.find_at(tokens[2].get_offset());
   auto missing = associations.find_at(tokenizer.get_source_text().get_size());
+  auto outer_anchor = associations.find(outer);
+  auto inner_anchor = associations.find(inner);
 
   ASSERT(focused);
   ASSERT(containing);
+  ASSERT(outer_anchor);
+  ASSERT(inner_anchor);
   EXPECT(&*focused == &inner);
   EXPECT(&*containing == &outer);
+  EXPECT(outer_anchor->get_token() == tokens[0]);
+  EXPECT(inner_anchor->get_token() == tokens[1]);
   EXPECT_NOT(missing);
+  EXPECT_NOT(associations.find(Concept::Invalid::get_invalid()));
 }

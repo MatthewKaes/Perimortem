@@ -21,6 +21,7 @@
 #include "tetrodotoxin/library/llvm/publication.hpp"
 #include "tetrodotoxin/library/llvm/target.hpp"
 #include "tetrodotoxin/library/llvm/unit.hpp"
+#include "tetrodotoxin/linker/import.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -52,7 +53,8 @@ class Program : public Ttx::Concept::Abstract {
   auto initialize() -> Bool;
 
   // Creates one hosted process entry that invokes an already published native
-  // `[] -> []` symbol exactly once and then returns success to the host.
+  // symbol with empty parameter and result shapes exactly once and then returns
+  // success to the host.
   auto create_process_entry(Perimortem::Core::View::Bytes symbol) -> Bool;
 
   auto compile() -> Perimortem::Utility::Result<Products, Failure>;
@@ -86,6 +88,8 @@ class Program : public Ttx::Concept::Abstract {
 
   auto add_publication(Publication value) -> void;
 
+  auto add_import(Tetrodotoxin::Linker::Import value) -> Bool;
+
   auto fail_backend(Perimortem::Core::View::Bytes message) -> Bool;
 
   auto fail_source(
@@ -113,6 +117,7 @@ class Program : public Ttx::Concept::Abstract {
   Globals globals;
   Perimortem::Memory::Managed::Vector<Export> exports;
   Perimortem::Memory::Managed::Vector<Publication> publications;
+  Perimortem::Memory::Managed::Vector<Tetrodotoxin::Linker::Import> imports;
   Bool source_failed = False;
   Bool tool_failed = False;
 };

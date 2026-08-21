@@ -302,6 +302,53 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_borrow_operations_link) {
   EXPECT(errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(CallTests, fitted_bytes_borrow_folds) {
+  static constexpr View::Bytes source =
+      "// Fitted bytes borrow.\n"
+      "dialect : Library;\n"
+      "private run : func = [] -> [] {\n"
+      "  const repack : Fixed[Unsigned_8, 9] = "
+      "(\"file: \":[0, 6], \"Perimortem\":[0, 3]);\n"
+      "  const view : View[Unsigned_8] = repack -> get_view();\n"
+      "  return;\n"
+      "}"_view;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  Option<const Language::Function&> run;
+  for (const Reference<Abstract>& callable :
+       monograph->get_source().get_callables()) {
+    if (callable.get().get_name() == "run"_view &&
+        callable.get().is<Language::Function>()) {
+      run = static_cast<const Language::Function&>(callable.get());
+      break;
+    }
+  }
+  ASSERT(run && run->get_body());
+  auto statements = run->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(3));
+
+  const auto& repack = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[0].get_root());
+  auto folded = repack.get_constant();
+  ASSERT(folded && folded->is<Language::Constants::Bytes>());
+  EXPECT_TEXT(
+      static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
+      "file: Per"_view);
+
+  const auto& viewed = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[1].get_root());
+  folded = viewed.get_constant();
+  ASSERT(folded && folded->is<Language::Constants::Bytes>());
+  EXPECT_TEXT(
+      static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
+      "file: Per"_view);
+  EXPECT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(CallTests, fixed_borrow_requires_writable_receiver) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Const local cannot grant Access.\ndialect : Library; private invalid : func = [] -> [] { const dense : Fixed[Unsigned_64, 2] = (1, 2); state borrowed : Access[Unsigned_64] = dense -> get_access(); return; }"_view,

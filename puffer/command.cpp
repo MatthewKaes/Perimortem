@@ -48,6 +48,13 @@ static auto create_config(Memory::Allocator::Arena& arena)
   variables.insert(
       "interface"_view, "Write the Interface Package Archive."_view);
   variables.insert("dep"_view, "Read one dependency Interface Archive."_view);
+  variables.insert(
+      "dep-abi"_view, "Read one dependency native ABI Manifest."_view);
+  variables.insert(
+      "abi-manifest"_view, "Read or write one native ABI Manifest."_view);
+  variables.insert(
+      "native-provider"_view,
+      "Select one logical provider for a native import."_view);
   variables.insert("unit"_view, "Compile one declared Package member."_view);
   variables.insert(
       "artifact"_view, "Select the native artifact identity."_view);
@@ -199,8 +206,7 @@ static auto publish(
 }
 
 static auto run_library(const System::Args::Values& args) -> Signed_32 {
-  Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::console_sink);
-  Core::Diagnostics::Log::set_disable_header(True);
+  Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::plain_sink);
 
   constexpr Core::Static::Vector<Core::View::Bytes, 8> required = {{
     ""_view,
@@ -283,7 +289,8 @@ static auto run_library(const System::Args::Values& args) -> Signed_32 {
   Memory::Allocator::Arena product_arena;
   Tetrodotoxin::Library::Llvm::Request request(
       *monograph, errors, source_path, *source,
-      Tetrodotoxin::Library::Llvm::Target::X86_64SysV, debug);
+      Tetrodotoxin::Library::Llvm::Target::X86_64SysV, debug,
+      Tetrodotoxin::Library::Llvm::Unit(value(args, "name"_view)));
   Tetrodotoxin::Library::Llvm::Compiler compiler;
   Utility::Result<
       Tetrodotoxin::Library::Llvm::Products,

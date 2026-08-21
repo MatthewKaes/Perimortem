@@ -6,7 +6,12 @@ by the regular `cc_toolchain`.
 
 Usage in a BUILD file:
 
-    load("//toolchain:tetrodotoxin.bzl", "ttx_library", "ttx_package")
+    load(
+        "//toolchain:tetrodotoxin.bzl",
+        "ttx_library",
+        "ttx_native_provider",
+        "ttx_package",
+    )
 
     ttx_library(
         name = "my_lib",
@@ -20,6 +25,14 @@ Usage in a BUILD file:
         package_name = "Example.MyPackage",
         version = [1, 0],
         deps = [":my_dependency"],
+        native_deps = [":host_services"],
+    )
+
+    ttx_native_provider(
+        name = "host_services",
+        provider_name = "Example.Host",
+        dep = ":host_services_cc",
+        functions = ["example_host_read"],
     )
 
 A generated header is automatically available to dependents. The authored
@@ -56,8 +69,66 @@ TtxPackageInfo = provider(
         "complete_archive": "Complete semantic Package Archive.",
         "interface_archive": "Interface semantic Package Archive.",
         "transitive_interfaces": "Dependency-first Interface Archive depset.",
+        "abi_manifest": "Native ABI Manifest for the selected artifact.",
+        "transitive_abi_manifests": "Dependency-first native ABI Manifest depset.",
         "artifact_id": "Exact native artifact identifier.",
     },
+)
+
+TtxNativeProviderInfo = provider(
+    doc = "One explicit logical provider for target selected Foreign imports.",
+    fields = {
+        "identity": "Stable logical provider identity.",
+        "artifact_id": "Exact native artifact identifier.",
+        "bindings": "Provider, target, kind, and symbol records for Puffer.",
+    },
+)
+
+def _ttx_native_provider_impl(ctx):
+    artifact_id = "x86_64-sysv-linux"
+    if not ctx.attr.provider_name:
+        fail("ttx_native_provider requires one provider_name")
+
+    bindings = []
+    declared = {}
+    categories = [
+        ("function", ctx.attr.functions),
+        ("readonly", ctx.attr.readonly_states),
+        ("writable", ctx.attr.writable_states),
+    ]
+    for kind, symbols in categories:
+        for symbol in symbols:
+            if not symbol or "|" in symbol:
+                fail("ttx_native_provider symbols must be nonempty and cannot contain |")
+            if symbol in declared:
+                fail("ttx_native_provider declares symbol %s more than once" % symbol)
+            declared[symbol] = True
+            bindings.append("%s|%s|%s|%s" % (
+                ctx.attr.provider_name,
+                artifact_id,
+                kind,
+                symbol,
+            ))
+
+    return [
+        TtxNativeProviderInfo(
+            identity = ctx.attr.provider_name,
+            artifact_id = artifact_id,
+            bindings = bindings,
+        ),
+        ctx.attr.dep[CcInfo],
+    ]
+
+_ttx_native_provider = rule(
+    implementation = _ttx_native_provider_impl,
+    attrs = {
+        "provider_name": attr.string(mandatory = True),
+        "dep": attr.label(mandatory = True, providers = [CcInfo]),
+        "functions": attr.string_list(),
+        "readonly_states": attr.string_list(),
+        "writable_states": attr.string_list(),
+    },
+    doc = "Selects one native CcInfo provider for a fixed target import set.",
 )
 
 def _ttx_library_impl(ctx):
@@ -163,6 +234,7 @@ def _ttx_package_impl(ctx):
     )
     complete_archive = ctx.actions.declare_file(artifact_root + "complete.txa")
     interface_archive = ctx.actions.declare_file(artifact_root + "interface.txa")
+    abi_manifest = ctx.actions.declare_file(artifact_root + "abi.manifest")
     header = ctx.actions.declare_file(artifact_root + "c_abi.h")
     arguments = ctx.actions.args()
     arguments.add("-package")
@@ -174,6 +246,7 @@ def _ttx_package_impl(ctx):
     arguments.add(complete_archive, format = "-complete=%s")
     arguments.add(interface_archive, format = "-interface=%s")
     arguments.add(header, format = "-header=%s")
+    arguments.add(abi_manifest, format = "-abi-manifest=%s")
 
     dependency_interfaces = depset(
         direct = [
@@ -189,9 +262,32 @@ def _ttx_package_impl(ctx):
     for interface in dependency_interfaces.to_list():
         arguments.add(interface, format = "-dep=%s")
 
+    dependency_abi_manifests = depset(
+        direct = [
+            dep[TtxPackageInfo].abi_manifest
+            for dep in ctx.attr.deps
+        ],
+        transitive = [
+            dep[TtxPackageInfo].transitive_abi_manifests
+            for dep in ctx.attr.deps
+        ],
+        order = "postorder",
+    )
+    for manifest in dependency_abi_manifests.to_list():
+        arguments.add(manifest, format = "-dep-abi=%s")
+
+    native_cc_infos = []
+    for provider in ctx.attr.native_deps:
+        native = provider[TtxNativeProviderInfo]
+        if native.artifact_id != artifact_id:
+            fail("ttx_package native provider target does not match its artifact")
+        for binding in native.bindings:
+            arguments.add("-native-provider=%s" % binding)
+        native_cc_infos.append(provider[CcInfo])
+
     llvm_ir = []
     object_files = []
-    outputs = [complete_archive, interface_archive, header]
+    outputs = [complete_archive, interface_archive, abi_manifest, header]
     for index, source in enumerate(ctx.files.sources):
         source_name = source.basename[:-4]
         unit_name = "unit_%d_%s" % (index, source_name)
@@ -211,7 +307,7 @@ def _ttx_package_impl(ctx):
     ctx.actions.run(
         inputs = depset(
             direct = [ctx.file.manifest] + ctx.files.sources,
-            transitive = [dependency_interfaces],
+            transitive = [dependency_interfaces, dependency_abi_manifests],
         ),
         outputs = outputs,
         executable = ctx.executable._compiler,
@@ -259,6 +355,11 @@ def _ttx_package_impl(ctx):
         transitive = [dependency_interfaces],
         order = "postorder",
     )
+    package_abi_manifests = depset(
+        direct = [abi_manifest],
+        transitive = [dependency_abi_manifests],
+        order = "postorder",
+    )
     library = linking_outputs.library_to_link
     if library.static_library:
         outputs.append(library.static_library)
@@ -268,7 +369,7 @@ def _ttx_package_impl(ctx):
     return [
         cc_common.merge_cc_infos(
             direct_cc_infos = [generated_cc_info],
-            cc_infos = dependency_cc_infos + [ctx.attr._runtime[CcInfo]],
+            cc_infos = dependency_cc_infos + native_cc_infos + [ctx.attr._runtime[CcInfo]],
         ),
         TtxPackageInfo(
             identity = ctx.attr.package_name,
@@ -276,6 +377,8 @@ def _ttx_package_impl(ctx):
             complete_archive = complete_archive,
             interface_archive = interface_archive,
             transitive_interfaces = package_interfaces,
+            abi_manifest = abi_manifest,
+            transitive_abi_manifests = package_abi_manifests,
             artifact_id = artifact_id,
         ),
         DefaultInfo(files = depset(outputs)),
@@ -315,7 +418,7 @@ _ttx_library = rule(
             doc = "The Tetrodotoxin compiler binary.",
         ),
         _runtime = attr.label(
-            default = "//perimortem:abi",
+            default = "//perimortem:abi_core",
             providers = [CcInfo],
             doc = "Perimortem ABI linked by generated native values.",
         ),
@@ -349,6 +452,10 @@ _ttx_package = rule(
                 "libraries are consumed by this Package."
             ),
         ),
+        native_deps = attr.label_list(
+            providers = [TtxNativeProviderInfo, CcInfo],
+            doc = "Target selected native providers for authored Foreign imports.",
+        ),
         package_name = attr.string(
             mandatory = True,
             doc = (
@@ -372,7 +479,7 @@ _ttx_package = rule(
             doc = "The Tetrodotoxin compiler binary.",
         ),
         _runtime = attr.label(
-            default = "//perimortem:abi",
+            default = "//perimortem:abi_core",
             providers = [CcInfo],
             doc = "Perimortem ABI linked by generated native values.",
         ),
@@ -384,6 +491,13 @@ _ttx_package = rule(
         "Archives plus separate native member objects."
     ),
 )
+
+def ttx_native_provider(name, **kwargs):
+    """Publishes one target selected native provider and its symbol inventory."""
+    _ttx_native_provider(
+        name = name,
+        **kwargs
+    )
 
 def ttx_library(name, **kwargs):
     """Builds one standalone Library with mode-matched debug information."""
@@ -433,6 +547,7 @@ def _ttx_application_entry_impl(ctx):
     arguments = ctx.actions.args()
     arguments.add("-application")
     arguments.add(package.complete_archive, format = "-complete=%s")
+    arguments.add(package.abi_manifest, format = "-abi-manifest=%s")
     arguments.add("-app-member=%s" % ctx.attr.app_member)
     arguments.add("-artifact=%s" % package.artifact_id)
     arguments.add(llvm_ir, format = "-ir=%s")
@@ -445,8 +560,19 @@ def _ttx_application_entry_impl(ctx):
     for interface in dependency_interfaces:
         arguments.add(interface, format = "-dep=%s")
 
+    dependency_abi_manifests = [
+        manifest
+        for manifest in package.transitive_abi_manifests.to_list()
+        if manifest.path != package.abi_manifest.path
+    ]
+    for manifest in dependency_abi_manifests:
+        arguments.add(manifest, format = "-dep-abi=%s")
+
     ctx.actions.run(
-        inputs = depset([package.complete_archive] + dependency_interfaces),
+        inputs = depset(
+            [package.complete_archive, package.abi_manifest] +
+            dependency_interfaces + dependency_abi_manifests,
+        ),
         outputs = [llvm_ir, object_file],
         executable = ctx.executable._compiler,
         arguments = [arguments],

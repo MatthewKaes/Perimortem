@@ -17,7 +17,6 @@
 #include "tetrodotoxin/package/archive/archive.hpp"
 #include "tetrodotoxin/package/repository/input.hpp"
 #include "tetrodotoxin/package/repository/output.hpp"
-#include "tetrodotoxin/package/repository/selection_error.hpp"
 
 namespace Tetrodotoxin::Package::Repository {
 
@@ -26,6 +25,21 @@ namespace Tetrodotoxin::Package::Repository {
 // so every semantic key, physical input, and publication route is explicit.
 class Repository {
  public:
+  // Names the stable caller decision for one rejected Repository selection.
+  // Repository keeps declaration and selection details in its Info record
+  // because those facts explain the failure without changing recovery policy.
+  enum class Error : Unsigned_8 {
+    Unknown = Unsigned_8(-1),
+    NotDeclared = 0,
+    Unreadable,
+    InvalidFormat,
+    UnsupportedFormat,
+    PackageKeyMismatch,
+    ArtifactMismatch,
+    AbiMismatch,
+    ArtifactNotDeclared,
+  };
+
   // The Arena establishes the lifetime promised by all borrowed declarations.
   // Repository does not copy them automatically because callers may already
   // hold Arena stable or cache stable views. Only normalized routes created by
@@ -43,7 +57,7 @@ class Repository {
   auto select_archive(
       Perimortem::Core::View::Bytes identity,
       Perimortem::System::Version version)
-      -> Perimortem::Utility::Result<const Archive::Archive&, SelectionError>;
+      -> Perimortem::Utility::Result<const Archive::Archive&, Error>;
 
   // Semantic selection succeeds without native declarations. This operation
   // adds the complete native inventory check before exposing one borrowed
@@ -51,8 +65,8 @@ class Repository {
   auto select_native(
       Perimortem::Core::View::Bytes identity,
       Perimortem::System::Version version,
-      Perimortem::Core::View::Bytes artifact_id) -> Perimortem::Utility::
-      Result<Perimortem::Core::View::Bytes, SelectionError>;
+      Perimortem::Core::View::Bytes artifact_id)
+      -> Perimortem::Utility::Result<Perimortem::Core::View::Bytes, Error>;
 
   // The shared Output value does not erase product kind. Archive lookup stays
   // on its own inventory and cannot fall through to a native declaration.

@@ -101,6 +101,19 @@ TTX_ADDR_dynamic
 Source bytes outside the alphanumeric set are escaped so the separator remains
 unambiguous. Duplicate external names reject the source before object emission.
 
+Generated C aggregate names use lowercase `ttx_`, the lowercase Package
+coordinate, and the semantic member and Type route. The readable spelling
+`ttx_perimortem_memory_Dynamic_Bytes`, for example, names the one carrier owned
+by `Perimortem.Memory::Dynamic::Bytes`. Dependency headers provide imported
+carrier definitions, while guarded local definitions prevent repeated includes
+from creating another C Type declaration.
+
+Each completed Package header publishes the ABI fingerprint shared by its
+Archive artifact and Linker Manifest. Standalone Library headers publish the
+fingerprint of their direct compiler product. The fingerprint includes target
+layout, published and imported signatures, calling convention facts, and the C
+carrier surface, but it is not a security digest.
+
 ## Owned target values
 
 Option values store one inline payload slot followed by their selected state,

@@ -164,6 +164,22 @@ auto Diagnostics::Log::console_sink(
   fwrite(formatted.get_data(), 1, formatted.get_size(), stream);
 }
 
+auto Diagnostics::Log::plain_sink(
+    Level level,
+    View::Bytes message,
+    const Source&) -> void {
+  if (message.is_empty()) {
+    return;
+  }
+
+  FILE* stream = (level >= Level::Error) ? stderr : stdout;
+  fwrite(message.get_data(), 1, message.get_size(), stream);
+  if (message[message.get_size() - 1] != '\n') {
+    constexpr char newline = '\n';
+    fwrite(&newline, 1, 1, stream);
+  }
+}
+
 auto Diagnostics::Log::color_sink(
     Level level,
     View::Bytes message,

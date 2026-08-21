@@ -167,7 +167,7 @@ public enumeration_iteration : func = [] -> Unsigned_64 {
 // Test documentation string for function
 @abi("C") @symbol("llvm_nonobject") @backend_note("opaque")
 public execute : func = [] -> Unsigned_64 {
-  state pair : Pair = (.left = 2, .right = 3);
+  state pair_value : Pair = (.left = 2, .right = 3);
 
   // Test documentation string for variable
   state dense : Fixed[Unsigned_64, 4] = (1, 2, 3, 4);
@@ -178,7 +178,7 @@ public execute : func = [] -> Unsigned_64 {
   state real         : Real_64 = 6.0;
   state mode         : Mode;
   state bytes        : Fixed[Unsigned_8, 2] = 0x[01 02];
-  state total        : Unsigned_64 = pair -> sum();
+  state total        : Unsigned_64 = pair_value -> sum();
   writable[99]    = 50;
   writable[0, 2]  = (5, 6);
   total += dense:[1];

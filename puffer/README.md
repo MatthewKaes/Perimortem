@@ -142,8 +142,8 @@ the generic Perimortem retain and release entries for a host that keeps a result
 A Package request imports every dependency through its Interface Archive,
 imports the root source Package once, and compiles each declared member into an
 independent native object. It emits the root Complete and Interface Archives,
-one combined C and C++ declaration header, and the member products declared by
-the build action. The build supplies manifest-rooted `.ttx` candidates, while
+one combined C and C++ declaration header, one native ABI Manifest, and the
+member products declared by the build action. The build supplies manifest-rooted `.ttx` candidates, while
 the Package Source table remains the sole authority for their semantic member
 names and paths. Package coordinates those products without lowering a copied
 semantic graph.

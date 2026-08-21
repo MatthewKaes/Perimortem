@@ -180,6 +180,7 @@ It contains:
 4. ordered member names, Dialect names, and language-owned member data
 5. ordered native artifact identifiers
 6. exported semantic routes with artifact and symbol locators
+7. target ABI fingerprints and selected native imports for those artifacts
 
 Package arranges these records but does not interpret language-owned member
 data.
@@ -215,6 +216,12 @@ finishes the new Workspace.
 A Repository maps explicit build declarations to Package products. Language
 selection uses Package identity and version. Native selection uses an
 artifact identifier declared by the selected Archive.
+
+Each physical artifact declaration also supplies its Linker ABI Manifest.
+Repository compares Package identity, version, artifact, target, fingerprint,
+and selected imports before returning the native path. A semantic Archive can
+still be selected without native inputs, while a stale or mismatched native
+agreement fails only native selection.
 
 Repository selection does not scan directories or derive identity from paths.
 Archive locations, native artifact locations, and output routes remain explicit

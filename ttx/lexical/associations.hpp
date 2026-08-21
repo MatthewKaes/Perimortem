@@ -33,6 +33,11 @@ class Associations {
   auto find_at(Count offset) const
       -> Perimortem::Core::Option<const Ttx::Concept::Abstract&>;
 
+  // Returns the authored Anchor retained for one exact semantic identity in
+  // this source transaction.
+  auto find(const Ttx::Concept::Abstract& semantic) const
+      -> Perimortem::Core::Option<Anchor>;
+
  private:
   struct Association {
     Anchor anchor;

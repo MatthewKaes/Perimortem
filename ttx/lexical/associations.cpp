@@ -61,3 +61,14 @@ auto Lexical::Associations::find_at(Count offset) const
 
   return selected->semantic.get();
 }
+
+auto Lexical::Associations::find(const Concept::Abstract& semantic) const
+    -> Option<Lexical::Anchor> {
+  for (const Association& association : associations.get_view()) {
+    if (&association.semantic.get() == &semantic) {
+      return association.anchor;
+    }
+  }
+
+  return {};
+}

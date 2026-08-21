@@ -85,8 +85,8 @@ PERIMORTEM_UNIT_TEST(MatchTests, ordered_cases_and_complete_flag_coverage) {
       "  match selector {\n"
       "    case false : return outer;\n"
       "    case true {\n"
-      "      state outer : Unsigned_64 = 4;\n"
-      "      return outer;\n"
+      "      state inner : Unsigned_64 = 4;\n"
+      "      return inner;\n"
       "    }\n"
       "  }\n"
       "}"_view;
@@ -118,7 +118,10 @@ PERIMORTEM_UNIT_TEST(MatchTests, ordered_cases_and_complete_flag_coverage) {
   ASSERT(match.get_case_body(0));
   ASSERT(match.get_case_body(1));
   EXPECT(&match.get_case_body(0)->resolve_context("outer"_view) == &outer);
-  EXPECT(&match.get_case_body(1)->resolve_context("outer"_view) != &outer);
+  EXPECT(&match.get_case_body(1)->resolve_context("outer"_view) == &outer);
+  EXPECT(match.get_case_body(1)
+             ->resolve_context("inner"_view)
+             .is<Language::Flow::Local>());
   EXPECT_NOT(match.get_default());
   EXPECT_NOT(match.reaches_next_statement());
   EXPECT_TEXT(
@@ -126,8 +129,8 @@ PERIMORTEM_UNIT_TEST(MatchTests, ordered_cases_and_complete_flag_coverage) {
       "match selector {\n"
       "    case false : return outer;\n"
       "    case true {\n"
-      "      state outer : Unsigned_64 = 4;\n"
-      "      return outer;\n"
+      "      state inner : Unsigned_64 = 4;\n"
+      "      return inner;\n"
       "    }\n"
       "  }"_view);
 
@@ -283,12 +286,13 @@ PERIMORTEM_UNIT_TEST(MatchTests, constructor_patterns_are_rejected) {
 }
 
 PERIMORTEM_UNIT_TEST(MatchTests, invalid_option_case_sets_are_rejected) {
-  static constexpr Static::Vector<View::Bytes, 5> sources = {{
+  static constexpr Static::Vector<View::Bytes, 6> sources = {{
     "// Missing absent case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case item {} } return; }"_view,
     "// Missing value case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case _ {} } return; }"_view,
     "// Duplicate value case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case first {} case second {} case _ {} } return; }"_view,
     "// Constant value case.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case 7 {} case _ {} } return; }"_view,
     "// Empty element Type.\ndialect : Library; public Empty : struct {} private invalid : func = [.value : Option[Empty]] -> [] { return; }"_view,
+    "// Shadowed payload.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [] { match value { case value {} case _ {} } return; }"_view,
   }};
 
   for (Count index = 0; index < sources.get_size(); index++) {

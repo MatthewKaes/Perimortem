@@ -14,15 +14,15 @@
 
 namespace Tetrodotoxin::Package::Archive {
 
-// Emits the canonical Package Archive Format 1 representation from a validated
+// Emits the canonical Package Archive Format 2 representation from a validated
 // Archive value. Writer measures the complete envelope before allocation, then
 // preserves every supplied list order through the shared section vocabulary.
 class Writer {
  public:
   Writer() = delete;
 
-  // Writes all six required sections in canonical order. A body that exceeds
-  // the Format 1 limit logs a warning. Failure to reach the measured boundary
+  // Writes all seven required sections in canonical order. A body that exceeds
+  // the Format 2 limit logs a warning. Failure to reach the measured boundary
   // logs an error.
   static auto write(const Archive& archive)
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
@@ -32,8 +32,7 @@ class Writer {
       Perimortem::Core::View::Bytes identity,
       Perimortem::System::Version version,
       Tetrodotoxin::Language::Persistence::Profile profile,
-      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes>
-          artifact_ids = {},
+      Perimortem::Core::View::Vector<Artifact> artifacts = {},
       Perimortem::Core::View::Vector<Export> exports = {})
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 };

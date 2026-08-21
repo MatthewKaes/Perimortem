@@ -25,6 +25,50 @@ using HeaderStream = Stream::Textual<Memory::Managed::Bytes>;
 using HeaderTypes = Memory::Managed::Vector<const Ttx::Model::Type*>;
 using HeaderTypeSet = Memory::Managed::Map<const Ttx::Model::Type*, Bool>;
 
+class HeaderName {
+ public:
+  constexpr HeaderName(
+      const Ttx::Model::Type& type,
+      Core::View::Bytes value,
+      Core::View::Bytes package,
+      Core::View::Bytes member)
+      : type(type), value(value), package(package), member(member) {}
+
+  constexpr auto get_type() const -> const Ttx::Model::Type& {
+    return type.get();
+  }
+
+  constexpr auto get_value() const -> Core::View::Bytes { return value; }
+
+  constexpr auto get_package() const -> Core::View::Bytes { return package; }
+
+  constexpr auto get_member() const -> Core::View::Bytes { return member; }
+
+ private:
+  Ttx::Concept::Reference<const Ttx::Model::Type> type;
+  Core::View::Bytes value;
+  Core::View::Bytes package;
+  Core::View::Bytes member;
+};
+
+using HeaderNames = Memory::Managed::Vector<HeaderName>;
+
+class HeaderOrigin {
+ public:
+  constexpr HeaderOrigin(
+      Core::View::Bytes package = {},
+      Core::View::Bytes member = {})
+      : package(package), member(member) {}
+
+  constexpr auto get_package() const -> Core::View::Bytes { return package; }
+
+  constexpr auto get_member() const -> Core::View::Bytes { return member; }
+
+ private:
+  Core::View::Bytes package;
+  Core::View::Bytes member;
+};
+
 static auto fail_header(Core::View::Bytes message) -> Bool {
   Core::Diagnostics::Log::error(message);
   return False;
@@ -48,11 +92,144 @@ static auto require_parameter(const Ttx::Concept::Layout& layout, Count index)
                : Core::Option<const Ttx::Model::Addressable&>();
 }
 
+static auto write_encoded_name(
+    HeaderStream& output,
+    Core::View::Bytes value,
+    Bool lowercase = False) -> void {
+  constexpr auto hex = "0123456789abcdef"_view;
+  for (Count index = 0; index < value.get_size(); index++) {
+    Unsigned_8 byte = value[index];
+    Bool alphanumeric = Bool(
+        (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
+        (byte >= '0' && byte <= '9'));
+    if (alphanumeric) {
+      if (lowercase && byte >= 'A' && byte <= 'Z') {
+        byte += 'a' - 'A';
+      }
+      output << Core::View::Bytes(&byte, 1);
+    } else {
+      Core::Static::Vector<Unsigned_8, 3> encoded = {{
+        '_',
+        hex[byte >> 4],
+        hex[byte & 15],
+      }};
+      output << Core::View::Bytes(encoded.get_data(), encoded.get_size());
+    }
+  }
+}
+
+static auto write_package_name(HeaderStream& output, Core::View::Bytes package)
+    -> void {
+  Count start = 0;
+  for (Count index = 0; index <= package.get_size(); index++) {
+    Bool end = index == package.get_size();
+    if (!end && package[index] != '.') {
+      continue;
+    }
+    if (start != 0) {
+      output << "_"_view;
+    }
+    write_encoded_name(output, package.slice(start, index - start), True);
+    start = index + 1;
+  }
+}
+
+static auto write_semantic_route(HeaderStream& output, Core::View::Bytes route)
+    -> void {
+  Count start = 0;
+  for (Count index = 0; index <= route.get_size(); index++) {
+    Bool end = index == route.get_size();
+    Bool separator = !end && index + 1 < route.get_size() &&
+                     route[index] == ':' && route[index + 1] == ':';
+    if (!end && !separator) {
+      continue;
+    }
+    if (start != 0) {
+      output << "_"_view;
+    }
+    write_encoded_name(output, route.slice(start, index - start));
+    if (separator) {
+      index++;
+    }
+    start = index + 1;
+  }
+}
+
+static auto find_header_name(
+    const HeaderNames& names,
+    const Ttx::Model::Type& type) -> Core::Option<const HeaderName&> {
+  auto retained = names.get_view();
+  for (Count index = 0; index < retained.get_size(); index++) {
+    const HeaderName& name = retained.get_data()[index];
+    if (&name.get_type() == &type) {
+      return name;
+    }
+  }
+  return {};
+}
+
+static auto create_header_name(
+    Memory::Allocator::Arena& arena,
+    HeaderNames& names,
+    const Llvm::Unit& unit,
+    const Ttx::Model::Type& type,
+    HeaderOrigin inherited) -> Core::Option<HeaderOrigin> {
+  auto retained = find_header_name(names, type);
+  if (retained) {
+    return HeaderOrigin(retained->get_package(), retained->get_member());
+  }
+
+  Core::View::Bytes package = inherited.get_package();
+  Core::View::Bytes member = inherited.get_member();
+  Core::View::Bytes route;
+  auto binding = unit.find_type(type);
+  if (binding) {
+    package = binding->get_package();
+    member = binding->get_member();
+    route = binding->get_route();
+  } else {
+    if (package.is_empty()) {
+      package = unit.get_package();
+    }
+    if (member.is_empty()) {
+      member = unit.get_member();
+    }
+    Memory::Managed::Bytes fallback(arena, member);
+    if (fallback.get_size() != 0) {
+      fallback.concat("::"_view);
+    }
+    fallback.concat(type.get_name());
+    route = fallback.get_view();
+  }
+  if (package.is_empty() || route.is_empty()) {
+    return {};
+  }
+
+  Memory::Managed::Bytes rendered(arena);
+  HeaderStream output(rendered);
+  output << "ttx_"_view;
+  write_package_name(output, package);
+  output << "_"_view;
+  write_semantic_route(output, route);
+  Core::View::Bytes name = rendered.get_view();
+  for (const HeaderName& existing : names.get_view()) {
+    if (existing.get_value() == name && &existing.get_type() != &type) {
+      return {};
+    }
+  }
+  names.insert(HeaderName(type, name, package, member));
+  return HeaderOrigin(package, member);
+}
+
 static auto collect_type(
+    Memory::Allocator::Arena& arena,
     HeaderTypes& ordered,
     HeaderTypeSet& collected,
+    HeaderNames& names,
     const Llvm::Carriers& carriers,
-    const Ttx::Model::Type& type) -> Bool {
+    const Llvm::Unit& unit,
+    const Ttx::Model::Type& type,
+    HeaderOrigin inherited) -> Bool {
   if (collected.contains(&type)) {
     return True;
   }
@@ -61,6 +238,18 @@ static auto collect_type(
   if (!kind) {
     return fail_header(
         "The C header cannot find a completed carrier for a published Type."_view);
+  }
+
+  HeaderOrigin origin = inherited;
+  if (*kind != Llvm::Carriers::Kind::Value &&
+      *kind != Llvm::Carriers::Kind::Enumeration &&
+      *kind != Llvm::Carriers::Kind::Context) {
+    auto created = create_header_name(arena, names, unit, type, inherited);
+    if (!created) {
+      return fail_header(
+          "The C header cannot create one unique Package qualified carrier name."_view);
+    }
+    origin = *created;
   }
 
   collected.insert(&type, True);
@@ -80,8 +269,9 @@ static auto collect_type(
 
     for (Count index = 0; index < fields->get_size(); index++) {
       auto field = require_parameter(*fields, index);
-      if (!field ||
-          !collect_type(ordered, collected, carriers, field->get_type())) {
+      if (!field || !collect_type(
+                        arena, ordered, collected, names, carriers, unit,
+                        field->get_type(), origin)) {
         return fail_header(
             "The C header found a Structure field without a completed carrier."_view);
       }
@@ -94,8 +284,10 @@ static auto collect_type(
     auto value = carriers.get_element(type);
     auto error = carriers.get_error(type);
     if (!value || !error ||
-        !collect_type(ordered, collected, carriers, *value) ||
-        !collect_type(ordered, collected, carriers, *error)) {
+        !collect_type(
+            arena, ordered, collected, names, carriers, unit, *value, origin) ||
+        !collect_type(
+            arena, ordered, collected, names, carriers, unit, *error, origin)) {
       return fail_header(
           "The C header found Result without both completed alternatives."_view);
     }
@@ -110,7 +302,9 @@ static auto collect_type(
   case Llvm::Carriers::Kind::View:
   case Llvm::Carriers::Kind::Access: {
     auto element = carriers.get_element(type);
-    if (!element || !collect_type(ordered, collected, carriers, *element)) {
+    if (!element || !collect_type(
+                        arena, ordered, collected, names, carriers, unit,
+                        *element, origin)) {
       return fail_header(
           "The C header found a carrier without its completed element Type."_view);
     }
@@ -128,14 +322,20 @@ static auto collect_type(
 }
 
 static auto collect_callable(
+    Memory::Allocator::Arena& arena,
     HeaderTypes& ordered,
     HeaderTypeSet& collected,
+    HeaderNames& names,
     const Llvm::Carriers& carriers,
+    const Llvm::Unit& unit,
     const Ttx::Model::Callable& callable) -> Bool {
+  HeaderOrigin origin(unit.get_package(), unit.get_member());
   const Ttx::Concept::Layout& results = callable.get_results();
   for (Count index = 0; index < results.get_size(); index++) {
     auto type = require_result_type(results, index);
-    if (!type || !collect_type(ordered, collected, carriers, *type)) {
+    if (!type ||
+        !collect_type(
+            arena, ordered, collected, names, carriers, unit, *type, origin)) {
       return fail_header(
           "The C header found a Callable result without a completed carrier."_view);
     }
@@ -144,8 +344,9 @@ static auto collect_callable(
   const Ttx::Concept::Layout& parameters = callable.get_parameters();
   for (Count index = 0; index < parameters.get_size(); index++) {
     auto parameter = require_parameter(parameters, index);
-    if (!parameter ||
-        !collect_type(ordered, collected, carriers, parameter->get_type())) {
+    if (!parameter || !collect_type(
+                          arena, ordered, collected, names, carriers, unit,
+                          parameter->get_type(), origin)) {
       return fail_header(
           "The C header found a Callable parameter without a completed carrier."_view);
     }
@@ -154,30 +355,10 @@ static auto collect_callable(
   return True;
 }
 
-static auto write_encoded_name(HeaderStream& output, Core::View::Bytes value)
-    -> void {
-  constexpr auto hex = "0123456789abcdef"_view;
-  for (Count index = 0; index < value.get_size(); index++) {
-    Unsigned_8 byte = value[index];
-    Bool alphanumeric = Bool(
-        (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
-        (byte >= '0' && byte <= '9'));
-    if (alphanumeric) {
-      output << Core::View::Bytes(&byte, 1);
-    } else {
-      Core::Static::Vector<Unsigned_8, 3> encoded = {{
-        '_',
-        hex[byte >> 4],
-        hex[byte & 15],
-      }};
-      output << Core::View::Bytes(encoded.get_data(), encoded.get_size());
-    }
-  }
-}
-
 static auto write_type_name(
     HeaderStream& output,
     const Llvm::Carriers& carriers,
+    const HeaderNames& names,
     const Ttx::Model::Type& type) -> Bool {
   auto kind = carriers.get_kind(type);
   if (!kind) {
@@ -213,7 +394,7 @@ static auto write_type_name(
 
   case Llvm::Carriers::Kind::Enumeration: {
     auto storage = carriers.get_element(type);
-    return storage && write_type_name(output, carriers, *storage);
+    return storage && write_type_name(output, carriers, names, *storage);
   }
 
   case Llvm::Carriers::Kind::Context:
@@ -228,16 +409,23 @@ static auto write_type_name(
   case Llvm::Carriers::Kind::Access:
   case Llvm::Carriers::Kind::Structure:
   case Llvm::Carriers::Kind::ObjectStorage:
-  case Llvm::Carriers::Kind::Object:
-    output << "ttx_"_view;
-    write_encoded_name(output, type.get_name());
+  case Llvm::Carriers::Kind::Object: {
+    auto name = find_header_name(names, type);
+    if (!name) {
+      return fail_header(
+          "The C header cannot find one Package qualified carrier name."_view);
+    }
+    output << name->get_value();
     return True;
+  }
   }
 }
 
 static auto write_type_definition(
     HeaderStream& output,
     const Llvm::Carriers& carriers,
+    const HeaderNames& names,
+    const Llvm::Unit& unit,
     const Ttx::Model::Type& type,
     Bool& uses_objects) -> Bool {
   auto kind = carriers.get_kind(type);
@@ -246,6 +434,26 @@ static auto write_type_definition(
         "The C header cannot define a Type without its completed carrier."_view);
   }
 
+  if (*kind == Llvm::Carriers::Kind::Value ||
+      *kind == Llvm::Carriers::Kind::Enumeration) {
+    return True;
+  }
+  if (*kind == Llvm::Carriers::Kind::Context) {
+    return fail_header(
+        "The C header found an unsupported physical carrier."_view);
+  }
+  auto retained_name = find_header_name(names, type);
+  if (!retained_name) {
+    return fail_header(
+        "The C header cannot define one unnamed physical carrier."_view);
+  }
+  if (retained_name->get_package() != unit.get_package()) {
+    return True;
+  }
+  Core::View::Bytes type_name = retained_name->get_value();
+  output << "#ifndef TTX_CARRIER_"_view << type_name
+         << "\n#define TTX_CARRIER_"_view << type_name << " 1\n"_view;
+
   switch (*kind) {
   case Llvm::Carriers::Kind::Value:
   case Llvm::Carriers::Kind::Enumeration:
@@ -253,18 +461,13 @@ static auto write_type_definition(
 
   case Llvm::Carriers::Kind::ObjectStorage:
   case Llvm::Carriers::Kind::Object:
-    output << "typedef struct ttx_"_view;
-    write_encoded_name(output, type.get_name());
-    output << "_object *ttx_"_view;
-    write_encoded_name(output, type.get_name());
-    output << ";\n\n"_view;
+    output << "typedef struct "_view << type_name << "_object *"_view
+           << type_name << ";\n#endif\n\n"_view;
     uses_objects = True;
     return True;
 
   case Llvm::Carriers::Kind::Structure: {
-    output << "typedef struct ttx_"_view;
-    write_encoded_name(output, type.get_name());
-    output << " {\n"_view;
+    output << "typedef struct "_view << type_name << " {\n"_view;
 
     auto fields = carriers.get_fields(type);
     if (!fields) {
@@ -281,7 +484,7 @@ static auto write_type_definition(
       }
 
       output << "  "_view;
-      if (!write_type_name(output, carriers, field->get_type())) {
+      if (!write_type_name(output, carriers, names, field->get_type())) {
         return False;
       }
 
@@ -294,9 +497,7 @@ static auto write_type_definition(
   }
 
   case Llvm::Carriers::Kind::Fixed: {
-    output << "typedef struct ttx_"_view;
-    write_encoded_name(output, type.get_name());
-    output << " {\n"_view;
+    output << "typedef struct "_view << type_name << " {\n"_view;
 
     auto element = carriers.get_element(type);
     auto extent = carriers.get_extent(type);
@@ -306,7 +507,7 @@ static auto write_type_definition(
     }
 
     output << "  "_view;
-    if (!write_type_name(output, carriers, *element)) {
+    if (!write_type_name(output, carriers, names, *element)) {
       return False;
     }
 
@@ -316,9 +517,7 @@ static auto write_type_definition(
 
   case Llvm::Carriers::Kind::View:
   case Llvm::Carriers::Kind::Access: {
-    output << "typedef struct ttx_"_view;
-    write_encoded_name(output, type.get_name());
-    output << " {\n"_view;
+    output << "typedef struct "_view << type_name << " {\n"_view;
 
     auto element = carriers.get_element(type);
     if (!element) {
@@ -331,7 +530,7 @@ static auto write_type_definition(
       output << "const "_view;
     }
 
-    if (!write_type_name(output, carriers, *element)) {
+    if (!write_type_name(output, carriers, names, *element)) {
       return False;
     }
 
@@ -340,9 +539,7 @@ static auto write_type_definition(
   }
 
   case Llvm::Carriers::Kind::Range: {
-    output << "typedef struct ttx_"_view;
-    write_encoded_name(output, type.get_name());
-    output << " {\n"_view;
+    output << "typedef struct "_view << type_name << " {\n"_view;
 
     auto element = carriers.get_element(type);
     if (!element) {
@@ -351,12 +548,12 @@ static auto write_type_definition(
     }
 
     output << "  "_view;
-    if (!write_type_name(output, carriers, *element)) {
+    if (!write_type_name(output, carriers, names, *element)) {
       return False;
     }
 
     output << " start;\n  "_view;
-    if (!write_type_name(output, carriers, *element)) {
+    if (!write_type_name(output, carriers, names, *element)) {
       return False;
     }
 
@@ -373,22 +570,18 @@ static auto write_type_definition(
 
     if (carriers.is_object(*element)) {
       output << "typedef "_view;
-      if (!write_type_name(output, carriers, *element)) {
+      if (!write_type_name(output, carriers, names, *element)) {
         return False;
       }
 
-      output << " ttx_"_view;
-      write_encoded_name(output, type.get_name());
-      output << ";\n\n"_view;
+      output << " "_view << type_name << ";\n#endif\n\n"_view;
       return True;
     }
 
-    output << "typedef struct ttx_"_view;
-    write_encoded_name(output, type.get_name());
-    output << " {\n"_view;
+    output << "typedef struct "_view << type_name << " {\n"_view;
 
     output << "  "_view;
-    if (!write_type_name(output, carriers, *element)) {
+    if (!write_type_name(output, carriers, names, *element)) {
       return False;
     }
 
@@ -397,19 +590,17 @@ static auto write_type_definition(
   }
 
   case Llvm::Carriers::Kind::Result: {
-    output << "typedef struct ttx_"_view;
-    write_encoded_name(output, type.get_name());
-    output << " {\n  union {\n    "_view;
+    output << "typedef struct "_view << type_name << " {\n  union {\n    "_view;
 
     auto value = carriers.get_element(type);
     auto error = carriers.get_error(type);
-    if (!value || !error || !write_type_name(output, carriers, *value)) {
+    if (!value || !error || !write_type_name(output, carriers, names, *value)) {
       return fail_header(
           "The C header cannot define Result without its value Type."_view);
     }
 
     output << " value;\n    "_view;
-    if (!write_type_name(output, carriers, *error)) {
+    if (!write_type_name(output, carriers, names, *error)) {
       return False;
     }
 
@@ -418,13 +609,10 @@ static auto write_type_definition(
   }
 
   case Llvm::Carriers::Kind::Context:
-    return fail_header(
-        "The C header found an unsupported physical carrier."_view);
+    return False;
   }
 
-  output << "} ttx_"_view;
-  write_encoded_name(output, type.get_name());
-  output << ";\n\n"_view;
+  output << "} "_view << type_name << ";\n#endif\n\n"_view;
   return True;
 }
 
@@ -437,6 +625,7 @@ static auto write_result_name(HeaderStream& output, Core::View::Bytes symbol)
 static auto write_result_definition(
     HeaderStream& output,
     const Llvm::Carriers& carriers,
+    const HeaderNames& names,
     const Ttx::Model::Callable& callable,
     Core::View::Bytes symbol) -> Bool {
   const Ttx::Concept::Layout& results = callable.get_results();
@@ -455,7 +644,7 @@ static auto write_result_definition(
     }
 
     output << "  "_view;
-    if (!write_type_name(output, carriers, *type)) {
+    if (!write_type_name(output, carriers, names, *type)) {
       return False;
     }
 
@@ -486,6 +675,7 @@ static auto declares_self(const Ttx::Model::Callable& callable) -> Bool {
 static auto write_signature(
     HeaderStream& output,
     const Llvm::Carriers& carriers,
+    const HeaderNames& names,
     const Ttx::Model::Callable& callable,
     Core::View::Bytes symbol) -> Bool {
   const Ttx::Concept::Layout& results = callable.get_results();
@@ -493,7 +683,7 @@ static auto write_signature(
     output << "void"_view;
   } else if (results.get_size() == 1) {
     auto result = require_result_type(results, 0);
-    if (!result || !write_type_name(output, carriers, *result)) {
+    if (!result || !write_type_name(output, carriers, names, *result)) {
       return fail_header(
           "The C header found a result without an exact carrier."_view);
     }
@@ -518,7 +708,7 @@ static auto write_signature(
 
     auto parameter = require_parameter(parameters, index);
     if (!parameter ||
-        !write_type_name(output, carriers, parameter->get_type())) {
+        !write_type_name(output, carriers, names, parameter->get_type())) {
       return fail_header(
           "The C header found a parameter without an exact carrier."_view);
     }
@@ -544,13 +734,16 @@ auto Llvm::Header::create(
     const Llvm::Carriers& carriers,
     const Llvm::Functions& functions,
     const Llvm::Globals& globals,
+    const Llvm::Unit& unit,
     Core::View::Vector<Llvm::Export> exports) -> Core::Option<Llvm::Header> {
   HeaderTypes ordered(arena);
   HeaderTypeSet collected(arena);
+  HeaderNames names(arena);
 
   for (const Llvm::Export& exported : exports) {
     if (!collect_callable(
-            ordered, collected, carriers, exported.get_callable())) {
+            arena, ordered, collected, names, carriers, unit,
+            exported.get_callable())) {
       return {};
     }
   }
@@ -558,7 +751,10 @@ auto Llvm::Header::create(
   for (const Ttx::Concept::Reference<const Ttx::Model::Addressable>& retained :
        globals.get_foreign_addressables()) {
     const Ttx::Model::Addressable& addressable = retained.get();
-    if (!collect_type(ordered, collected, carriers, addressable.get_type())) {
+    if (!collect_type(
+            arena, ordered, collected, names, carriers, unit,
+            addressable.get_type(),
+            HeaderOrigin(unit.get_package(), unit.get_member()))) {
       return {};
     }
   }
@@ -566,7 +762,8 @@ auto Llvm::Header::create(
   for (const Ttx::Concept::Reference<const Ttx::Model::Callable>& retained :
        functions.get_foreign_callables()) {
     const Ttx::Model::Callable& callable = retained.get();
-    if (!collect_callable(ordered, collected, carriers, callable)) {
+    if (!collect_callable(
+            arena, ordered, collected, names, carriers, unit, callable)) {
       return {};
     }
   }
@@ -575,16 +772,24 @@ auto Llvm::Header::create(
   HeaderStream output(buffer);
   output
       << "#pragma once\n\n#include <stdbool.h>\n#include <stdint.h>\n\n"_view;
+  for (Core::View::Bytes header : unit.get_headers()) {
+    output << "#include \""_view << header << "\"\n"_view;
+  }
+  if (!unit.get_headers().is_empty()) {
+    output << "\n"_view;
+  }
   Bool uses_objects = False;
   for (const Ttx::Model::Type* type : ordered.get_view()) {
-    if (!write_type_definition(output, carriers, *type, uses_objects)) {
+    if (!write_type_definition(
+            output, carriers, names, unit, *type, uses_objects)) {
       return {};
     }
   }
 
   for (const Llvm::Export& exported : exports) {
     if (!write_result_definition(
-            output, carriers, exported.get_callable(), exported.get_symbol())) {
+            output, carriers, names, exported.get_callable(),
+            exported.get_symbol())) {
       return {};
     }
   }
@@ -594,7 +799,7 @@ auto Llvm::Header::create(
     const Ttx::Model::Callable& callable = retained.get();
     auto symbol = functions.find_symbol(callable);
     if (!symbol ||
-        !write_result_definition(output, carriers, callable, *symbol)) {
+        !write_result_definition(output, carriers, names, callable, *symbol)) {
       return {};
     }
   }
@@ -608,7 +813,8 @@ auto Llvm::Header::create(
 
   for (const Llvm::Export& exported : exports) {
     if (!write_signature(
-            output, carriers, exported.get_callable(), exported.get_symbol())) {
+            output, carriers, names, exported.get_callable(),
+            exported.get_symbol())) {
       return {};
     }
   }
@@ -626,7 +832,7 @@ auto Llvm::Header::create(
       output << "const "_view;
     }
 
-    if (!write_type_name(output, carriers, addressable.get_type())) {
+    if (!write_type_name(output, carriers, names, addressable.get_type())) {
       return {};
     }
 
@@ -637,11 +843,33 @@ auto Llvm::Header::create(
        functions.get_foreign_callables()) {
     const Ttx::Model::Callable& callable = retained.get();
     auto symbol = functions.find_symbol(callable);
-    if (!symbol || !write_signature(output, carriers, callable, *symbol)) {
+    if (!symbol ||
+        !write_signature(output, carriers, names, callable, *symbol)) {
       return {};
     }
   }
 
   output << "\n#ifdef __cplusplus\n}\n#endif\n"_view;
+  return Llvm::Header(buffer.get_view());
+}
+
+auto Llvm::Header::identify(
+    Memory::Allocator::Arena& arena,
+    Core::View::Bytes source,
+    Core::View::Bytes owner,
+    Tetrodotoxin::Linker::Fingerprint fingerprint)
+    -> Core::Option<Llvm::Header> {
+  constexpr Core::View::Bytes opening = "#pragma once\n\n"_view;
+  if (owner.is_empty() || source.get_size() < opening.get_size() ||
+      source.slice(0, opening.get_size()) != opening) {
+    return {};
+  }
+
+  Memory::Managed::Bytes buffer(arena);
+  HeaderStream output(buffer);
+  output << opening << "#define TTX_ABI_FINGERPRINT_"_view;
+  write_package_name(output, owner);
+  output << " \""_view << fingerprint.render(arena) << "\"\n\n"_view
+         << source.slice(opening.get_size());
   return Llvm::Header(buffer.get_view());
 }

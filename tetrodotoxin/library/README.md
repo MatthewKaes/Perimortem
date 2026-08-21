@@ -1055,9 +1055,12 @@ declaration requires an initializer that folds completely during linking. It
 never creates mutable local storage or an assignment target. An explicit Type
 receives and fits the initializer. An inferred local retains the initializer's
 exact completed Type under the same rules as an inferred Field. A local becomes
-visible after its declaration. A nested Block may shadow it with a different
-identity. A standalone `{ ... }` is itself one Statement and retains that exact
-nested Block rather than fabricating a control-flow owner.
+visible after its declaration. Every Local, `for` entry, and match payload name
+must be absent from its complete reachable lexical context. A nested Block
+therefore cannot shadow a preceding Local, Function parameter, loop entry,
+match payload, or another enclosing binding. A standalone `{ ... }` is itself
+one Statement and retains that exact nested Block rather than fabricating a
+control-flow owner.
 
 Diagnostic recovery does not change that transaction boundary. When an
 explicit Local Type has settled but its initializer fails, later Statements in

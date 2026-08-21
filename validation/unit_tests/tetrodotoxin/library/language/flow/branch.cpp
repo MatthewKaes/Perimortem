@@ -79,8 +79,8 @@ PERIMORTEM_UNIT_TEST(BranchTests, retained_blocks_and_condition_pack) {
       "public run : func = [] -> Unsigned_64 {\n"
       "  state outer : Unsigned_64 = 1;\n"
       "  if (true, 9) {\n"
-      "    state outer : Unsigned_64 = 3;\n"
-      "    outer += 1;\n"
+      "    state inner : Unsigned_64 = 3;\n"
+      "    inner += 1;\n"
       "  } else {\n"
       "    outer = 2;\n"
       "  }\n"
@@ -115,17 +115,16 @@ PERIMORTEM_UNIT_TEST(BranchTests, retained_blocks_and_condition_pack) {
   EXPECT_TEXT(
       conditional.get_anchor().get_span().caculate_text(source),
       "if (true, 9) {\n"
-      "    state outer : Unsigned_64 = 3;\n"
-      "    outer += 1;\n"
+      "    state inner : Unsigned_64 = 3;\n"
+      "    inner += 1;\n"
       "  } else {\n"
       "    outer = 2;\n"
       "  }"_view);
 
   const Abstract& outer = statements.get_data()[0].get_root();
-  const Abstract& shadowed =
-      conditional.get_body().resolve_context("outer"_view);
-  EXPECT(&shadowed != &outer);
-  EXPECT(shadowed.is<Language::Flow::Local>());
+  EXPECT(&conditional.get_body().resolve_context("outer"_view) == &outer);
+  const Abstract& inner = conditional.get_body().resolve_context("inner"_view);
+  EXPECT(inner.is<Language::Flow::Local>());
   auto alternate =
       conditional.get_alternate()->get_root().select<Language::Flow::Block>();
   ASSERT(alternate);

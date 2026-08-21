@@ -394,6 +394,7 @@ auto Language::Model::Layout::link(
       continue;
     }
     slot.edge = Reference<const Abstract>(*parameter);
+    cursor.get_associations().create(slot.anchor, *parameter);
   }
 
   return !failed && is_linked();

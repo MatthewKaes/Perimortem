@@ -1294,15 +1294,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, resource_slice_folds_const_access) {
   ASSERT(hello);
   auto hello_value = hello->get_constant();
   ASSERT(hello_value);
-  ASSERT_EQ(hello_value->get_layout().get_size(), Count(5));
-  static constexpr View::Bytes expected = "Hello"_view;
-  for (Count index = 0; index < expected.get_size(); index++) {
-    auto produced = hello_value->get_produced(index);
-    ASSERT(produced);
-    auto value = produced->producer.select<Language::Constants::Unsigned>();
-    ASSERT(value);
-    EXPECT_EQ(value->get_value(), Unsigned_64(expected[index]));
-  }
+  auto hello_bytes = hello_value->select<Language::Constants::Bytes>();
+  ASSERT(hello_bytes);
+  EXPECT_TEXT(hello_bytes->get_value(), "Hello"_view);
   EXPECT(errors.is_empty());
 }
 

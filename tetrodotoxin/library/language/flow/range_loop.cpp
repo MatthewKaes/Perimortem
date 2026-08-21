@@ -121,6 +121,29 @@ auto Language::Flow::RangeLoop::link(
       domain);
   selected_types.reset(authored_bindings.get_size());
   for (const AuthoredBinding& binding : authored_bindings.get_view()) {
+    const Abstract& shadowed = lexical_context.resolve_context(binding.name);
+    if (!shadowed.is<Invalid>()) {
+      auto report =
+          cursor.create_report(Anchor::create(Span(binding.name_token)));
+      report << "Library for binding shadows a reachable lexical binding."_view;
+      auto& note = report.get_hint();
+      note << "Rename this binding so every enclosing name remains "
+              "unambiguous."_view;
+      auto original = cursor.get_associations().find(shadowed);
+      if (original) {
+        Token focus = original->get_token();
+        if (!focus) {
+          focus = original->get_span().get_start();
+        }
+        if (focus) {
+          note << " Original declaration: "_view << cursor.get_source_path()
+               << ":"_view << focus.get_line() << ":"_view << focus.get_column()
+               << "."_view;
+        }
+      }
+      return False;
+    }
+
     auto selected =
         binding.type_reference.resolve_authored(cursor, lexical_context);
     BAIL_IF(!selected);

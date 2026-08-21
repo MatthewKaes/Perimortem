@@ -25,7 +25,7 @@ static constexpr Unsigned_32 section_header_size = 8;
 static constexpr Unsigned_16 required_field = 1;
 static constexpr Unsigned_16 interface_profile = 1;
 static constexpr Unsigned_64 section_count =
-    Unsigned_8(Package::Archive::Archive::Sections::Exports);
+    Unsigned_8(Package::Archive::Archive::Sections::ArtifactMetadata);
 
 // Holds the proven payload size for each canonical section and the complete
 // envelope. These measurements belong to one write transaction and never
@@ -36,6 +36,7 @@ struct FormatSizes {
   Unsigned_32 members = 0;
   Unsigned_32 artifact_ids = 0;
   Unsigned_32 exports = 0;
+  Unsigned_32 artifact_metadata = 0;
   Unsigned_32 body = 0;
   Count total = 0;
 };
@@ -60,6 +61,22 @@ static auto measure_member_record(const Package::Archive::Member& member)
          measure_sized_bytes(member.get_payload());
 }
 
+static auto measure_import_record(const Linker::Import& import) -> Unsigned_64 {
+  return 1 + measure_sized_bytes(import.get_abi()) +
+         measure_sized_bytes(import.get_symbol()) +
+         measure_sized_bytes(import.get_provider());
+}
+
+static auto measure_artifact_record(const Package::Archive::Artifact& artifact)
+    -> Unsigned_64 {
+  Unsigned_64 size = measure_sized_bytes(artifact.get_id()) +
+                     measure_sized_bytes(artifact.get_target()) + 8 + 4;
+  for (const Linker::Import& import : artifact.get_imports()) {
+    size += 4 + measure_import_record(import);
+  }
+  return size;
+}
+
 static auto measure_export_record(const Package::Archive::Export& entry)
     -> Unsigned_64 {
   return measure_sized_bytes(entry.get_semantic_route()) +
@@ -67,19 +84,19 @@ static auto measure_export_record(const Package::Archive::Export& entry)
          measure_sized_bytes(entry.get_symbol_locator());
 }
 
-// Measures all six section payloads and the complete body with unsigned 64 bit
-// locals. Every nested value contributes a positive part of the body. Proving
-// the body fits therefore proves every unsigned 32 bit section and record size
-// fits before allocation begins.
+// Measures all seven section payloads and the complete body with unsigned 64
+// bit locals. Every nested value contributes a positive part of the body.
+// Proving the body fits therefore proves every unsigned 32 bit section and
+// record size fits before allocation begins.
 static auto calculate_sizes(const Package::Archive::Archive& archive)
     -> Option<FormatSizes> {
   auto dependency_values = archive.get_dependencies();
   auto member_values = archive.get_members();
-  auto artifact_ids = archive.get_artifact_ids();
+  auto artifacts_values = archive.get_artifacts();
   auto export_values = archive.get_exports();
   if (dependency_values.get_size() > format_limit ||
       member_values.get_size() > format_limit ||
-      artifact_ids.get_size() > format_limit ||
+      artifacts_values.get_size() > format_limit ||
       export_values.get_size() > format_limit) {
     return {};
   }
@@ -96,9 +113,14 @@ static auto calculate_sizes(const Package::Archive::Archive& archive)
     members += 4 + measure_member_record(member_values.get_data()[i]);
   }
 
-  Unsigned_64 artifact_ids_size = 4;
-  for (Count i = 0; i < artifact_ids.get_size(); i++) {
-    artifact_ids_size += 4 + measure_sized_bytes(artifact_ids.get_data()[i]);
+  Unsigned_64 artifact_ids = 4;
+  Unsigned_64 artifact_metadata = 4;
+  for (const Package::Archive::Artifact& artifact : artifacts_values) {
+    if (artifact.get_imports().get_size() > format_limit) {
+      return {};
+    }
+    artifact_ids += 4 + measure_sized_bytes(artifact.get_id());
+    artifact_metadata += 4 + measure_artifact_record(artifact);
   }
 
   Unsigned_64 exports = 4;
@@ -107,7 +129,8 @@ static auto calculate_sizes(const Package::Archive::Archive& archive)
   }
 
   Unsigned_64 body = section_header_size * section_count + identity + 4 +
-                     dependencies + members + artifact_ids_size + exports;
+                     dependencies + members + artifact_ids + exports +
+                     artifact_metadata;
   if (body > format_limit) {
     return {};
   }
@@ -116,8 +139,9 @@ static auto calculate_sizes(const Package::Archive::Archive& archive)
     .identity = Unsigned_32(identity),
     .dependencies = Unsigned_32(dependencies),
     .members = Unsigned_32(members),
-    .artifact_ids = Unsigned_32(artifact_ids_size),
+    .artifact_ids = Unsigned_32(artifact_ids),
     .exports = Unsigned_32(exports),
+    .artifact_metadata = Unsigned_32(artifact_metadata),
     .body = Unsigned_32(body),
     .total = Count(body) + Package::Archive::Archive::header_size,
   };
@@ -125,7 +149,7 @@ static auto calculate_sizes(const Package::Archive::Archive& archive)
 
 // Writes one required section header from the Archive vocabulary. Reader may
 // accept bounded optional extensions, but canonical output contains only these
-// six known sections.
+// seven known sections.
 static auto write_section_header(
     LittleWriter& writer,
     Package::Archive::Archive::Sections section,
@@ -144,12 +168,12 @@ static auto write_sized_bytes(LittleWriter& writer, View::Bytes value) -> void {
 
 auto Package::Archive::Writer::write(const Archive& archive)
     -> Option<Dynamic::Bytes> {
-  // Prove the complete envelope fits Format 1 before allocating or emitting
+  // Prove the complete envelope fits Format 2 before allocating or emitting
   // any output.
   auto measured = calculate_sizes(archive);
   if (!measured) {
     Diagnostics::Log::warning(
-        "Package::Archive::Writer exceeded the Format 1 body limit."_view);
+        "Package::Archive::Writer exceeded the Format 2 body limit."_view);
     return {};
   }
 
@@ -161,9 +185,9 @@ auto Package::Archive::Writer::write(const Archive& archive)
   output.forgetful_resize(sizes.total);
   LittleWriter writer(output.get_access());
 
-  // Establish the fixed Format 1 header before emitting any section payload.
+  // Establish the fixed Format 2 header before emitting any section payload.
   writer << "TTXA"_view;
-  writer << Unsigned_16(1);
+  writer << Unsigned_16(2);
   writer << Unsigned_16(
       archive.get_profile() ==
               Tetrodotoxin::Language::Persistence::Profile::Interface
@@ -210,17 +234,17 @@ auto Package::Archive::Writer::write(const Archive& archive)
     write_sized_bytes(writer, member.get_payload());
   }
 
-  // Encode each artifact ID directly because Archive retains no wrapper around
-  // the logical byte value.
+  // Artifact identity remains the direct Export reference section. Metadata
+  // repeats the ID later so Reader can reject a missing or duplicate agreement.
   write_section_header(
       writer, Archive::Sections::ArtifactIds, sizes.artifact_ids);
-  auto artifact_ids = archive.get_artifact_ids();
-  writer << Unsigned_32(artifact_ids.get_size());
-  for (Count i = 0; i < artifact_ids.get_size(); i++) {
-    View::Bytes artifact_id = artifact_ids.get_data()[i];
-    Unsigned_32 record_size = Unsigned_32(measure_sized_bytes(artifact_id));
+  auto artifacts = archive.get_artifacts();
+  writer << Unsigned_32(artifacts.get_size());
+  for (const Package::Archive::Artifact& artifact : artifacts) {
+    Unsigned_32 record_size =
+        Unsigned_32(measure_sized_bytes(artifact.get_id()));
     writer << record_size;
-    write_sized_bytes(writer, artifact_id);
+    write_sized_bytes(writer, artifact.get_id());
   }
 
   // Preserve Export order and keep each semantic route, artifact reference,
@@ -237,11 +261,32 @@ auto Package::Archive::Writer::write(const Archive& archive)
     write_sized_bytes(writer, entry.get_symbol_locator());
   }
 
+  // Target ABI metadata follows routing so Format 2 keeps the original six
+  // section offsets stable and adds one independently framed agreement.
+  write_section_header(
+      writer, Archive::Sections::ArtifactMetadata, sizes.artifact_metadata);
+  writer << Unsigned_32(artifacts.get_size());
+  for (const Package::Archive::Artifact& artifact : artifacts) {
+    Unsigned_32 record_size = Unsigned_32(measure_artifact_record(artifact));
+    writer << record_size;
+    write_sized_bytes(writer, artifact.get_id());
+    write_sized_bytes(writer, artifact.get_target());
+    writer << artifact.get_fingerprint().get_value();
+    writer << Unsigned_32(artifact.get_imports().get_size());
+    for (const Linker::Import& import : artifact.get_imports()) {
+      writer << Unsigned_32(measure_import_record(import));
+      writer << Unsigned_8(import.get_kind());
+      write_sized_bytes(writer, import.get_abi());
+      write_sized_bytes(writer, import.get_symbol());
+      write_sized_bytes(writer, import.get_provider());
+    }
+  }
+
   // Require emission to finish at the measured boundary. A mismatch means the
   // measurement and canonical encoding no longer describe the same format.
   if (!writer.is_valid() || writer.get_location() != output.get_size()) {
     Diagnostics::Log::error(
-        "Package::Archive::Writer did not emit the measured Format 1 "
+        "Package::Archive::Writer did not emit the measured Format 2 "
         "size."_view);
     return {};
   }
@@ -255,7 +300,7 @@ auto Package::Archive::Writer::write(
     View::Bytes identity,
     Perimortem::System::Version version,
     Tetrodotoxin::Language::Persistence::Profile profile,
-    View::Vector<View::Bytes> artifact_ids,
+    View::Vector<Artifact> artifacts,
     View::Vector<Export> exports) -> Option<Dynamic::Bytes> {
   BAIL_IF(identity.is_empty());
 
@@ -282,6 +327,6 @@ auto Package::Archive::Writer::write(
 
   Archive archive(
       identity, version, package.get_dependencies(), members.get_view(),
-      artifact_ids, exports, profile);
+      artifacts, exports, profile);
   return write(archive);
 }

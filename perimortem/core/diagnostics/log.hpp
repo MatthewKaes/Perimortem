@@ -111,6 +111,13 @@ class Log {
       Core::View::Bytes message,
       const Source& location) -> void;
 
+  // Writes only the supplied message to the selected console stream. This is
+  // for diagnostics that already own their complete source presentation.
+  static auto plain_sink(
+      Level level,
+      Core::View::Bytes message,
+      const Source& location) -> void;
+
   // Uses the console sink but writes colored text.
   // Grey for debug, white for info, yellow for warning, red for error and
   // fatal.
