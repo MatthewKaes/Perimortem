@@ -469,10 +469,12 @@ def run_test():
     print("\n--- Semantic tokens: Library/default dialect ---")
     library_source = (
         "dialect : Library;\n"
+        "@first @second\n"
         "public func run[] -> Count {\n"
         "  pair.left;\n"
         "  pair -> sum();\n"
         "  source -> helper();\n"
+        "  foreign -> external();\n"
         "  while (true) {\n"
         "    continue;\n"
         "  }\n"
@@ -486,10 +488,16 @@ def run_test():
     library_tokens = semantic_token_texts(library_source, library_data)
     library_texts = [text for text, _ in library_tokens]
     check(len(library_data) > 0, "Library document returns semantic tokens")
+    check(("@first", 12) in library_tokens and
+          ("@second", 12) in library_tokens and
+          ("public", 7) in library_tokens,
+          "attributes preserve complete ranges and following columns")
     check("while" in library_texts and "continue" in library_texts,
           "Library document highlights loop-control keywords")
     check(("source", 7) in library_tokens,
           "Library document highlights the Source routing keyword")
+    check(("foreign", 7) in library_tokens,
+          "Library document highlights the Foreign routing keyword")
     check(("left", 5) in library_tokens,
           "address access highlights the selected property")
     check(("sum", 6) in library_tokens,

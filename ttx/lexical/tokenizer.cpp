@@ -159,7 +159,10 @@ static auto parse_attribute(Context& ctx) -> void {
 
   ctx.advance_parse();
   ctx.add_token(Code::Type::Attribute);
+  // The retained token omits '@', but its source column begins at that prefix.
+  // Advance both widths so every following token keeps its authored column.
   ctx.advance_column();
+  ctx.advance_column(Lexicon::get_spelling(Code::Type::Attribute).get_size());
 }
 
 static auto parse_number(Context& ctx) -> void {

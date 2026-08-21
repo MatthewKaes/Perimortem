@@ -151,6 +151,37 @@ PERIMORTEM_UNIT_TEST(TtxLexical, reserved_keywords) {
   EXPECT(token_data[expected_size + 2].get_code() == Code::Type::Terminal);
 }
 
+PERIMORTEM_UNIT_TEST(TtxLexical, attributes_preserve_source_columns) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(arena, "@first @second value"_view, "Test.Package"_view);
+
+  View::Vector<Token> tokens = tokenizer.get_tokens();
+  View::Bytes source = tokenizer.get_source_text();
+  ASSERT_EQ(tokens.get_size(), Count(4));
+
+  EXPECT(tokens[0].get_code() == Code::Type::Attribute);
+  EXPECT_TEXT(tokens[0].caculate_text(source), "first"_view);
+  EXPECT_EQ(tokens[0].get_offset(), Unsigned_32(1));
+  EXPECT_EQ(tokens[0].get_column(), Unsigned_32(1));
+  EXPECT_EQ(tokens[0].get_size(), Unsigned_32(5));
+
+  EXPECT(tokens[1].get_code() == Code::Type::Attribute);
+  EXPECT_TEXT(tokens[1].caculate_text(source), "second"_view);
+  EXPECT_EQ(tokens[1].get_offset(), Unsigned_32(8));
+  EXPECT_EQ(tokens[1].get_column(), Unsigned_32(8));
+  EXPECT_EQ(tokens[1].get_size(), Unsigned_32(6));
+
+  EXPECT(tokens[2].get_code() == Code::Type::Addressable);
+  EXPECT_TEXT(tokens[2].caculate_text(source), "value"_view);
+  EXPECT_EQ(tokens[2].get_offset(), Unsigned_32(15));
+  EXPECT_EQ(tokens[2].get_column(), Unsigned_32(16));
+  EXPECT_EQ(tokens[2].get_size(), Unsigned_32(5));
+
+  EXPECT(tokens[3].get_code() == Code::Type::Terminal);
+  EXPECT_EQ(tokens[3].get_offset(), Unsigned_32(20));
+  EXPECT_EQ(tokens[3].get_column(), Unsigned_32(21));
+}
+
 PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
   using Token = Code::Type;
 

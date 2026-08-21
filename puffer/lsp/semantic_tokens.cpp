@@ -10,6 +10,7 @@
 #include "perimortem/serialization/json/blueprint.hpp"
 
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/lexical/lexicon.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
@@ -150,11 +151,19 @@ static auto source_dialect(View::Vector<Token> tokens, View::Bytes source)
   return "Library"_view;
 }
 
-static auto contextual_semantic_token(View::Vector<Token> tokens, Count index)
-    -> Signed_64 {
+static auto contextual_semantic_token(
+    View::Vector<Token> tokens,
+    Count index,
+    View::Bytes source,
+    View::Bytes dialect) -> Signed_64 {
   Code code = tokens[index].get_code();
   if (code != Code::Type::Addressable) {
     return classify_semantic_token(code);
+  }
+
+  if (dialect == "Library"_view &&
+      tokens[index].caculate_text(source) == "foreign"_view) {
+    return SemanticKeyword;
   }
 
   Code previous =
@@ -230,7 +239,8 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
       continue;
     }
 
-    Signed_64 token_type = contextual_semantic_token(tokens, i);
+    Signed_64 token_type =
+        contextual_semantic_token(tokens, i, cursor.get_source_text(), dialect);
     if (token_type < 0) {
       continue;
     }
@@ -243,7 +253,11 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
 
     data.insert(Json::Node(Signed_64(delta_line)));
     data.insert(Json::Node(Signed_64(delta_column)));
-    data.insert(Json::Node(Signed_64(text.get_size())));
+    Count width = text.get_size();
+    if (token.get_code() == Code::Type::Attribute) {
+      width += Lexicon::get_spelling(Code::Type::Attribute).get_size();
+    }
+    data.insert(Json::Node(Signed_64(width)));
     data.insert(Json::Node(token_type));
     data.insert(Json::Node(Signed_64(0)));
 
