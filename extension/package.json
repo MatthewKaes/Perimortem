@@ -9,7 +9,7 @@
   "author": "Matt Kaes",
   "license": "MIT",
   "icon": "media/icon.png",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "keywords": [
     "TTX",
     "Tetrodotoxin",
@@ -49,7 +49,9 @@
       {
         "id": "tetrodotoxin",
         "aliases": [
-          "Tetrodotoxin"
+          "Tetrodotoxin",
+          "TTX",
+          "ttx"
         ],
         "extensions": [
           ".ttx"

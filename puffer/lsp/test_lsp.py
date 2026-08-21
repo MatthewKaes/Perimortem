@@ -535,7 +535,7 @@ def run_test():
     dense_markdown = (
         (dense_resp.get("result") or {}).get("contents", {}).get("value", "")
         if dense_resp else "")
-    check("> Test documentation string for variable" in dense_markdown,
+    check("Test documentation string for variable" in dense_markdown,
           "Local hover delegates to its Statement documentation")
 
     function_resp = send_hover(
@@ -544,7 +544,7 @@ def run_test():
         (function_resp.get("result") or {}).get("contents", {}).get("value", "")
         if function_resp else "")
     check("func execute" in function_markdown and
-          "> Test documentation string for function" in function_markdown,
+          "Test documentation string for function" in function_markdown,
           "Function hover includes documentation interleaved with attributes")
 
     changed_hover_source = hover_source.replace(
@@ -588,12 +588,13 @@ def run_test():
         if field_resp else "")
     check("state value : Unsigned_64" in field_markdown,
           "hover resolves a state Field declaration and exact Type")
-    check("**Kind:** State field" in field_markdown and
-          "**Type:** `Unsigned_64`" in field_markdown,
-          "state Field hover includes styled semantic details")
-    check("**Documentation**" in field_markdown and
-          "> Current value documentation." in field_markdown,
-          "state Field hover includes attached documentation")
+    check("```tetrodotoxin\nstate value : Unsigned_64\n```" in
+          field_markdown,
+          "state Field hover uses one theme-highlighted declaration")
+    check("Current value documentation." in field_markdown and
+          "**Kind:**" not in field_markdown and
+          "**Documentation**" not in field_markdown,
+          "state Field hover presents attached documentation without labels")
 
     type_start = detail_source.index("public Bucket : struct")
     type_resp = send_hover(
@@ -601,10 +602,9 @@ def run_test():
     type_markdown = (
         (type_resp.get("result") or {}).get("contents", {}).get("value", "")
         if type_resp else "")
-    check("type Bucket" in type_markdown and
-          "**Kind:** Type" in type_markdown,
-          "hover resolves an authored Type declaration")
-    check("> Storage Type documentation." in type_markdown,
+    check("```tetrodotoxin\ntype Bucket\n```" in type_markdown,
+          "hover resolves an authored Type in a highlighted declaration")
+    check("Storage Type documentation." in type_markdown,
           "Type hover includes attached documentation")
 
     local_start = detail_source.index("state bucket")
@@ -614,9 +614,8 @@ def run_test():
         (local_resp.get("result") or {}).get("contents", {}).get("value", "")
         if local_resp else "")
     check("state bucket : Bucket" in local_markdown and
-          "**Kind:** State local" in local_markdown and
-          "**Type:** `Bucket`" in local_markdown,
-          "hover resolves a state Local declaration and resolved Type")
+          "```tetrodotoxin" in local_markdown,
+          "hover resolves a state Local and its Type in one declaration")
 
     escaped_start = detail_source.index("const escaped")
     escaped_resp = send_hover(
@@ -633,9 +632,8 @@ def run_test():
         (alias_resp.get("result") or {}).get("contents", {}).get("value", "")
         if alias_resp else "")
     check("BucketAlias : alias = Bucket" in alias_markdown and
-          "**Kind:** Type alias" in alias_markdown and
-          "**Resolves to:** `Bucket`" in alias_markdown,
-          "hover preserves the authored Alias at a Type reference")
+          "```tetrodotoxin" in alias_markdown,
+          "hover preserves the authored Alias and target in one declaration")
     check(alias_markdown.index("Alias documentation.") <
           alias_markdown.index("Storage Type documentation.")
           if "Alias documentation." in alias_markdown and
