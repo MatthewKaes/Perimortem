@@ -8,7 +8,7 @@
 #include "perimortem/serialization/json/blueprint.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "tetrodotoxin/library/language/access/call.hpp"
+#include "puffer/lsp/semantic.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/enumeration.hpp"
@@ -17,7 +17,6 @@
 #include "tetrodotoxin/library/language/constants/real.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
-#include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/flow/local.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
@@ -177,25 +176,6 @@ static auto writability_name(Writability writability) -> View::Bytes {
   return writability == Writability::Constant ? "const"_view : "state"_view;
 }
 
-static auto semantic_subject(const Abstract& semantic) -> const Abstract& {
-  auto call = semantic.select<Tetrodotoxin::Library::Language::Access::Call>();
-  if (call) {
-    auto callable = call->get_callable();
-    if (callable) {
-      return *callable;
-    }
-  }
-
-  auto expression = semantic.select<Expression>();
-  if (expression) {
-    const Abstract& result = expression->get_result();
-    if (&result != &*expression && !result.is<Invalid>()) {
-      return result;
-    }
-  }
-  return semantic;
-}
-
 static auto append_declaration(
     Stream::Textual<Managed::Bytes>& output,
     const Abstract& subject) -> Bool {
@@ -225,7 +205,7 @@ static auto append_declaration(
 
   auto parameter = subject.select<Parameter>();
   if (parameter) {
-    output << "parameter "_view << parameter->get_name() << " : "_view
+    output << ".parameter "_view << parameter->get_name() << " : "_view
            << parameter->get_type().get_name();
     return True;
   }
@@ -238,13 +218,13 @@ static auto append_declaration(
 
   auto callable = subject.select<Model::Callable>();
   if (callable) {
-    output << "callable "_view << callable->get_name();
+    output << "func "_view << callable->get_name();
     return True;
   }
 
   auto type = subject.select<Model::Type>();
   if (type) {
-    output << "type "_view << type->get_name();
+    output << "Type "_view << type->get_name();
     return True;
   }
 

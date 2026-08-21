@@ -5,8 +5,8 @@ using Helper;
 using Memory;
 
 public run : func = [] -> [] {
-  state prefix := Helper -> prefix();
-  state line   := System::Terminal -> read_line()?;
-  state view   := line -> get_view();
-  System::Terminal -> write_line(Dynamic::Bytes -> concat(prefix, view))?;
+  state line_prefix := Helper -> prefix();
+  state line        := System::Terminal -> read_line()?;
+  state view        := line -> get_view();
+  System::Terminal -> write_line(Dynamic::Bytes -> concat(line_prefix, view))?;
 }

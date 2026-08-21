@@ -13,6 +13,7 @@ Tetrodotoxin TTX adds editor support for `.ttx` source files.
 - full-document synchronization for open files
 - source diagnostics with editor ranges
 - hover for documentation, declaration Types, and folded constants
+- go to definition across authored Package sources
 - canonical full-document formatting with best-effort malformed-source support
 - CodeLLDB breakpoint enablement and TTX carrier summaries
 
@@ -63,10 +64,10 @@ Debugger configuration remains separate from the language-client lifecycle.
 
 The Linux extension package includes the `puffer` language-server binary and
 starts it for Tetrodotoxin documents. Puffer tracks open document text and
-provides diagnostics, hover, formatting, and full semantic-token responses over
-the Language Server Protocol. This binary carries Perimortem's fixed Dialect set. Projects
-with additional Dialects build and package their own extended Puffer. A future
-tutorial will cover that workflow.
+provides diagnostics, hover, go to definition, formatting, and full
+semantic-token responses over the Language Server Protocol. This binary carries
+Perimortem's fixed Dialect set. Projects with additional Dialects build and
+package their own extended Puffer. A future tutorial will cover that workflow.
 
 Run `./extension/package.sh` from the repository to build Puffer and create the
 versioned VSIX beneath `.vscode`. Pass `--install` only when the new package

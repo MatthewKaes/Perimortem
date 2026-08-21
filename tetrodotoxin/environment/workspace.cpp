@@ -126,7 +126,9 @@ auto Environment::Workspace::interpret_source(
   // Publication follows complete source semantics. Until this point the
   // Workspace has no lookup edge or retained Arena for the candidate graph.
   published_sources.insert({
+    .package_root = {},
     .diagnostic_path = retained_path,
+    .source_text = retained_contents,
     .transaction = transaction,
     .monograph = *monograph,
     .associations = associations,
@@ -425,9 +427,12 @@ auto Environment::Workspace::import_package(
 
   // Retaining all Arenas is the transaction commit. Package aliases become
   // durable only with their owners, and every failure above publishes nothing.
+  View::Bytes retained_package_root = arena.proxy(package_root);
   for (Count i = 0; i < candidate_transactions.get_size(); i++) {
     published_sources.insert({
+      .package_root = retained_package_root,
       .diagnostic_path = diagnostic_paths[i],
+      .source_text = cursors[i]->get_source_text(),
       .transaction = candidate_transactions[i],
       .monograph = *candidates[i],
       .associations = cursors[i]->get_associations(),
@@ -587,6 +592,20 @@ auto Environment::Workspace::get_associations(
     const PublishedSource& source = published_sources[i];
     if (&source.monograph == &monograph) {
       return source.associations;
+    }
+  }
+
+  return {};
+}
+
+auto Environment::Workspace::find_authored_location(
+    const Abstract& semantic) const -> Option<AuthoredLocation> {
+  for (const PublishedSource& source : published_sources.get_view()) {
+    auto anchor = source.associations.find(semantic);
+    if (anchor) {
+      return AuthoredLocation(
+          source.package_root, source.diagnostic_path, source.source_text,
+          *anchor);
     }
   }
 

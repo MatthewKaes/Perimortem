@@ -26,6 +26,40 @@ namespace Tetrodotoxin::Environment {
 // sources and fixed Package source tables complete atomically here.
 class Workspace : public Ttx::Concept::Abstract {
  public:
+  class AuthoredLocation {
+   public:
+    constexpr AuthoredLocation(
+        Perimortem::Core::View::Bytes package_root,
+        Perimortem::Core::View::Bytes diagnostic_path,
+        Perimortem::Core::View::Bytes source_text,
+        Ttx::Lexical::Anchor anchor)
+        : package_root(package_root),
+          diagnostic_path(diagnostic_path),
+          source_text(source_text),
+          anchor(anchor) {}
+
+    constexpr auto get_package_root() const -> Perimortem::Core::View::Bytes {
+      return package_root;
+    }
+
+    constexpr auto get_diagnostic_path() const
+        -> Perimortem::Core::View::Bytes {
+      return diagnostic_path;
+    }
+
+    constexpr auto get_source_text() const -> Perimortem::Core::View::Bytes {
+      return source_text;
+    }
+
+    constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
+
+   private:
+    Perimortem::Core::View::Bytes package_root;
+    Perimortem::Core::View::Bytes diagnostic_path;
+    Perimortem::Core::View::Bytes source_text;
+    Ttx::Lexical::Anchor anchor;
+  };
+
   Workspace(
       Toolchain& toolchain,
       Perimortem::Core::Option<
@@ -69,6 +103,9 @@ class Workspace : public Ttx::Concept::Abstract {
   auto get_associations(Perimortem::Core::View::Bytes diagnostic_path) const
       -> Perimortem::Core::Option<const Ttx::Lexical::Associations&>;
 
+  auto find_authored_location(const Ttx::Concept::Abstract& semantic) const
+      -> Perimortem::Core::Option<AuthoredLocation>;
+
   auto get_name() const -> Perimortem::Core::View::Bytes override;
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
@@ -85,7 +122,9 @@ class Workspace : public Ttx::Concept::Abstract {
   // One committed source record keeps its transaction alive and publishes its
   // immutable authored source index. The operation Cursor is not retained.
   struct PublishedSource {
+    Perimortem::Core::View::Bytes package_root;
     Perimortem::Core::View::Bytes diagnostic_path;
+    Perimortem::Core::View::Bytes source_text;
     Perimortem::Memory::Dynamic::Record<Perimortem::Memory::Allocator::Arena>
         transaction;
     Language::Monograph& monograph;

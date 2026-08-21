@@ -75,6 +75,27 @@ static auto decode_file_uri(View::Bytes uri) -> Dynamic::Bytes {
                                 : Dynamic::Bytes();
 }
 
+static auto encode_file_uri(View::Bytes path) -> Dynamic::Bytes {
+  constexpr View::Bytes hexadecimal = "0123456789ABCDEF"_view;
+  Dynamic::Bytes uri("file://"_view);
+  for (Count index = 0; index < path.get_size(); index++) {
+    Unsigned_8 byte = path[index];
+    Bool unreserved = (byte >= 'A' && byte <= 'Z') ||
+                      (byte >= 'a' && byte <= 'z') ||
+                      (byte >= '0' && byte <= '9') || byte == '-' ||
+                      byte == '.' || byte == '_' || byte == '~' || byte == '/';
+    if (unreserved) {
+      uri.append(byte);
+      continue;
+    }
+
+    uri.append('%');
+    uri.concat(hexadecimal.slice(byte >> 4, 1));
+    uri.concat(hexadecimal.slice(byte & 0x0F, 1));
+  }
+  return uri;
+}
+
 static auto join_path(View::Bytes directory, View::Bytes file)
     -> Dynamic::Bytes {
   Dynamic::Bytes joined(directory);
@@ -594,6 +615,119 @@ auto Lsp::Documents::find_semantic(
   auto associations = workspace->get_associations(source_name);
   return associations ? associations->find_at(*offset)
                       : Option<const Ttx::Concept::Abstract&>();
+}
+
+struct SourcePosition {
+  Count line = 0;
+  Count character = 0;
+};
+
+static auto byte_to_utf_16_position(View::Bytes source, Count target)
+    -> Option<SourcePosition> {
+  BAIL_IF(target > source.get_size());
+
+  SourcePosition position;
+  Count offset = 0;
+  while (offset < target) {
+    Unsigned_8 lead = source[offset];
+    if (lead == '\n') {
+      position.line++;
+      position.character = 0;
+      offset++;
+      continue;
+    }
+
+    Count width = 1;
+    Count units = 1;
+    if (lead >= 0xC2 && lead <= 0xDF) {
+      width = 2;
+    } else if (lead >= 0xE0 && lead <= 0xEF) {
+      width = 3;
+    } else if (lead >= 0xF0 && lead <= 0xF4) {
+      width = 4;
+      units = 2;
+    }
+
+    if (offset + width > target) {
+      return {};
+    }
+    for (Count index = 1; index < width; index++) {
+      if ((source[offset + index] & 0xC0) != 0x80) {
+        width = 1;
+        units = 1;
+        break;
+      }
+    }
+    offset += width;
+    position.character += units;
+  }
+  return position;
+}
+
+auto Lsp::Documents::find_definition(
+    View::Bytes source_uri,
+    const Ttx::Concept::Abstract& semantic) -> Option<Location> {
+  Count slot = find(source_uri);
+  BAIL_IF(slot == Count(-1));
+
+  Document& source_document = records[slot];
+  auto workspace = get_workspace(source_document);
+  BAIL_IF(!workspace);
+  auto authored = workspace->find_authored_location(semantic);
+  BAIL_IF(!authored);
+
+  Ttx::Lexical::Anchor anchor = authored->get_anchor();
+  Ttx::Lexical::Token focus = anchor.get_token();
+  Ttx::Lexical::Span span = anchor.get_span();
+  BAIL_IF(!focus && !span);
+  Count start = focus ? focus.get_offset() : span.get_offset();
+  Count size = focus ? focus.get_size() : span.get_size();
+  View::Bytes target_source = authored->get_source_text();
+  BAIL_IF(
+      start > target_source.get_size() ||
+      size > target_source.get_size() - start);
+  auto start_position = byte_to_utf_16_position(target_source, start);
+  auto end_position = byte_to_utf_16_position(target_source, start + size);
+  BAIL_IF(!start_position || !end_position);
+
+  Dynamic::Bytes target_uri;
+  View::Bytes package_root = authored->get_package_root();
+  View::Bytes diagnostic_path = authored->get_diagnostic_path();
+  for (const Document& document : records.get_view()) {
+    if (!document.active) {
+      continue;
+    }
+    Bool standalone = package_root.is_empty() &&
+                      document.package_root.is_empty() &&
+                      document.uri == diagnostic_path;
+    Bool package_member = !package_root.is_empty() &&
+                          document.package_root == package_root &&
+                          document.logical_route == diagnostic_path;
+    if (standalone || package_member) {
+      target_uri = document.uri;
+      break;
+    }
+  }
+
+  if (target_uri.is_empty()) {
+    constexpr View::Bytes file_prefix = "file://"_view;
+    if (package_root.is_empty() &&
+        diagnostic_path.get_size() >= file_prefix.get_size() &&
+        diagnostic_path.slice(0, file_prefix.get_size()) == file_prefix) {
+      target_uri = diagnostic_path;
+    } else {
+      Dynamic::Bytes path = package_root.is_empty()
+                                ? Dynamic::Bytes(diagnostic_path)
+                                : join_path(package_root, diagnostic_path);
+      Path normalized(path.get_view());
+      BAIL_IF(!normalized.is_rooted());
+      target_uri = encode_file_uri(normalized.get_view());
+    }
+  }
+
+  return Location(
+      target_uri, start_position->line, start_position->character,
+      end_position->line, end_position->character);
 }
 
 auto Lsp::Documents::invalidate_package(View::Bytes root) -> void {

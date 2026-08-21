@@ -199,9 +199,13 @@ auto Library::Language::Foreign::parse(
   }
   for (const Reference<State>& state : staged_states.get_view()) {
     states.insert(state);
+    cursor.get_associations().create(
+        state.get().get_definition().get_name_anchor(), state.get());
   }
   for (const Reference<Function>& function : staged_functions.get_view()) {
     functions.insert(function);
+    cursor.get_associations().create(
+        function.get().get_definition().get_name_anchor(), function.get());
   }
   for (const Reference<Abstract>& declaration :
        staged_declarations.get_view()) {

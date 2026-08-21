@@ -137,6 +137,40 @@ def send_hover(conn, uri, source_text, needle, request_id, start=0):
     return read_lsp_response(conn, timeout=10.0)
 
 
+def source_position(source_text, offset):
+    line = source_text.count("\n", 0, offset)
+    line_start = source_text.rfind("\n", 0, offset) + 1
+    character = len(
+        source_text[line_start:offset].encode("utf-16-le")) // 2
+    return {"line": line, "character": character}
+
+
+def send_definition(conn, uri, source_text, needle, request_id, start=0):
+    offset = source_text.index(needle, start)
+    conn.sendall(lsp_frame({
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": "textDocument/definition",
+        "params": {
+            "textDocument": {"uri": uri},
+            "position": source_position(source_text, offset),
+        },
+    }))
+    return read_lsp_response(conn, timeout=10.0)
+
+
+def matches_location(response, uri, source_text, needle, start=0):
+    location = response.get("result") if response else None
+    if not location or location.get("uri") != uri:
+        return False
+    offset = source_text.index(needle, start)
+    expected_start = source_position(source_text, offset)
+    expected_end = source_position(source_text, offset + len(needle))
+    target_range = location.get("range", {})
+    return (target_range.get("start") == expected_start and
+            target_range.get("end") == expected_end)
+
+
 def send_semantic_tokens(conn, uri, request_id):
     conn.sendall(lsp_frame({
         "jsonrpc": "2.0",
@@ -251,6 +285,8 @@ def run_test():
               "server supports full semantic token requests")
         check(bool(caps.get("hoverProvider")),
               "server advertises semantic hover")
+        check(bool(caps.get("definitionProvider")),
+              "server advertises go to definition")
         check(bool(caps.get("documentFormattingProvider")),
               "server advertises document formatting")
     else:
@@ -325,13 +361,21 @@ def run_test():
         "Package member resolves its sibling and Perimortem.System")
     prefix_use = main_source.index("Dynamic::Bytes -> concat")
     system_hover = send_hover(
-        conn, main_uri, main_source, "prefix", 11, prefix_use)
+        conn, main_uri, main_source, "line_prefix", 11, prefix_use)
     system_result = system_hover.get("result") if system_hover else None
     system_markdown = (
         system_result.get("contents", {}).get("value", "")
         if system_result else "")
-    check("state prefix : View[Unsigned_8]" in system_markdown,
+    check("state line_prefix : View[Unsigned_8]" in system_markdown,
           "Package hover uses the shared cross-source analysis snapshot")
+    helper_call = main_source.index("Helper -> prefix")
+    prefix_definition = send_definition(
+        conn, main_uri, main_source, "prefix", 41, helper_call)
+    helper_declaration = helper_source.index("public prefix")
+    check(matches_location(
+        prefix_definition, helper_uri, helper_source, "prefix",
+        helper_declaration),
+        "definition resolves a sibling Package member")
 
     bytes_hover = send_hover(
         conn, main_uri, main_source, "Bytes", 16, prefix_use)
@@ -339,9 +383,21 @@ def run_test():
     bytes_markdown = (
         bytes_result.get("contents", {}).get("value", "")
         if bytes_result else "")
-    check("type Bytes" in bytes_markdown and
+    check("Type Bytes" in bytes_markdown and
           "copy-on-write container of Unsigned_8 values" in bytes_markdown,
           "Package hover preserves exported Bytes Type documentation")
+    memory_path = os.path.join(
+        REPO_ROOT, "packages", "ttx", "Perimortem.Memory", "dynamic.ttx")
+    memory_uri = "file://" + memory_path
+    with open(memory_path, "r", encoding="utf-8") as f:
+        memory_source = f.read()
+    bytes_definition = send_definition(
+        conn, main_uri, main_source, "Bytes", 42, prefix_use)
+    bytes_declaration = memory_source.index("public Bytes")
+    check(matches_location(
+        bytes_definition, memory_uri, memory_source, "Bytes",
+        bytes_declaration),
+        "definition resolves an unopened dependency source")
 
     concat_hover = send_hover(
         conn, main_uri, main_source, "concat", 17, prefix_use)
@@ -352,6 +408,13 @@ def run_test():
     check("func concat" in concat_markdown and
           "every element of left followed by" in concat_markdown,
           "Package hover preserves exported Bytes Callable documentation")
+    concat_definition = send_definition(
+        conn, main_uri, main_source, "concat", 43, prefix_use)
+    concat_declaration = memory_source.index("public concat")
+    check(matches_location(
+        concat_definition, memory_uri, memory_source, "concat",
+        concat_declaration),
+        "definition resolves an exported Static Callable")
 
     get_view_use = main_source.index("line -> get_view")
     get_view_hover = send_hover(
@@ -368,38 +431,39 @@ def run_test():
     renamed_helper = helper_source.replace("public prefix", "public renamed")
     send_did_change(conn, helper_uri, renamed_helper, 2)
     invalidated_hover = send_hover(
-        conn, main_uri, main_source, "prefix", 12, prefix_use)
+        conn, main_uri, main_source, "line_prefix", 12, prefix_use)
     check(invalidated_hover is not None and
           invalidated_hover.get("result") is None,
           "editing one member invalidates the complete Package graph")
     send_did_change(conn, helper_uri, helper_source, 3)
     restored_hover = send_hover(
-        conn, main_uri, main_source, "prefix", 13, prefix_use)
+        conn, main_uri, main_source, "line_prefix", 13, prefix_use)
     restored_result = restored_hover.get("result") if restored_hover else None
     restored_markdown = (
         restored_result.get("contents", {}).get("value", "")
         if restored_result else "")
-    check("state prefix : View[Unsigned_8]" in restored_markdown,
+    check("state line_prefix : View[Unsigned_8]" in restored_markdown,
           "restoring an overlay rebuilds one complete Package snapshot")
 
     renamed_system = system_source.replace(
         "public read_line", "public renamed_line")
     send_did_change(conn, system_uri, renamed_system, 2)
     dependency_hover = send_hover(
-        conn, main_uri, main_source, "prefix", 14, prefix_use)
+        conn, main_uri, main_source, "line_prefix", 14, prefix_use)
     check(dependency_hover is not None and
           dependency_hover.get("result") is None,
           "editing a dependency invalidates every consuming Package graph")
     send_did_change(conn, system_uri, system_source, 3)
     dependency_restored_hover = send_hover(
-        conn, main_uri, main_source, "prefix", 15, prefix_use)
+        conn, main_uri, main_source, "line_prefix", 15, prefix_use)
     dependency_restored_result = (
         dependency_restored_hover.get("result")
         if dependency_restored_hover else None)
     dependency_restored_markdown = (
         dependency_restored_result.get("contents", {}).get("value", "")
         if dependency_restored_result else "")
-    check("state prefix : View[Unsigned_8]" in dependency_restored_markdown,
+    check("state line_prefix : View[Unsigned_8]" in
+          dependency_restored_markdown,
           "restoring a dependency overlay rebuilds its consumers")
 
     print("\n--- Semantic tokens: Library/default dialect ---")
@@ -537,6 +601,13 @@ def run_test():
         if dense_resp else "")
     check("Test documentation string for variable" in dense_markdown,
           "Local hover delegates to its Statement documentation")
+    dense_definition = send_definition(
+        conn, hover_uri, hover_source, "dense", 44, dense_use)
+    dense_declaration = hover_source.index("state dense", execute_start)
+    check(matches_location(
+        dense_definition, hover_uri, hover_source, "dense",
+        dense_declaration),
+        "definition resolves a same-source Local")
 
     function_resp = send_hover(
         conn, hover_uri, hover_source, "execute", 39, execute_start)
@@ -602,7 +673,7 @@ def run_test():
     type_markdown = (
         (type_resp.get("result") or {}).get("contents", {}).get("value", "")
         if type_resp else "")
-    check("```tetrodotoxin\ntype Bucket\n```" in type_markdown,
+    check("```tetrodotoxin\nType Bucket\n```" in type_markdown,
           "hover resolves an authored Type in a highlighted declaration")
     check("Storage Type documentation." in type_markdown,
           "Type hover includes attached documentation")
@@ -639,6 +710,59 @@ def run_test():
           if "Alias documentation." in alias_markdown and
           "Storage Type documentation." in alias_markdown else False,
           "Alias hover propagates local then target documentation")
+    alias_definition = send_definition(
+        conn, detail_uri, detail_source, "BucketAlias", 45, local_start)
+    alias_declaration = detail_source.index("public BucketAlias")
+    check(matches_location(
+        alias_definition, detail_uri, detail_source, "BucketAlias",
+        alias_declaration),
+        "definition preserves the authored Alias identity")
+
+    foreign_parameter_start = hover_source.index(
+        ".value : Object[Unsigned_8]")
+    foreign_parameter_resp = send_hover(
+        conn, hover_uri, hover_source, "value", 47,
+        foreign_parameter_start)
+    foreign_parameter_markdown = (
+        (foreign_parameter_resp.get("result") or {})
+        .get("contents", {}).get("value", "")
+        if foreign_parameter_resp else "")
+    check(
+        "```tetrodotoxin\n.parameter value : Object[Unsigned_8]\n```" in
+        foreign_parameter_markdown,
+        "Parameter hover uses pack-parameter highlighting")
+
+    foreign_call_start = hover_source.index(
+        "foreign -> llvm_object_identity")
+    foreign_call_resp = send_hover(
+        conn, hover_uri, hover_source, "llvm_object_identity", 48,
+        foreign_call_start)
+    foreign_call_markdown = (
+        (foreign_call_resp.get("result") or {})
+        .get("contents", {}).get("value", "")
+        if foreign_call_resp else "")
+    check(
+        "```tetrodotoxin\nfunc llvm_object_identity\n```" in
+        foreign_call_markdown,
+        "Foreign Callable hover uses func highlighting")
+
+    dense_call_start = hover_source.index("foreign -> llvm_dense_access")
+    dense_foreign_definition = send_definition(
+        conn, hover_uri, hover_source, "llvm_dense_access", 49,
+        dense_call_start)
+    dense_foreign_declaration = hover_source.index(
+        "public func llvm_dense_access")
+    check(matches_location(
+        dense_foreign_definition, hover_uri, hover_source,
+        "llvm_dense_access", dense_foreign_declaration),
+        "definition resolves a Foreign Callable declaration")
+
+    literal_start = detail_source.index("0x[09")
+    literal_definition = send_definition(
+        conn, detail_uri, detail_source, "09", 46, literal_start)
+    check(literal_definition is not None and
+          literal_definition.get("result") is None,
+          "definition ignores values without declaration identity")
 
     diagnostic_source = (
         "// Invalid hover source.\n"

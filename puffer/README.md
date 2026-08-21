@@ -182,6 +182,7 @@ The language server supports:
 * opening, replacing, and closing complete document text
 * source diagnostics with authored ranges
 * semantic hover for documentation, declaration facts, Types, and constants
+* go to definition for authored semantic identities across Package sources
 * semantic tokens for complete TTX documents
 * clean shutdown and exit handling
 

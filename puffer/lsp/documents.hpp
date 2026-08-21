@@ -25,6 +25,39 @@ namespace Puffer::Lsp {
 // and keep semantic work lazy until diagnostics or hover need the snapshot.
 class Documents {
  public:
+  class Location {
+   public:
+    Location(
+        Perimortem::Memory::Dynamic::Bytes uri,
+        Count start_line,
+        Count start_character,
+        Count end_line,
+        Count end_character)
+        : uri(uri),
+          start_line(start_line),
+          start_character(start_character),
+          end_line(end_line),
+          end_character(end_character) {}
+
+    constexpr auto get_uri() const -> Perimortem::Core::View::Bytes {
+      return uri.get_view();
+    }
+
+    constexpr auto get_start_line() const -> Count { return start_line; }
+    constexpr auto get_start_character() const -> Count {
+      return start_character;
+    }
+    constexpr auto get_end_line() const -> Count { return end_line; }
+    constexpr auto get_end_character() const -> Count { return end_character; }
+
+   private:
+    Perimortem::Memory::Dynamic::Bytes uri;
+    Count start_line;
+    Count start_character;
+    Count end_line;
+    Count end_character;
+  };
+
   class Diagnostics {
    public:
     constexpr Diagnostics(
@@ -58,6 +91,10 @@ class Documents {
       Count line,
       Count utf_16_character)
       -> Perimortem::Core::Option<const Ttx::Concept::Abstract&>;
+  auto find_definition(
+      Perimortem::Core::View::Bytes source_uri,
+      const Ttx::Concept::Abstract& semantic)
+      -> Perimortem::Core::Option<Location>;
   auto get_diagnostics(Perimortem::Core::View::Bytes uri)
       -> Perimortem::Core::Option<Diagnostics>;
   auto invalidate(Perimortem::Core::View::Bytes uri) -> void;

@@ -16,8 +16,13 @@
 #include "puffer/lsp/documents.hpp"
 #include "puffer/lsp/hover.hpp"
 #include "puffer/lsp/rpc/executor.hpp"
+#include "puffer/lsp/semantic.hpp"
 #include "puffer/lsp/semantic_tokens.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "ttx/lexical/formatter.hpp"
+#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -145,6 +150,7 @@ auto Puffer::Lsp::initialize(Documents&, const Rpc::Message& message)
                 {"change"_view, Signed_64(1)},
               }},
              {"hoverProvider"_view, True},
+             {"definitionProvider"_view, True},
              {"documentFormattingProvider"_view, True},
              {"semanticTokensProvider"_view,
               {
@@ -274,4 +280,58 @@ auto Puffer::Lsp::hover(Documents& documents, const Rpc::Message& message)
   }
 
   return message.report_result(semantic_hover(message.get_arena(), *semantic));
+}
+
+auto Puffer::Lsp::definition(Documents& documents, const Rpc::Message& message)
+    -> Rpc::Response {
+  Allocator::Arena& arena = message.get_arena();
+  const Json::Node params = message.get_params();
+  View::Bytes uri =
+      params["textDocument"_view]["uri"_view].decode_string(arena);
+  const Json::Node line = params["position"_view]["line"_view];
+  const Json::Node character = params["position"_view]["character"_view];
+  if (uri.is_empty() || !line.is_number() || !character.is_number() ||
+      line.get_number() < 0 || character.get_number() < 0) {
+    return message.report_result(Json::Node());
+  }
+
+  auto semantic = documents.find_semantic(
+      uri, Count(line.get_number()), Count(character.get_number()));
+  if (!semantic) {
+    return message.report_result(Json::Node());
+  }
+
+  const Ttx::Concept::Abstract& subject = semantic_subject(*semantic);
+  Bool definable =
+      subject.is<Ttx::Model::Alias>() ||
+      subject.is<Tetrodotoxin::Library::Language::Model::Addressable>() ||
+      subject.is<Tetrodotoxin::Library::Language::Model::Callable>() ||
+      subject.is<Tetrodotoxin::Library::Language::Model::Type>();
+  if (!definable) {
+    return message.report_result(Json::Node());
+  }
+  auto location = documents.find_definition(uri, subject);
+  if (!location) {
+    return message.report_result(Json::Node());
+  }
+
+  View::Bytes target_uri = arena.proxy(location->get_uri());
+  return message.report_result(
+      Json::Blueprint{
+        {
+          {"uri"_view, target_uri},
+          {"range"_view,
+           {
+             {"start"_view,
+              {
+                {"line"_view, location->get_start_line()},
+                {"character"_view, location->get_start_character()},
+              }},
+             {"end"_view,
+              {
+                {"line"_view, location->get_end_line()},
+                {"character"_view, location->get_end_character()},
+              }},
+           }},
+        }}.construct(arena));
 }
