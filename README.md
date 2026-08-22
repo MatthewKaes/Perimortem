@@ -1,5 +1,9 @@
 # Tetrodotoxin
 
+<p align="center">
+  <img src="extension/media/logo.png" alt="Tetrodotoxin Toolchain" width="100%">
+</p>
+
 Tetrodotoxin is an extensible language and toolchain platform for building
 domain specific systems. It brings source languages, shared semantic meaning,
 Packages, compilers, editor tooling, and a native runtime together under one
@@ -134,3 +138,7 @@ Tetrodotoxin is an active research and development platform. Its distribution
 is designed as a self contained SDK for editing, packaging, compiling, linking,
 and debugging Tetrodotoxin projects. The supported development host is x86 64
 Linux with Wayland and Vulkan.
+
+## License
+
+Tetrodotoxin is available under the [MIT License](LICENSE).

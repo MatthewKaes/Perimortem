@@ -1,11 +1,15 @@
 # Tetrodotoxin for Visual Studio Code
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/MatthewKaes/Tetrodotoxin/main/extension/media/logo.png" alt="Tetrodotoxin Toolchain" width="100%">
+</p>
+
 Tetrodotoxin brings purpose built languages into one coherent systems project.
 This extension gives those languages a shared editor experience, so a Package
 manifest, CPU Library, application policy, Scene, render contract, and Shader
 still feel like parts of the same program.
 
-![Tetrodotoxin editor preview](https://raw.githubusercontent.com/MatthewKaes/Perimortem/main/extension/media/ttx-preview.png)
+![Tetrodotoxin editor preview](https://raw.githubusercontent.com/MatthewKaes/Tetrodotoxin/main/extension/media/ttx-preview.png)
 
 ## Understand the program as you write it
 
@@ -90,11 +94,11 @@ Code settings:
 
 ## Explore the platform
 
-* [Tetrodotoxin](https://github.com/MatthewKaes/Perimortem/blob/main/tetrodotoxin/README.md)
+* [Tetrodotoxin](https://github.com/MatthewKaes/Tetrodotoxin/blob/main/tetrodotoxin/README.md)
   introduces the language and toolchain platform
-* [TTX](https://github.com/MatthewKaes/Perimortem/blob/main/ttx/README.md)
+* [TTX](https://github.com/MatthewKaes/Tetrodotoxin/blob/main/ttx/README.md)
   explains the shared semantic vocabulary
-* [Puffer](https://github.com/MatthewKaes/Perimortem/blob/main/puffer/README.md)
+* [Puffer](https://github.com/MatthewKaes/Tetrodotoxin/blob/main/puffer/README.md)
   documents the command and editor host
-* [Standard Packages](https://github.com/MatthewKaes/Perimortem/blob/main/packages/ttx/README.md)
+* [Standard Packages](https://github.com/MatthewKaes/Tetrodotoxin/blob/main/packages/ttx/README.md)
   describe the included Memory, Math, System, and Graphics APIs

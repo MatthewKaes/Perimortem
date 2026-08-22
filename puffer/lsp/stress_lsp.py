@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Perimortem Engine
-Copyright © Matt Kaes
+Tetrodotoxin
+Copyright (c) 2023-present Matt Kaes and contributors
 
 Bounded Puffer LSP stress harness.
 

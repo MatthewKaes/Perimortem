@@ -1,5 +1,5 @@
-// Perimortem Engine
-// Copyright © Matt Kaes
+// Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
 
 // The native bridge enters LLVM before the Perimortem owner so LLVM's standard
 // declarations remain confined to this implementation unit.

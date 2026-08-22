@@ -26,9 +26,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/MatthewKaes/Perimortem"
+    "url": "https://github.com/MatthewKaes/Tetrodotoxin"
   },
-  "homepage": "https://github.com/MatthewKaes/Perimortem/blob/main/README.md",
+  "homepage": "https://github.com/MatthewKaes/Tetrodotoxin/blob/main/README.md",
   "activationEvents": [
     "onLanguage:tetrodotoxin",
     "onDebugResolve:lldb",
