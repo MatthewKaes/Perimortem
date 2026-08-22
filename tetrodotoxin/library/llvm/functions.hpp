@@ -12,7 +12,9 @@
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/language/definition.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/model/addressable.hpp"
 #include "ttx/model/callable.hpp"
+#include "ttx/model/pack.hpp"
 #include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Llvm {
@@ -53,6 +55,34 @@ class Functions {
     Perimortem::Core::Option<LLVMTypeRef> sret_type;
   };
 
+  // ConstructionField is one target lowering fact supplied by the aggregate
+  // Type that owns the Field order and default. It retains only original graph
+  // identities; LLVM neither discovers Fields nor manufactures a semantic
+  // construction model.
+  class ConstructionField {
+   public:
+    constexpr ConstructionField(
+        const Ttx::Model::Addressable& field,
+        const Ttx::Model::Pack& fallback,
+        Bool parameter)
+        : field(field), fallback(fallback), parameter(parameter) {}
+
+    constexpr auto get_field() const -> const Ttx::Model::Addressable& {
+      return field.get();
+    }
+
+    constexpr auto get_fallback() const -> const Ttx::Model::Pack& {
+      return fallback.get();
+    }
+
+    constexpr auto is_parameter() const -> Bool { return parameter; }
+
+   private:
+    Ttx::Concept::Reference<const Ttx::Model::Addressable> field;
+    Ttx::Concept::Reference<const Ttx::Model::Pack> fallback;
+    Bool parameter;
+  };
+
   auto reserve_function(
       Ttx::Concept::Abstract& program,
       const Ttx::Model::Callable& callable,
@@ -68,8 +98,26 @@ class Functions {
 
   auto reserve_construction(
       Ttx::Concept::Abstract& program,
-      const Ttx::Model::Callable& callable,
-      const Ttx::Model::Type& owner) const -> Perimortem::Core::Option<Bool>;
+      const Ttx::Model::Type& owner,
+      Bool provider,
+      Perimortem::Core::View::Vector<
+          Ttx::Concept::Reference<const Ttx::Model::Addressable>> parameters)
+      const -> Bool;
+
+  auto complete_construction(
+      Ttx::Concept::Abstract& program,
+      const Ttx::Model::Type& owner) const -> Bool;
+
+  auto lower_construction(
+      Ttx::Concept::Abstract& program,
+      const Ttx::Model::Type& owner,
+      Perimortem::Core::View::Vector<ConstructionField> fields) const -> Bool;
+
+  auto call_construction(
+      Ttx::Concept::Abstract& body,
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& owner,
+      const Ttx::Model::Pack& arguments) const -> Bool;
 
   auto complete(
       Ttx::Concept::Abstract& program,
@@ -117,24 +165,35 @@ class Functions {
         Perimortem::Core::View::Bytes abi = {},
         Perimortem::Core::View::Bytes symbol = {},
         Perimortem::Core::Option<const Tetrodotoxin::Language::Definition&>
-            definition = {},
-        Bool construction = False)
-        : kind(kind),
-          abi(abi),
-          symbol(symbol),
-          definition(definition),
-          construction(construction) {}
+            definition = {})
+        : kind(kind), abi(abi), symbol(symbol), definition(definition) {}
 
     Kind kind;
     Perimortem::Core::View::Bytes abi;
     Perimortem::Core::View::Bytes symbol;
     Perimortem::Core::Option<const Tetrodotoxin::Language::Definition&>
         definition;
-    Bool construction;
     Perimortem::Core::Option<LLVMValueRef> function;
     Perimortem::Core::Option<LLVMTypeRef> sret_type;
     Perimortem::Memory::Dynamic::Vector<Bool> indirect_parameters;
     Bool completed = False;
+  };
+
+  class ConstructionRecord {
+   public:
+    ConstructionRecord(Bool provider, Perimortem::Core::View::Bytes symbol)
+        : provider(provider), symbol(symbol) {}
+
+    Bool provider;
+    Perimortem::Core::View::Bytes symbol;
+    Perimortem::Core::Option<LLVMValueRef> function;
+    Perimortem::Core::Option<LLVMTypeRef> sret_type;
+    Perimortem::Memory::Dynamic::Vector<
+        Ttx::Concept::Reference<const Ttx::Model::Addressable>>
+        parameters;
+    Perimortem::Memory::Dynamic::Vector<Bool> indirect_parameters;
+    Bool completed = False;
+    Bool lowered = False;
   };
 
   auto reserve(
@@ -144,6 +203,9 @@ class Functions {
 
   mutable Perimortem::Memory::Dynamic::Map<const Ttx::Model::Callable*, Record>
       records;
+  mutable Perimortem::Memory::Dynamic::
+      Map<const Ttx::Model::Type*, ConstructionRecord>
+          constructions;
   mutable Perimortem::Memory::Dynamic::Vector<
       Ttx::Concept::Reference<const Ttx::Model::Callable>>
       foreign_callables;

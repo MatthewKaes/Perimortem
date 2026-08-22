@@ -6,6 +6,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/archive/declaration.hpp"
+#include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/llvm/builder.hpp"
@@ -95,8 +96,8 @@ static auto select_supplied(
 Types::Object::Object(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition,
-    Bool provider_construction)
-    : Structure(domain, definition, provider_construction) {}
+    Bool provides_initialization)
+    : Structure(domain, definition, provides_initialization) {}
 
 auto Types::Object::interpret(
     Cursor& cursor,
@@ -147,20 +148,6 @@ auto Types::Object::create_supplied(
     Option<const Abstract&> access_scope,
     Option<Anchor> anchor) const -> Option<Model::Pack&> {
   Allocator::Arena& arena = cursor.get_arena();
-  auto construction = get_construction();
-  if (construction && !construction->has_provider_body()) {
-    auto created = construction->create_call(arena, arguments);
-    if (!created) {
-      cursor.create_expression_error(
-          anchor,
-          "Object initializer inputs do not fit the provider construction "
-          "contract."_view,
-          "Use unique public state Fields with values accepted by their "
-          "Types."_view);
-    }
-    return created;
-  }
-
   const Layout& inputs = arguments.get_layout();
 
   Managed::Vector<Reference<const Abstract>> accessible_fields(arena);
@@ -195,6 +182,10 @@ auto Types::Object::create_supplied(
         "Object initializer inputs do not fit the initialization Layout."_view,
         "Use unique accessible Fields with values accepted by their Types."_view);
     return {};
+  }
+
+  if (!owns_initialization()) {
+    return Expressions::Initializer::create_provider(arena, *this, arguments);
   }
 
   // Object assembles only its owned mutable instance Fields in authored order.
@@ -241,11 +232,6 @@ auto Types::Object::create_supplied_restored(
     Allocator::Arena& arena,
     Model::Pack& arguments,
     Option<const Abstract&> access_scope) const -> Option<Model::Pack&> {
-  auto construction = get_construction();
-  if (construction && !construction->has_provider_body()) {
-    return construction->create_call(arena, arguments);
-  }
-
   const Layout& inputs = arguments.get_layout();
   Managed::Vector<Reference<const Abstract>> accessible_fields(arena);
   for (const Reference<Abstract>& selected : get_addressables()) {
@@ -269,6 +255,10 @@ auto Types::Object::create_supplied_restored(
   }
   Layouts::Fluid target_layout(fitted_fields.get_view());
   BAIL_IF(!arguments.fits(target_layout));
+
+  if (!owns_initialization()) {
+    return Expressions::Initializer::create_provider(arena, *this, arguments);
+  }
 
   Managed::Vector<Reference<Model::Pack>> values(arena);
   values.reset(get_layout().get_size());

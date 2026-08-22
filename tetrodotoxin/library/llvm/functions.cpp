@@ -9,6 +9,7 @@
 #error LLVM Function is required by the Library native compiler
 #endif
 
+#include "llvm-c/Core.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -17,6 +18,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/llvm/body.hpp"
@@ -369,23 +371,388 @@ auto Tetrodotoxin::Library::Llvm::Functions::reserve_foreign(
 
 auto Tetrodotoxin::Library::Llvm::Functions::reserve_construction(
     Ttx::Concept::Abstract& program,
-    const Ttx::Model::Callable& callable,
-    const Ttx::Model::Type& owner) const -> Core::Option<Bool> {
+    const Ttx::Model::Type& owner,
+    Bool provider,
+    Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Addressable>>
+        parameters) const -> Bool {
   auto target = select_program(program);
   BAIL_IF(!target);
 
-  auto external = target->get_unit().find(callable);
-  if (target->get_unit().is_package_member() && external) {
-    return reserve(
-        program, callable, Record(Kind::External, {}, *external, {}, True));
+  auto found = constructions.find(&owner);
+  if (found) {
+    if (found->value.provider != provider ||
+        found->value.parameters.get_size() != parameters.get_size()) {
+      return fail_backend(
+          program,
+          "LLVM Type construction changed its reserved target facts."_view);
+    }
+    for (Count index = 0; index < parameters.get_size(); index++) {
+      if (&found->value.parameters[index].get() !=
+          &parameters.get_data()[index].get()) {
+        return fail_backend(
+            program,
+            "LLVM Type construction changed its reserved target facts."_view);
+      }
+    }
+    return True;
   }
 
-  Symbol symbol(
+  auto external = target->get_unit().find(owner);
+  if (!provider && !external) {
+    return fail_backend(
+        program,
+        "LLVM Package member is missing one external Type construction "
+        "binding."_view);
+  }
+
+  Symbol generated(
       target->get_arena(), owner, Symbol::Kind::Construction,
       target->get_unit());
-  return reserve(
-      program, callable,
-      Record(Kind::Function, {}, symbol.get_view(), {}, True));
+  Core::View::Bytes symbol = external ? *external : generated.get_view();
+  ConstructionRecord record(provider, symbol);
+  for (const Ttx::Concept::Reference<const Ttx::Model::Addressable>& parameter :
+       parameters) {
+    record.parameters.insert(parameter);
+  }
+  constructions.insert(&owner, static_cast<ConstructionRecord&&>(record));
+  return True;
+}
+
+auto Tetrodotoxin::Library::Llvm::Functions::complete_construction(
+    Ttx::Concept::Abstract& program,
+    const Ttx::Model::Type& owner) const -> Bool {
+  auto target = select_program(program);
+  auto carriers = select_carriers(program);
+  auto found = constructions.find(&owner);
+  if (!target || !carriers || !found) {
+    return fail_backend(
+        program,
+        "LLVM cannot complete Type construction before reservation."_view);
+  }
+
+  ConstructionRecord& record = found->value;
+  if (record.completed) {
+    return True;
+  }
+
+  auto result = carriers->get_type(owner);
+  if (!result) {
+    return fail_backend(
+        program,
+        "LLVM cannot complete Type construction without its result carrier."_view);
+  }
+
+  llvm::LLVMContext& context = get_context(*target);
+  llvm::Module& module = get_module(*target);
+  Bool sret = uses_memory_abi(*target, *llvm::unwrap(*result));
+  Memory::Dynamic::Vector<llvm::Type*> native_parameters;
+  if (sret) {
+    native_parameters.insert(llvm::PointerType::getUnqual(context));
+    record.sret_type = *result;
+  }
+
+  record.indirect_parameters.clear();
+  for (const Ttx::Concept::Reference<const Ttx::Model::Addressable>& retained :
+       record.parameters.get_view()) {
+    const Ttx::Model::Type& type = retained.get().get_type();
+    auto native = carriers->get_type(type);
+    if (!native) {
+      return fail_backend(
+          program,
+          "LLVM cannot complete Type construction without every Field "
+          "carrier."_view);
+    }
+    Bool indirect = uses_memory_abi(*target, *llvm::unwrap(*native));
+    record.indirect_parameters.insert(indirect);
+    native_parameters.insert(
+        indirect ? llvm::PointerType::getUnqual(context)
+                 : llvm::unwrap(*native));
+    native_parameters.insert(llvm::Type::getInt1Ty(context));
+  }
+
+  llvm::FunctionType* signature = llvm::FunctionType::get(
+      sret ? llvm::Type::getVoidTy(context) : llvm::unwrap(*result),
+      llvm::ArrayRef<llvm::Type*>(
+          native_parameters.get_data(), native_parameters.get_size()),
+      false);
+  llvm::GlobalValue::LinkageTypes linkage =
+      target->get_unit().is_package_member()
+          ? llvm::GlobalValue::ExternalLinkage
+          : llvm::GlobalValue::InternalLinkage;
+  if (module.getNamedValue(llvm_text(record.symbol))) {
+    return fail_backend(
+        program,
+        "LLVM Type construction symbol collides with another declaration."_view);
+  }
+  llvm::Function& function = *llvm::Function::Create(
+      signature, linkage, llvm_text(record.symbol), module);
+  if (target->get_unit().is_package_member()) {
+    function.setVisibility(llvm::GlobalValue::HiddenVisibility);
+  }
+
+  Count offset = sret ? 1 : 0;
+  if (sret) {
+    function.addParamAttr(
+        0,
+        llvm::Attribute::getWithStructRetType(context, llvm::unwrap(*result)));
+    function.addParamAttr(0, llvm::Attribute::NoAlias);
+    function.addParamAttr(
+        0, llvm::Attribute::getWithAlignment(
+               context,
+               module.getDataLayout().getABITypeAlign(llvm::unwrap(*result))));
+  }
+  for (Count index = 0; index < record.parameters.get_size(); index++) {
+    const Ttx::Model::Type& type = record.parameters[index].get().get_type();
+    auto native = carriers->get_type(type);
+    BAIL_IF(!native);
+    Count parameter = offset + index * 2;
+    if (record.indirect_parameters[index]) {
+      function.addParamAttr(
+          Unsigned_32(parameter),
+          llvm::Attribute::getWithByValType(context, llvm::unwrap(*native)));
+      function.addParamAttr(
+          Unsigned_32(parameter),
+          llvm::Attribute::getWithAlignment(
+              context,
+              module.getDataLayout().getABITypeAlign(llvm::unwrap(*native))));
+    }
+    auto extension = get_extension(*carriers, type);
+    if (extension) {
+      function.addParamAttr(Unsigned_32(parameter), *extension);
+    }
+  }
+  auto result_extension = get_extension(*carriers, owner);
+  if (!sret && result_extension) {
+    function.addRetAttr(*result_extension);
+  }
+
+  record.function = llvm::wrap(&function);
+  record.completed = True;
+  if (record.provider && target->get_unit().is_package_member()) {
+    target->add_publication(Publication(owner, record.symbol));
+  }
+  return True;
+}
+
+static auto lower_construction_value(
+    Tetrodotoxin::Library::Llvm::Body& body,
+    Tetrodotoxin::Library::Llvm::Builder& builder,
+    const Tetrodotoxin::Library::Llvm::Carriers& carriers,
+    const Ttx::Model::Type& type,
+    const Ttx::Model::Pack& value) -> Core::Option<LLVMValueRef> {
+  auto library = value.select<Tetrodotoxin::Library::Language::Model::Pack>();
+  BAIL_IF(!library || !library->lower(builder));
+  auto lowered = body.find_values(value);
+  BAIL_IF(!lowered);
+  return carriers.fit_and_assemble(body, type, value, lowered->get_view());
+}
+
+auto Tetrodotoxin::Library::Llvm::Functions::lower_construction(
+    Ttx::Concept::Abstract& program,
+    const Ttx::Model::Type& owner,
+    Core::View::Vector<ConstructionField> fields) const -> Bool {
+  auto target = select_program(program);
+  auto found = constructions.find(&owner);
+  if (!target || !found || !found->value.completed || !found->value.function) {
+    return fail_backend(
+        program, "LLVM cannot lower Type construction before completion."_view);
+  }
+
+  ConstructionRecord& record = found->value;
+  if (!record.provider || record.lowered) {
+    return True;
+  }
+
+  llvm::Function& function =
+      *llvm::cast<llvm::Function>(llvm::unwrap(*record.function));
+  if (!function.empty()) {
+    return fail_backend(
+        program, "LLVM cannot lower Type construction more than once."_view);
+  }
+  llvm::BasicBlock::Create(function.getContext(), "entry", &function);
+  Core::Option<LLVMValueRef> sret;
+  auto argument = function.arg_begin();
+  if (record.sret_type) {
+    BAIL_IF(argument == function.arg_end());
+    sret = llvm::wrap(&*argument);
+    argument++;
+  }
+
+  Llvm::Body native_body(
+      *target, owner, *record.function, {}, sret, record.sret_type);
+  llvm::IRBuilder<>& native_builder = get_builder(native_body);
+  Llvm::Builder builder(native_body);
+  const Carriers& carriers = target->get_carriers();
+  Memory::Dynamic::Vector<LLVMValueRef> values;
+  Count parameter_index = 0;
+  for (const ConstructionField& input : fields) {
+    const Ttx::Model::Addressable& field = input.get_field();
+
+    Core::Option<LLVMValueRef> supplied;
+    Core::Option<LLVMValueRef> present;
+    if (input.is_parameter()) {
+      BAIL_IF(
+          parameter_index >= record.parameters.get_size() ||
+          &record.parameters[parameter_index].get() != &field ||
+          argument == function.arg_end());
+      llvm::Value& native_value = *argument;
+      argument++;
+      auto carrier = carriers.get_type(field.get_type());
+      BAIL_IF(!carrier);
+      supplied =
+          record.indirect_parameters[parameter_index]
+              ? Core::Option<LLVMValueRef>(llvm::wrap(native_builder.CreateLoad(
+                    llvm::unwrap(*carrier), &native_value)))
+              : Core::Option<LLVMValueRef>(llvm::wrap(&native_value));
+      BAIL_IF(argument == function.arg_end());
+      present = llvm::wrap(&*argument);
+      argument++;
+      parameter_index++;
+    }
+
+    if (!supplied || !present) {
+      auto lowered = lower_construction_value(
+          native_body, builder, carriers, field.get_type(),
+          input.get_fallback());
+      BAIL_IF(!lowered);
+      values.insert(*lowered);
+      continue;
+    }
+
+    llvm::BasicBlock& supplied_block = *llvm::BasicBlock::Create(
+        function.getContext(), "construction.supplied", &function);
+    llvm::BasicBlock& fallback_block = *llvm::BasicBlock::Create(
+        function.getContext(), "construction.default", &function);
+    llvm::BasicBlock& merge_block = *llvm::BasicBlock::Create(
+        function.getContext(), "construction.merge", &function);
+    native_builder.CreateCondBr(
+        llvm::unwrap(*present), &supplied_block, &fallback_block);
+
+    native_builder.SetInsertPoint(&supplied_block);
+    native_builder.CreateBr(&merge_block);
+
+    native_builder.SetInsertPoint(&fallback_block);
+    auto lowered = lower_construction_value(
+        native_body, builder, carriers, field.get_type(), input.get_fallback());
+    BAIL_IF(!lowered);
+    llvm::BasicBlock* fallback_end = native_builder.GetInsertBlock();
+    BAIL_IF(!fallback_end || fallback_end->getTerminator());
+    native_builder.CreateBr(&merge_block);
+
+    native_builder.SetInsertPoint(&merge_block);
+    llvm::PHINode& selected = *native_builder.CreatePHI(
+        llvm::unwrap(*supplied)->getType(), 2, "construction.value");
+    selected.addIncoming(llvm::unwrap(*supplied), &supplied_block);
+    selected.addIncoming(llvm::unwrap(*lowered), fallback_end);
+    values.insert(llvm::wrap(&selected));
+  }
+  BAIL_IF(
+      parameter_index != record.parameters.get_size() ||
+      argument != function.arg_end());
+
+  auto constructed = carriers.construct(native_body, owner, values.get_view());
+  BAIL_IF(
+      !constructed || !native_body.acquire(owner, *constructed) ||
+      !native_body.emit_storage_cleanup(0) ||
+      !native_body.clear_temporary_cleanup() ||
+      !native_body.create_return(*constructed));
+  record.lowered = True;
+  return True;
+}
+
+static auto select_construction_argument(
+    const Ttx::Model::Pack& arguments,
+    Core::View::Bytes name) -> Core::Option<const Ttx::Model::Pack&> {
+  const Ttx::Concept::Layout& layout = arguments.get_layout();
+  Core::Option<const Ttx::Model::Pack&> selected;
+  for (Count index = 0; index < layout.get_size(); index++) {
+    auto candidate_name = layout.get_name(index);
+    if (!candidate_name || *candidate_name != name) {
+      continue;
+    }
+    auto produced = arguments.get_produced(index);
+    auto pack = produced ? produced->producer.select<Ttx::Model::Pack>()
+                         : Core::Option<const Ttx::Model::Pack&>();
+    BAIL_IF(selected || !pack);
+    selected = *pack;
+  }
+  return selected;
+}
+
+auto Tetrodotoxin::Library::Llvm::Functions::call_construction(
+    Ttx::Concept::Abstract& body,
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& owner,
+    const Ttx::Model::Pack& arguments) const -> Bool {
+  auto native_body = body.select<Llvm::Body>();
+  auto found = constructions.find(&owner);
+  if (!native_body || !found || !found->value.completed ||
+      !found->value.function) {
+    return fail_backend(
+        get_program(body),
+        "LLVM cannot call Type construction before completion."_view);
+  }
+
+  ConstructionRecord& record = found->value;
+  const Carriers& carriers = native_body->get_program().get_carriers();
+  Body::NativeValues native_arguments(record.parameters.get_size() * 2 + 1);
+  Core::Option<LLVMValueRef> returned_storage;
+  if (record.sret_type) {
+    returned_storage = native_body->create_entry_alloca(
+        *record.sret_type, "construction.result"_view);
+    BAIL_IF(!returned_storage);
+    native_arguments.insert(*returned_storage);
+  }
+
+  for (Count index = 0; index < record.parameters.get_size(); index++) {
+    const Ttx::Model::Addressable& field = record.parameters[index].get();
+    auto selected = select_construction_argument(arguments, field.get_name());
+    Core::Option<LLVMValueRef> native;
+    if (selected) {
+      auto lowered = native_body->find_values(*selected);
+      if (lowered) {
+        native = carriers.fit_and_assemble(
+            *native_body, field.get_type(), *selected, lowered->get_view());
+      }
+    } else {
+      native = carriers.zero(native_body->get_program(), field.get_type());
+    }
+    BAIL_IF(!native);
+
+    LLVMValueRef argument = *native;
+    if (record.indirect_parameters[index]) {
+      auto carrier = carriers.get_type(field.get_type());
+      BAIL_IF(!carrier);
+      auto storage = native_body->create_entry_alloca(
+          *carrier, "construction.argument"_view);
+      BAIL_IF(
+          !storage ||
+          !LLVMBuildStore(native_body->get_builder(), *native, storage));
+      argument = storage;
+    }
+    native_arguments.insert(argument);
+    native_arguments.insert(LLVMConstInt(
+        LLVMInt1TypeInContext(&native_body->get_program().get_context()),
+        selected ? 1 : 0, 0));
+  }
+
+  LLVMTypeRef signature = LLVMGlobalGetValueType(*record.function);
+  LLVMTypeRef native_result = LLVMGetReturnType(signature);
+  Bool returns_void = Bool(LLVMGetTypeKind(native_result) == LLVMVoidTypeKind);
+  LLVMValueRef invoked = LLVMBuildCall2(
+      native_body->get_builder(), signature, *record.function,
+      native_arguments.get_data(), Unsigned_32(native_arguments.get_size()),
+      returns_void ? "" : "construction");
+  BAIL_IF(!invoked);
+  LLVMValueRef returned =
+      returned_storage ? LLVMBuildLoad2(
+                             native_body->get_builder(), *record.sret_type,
+                             *returned_storage, "construction.value")
+                       : invoked;
+  BAIL_IF(!returned);
+  native_body->mark_owned(owner, returned);
+  Core::Static::Vector<LLVMValueRef, 1> values = {{returned}};
+  return native_body->publish_values(result, values.get_view());
 }
 
 auto Tetrodotoxin::Library::Llvm::Functions::complete(
@@ -427,8 +794,6 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
           target->get_unit().is_package_member() &&
           record.definition->is_published() && !c_publication);
     }
-  } else if (record.kind == Kind::Function && record.construction) {
-    package_publication = target->get_unit().is_package_member();
   } else if (record.kind == Kind::Function) {
     return fail_backend(
         program, "LLVM Function lowering lost its declaration owner."_view);
@@ -437,7 +802,7 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
   Core::View::Bytes selected_symbol = record.symbol;
   if (record.kind == Kind::Function && symbol) {
     selected_symbol = *symbol;
-  } else if (record.kind == Kind::Function && !record.construction) {
+  } else if (record.kind == Kind::Function) {
     Symbol generated(
         target->get_arena(), callable,
         declares_self(callable) ? Symbol::Kind::FunctionSelf

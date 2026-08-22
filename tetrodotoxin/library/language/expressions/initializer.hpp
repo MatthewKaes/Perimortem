@@ -39,6 +39,14 @@ class Initializer : public Expression {
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<Model::Pack>>
           values) -> Initializer&;
 
+  // An Interface-restored aggregate delegates construction to its provider's
+  // native Type operation. The Initializer remains the produced Pack identity;
+  // no semantic Callable or copied Field model is introduced.
+  static auto create_provider(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Model::Type& type,
+      Model::Pack& arguments) -> Initializer&;
+
   Initializer(const Initializer&) = delete;
   Initializer(Initializer&&) = delete;
   auto operator=(const Initializer&) -> Initializer& = delete;
@@ -85,6 +93,7 @@ class Initializer : public Expression {
       expected_type;
   Perimortem::Core::Option<Ttx::Concept::Reference<Model::Pack>>
       completed_values;
+  Bool provider = False;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Expressions

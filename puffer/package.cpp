@@ -19,7 +19,6 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/language/construction.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
@@ -120,17 +119,6 @@ static auto append_host_path(
     Memory::Managed::Bytes& output,
     const Ttx::Concept::Abstract& semantic,
     Count start) -> Bool {
-  auto construction = semantic.select<Library::Language::Construction>();
-  if (construction) {
-    BAIL_IF(!append_host_path(output, construction->get_owner(), start));
-    if (output.get_size() != start) {
-      output.concat("::"_view);
-    }
-    output.concat(construction->get_name());
-    output.concat("[static]"_view);
-    return True;
-  }
-
   auto function = semantic.select<Library::Language::Function>();
   if (function) {
     BAIL_IF(!append_host_path(
@@ -339,6 +327,11 @@ static auto terminal(Core::View::Bytes segment) -> Core::Option<RouteTerminal> {
 static auto resolve_route(
     const Package::Language::Monograph& package,
     Core::View::Bytes route) -> Core::Option<const Ttx::Concept::Abstract&> {
+  auto direct = resolve_context_route(package, route);
+  if (direct && direct->resolve().is<Library::Language::Model::Type>()) {
+    return direct->resolve();
+  }
+
   Memory::Dynamic::Vector<Core::View::Bytes> segments;
   Count start = 0;
   for (Count index = 0; index <= route.get_size(); index++) {

@@ -296,6 +296,13 @@ class Builder {
       const Ttx::Model::Pack& result,
       const Ttx::Model::Type& type,
       const Ttx::Model::Pack& values) const -> Bool;
+  auto construct_provider(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& type,
+      const Ttx::Model::Pack& arguments,
+      Perimortem::Core::View::Vector<
+          Ttx::Concept::Reference<const Ttx::Model::Addressable>> parameters)
+      const -> Bool;
   auto return_values(const Ttx::Model::Pack& values) const -> Bool;
   auto leave_loop(LoopAction action, const Ttx::Concept::Abstract& target) const
       -> Bool;

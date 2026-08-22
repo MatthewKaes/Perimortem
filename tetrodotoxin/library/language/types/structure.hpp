@@ -6,7 +6,6 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
-#include "tetrodotoxin/library/language/construction.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -41,9 +40,10 @@ class Structure : public Composite {
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
-  auto link_fields(Ttx::Lexical::Cursor& cursor) -> Bool override;
-
-  auto link_restored_fields() -> Bool override;
+  auto lower_provider(
+      Llvm::Builder& body,
+      const Model::Pack& result,
+      const Model::Pack& arguments) const -> Bool override;
 
   auto reserve(Llvm::Program& program) const -> Bool override;
 
@@ -51,28 +51,15 @@ class Structure : public Composite {
 
   auto lower(Llvm::Program& program) const -> Bool override;
 
-  auto resolve_type_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route,
-      Model::Type::Access access) const
-      -> const Ttx::Concept::Abstract& override;
-
-  constexpr auto get_construction() const
-      -> Perimortem::Core::Option<const Construction&> {
-    return construction
-               ? Perimortem::Core::Option<const Construction&>(*construction)
-               : Perimortem::Core::Option<const Construction&>();
-  }
-
   auto persist(Archive::Writer& writer) const -> Bool override;
 
  protected:
   Structure(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition,
-      Bool provider_construction = True)
+      Bool provides_initialization = True)
       : Composite(domain, definition),
-        provider_construction(provider_construction) {}
+        provides_initialization(provides_initialization) {}
 
   auto interpret_body(
       Ttx::Lexical::Cursor& cursor,
@@ -84,11 +71,12 @@ class Structure : public Composite {
 
   auto complete_carrier(Llvm::Program& program) const -> Bool override;
 
-  auto complete_construction() -> Bool;
+  constexpr auto owns_initialization() const -> Bool {
+    return provides_initialization;
+  }
 
  private:
-  Perimortem::Core::Option<Construction&> construction;
-  Bool provider_construction;
+  Bool provides_initialization;
   mutable Bool creating_default = False;
 };
 

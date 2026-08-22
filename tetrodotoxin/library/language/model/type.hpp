@@ -142,6 +142,14 @@ class Type : public Ttx::Model::Type {
     return {};
   }
 
+  // An Interface-restored aggregate lowers through its exact Type owner. The
+  // Type supplies the provider's admitted Field inventory while the Builder
+  // owns only its target ABI and native invocation.
+  virtual auto lower_provider(Llvm::Builder&, const Pack&, const Pack&) const
+      -> Bool {
+    return False;
+  }
+
   // Receiving a Pack is Type policy because a target may admit flow that its
   // stored Layout cannot represent before construction. The ordinary policy
   // keeps exact Pack fitting while a concrete Type may own another accepted

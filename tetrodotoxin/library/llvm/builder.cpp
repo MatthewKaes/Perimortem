@@ -1285,6 +1285,19 @@ auto Tetrodotoxin::Library::Llvm::Builder::construct(
   return native_body.publish_values(result, native.get_view());
 }
 
+auto Tetrodotoxin::Library::Llvm::Builder::construct_provider(
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Type& type,
+    const Ttx::Model::Pack& arguments,
+    Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Addressable>>
+        parameters) const -> Bool {
+  auto& program = body.get_program();
+  const auto& functions = program.get_functions();
+  return functions.reserve_construction(program, type, False, parameters) &&
+         functions.complete_construction(program, type) &&
+         functions.call_construction(body, result, type, arguments);
+}
+
 // Control operations return transient block handles to their semantic owners.
 // Body retains only loop targets needed by nested break and continue owners.
 

@@ -186,8 +186,12 @@ PERIMORTEM_UNIT_TEST(AppDialect, echo_selects_exact_program_entry) {
           .resolve()
           .select<Library::Language::Types::Structure>();
   ASSERT(restored_bytes_type);
-  auto restored_construction = restored_bytes_type->get_construction();
-  ASSERT(restored_construction);
+  EXPECT(restored_bytes_type
+             ->resolve_type_call(
+                 *restored_bytes_type, "$construct"_view,
+                 Library::Language::Model::Type::Access::Static)
+             .resolve()
+             .is<Ttx::Concept::Invalid>());
 
   static constexpr View::Bytes consumer_source =
       "// Interface construction consumer.\n"
@@ -203,7 +207,7 @@ PERIMORTEM_UNIT_TEST(AppDialect, echo_selects_exact_program_entry) {
   static constexpr View::Bytes construction_symbol =
       "TTX_FUNC_Perimortem_2eMemory__Dynamic__Bytes__construct_static"_view;
   Library::Llvm::Unit::Binding construction_binding(
-      *restored_construction, construction_symbol);
+      *restored_bytes_type, construction_symbol);
   Static::Vector<Library::Llvm::Unit::Binding, 1> bindings = {{
     construction_binding,
   }};
