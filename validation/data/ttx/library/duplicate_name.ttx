@@ -1,5 +1,5 @@
 //
 dialect : Library;
 
-public duplicate : Unsigned_64 = 1;
-public duplicate : Unsigned_64 = 2;
+public duplicate : U64 = 1;
+public duplicate : U64 = 2;

@@ -22,12 +22,12 @@ auto Library::Archive::Reader::open(
 
   BinaryReader reader(payload.slice(0, 8));
   View::Bytes magic = reader.read_bytes(4);
-  Unsigned_16 format = reader.read_unsigned_16();
-  Unsigned_8 encoded_profile = reader.read_unsigned_8();
-  Unsigned_8 flags = reader.read_unsigned_8();
+  U16 format = reader.read_u16();
+  U8 encoded_profile = reader.read_u8();
+  U8 flags = reader.read_u8();
   BAIL_IF(
-      magic != "TTXL"_view || format != 1 ||
-      encoded_profile != Unsigned_8(profile) || flags != 0);
+      magic != "TTXL"_view || format != 1 || encoded_profile != U8(profile) ||
+      flags != 0);
 
   return Reader(payload.slice(8));
 }
@@ -46,9 +46,9 @@ auto Library::Archive::Reader::read_record() -> Option<Record> {
   BAIL_IF(!header);
 
   BinaryReader reader(*header);
-  Unsigned_16 tag = reader.read_unsigned_16();
-  Unsigned_16 flags = reader.read_unsigned_16();
-  Unsigned_32 size = reader.read_unsigned_32();
+  U16 tag = reader.read_u16();
+  U16 flags = reader.read_u16();
+  U32 size = reader.read_u32();
   BAIL_IF(flags > 1);
 
   auto record_payload = take(size);
@@ -56,51 +56,45 @@ auto Library::Archive::Reader::read_record() -> Option<Record> {
   return Record(tag, flags == 1, *record_payload);
 }
 
-auto Library::Archive::Reader::read_unsigned_8() -> Option<Unsigned_8> {
-  auto bytes = take(sizeof(Unsigned_8));
-  return bytes ? Option<Unsigned_8>(BinaryReader(*bytes).read_unsigned_8())
-               : Option<Unsigned_8>();
+auto Library::Archive::Reader::read_u8() -> Option<U8> {
+  auto bytes = take(sizeof(U8));
+  return bytes ? Option<U8>(BinaryReader(*bytes).read_u8()) : Option<U8>();
 }
 
-auto Library::Archive::Reader::read_unsigned_16() -> Option<Unsigned_16> {
-  auto bytes = take(sizeof(Unsigned_16));
-  return bytes ? Option<Unsigned_16>(BinaryReader(*bytes).read_unsigned_16())
-               : Option<Unsigned_16>();
+auto Library::Archive::Reader::read_u16() -> Option<U16> {
+  auto bytes = take(sizeof(U16));
+  return bytes ? Option<U16>(BinaryReader(*bytes).read_u16()) : Option<U16>();
 }
 
-auto Library::Archive::Reader::read_unsigned_32() -> Option<Unsigned_32> {
-  auto bytes = take(sizeof(Unsigned_32));
-  return bytes ? Option<Unsigned_32>(BinaryReader(*bytes).read_unsigned_32())
-               : Option<Unsigned_32>();
+auto Library::Archive::Reader::read_u32() -> Option<U32> {
+  auto bytes = take(sizeof(U32));
+  return bytes ? Option<U32>(BinaryReader(*bytes).read_u32()) : Option<U32>();
 }
 
-auto Library::Archive::Reader::read_unsigned_64() -> Option<Unsigned_64> {
-  auto bytes = take(sizeof(Unsigned_64));
-  return bytes ? Option<Unsigned_64>(BinaryReader(*bytes).read_unsigned_64())
-               : Option<Unsigned_64>();
+auto Library::Archive::Reader::read_u64() -> Option<U64> {
+  auto bytes = take(sizeof(U64));
+  return bytes ? Option<U64>(BinaryReader(*bytes).read_u64()) : Option<U64>();
 }
 
-auto Library::Archive::Reader::read_signed_64() -> Option<Signed_64> {
-  auto bytes = take(sizeof(Signed_64));
-  return bytes ? Option<Signed_64>(BinaryReader(*bytes).read_signed_64())
-               : Option<Signed_64>();
+auto Library::Archive::Reader::read_s64() -> Option<S64> {
+  auto bytes = take(sizeof(S64));
+  return bytes ? Option<S64>(BinaryReader(*bytes).read_s64()) : Option<S64>();
 }
 
-auto Library::Archive::Reader::read_real_64() -> Option<Real_64> {
-  auto bytes = take(sizeof(Real_64));
-  return bytes ? Option<Real_64>(BinaryReader(*bytes).read_real_64())
-               : Option<Real_64>();
+auto Library::Archive::Reader::read_r64() -> Option<R64> {
+  auto bytes = take(sizeof(R64));
+  return bytes ? Option<R64>(BinaryReader(*bytes).read_r64()) : Option<R64>();
 }
 
 auto Library::Archive::Reader::read_bytes() -> Option<View::Bytes> {
-  auto size = read_unsigned_32();
+  auto size = read_u32();
   BAIL_IF(!size);
   return take(*size);
 }
 
 auto Library::Archive::Reader::read_documentation(Allocator::Arena& arena)
     -> Option<const Documentation&> {
-  auto count = read_unsigned_32();
+  auto count = read_u32();
   BAIL_IF(!count || Count(*count) > payload.get_size());
 
   auto lines = arena.reserve<View::Bytes>(*count);

@@ -15,7 +15,7 @@ auto Constants::Result::persist(Archive::Writer& writer) const -> Bool {
       !writer.write(get_type().get_name()) ||
       !writer.write(get_type().get_value_type().get_name()) ||
       !writer.write(get_type().get_error_type().get_name()));
-  writer.write(Unsigned_8(get_kind()));
+  writer.write(U8(get_kind()));
   BAIL_IF(
       !Model::Pack::persist_folded(writer, get_payload()) ||
       !writer.finish(record));

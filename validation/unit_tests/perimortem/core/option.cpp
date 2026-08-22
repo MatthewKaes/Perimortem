@@ -21,7 +21,7 @@ class BorrowedDerived final : public BorrowedBase {};
 
 class StackValue {
  public:
-  StackValue(Signed_32 value, Count& destructions)
+  StackValue(S32 value, Count& destructions)
       : value(value), destructions(destructions) {}
 
   StackValue(const StackValue& source)
@@ -38,10 +38,10 @@ class StackValue {
   }
 
   auto increment() -> void { value++; }
-  auto get() const -> Signed_32 { return value; }
+  auto get() const -> S32 { return value; }
 
  private:
-  Signed_32 value;
+  S32 value;
   Bool moved = False;
   Count& destructions;
 };
@@ -52,57 +52,53 @@ static auto create_stack_value(Count& destructions) -> Option<StackValue> {
 }
 
 PERIMORTEM_UNIT_TEST(CoreOption, abi_carrier) {
-  auto absent = Perimortem::Abi::Core::Option<Unsigned_64>::create();
-  auto present =
-      Perimortem::Abi::Core::Option<Unsigned_64>::create(Unsigned_64(42));
+  auto absent = Perimortem::Abi::Core::Option<U64>::create();
+  auto present = Perimortem::Abi::Core::Option<U64>::create(U64(42));
 
   EXPECT(!absent);
   EXPECT(present);
-  EXPECT_EQ(*present, Unsigned_64(42));
+  EXPECT_EQ(*present, U64(42));
 }
 
 PERIMORTEM_UNIT_TEST(CoreOption, visits_none) {
-  Option<const Signed_32&> selected;
+  Option<const S32&> selected;
 
   Count branch = selected.visit(
-      []() { return Count(1); }, [](const Signed_32&) { return Count(2); });
+      []() { return Count(1); }, [](const S32&) { return Count(2); });
 
   EXPECT_EQ(branch, 1);
 }
 
 PERIMORTEM_UNIT_TEST(CoreOption, visits_reference) {
-  Signed_32 value = 41;
-  Option<Signed_32&> selected(value);
+  S32 value = 41;
+  Option<S32&> selected(value);
 
-  selected.visit([]() {}, [](Signed_32& found) -> void { found++; });
+  selected.visit([]() {}, [](S32& found) -> void { found++; });
 
   EXPECT_EQ(value, 42);
 }
 
 PERIMORTEM_UNIT_TEST(CoreOption, copies_borrow) {
-  const Signed_32 value = 42;
-  Option<const Signed_32&> first(value);
-  Option<const Signed_32&> second(first);
+  const S32 value = 42;
+  Option<const S32&> first(value);
+  Option<const S32&> second(first);
 
-  Signed_32 found = second.visit(
-      []() { return Signed_32(0); },
-      [](const Signed_32& selected) { return selected; });
+  S32 found = second.visit(
+      []() { return S32(0); }, [](const S32& selected) { return selected; });
 
   EXPECT_EQ(found, value);
 }
 
 PERIMORTEM_UNIT_TEST(CoreOption, copies_value) {
-  Option<Signed_32> first(41);
-  Option<Signed_32> second(first);
+  Option<S32> first(41);
+  Option<S32> second(first);
 
-  second.visit([]() {}, [](Signed_32& selected) -> void { selected++; });
+  second.visit([]() {}, [](S32& selected) -> void { selected++; });
 
-  Signed_32 first_value = first.visit(
-      []() { return Signed_32(0); },
-      [](Signed_32 selected) { return selected; });
-  Signed_32 second_value = second.visit(
-      []() { return Signed_32(0); },
-      [](Signed_32 selected) { return selected; });
+  S32 first_value = first.visit(
+      []() { return S32(0); }, [](S32 selected) { return selected; });
+  S32 second_value = second.visit(
+      []() { return S32(0); }, [](S32 selected) { return selected; });
 
   EXPECT_EQ(first_value, 41);
   EXPECT_EQ(second_value, 42);
@@ -118,8 +114,8 @@ PERIMORTEM_UNIT_TEST(CoreOption, owns_stack_value) {
     moved.visit([]() {}, [](StackValue& value) -> void { value.increment(); });
 
     const Option<StackValue>& observed = moved;
-    Signed_32 found = observed.visit(
-        []() { return Signed_32(0); },
+    S32 found = observed.visit(
+        []() { return S32(0); },
         [](const StackValue& value) { return value.get(); });
 
     EXPECT_EQ(found, 42);
@@ -158,9 +154,9 @@ PERIMORTEM_UNIT_TEST(CoreOption, accepts_empty) {
   EXPECT_EQ(destructions, Count(1));
 }
 
-static_assert(__is_trivially_copyable(Option<const Signed_32&>));
-static_assert(__is_constructible(Option<const Signed_32&>, const Signed_32&));
-static_assert(!__is_constructible(Option<const Signed_32&>, Signed_32&&));
+static_assert(__is_trivially_copyable(Option<const S32&>));
+static_assert(__is_constructible(Option<const S32&>, const S32&));
+static_assert(!__is_constructible(Option<const S32&>, S32&&));
 static_assert(
     !__is_constructible(Option<const BorrowedBase&>, BorrowedDerived&&));
 static_assert(__is_constructible(Option<StackValue>, StackValue&&));

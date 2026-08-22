@@ -45,10 +45,8 @@ auto Generics::Object::create(
     return {};
   }
 
-  auto size_type = get_context()
-                       .resolve_context("Unsigned_64"_view)
-                       .resolve()
-                       .select<Model::Type>();
+  auto size_type =
+      get_context().resolve_context("U64"_view).resolve().select<Model::Type>();
   auto flag_type = get_context()
                        .resolve_context("Bool"_view)
                        .resolve()

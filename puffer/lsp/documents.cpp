@@ -29,13 +29,13 @@ using namespace Perimortem::System;
 using namespace Puffer;
 using namespace Tetrodotoxin;
 
-static auto decode_hex(Unsigned_8 value) -> Option<Unsigned_8> {
+static auto decode_hex(U8 value) -> Option<U8> {
   if (value >= '0' && value <= '9') {
-    return Unsigned_8(value - '0');
+    return U8(value - '0');
   } else if (value >= 'A' && value <= 'F') {
-    return Unsigned_8(value - 'A' + 10);
+    return U8(value - 'A' + 10);
   } else if (value >= 'a' && value <= 'f') {
-    return Unsigned_8(value - 'a' + 10);
+    return U8(value - 'a' + 10);
   }
 
   return {};
@@ -66,13 +66,34 @@ static auto decode_file_uri(View::Bytes uri) -> Dynamic::Bytes {
       return {};
     }
 
-    path.append(Unsigned_8((*high << 4) | *low));
+    path.append(U8((*high << 4) | *low));
     index += 2;
   }
 
   Path normalized(path.get_view());
   return normalized.is_rooted() ? Dynamic::Bytes(normalized.get_view())
                                 : Dynamic::Bytes();
+}
+
+static auto encode_file_uri(View::Bytes path) -> Dynamic::Bytes {
+  constexpr View::Bytes hexadecimal = "0123456789ABCDEF"_view;
+  Dynamic::Bytes uri("file://"_view);
+  for (Count index = 0; index < path.get_size(); index++) {
+    U8 byte = path[index];
+    Bool unreserved = (byte >= 'A' && byte <= 'Z') ||
+                      (byte >= 'a' && byte <= 'z') ||
+                      (byte >= '0' && byte <= '9') || byte == '-' ||
+                      byte == '.' || byte == '_' || byte == '~' || byte == '/';
+    if (unreserved) {
+      uri.append(byte);
+      continue;
+    }
+
+    uri.append('%');
+    uri.concat(hexadecimal.slice(byte >> 4, 1));
+    uri.concat(hexadecimal.slice(byte & 0x0F, 1));
+  }
+  return uri;
 }
 
 static auto join_path(View::Bytes directory, View::Bytes file)
@@ -444,9 +465,9 @@ auto Lsp::Documents::erase(View::Bytes uri) -> void {
   }
 }
 
-auto Lsp::Documents::get_text(View::Bytes uri) const -> Dynamic::Bytes {
+auto Lsp::Documents::get_text(View::Bytes uri) const -> View::Bytes {
   Count slot = find(uri);
-  return slot == Count(-1) ? Dynamic::Bytes() : records[slot].text;
+  return slot == Count(-1) ? View::Bytes() : records[slot].text.get_view();
 }
 
 auto Lsp::Documents::create_workspace(Document& document)
@@ -525,65 +546,19 @@ auto Lsp::Documents::get_diagnostics(View::Bytes uri) -> Option<Diagnostics> {
   return Diagnostics(*errors, source_name);
 }
 
-static auto utf_16_position_to_byte(
-    View::Bytes source,
-    Count target_line,
-    Count target_character) -> Option<Count> {
-  Count offset = 0;
-  Count line = 0;
-  while (line < target_line && offset < source.get_size()) {
-    if (source[offset++] == '\n') {
-      line++;
-    }
-  }
-
-  if (line != target_line) {
-    return {};
-  }
-
-  Count units = 0;
-  while (offset < source.get_size() && source[offset] != '\n' &&
-         units < target_character) {
-    Unsigned_8 lead = source[offset];
-    Count width = 1;
-    Count code_units = 1;
-    if (lead >= 0xC2 && lead <= 0xDF) {
-      width = 2;
-    } else if (lead >= 0xE0 && lead <= 0xEF) {
-      width = 3;
-    } else if (lead >= 0xF0 && lead <= 0xF4) {
-      width = 4;
-      code_units = 2;
-    }
-
-    if (units + code_units > target_character ||
-        offset + width > source.get_size()) {
-      return {};
-    }
-    for (Count index = 1; index < width; index++) {
-      if ((source[offset + index] & 0xC0) != 0x80) {
-        width = 1;
-        code_units = 1;
-        break;
-      }
-    }
-    offset += width;
-    units += code_units;
-  }
-
-  return units == target_character ? Option<Count>(offset) : Option<Count>();
-}
-
 auto Lsp::Documents::find_semantic(
     View::Bytes uri,
-    Count line,
-    Count utf_16_character) -> Option<const Ttx::Concept::Abstract&> {
+    const PositionEncoding::Position& position)
+    -> Option<const Ttx::Concept::Abstract&> {
   Count slot = find(uri);
   BAIL_IF(slot == Count(-1));
 
   Document& document = records[slot];
+  // The source text is available here, which makes this the natural place to
+  // turn an editor coordinate back into TTX's authored byte offset. The lookup
+  // that follows can then stay entirely within canonical lexical facts.
   auto offset =
-      utf_16_position_to_byte(document.text.get_view(), line, utf_16_character);
+      position_encoding.find_offset(document.text.get_view(), position);
   BAIL_IF(!offset);
 
   View::Bytes source_name = document.package_root.is_empty()
@@ -594,6 +569,96 @@ auto Lsp::Documents::find_semantic(
   auto associations = workspace->get_associations(source_name);
   return associations ? associations->find_at(*offset)
                       : Option<const Ttx::Concept::Abstract&>();
+}
+
+auto Lsp::Documents::set_position_encoding(PositionEncoding selected) -> void {
+  position_encoding = selected;
+}
+
+auto Lsp::Documents::get_position_encoding() const -> const PositionEncoding& {
+  return position_encoding;
+}
+
+auto Lsp::Documents::get_associations(View::Bytes uri)
+    -> Option<const Ttx::Lexical::Associations&> {
+  Count slot = find(uri);
+  BAIL_IF(slot == Count(-1));
+
+  Document& document = records[slot];
+  auto workspace = get_workspace(document);
+  BAIL_IF(!workspace);
+  View::Bytes source_name = document.package_root.is_empty()
+                                ? document.uri.get_view()
+                                : document.logical_route.get_view();
+  return workspace->get_associations(source_name);
+}
+
+auto Lsp::Documents::get_tokens(View::Bytes uri)
+    -> View::Vector<Ttx::Lexical::Token> {
+  Count slot = find(uri);
+  BAIL_IF(slot == Count(-1));
+
+  Document& document = records[slot];
+  auto workspace = get_workspace(document);
+  BAIL_IF(!workspace);
+  View::Bytes source_name = document.package_root.is_empty()
+                                ? document.uri.get_view()
+                                : document.logical_route.get_view();
+  return workspace->get_tokens(source_name);
+}
+
+auto Lsp::Documents::find_definition(
+    View::Bytes source_uri,
+    const Ttx::Concept::Abstract& semantic)
+    -> Option<Environment::Workspace::AuthoredLocation> {
+  Count slot = find(source_uri);
+  BAIL_IF(slot == Count(-1));
+
+  Document& source_document = records[slot];
+  auto workspace = get_workspace(source_document);
+  BAIL_IF(!workspace);
+  return workspace->find_authored_location(semantic);
+}
+
+auto Lsp::Documents::resolve_uri(
+    const Environment::Workspace::AuthoredLocation& authored) const
+    -> Dynamic::Bytes {
+  Dynamic::Bytes target_uri;
+  View::Bytes package_root = authored.get_package_root();
+  View::Bytes diagnostic_path = authored.get_diagnostic_path();
+  for (const Document& document : records.get_view()) {
+    if (!document.active) {
+      continue;
+    }
+    Bool standalone = package_root.is_empty() &&
+                      document.package_root.is_empty() &&
+                      document.uri == diagnostic_path;
+    Bool package_member = !package_root.is_empty() &&
+                          document.package_root == package_root &&
+                          document.logical_route == diagnostic_path;
+    if (standalone || package_member) {
+      target_uri = document.uri;
+      break;
+    }
+  }
+
+  if (target_uri.is_empty()) {
+    constexpr View::Bytes file_prefix = "file://"_view;
+    if (package_root.is_empty() &&
+        diagnostic_path.get_size() >= file_prefix.get_size() &&
+        diagnostic_path.slice(0, file_prefix.get_size()) == file_prefix) {
+      target_uri = diagnostic_path;
+    } else {
+      Dynamic::Bytes path = package_root.is_empty()
+                                ? Dynamic::Bytes(diagnostic_path)
+                                : join_path(package_root, diagnostic_path);
+      Path normalized(path.get_view());
+      BAIL_IF(!normalized.is_rooted());
+      target_uri = encode_file_uri(normalized.get_view());
+    }
+  }
+
+  return target_uri;
 }
 
 auto Lsp::Documents::invalidate_package(View::Bytes root) -> void {

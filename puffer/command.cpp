@@ -48,6 +48,13 @@ static auto create_config(Memory::Allocator::Arena& arena)
   variables.insert(
       "interface"_view, "Write the Interface Package Archive."_view);
   variables.insert("dep"_view, "Read one dependency Interface Archive."_view);
+  variables.insert(
+      "dep-abi"_view, "Read one dependency native ABI Manifest."_view);
+  variables.insert(
+      "abi-manifest"_view, "Read or write one native ABI Manifest."_view);
+  variables.insert(
+      "native-provider"_view,
+      "Select one logical provider for a native import."_view);
   variables.insert("unit"_view, "Compile one declared Package member."_view);
   variables.insert(
       "artifact"_view, "Select the native artifact identity."_view);
@@ -91,7 +98,7 @@ static auto write_error(Core::View::Bytes message) -> void {
 
 static auto run_lsp(
     Core::View::Bytes pipe_name,
-    Core::View::Bytes packages_root) -> Signed_32 {
+    Core::View::Bytes packages_root) -> S32 {
   if (pipe_name.is_empty() || pipe_name == "true"_view) {
     write_error("puffer: -pipe needs a socket path"_view);
     return 2;
@@ -117,11 +124,11 @@ static auto create_stage_path(
     Core::View::Bytes path) -> Core::View::Bytes {
   Memory::Managed::Bytes buffer(arena);
   Serialization::Stream::Textual<Memory::Managed::Bytes> output(buffer);
-  output << path << ".puffer."_view << Signed_64(getpid()) << ".tmp"_view;
+  output << path << ".puffer."_view << S64(getpid()) << ".tmp"_view;
   return buffer.get_view();
 }
 
-static auto run_format(const System::Args::Values& args) -> Signed_32 {
+static auto run_format(const System::Args::Values& args) -> S32 {
   auto sources = args.find(""_view);
   if (!has_one(args, "format"_view) ||
       value(args, "format"_view) != "true"_view || !sources ||
@@ -198,9 +205,8 @@ static auto publish(
   return True;
 }
 
-static auto run_library(const System::Args::Values& args) -> Signed_32 {
-  Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::console_sink);
-  Core::Diagnostics::Log::set_disable_header(True);
+static auto run_library(const System::Args::Values& args) -> S32 {
+  Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::plain_sink);
 
   constexpr Core::Static::Vector<Core::View::Bytes, 8> required = {{
     ""_view,
@@ -283,17 +289,18 @@ static auto run_library(const System::Args::Values& args) -> Signed_32 {
   Memory::Allocator::Arena product_arena;
   Tetrodotoxin::Library::Llvm::Request request(
       *monograph, errors, source_path, *source,
-      Tetrodotoxin::Library::Llvm::Target::X86_64SysV, debug);
+      Tetrodotoxin::Library::Llvm::Target::X86_64SysV, debug,
+      Tetrodotoxin::Library::Llvm::Unit(value(args, "name"_view)));
   Tetrodotoxin::Library::Llvm::Compiler compiler;
   Utility::Result<
       Tetrodotoxin::Library::Llvm::Products,
       Tetrodotoxin::Library::Llvm::Failure>
       result = compiler.compile(product_arena, request);
   return result.visit(
-      [&](const Tetrodotoxin::Library::Llvm::Products& products) -> Signed_32 {
+      [&](const Tetrodotoxin::Library::Llvm::Products& products) -> S32 {
         return publish(products, ir_path, object_path, header_path) ? 0 : 1;
       },
-      [&](const Tetrodotoxin::Library::Llvm::Failure& failure) -> Signed_32 {
+      [&](const Tetrodotoxin::Library::Llvm::Failure& failure) -> S32 {
         if (failure == Tetrodotoxin::Library::Llvm::Failure::SourceRejected) {
           render_errors(errors);
         }
@@ -302,7 +309,7 @@ static auto run_library(const System::Args::Values& args) -> Signed_32 {
       });
 }
 
-auto Puffer::Command::run() const -> Signed_32 {
+auto Puffer::Command::run() const -> S32 {
   constexpr Count maximum_arguments = 256;
   if (Count(argument_count) > maximum_arguments) {
     write_error("puffer: too many command line arguments"_view);

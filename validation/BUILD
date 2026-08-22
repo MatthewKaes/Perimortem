@@ -79,18 +79,36 @@ cc_binary(
     ],
 )
 
+cc_library(
+    name = "package_header_integration",
+    srcs = ["data/ttx/llvm/package_headers_harness.c"],
+    copts = [
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    deps = ["//packages/ttx:perimortem_system"],
+)
+
 ttx_package(
     name = "package_native_provider",
     package_name = "Validation.Provider",
     manifest = "data/ttx/package_native/provider/package.ttx",
-    version = [1, 0],
+    version = [
+        1,
+        0,
+    ],
 )
 
 ttx_package(
     name = "package_native_consumer",
     package_name = "Validation.Consumer",
     manifest = "data/ttx/package_native/consumer/package.ttx",
-    version = [1, 0],
+    version = [
+        1,
+        0,
+    ],
     deps = [":package_native_provider"],
 )
 
@@ -165,7 +183,7 @@ cc_binary(
         ":package_native_integration",
         ":runtime_link_integration",
         ":system_abi_integration",
-        "//apps/ttx/echo:echo",
+        "//apps/ttx/echo",
         "//apps/ttx/echo:package",
         "//apps/ttx/scene_lifetime:sources",
         "//packages/ttx:perimortem_memory",
@@ -173,22 +191,25 @@ cc_binary(
     ],
     includes = ["."],
     deps = [
-        ":test_headers",
-        ":process_fixture",
         ":foreign_integration",
+        ":package_header_integration",
+        ":process_fixture",
         ":runtime_integration",
-        "//tetrodotoxin:library_llvm",
+        ":test_headers",
+        "//packages/ttx:perimortem_system",
         "//perimortem",
-        "//tetrodotoxin:diagnostics",
+        "//puffer:position_encoding",
         "//tetrodotoxin:app",
+        "//tetrodotoxin:diagnostics",
         "//tetrodotoxin:environment",
         "//tetrodotoxin:language",
         "//tetrodotoxin:library",
+        "//tetrodotoxin:library_llvm",
+        "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
         "//tetrodotoxin:scene",
         "//tetrodotoxin:shader",
         "//ttx",
-        "//packages/ttx:perimortem_system",
     ],
 )
 

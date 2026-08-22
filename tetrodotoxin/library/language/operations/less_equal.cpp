@@ -161,14 +161,13 @@ auto Language::Operations::LessEqual::evaluate_constants(
     return selected.visit<Tetrodotoxin::Library::Language::Model::Types::Real>(
         [&](const Tetrodotoxin::Library::Language::Model::Types::Real& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          if (type.get_size() == sizeof(Real_32)) {
+          if (type.get_size() == sizeof(R32)) {
             return make_result(
                 domain, *result_type,
-                Real_32(left_value->get_value()) <=
-                    Real_32(right_value->get_value()));
+                R32(left_value->get_value()) <= R32(right_value->get_value()));
           }
 
-          if (type.get_size() == sizeof(Real_64)) {
+          if (type.get_size() == sizeof(R64)) {
             return make_result(
                 domain, *result_type,
                 left_value->get_value() <= right_value->get_value());

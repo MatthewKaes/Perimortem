@@ -7,6 +7,8 @@
 #include "perimortem/core/view/vector.hpp"
 
 #include "tetrodotoxin/library/llvm/publication.hpp"
+#include "tetrodotoxin/linker/fingerprint.hpp"
+#include "tetrodotoxin/linker/import.hpp"
 
 namespace Tetrodotoxin::Library::Llvm {
 
@@ -18,11 +20,15 @@ class Products {
       Perimortem::Core::View::Bytes llvm_ir,
       Perimortem::Core::View::Bytes object,
       Perimortem::Core::View::Bytes header,
-      Perimortem::Core::View::Vector<Publication> publications = {})
+      Perimortem::Core::View::Vector<Publication> publications = {},
+      Tetrodotoxin::Linker::Fingerprint abi_fingerprint = {},
+      Perimortem::Core::View::Vector<Tetrodotoxin::Linker::Import> imports = {})
       : llvm_ir(llvm_ir),
         object(object),
         header(header),
-        publications(publications) {}
+        publications(publications),
+        abi_fingerprint(abi_fingerprint),
+        imports(imports) {}
 
   constexpr auto get_llvm_ir() const -> Perimortem::Core::View::Bytes {
     return llvm_ir;
@@ -41,11 +47,23 @@ class Products {
     return publications;
   }
 
+  constexpr auto get_abi_fingerprint() const
+      -> Tetrodotoxin::Linker::Fingerprint {
+    return abi_fingerprint;
+  }
+
+  constexpr auto get_imports() const
+      -> Perimortem::Core::View::Vector<Tetrodotoxin::Linker::Import> {
+    return imports;
+  }
+
  private:
   Perimortem::Core::View::Bytes llvm_ir;
   Perimortem::Core::View::Bytes object;
   Perimortem::Core::View::Bytes header;
   Perimortem::Core::View::Vector<Publication> publications;
+  Tetrodotoxin::Linker::Fingerprint abi_fingerprint;
+  Perimortem::Core::View::Vector<Tetrodotoxin::Linker::Import> imports;
 };
 
 }  // namespace Tetrodotoxin::Library::Llvm

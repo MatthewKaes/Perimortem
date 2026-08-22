@@ -1,9 +1,9 @@
 # Perimortem Memory
 
-Perimortem Memory provides allocation domains and containers for C++ systems.
-Core owns the language-visible `Object<T>` value and its physical contract.
-`Abi::Core` exposes that contract to generated code while Memory may compose
-the carrier into internal convenience owners.
+Tetrodotoxin's tools and generated native programs share the allocation domains
+provided by Perimortem Memory. The same APIs remain available to ordinary C++
+systems. Core owns the language visible `Object<T>` value and its physical
+contract, while `Abi::Core` exposes that contract to generated code.
 
 `Memory::Dynamic::Record<T>` adapts C++ lifetime management for tooling
 and compiler state whose owner cannot use one Arena transaction. It retains one

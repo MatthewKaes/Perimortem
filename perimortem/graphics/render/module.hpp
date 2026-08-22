@@ -16,7 +16,7 @@ namespace Perimortem::Graphics::Render {
 // entry name selects the conventional `main` entry point.
 struct Module {
   Stage stage = Stage::Vertex;
-  Core::View::Vector<Unsigned_32> words;
+  Core::View::Vector<U32> words;
   Core::View::Bytes entry;
 };
 

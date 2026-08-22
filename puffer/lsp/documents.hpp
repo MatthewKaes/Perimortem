@@ -4,6 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/option.hpp"
 
@@ -12,17 +13,19 @@
 #include "perimortem/memory/dynamic/vector.hpp"
 
 #include "puffer/lsp/document.hpp"
+#include "puffer/lsp/position_encoding.hpp"
 #include "tetrodotoxin/environment/toolchain.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/package/snapshots.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/lexical/token.hpp"
 
 namespace Puffer::Lsp {
 
-// Documents owns open files and their bounded Package sessions. Protocol
-// updates replace complete text overlays, invalidate one shared Package graph,
-// and keep semantic work lazy until diagnostics or hover need the snapshot.
+// Documents keeps unsaved editor text with the Package session that interprets
+// it. Replacing one file invalidates the shared session, while semantic work
+// waits until an editor request needs a completed snapshot.
 class Documents {
  public:
   class Diagnostics {
@@ -52,15 +55,28 @@ class Documents {
       Perimortem::Core::View::Bytes source) -> void;
   auto erase(Perimortem::Core::View::Bytes uri) -> void;
   auto get_text(Perimortem::Core::View::Bytes uri) const
-      -> Perimortem::Memory::Dynamic::Bytes;
+      -> Perimortem::Core::View::Bytes;
   auto find_semantic(
       Perimortem::Core::View::Bytes uri,
-      Count line,
-      Count utf_16_character)
+      const PositionEncoding::Position& position)
       -> Perimortem::Core::Option<const Ttx::Concept::Abstract&>;
+  auto get_associations(Perimortem::Core::View::Bytes uri)
+      -> Perimortem::Core::Option<const Ttx::Lexical::Associations&>;
+  auto get_tokens(Perimortem::Core::View::Bytes uri)
+      -> Perimortem::Core::View::Vector<Ttx::Lexical::Token>;
+  auto find_definition(
+      Perimortem::Core::View::Bytes source_uri,
+      const Ttx::Concept::Abstract& semantic)
+      -> Perimortem::Core::Option<
+          Tetrodotoxin::Environment::Workspace::AuthoredLocation>;
+  auto resolve_uri(
+      const Tetrodotoxin::Environment::Workspace::AuthoredLocation& authored)
+      const -> Perimortem::Memory::Dynamic::Bytes;
   auto get_diagnostics(Perimortem::Core::View::Bytes uri)
       -> Perimortem::Core::Option<Diagnostics>;
   auto invalidate(Perimortem::Core::View::Bytes uri) -> void;
+  auto set_position_encoding(PositionEncoding selected) -> void;
+  auto get_position_encoding() const -> const PositionEncoding&;
 
  private:
   struct Session {
@@ -93,6 +109,7 @@ class Documents {
   Perimortem::Core::Static::Vector<Document, 64> records;
   Perimortem::Core::Static::Vector<Session, 16> sessions;
   Perimortem::Memory::Dynamic::Bytes packages_root;
+  PositionEncoding position_encoding;
   Bool toolchain_ready = False;
 };
 

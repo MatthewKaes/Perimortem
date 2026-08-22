@@ -15,7 +15,7 @@ namespace Perimortem::System {
 // spelling. Generation provides random version 4 identifiers and time-ordered
 // version 7 identifiers.
 class Uuid {
-  static constexpr auto ascii_to_nibble(Unsigned_8 byte) -> Unsigned_64 {
+  static constexpr auto ascii_to_nibble(U8 byte) -> U64 {
     switch (byte) {
     case '0' ... '9':
       return byte - '0';
@@ -49,7 +49,7 @@ class Uuid {
   }
 
   // Stores the high word followed by the low word.
-  explicit constexpr Uuid(Unsigned_64 high, Unsigned_64 low) {
+  explicit constexpr Uuid(U64 high, U64 low) {
     high_low[0] = high;
     high_low[1] = low;
   }
@@ -96,8 +96,7 @@ class Uuid {
     return high_low[0] < rhs.high_low[0];
   }
 
-  constexpr auto get_value() const
-      -> const Core::Static::Vector<Unsigned_64, 2> {
+  constexpr auto get_value() const -> const Core::Static::Vector<U64, 2> {
     return high_low;
   }
 
@@ -113,7 +112,7 @@ class Uuid {
   static auto generate_v7() -> Uuid;
 
  private:
-  Core::Static::Vector<Unsigned_64, 2> high_low = {};
+  Core::Static::Vector<U64, 2> high_low = {};
 };
 
 }  // namespace Perimortem::System

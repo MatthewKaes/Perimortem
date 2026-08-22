@@ -37,18 +37,18 @@ struct BenchmarkInstance {
 };
 
 struct SampleStats {
-  Unsigned_64 bottom_avg_ns;
-  Unsigned_64 middle_avg_ns;
-  Unsigned_64 top_avg_ns;
-  Unsigned_64 allocation_requests;
+  U64 bottom_avg_ns;
+  U64 middle_avg_ns;
+  U64 top_avg_ns;
+  U64 allocation_requests;
 };
 
 static constexpr Count max_benchmark_count = 1024;
 static constexpr Count max_sample_count = 4096;
-static constexpr Real_64 time_cap_sec = 1.5;
+static constexpr R64 time_cap_sec = 1.5;
 
 static Static::Vector<BenchmarkInstance, max_benchmark_count> benchmarks;
-static Static::Vector<Unsigned_64, max_sample_count> time_samples;
+static Static::Vector<U64, max_sample_count> time_samples;
 static Count benchmark_count = 0;
 static View::Bytes benchmark_filter = {};
 
@@ -60,8 +60,7 @@ auto Benchmark::create(
 }
 
 // Returns a View::Bytes into buffer with the formatted time string.
-static auto format_time(Static::Bytes<16>& buffer, Unsigned_64 ns)
-    -> View::Bytes {
+static auto format_time(Static::Bytes<16>& buffer, U64 ns) -> View::Bytes {
   auto* character_buffer = Data::cast<char>(buffer.get_data());
   int written = 0;
   if (ns < 1'000ULL) {
@@ -69,22 +68,21 @@ static auto format_time(Static::Bytes<16>& buffer, Unsigned_64 ns)
         character_buffer, buffer.get_size(), "%llu ns", (unsigned long long)ns);
   } else if (ns < 1'000'000ULL) {
     written = snprintf(
-        character_buffer, buffer.get_size(), "%.2f us", Real_64(ns) / 1'000.0);
+        character_buffer, buffer.get_size(), "%.2f us", R64(ns) / 1'000.0);
   } else {
     written = snprintf(
-        character_buffer, buffer.get_size(), "%.2f ms",
-        Real_64(ns) / 1'000'000.0);
+        character_buffer, buffer.get_size(), "%.2f ms", R64(ns) / 1'000'000.0);
   }
 
   return View::Bytes(buffer.get_data(), Count(written > 0 ? written : 0));
 }
 
-static auto bucket_avg(Count start, Count end_index) -> Unsigned_64 {
+static auto bucket_avg(Count start, Count end_index) -> U64 {
   if (start >= end_index) {
     return time_samples[end_index > 0 ? end_index - 1 : 0];
   }
 
-  Unsigned_64 total = 0;
+  U64 total = 0;
   for (Count index = start; index < end_index; index++) {
     total += time_samples[index];
   }
@@ -92,7 +90,7 @@ static auto bucket_avg(Count start, Count end_index) -> Unsigned_64 {
   return total / (end_index - start);
 }
 
-static auto compute_stats(Count sample_count, Unsigned_64 alloc_requests)
+static auto compute_stats(Count sample_count, U64 alloc_requests)
     -> SampleStats {
   SampleStats stats = {};
   stats.allocation_requests = alloc_requests;
@@ -160,7 +158,7 @@ static auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
   harness.teardown();
 
   Count sample_count = 0;
-  Unsigned_64 total_alloc_delta = 0;
+  U64 total_alloc_delta = 0;
   total_start = Time::now();
   while (sample_count < max_sample_count) {
     harness.setup();
@@ -181,7 +179,7 @@ static auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
 
     time_samples[sample_count++] =
         sample_start.measure(sample_end).convert_to_nanoseconds();
-    total_alloc_delta += Unsigned_64(allocs_after - allocs_before);
+    total_alloc_delta += U64(allocs_after - allocs_before);
 
     // Check the time budget every 16 samples so the clock check does not
     // dominate small workloads.
@@ -192,10 +190,8 @@ static auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
     }
   }
 
-  Algorithm::sort(
-      Access::Vector<Unsigned_64>(time_samples.get_data(), sample_count));
-  return compute_stats(
-      sample_count, total_alloc_delta / Unsigned_64(sample_count));
+  Algorithm::sort(Access::Vector<U64>(time_samples.get_data(), sample_count));
+  return compute_stats(sample_count, total_alloc_delta / U64(sample_count));
 }
 
 static auto harness_matches(View::Bytes name) -> Bool {

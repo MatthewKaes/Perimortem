@@ -22,7 +22,7 @@ namespace Tetrodotoxin::Library::Language::Types {
 // nonempty Type Layouts, so absence never erases either semantic Type.
 class Option : public Model::Type {
  public:
-  enum class Kind : Unsigned_8 {
+  enum class Kind : U8 {
     Absent,
     Present,
   };

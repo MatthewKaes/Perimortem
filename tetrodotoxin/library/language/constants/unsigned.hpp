@@ -18,7 +18,7 @@ class Unsigned : public Constant {
   auto persist(Archive::Writer& writer) const -> Bool override;
 
   TTX_CONTRACT(Unsigned, Constant);
-  using Value = Unsigned_64;
+  using Value = U64;
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -74,12 +74,11 @@ class Unsigned : public Constant {
                 return ::False;
               }
 
-              if (size >= sizeof(Unsigned_64)) {
+              if (size >= sizeof(U64)) {
                 return ::True;
               }
 
-              return get_value() < (Unsigned_64(1) << (size * 8)) ? ::True
-                                                                  : ::False;
+              return get_value() < (U64(1) << (size * 8)) ? ::True : ::False;
             },
             [](const Ttx::Concept::Abstract&) { return ::False; });
   }

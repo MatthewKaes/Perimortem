@@ -1,6 +1,10 @@
 """Canonical source Packages distributed with Tetrodotoxin."""
 
-load("//toolchain:tetrodotoxin.bzl", "ttx_package")
+load(
+    "//toolchain:tetrodotoxin.bzl",
+    "ttx_native_provider",
+    "ttx_package",
+)
 
 package(default_visibility = ["//visibility:private"])
 
@@ -8,15 +12,32 @@ ttx_package(
     name = "perimortem_memory",
     package_name = "Perimortem.Memory",
     manifest = "Perimortem.Memory/package.ttx",
-    version = [1, 0],
+    version = [
+        1,
+        0,
+    ],
     visibility = ["//visibility:public"],
+)
+
+ttx_native_provider(
+    name = "perimortem_system_native",
+    dep = "//perimortem:abi_system",
+    functions = [
+        "perimortem_system_terminal_read_line",
+        "perimortem_system_terminal_write_line",
+    ],
+    provider_name = "Perimortem.System.Host",
 )
 
 ttx_package(
     name = "perimortem_system",
     package_name = "Perimortem.System",
     manifest = "Perimortem.System/package.ttx",
-    version = [1, 0],
-    deps = [":perimortem_memory"],
+    native_deps = [":perimortem_system_native"],
+    version = [
+        1,
+        0,
+    ],
     visibility = ["//visibility:public"],
+    deps = [":perimortem_memory"],
 )

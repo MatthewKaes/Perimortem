@@ -37,7 +37,7 @@ class Fixed : public Generic {
       -> Perimortem::Core::Option<const Model::Type&> override;
 
   static constexpr Perimortem::Core::Static::Vector<Parameters, 2>
-      parameterization = {{Parameters::Type, Parameters::Unsigned_64}};
+      parameterization = {{Parameters::Type, Parameters::U64}};
   static constexpr Ttx::Model::Documentations::Comment documentation{
     "Creates a fixed homogeneous range Type."_view,
   };

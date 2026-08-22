@@ -11,27 +11,18 @@
 
 namespace Ttx::Concept {
 
-// Abstract is the root of the open TTX semantic graph. Narrower contracts
-// extend its queries through public inheritance without teaching a central
-// registry every possible object kind.
+// Abstract gives every shared semantic object one stable identity and a small
+// set of questions that any tool can ask. Narrower contracts add Type, Pack,
+// Addressable, Callable, and Alias behavior through ordinary inheritance, which
+// lets the concrete language remain the owner of each object.
 //
-// The lexer deliberately provides useful name and token distinctions without
-// semantic feedback. Resolution can therefore proceed inside the most local
-// context available. Additional context may refine an incomplete
-// query, but it must not make an earlier correct partial query incorrect. TTX
-// builds its graph by stacking these contexts instead of consulting one global
-// authority.
+// Context lookup follows the language route one name at a time. The selected
+// object answers from the context it actually owns, so Packages and Dialects
+// can compose without a global member registry.
 //
-// Graph construction consequently enriches the same semantic objects instead
-// of constructing parallel path or schema representations. Useful hierarchy
-// emerges from the virtual contracts implemented by each Abstract.
-//
-// A contextual query receives one borrowed, unqualified name. The concrete
-// grammar operator owns punctuation and asks each selected Abstract about the
-// next name. The queried Abstract owns only the lookup structure appropriate to
-// its context. This keeps the base independent of allocation and global state.
-// The surface is restricted rather than closed: additions must be fundamental
-// to every semantic object, not conveniences for one derived contract.
+// Construction enriches these same objects as more context becomes available.
+// An identity that has already answered successfully stays stable, giving
+// editors, compilers, and runtimes one graph to share throughout completion.
 class Abstract {
  public:
   using ClassCatagory = Abstract;
@@ -45,7 +36,7 @@ class Abstract {
   // native implementation may return true only for public C++ base contracts,
   // each represented by one unique accessible base subobject. This invariant
   // makes visitor dispatch well defined.
-  virtual constexpr auto implements(::Unsigned_64 requested) const -> Bool {
+  virtual constexpr auto implements(::U64 requested) const -> Bool {
     return requested == get_type_identity<Abstract>();
   }
 
@@ -166,11 +157,11 @@ class Abstract {
 
 // Keep each derived category declaration beside its direct semantic base while
 // preserving the shared live proof implementation.
-#define TTX_CONTRACT(type, base)                                              \
-  using ClassCatagory = type;                                                 \
-  constexpr auto implements(::Unsigned_64 requested) const -> Bool override { \
-    return requested == Ttx::Concept::get_type_identity<type>() ||            \
-           base::implements(requested);                                       \
+#define TTX_CONTRACT(type, base)                                      \
+  using ClassCatagory = type;                                         \
+  constexpr auto implements(::U64 requested) const -> Bool override { \
+    return requested == Ttx::Concept::get_type_identity<type>() ||    \
+           base::implements(requested);                               \
   }
 
 // Compact exact implementations of Abstract's universal presentation slots.

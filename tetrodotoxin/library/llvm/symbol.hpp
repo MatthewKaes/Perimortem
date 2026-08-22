@@ -17,7 +17,7 @@ namespace Tetrodotoxin::Library::Llvm {
 // stable.
 class Symbol {
  public:
-  enum class Kind : Unsigned_8 {
+  enum class Kind : U8 {
     Path,
     FunctionStatic,
     FunctionSelf,

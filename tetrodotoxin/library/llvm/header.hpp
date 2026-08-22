@@ -12,6 +12,8 @@
 #include "tetrodotoxin/library/llvm/export.hpp"
 #include "tetrodotoxin/library/llvm/functions.hpp"
 #include "tetrodotoxin/library/llvm/globals.hpp"
+#include "tetrodotoxin/library/llvm/unit.hpp"
+#include "tetrodotoxin/linker/fingerprint.hpp"
 
 namespace Tetrodotoxin::Library::Llvm {
 
@@ -24,7 +26,15 @@ class Header {
       const Carriers& carriers,
       const Functions& functions,
       const Globals& globals,
+      const Unit& unit,
       Perimortem::Core::View::Vector<Export> exports)
+      -> Perimortem::Core::Option<Header>;
+
+  static auto identify(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Core::View::Bytes source,
+      Perimortem::Core::View::Bytes owner,
+      Tetrodotoxin::Linker::Fingerprint fingerprint)
       -> Perimortem::Core::Option<Header>;
 
   constexpr auto get_view() const -> Perimortem::Core::View::Bytes {

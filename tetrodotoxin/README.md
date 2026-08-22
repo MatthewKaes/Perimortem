@@ -1,52 +1,56 @@
 # Tetrodotoxin
 
-Tetrodotoxin is the reference host and compiler framework for TTX. It is
-designed for projects that contain several purpose-specific languages.
-Package manifests, reusable CPU libraries, applications, scenes, render
-interfaces, shaders, and foreign declarations can refer to one another while
-each language keeps the model that fits its job.
+Tetrodotoxin is an extensible language and toolchain platform for systems built
+from several purpose specific languages. Package manifests, reusable CPU
+libraries, application policy, scenes, render contracts, shaders, and foreign
+interfaces can all describe one program while keeping the model that fits their
+own domain.
 
-The languages share Types, values, and relationships through TTX instead of
-being squeezed into one universal syntax tree. General tools use the shared TTX
-surface, while language-aware tools can still see the richer details owned by a
-particular language.
+The platform gives those languages a common home. TTX carries the semantic
+facts they genuinely share. Environment keeps their results alive in one
+Workspace. Package gives them reproducible names, dependencies, resources, and
+Archives. Puffer presents the same program to command line tools and editors.
+Compilers, Linker, and the runtime turn the completed Workspace into products
+that can run independently.
 
-Five terms describe the architecture:
+Seven terms make the platform easier to navigate:
 
-- **TTX** is the shared vocabulary used to describe program objects.
-- A **Dialect** gives one source language its grammar and meaning.
-- A **Monograph** is the retained result of one source. It may include child
-  layers supplied by languages it builds on.
-- A **Workspace** keeps related Monographs and their references alive together.
-- A **Terminal product** is a finished output, such as LLVM IR, SPIR-V, an
-  object module, editor data, or a Package Archive.
+* **TTX** is the shared vocabulary for source locations, semantic identities,
+  Types, values, Layouts, and Callables
+* A **Dialect** gives one source language its grammar and meaning
+* A **Monograph** is the retained result of one source and may include child
+  layers from languages it builds on
+* A **Workspace** keeps related Monographs and their references alive together
+* A **Package** names the sources, dependencies, resources, and durable facts
+  that make a project reproducible
+* A **Terminal product** is a finished output such as native code, a GPU module,
+  editor data, or a Package Archive
+* **Puffer** is the user facing command and editor host for the complete
+  Toolchain
 
-TTX remains independent of the host. Tetrodotoxin supplies the concrete
-languages, Workspace lifetime, Package operations, compilers, linkers, and
-application policy that turn its small vocabulary into a toolchain.
+## Why build on Tetrodotoxin?
 
-## Is Tetrodotoxin a fit for my project?
+Domain specific languages are most useful when they can preserve the concepts
+their authors care about. They become expensive when every language also needs
+its own package manager, editor protocol, build graph, compiler shell, and
+runtime integration.
 
-Tetrodotoxin is aimed at projects where several languages need to contribute to
-one program. This includes compiler research, integrated application
-toolchains, editor services, and systems that must rebuild language information
-from an Archive when source is unavailable.
+Tetrodotoxin separates those concerns. A Dialect owns the grammar and semantic
+objects that make its language distinctive, then exposes common TTX contracts
+where another language or tool needs to cooperate. A Package member, Library
+Type, App lifecycle, Scene signal, and Shader Stage can therefore meet without
+becoming variants of one generic declaration record.
 
-The design is most useful when preserving each domain's model matters more than
-providing one generic declaration tree. A Package member, a Library Type, an
-App lifecycle, a Scene signal, and a Shader Stage can meet through TTX without
-becoming variants of the same record.
+Adding a Dialect means owning more than syntax. The Dialect creates its language
+objects, contributes to Workspace completion, answers useful queries, and
+reports source errors. In return it joins the same Package graph, editor
+session, source documentation model, and Terminal production path as the
+languages already installed in the Toolchain.
 
-Adding a Dialect requires more than adding syntax. The Dialect must create its
-language objects, help complete the Workspace, answer useful questions, and
-report errors. If it supports Package Archives, it also defines the information
-needed to rebuild its Monograph.
-
-A conventional frontend is usually simpler when one language owns the whole
-program. LLVM focuses on optimization and machine-code generation, MLIR on
-extensible intermediate representations, and Clang on C and C++ compatibility.
-Tetrodotoxin focuses on sharing language-level meaning before those lower-level
-representations are chosen.
+This design earns its weight when one system contains several semantic domains
+or when the same completed program feeds editors, compilers, Packages, and
+runtimes. A project with one small language and one output may need less
+machinery, while a growing family of languages gains a stable place to meet.
 
 ## A family of sources
 
@@ -57,7 +61,7 @@ Dialect that owns its body:
 // A reusable Library source.
 dialect : Library;
 
-public twice : func = [.value : Unsigned_64] -> Unsigned_64 {
+public twice : func = [.value : U64] -> U64 {
   return value * 2;
 }
 ```

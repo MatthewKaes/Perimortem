@@ -21,10 +21,10 @@ static auto matches_parameter(
   switch (parameter) {
   case Language::Generic::Parameters::Type:
     return argument.is<const Language::Model::Type&>();
-  case Language::Generic::Parameters::Unsigned_64:
-    return argument.is<::Unsigned_64>();
-  case Language::Generic::Parameters::Signed_64:
-    return argument.is<::Signed_64>();
+  case Language::Generic::Parameters::U64:
+    return argument.is<::U64>();
+  case Language::Generic::Parameters::S64:
+    return argument.is<::S64>();
   case Language::Generic::Parameters::Bool:
     return argument.is<::Bool>();
   }
@@ -73,17 +73,17 @@ auto Language::Generic::normalize_argument(
     BAIL_IF(!type);
     return Argument(*type);
   }
-  case Parameters::Unsigned_64: {
+  case Parameters::U64: {
     auto constant = argument.select<Constants::Unsigned>();
-    const auto expected = context.resolve_context("Unsigned_64"_view)
-                              .select<Language::Model::Type>();
+    const auto expected =
+        context.resolve_context("U64"_view).select<Language::Model::Type>();
     BAIL_IF(!constant || !expected || &constant->get_type() != &*expected);
     return Argument(constant->get_value());
   }
-  case Parameters::Signed_64: {
+  case Parameters::S64: {
     auto constant = argument.select<Constants::Signed>();
-    const auto expected = context.resolve_context("Signed_64"_view)
-                              .select<Language::Model::Type>();
+    const auto expected =
+        context.resolve_context("S64"_view).select<Language::Model::Type>();
     BAIL_IF(!constant || !expected || &constant->get_type() != &*expected);
     return Argument(constant->get_value());
   }

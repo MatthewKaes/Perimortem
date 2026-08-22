@@ -17,5 +17,5 @@ auto Language::Constants::Flag::persist(Archive::Writer& writer) const -> Bool {
 
 auto Language::Constants::Flag::lower(Llvm::Builder& body) const -> Bool {
   return prepare_carrier(body) &&
-         body.unsigned_value(get_type(), *this, Unsigned_64(bool(get_value())));
+         body.unsigned_value(get_type(), *this, U64(bool(get_value())));
 }

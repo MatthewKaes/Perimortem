@@ -145,8 +145,8 @@ static auto populate_words() -> void {
       Data::copy(slot, seed_word.get_data(), seed_word.get_size());
 
       slot[seed_word.get_size()] = '_';
-      slot[seed_word.get_size() + 1] = Unsigned_8('0' + (j / 10) % 10);
-      slot[seed_word.get_size() + 2] = Unsigned_8('0' + j % 10);
+      slot[seed_word.get_size() + 1] = U8('0' + (j / 10) % 10);
+      slot[seed_word.get_size() + 2] = U8('0' + j % 10);
 
       Count generated_size = seed_word.get_size() + 3;
       word_pool[word_index++] = View::Bytes(slot, generated_size);
@@ -162,14 +162,11 @@ template <typename word_array>
 static auto fill_words(word_array& target) -> void {
   // Randomly selects 4 Byte::View chunks to fill the array with.
   for (Count i = 0; i < target.get_size(); i += 4) {
-    Unsigned_64 random_indexes = Random::generate();
-    target[i] = word_pool[Unsigned_16(random_indexes) % word_pool.get_size()];
-    target[i + 1] =
-        word_pool[Unsigned_16(random_indexes >> 16) % word_pool.get_size()];
-    target[i + 2] =
-        word_pool[Unsigned_16(random_indexes >> 32) % word_pool.get_size()];
-    target[i + 3] =
-        word_pool[Unsigned_16(random_indexes >> 48) % word_pool.get_size()];
+    U64 random_indexes = Random::generate();
+    target[i] = word_pool[U16(random_indexes) % word_pool.get_size()];
+    target[i + 1] = word_pool[U16(random_indexes >> 16) % word_pool.get_size()];
+    target[i + 2] = word_pool[U16(random_indexes >> 32) % word_pool.get_size()];
+    target[i + 3] = word_pool[U16(random_indexes >> 48) % word_pool.get_size()];
   }
 }
 

@@ -15,7 +15,7 @@ namespace Perimortem::Core::Diagnostics {
 
 class Log {
  public:
-  enum class Level : Unsigned_8 {
+  enum class Level : U8 {
     Debug,
     Info,
     Warning,
@@ -107,6 +107,13 @@ class Log {
   // Debug, Info and Warning are written to stdout.
   // Error and Fatal log to stderr.
   static auto console_sink(
+      Level level,
+      Core::View::Bytes message,
+      const Source& location) -> void;
+
+  // Writes only the supplied message to the selected console stream. This is
+  // for diagnostics that already own their complete source presentation.
+  static auto plain_sink(
       Level level,
       Core::View::Bytes message,
       const Source& location) -> void;

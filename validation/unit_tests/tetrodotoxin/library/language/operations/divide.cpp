@@ -17,12 +17,12 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
-#include "tetrodotoxin/library/language/types/real_32.hpp"
-#include "tetrodotoxin/library/language/types/real_64.hpp"
-#include "tetrodotoxin/library/language/types/signed_8.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_16.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_64.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/r32.hpp"
+#include "tetrodotoxin/library/language/types/r64.hpp"
+#include "tetrodotoxin/library/language/types/s8.hpp"
+#include "tetrodotoxin/library/language/types/u16.hpp"
+#include "tetrodotoxin/library/language/types/u64.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -172,22 +172,21 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, type_selection) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Signed_8 signed_8;
-  Types::Unsigned_8 unsigned_8;
-  Types::Unsigned_16 unsigned_16;
-  Types::Real_32 real_32;
+  Types::S8 s8;
+  Types::U8 u8;
+  Types::U16 u16;
+  Types::R32 r32;
   Types::Boolean boolean;
   Types::Fixed bytes_type(
-      "Fixed[Unsigned_8,1]"_view,
-      resolve_library_unsigned(source, "Unsigned_8"_view), 1);
+      "Fixed[U8,1]"_view, resolve_library_unsigned(source, "U8"_view), 1);
   DivideUnresolvedType unresolved_type;
-  DivideExpression signed_left("signed left"_view, signed_8);
-  DivideExpression signed_right("signed right"_view, signed_8);
-  DivideExpression unsigned_left("unsigned left"_view, unsigned_8);
-  DivideExpression unsigned_right("unsigned right"_view, unsigned_8);
-  DivideExpression real_left("real left"_view, real_32);
-  DivideExpression real_right("real right"_view, real_32);
-  DivideExpression other("other"_view, unsigned_16);
+  DivideExpression signed_left("signed left"_view, s8);
+  DivideExpression signed_right("signed right"_view, s8);
+  DivideExpression unsigned_left("unsigned left"_view, u8);
+  DivideExpression unsigned_right("unsigned right"_view, u8);
+  DivideExpression real_left("real left"_view, r32);
+  DivideExpression real_right("real right"_view, r32);
+  DivideExpression other("other"_view, u16);
   DivideExpression unresolved("unresolved"_view, unresolved_type);
   DivideExpression invalid("invalid"_view, Invalid::get_invalid());
   auto& truth = Constants::True::create_synthetic(domain, boolean);
@@ -222,9 +221,9 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, type_selection) {
 
   auto retained = selected(unsigned_exact.fold());
 
-  EXPECT(&signed_exact.get_type() == &signed_8);
-  EXPECT(&unsigned_exact.get_type() == &unsigned_8);
-  EXPECT(&real_exact.get_type() == &real_32);
+  EXPECT(&signed_exact.get_type() == &s8);
+  EXPECT(&unsigned_exact.get_type() == &u8);
+  EXPECT(&real_exact.get_type() == &r32);
   EXPECT_NOT(retained);
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
   EXPECT(unresolved_pair.get_type().resolve().is<Invalid>());
@@ -237,8 +236,8 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, integer_quotients) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Signed_8 signed_type;
-  Types::Unsigned_8 unsigned_type;
+  Types::S8 signed_type;
+  Types::U8 unsigned_type;
   auto& positive = Constants::Signed::create_synthetic(domain, signed_type, 7);
   auto& negative = Constants::Signed::create_synthetic(domain, signed_type, -7);
   auto& two = Constants::Signed::create_synthetic(domain, signed_type, 2);
@@ -320,15 +319,14 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, integer_quotients) {
       positive_fold && negative_fold && opposite_fold && signed_zero_fold &&
       minimum_fold && unsigned_fold && unsigned_zero_fold &&
       unsigned_endpoint_fold);
-  EXPECT(value_is<Constants::Signed>(*positive_fold, Signed_64(3)));
-  EXPECT(value_is<Constants::Signed>(*negative_fold, Signed_64(-3)));
-  EXPECT(value_is<Constants::Signed>(*opposite_fold, Signed_64(-3)));
-  EXPECT(value_is<Constants::Signed>(*signed_zero_fold, Signed_64(0)));
-  EXPECT(value_is<Constants::Signed>(*minimum_fold, Signed_64(-128)));
-  EXPECT(value_is<Constants::Unsigned>(*unsigned_fold, Unsigned_64(3)));
-  EXPECT(value_is<Constants::Unsigned>(*unsigned_zero_fold, Unsigned_64(0)));
-  EXPECT(
-      value_is<Constants::Unsigned>(*unsigned_endpoint_fold, Unsigned_64(255)));
+  EXPECT(value_is<Constants::Signed>(*positive_fold, S64(3)));
+  EXPECT(value_is<Constants::Signed>(*negative_fold, S64(-3)));
+  EXPECT(value_is<Constants::Signed>(*opposite_fold, S64(-3)));
+  EXPECT(value_is<Constants::Signed>(*signed_zero_fold, S64(0)));
+  EXPECT(value_is<Constants::Signed>(*minimum_fold, S64(-128)));
+  EXPECT(value_is<Constants::Unsigned>(*unsigned_fold, U64(3)));
+  EXPECT(value_is<Constants::Unsigned>(*unsigned_zero_fold, U64(0)));
+  EXPECT(value_is<Constants::Unsigned>(*unsigned_endpoint_fold, U64(255)));
   EXPECT(&positive_fold->get_type() == &signed_type);
   EXPECT(&unsigned_endpoint_fold->get_type() == &unsigned_type);
   EXPECT(reports(
@@ -352,18 +350,18 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, ieee_domains) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Real_32 real_32;
-  Types::Real_64 real_64;
-  auto& narrow_seven = Constants::Real::create_synthetic(domain, real_32, 7.0);
-  auto& narrow_two = Constants::Real::create_synthetic(domain, real_32, 2.0);
-  auto& narrow_zero = Constants::Real::create_synthetic(domain, real_32, 0.0);
+  Types::R32 r32;
+  Types::R64 r64;
+  auto& narrow_seven = Constants::Real::create_synthetic(domain, r32, 7.0);
+  auto& narrow_two = Constants::Real::create_synthetic(domain, r32, 2.0);
+  auto& narrow_zero = Constants::Real::create_synthetic(domain, r32, 0.0);
   auto& narrow_negative_zero =
-      Constants::Real::create_synthetic(domain, real_32, -0.0);
-  auto& wide_seven = Constants::Real::create_synthetic(domain, real_64, 7.0);
-  auto& wide_two = Constants::Real::create_synthetic(domain, real_64, 2.0);
-  auto& wide_zero = Constants::Real::create_synthetic(domain, real_64, 0.0);
+      Constants::Real::create_synthetic(domain, r32, -0.0);
+  auto& wide_seven = Constants::Real::create_synthetic(domain, r64, 7.0);
+  auto& wide_two = Constants::Real::create_synthetic(domain, r64, 2.0);
+  auto& wide_zero = Constants::Real::create_synthetic(domain, r64, 0.0);
   auto& wide_negative_zero =
-      Constants::Real::create_synthetic(domain, real_64, -0.0);
+      Constants::Real::create_synthetic(domain, r64, -0.0);
   auto& narrow_finite =
       Operations::Divide::create_synthetic(domain, narrow_seven, narrow_two);
   auto& narrow_signed_zero = Operations::Divide::create_synthetic(
@@ -404,23 +402,20 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, ieee_domains) {
       narrow_value && narrow_zero_value && narrow_infinite_value &&
       narrow_nan_value && wide_value && wide_zero_value &&
       wide_infinite_value && wide_nan_value);
-  auto narrow = get_value<Constants::Real, Real_64>(*narrow_value);
-  auto narrow_zero_result =
-      get_value<Constants::Real, Real_64>(*narrow_zero_value);
+  auto narrow = get_value<Constants::Real, R64>(*narrow_value);
+  auto narrow_zero_result = get_value<Constants::Real, R64>(*narrow_zero_value);
   auto narrow_infinite =
-      get_value<Constants::Real, Real_64>(*narrow_infinite_value);
-  auto narrow_nan_result =
-      get_value<Constants::Real, Real_64>(*narrow_nan_value);
-  auto wide = get_value<Constants::Real, Real_64>(*wide_value);
-  auto wide_zero_result = get_value<Constants::Real, Real_64>(*wide_zero_value);
-  auto wide_infinite =
-      get_value<Constants::Real, Real_64>(*wide_infinite_value);
-  auto wide_nan_result = get_value<Constants::Real, Real_64>(*wide_nan_value);
+      get_value<Constants::Real, R64>(*narrow_infinite_value);
+  auto narrow_nan_result = get_value<Constants::Real, R64>(*narrow_nan_value);
+  auto wide = get_value<Constants::Real, R64>(*wide_value);
+  auto wide_zero_result = get_value<Constants::Real, R64>(*wide_zero_value);
+  auto wide_infinite = get_value<Constants::Real, R64>(*wide_infinite_value);
+  auto wide_nan_result = get_value<Constants::Real, R64>(*wide_nan_value);
 
   ASSERT(
       narrow && narrow_zero_result && narrow_infinite && narrow_nan_result &&
       wide && wide_zero_result && wide_infinite && wide_nan_result);
-  EXPECT(*narrow == Real_64(Real_32(7.0) / Real_32(2.0)));
+  EXPECT(*narrow == R64(R32(7.0) / R32(2.0)));
   EXPECT(*wide == 3.5);
   EXPECT(*narrow_zero_result == 0.0 && __builtin_signbit(*narrow_zero_result));
   EXPECT(*wide_zero_result == 0.0 && __builtin_signbit(*wide_zero_result));
@@ -429,15 +424,15 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, ieee_domains) {
   EXPECT(__builtin_isinf(*wide_infinite) && __builtin_signbit(*wide_infinite));
   EXPECT(__builtin_isnan(*narrow_nan_result));
   EXPECT(__builtin_isnan(*wide_nan_result));
-  EXPECT(&narrow_value->get_type() == &real_32);
-  EXPECT(&wide_value->get_type() == &real_64);
+  EXPECT(&narrow_value->get_type() == &r32);
+  EXPECT(&wide_value->get_type() == &r64);
 }
 
 PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 selected_type;
+  Types::U8 selected_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
   auto& folded =
       Constants::Unsigned::create_synthetic(domain, selected_type, 12);
@@ -459,13 +454,12 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
 
   ASSERT(first && second);
   EXPECT(&*first == &*second);
-  EXPECT(value_is<Constants::Unsigned>(*first, Unsigned_64(4)));
+  EXPECT(value_is<Constants::Unsigned>(*first, U64(4)));
   EXPECT(child.get_evaluations() == 1);
   EXPECT(reports(
       failure.fold(), Expression::Error::Type::InvalidConstant, failing));
 
-  const auto& parser_type =
-      resolve_library_unsigned(source, "Unsigned_64"_view);
+  const auto& parser_type = resolve_library_unsigned(source, "U64"_view);
   Errors success_errors;
   Tokenizer success_tokens(domain, "24 / 2"_view, "divide.ttx"_view);
   Ttx::Lexical::Associations success_associations(success_tokens.get_arena());
@@ -499,9 +493,9 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   auto parsed_fold = parsed->visit<Operation>(
       [&](Operation& operation) { return selected(operation.fold()); },
       [](Abstract&) -> Option<Expression&> { return {}; });
-  auto parsed_value =
-      parsed_fold ? get_value<Constants::Unsigned, Unsigned_64>(*parsed_fold)
-                  : Option<Unsigned_64>();
+  auto parsed_value = parsed_fold
+                          ? get_value<Constants::Unsigned, U64>(*parsed_fold)
+                          : Option<U64>();
 
   ASSERT(parsed_value);
   EXPECT(*parsed_value == 12);

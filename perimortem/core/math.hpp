@@ -36,45 +36,45 @@ constexpr auto absolute(type value) -> type {
 // Full width values skip the terminal shift because C++ does not define a
 // shift by the size of the value. Smaller widths compare against the first
 // excluded value which avoids manufacturing host minimum and maximum values.
-constexpr auto is_representable(Signed_64 value, Count byte_width) -> Bool {
-  if (byte_width == 0 || byte_width > sizeof(Signed_64)) {
+constexpr auto is_representable(S64 value, Count byte_width) -> Bool {
+  if (byte_width == 0 || byte_width > sizeof(S64)) {
     return False;
   }
 
-  if (byte_width == sizeof(Signed_64)) {
+  if (byte_width == sizeof(S64)) {
     return True;
   }
 
-  Signed_64 limit = Signed_64(1) << (byte_width * 8 - 1);
+  S64 limit = S64(1) << (byte_width * 8 - 1);
   return value >= -limit && value < limit;
 }
 
-constexpr auto is_representable(Unsigned_64 value, Count byte_width) -> Bool {
-  if (byte_width == 0 || byte_width > sizeof(Unsigned_64)) {
+constexpr auto is_representable(U64 value, Count byte_width) -> Bool {
+  if (byte_width == 0 || byte_width > sizeof(U64)) {
     return False;
   }
 
-  if (byte_width == sizeof(Unsigned_64)) {
+  if (byte_width == sizeof(U64)) {
     return True;
   }
 
-  Unsigned_64 limit = Unsigned_64(1) << (byte_width * 8);
+  U64 limit = U64(1) << (byte_width * 8);
   return value < limit;
 }
 
-constexpr auto log2(Unsigned_64 value) -> Unsigned_64 {
-  return 64 - __builtin_clzg(value, Signed_32(sizeof(Unsigned_64) * 8));
+constexpr auto log2(U64 value) -> U64 {
+  return 64 - __builtin_clzg(value, S32(sizeof(U64) * 8));
 }
 
-constexpr auto sqrt(Real_64 value) -> Real_64 {
+constexpr auto sqrt(R64 value) -> R64 {
   return __builtin_sqrt(value);
 }
 
-constexpr auto floor(Real_64 value) -> Count {
+constexpr auto floor(R64 value) -> Count {
   return Count(__builtin_floor(value));
 }
 
-constexpr auto ceil(Real_64 value) -> Count {
+constexpr auto ceil(R64 value) -> Count {
   return Count(__builtin_ceil(value));
 }
 

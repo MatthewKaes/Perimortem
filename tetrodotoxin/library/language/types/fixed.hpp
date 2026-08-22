@@ -21,7 +21,7 @@ class Fixed : public Contiguous {
   Fixed(
       Perimortem::Core::View::Bytes name,
       const Model::Type& element,
-      ::Unsigned_64 extent)
+      ::U64 extent)
       : name(name),
         element(element),
         extent(extent),
@@ -31,7 +31,7 @@ class Fixed : public Contiguous {
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Core::View::Bytes name,
       const Model::Type& element,
-      ::Unsigned_64 extent,
+      ::U64 extent,
       const Model::Type& access_type,
       const Model::Type& view_type);
 
@@ -61,12 +61,12 @@ class Fixed : public Contiguous {
     return element;
   }
 
-  constexpr auto get_extent() const -> ::Unsigned_64 { return extent; }
+  constexpr auto get_extent() const -> ::U64 { return extent; }
 
  private:
   Perimortem::Core::View::Bytes name;
   const Model::Type& element;
-  ::Unsigned_64 extent;
+  ::U64 extent;
   Ttx::Model::Layouts::Ranged layout;
   static constexpr Ttx::Model::Documentations::Comment documentation{
     "Creates a fixed homogeneous range Type."_view,

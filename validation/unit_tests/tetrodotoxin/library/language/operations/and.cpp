@@ -14,7 +14,7 @@
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
-#include "tetrodotoxin/library/language/types/signed_8.hpp"
+#include "tetrodotoxin/library/language/types/s8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -154,13 +154,13 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, exact_type_and_edges) {
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
   Types::Boolean distinct_bool;
-  Types::Signed_8 signed_8;
+  Types::S8 s8;
   AndExpression canonical_left(
       "canonical left"_view, resolve_library_flag(source));
   AndExpression canonical_right(
       "canonical right"_view, resolve_library_flag(source));
   AndExpression distinct("distinct"_view, distinct_bool);
-  AndExpression signed_value("signed"_view, signed_8);
+  AndExpression signed_value("signed"_view, s8);
   AndExpression invalid("invalid"_view, Invalid::get_invalid());
   auto& canonical = Operations::And::create_synthetic(
       domain, canonical_left, canonical_right);

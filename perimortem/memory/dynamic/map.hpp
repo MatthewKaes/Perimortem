@@ -92,7 +92,7 @@ class Map {
     }
 
     destruct();
-    Core::Bibliotheca::remit(Core::Data::cast<Unsigned_8>(buckets));
+    Core::Bibliotheca::remit(Core::Data::cast<U8>(buckets));
   }
 
   auto ensure_capacity(Count items) -> void {
@@ -118,7 +118,7 @@ class Map {
   }
 
   auto insert(const key_type& key, const value_type& value) -> Entry* {
-    Unsigned_32 hash = get_hash(key);
+    U32 hash = get_hash(key);
     auto* found = find_hashed(key, hash);
     if (found != nullptr) {
       found->value = value;
@@ -139,7 +139,7 @@ class Map {
   }
 
   auto emplace(key_type&& key, value_type&& value) -> Entry* {
-    Unsigned_32 hash = get_hash(key);
+    U32 hash = get_hash(key);
     auto* found = find_hashed(key, hash);
     if (found != nullptr) {
       found->value = static_cast<value_type&&>(value);
@@ -201,7 +201,7 @@ class Map {
     // been repaired. Moving a displaced entry backward carries that removed
     // object forward, leaving exactly one object to destroy at the final hole.
     while (buckets[next] != 0) {
-      Unsigned_32 hash = buckets[next];
+      U32 hash = buckets[next];
       Count home = extract_bucket_index(hash);
       Count entry_distance = (next - home) & bucket_mask;
       Count hole_distance = (hole - home) & bucket_mask;
@@ -245,7 +245,7 @@ class Map {
   }
 
   auto at(const key_type& key) -> value_type& {
-    Unsigned_32 hash = get_hash(key);
+    U32 hash = get_hash(key);
     auto* found = find_hashed(key, hash);
     if (found != nullptr) {
       return found->value;
@@ -271,7 +271,7 @@ class Map {
   constexpr auto is_empty() const -> Bool { return size == 0; }
 
  private:
-  auto get_empty(Unsigned_32 hash) -> Entry* {
+  auto get_empty(U32 hash) -> Entry* {
     Count bucket = extract_bucket_index(hash);
     while (buckets[bucket] != 0) {
       bucket = (bucket + 1) & (bucket_count - 1);
@@ -281,16 +281,16 @@ class Map {
     return entries + bucket;
   }
 
-  auto find_bucket(const key_type& key, Unsigned_32 hash) const -> Count {
+  auto find_bucket(const key_type& key, U32 hash) const -> Count {
     // Both views belong to one allocation. Incomplete storage has no entries.
     if (size == 0 || buckets == nullptr || entries == nullptr) {
       return Count(-1);
     }
 
-    Unsigned_32 bucket_key = extract_bucket_key(hash);
+    U32 bucket_key = extract_bucket_key(hash);
     Count bucket = extract_bucket_index(hash);
     while (True) {
-      Unsigned_32 stored_key = buckets[bucket];
+      U32 stored_key = buckets[bucket];
       if (stored_key == bucket_key && entries[bucket].key == key) {
         return bucket;
       }
@@ -303,7 +303,7 @@ class Map {
     }
   }
 
-  auto find_hashed(const key_type& key, Unsigned_32 hash) -> Entry* {
+  auto find_hashed(const key_type& key, U32 hash) -> Entry* {
     if (entries == nullptr) {
       return nullptr;
     }
@@ -316,8 +316,7 @@ class Map {
     return entries + bucket;
   }
 
-  auto find_hashed(const key_type& key, Unsigned_32 hash) const
-      -> const Entry* {
+  auto find_hashed(const key_type& key, U32 hash) const -> const Entry* {
     if (entries == nullptr) {
       return nullptr;
     }
@@ -330,7 +329,7 @@ class Map {
     return entries + bucket;
   }
 
-  auto emplace_hashed(Entry* entry, Unsigned_32 hash) -> void {
+  auto emplace_hashed(Entry* entry, U32 hash) -> void {
     Entry* empty = get_empty(hash);
     memcpy(Core::Data::cast<void>(empty), entry, sizeof(Entry));
   }
@@ -356,7 +355,7 @@ class Map {
   }
 
   auto grow(Count new_bucket_count) -> void {
-    Unsigned_32* old_buckets = buckets;
+    U32* old_buckets = buckets;
     Entry* old_entries = entries;
     Count old_bucket_count = bucket_count;
     Count old_size = size;
@@ -370,7 +369,7 @@ class Map {
     }
 
     if (old_buckets != nullptr) {
-      Core::Bibliotheca::remit(Core::Data::cast<Unsigned_8>(old_buckets));
+      Core::Bibliotheca::remit(Core::Data::cast<U8>(old_buckets));
     }
 
     size = old_size;
@@ -379,7 +378,7 @@ class Map {
   auto create_buffer(Count new_bucket_count) -> void {
     Core::Bibliotheca::Allocation allocation =
         Core::Bibliotheca::check_out(required_buffer_size(new_bucket_count));
-    buckets = Core::Data::cast<Unsigned_32>(allocation.ptr);
+    buckets = Core::Data::cast<U32>(allocation.ptr);
     entries = Core::Data::cast<Entry>(
         allocation.ptr + entry_offset(new_bucket_count));
     bucket_count = new_bucket_count;
@@ -394,26 +393,25 @@ class Map {
   }
 
   static constexpr auto entry_offset(Count bucket_count) -> Count {
-    return Core::Data::align<alignof(Entry)>(
-        sizeof(Unsigned_32) * bucket_count);
+    return Core::Data::align<alignof(Entry)>(sizeof(U32) * bucket_count);
   }
 
-  constexpr auto extract_bucket_index(Unsigned_32 hash) const -> Count {
+  constexpr auto extract_bucket_index(U32 hash) const -> Count {
     return hash & (bucket_count - 1);
   }
 
-  static constexpr auto extract_bucket_key(Unsigned_32 hash) -> Unsigned_32 {
-    return hash | Unsigned_32(0x80000000);
+  static constexpr auto extract_bucket_key(U32 hash) -> U32 {
+    return hash | U32(0x80000000);
   }
 
-  static auto get_hash(const key_type& key) -> Unsigned_32 {
-    return Unsigned_32(Core::Hash(key).get_value());
+  static auto get_hash(const key_type& key) -> U32 {
+    return U32(Core::Hash(key).get_value());
   }
 
-  Unsigned_32* buckets = nullptr;
+  U32* buckets = nullptr;
   Entry* entries = nullptr;
-  Unsigned_32 bucket_count = 0;
-  Unsigned_32 size = 0;
+  U32 bucket_count = 0;
+  U32 size = 0;
 };
 
 }  // namespace Perimortem::Memory::Dynamic

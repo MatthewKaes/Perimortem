@@ -83,70 +83,62 @@ auto Writer::Binary<stream_endian>::set_pointer(Count location) -> void {
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const Unsigned_8 value)
-    -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const U8 value) -> Binary& {
   valid_state &= write_value<stream_endian>(source, cursor, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const Unsigned_16 value)
-    -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const U16 value) -> Binary& {
   valid_state &= write_value<stream_endian>(source, cursor, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const Unsigned_32 value)
-    -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const U32 value) -> Binary& {
   valid_state &= write_value<stream_endian>(source, cursor, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const Unsigned_64 value)
-    -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const U64 value) -> Binary& {
   valid_state &= write_value<stream_endian>(source, cursor, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const Signed_8 value)
-    -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const S8 value) -> Binary& {
   valid_state &= write_value<stream_endian>(source, cursor, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const Signed_16 value)
-    -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const S16 value) -> Binary& {
   valid_state &= write_value<stream_endian>(source, cursor, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const Signed_32 value)
-    -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const S32 value) -> Binary& {
   valid_state &= write_value<stream_endian>(source, cursor, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const Signed_64 value)
-    -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const S64 value) -> Binary& {
   valid_state &= write_value<stream_endian>(source, cursor, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const Real_32 value) -> Binary& {
-  valid_state &= write_real<stream_endian, Unsigned_32>(source, cursor, value);
+auto Writer::Binary<stream_endian>::operator<<(const R32 value) -> Binary& {
+  valid_state &= write_real<stream_endian, U32>(source, cursor, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(const Real_64 value) -> Binary& {
-  valid_state &= write_real<stream_endian, Unsigned_64>(source, cursor, value);
+auto Writer::Binary<stream_endian>::operator<<(const R64 value) -> Binary& {
+  valid_state &= write_real<stream_endian, U64>(source, cursor, value);
   return *this;
 }
 
@@ -165,57 +157,57 @@ auto Writer::Binary<stream_endian>::operator<<(const View::Bytes raw)
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(
-    const View::Vector<Unsigned_8> blob) -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const View::Vector<U8> blob)
+    -> Binary& {
   valid_state &= write_vector<stream_endian>(source, cursor, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(
-    const View::Vector<Unsigned_16> blob) -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const View::Vector<U16> blob)
+    -> Binary& {
   valid_state &= write_vector<stream_endian>(source, cursor, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(
-    const View::Vector<Unsigned_32> blob) -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const View::Vector<U32> blob)
+    -> Binary& {
   valid_state &= write_vector<stream_endian>(source, cursor, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(
-    const View::Vector<Unsigned_64> blob) -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const View::Vector<U64> blob)
+    -> Binary& {
   valid_state &= write_vector<stream_endian>(source, cursor, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(
-    const View::Vector<Signed_8> blob) -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const View::Vector<S8> blob)
+    -> Binary& {
   valid_state &= write_vector<stream_endian>(source, cursor, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(
-    const View::Vector<Signed_16> blob) -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const View::Vector<S16> blob)
+    -> Binary& {
   valid_state &= write_vector<stream_endian>(source, cursor, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(
-    const View::Vector<Signed_32> blob) -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const View::Vector<S32> blob)
+    -> Binary& {
   valid_state &= write_vector<stream_endian>(source, cursor, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian>
-auto Writer::Binary<stream_endian>::operator<<(
-    const View::Vector<Signed_64> blob) -> Binary& {
+auto Writer::Binary<stream_endian>::operator<<(const View::Vector<S64> blob)
+    -> Binary& {
   valid_state &= write_vector<stream_endian>(source, cursor, blob);
   return *this;
 }

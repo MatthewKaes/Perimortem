@@ -23,7 +23,7 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // Each body is a real nested Block with the enclosing Block as lexical parent.
 class Branch : public Ttx::Concept::Abstract {
  public:
-  enum class Kind : Unsigned_8 {
+  enum class Kind : U8 {
     If,
     While,
   };

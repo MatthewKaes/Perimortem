@@ -46,7 +46,7 @@
 #include "tetrodotoxin/library/language/types/range.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "tetrodotoxin/library/llvm/compiler.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -280,9 +280,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, each_root_owns_its_vocabulary) {
   EXPECT(&first.get_source() != &second.get_source());
 
   const auto& first_element = static_cast<const Language::Model::Type&>(
-      first.resolve_context("Unsigned_8"_view));
+      first.resolve_context("U8"_view));
   const auto& second_element = static_cast<const Language::Model::Type&>(
-      second.resolve_context("Unsigned_8"_view));
+      second.resolve_context("U8"_view));
   const auto& first_formula =
       static_cast<const Language::Generic&>(first.resolve_context("View"_view));
   const auto& second_formula = static_cast<const Language::Generic&>(
@@ -372,7 +372,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_field_failures_are_reported) {
     "public broken : Bool = absent;\npublic later : func = [] -> [] {}"_view,
     "public const broken : Bool = 1;\n"
     "public later : func = [] -> [] {}"_view,
-    "public const broken : Unsigned_8 = 256;\n"
+    "public const broken : U8 = 256;\n"
     "public later : func = [] -> [] {}"_view,
     "public dynamic : Bool = false;\n"
     "public const broken := dynamic;"_view,
@@ -471,10 +471,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_alias_identity_and_visibility) {
 PERIMORTEM_UNIT_TEST(DialectTests, rejected_source_alias_is_atomic) {
   static constexpr Static::Vector<View::Bytes, 5> rejected = {{
     "// Rejected documentation.\npublic Broken : alias Bool;"_view,
-    "public Bool : alias = Unsigned_8;"_view,
-    "public Outer : alias = Unsigned_8;"_view,
+    "public Bool : alias = U8;"_view,
+    "public Outer : alias = U8;"_view,
     "public Broken : alias = Bool"_view,
-    "public First : alias = Bool; public First : alias = Unsigned_8;"_view,
+    "public First : alias = Bool; public First : alias = U8;"_view,
   }};
 
   for (Count i = 0; i < rejected.get_size(); i++) {
@@ -534,7 +534,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
     {
       "validation/data/ttx/library/duplicate_name.ttx"_view,
       "Library member collides with an occupied Composite category."_view,
-      "public duplicate : Unsigned_64 = 2;"_view,
+      "public duplicate : U64 = 2;"_view,
     },
     {
       "validation/data/ttx/library/bare_new.ttx"_view,
@@ -545,7 +545,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
       "validation/data/ttx/library/ordinary_bodyless.ttx"_view,
       "Library Blocks require `{` for several Statements or `:` for one "
       "Statement."_view,
-      "public missing_body : func = [] -> Unsigned_64;"_view,
+      "public missing_body : func = [] -> U64;"_view,
     },
   }};
 
@@ -754,8 +754,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
       static_cast<const Language::Function&>((*callable).get());
   ++callable;
   EXPECT(callable == callables.end());
-  EXPECT(
-      &count_alias.resolve() == &monograph.resolve_context("Unsigned_64"_view));
+  EXPECT(&count_alias.resolve() == &monograph.resolve_context("U64"_view));
   ASSERT_EQ(mode.get_definition().get_attributes().get_size(), Count(1));
   EXPECT_TEXT(
       mode.get_definition().get_attributes().get_data()[0].get_key(),
@@ -798,8 +797,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
       static_cast<const Language::Field&>(*ready_identity);
   EXPECT_TEXT(id_field.get_name(), "id"_view);
   EXPECT_TEXT(ready_field.get_name(), "ready"_view);
-  EXPECT(
-      &id_field.get_type() == &monograph.resolve_context("Unsigned_64"_view));
+  EXPECT(&id_field.get_type() == &monograph.resolve_context("U64"_view));
   EXPECT_TEXT(
       session.get_definition().get_attributes().get_data()[0].get_key(),
       "reference_type"_view);
@@ -896,7 +894,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*folded_sum)
           .get_value(),
-      Unsigned_64(5));
+      U64(5));
 
   auto constant_offset = find_field(source_type, "constant_offset"_view);
   ASSERT(constant_offset && constant_offset->get_initializer());
@@ -908,7 +906,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*folded_offset)
           .get_value(),
-      Unsigned_64(13));
+      U64(13));
 
   auto sequence = find_field(source_type, "sequence"_view);
   auto selected_byte = find_field(source_type, "selected_byte"_view);
@@ -925,15 +923,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   ASSERT(sequence->get_type().is<Language::Types::Range>());
   const auto& range =
       static_cast<const Language::Types::Range&>(sequence->get_type());
-  EXPECT(
-      &range.get_element_type() ==
-      &monograph.resolve_context("Unsigned_64"_view));
-  EXPECT(
-      &selected_byte->get_type() ==
-      &monograph.resolve_context("Unsigned_8"_view));
-  EXPECT(
-      &missing_byte->get_type() ==
-      &monograph.resolve_context("Unsigned_8"_view));
+  EXPECT(&range.get_element_type() == &monograph.resolve_context("U64"_view));
+  EXPECT(&selected_byte->get_type() == &monograph.resolve_context("U8"_view));
+  EXPECT(&missing_byte->get_type() == &monograph.resolve_context("U8"_view));
   ASSERT(
       missing_byte->get_initializer() &&
       missing_byte->get_initializer()->is<Language::Access::Slice>());
@@ -944,15 +936,14 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*folded_default)
           .get_value(),
-      Unsigned_64(0));
+      U64(0));
   ASSERT(selected_slice->get_type().is<Language::Types::Fixed>());
   EXPECT(&selected_slice->get_type() == &missing_slice->get_type());
   const auto& slice_type =
       static_cast<const Language::Types::Fixed&>(selected_slice->get_type());
   EXPECT(
-      &slice_type.get_element_type() ==
-      &monograph.resolve_context("Unsigned_8"_view));
-  EXPECT_EQ(slice_type.get_extent(), Unsigned_64(2));
+      &slice_type.get_element_type() == &monograph.resolve_context("U8"_view));
+  EXPECT_EQ(slice_type.get_extent(), U64(2));
 
   const auto& constant_slice_expression =
       static_cast<const Language::Expression&>(
@@ -973,11 +964,11 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*constant_slice_first)
           .get_value(),
-      Unsigned_64(0x0D));
+      U64(0x0D));
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*constant_slice_second)
           .get_value(),
-      Unsigned_64(0x0E));
+      U64(0x0E));
 
   auto called = find_field(source_type, "called"_view);
   auto addressed = find_field(source_type, "addressed"_view);
@@ -1063,8 +1054,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
   EXPECT(*complete == *complete_again);
   EXPECT_NOT(*complete == *interface);
   ASSERT(complete->get_size() >= 8 && interface->get_size() >= 8);
-  EXPECT_EQ((*complete)[6], Unsigned_8(0));
-  EXPECT_EQ((*interface)[6], Unsigned_8(1));
+  EXPECT_EQ((*complete)[6], U8(0));
+  EXPECT_EQ((*interface)[6], U8(1));
   Allocator::Arena restored_arena;
   auto restored = archive_dialect.restore(
       restored_arena, *complete,
@@ -1095,7 +1086,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
           ? restored_payload->select<Language::Constants::Unsigned>()
           : Option<const Language::Constants::Unsigned&>();
   ASSERT(restored_value);
-  EXPECT_EQ(restored_value->get_value(), Unsigned_64(5));
+  EXPECT_EQ(restored_value->get_value(), U64(5));
 
   Allocator::Arena interface_arena;
   auto restored_interface = archive_dialect.restore(
@@ -1241,16 +1232,16 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
 
 PERIMORTEM_UNIT_TEST(DialectTests, resource_slice_folds_const_access) {
   static constexpr View::Bytes source =
-      "public const offset : Unsigned_64 = 1;\n"
-      "public const size : Unsigned_64 = 2;\n"
-      "private folded : Fixed[Unsigned_8, 2] =\n"
+      "public const offset : U64 = 1;\n"
+      "public const size : U64 = 2;\n"
+      "private folded : Fixed[U8, 2] =\n"
       "  $[resource/hello.txt]:[\n"
       "    source.offset + 12,\n"
       "    source.size\n"
       "  ];\n"
       "private extract : func = [] -> [] {\n"
       "  const embedded := $[resource/greeting.txt];\n"
-      "  const hello : Fixed[Unsigned_8, 5] = embedded:[0, 5];\n"
+      "  const hello : Fixed[U8, 5] = embedded:[0, 5];\n"
       "  return;\n"
       "}"_view;
   Allocator::Arena arena;
@@ -1280,10 +1271,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, resource_slice_folds_const_access) {
   ASSERT(second && second->is<Language::Constants::Unsigned>());
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*first).get_value(),
-      Unsigned_64('D'));
+      U64('D'));
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*second).get_value(),
-      Unsigned_64('E'));
+      U64('E'));
 
   auto extract = find_function(monograph.get_source(), "extract"_view);
   ASSERT(extract && extract->get_body());
@@ -1294,15 +1285,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, resource_slice_folds_const_access) {
   ASSERT(hello);
   auto hello_value = hello->get_constant();
   ASSERT(hello_value);
-  ASSERT_EQ(hello_value->get_layout().get_size(), Count(5));
-  static constexpr View::Bytes expected = "Hello"_view;
-  for (Count index = 0; index < expected.get_size(); index++) {
-    auto produced = hello_value->get_produced(index);
-    ASSERT(produced);
-    auto value = produced->producer.select<Language::Constants::Unsigned>();
-    ASSERT(value);
-    EXPECT_EQ(value->get_value(), Unsigned_64(expected[index]));
-  }
+  auto hello_bytes = hello_value->select<Language::Constants::Bytes>();
+  ASSERT(hello_bytes);
+  EXPECT_TEXT(hello_bytes->get_value(), "Hello"_view);
   EXPECT(errors.is_empty());
 }
 
@@ -1310,8 +1295,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, const_field_access_is_type_owned) {
   static constexpr View::Bytes source =
       "public Packet : struct {\n"
       "  public const offset := base;\n"
-      "  public const base : Unsigned_64 = 1;\n"
-      "  public state value : Unsigned_64;\n"
+      "  public const base : U64 = 1;\n"
+      "  public state value : U64;\n"
       "}\n"
       "private packet : Packet;\n"
       "private from_type := Packet.offset + 12;\n"
@@ -1345,7 +1330,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, const_field_access_is_type_owned) {
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*linked_constant)
           .get_value(),
-      Unsigned_64(1));
+      U64(1));
 
   ASSERT(monograph.finalize(cursor));
 
@@ -1368,10 +1353,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, const_field_access_is_type_owned) {
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*type_constant)
           .get_value(),
-      Unsigned_64(13));
+      U64(13));
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*address_constant)
           .get_value(),
-      Unsigned_64(13));
+      U64(13));
   EXPECT(errors.is_empty());
 }

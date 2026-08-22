@@ -20,15 +20,15 @@ using namespace Perimortem::Memory;
 using namespace Validation;
 
 static constexpr Count max_arguments = 32;
-static constexpr Signed_32 poll_interval_milliseconds = 10;
-static constexpr Unsigned_64 nanoseconds_per_millisecond = 1'000'000;
+static constexpr S32 poll_interval_milliseconds = 10;
+static constexpr U64 nanoseconds_per_millisecond = 1'000'000;
 
 struct Pipe {
-  Signed_32 input = -1;
-  Signed_32 output = -1;
+  S32 input = -1;
+  S32 output = -1;
 };
 
-static auto close_descriptor(Signed_32& descriptor) -> void {
+static auto close_descriptor(S32& descriptor) -> void {
   if (descriptor < 0) {
     return;
   }
@@ -43,8 +43,8 @@ static auto close_pipe(Pipe& pipe) -> void {
 }
 
 static auto open_pipe(Pipe& pipe) -> Bool {
-  Static::Vector<Signed_32, 2> descriptors;
-  Signed_32 result = ::pipe(descriptors.get_data());
+  Static::Vector<S32, 2> descriptors;
+  S32 result = ::pipe(descriptors.get_data());
   if (result != 0) {
     return False;
   }
@@ -54,8 +54,8 @@ static auto open_pipe(Pipe& pipe) -> Bool {
   return True;
 }
 
-static auto set_nonblocking(Signed_32 descriptor) -> Bool {
-  Signed_32 flags = fcntl(descriptor, F_GETFL, 0);
+static auto set_nonblocking(S32 descriptor) -> Bool {
+  S32 flags = fcntl(descriptor, F_GETFL, 0);
   if (flags < 0) {
     return False;
   }
@@ -63,8 +63,8 @@ static auto set_nonblocking(Signed_32 descriptor) -> Bool {
   return fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0;
 }
 
-static auto read_stream(Signed_32& descriptor, Dynamic::Bytes& output) -> Bool {
-  Static::Vector<Unsigned_8, 4096> buffer;
+static auto read_stream(S32& descriptor, Dynamic::Bytes& output) -> Bool {
+  Static::Vector<U8, 4096> buffer;
   while (true) {
     ssize_t count = read(descriptor, buffer.get_data(), buffer.get_size());
     if (count > 0) {
@@ -90,10 +90,8 @@ static auto read_stream(Signed_32& descriptor, Dynamic::Bytes& output) -> Bool {
   }
 }
 
-static auto write_stream(
-    Signed_32& descriptor,
-    View::Bytes input,
-    Count& offset) -> Bool {
+static auto write_stream(S32& descriptor, View::Bytes input, Count& offset)
+    -> Bool {
   while (offset < input.get_size()) {
     ssize_t count =
         write(descriptor, input.get_data() + offset, input.get_size() - offset);
@@ -123,8 +121,7 @@ static auto write_stream(
   return True;
 }
 
-static auto wait_for_child(pid_t child, Signed_32 options, Signed_32& status)
-    -> pid_t {
+static auto wait_for_child(pid_t child, S32 options, S32& status) -> pid_t {
   pid_t waited;
   do {
     waited = waitpid(child, &status, options);
@@ -132,30 +129,29 @@ static auto wait_for_child(pid_t child, Signed_32 options, Signed_32& status)
   return waited;
 }
 
-static auto terminate_child(pid_t child, Signed_32& status) -> Bool {
+static auto terminate_child(pid_t child, S32& status) -> Bool {
   kill(child, SIGKILL);
   return wait_for_child(child, 0, status) == child;
 }
 
-static auto calculate_poll_timeout(Bool child_finished, Unsigned_64 deadline)
-    -> Signed_32 {
+static auto calculate_poll_timeout(Bool child_finished, U64 deadline) -> S32 {
   if (child_finished) {
     return poll_interval_milliseconds;
   }
 
-  Unsigned_64 now = Time::now().get_stamp();
+  U64 now = Time::now().get_stamp();
   if (now >= deadline) {
     return 0;
   }
 
-  Unsigned_64 remaining = deadline - now;
-  Unsigned_64 milliseconds = (remaining + nanoseconds_per_millisecond - 1) /
-                             nanoseconds_per_millisecond;
-  if (milliseconds > Unsigned_64(poll_interval_milliseconds)) {
+  U64 remaining = deadline - now;
+  U64 milliseconds = (remaining + nanoseconds_per_millisecond - 1) /
+                     nanoseconds_per_millisecond;
+  if (milliseconds > U64(poll_interval_milliseconds)) {
     return poll_interval_milliseconds;
   }
 
-  return Signed_32(milliseconds);
+  return S32(milliseconds);
 }
 
 static auto prepare_arguments(
@@ -227,9 +223,9 @@ auto Process::run(const Request& request) -> Observation {
       _exit(126);
     }
 
-    Signed_32 input_ready = dup2(input_pipe.input, STDIN_FILENO);
-    Signed_32 output_ready = dup2(output_pipe.output, STDOUT_FILENO);
-    Signed_32 error_ready = dup2(error_pipe.output, STDERR_FILENO);
+    S32 input_ready = dup2(input_pipe.input, STDIN_FILENO);
+    S32 output_ready = dup2(output_pipe.output, STDOUT_FILENO);
+    S32 error_ready = dup2(error_pipe.output, STDERR_FILENO);
 
     close_pipe(input_pipe);
     close_pipe(output_pipe);
@@ -254,7 +250,7 @@ auto Process::run(const Request& request) -> Observation {
   Bool error_ready = set_nonblocking(error_pipe.input);
   Bool channels_ready = input_ready && output_ready && error_ready;
   if (!channels_ready) {
-    Signed_32 status = 0;
+    S32 status = 0;
     terminate_child(child, status);
     close_pipe(input_pipe);
     close_pipe(output_pipe);
@@ -267,9 +263,9 @@ auto Process::run(const Request& request) -> Observation {
   struct sigaction previous = {};
   ignored.sa_handler = SIG_IGN;
   sigemptyset(&ignored.sa_mask);
-  Signed_32 signal_result = sigaction(SIGPIPE, &ignored, &previous);
+  S32 signal_result = sigaction(SIGPIPE, &ignored, &previous);
   if (signal_result != 0) {
-    Signed_32 status = 0;
+    S32 status = 0;
     terminate_child(child, status);
     close_pipe(input_pipe);
     close_pipe(output_pipe);
@@ -282,8 +278,8 @@ auto Process::run(const Request& request) -> Observation {
   Count input_offset = 0;
   Bool channels_ok = True;
   Bool child_finished = False;
-  Signed_32 child_status = 0;
-  Unsigned_64 deadline = Time::now().get_stamp() + request.timeout_nanoseconds;
+  S32 child_status = 0;
+  U64 deadline = Time::now().get_stamp() + request.timeout_nanoseconds;
   while (!child_finished || input_pipe.output >= 0 || output_pipe.input >= 0 ||
          error_pipe.input >= 0) {
     if (!child_finished) {
@@ -311,8 +307,8 @@ auto Process::run(const Request& request) -> Observation {
     channels[1].events = POLLIN;
     channels[2].fd = error_pipe.input;
     channels[2].events = POLLIN;
-    Signed_32 poll_timeout = calculate_poll_timeout(child_finished, deadline);
-    Signed_32 poll_result =
+    S32 poll_timeout = calculate_poll_timeout(child_finished, deadline);
+    S32 poll_result =
         poll(channels.get_data(), channels.get_size(), poll_timeout);
     if (poll_result < 0 && errno == EINTR) {
       continue;

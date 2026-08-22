@@ -29,7 +29,7 @@ auto Builtin::Enum::Name::lower_call(
     Core::Option<const Ttx::Model::Pack&>) const -> Bool {
   BAIL_IF(inputs.get_size() != 1);
 
-  Memory::Dynamic::Vector<Unsigned_64> values;
+  Memory::Dynamic::Vector<U64> values;
   Memory::Dynamic::Vector<Core::View::Bytes> names;
   values.resize(enumeration.get_cases().get_size());
   names.resize(enumeration.get_cases().get_size());

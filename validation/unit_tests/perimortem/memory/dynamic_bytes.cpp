@@ -18,20 +18,20 @@ static Harness DynamicBytes = {
 PERIMORTEM_UNIT_TEST(DynamicBytes, value_bounds) {
   Dynamic::Bytes bytes("abc"_view);
 
-  EXPECT_EQ(bytes[2], Unsigned_8('c'));
-  EXPECT_EQ(bytes[3], Unsigned_8(0));
-  EXPECT_EQ(bytes.at(Count(-1)), Unsigned_8(0));
-  EXPECT_EQ(Dynamic::Bytes()[0], Unsigned_8(0));
+  EXPECT_EQ(bytes[2], U8('c'));
+  EXPECT_EQ(bytes[3], U8(0));
+  EXPECT_EQ(bytes.at(Count(-1)), U8(0));
+  EXPECT_EQ(Dynamic::Bytes()[0], U8(0));
 }
 
 PERIMORTEM_UNIT_TEST(DynamicBytes, copies_share_until_written) {
   Dynamic::Bytes original("shared"_view);
   Dynamic::Bytes copied(original);
 
-  const Unsigned_8* shared = original.get_view().get_data();
+  const U8* shared = original.get_view().get_data();
   EXPECT(copied.get_view().get_data() == shared);
 
-  copied.append(Unsigned_8('!'));
+  copied.append(U8('!'));
 
   EXPECT_EQ(original.get_view(), "shared"_view);
   EXPECT_EQ(copied.get_view(), "shared!"_view);
@@ -45,7 +45,7 @@ PERIMORTEM_UNIT_TEST(DynamicBytes, writable_access_detaches) {
   Access::Bytes access = copied.get_access();
   auto first = access[0];
   EXPECT(first);
-  *first = Unsigned_8('S');
+  *first = U8('S');
 
   EXPECT_EQ(original.get_view(), "shared"_view);
   EXPECT_EQ(copied.get_view(), "Shared"_view);
@@ -54,7 +54,7 @@ PERIMORTEM_UNIT_TEST(DynamicBytes, writable_access_detaches) {
 
 PERIMORTEM_UNIT_TEST(DynamicBytes, slices_remain_borrowed) {
   Dynamic::Bytes bytes("borrowed"_view);
-  const Unsigned_8* allocation = bytes.get_view().get_data();
+  const U8* allocation = bytes.get_view().get_data();
 
   View::Bytes slice = bytes.slice(2, 4);
 
@@ -79,7 +79,7 @@ PERIMORTEM_UNIT_TEST(DynamicBytes, abi_carrier_is_two_words) {
 
   EXPECT_EQ(
       sizeof(Perimortem::Abi::Memory::Dynamic::Bytes),
-      sizeof(Unsigned_8*) + sizeof(Count));
+      sizeof(U8*) + sizeof(Count));
   EXPECT_EQ(
       sizeof(Dynamic::Bytes), sizeof(Perimortem::Abi::Memory::Dynamic::Bytes));
 }

@@ -41,9 +41,9 @@ static auto select_result_type(
 
 static auto signed_sum(
     const Tetrodotoxin::Library::Language::Model::Types::Signed& type,
-    Signed_64 left,
-    Signed_64 right,
-    Signed_64& result) -> Bool {
+    S64 left,
+    S64 right,
+    S64& result) -> Bool {
   if (__builtin_add_overflow(left, right, &result)) {
     return False;
   }
@@ -53,9 +53,9 @@ static auto signed_sum(
 
 static auto unsigned_sum(
     const Tetrodotoxin::Library::Language::Model::Types::Unsigned& type,
-    Unsigned_64 left,
-    Unsigned_64 right,
-    Unsigned_64& result) -> Bool {
+    U64 left,
+    U64 right,
+    U64& result) -> Bool {
   if (__builtin_add_overflow(left, right, &result)) {
     return False;
   }
@@ -131,7 +131,7 @@ auto Language::Operations::Add::evaluate_constants(
         Tetrodotoxin::Library::Language::Model::Types::Signed>(
         [&](const Tetrodotoxin::Library::Language::Model::Types::Signed& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          Signed_64 value = 0;
+          S64 value = 0;
           if (!signed_sum(
                   type, left_value->get_value(), right_value->get_value(),
                   value)) {
@@ -165,7 +165,7 @@ auto Language::Operations::Add::evaluate_constants(
         Tetrodotoxin::Library::Language::Model::Types::Unsigned>(
         [&](const Tetrodotoxin::Library::Language::Model::Types::Unsigned& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          Unsigned_64 value = 0;
+          U64 value = 0;
           if (!unsigned_sum(
                   type, left_value->get_value(), right_value->get_value(),
                   value)) {
@@ -198,14 +198,13 @@ auto Language::Operations::Add::evaluate_constants(
     return selected.visit<Tetrodotoxin::Library::Language::Model::Types::Real>(
         [&](const Tetrodotoxin::Library::Language::Model::Types::Real& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          if (type.get_size() == sizeof(Real_32)) {
-            Real_32 value = Real_32(left_value->get_value()) +
-                            Real_32(right_value->get_value());
-            return Constants::Real::create_synthetic(
-                domain, type, Real_64(value));
+          if (type.get_size() == sizeof(R32)) {
+            R32 value =
+                R32(left_value->get_value()) + R32(right_value->get_value());
+            return Constants::Real::create_synthetic(domain, type, R64(value));
           }
 
-          if (type.get_size() == sizeof(Real_64)) {
+          if (type.get_size() == sizeof(R64)) {
             return Constants::Real::create_synthetic(
                 domain, type,
                 left_value->get_value() + right_value->get_value());

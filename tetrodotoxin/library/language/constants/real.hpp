@@ -20,7 +20,7 @@ class Real : public Constant {
   auto persist(Archive::Writer& writer) const -> Bool override;
 
   TTX_CONTRACT(Real, Constant);
-  using Value = Real_64;
+  using Value = R64;
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

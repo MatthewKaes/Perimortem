@@ -149,8 +149,8 @@ PERIMORTEM_UNIT_TEST(TtxLayout, value_terminal) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
-  LayoutType real("Real_32"_view);
-  LayoutType bits("Unsigned_32"_view);
+  LayoutType real("R32"_view);
+  LayoutType bits("U32"_view);
   const Static::Vector<Reference<const Abstract>, 2> values = {{real, bits}};
   Fluid layout(values);
 
@@ -188,8 +188,8 @@ PERIMORTEM_UNIT_TEST(TtxLayout, staged_type_identity) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, named_fields) {
-  LayoutType real("Real_32"_view);
-  LayoutType bits("Unsigned_32"_view);
+  LayoutType real("R32"_view);
+  LayoutType bits("U32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
   const Static::Vector<Reference<const Abstract>, 2> fields = {{x, y}};
@@ -206,7 +206,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, named_fields) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, ranged_materialization) {
-  LayoutType byte("Unsigned_8"_view);
+  LayoutType byte("U8"_view);
   ByteSequence bytes(byte, 16);
   Ranged same(byte, 16);
   Ranged shorter(byte, 15);
@@ -229,7 +229,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, ranged_materialization) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, composite_components) {
-  LayoutType byte("Unsigned_8"_view);
+  LayoutType byte("U8"_view);
   Alias first("first"_view, byte);
   Alias second("second"_view, byte);
   Alias third("third"_view, byte);
@@ -263,9 +263,9 @@ PERIMORTEM_UNIT_TEST(TtxLayout, composite_components) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, composite_fitting) {
-  LayoutType byte("Unsigned_8"_view);
-  LayoutType real("Real_32"_view);
-  LayoutType bits("Unsigned_32"_view);
+  LayoutType byte("U8"_view);
+  LayoutType real("R32"_view);
+  LayoutType bits("U32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
   Alias named_x("x"_view, real);
@@ -286,8 +286,8 @@ PERIMORTEM_UNIT_TEST(TtxLayout, composite_fitting) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
-  LayoutType real("Real_32"_view);
-  LayoutType bits("Unsigned_32"_view);
+  LayoutType real("R32"_view);
+  LayoutType bits("U32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
   Alias named_x("x"_view, real);
@@ -321,7 +321,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, addressable_alias_fitting) {
-  LayoutType real("Real_32"_view);
+  LayoutType real("R32"_view);
   LayoutField x("x"_view, real);
   Alias alias("x"_view, x);
   const Static::Vector<Reference<const Abstract>, 1> aliases = {{alias}};
@@ -340,8 +340,8 @@ PERIMORTEM_UNIT_TEST(TtxLayout, addressable_alias_fitting) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
-  LayoutType real("Real_32"_view);
-  LayoutType bits("Unsigned_32"_view);
+  LayoutType real("R32"_view);
+  LayoutType bits("U32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
   Alias first("x"_view, real);
@@ -364,7 +364,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, named_shape) {
-  LayoutType real("Real_32"_view);
+  LayoutType real("R32"_view);
   LayoutField first_x("x"_view, real);
   LayoutField second_x("x"_view, real);
   const Static::Vector<Reference<const Abstract>, 1> first_fields = {{first_x}};

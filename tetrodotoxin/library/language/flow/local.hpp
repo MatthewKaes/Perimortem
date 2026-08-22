@@ -95,7 +95,7 @@ class Local : public Model::Addressable {
   auto get_constant() const -> Perimortem::Core::Option<Model::Pack&> override;
 
  private:
-  enum class ConstantState : Unsigned_8 {
+  enum class ConstantState : U8 {
     Unresolved,
     Folding,
     Folded,

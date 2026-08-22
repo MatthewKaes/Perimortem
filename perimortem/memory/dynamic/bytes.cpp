@@ -22,7 +22,7 @@ Dynamic::Bytes::Bytes(const Core::View::Bytes view)
 Dynamic::Bytes::Bytes(const Bytes& rhs) : data(rhs.data), size(rhs.size) {}
 
 Dynamic::Bytes::Bytes(Bytes&& rhs)
-    : data(static_cast<Core::Object<Unsigned_8>&&>(rhs.data)), size(rhs.size) {
+    : data(static_cast<Core::Object<U8>&&>(rhs.data)), size(rhs.size) {
   rhs.size = 0;
 }
 
@@ -46,20 +46,20 @@ auto Dynamic::Bytes::operator=(Bytes&& rhs) -> Bytes& {
     return *this;
   }
 
-  data = static_cast<Core::Object<Unsigned_8>&&>(rhs.data);
+  data = static_cast<Core::Object<U8>&&>(rhs.data);
   size = rhs.size;
   rhs.size = 0;
   return *this;
 }
 
-auto Dynamic::Bytes::append(Unsigned_8 byte) -> void {
+auto Dynamic::Bytes::append(U8 byte) -> void {
   Count size = get_size();
   auto access = prepare_write(size + 1);
   access.get_data()[size] = byte;
   this->size = size + 1;
 }
 
-auto Dynamic::Bytes::append(Unsigned_8 byte, Count amount) -> void {
+auto Dynamic::Bytes::append(U8 byte, Count amount) -> void {
   if (amount == 0) {
     return;
   }
@@ -106,7 +106,7 @@ auto Dynamic::Bytes::proxy(Core::View::Bytes view) -> void {
   *this = static_cast<Bytes&&>(replacement);
 }
 
-auto Dynamic::Bytes::set(Unsigned_8 target) -> void {
+auto Dynamic::Bytes::set(U8 target) -> void {
   if (is_empty()) {
     return;
   }
@@ -115,7 +115,7 @@ auto Dynamic::Bytes::set(Unsigned_8 target) -> void {
   Data::set(access.get_data(), target, get_size());
 }
 
-auto Dynamic::Bytes::convert(Unsigned_8 source, Unsigned_8 target) -> void {
+auto Dynamic::Bytes::convert(U8 source, U8 target) -> void {
   auto access = prepare_write(get_size());
   for (Count index = 0; index < get_size(); index++) {
     if (access.get_data()[index] == source) {
@@ -141,7 +141,7 @@ auto Dynamic::Bytes::forgetful_resize(Count required_size) -> void {
     return;
   }
 
-  data = Core::Object<Unsigned_8>(required_size);
+  data = Core::Object<U8>(required_size);
   size = required_size;
 }
 
@@ -162,11 +162,11 @@ auto Dynamic::Bytes::shrink(Count bytes_to_remove) -> void {
   this->size = remaining;
 }
 
-auto Dynamic::Bytes::operator[](Count index) const -> Unsigned_8 {
+auto Dynamic::Bytes::operator[](Count index) const -> U8 {
   return get_view()[index];
 }
 
-auto Dynamic::Bytes::at(Count index) const -> Unsigned_8 {
+auto Dynamic::Bytes::at(Count index) const -> U8 {
   return get_view()[index];
 }
 
@@ -175,7 +175,7 @@ auto Dynamic::Bytes::clear() -> void {
 }
 
 auto Dynamic::Bytes::reset() -> void {
-  data = Core::Object<Unsigned_8>();
+  data = Core::Object<U8>();
   size = 0;
 }
 

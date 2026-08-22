@@ -20,19 +20,19 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, canonical_declaration_order) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
-      "private Hidden:struct{public state value:Unsigned_8;} "
-      "private hidden:func=[self]->Unsigned_8{return 1;} "
+      "private Hidden:struct{public state value:U8;} "
+      "private hidden:func=[self]->U8{return 1;} "
       "@abi(\"C\") @symbol(\"first\") "
-      "public first:func=[]->Unsigned_8{return 2;} "
+      "public first:func=[]->U8{return 2;} "
       "using Core from dependency; dialect:Library; "
-      "public state value:Unsigned_8=0; "
-      "public named:func=[self]->Unsigned_8{return value;} "
-      "private local:func=[]->Unsigned_8{return 3;} "
-      "public CountAlias:alias=Unsigned_8; "
-      "private const limit:Unsigned_8=4; "
-      "foreign \"C\"{public func imported_z[]->Unsigned_8; "
-      "public func imported_a[]->Unsigned_8;} "
-      "public Visible:enum[Unsigned_8]{first=0;second=1;}"_view,
+      "public state value:U8=0; "
+      "public named:func=[self]->U8{return value;} "
+      "private local:func=[]->U8{return 3;} "
+      "public CountAlias:alias=U8; "
+      "private const limit:U8=4; "
+      "foreign \"C\"{public func imported_z[]->U8; "
+      "public func imported_a[]->U8;} "
+      "public Visible:enum[U8]{first=0;second=1;}"_view,
       "Test.ttx"_view);
 
   Dynamic::Bytes formatted = Formatter(tokenizer).format();
@@ -47,32 +47,32 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, canonical_declaration_order) {
       "using Core from dependency;\n"
       "\n"
       "foreign \"C\" {\n"
-      "  public func imported_a[] -> Unsigned_8;\n"
-      "  public func imported_z[] -> Unsigned_8;\n"
+      "  public func imported_a[] -> U8;\n"
+      "  public func imported_z[] -> U8;\n"
       "}\n"
       "\n"
-      "public CountAlias : alias = Unsigned_8;\n"
+      "public CountAlias : alias = U8;\n"
       "\n"
-      "private const limit : Unsigned_8 = 4;\n"
+      "private const limit : U8 = 4;\n"
       "\n"
-      "public state value : Unsigned_8 = 0;\n"
+      "public state value : U8 = 0;\n"
       "\n"
       "@abi(\"C\") @symbol(\"first\")\n"
-      "public first : func = [] -> Unsigned_8 : return 2;\n"
+      "public first : func = [] -> U8 : return 2;\n"
       "\n"
-      "public named : func = [self] -> Unsigned_8 : return value;\n"
+      "public named : func = [self] -> U8 : return value;\n"
       "\n"
-      "private local : func = [] -> Unsigned_8 : return 3;\n"
+      "private local : func = [] -> U8 : return 3;\n"
       "\n"
-      "private hidden : func = [self] -> Unsigned_8 : return 1;\n"
+      "private hidden : func = [self] -> U8 : return 1;\n"
       "\n"
-      "public Visible : enum[Unsigned_8] {\n"
+      "public Visible : enum[U8] {\n"
       "  first = 0;\n"
       "  second = 1;\n"
       "}\n"
       "\n"
       "private Hidden : struct {\n"
-      "  public state value : Unsigned_8;\n"
+      "  public state value : U8;\n"
       "}\n"_view);
 }
 
@@ -81,8 +81,8 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, inferred_declaration_stays_compact) {
   Tokenizer tokenizer(
       arena,
       "// Source.\n"
-      "dialect:Library; public create:func=[]->Unsigned_8{state value:=-1; "
-      "if !false {value+=1;} for [.entry:Unsigned_8] in 0...1 {value+=entry;} "
+      "dialect:Library; public create:func=[]->U8{state value:=-1; "
+      "if !false {value+=1;} for [.entry:U8] in 0...1 {value+=entry;} "
       "return value!+2;}"_view,
       "Test.ttx"_view);
 
@@ -92,10 +92,10 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, inferred_declaration_stays_compact) {
       "// Source.\n"
       "dialect : Library;\n"
       "\n"
-      "public create : func = [] -> Unsigned_8 {\n"
+      "public create : func = [] -> U8 {\n"
       "  state value := -1;\n"
       "  if !false : value += 1;\n"
-      "  for [.entry : Unsigned_8] in 0...1 : value += entry;\n"
+      "  for [.entry : U8] in 0...1 : value += entry;\n"
       "\n"
       "  return value! + 2;\n"
       "}\n"_view);
@@ -108,11 +108,11 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, composite_declaration_order) {
       "// Source.\n"
       "dialect:Library; public Container:struct{private Nested:struct{} "
       "private self_call:func=[self]->[]{return;} "
-      "public state first:Unsigned_8; private const beta:Unsigned_8=2; "
+      "public state first:U8; private const beta:U8=2; "
       "public static_call:func=[]->[]{return;} "
-      "private state second:Unsigned_8; public const alpha:Unsigned_8=1; "
+      "private state second:U8; public const alpha:U8=1; "
       "public self_call:func=[self]->[]{return;} "
-      "public Nested:enum[Unsigned_8]{first=0;} "
+      "public Nested:enum[U8]{first=0;} "
       "private static_call:func=[]->[]{return;}}"_view,
       "Test.ttx"_view);
 
@@ -123,11 +123,11 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, composite_declaration_order) {
       "dialect : Library;\n"
       "\n"
       "public Container : struct {\n"
-      "  public const alpha : Unsigned_8 = 1;\n"
-      "  private const beta : Unsigned_8 = 2;\n"
+      "  public const alpha : U8 = 1;\n"
+      "  private const beta : U8 = 2;\n"
       "\n"
-      "  public state first   : Unsigned_8;\n"
-      "  private state second : Unsigned_8;\n"
+      "  public state first   : U8;\n"
+      "  private state second : U8;\n"
       "\n"
       "  public static_call : func = [] -> [] : return;\n"
       "\n"
@@ -137,7 +137,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, composite_declaration_order) {
       "\n"
       "  private self_call : func = [self] -> [] : return;\n"
       "\n"
-      "  public Nested : enum[Unsigned_8] {\n"
+      "  public Nested : enum[U8] {\n"
       "    first = 0;\n"
       "  }\n"
       "\n"
@@ -150,12 +150,12 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, alphabetical_declaration_blocks) {
   Tokenizer tokenizer(
       arena,
       "// Source.\n"
-      "dialect:Library; private ZebraAlias:alias=Unsigned_8; "
-      "public ZebraAlias:alias=Unsigned_8; "
-      "private AlphaAlias:alias=Unsigned_8; "
-      "public AlphaAlias:alias=Unsigned_8; "
-      "private const zebra:Unsigned_8=2; "
-      "public const alpha:Unsigned_8=1; "
+      "dialect:Library; private ZebraAlias:alias=U8; "
+      "public ZebraAlias:alias=U8; "
+      "private AlphaAlias:alias=U8; "
+      "public AlphaAlias:alias=U8; "
+      "private const zebra:U8=2; "
+      "public const alpha:U8=1; "
       "public zebra:func=[]->[]{return;} "
       "public alpha:func=[]->[]{return;} "
       "private Zebra:struct{} public Zebra:struct{} "
@@ -168,13 +168,13 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, alphabetical_declaration_blocks) {
       "// Source.\n"
       "dialect : Library;\n"
       "\n"
-      "public AlphaAlias  : alias = Unsigned_8;\n"
-      "public ZebraAlias  : alias = Unsigned_8;\n"
-      "private AlphaAlias : alias = Unsigned_8;\n"
-      "private ZebraAlias : alias = Unsigned_8;\n"
+      "public AlphaAlias  : alias = U8;\n"
+      "public ZebraAlias  : alias = U8;\n"
+      "private AlphaAlias : alias = U8;\n"
+      "private ZebraAlias : alias = U8;\n"
       "\n"
-      "public const alpha  : Unsigned_8 = 1;\n"
-      "private const zebra : Unsigned_8 = 2;\n"
+      "public const alpha  : U8 = 1;\n"
+      "private const zebra : U8 = 2;\n"
       "\n"
       "public alpha : func = [] -> [] : return;\n"
       "public zebra : func = [] -> [] : return;\n"
@@ -194,7 +194,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, documentation_starts_paragraph) {
       arena,
       "//Source.\n"
       "dialect:Library; @abi(\"C\") // Function documentation.\n"
-      "@symbol(\"run\") public run:func=[]->[]{state first:Unsigned_8=0; "
+      "@symbol(\"run\") public run:func=[]->[]{state first:U8=0; "
       "first=1; //Observed statement.\n"
       "first; //\n"
       "return;}"_view,
@@ -209,7 +209,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, documentation_starts_paragraph) {
       "// Function documentation.\n"
       "@abi(\"C\") @symbol(\"run\")\n"
       "public run : func = [] -> [] {\n"
-      "  state first : Unsigned_8 = 0;\n"
+      "  state first : U8 = 0;\n"
       "  first = 1;\n"
       "\n"
       "  // Observed statement.\n"
@@ -246,9 +246,9 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, bounded_alignment_islands) {
   Tokenizer tokenizer(
       arena,
       "// Source.\n"
-      "dialect:Library; private const a:Unsigned_64=1; "
-      "private const extraordinarily_long_constant_name:Unsigned_64=2; "
-      "public Table:struct{public state count:Unsigned_64=0; "
+      "dialect:Library; private const a:U64=1; "
+      "private const extraordinarily_long_constant_name:U64=2; "
+      "public Table:struct{public state count:U64=0; "
       "private state selected:Bool=false;} "
       "public assign:func=[]->[]{first=1;longer_name=2;return;}"_view,
       "Test.ttx"_view);
@@ -259,8 +259,8 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, bounded_alignment_islands) {
       "// Source.\n"
       "dialect : Library;\n"
       "\n"
-      "private const a : Unsigned_64 = 1;\n"
-      "private const extraordinarily_long_constant_name : Unsigned_64 = 2;\n"
+      "private const a : U64 = 1;\n"
+      "private const extraordinarily_long_constant_name : U64 = 2;\n"
       "\n"
       "public assign : func = [] -> [] {\n"
       "  first       = 1;\n"
@@ -268,8 +268,8 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, bounded_alignment_islands) {
       "}\n"
       "\n"
       "public Table : struct {\n"
-      "  public state count     : Unsigned_64 = 0;\n"
-      "  private state selected : Bool        = false;\n"
+      "  public state count     : U64  = 0;\n"
+      "  private state selected : Bool = false;\n"
       "}\n"_view);
 }
 
@@ -337,8 +337,8 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, executable_paragraph_state) {
   Tokenizer tokenizer(
       arena,
       "// Source.\n"
-      "dialect:Library; public run:func=[]->[]{state first:Unsigned_8=0; "
-      "first=1; const second:Unsigned_8=2; second; if true {first=2;} "
+      "dialect:Library; public run:func=[]->[]{state first:U8=0; "
+      "first=1; const second:U8=2; second; if true {first=2;} "
       "while false {break;} return;}"_view,
       "Test.ttx"_view);
 
@@ -349,10 +349,10 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, executable_paragraph_state) {
       "dialect : Library;\n"
       "\n"
       "public run : func = [] -> [] {\n"
-      "  state first : Unsigned_8 = 0;\n"
+      "  state first : U8 = 0;\n"
       "  first = 1;\n"
       "\n"
-      "  const second : Unsigned_8 = 2;\n"
+      "  const second : U8 = 2;\n"
       "  second;\n"
       "  if true : first = 2;\n"
       "  while false : break;\n"
@@ -364,7 +364,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, compressed_block_paragraph_state) {
   Tokenizer tokenizer(
       arena,
       "// Source.\n"
-      "dialect:Library; public run:func=[]->[]{state alpha:Unsigned_64=0;"
+      "dialect:Library; public run:func=[]->[]{state alpha:U64=0;"
       "alpha=0;if first:alpha=1;if second:alpha=2;alpha=3;alpha=4;"
       "while third{alpha=5;alpha=6;}alpha=7;}"_view,
       "Test.ttx"_view);
@@ -376,7 +376,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, compressed_block_paragraph_state) {
       "dialect : Library;\n"
       "\n"
       "public run : func = [] -> [] {\n"
-      "  state alpha : Unsigned_64 = 0;\n"
+      "  state alpha : U64 = 0;\n"
       "  alpha = 0;\n"
       "  if first : alpha = 1;\n"
       "  if second : alpha = 2;\n"
@@ -429,7 +429,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, dialect_callable_preserves_body_order) {
       arena,
       "// Source.\n"
       "dialect:Scene; Scene update[self]->Void{self.value=1; "
-      "const observed:Unsigned_8=2; return;} "
+      "const observed:U8=2; return;} "
       "Scene release[self]->Void{return;}"_view,
       "Test.ttx"_view);
 
@@ -443,7 +443,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, dialect_callable_preserves_body_order) {
       "Scene update[self] -> Void {\n"
       "  self.value = 1;\n"
       "\n"
-      "  const observed : Unsigned_8 = 2;\n"
+      "  const observed : U8 = 2;\n"
       "  return;\n"
       "}\n"_view);
 }
@@ -453,7 +453,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, malformed_source_is_stable) {
   Tokenizer first(
       first_arena,
       "// Source.\n"
-      "dialect:Library; public state value:Unsigned_8 = ^ "_view,
+      "dialect:Library; public state value:U8 = ^ "_view,
       "Test.ttx"_view);
   Dynamic::Bytes first_output = Formatter(first).format();
 
@@ -467,7 +467,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, malformed_source_is_stable) {
       "// Source.\n"
       "dialect : Library;\n"
       "\n"
-      "public state value : Unsigned_8 = ^\n"_view);
+      "public state value : U8 = ^\n"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxFormatter, wraps_long_postfix_expression) {
@@ -475,7 +475,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, wraps_long_postfix_expression) {
   Tokenizer tokenizer(
       arena,
       "// Source.\n"
-      "dialect:Library; private value:Fixed[Unsigned_8,2]="
+      "dialect:Library; private value:Fixed[U8,2]="
       "0x[00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F]"
       ":[Parameters.offset+12,Parameters.size];"_view,
       "Test.ttx"_view);
@@ -486,7 +486,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, wraps_long_postfix_expression) {
       "// Source.\n"
       "dialect : Library;\n"
       "\n"
-      "private value : Fixed[Unsigned_8, 2] = "
+      "private value : Fixed[U8, 2] = "
       "0x[00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F]"
       ":[Parameters.offset +\n"
       "    12, Parameters.size];\n"_view);

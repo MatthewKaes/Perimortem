@@ -24,13 +24,13 @@ using LittleReader = Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>;
 // Low level logs use one stable operation identity so a higher layer can pair
 // its source diagnostic with the complete Archive validation trace.
 static constexpr View::Bytes archive_read_operation =
-    "Package::Archive::Reader Format 1 read"_view;
-static constexpr Unsigned_16 required_field = 1;
-static constexpr Unsigned_16 interface_profile = 1;
-static constexpr Unsigned_8 first_section =
-    Unsigned_8(Package::Archive::Archive::Sections::Identity);
-static constexpr Unsigned_8 last_section =
-    Unsigned_8(Package::Archive::Archive::Sections::Exports);
+    "Package::Archive::Reader Format 2 read"_view;
+static constexpr U16 required_field = 1;
+static constexpr U16 interface_profile = 1;
+static constexpr U8 first_section =
+    U8(Package::Archive::Archive::Sections::Identity);
+static constexpr U8 last_section =
+    U8(Package::Archive::Archive::Sections::ArtifactMetadata);
 
 // Archive qualification rules name their lexical separator Codes once and
 // leave every segment and separator spelling check with the shared Lexicon.
@@ -110,6 +110,7 @@ static auto validate(
     View::Vector<Package::Language::Dependency> dependencies,
     View::Vector<Package::Archive::Member> members,
     View::Vector<View::Bytes> artifact_ids,
+    View::Vector<Package::Archive::Artifact> artifacts,
     View::Vector<Package::Archive::Export> exports) -> Bool {
   if (!Lexicon::validate(
           Code::Type::Type, identity, package_identity_separators)) {
@@ -126,7 +127,7 @@ static auto validate(
 
   if (members.is_empty()) {
     Diagnostics::Log::debug(
-        "Package::Archive::Reader Format 1 read failed validation. "
+        "Package::Archive::Reader Format 2 read failed validation. "
         "inventory=Members reason=at least one semantic member is required."_view);
     return False;
   }
@@ -134,6 +135,7 @@ static auto validate(
   const auto* dependency_data = dependencies.get_data();
   const auto* member_data = members.get_data();
   const auto* artifact_id_data = artifact_ids.get_data();
+  const auto* artifact_data = artifacts.get_data();
   const auto* export_data = exports.get_data();
 
   // Dependencies retain authored order but require unique local aliases and
@@ -214,8 +216,8 @@ static auto validate(
     }
   }
 
-  // Artifact IDs remain direct opaque byte values. Package proves only their
-  // presence and uniqueness before an Export can refer to one.
+  // Artifact IDs remain direct Export references and require one matching
+  // metadata record with the same identity.
   for (Count i = 0; i < artifact_ids.get_size(); i++) {
     View::Bytes id = artifact_id_data[i];
     if (!is_opaque_identifier(id)) {
@@ -227,6 +229,53 @@ static auto validate(
     for (Count earlier = 0; earlier < i; earlier++) {
       if (artifact_id_data[earlier] == id) {
         return log_duplicate_value("Artifact IDs"_view, id, earlier, i);
+      }
+    }
+  }
+
+  if (artifact_ids.get_size() != artifacts.get_size()) {
+    return log_invalid_value(
+        "Artifact metadata"_view, Count(-1), {},
+        "every Artifact ID requires one metadata record."_view);
+  }
+  for (Count i = 0; i < artifacts.get_size(); i++) {
+    const Package::Archive::Artifact& artifact = artifact_data[i];
+    View::Bytes id = artifact.get_id();
+    if (!is_opaque_identifier(id) || !artifact_ids.contains(id)) {
+      return log_invalid_value(
+          "Artifact metadata IDs"_view, i, id,
+          "the value is missing from the Artifact ID inventory."_view);
+    }
+    if (!is_opaque_identifier(artifact.get_target())) {
+      return log_invalid_value(
+          "Artifact targets"_view, i, artifact.get_target(),
+          "the value is empty or contains a NUL byte."_view);
+    }
+
+    auto imports = artifact.get_imports();
+    for (Count import_index = 0; import_index < imports.get_size();
+         import_index++) {
+      const Linker::Import& import = imports.get_data()[import_index];
+      if (!is_opaque_identifier(import.get_abi()) ||
+          !is_opaque_identifier(import.get_symbol()) ||
+          !is_opaque_identifier(import.get_provider())) {
+        return log_invalid_value(
+            "Artifact imports"_view, import_index, import.get_symbol(),
+            "ABI symbol and provider must be nonempty NUL free values."_view);
+      }
+      for (Count earlier = 0; earlier < import_index; earlier++) {
+        if (imports.get_data()[earlier].get_symbol() == import.get_symbol()) {
+          return log_duplicate_value(
+              "Artifact import symbols"_view, import.get_symbol(), earlier,
+              import_index);
+        }
+      }
+    }
+
+    for (Count earlier = 0; earlier < i; earlier++) {
+      if (artifact_data[earlier].get_id() == id) {
+        return log_duplicate_value(
+            "Artifact metadata IDs"_view, id, earlier, i);
       }
     }
   }
@@ -287,7 +336,7 @@ static auto is_valid(const LittleReader& reader) -> Bool {
 // Binary performs both boundary checks and leaves its terminal location on
 // failure.
 static auto read_sized_bytes(LittleReader& reader, View::Bytes& value) -> Bool {
-  Unsigned_32 size = reader.read_unsigned_32();
+  U32 size = reader.read_u32();
   BAIL_IF(!is_valid(reader));
 
   value = reader.read_bytes(size);
@@ -299,7 +348,7 @@ static auto read_sized_bytes(LittleReader& reader, View::Bytes& value) -> Bool {
 // so adversarial counts cannot reserve more records than the payload can hold.
 template <typename value_type>
 static auto can_allocate_records(
-    Unsigned_32 count,
+    U32 count,
     View::Bytes payload,
     Count offset,
     Count minimum_record_size) -> Bool {
@@ -322,8 +371,8 @@ static auto parse_identity(View::Bytes payload, View::Bytes& identity) -> Bool {
 // consume its four bytes exactly.
 static auto parse_version(View::Bytes payload, Version& version) -> Bool {
   LittleReader reader(payload);
-  Unsigned_16 major = reader.read_unsigned_16();
-  Unsigned_16 minor = reader.read_unsigned_16();
+  U16 major = reader.read_u16();
+  U16 minor = reader.read_u16();
   BAIL_IF(!is_valid(reader) || reader.get_location() != reader.get_size());
 
   version = Version(major, minor);
@@ -337,16 +386,16 @@ static auto parse_dependencies(
     View::Bytes payload,
     Dynamic::Vector<Package::Language::Dependency>& dependencies) -> Bool {
   LittleReader reader(payload);
-  Unsigned_32 count = reader.read_unsigned_32();
+  U32 count = reader.read_u32();
   BAIL_IF(
       !is_valid(reader) || !can_allocate_records<Package::Language::Dependency>(
                                count, payload, reader.get_location(), 18));
 
   dependencies = Dynamic::Vector<Package::Language::Dependency>(count);
-  for (Unsigned_32 i = 0; i < count; i++) {
+  for (U32 i = 0; i < count; i++) {
     // Isolate one Dependency with its outer frame. The two sized names and
     // fixed version must consume that record exactly before it is retained.
-    Unsigned_32 record_size = reader.read_unsigned_32();
+    U32 record_size = reader.read_u32();
     View::Bytes record = reader.read_bytes(record_size);
     BAIL_IF(!is_valid(reader));
 
@@ -355,8 +404,8 @@ static auto parse_dependencies(
     View::Bytes package_name;
     Bool local_name_read = read_sized_bytes(record_reader, local_name);
     Bool package_name_read = read_sized_bytes(record_reader, package_name);
-    Unsigned_16 major = record_reader.read_unsigned_16();
-    Unsigned_16 minor = record_reader.read_unsigned_16();
+    U16 major = record_reader.read_u16();
+    U16 minor = record_reader.read_u16();
     BAIL_IF(
         !local_name_read || !package_name_read || !is_valid(record_reader) ||
         record_reader.get_location() != record_reader.get_size());
@@ -375,16 +424,16 @@ static auto parse_members(
     View::Bytes payload,
     Dynamic::Vector<Package::Archive::Member>& members) -> Bool {
   LittleReader reader(payload);
-  Unsigned_32 count = reader.read_unsigned_32();
+  U32 count = reader.read_u32();
   BAIL_IF(
       !is_valid(reader) || !can_allocate_records<Package::Archive::Member>(
                                count, payload, reader.get_location(), 18));
 
   members = Dynamic::Vector<Package::Archive::Member>(count);
-  for (Unsigned_32 i = 0; i < count; i++) {
+  for (U32 i = 0; i < count; i++) {
     // Isolate each Member before reading its three sized values. An invalid
     // payload size therefore cannot consume the next record.
-    Unsigned_32 record_size = reader.read_unsigned_32();
+    U32 record_size = reader.read_u32();
     View::Bytes record = reader.read_bytes(record_size);
     BAIL_IF(!is_valid(reader));
 
@@ -406,19 +455,19 @@ static auto parse_members(
   return reader.get_location() == reader.get_size();
 }
 
-// Decodes each artifact record to the one logical ID retained by Archive.
+// Decodes the direct Artifact ID inventory used by Export records.
 static auto parse_artifact_ids(
     View::Bytes payload,
     Dynamic::Vector<View::Bytes>& artifact_ids) -> Bool {
   LittleReader reader(payload);
-  Unsigned_32 count = reader.read_unsigned_32();
+  U32 count = reader.read_u32();
   BAIL_IF(
       !is_valid(reader) || !can_allocate_records<View::Bytes>(
                                count, payload, reader.get_location(), 9));
 
   artifact_ids = Dynamic::Vector<View::Bytes>(count);
-  for (Unsigned_32 i = 0; i < count; i++) {
-    Unsigned_32 record_size = reader.read_unsigned_32();
+  for (U32 index = 0; index < count; index++) {
+    U32 record_size = reader.read_u32();
     View::Bytes record = reader.read_bytes(record_size);
     BAIL_IF(!is_valid(reader));
 
@@ -427,8 +476,72 @@ static auto parse_artifact_ids(
     Bool id_read = read_sized_bytes(record_reader, id);
     BAIL_IF(
         !id_read || record_reader.get_location() != record_reader.get_size());
-
     artifact_ids.emplace(View::Bytes(id));
+  }
+  return reader.get_location() == reader.get_size();
+}
+
+// Decodes each Artifact and keeps its selected Import records in transaction
+// storage until the complete Archive reaches the caller Arena.
+static auto parse_artifact_metadata(
+    View::Bytes payload,
+    Dynamic::Vector<Package::Archive::Artifact>& artifacts,
+    Dynamic::Vector<Dynamic::Vector<Linker::Import>>& artifact_imports)
+    -> Bool {
+  LittleReader reader(payload);
+  U32 count = reader.read_u32();
+  BAIL_IF(
+      !is_valid(reader) || !can_allocate_records<Package::Archive::Artifact>(
+                               count, payload, reader.get_location(), 25));
+
+  artifacts = Dynamic::Vector<Package::Archive::Artifact>(count);
+  artifact_imports = Dynamic::Vector<Dynamic::Vector<Linker::Import>>(count);
+  for (U32 i = 0; i < count; i++) {
+    U32 record_size = reader.read_u32();
+    View::Bytes record = reader.read_bytes(record_size);
+    BAIL_IF(!is_valid(reader));
+
+    LittleReader record_reader(record);
+    View::Bytes id;
+    View::Bytes target;
+    Bool id_read = read_sized_bytes(record_reader, id);
+    Bool target_read = read_sized_bytes(record_reader, target);
+    U64 fingerprint = record_reader.read_u64();
+    U32 import_count = record_reader.read_u32();
+    BAIL_IF(
+        !id_read || !target_read || !is_valid(record_reader) ||
+        !can_allocate_records<Linker::Import>(
+            import_count, record, record_reader.get_location(), 17));
+
+    Dynamic::Vector<Linker::Import> imports(import_count);
+    for (U32 import_index = 0; import_index < import_count; import_index++) {
+      U32 import_size = record_reader.read_u32();
+      View::Bytes import_record = record_reader.read_bytes(import_size);
+      BAIL_IF(!is_valid(record_reader));
+
+      LittleReader import_reader(import_record);
+      U8 kind = import_reader.read_u8();
+      View::Bytes abi;
+      View::Bytes symbol;
+      View::Bytes provider;
+      Bool abi_read = read_sized_bytes(import_reader, abi);
+      Bool symbol_read = read_sized_bytes(import_reader, symbol);
+      Bool provider_read = read_sized_bytes(import_reader, provider);
+      BAIL_IF(
+          kind > U8(Linker::Import::Kind::WritableState) || !abi_read ||
+          !symbol_read || !provider_read ||
+          import_reader.get_location() != import_reader.get_size());
+      imports.emplace(
+          Linker::Import(Linker::Import::Kind(kind), abi, symbol, provider));
+    }
+    BAIL_IF(record_reader.get_location() != record_reader.get_size());
+
+    artifact_imports.emplace(
+        static_cast<Dynamic::Vector<Linker::Import>&&>(imports));
+    artifacts.emplace(
+        Package::Archive::Artifact(
+            id, target, Linker::Fingerprint(fingerprint),
+            artifact_imports[artifact_imports.get_size() - 1].get_view()));
   }
 
   return reader.get_location() == reader.get_size();
@@ -441,16 +554,16 @@ static auto parse_exports(
     View::Bytes payload,
     Dynamic::Vector<Package::Archive::Export>& exports) -> Bool {
   LittleReader reader(payload);
-  Unsigned_32 count = reader.read_unsigned_32();
+  U32 count = reader.read_u32();
   BAIL_IF(
       !is_valid(reader) || !can_allocate_records<Package::Archive::Export>(
                                count, payload, reader.get_location(), 19));
 
   exports = Dynamic::Vector<Package::Archive::Export>(count);
-  for (Unsigned_32 i = 0; i < count; i++) {
+  for (U32 i = 0; i < count; i++) {
     // Keep the semantic route, artifact ID, and symbol locator inside one
     // record so each Export is either complete or rejected.
-    Unsigned_32 record_size = reader.read_unsigned_32();
+    U32 record_size = reader.read_u32();
     View::Bytes record = reader.read_bytes(record_size);
     BAIL_IF(!is_valid(reader));
 
@@ -510,29 +623,36 @@ static auto retain_archive(
     Version version,
     View::Vector<Package::Language::Dependency> dependencies,
     View::Vector<Package::Archive::Member> members,
-    View::Vector<View::Bytes> artifact_ids,
+    View::Vector<Package::Archive::Artifact> artifacts,
     View::Vector<Package::Archive::Export> exports,
     Tetrodotoxin::Language::Persistence::Profile profile)
     -> Package::Archive::Archive {
   auto retained_dependencies = retain_records(arena, dependencies);
   auto retained_members = retain_records(arena, members);
-  auto retained_artifact_ids = retain_records(arena, artifact_ids);
   auto retained_exports = retain_records(arena, exports);
+  Managed::Vector<Package::Archive::Artifact> retained_artifacts(arena);
+  for (const Package::Archive::Artifact& artifact : artifacts) {
+    auto retained_imports = retain_records(arena, artifact.get_imports());
+    retained_artifacts.insert(
+        Package::Archive::Artifact(
+            artifact.get_id(), artifact.get_target(),
+            artifact.get_fingerprint(), retained_imports));
+  }
 
   return Package::Archive::Archive(
       identity, version, retained_dependencies, retained_members,
-      retained_artifact_ids, retained_exports, profile);
+      retained_artifacts.get_view(), retained_exports, profile);
 }
 
 auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     -> Result<Archive, Error> {
   // Decode the complete fixed header first. Accepted input must carry the
-  // Format 1 magic and version while leaving every reserved flag clear.
+  // Format 2 magic and version while leaving every reserved flag clear.
   LittleReader reader(input);
   View::Bytes magic = reader.read_bytes(4);
-  Unsigned_16 format = reader.read_unsigned_16();
-  Unsigned_16 header_flags = reader.read_unsigned_16();
-  Unsigned_32 body_size = reader.read_unsigned_32();
+  U16 format = reader.read_u16();
+  U16 header_flags = reader.read_u16();
+  U32 body_size = reader.read_u32();
   if (!is_valid(reader)) {
     return reject_archive(
         "header"_view, 0,
@@ -549,12 +669,12 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   }
 
   // A readable revision is the only rejection that gives callers a recovery
-  // decision beyond invalid Format 1 bytes. Keep the exact revision in the
+  // decision beyond invalid Format 2 bytes. Keep the exact revision in the
   // Debug record while the returned category stays small.
-  if (format != 1) {
+  if (format != 2) {
     Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
     message << archive_read_operation
-            << " failed. stage=header byte_offset=4 expected_format=1 "
+            << " failed. stage=header byte_offset=4 expected_format=2 "
                "actual_format="_view
             << format;
     return Error::UnsupportedFormat;
@@ -587,25 +707,27 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     return Error::InvalidFormat;
   }
 
-  // Hold decoded views in transaction storage until all six sections and their
-  // semantic relationships pass. A malformed envelope therefore cannot retain
-  // partial Archive state in the caller Arena.
+  // Hold decoded views in transaction storage until all seven sections and
+  // their semantic relationships pass. A malformed envelope therefore cannot
+  // retain partial Archive state in the caller Arena.
   View::Bytes identity;
   Version version;
   Dynamic::Vector<Language::Dependency> dependencies;
   Dynamic::Vector<Member> members;
   Dynamic::Vector<View::Bytes> artifact_ids;
+  Dynamic::Vector<Artifact> artifacts;
+  Dynamic::Vector<Dynamic::Vector<Linker::Import>> artifact_imports;
   Dynamic::Vector<Export> exports;
-  Unsigned_8 expected_section = first_section;
+  U8 expected_section = first_section;
 
   while (reader.has_content()) {
     // Isolate one section payload before interpreting its tag. A malformed
     // payload size reaches Binary's terminal state instead of escaping the
     // declared body.
     Count section_offset = reader.get_location();
-    Unsigned_16 section_tag = reader.read_unsigned_16();
-    Unsigned_16 flags = reader.read_unsigned_16();
-    Unsigned_32 payload_size = reader.read_unsigned_32();
+    U16 section_tag = reader.read_u16();
+    U16 flags = reader.read_u16();
+    U32 payload_size = reader.read_u32();
     View::Bytes payload = reader.read_bytes(payload_size);
     if (!is_valid(reader)) {
       Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
@@ -617,7 +739,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
       return Error::InvalidFormat;
     }
 
-    // Bit zero is the only Format 1 section flag. Any other bit would assign
+    // Bit zero is the only Format 2 section flag. Any other bit would assign
     // semantics that this Reader cannot prove.
     if ((flags & ~required_field) != 0) {
       Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
@@ -661,7 +783,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     // Dispatch the current section through the shared public vocabulary. Each
     // parser requires exact payload and nested record consumption.
     Bool parsed = False;
-    switch (Archive::Sections(Unsigned_8(section_tag))) {
+    switch (Archive::Sections(U8(section_tag))) {
     case Archive::Sections::Identity:
       parsed = parse_identity(payload, identity);
       break;
@@ -679,6 +801,9 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
       break;
     case Archive::Sections::Exports:
       parsed = parse_exports(payload, exports);
+      break;
+    case Archive::Sections::ArtifactMetadata:
+      parsed = parse_artifact_metadata(payload, artifacts, artifact_imports);
       break;
     default:
       parsed = False;
@@ -711,13 +836,14 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   // Validate Package names, versions, uniqueness, and Export references after
   // every section is structurally complete.
   if (!validate(
-          identity, version, dependencies, members, artifact_ids, exports)) {
+          identity, version, dependencies, members, artifact_ids, artifacts,
+          exports)) {
     return Error::InvalidFormat;
   }
 
   // Retain the typed record ranges in the caller Arena without copying input
   // bytes. The returned Archive itself remains an ordinary value.
   return retain_archive(
-      arena, identity, version, dependencies, members, artifact_ids, exports,
+      arena, identity, version, dependencies, members, artifacts, exports,
       profile);
 }

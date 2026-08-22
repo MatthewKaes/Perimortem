@@ -111,13 +111,13 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
       "// Contiguous built-in identities.\n"
       "dialect : Library;\n"
       "public Custom : struct {\n"
-      "  public state value : Unsigned_64;\n"
-      "  public get_size : func = [self] -> Unsigned_64 { return 9; }\n"
+      "  public state value : U64;\n"
+      "  public get_size : func = [self] -> U64 { return 9; }\n"
       "}\n"
-      "public run : func = [] -> Unsigned_64 {\n"
-      "  state dense : Fixed[Unsigned_64, 2] = (3, 4);\n"
-      "  state borrowed : Access[Unsigned_64] = dense -> get_access();\n"
-      "  state viewed : View[Unsigned_64];\n"
+      "public run : func = [] -> U64 {\n"
+      "  state dense : Fixed[U64, 2] = (3, 4);\n"
+      "  state borrowed : Access[U64] = dense -> get_access();\n"
+      "  state viewed : View[U64];\n"
       "  viewed -> get_size();\n"
       "  viewed -> is_empty();\n"
       "  borrowed -> is_empty();\n"
@@ -226,7 +226,7 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
       static_cast<const Language::Access::Call&>(returned.get_pack());
   ASSERT(get_size.get_callable());
   EXPECT(get_size.get_callable()->is<Builtin::View::Size>());
-  EXPECT_TEXT(get_size.get_type().resolve().get_name(), "Unsigned_64"_view);
+  EXPECT_TEXT(get_size.get_type().resolve().get_name(), "U64"_view);
 
   const Abstract& custom_identity =
       monograph->get_source().resolve_context("Custom"_view);
@@ -243,17 +243,17 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_borrow_operations_link) {
   static constexpr View::Bytes source =
       "// Contiguous borrowing operations.\n"
       "dialect : Library;\n"
-      "private run : func = [] -> Unsigned_64 {\n"
-      "  const label : View[Unsigned_8] = \"Echo\" -> get_view();\n"
-      "  const start : Unsigned_64 = 1;\n"
-      "  const count : Unsigned_64 = 99;\n"
-      "  const label_tail : View[Unsigned_8] = "
+      "private run : func = [] -> U64 {\n"
+      "  const label : View[U8] = \"Echo\" -> get_view();\n"
+      "  const start : U64 = 1;\n"
+      "  const count : U64 = 99;\n"
+      "  const label_tail : View[U8] = "
       "label -> slice(.start = start, .count = count);\n"
-      "  state dense : Fixed[Unsigned_64, 3] = (1, 2, 3);\n"
-      "  state viewed : View[Unsigned_64] = dense -> get_view();\n"
-      "  state writable : Access[Unsigned_64] = dense -> get_access();\n"
-      "  state tail : View[Unsigned_64] = viewed -> slice(1, 99);\n"
-      "  state write_tail : View[Unsigned_64] = writable -> slice(9, 1);\n"
+      "  state dense : Fixed[U64, 3] = (1, 2, 3);\n"
+      "  state viewed : View[U64] = dense -> get_view();\n"
+      "  state writable : Access[U64] = dense -> get_access();\n"
+      "  state tail : View[U64] = viewed -> slice(1, 99);\n"
+      "  state write_tail : View[U64] = writable -> slice(9, 1);\n"
       "  return label -> get_size() + tail -> get_size() + "
       "write_tail -> get_size();\n"
       "}"_view;
@@ -302,10 +302,57 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_borrow_operations_link) {
   EXPECT(errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(CallTests, fitted_bytes_borrow_folds) {
+  static constexpr View::Bytes source =
+      "// Fitted bytes borrow.\n"
+      "dialect : Library;\n"
+      "private run : func = [] -> [] {\n"
+      "  const repack : Fixed[U8, 9] = "
+      "(\"file: \":[0, 6], \"Perimortem\":[0, 3]);\n"
+      "  const view : View[U8] = repack -> get_view();\n"
+      "  return;\n"
+      "}"_view;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  Option<const Language::Function&> run;
+  for (const Reference<Abstract>& callable :
+       monograph->get_source().get_callables()) {
+    if (callable.get().get_name() == "run"_view &&
+        callable.get().is<Language::Function>()) {
+      run = static_cast<const Language::Function&>(callable.get());
+      break;
+    }
+  }
+  ASSERT(run && run->get_body());
+  auto statements = run->get_body()->get_statements();
+  ASSERT_EQ(statements.get_size(), Count(3));
+
+  const auto& repack = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[0].get_root());
+  auto folded = repack.get_constant();
+  ASSERT(folded && folded->is<Language::Constants::Bytes>());
+  EXPECT_TEXT(
+      static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
+      "file: Per"_view);
+
+  const auto& viewed = static_cast<const Language::Flow::Local&>(
+      statements.get_data()[1].get_root());
+  folded = viewed.get_constant();
+  ASSERT(folded && folded->is<Language::Constants::Bytes>());
+  EXPECT_TEXT(
+      static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
+      "file: Per"_view);
+  EXPECT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(CallTests, fixed_borrow_requires_writable_receiver) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
-    "// Const local cannot grant Access.\ndialect : Library; private invalid : func = [] -> [] { const dense : Fixed[Unsigned_64, 2] = (1, 2); state borrowed : Access[Unsigned_64] = dense -> get_access(); return; }"_view,
-    "// View remains read only.\ndialect : Library; private invalid : func = [] -> [] { state viewed : View[Unsigned_64]; state borrowed : Access[Unsigned_64] = viewed -> get_access(); return; }"_view,
+    "// Const local cannot grant Access.\ndialect : Library; private invalid : func = [] -> [] { const dense : Fixed[U64, 2] = (1, 2); state borrowed : Access[U64] = dense -> get_access(); return; }"_view,
+    "// View remains read only.\ndialect : Library; private invalid : func = [] -> [] { state viewed : View[U64]; state borrowed : Access[U64] = viewed -> get_access(); return; }"_view,
   }};
 
   for (Count index = 0; index < sources.get_size(); index++) {
@@ -354,8 +401,8 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
       "    return true;\n"
       "  }\n"
       "  public choose : func = [\n"
-      "    .number : Unsigned_64, .flag : Bool,\n"
-      "  ] -> Unsigned_64 { return number; }\n"
+      "    .number : U64, .flag : Bool,\n"
+      "  ] -> U64 { return number; }\n"
       "  public choose : func = [self, .flag : Bool] -> Bool { return flag; }\n"
       "}\n"
       "public First : struct {\n"
@@ -403,7 +450,7 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
   ASSERT(self_entry);
   auto self = self_entry->select<Language::Model::Addressable>();
   ASSERT(self);
-  const Abstract& unsigned_64 = monograph->resolve_context("Unsigned_64"_view);
+  const Abstract& u64 = monograph->resolve_context("U64"_view);
   const Abstract& boolean = monograph->resolve_context("Bool"_view);
   EXPECT(&self->resolve_context("Packet"_view) == &Invalid::get_invalid());
   EXPECT(&self->resolve_access(packet, "positional"_view) == &*positional);
@@ -412,9 +459,9 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
       &*self_call->get_callable());
   EXPECT_NOT(positional_call.get_callable()->is_type_bound());
   EXPECT(self_call->get_callable()->is_type_bound(packet));
-  EXPECT(&positional->get_type() == &unsigned_64);
-  EXPECT(&named->get_type() == &unsigned_64);
-  EXPECT(&positional_call.get_type() == &unsigned_64);
+  EXPECT(&positional->get_type() == &u64);
+  EXPECT(&named->get_type() == &u64);
+  EXPECT(&positional_call.get_type() == &u64);
   EXPECT(&self_call->get_type() == &boolean);
 
   const Abstract& first_identity =
@@ -435,12 +482,12 @@ PERIMORTEM_UNIT_TEST(CallTests, invalid_invocation_is_transactional) {
   static constexpr Static::Vector<View::Bytes, 2> invalid_calls = {{
     "// Call mismatch test.\ndialect : Library;\n"
     "public Target : struct {\n"
-    "  public use : func = [.value : Unsigned_64] -> Bool { return true; }\n"
+    "  public use : func = [.value : U64] -> Bool { return true; }\n"
     "}\n"
     "private invalid := Target -> use(false);"_view,
     "// Call arity test.\ndialect : Library;\n"
     "public Target : struct {\n"
-    "  public use : func = [.value : Unsigned_64] -> Bool { return true; }\n"
+    "  public use : func = [.value : U64] -> Bool { return true; }\n"
     "}\n"
     "private invalid := Target -> use();"_view,
   }};
@@ -456,7 +503,7 @@ PERIMORTEM_UNIT_TEST(CallTests, duplicate_role_is_rejected_at_registration) {
     "dialect : Library;\n"
     "public Target : struct {\n"
     "  public use : func = [] -> Bool { return true; }\n"
-    "  private use : func = [.value : Unsigned_64] -> Unsigned_64 {\n"
+    "  private use : func = [.value : U64] -> U64 {\n"
     "    return value;\n"
     "  }\n"
     "}"_view,
@@ -464,7 +511,7 @@ PERIMORTEM_UNIT_TEST(CallTests, duplicate_role_is_rejected_at_registration) {
     "dialect : Library;\n"
     "public Target : struct {\n"
     "  public use : func = [self] -> Bool { return true; }\n"
-    "  private use : func = [self, .value : Unsigned_64] -> Unsigned_64 {\n"
+    "  private use : func = [self, .value : U64] -> U64 {\n"
     "    return value;\n"
     "  }\n"
     "}"_view,
@@ -536,14 +583,14 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
       "// Call result flow test.\n"
       "dialect : Library;\n"
       "public Packet : struct {\n"
-      "  public state value : Unsigned_64; public state flag : Bool;\n"
+      "  public state value : U64; public state flag : Bool;\n"
       "  public self_none : func = [self] -> [] {}\n"
       "  public self_one : func = [self] -> Bool { return true; }\n"
       "}\n"
       "public Results : struct {\n"
       "  public none : func = [] -> [] {}\n"
       "  public one : func = [] -> Bool { return true; }\n"
-      "  public many : func = [.packet : Packet] -> [Unsigned_64, Bool] {\n"
+      "  public many : func = [.packet : Packet] -> [U64, Bool] {\n"
       "    return packet.[value, flag];\n"
       "  }\n"
       "  public identity : func = [.packet : Packet] -> Packet {\n"
@@ -591,9 +638,7 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
   EXPECT(&one.get_type() == &monograph->resolve_context("Bool"_view));
   EXPECT_EQ(many.get_layout().get_size(), Count(2));
   EXPECT(&many.get_type() == &Invalid::get_invalid());
-  EXPECT(
-      &many.get_value_type(0) ==
-      &monograph->resolve_context("Unsigned_64"_view));
+  EXPECT(&many.get_value_type(0) == &monograph->resolve_context("U64"_view));
   EXPECT(&many.get_value_type(1) == &monograph->resolve_context("Bool"_view));
   EXPECT(&many.get_value_type(2) == &Invalid::get_invalid());
   EXPECT(self_none.get_layout().is_empty());
@@ -622,14 +667,13 @@ PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
   const auto& address = static_cast<const Language::Access::Address&>(
       *selected->get_initializer());
   EXPECT(address.get_receiver().get_result().is<Ttx::Model::Addressable>());
-  EXPECT(
-      &selected->get_type() == &monograph->resolve_context("Unsigned_64"_view));
+  EXPECT(&selected->get_type() == &monograph->resolve_context("U64"_view));
   EXPECT(errors.is_empty());
 
   static constexpr View::Bytes invalid_source =
       "// Computed result Address test.\n"
       "dialect : Library;\n"
-      "public Packet : struct { public value : Unsigned_64; }\n"
+      "public Packet : struct { public value : U64; }\n"
       "public Results : struct {\n"
       "  public identity : func = [.packet : Packet] -> Packet {\n"
       "    return packet;\n"

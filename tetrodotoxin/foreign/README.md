@@ -22,12 +22,12 @@ Canonical grammar fragment: [Foreign.g4](grammar/Foreign.g4).
 
 ```ttx
 foreign "C" {
-  expose state external_readonly : Unsigned_64;
-  public state external_counter : Unsigned_64;
+  expose state external_readonly : U64;
+  public state external_counter : U64;
   public func external_add[
-    .left : Unsigned_64,
-    .right : Unsigned_64,
-  ] -> Unsigned_64;
+    .left : U64,
+    .right : U64,
+  ] -> U64;
 }
 ```
 
@@ -82,6 +82,13 @@ Provider selection, object files, dynamic libraries, process addresses,
 relocations, and native lowering are target facts used to produce and consume
 native Terminal products. They satisfy the declared Foreign identities after
 semantic analysis. They do not define source legality.
+
+Library compilation publishes each unresolved State or Function as one Linker
+Import. The build request supplies target-specific logical Providers, and
+Package compilation requires exactly one provider for every Import before it
+publishes native artifacts or Archives. The resulting ABI Manifest and Package
+artifact record retain the same selected provider without adding it to Foreign
+or the semantic graph.
 
 See [Library](../library/README.md) for a CPU language host and
 [TTX semantics](../../ttx/ttx_semantics.md) for Addressable and Callable.

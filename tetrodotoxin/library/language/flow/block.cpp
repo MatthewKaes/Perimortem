@@ -235,20 +235,6 @@ auto Language::Flow::Block::interpret(
         cursor, block, function, access_scope, documentation);
     BAIL_IF(!statement);
 
-    auto name = statement->get_binding_name();
-    if (name) {
-      for (const Statement& retained : block.statements.get_view()) {
-        auto retained_name = retained.get_binding_name();
-        if (retained_name && *retained_name == *name) {
-          cursor.create_expression_error(
-              statement->get_anchor(),
-              "A Library Block cannot declare one Local name twice."_view,
-              "Rename this Local within the current lexical scope."_view);
-          return {};
-        }
-      }
-    }
-
     block.statements.insert(*statement);
     if (single) {
       break;
@@ -275,6 +261,37 @@ auto Language::Flow::Block::link(Cursor& cursor) -> Bool {
   for (Count index = 0; index < ordered.get_size(); index++) {
     linked_prefix_size = index;
     Statement& statement = statements.at(index);
+    auto name = statement.get_binding_name();
+
+    // Catch shadowed names and report them back to the user as an error.
+    // Checking for shadowing is straight forward as resolve_context will expose
+    // any name duplicates with the benefit of giving us the shadowed object for
+    // logging help info.
+    const Abstract& shadowed =
+        name ? resolve_context(*name) : Invalid::get_invalid();
+    if (!shadowed.is<Invalid>()) {
+      auto report = cursor.create_report(statement.get_anchor());
+      report << "Library Local name shadows a reachable lexical binding."_view;
+      auto& note = report.get_hint();
+      note << "Rename this Local so every enclosing name remains "
+              "unambiguous."_view;
+
+      // Check if we have an associated textual original so we can log location
+      // information to aid in debugging.
+      auto original = cursor.get_associations().find(shadowed);
+      if (original) {
+        Token focus = original->get_token();
+        if (!focus) {
+          focus = original->get_span().get_start();
+        }
+        if (focus) {
+          note << " Original declaration: "_view << cursor.get_source_path()
+               << ":"_view << focus.get_line() << ":"_view << focus.get_column()
+               << "."_view;
+        }
+      }
+      failed = True;
+    }
     failed |= !statement.link(cursor, *this);
 
     if (!unreachable_reported && !statement.reaches_next() &&

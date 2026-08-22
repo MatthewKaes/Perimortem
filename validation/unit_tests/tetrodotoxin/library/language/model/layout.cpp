@@ -153,20 +153,16 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting_preserves_real_edges) {
   Allocator::Arena arena;
   Errors parse_errors;
   auto source = parse_layout(
-      arena, *monograph, parse_errors,
-      "[.flag : Bool, .count : Unsigned_64]"_view);
+      arena, *monograph, parse_errors, "[.flag : Bool, .count : U64]"_view);
   auto reordered = parse_layout(
-      arena, *monograph, parse_errors,
-      "[.count : Unsigned_64, .flag : Bool]"_view);
+      arena, *monograph, parse_errors, "[.count : U64, .flag : Bool]"_view);
   ASSERT(source && reordered);
   Tokenizer source_tokens(
-      arena, "[.flag : Bool, .count : Unsigned_64]"_view,
-      "authored-layout.ttx"_view);
+      arena, "[.flag : Bool, .count : U64]"_view, "authored-layout.ttx"_view);
   Ttx::Lexical::Associations source_associations(source_tokens.get_arena());
   Cursor source_cursor(source_tokens, parse_errors, source_associations);
   Tokenizer reordered_tokens(
-      arena, "[.count : Unsigned_64, .flag : Bool]"_view,
-      "authored-layout.ttx"_view);
+      arena, "[.count : U64, .flag : Bool]"_view, "authored-layout.ttx"_view);
   Ttx::Lexical::Associations reordered_associations(
       reordered_tokens.get_arena());
   Cursor reordered_cursor(
@@ -177,12 +173,10 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting_preserves_real_edges) {
   EXPECT(source->fits(*reordered));
   auto count = source->get_fitted(*reordered, 0);
   auto flag = source->get_fitted(*reordered, 1);
-  const Abstract& unsigned_64 = monograph->resolve_context("Unsigned_64"_view);
+  const Abstract& u64 = monograph->resolve_context("U64"_view);
   const Abstract& boolean = monograph->resolve_context("Bool"_view);
   EXPECT(count.visit(
-      [&](const Abstract& selected) -> Bool {
-        return Bool(&selected == &unsigned_64);
-      },
+      [&](const Abstract& selected) -> Bool { return Bool(&selected == &u64); },
       [](Ttx::Concept::Layout::Errors) { return False; }));
   EXPECT(flag.visit(
       [&](const Abstract& selected) -> Bool {

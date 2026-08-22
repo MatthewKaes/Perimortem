@@ -4,20 +4,29 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "perimortem/serialization/json/node.hpp"
 
+#include "puffer/lsp/position_encoding.hpp"
+#include "ttx/lexical/associations.hpp"
+#include "ttx/lexical/token.hpp"
+
 namespace Puffer::Lsp {
 
-// Semantic tokens classify the retained lexical stream for editor presentation.
-// They do not change parsing or attach highlighting facts to the source graph.
+// The editor colors the Token stream retained with a completed source. Reading
+// those Tokens and their authored Associations keeps highlighting aligned with
+// the same graph used for hover and navigation.
 auto semantic_legend(Perimortem::Memory::Allocator::Arena& arena)
     -> Perimortem::Serialization::Json::Node;
 auto semantic_tokens_for(
     Perimortem::Memory::Allocator::Arena& arena,
-    Perimortem::Core::View::Bytes source)
+    Perimortem::Core::View::Bytes source,
+    const PositionEncoding& encoding,
+    Perimortem::Core::View::Vector<Ttx::Lexical::Token> tokens = {},
+    const Ttx::Lexical::Associations* associations = nullptr)
     -> Perimortem::Serialization::Json::Node;
 
 }  // namespace Puffer::Lsp

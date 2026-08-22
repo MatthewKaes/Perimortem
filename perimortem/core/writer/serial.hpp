@@ -31,7 +31,7 @@ class Serial {
 
   auto set_pointer(Count location) -> void;
 
-  auto operator<<(const Unsigned_64 value) -> Serial&;
+  auto operator<<(const U64 value) -> Serial&;
   auto operator<<(const View::Bytes blob) -> Serial&;
 
   constexpr auto get_size() const -> Count { return source.get_size(); }

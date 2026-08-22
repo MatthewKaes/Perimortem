@@ -157,7 +157,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_values_and_equal_aliases) {
   static constexpr View::Bytes source =
       "// Enumeration test.\n"
       "dialect : Library;\n"
-      "public Offset : enum[Signed_8] {\n"
+      "public Offset : enum[S8] {\n"
       "  low = -128;\n"
       "  zero = 0;\n"
       "  high = 127;\n"
@@ -176,14 +176,14 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_values_and_equal_aliases) {
       static_cast<const Language::Types::Enumeration&>(selected);
   auto cases = offset.get_cases();
   ASSERT_EQ(cases.get_size(), Count(5));
-  Static::Vector<Signed_64, 5> expected = {{-128, 0, 127, 127, 127}};
+  Static::Vector<S64, 5> expected = {{-128, 0, 127, 127, 127}};
   for (Count i = 0; i < cases.get_size(); i++) {
     const Abstract& resolved = cases.get_data()[i].get().resolve();
     ASSERT(resolved.is<Language::Constants::Enumeration>());
     const auto& constant =
         static_cast<const Language::Constants::Enumeration&>(resolved);
     EXPECT(&constant.get_type() == &offset);
-    EXPECT_EQ(Signed_64(constant.get_value()), expected[i]);
+    EXPECT_EQ(S64(constant.get_value()), expected[i]);
   }
   EXPECT(&cases.get_data()[2].get() != &cases.get_data()[4].get());
   EXPECT(
@@ -215,13 +215,13 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_values_and_equal_aliases) {
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*size_constant)
           .get_value(),
-      Unsigned_64(5));
+      U64(5));
 
   ASSERT(name_callable);
   Allocator::Arena folded_domain;
   Language::Constants::Enumeration& duplicate =
       Language::Constants::Enumeration::create_synthetic(
-          folded_domain, offset, Unsigned_64(127));
+          folded_domain, offset, U64(127));
   Language::Model::Pack& empty =
       Language::Model::Pack::create_empty(folded_domain);
   auto folded = name_callable->fold_call(folded_domain, duplicate, empty);
@@ -236,11 +236,11 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, binary_wide_boundaries) {
   static constexpr View::Bytes source =
       "// Enumeration test.\n"
       "dialect : Library;\n"
-      "public UnsignedEdge : enum[Unsigned_64] {\n"
+      "public UnsignedEdge : enum[U64] {\n"
       "  decimal = 18446744073709551615;\n"
       "  hexadecimal = 0xFFFFFFFFFFFFFFFF;\n"
       "}\n"
-      "public SignedEdge : enum[Signed_64] {\n"
+      "public SignedEdge : enum[S64] {\n"
       "  low = -9223372036854775808;\n"
       "  high = 9223372036854775807;\n"
       "}"_view;
@@ -268,7 +268,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, binary_wide_boundaries) {
     const auto& constant = static_cast<const Language::Constants::Enumeration&>(
         unsigned_cases.get_data()[i].get().resolve());
     EXPECT(&constant.get_type() == &unsigned_edge);
-    EXPECT_EQ(constant.get_value(), Unsigned_64(-1));
+    EXPECT_EQ(constant.get_value(), U64(-1));
   }
   const auto& low = static_cast<const Language::Constants::Enumeration&>(
       signed_cases.get_data()[0].get().resolve());
@@ -276,27 +276,27 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, binary_wide_boundaries) {
       signed_cases.get_data()[1].get().resolve());
   EXPECT(&low.get_type() == &signed_edge);
   EXPECT(&high.get_type() == &signed_edge);
-  EXPECT_EQ(Signed_64(low.get_value()), Signed_64(-9223372036854775807LL - 1));
-  EXPECT_EQ(Signed_64(high.get_value()), Signed_64(9223372036854775807LL));
+  EXPECT_EQ(S64(low.get_value()), S64(-9223372036854775807LL - 1));
+  EXPECT_EQ(S64(high.get_value()), S64(9223372036854775807LL));
   EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(EnumerationTests, overflow_publishes_no_cases) {
   static constexpr Static::Vector<View::Bytes, 7> sources = {{
     "// Enumeration test.\ndialect : Library;\n"
-    "public Bad : enum[Unsigned_8] { value = 256; }"_view,
+    "public Bad : enum[U8] { value = 256; }"_view,
     "// Enumeration test.\ndialect : Library;\n"
-    "public Bad : enum[Signed_8] { value = 128; }"_view,
+    "public Bad : enum[S8] { value = 128; }"_view,
     "// Enumeration test.\ndialect : Library;\n"
-    "public Bad : enum[Signed_8] { value = -129; }"_view,
+    "public Bad : enum[S8] { value = -129; }"_view,
     "// Enumeration test.\ndialect : Library;\n"
-    "public Bad : enum[Unsigned_8] { value = -1; }"_view,
+    "public Bad : enum[U8] { value = -1; }"_view,
     "// Enumeration test.\ndialect : Library;\n"
-    "public Bad : enum[Unsigned_64] { value = 18446744073709551616; }"_view,
+    "public Bad : enum[U64] { value = 18446744073709551616; }"_view,
     "// Enumeration test.\ndialect : Library;\n"
-    "public Bad : enum[Signed_64] { value = 9223372036854775808; }"_view,
+    "public Bad : enum[S64] { value = 9223372036854775808; }"_view,
     "// Enumeration test.\ndialect : Library;\n"
-    "public Bad : enum[Signed_64] { value = 0x8000000000000000; }"_view,
+    "public Bad : enum[S64] { value = 0x8000000000000000; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -309,12 +309,12 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, invalid_storage_rejected) {
     "// Enumeration test.\ndialect : Library;\n"
     "public Bad : enum[Bool] { value = 0; }"_view,
     "// Enumeration test.\ndialect : Library;\n"
-    "public Bad : enum[Real_32] { value = 0; }"_view,
+    "public Bad : enum[R32] { value = 0; }"_view,
     "// Enumeration test.\ndialect : Library;\n"
     "public Packet : struct {}\n"
     "public Bad : enum[Packet] { value = 0; }"_view,
     "// Enumeration test.\ndialect : Library;\n"
-    "public Mode : enum[Unsigned_8] { value = 0; }\n"
+    "public Mode : enum[U8] { value = 0; }\n"
     "public Bad : enum[Mode] { value = 0; }"_view,
     "// Enumeration test.\ndialect : Library;\n"
     "public Bad : enum[Fixed] { value = 0; }"_view,
@@ -329,9 +329,9 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, visibility_and_authored_order) {
   static constexpr View::Bytes source =
       "// Enumeration test.\n"
       "dialect : Library;\n"
-      "private Hidden : enum[Signed_16] { hidden = -1; }\n"
-      "public First : enum[Unsigned_16] { first = 1; }\n"
-      "public Second : enum[Unsigned_32] { second = 2; }"_view;
+      "private Hidden : enum[S16] { hidden = -1; }\n"
+      "public First : enum[U16] { first = 1; }\n"
+      "public Second : enum[U32] { second = 2; }"_view;
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -359,16 +359,16 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, visibility_and_authored_order) {
 PERIMORTEM_UNIT_TEST(EnumerationTests, exact_root_collision_domain) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Enumeration test.\ndialect : Library;\n"
-    "public Mode : enum[Unsigned_8] {}\n"
-    "private Mode : enum[Signed_8] {}"_view,
+    "public Mode : enum[U8] {}\n"
+    "private Mode : enum[S8] {}"_view,
     "// Enumeration test.\ndialect : Library;\n"
-    "public Packet : enum[Unsigned_8] {}\n"
+    "public Packet : enum[U8] {}\n"
     "public Packet : struct {}"_view,
     "// Enumeration test.\ndialect : Library;\n"
     "public Packet : struct {}\n"
-    "public Packet : enum[Unsigned_8] {}"_view,
+    "public Packet : enum[U8] {}"_view,
     "// Enumeration test.\ndialect : Library;\n"
-    "public Unsigned_8 : enum[Unsigned_8] {}"_view,
+    "public U8 : enum[U8] {}"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -380,24 +380,24 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, duplicate_name_rejected) {
   static constexpr View::Bytes source =
       "// Enumeration test.\n"
       "dialect : Library;\n"
-      "public Mode : enum[Unsigned_8] { ready = 1; ready = 2; }"_view;
+      "public Mode : enum[U8] { ready = 1; ready = 2; }"_view;
   EXPECT(rejects_interpretation(source));
 }
 
 PERIMORTEM_UNIT_TEST(EnumerationTests, malformed_atomic_grammar) {
   static constexpr Static::Vector<View::Bytes, 12> sources = {{
-    "// Enumeration test.\ndialect : Library; public Mode enum[Unsigned_8] {}"_view,
-    "// Enumeration test.\ndialect : Library; public Mode : wrong[Unsigned_8] {}"_view,
-    "// Enumeration test.\ndialect : Library; public Mode : enum Unsigned_8] {}"_view,
+    "// Enumeration test.\ndialect : Library; public Mode enum[U8] {}"_view,
+    "// Enumeration test.\ndialect : Library; public Mode : wrong[U8] {}"_view,
+    "// Enumeration test.\ndialect : Library; public Mode : enum U8] {}"_view,
     "// Enumeration test.\ndialect : Library; public Mode : enum[] {}"_view,
-    "// Enumeration test.\ndialect : Library; public Mode : enum[Unsigned_8 {}"_view,
-    "// Enumeration test.\ndialect : Library; public Mode : enum[Unsigned_8] ready = 1; }"_view,
-    "// Enumeration test.\ndialect : Library; public Mode : enum[Unsigned_8] { public ready = 1; }"_view,
-    "// Enumeration test.\ndialect : Library; public Mode : enum[Unsigned_8] { Ready = 1; }"_view,
-    "// Enumeration test.\ndialect : Library; public Mode : enum[Unsigned_8] { ready 1; }"_view,
-    "// Enumeration test.\ndialect : Library; public Mode : enum[Unsigned_8] { ready = true; }"_view,
-    "// Enumeration test.\ndialect : Library; public Mode : enum[Unsigned_8] { ready = 1 + 2; }"_view,
-    "// Enumeration test.\ndialect : Library; public Mode : enum[Unsigned_8] { ready = 1;"_view,
+    "// Enumeration test.\ndialect : Library; public Mode : enum[U8 {}"_view,
+    "// Enumeration test.\ndialect : Library; public Mode : enum[U8] ready = 1; }"_view,
+    "// Enumeration test.\ndialect : Library; public Mode : enum[U8] { public ready = 1; }"_view,
+    "// Enumeration test.\ndialect : Library; public Mode : enum[U8] { Ready = 1; }"_view,
+    "// Enumeration test.\ndialect : Library; public Mode : enum[U8] { ready 1; }"_view,
+    "// Enumeration test.\ndialect : Library; public Mode : enum[U8] { ready = true; }"_view,
+    "// Enumeration test.\ndialect : Library; public Mode : enum[U8] { ready = 1 + 2; }"_view,
+    "// Enumeration test.\ndialect : Library; public Mode : enum[U8] { ready = 1;"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {

@@ -24,22 +24,22 @@ namespace Tetrodotoxin::Library::Language {
 // construction context proves scalar arguments but is not a lexical parent.
 class Generic : public Ttx::Concept::Abstract {
  public:
-  enum class Parameters : Unsigned_8 {
+  enum class Parameters : U8 {
     Type,
-    Unsigned_64,
-    Signed_64,
+    U64,
+    S64,
     Bool,
   };
 
   // Semantic graph queries expose const references. Scalar arguments are
   // copied directly, while Type arguments retain their exact selected
   // identity even when its owner has not completed the Type's Layout yet.
-  using Argument = Perimortem::Core::Static::
-      Union<const Model::Type&, ::Unsigned_64, ::Signed_64, ::Bool>;
+  using Argument =
+      Perimortem::Core::Static::Union<const Model::Type&, ::U64, ::S64, ::Bool>;
 
   class Failure {
    public:
-    enum class Type : Unsigned_8 {
+    enum class Type : U8 {
       Unavailable,
       Arity,
       Parameter,

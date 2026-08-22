@@ -34,10 +34,25 @@ cc_library(
     includes = ["."],
     deps = [
         ":language",
+        ":linker",
         "//perimortem",
         "//ttx:concept",
         "//ttx:lexical",
         "//ttx:model",
+    ],
+)
+
+cc_library(
+    name = "linker",
+    srcs = glob([
+        "linker/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "linker/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        "//perimortem",
     ],
 )
 
@@ -53,6 +68,7 @@ cc_library(
     deps = [
         ":language",
         ":library",
+        ":linker",
         "//perimortem",
         "//ttx:concept",
         "//ttx:lexical",
@@ -62,26 +78,32 @@ cc_library(
 
 cc_library(
     name = "library",
-    srcs = glob([
-        "library/**/*.cpp",
-        "library/llvm/**/*.hpp",
-    ], exclude = [
-        "library/llvm/builder.hpp",
-        "library/llvm/carriers.hpp",
-        "library/llvm/compiler.hpp",
-        "library/llvm/debug.hpp",
-        "library/llvm/failure.hpp",
-        "library/llvm/functions.hpp",
-        "library/llvm/globals.hpp",
-        "library/llvm/products.hpp",
-        "library/llvm/request.hpp",
-        "library/llvm/target.hpp",
-    ]),
-    hdrs = glob([
-        "library/**/*.hpp",
-    ], exclude = [
-        "library/llvm/**/*.hpp",
-    ]) + [
+    srcs = glob(
+        [
+            "library/**/*.cpp",
+            "library/llvm/**/*.hpp",
+        ],
+        exclude = [
+            "library/llvm/builder.hpp",
+            "library/llvm/carriers.hpp",
+            "library/llvm/compiler.hpp",
+            "library/llvm/debug.hpp",
+            "library/llvm/failure.hpp",
+            "library/llvm/functions.hpp",
+            "library/llvm/globals.hpp",
+            "library/llvm/products.hpp",
+            "library/llvm/request.hpp",
+            "library/llvm/target.hpp",
+        ],
+    ),
+    hdrs = glob(
+        [
+            "library/**/*.hpp",
+        ],
+        exclude = [
+            "library/llvm/**/*.hpp",
+        ],
+    ) + [
         "library/llvm/builder.hpp",
         "library/llvm/carriers.hpp",
         "library/llvm/compiler.hpp",
@@ -96,6 +118,7 @@ cc_library(
     includes = ["."],
     deps = [
         ":language",
+        ":linker",
         "//perimortem",
         "//toolchain/llvm:sdk",
         "//ttx:concept",

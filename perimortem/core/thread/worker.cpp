@@ -15,15 +15,14 @@
 #include "perimortem/core/null_terminated.hpp"
 
 static_assert(
-    sizeof(pthread_t) == sizeof(Unsigned_64) &&
-        alignof(pthread_t) == sizeof(Unsigned_64),
-    "pthread_t layout differs from Unsigned_64. Update Thread::handle");
+    sizeof(pthread_t) == sizeof(U64) && alignof(pthread_t) == sizeof(U64),
+    "pthread_t layout differs from U64. Update Thread::handle");
 
 using namespace Perimortem::Core;
 
 // Stores the logical thread id.
 // Any thread not spawned by Perimortem uses id -1 and is marked as "main".
-static thread_local Unsigned_64 this_thread_id = Count(-1);
+static thread_local U64 this_thread_id = Count(-1);
 static thread_local View::Bytes this_thread_name = ""_view;
 
 using WorkerJobFunction = Thread::Worker::JobFunction;
@@ -41,7 +40,7 @@ class ThreadInitializer {
       View::Bytes requested_name,
       WorkerJobFunction job_function,
       View::Bytes job_data,
-      Unsigned_64& handle)
+      U64& handle)
       : requested_name(requested_name),
         job_function(job_function),
         job_data(job_data),
@@ -86,7 +85,7 @@ class ThreadInitializer {
   static auto reserve_thread() -> Count {
     pthread_mutex_lock(&mutex);
 
-    auto worker_index = Algorithm::min_element<Unsigned_8>(thread_occupancy);
+    auto worker_index = Algorithm::min_element<U8>(thread_occupancy);
     if (thread_occupancy[worker_index] != 0) {
       pthread_mutex_unlock(&mutex);
       Diagnostics::Log::fatal(
@@ -204,7 +203,7 @@ class ThreadInitializer {
   Bool initialized = False;
 
   static inline pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-  static inline Static::Vector<Unsigned_8, Thread::Worker::max_workers()>
+  static inline Static::Vector<U8, Thread::Worker::max_workers()>
       thread_occupancy;
 };
 

@@ -20,7 +20,7 @@ namespace Perimortem::System::Platform::Wayland {
 class Window {
  public:
   Window() = default;
-  Window(Unsigned_32 width, Unsigned_32 height, const char* title);
+  Window(U32 width, U32 height, const char* title);
   ~Window();
   Window(Window&&) = delete;
   auto operator=(Window&&) -> Window& = delete;
@@ -29,9 +29,9 @@ class Window {
 
   auto poll_events() -> Bool;
 
-  auto get_logical_width() const -> Unsigned_32;
-  auto get_logical_height() const -> Unsigned_32;
-  auto get_scale() const -> Unsigned_32;
+  auto get_logical_width() const -> U32;
+  auto get_logical_height() const -> U32;
+  auto get_scale() const -> U32;
   auto get_needs_resize() const -> Bool;
   auto clear_resize() -> void;
 
@@ -72,11 +72,11 @@ class Window {
   wl_compositor* compositor = nullptr;
   wl_surface* surface = nullptr;
   XdgShell shell;
-  Unsigned_32 logical_width = 0;
-  Unsigned_32 logical_height = 0;
-  Unsigned_32 initial_width = 0;
-  Unsigned_32 initial_height = 0;
-  Unsigned_32 scale = 1;
+  U32 logical_width = 0;
+  U32 logical_height = 0;
+  U32 initial_width = 0;
+  U32 initial_height = 0;
+  U32 scale = 1;
   Bool close_requested = False;
   Bool needs_resize = False;
 };

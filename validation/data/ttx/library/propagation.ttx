@@ -1,8 +1,8 @@
 // Library propagation and sum Type acceptance.
 dialect : Library;
 
-public Maybe   : alias = Option[Unsigned_64];
-public Outcome : alias = Result[Unsigned_64, Bool];
+public Maybe   : alias = Option[U64];
+public Outcome : alias = Result[U64, Bool];
 
 private const absent         : Maybe = ();
 private const absent_session : Option[Session] = ();
@@ -16,9 +16,9 @@ private const succeeded      : Outcome = 11;
 private first_session  : Session = absent_session!;
 private second_session : Session = absent_session!;
 
-public choose : func = [.value : Maybe] -> Unsigned_64 {
+public choose : func = [.value : Maybe] -> U64 {
   match value {
-    case selected : return selected;
+    case item : return item;
     case _ : return 0;
   }
 }
@@ -27,13 +27,13 @@ public propagate : func = [.value : Maybe] -> Maybe : return value?;
 public propagate_result : func = [.value : Outcome] -> Outcome : return value?;
 public require : func = [.value : Bool] -> [] : value?;
 public select_error : func = [.value : Outcome] -> Bool {
-  state selected := value?;
-  selected;
+  state unwrapped := value?;
+  unwrapped;
   return false;
 }
 
-public stop : func = [.value : Maybe] -> [] : state selected := value?;
+public stop : func = [.value : Maybe] -> [] : state unwrapped := value?;
 
 public Session : object {
-  private state count : Unsigned_64;
+  private state count : U64;
 }

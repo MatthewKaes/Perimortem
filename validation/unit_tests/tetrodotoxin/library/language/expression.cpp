@@ -16,12 +16,12 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
-#include "tetrodotoxin/library/language/types/real_64.hpp"
-#include "tetrodotoxin/library/language/types/signed_64.hpp"
-#include "tetrodotoxin/library/language/types/signed_8.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_16.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_64.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/r64.hpp"
+#include "tetrodotoxin/library/language/types/s64.hpp"
+#include "tetrodotoxin/library/language/types/s8.hpp"
+#include "tetrodotoxin/library/language/types/u16.hpp"
+#include "tetrodotoxin/library/language/types/u64.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/named.hpp"
 
@@ -144,19 +144,17 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, type_result_has_no_value_flow) {
 
 PERIMORTEM_UNIT_TEST(LibraryExpression, constant_identity) {
   Allocator::Arena arena;
-  Types::Unsigned_64 type;
-  Types::Unsigned_64 other_type;
-  Types::Signed_64 signed_type;
-  auto& first =
-      Constants::Unsigned::create_synthetic(arena, type, ::Unsigned_64(100));
-  auto& same =
-      Constants::Unsigned::create_synthetic(arena, type, ::Unsigned_64(100));
+  Types::U64 type;
+  Types::U64 other_type;
+  Types::S64 signed_type;
+  auto& first = Constants::Unsigned::create_synthetic(arena, type, ::U64(100));
+  auto& same = Constants::Unsigned::create_synthetic(arena, type, ::U64(100));
   auto& different =
-      Constants::Unsigned::create_synthetic(arena, type, ::Unsigned_64(101));
-  auto& other = Constants::Unsigned::create_synthetic(
-      arena, other_type, ::Unsigned_64(100));
+      Constants::Unsigned::create_synthetic(arena, type, ::U64(101));
+  auto& other =
+      Constants::Unsigned::create_synthetic(arena, other_type, ::U64(100));
   auto& signed_value =
-      Constants::Signed::create_synthetic(arena, signed_type, ::Signed_64(100));
+      Constants::Signed::create_synthetic(arena, signed_type, ::S64(100));
 
   EXPECT(first.is<Expression>());
   EXPECT(first.is<Constant>());
@@ -186,32 +184,31 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, constant_identity) {
 
 PERIMORTEM_UNIT_TEST(LibraryExpression, constant_fitting) {
   Allocator::Arena arena;
-  Types::Unsigned_64 unsigned_64;
-  Types::Unsigned_8 unsigned_8;
-  Types::Unsigned_16 unsigned_16;
-  Types::Signed_64 signed_64;
-  Types::Signed_8 signed_8;
+  Types::U64 u64;
+  Types::U8 u8;
+  Types::U16 u16;
+  Types::S64 s64;
+  Types::S8 s8;
   Types::Boolean source_flag;
   Types::Boolean target_flag;
-  Types::Real_64 real_64;
-  Types::Real_64 other_real_64;
-  auto& fits_8 = Constants::Unsigned::create_synthetic(
-      arena, unsigned_64, ::Unsigned_64(255));
-  auto& needs_16 = Constants::Unsigned::create_synthetic(
-      arena, unsigned_64, ::Unsigned_64(256));
+  Types::R64 r64;
+  Types::R64 other_r64;
+  auto& fits_8 = Constants::Unsigned::create_synthetic(arena, u64, ::U64(255));
+  auto& needs_16 =
+      Constants::Unsigned::create_synthetic(arena, u64, ::U64(256));
   auto& fits_signed =
-      Constants::Signed::create_synthetic(arena, signed_64, ::Signed_64(-128));
+      Constants::Signed::create_synthetic(arena, s64, ::S64(-128));
   auto& misses_signed =
-      Constants::Signed::create_synthetic(arena, signed_64, ::Signed_64(-129));
+      Constants::Signed::create_synthetic(arena, s64, ::S64(-129));
   auto& true_flag = Constants::True::create_synthetic(arena, source_flag);
   auto& false_flag = Constants::False::create_synthetic(arena, source_flag);
-  auto& real = Constants::Real::create_synthetic(arena, real_64, Real_64(0.5));
+  auto& real = Constants::Real::create_synthetic(arena, r64, R64(0.5));
 
-  EXPECT(fits_8.fits(unsigned_8));
-  EXPECT_NOT(needs_16.fits(unsigned_8));
-  EXPECT(needs_16.fits(unsigned_16));
-  EXPECT(fits_signed.fits(signed_8));
-  EXPECT_NOT(misses_signed.fits(signed_8));
+  EXPECT(fits_8.fits(u8));
+  EXPECT_NOT(needs_16.fits(u8));
+  EXPECT(needs_16.fits(u16));
+  EXPECT(fits_signed.fits(s8));
+  EXPECT_NOT(misses_signed.fits(s8));
   EXPECT(true_flag.is<Constants::Flag>());
   EXPECT(true_flag.is<Constants::True>());
   EXPECT_NOT(true_flag.is<Constants::False>());
@@ -223,8 +220,8 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, constant_fitting) {
   EXPECT(true_flag.fits(target_flag));
   EXPECT(false_flag.fits(target_flag));
   EXPECT(true_flag != false_flag);
-  EXPECT(real.fits(real_64));
-  EXPECT_NOT(real.fits(other_real_64));
+  EXPECT(real.fits(r64));
+  EXPECT_NOT(real.fits(other_r64));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryExpression, byte_lifetime) {

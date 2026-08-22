@@ -28,7 +28,7 @@ class Composite : public Model::Type {
   // Composite. It is transaction input, not a property recovered from an
   // Alias. Forward parsing or an imported provider already proves the space,
   // so an opaque name can enter it before its target graph completes.
-  enum class Category : ::Unsigned_8 {
+  enum class Category : ::U8 {
     Addressable,
     Callable,
     Type,
@@ -211,7 +211,7 @@ class Composite : public Model::Type {
   }
 
  private:
-  enum class Stage : ::Unsigned_8 {
+  enum class Stage : ::U8 {
     Authored,
     TypesLinked,
     CallableSignaturesLinked,

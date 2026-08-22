@@ -11,7 +11,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/generics/fixed.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -25,17 +25,17 @@ static Harness LibraryFixed = {
 };
 
 PERIMORTEM_UNIT_TEST(LibraryFixed, direct_contract) {
-  Tetrodotoxin::Library::Language::Types::Unsigned_8 element;
-  Types::Fixed fixed("Fixed[Unsigned_8,4]"_view, element, ::Unsigned_64(4));
+  Tetrodotoxin::Library::Language::Types::U8 element;
+  Types::Fixed fixed("Fixed[U8,4]"_view, element, ::U64(4));
   const Ttx::Model::Layouts::Ranged& layout = fixed.get_layout();
 
   EXPECT(fixed.is<Types::Fixed>());
   EXPECT(fixed.is<Ttx::Model::Type>());
   EXPECT(fixed.is<Abstract>());
   EXPECT_NOT(fixed.is<Generic>());
-  EXPECT_TEXT(fixed.get_name(), "Fixed[Unsigned_8,4]"_view);
+  EXPECT_TEXT(fixed.get_name(), "Fixed[U8,4]"_view);
   EXPECT(&fixed.get_element_type() == &element);
-  EXPECT_EQ(fixed.get_extent(), ::Unsigned_64(4));
+  EXPECT_EQ(fixed.get_extent(), ::U64(4));
   EXPECT_EQ(layout.get_size(), Count(4));
   EXPECT(layout.get_abstract(0).visit(
       []() { return False; },
@@ -56,36 +56,35 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, formula_construction) {
   Allocator::Arena arena;
   Tetrodotoxin::Library::Dialect dialect;
   auto& root = create_library_monograph(arena, dialect);
-  Tetrodotoxin::Library::Language::Types::Unsigned_8 element;
+  Tetrodotoxin::Library::Language::Types::U8 element;
   const auto& formula =
       static_cast<const Generic&>(root.resolve_context("Fixed"_view));
-  const Abstract& unsigned_8 = root.resolve_context("Unsigned_8"_view);
+  const Abstract& u8 = root.resolve_context("U8"_view);
   const Static::Vector<Generic::Argument, 2> positive = {
-    {Generic::Argument(element), Generic::Argument(::Unsigned_64(4))},
+    {Generic::Argument(element), Generic::Argument(::U64(4))},
   };
   const Static::Vector<Generic::Argument, 2> zero = {
-    {Generic::Argument(element), Generic::Argument(::Unsigned_64(0))},
+    {Generic::Argument(element), Generic::Argument(::U64(0))},
   };
   const Static::Vector<Generic::Argument, 2> wrong_element = {
-    {Generic::Argument(::Unsigned_64(8)), Generic::Argument(::Unsigned_64(4))},
+    {Generic::Argument(::U64(8)), Generic::Argument(::U64(4))},
   };
   const Static::Vector<Generic::Argument, 2> wrong_extent = {
-    {Generic::Argument(element), Generic::Argument(::Signed_64(4))},
+    {Generic::Argument(element), Generic::Argument(::S64(4))},
   };
   const Static::Vector<Generic::Argument, 1> wrong_arity = {
     {Generic::Argument(element)},
   };
 
   auto positive_type = formula.materialize(positive);
-  EXPECT_NOT(unsigned_8.is<Invalid>());
-  EXPECT(
-      &formula.resolve_context("Unsigned_8"_view) == &Invalid::get_invalid());
+  EXPECT_NOT(u8.is<Invalid>());
+  EXPECT(&formula.resolve_context("U8"_view) == &Invalid::get_invalid());
   EXPECT(positive_type.visit(
       [&element](const Model::Type& selected) {
         auto fixed = selected.select<Types::Fixed>();
-        return fixed && selected.get_name() == "Fixed[Unsigned_8,4]"_view &&
+        return fixed && selected.get_name() == "Fixed[U8,4]"_view &&
                        &fixed->get_element_type() == &element &&
-                       fixed->get_extent() == ::Unsigned_64(4)
+                       fixed->get_extent() == ::U64(4)
                    ? True
                    : False;
       },

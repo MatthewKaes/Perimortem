@@ -34,7 +34,7 @@ static auto materialize_bytes_type(
     Span span,
     Count size) -> Option<const Library::Language::Model::Type&> {
   if (size == 0) {
-    auto byte = context.resolve_context("Unsigned_8"_view)
+    auto byte = context.resolve_context("U8"_view)
                     .select<Library::Language::Model::Type>();
     auto generic = context.resolve_context("View"_view)
                        .select<Library::Language::Generic>();
@@ -52,15 +52,15 @@ static auto materialize_bytes_type(
                 -> Option<const Library::Language::Model::Type&> {
               cursor.create_expression_error(
                   span,
-                  "Library could not materialize `View[Unsigned_8]` for this "
+                  "Library could not materialize `View[U8]` for this "
                   "empty Bytes literal."_view,
-                  "Check that View and canonical Unsigned_8 are available."_view);
+                  "Check that View and canonical U8 are available."_view);
               return {};
             });
   }
 
   // Keep the max array length the same as what the Bibliotheca can manage.
-  constexpr Unsigned_64 max_extent = Unsigned_64(1) << 36;
+  constexpr U64 max_extent = U64(1) << 36;
   if (size > Count(max_extent)) {
     cursor.create_expression_error(
         span, "Bytes literal exceeds Library's Fixed extent range."_view,
@@ -68,14 +68,14 @@ static auto materialize_bytes_type(
     return {};
   }
 
-  auto byte = context.resolve_context("Unsigned_8"_view)
+  auto byte = context.resolve_context("U8"_view)
                   .select<Library::Language::Model::Type>();
   auto generic = context.resolve_context("Fixed"_view)
                      .select<Library::Language::Generic>();
   BAIL_IF(!byte || !generic);
   Static::Vector<Library::Language::Generic::Argument, 2> arguments = {{
     Library::Language::Generic::Argument(*byte),
-    Library::Language::Generic::Argument(Unsigned_64(size)),
+    Library::Language::Generic::Argument(U64(size)),
   }};
   return generic->materialize(arguments.get_view())
       .visit(
@@ -84,10 +84,10 @@ static auto materialize_bytes_type(
           [&](const Library::Language::Generic::Failure&)
               -> Option<const Library::Language::Model::Type&> {
             auto report = cursor.create_report(span);
-            report << "Library could not materialize `Fixed[Unsigned_8, "_view
-                   << Unsigned_64(size) << "]` for this Bytes literal."_view;
+            report << "Library could not materialize `Fixed[U8, "_view
+                   << U64(size) << "]` for this Bytes literal."_view;
             report.get_hint()
-                << "Check that Fixed and canonical Unsigned_8 are available."_view;
+                << "Check that Fixed and canonical U8 are available."_view;
             return {};
           });
 }
@@ -158,7 +158,7 @@ static auto parse_byte_array(
   // Whitespace separates authored digits but contributes no retained byte.
   // Count first so malformed pairs never publish a partial Constant.
   for (Count i = 0; i < payload.get_size(); i++) {
-    Unsigned_8 value = payload[i];
+    U8 value = payload[i];
     Bool hexadecimal = Lexicon::is_hex(value);
     if (!hexadecimal && !Lexicon::is_whitespace(value)) {
       cursor.create_expression_error(
@@ -182,14 +182,14 @@ static auto parse_byte_array(
   auto decoded = cursor.get_arena().allocate(digits / 2);
   auto* decoded_data = decoded.get_data();
   Count nibble = 0;
-  Unsigned_8 byte = 0;
+  U8 byte = 0;
   for (Count i = 0; i < payload.get_size(); i++) {
     if (Lexicon::is_whitespace(payload[i])) {
       continue;
     }
 
     if (nibble % 2 == 0) {
-      byte = Unsigned_8(Lexicon::get_hex_value(payload[i]) << 4);
+      byte = U8(Lexicon::get_hex_value(payload[i]) << 4);
     } else {
       decoded_data[nibble / 2] = byte | Lexicon::get_hex_value(payload[i]);
     }
@@ -268,7 +268,7 @@ static auto parse_unsigned(
 
   // Textual must consume the complete Token payload. Accepting a valid prefix
   // would publish a different value for malformed authored bytes.
-  Unsigned_64 value = reader.read_unsigned(radix);
+  U64 value = reader.read_unsigned(radix);
   if (!reader.is_valid() || reader.get_location() != reader.get_size()) {
     cursor.create_expression_error(
         literal_text, "Unable to parse unsigned literal value."_view);
@@ -281,7 +281,7 @@ static auto parse_unsigned(
 
   cursor.consume();
   auto type =
-      context.resolve_context("Unsigned_64"_view)
+      context.resolve_context("U64"_view)
           .select<Tetrodotoxin::Library::Language::Model::Types::Unsigned>();
   BAIL_IF(!type);
   return Library::Language::Constants::Unsigned::create_authored(
@@ -297,7 +297,7 @@ static auto parse_signed(
 
   // The leading sign and digits form one semantic value even though the Lexer
   // exposes two Tokens. Textual must reject any unconsumed authored bytes.
-  Signed_64 value = reader.read_signed();
+  S64 value = reader.read_signed();
   if (!reader.is_valid() || reader.get_location() != reader.get_size()) {
     cursor.create_expression_error(
         literal_text, "Unable to parse signed literal value."_view);
@@ -310,14 +310,14 @@ static auto parse_signed(
   cursor.consume();
   cursor.consume();
   auto type =
-      context.resolve_context("Signed_64"_view)
+      context.resolve_context("S64"_view)
           .select<Tetrodotoxin::Library::Language::Model::Types::Signed>();
   BAIL_IF(!type);
   return Library::Language::Constants::Signed::create_authored(
       domain, *type, value, anchor);
 }
 
-template <Signed_64 token_width>
+template <S64 token_width>
 static auto parse_real(
     Allocator::Arena& domain,
     const Abstract& context,
@@ -327,7 +327,7 @@ static auto parse_real(
 
   // Textual sees the complete signed or unsigned spelling so partial numeric
   // acceptance cannot change the Constant represented by the source.
-  Real_64 value = reader.read_real_64();
+  R64 value = reader.read_r64();
   if (!reader.is_valid() || reader.get_location() != reader.get_size()) {
     cursor.create_expression_error(
         literal_text, "Unable to parse real literal value."_view);
@@ -338,12 +338,12 @@ static auto parse_real(
   // only after validation proves one complete authored Constant.
   Anchor anchor = Anchor::create(literal_text.get_start(), literal_text);
 
-  for (Signed_64 i = 0; i < token_width; i++) {
+  for (S64 i = 0; i < token_width; i++) {
     cursor.consume();
   }
 
   auto type =
-      context.resolve_context("Real_64"_view)
+      context.resolve_context("R64"_view)
           .select<Tetrodotoxin::Library::Language::Model::Types::Real>();
   BAIL_IF(!type);
   return Library::Language::Constants::Real::create_authored(

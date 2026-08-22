@@ -1,50 +1,50 @@
-# Tetrodotoxin TTX
+# Tetrodotoxin for Visual Studio Code
 
-Tetrodotoxin TTX adds editor support for `.ttx` source files.
+Tetrodotoxin brings purpose built languages into one coherent systems project.
+This extension gives those languages a shared editor experience, so a Package
+manifest, CPU Library, application policy, Scene, render contract, and Shader
+still feel like parts of the same program.
 
-![TTX highlighting preview](media/ttx-preview.png)
+![Tetrodotoxin editor preview](https://raw.githubusercontent.com/MatthewKaes/Perimortem/main/extension/media/ttx-preview.png)
 
-## Features
+## Understand the program as you write it
 
-- `.ttx` file association and a Tetrodotoxin file icon
-- TextMate syntax highlighting for comments, modifiers, attributes, Types,
-  Addressables, Callables, literals, operators, and punctuation
-- optional semantic highlighting from the bundled language server
-- full-document synchronization for open files
-- source diagnostics with editor ranges
-- hover for documentation, declaration Types, and folded constants
-- canonical full-document formatting with best-effort malformed-source support
-- CodeLLDB breakpoint enablement and TTX carrier summaries
+The editor reads the same source facts that Tetrodotoxin uses to build a
+Workspace. That connection makes the help specific to the program rather than
+an approximation based only on spelling.
 
-The bundled color theme gives TTX categories distinct defaults while respecting
-editor customization.
+* Hover shows complete Callable signatures, declaration Types, documentation,
+  and folded constants
+* Parameter hints name fitted positional arguments at their call sites
+* Go to definition follows authored identities across Package sources and
+  dependencies
+* Diagnostics point back to exact authored Tokens and ranges
+* Source colors distinguish Types, Addressables, Callables, values, control
+  flow, modifiers, and punctuation using Tetrodotoxin's own vocabulary
 
-## Semantic highlighting
+The result is especially helpful in dense TTX source, where punctuation carries
+meaning and several languages can appear in one Package without sharing the
+same grammar.
 
-Semantic highlighting is disabled by default so the TextMate colors remain
-predictable. Enable it in VS Code settings when the language server should
-provide token categories:
+## Keep source consistent
 
-```json
-{
-  "tetrodotoxin.semanticHighlighting.enabled": true
-}
-```
+The bundled formatter gives equivalent TTX source one canonical shape. It
+understands declarations, Packs, Layouts, access operators, Blocks,
+Documentation, Attributes, and alignment islands. Incomplete source remains
+editable, so formatting can help recover a file without discarding the text the
+author is still repairing.
 
-Semantic tokens follow TTX's separate source categories. In particular,
-Addressables selected with `.`, Types selected through `::`, and Callables
-invoked with `->` remain distinct.
+Open documents are interpreted as complete editor overlays. A change to one
+Package member rebuilds the shared Package view, which keeps navigation and
+hover consistent with the unsaved project rather than the older files on disk.
 
-The current server derives shared lexical categories and the authored Dialect
-declaration. It does not yet interpret a complete semantic graph for editor
-highlighting, so semantic tokens remain opt-in.
+## Debug native Tetrodotoxin programs
 
-## Debugging
+Tetrodotoxin can emit DWARF 5 source correlation for native Library code. The
+extension enables TTX breakpoints through CodeLLDB and includes Python summaries
+for the runtime carriers used by generated values.
 
-Puffer emits DWARF 5 with C11 physical carrier Types so stock LLDB can bind TTX
-source breakpoints and materialize stack variables. The extension packages LLDB
-Python summaries and synthetic children for TTX values. A CodeLLDB launch opts
-in by including Tetrodotoxin in `sourceLanguages`:
+A CodeLLDB launch opts in by naming Tetrodotoxin in `sourceLanguages`:
 
 ```json
 {
@@ -54,24 +54,47 @@ in by including Tetrodotoxin in `sourceLanguages`:
 }
 ```
 
-The language server provides standard document formatting. The formatter uses
-the complete token graph, preserves malformed authored content, and supplies
-placeholder source documentation when a source has no leading documentation.
-Debugger configuration remains separate from the language-client lifecycle.
+The physical debug information uses C11 carrier descriptions so LLDB can
+materialize values with its existing native support. Those descriptions are a
+debugger bridge. The authored source and language model remain TTX.
 
-## Language server
+## A toolchain in the extension
 
-The Linux extension package includes the `puffer` language-server binary and
-starts it for Tetrodotoxin documents. Puffer tracks open document text and
-provides diagnostics, hover, formatting, and full semantic-token responses over
-the Language Server Protocol. This binary carries Perimortem's fixed Dialect set. Projects
-with additional Dialects build and package their own extended Puffer. A future
-tutorial will cover that workflow.
+The Linux VSIX includes Puffer, the Tetrodotoxin language server and command
+host, together with the standard Tetrodotoxin Packages needed by editor
+sessions. Puffer owns the editor session while Environment, Package, and each
+Dialect continue to own the semantic work they contribute.
 
-Run `./extension/package.sh` from the repository to build Puffer and create the
-versioned VSIX beneath `.vscode`. Pass `--install` only when the new package
-should replace the installed extension.
+Packaging Puffer with the standard Packages makes the extension a natural
+distribution boundary for the Tetrodotoxin SDK. Editor services and command
+builds can share the same Toolchain composition instead of maintaining separate
+language models.
 
-See [Puffer](../puffer/README.md) for its command-line interface,
-[TTX](../ttx/README.md) for the shared language model, and
-[Tetrodotoxin](../tetrodotoxin/README.md) for the concrete Dialects.
+## Color and editor preferences
+
+The default palette is designed around TTX's warm semantic groups. Keywords,
+Types, constants, data flow, control flow, and muted punctuation each have a
+related place in that palette. Bracket matching and automatic closing remain
+available without replacing the punctuation colors with a separate rainbow.
+
+TextMate highlighting is the default because it gives incomplete source a
+stable presentation. Semantic highlighting is available for readers who prefer
+the completed Workspace to refine those categories. You can enable it in VS
+Code settings:
+
+```json
+{
+  "tetrodotoxin.semanticHighlighting.enabled": true
+}
+```
+
+## Explore the platform
+
+* [Tetrodotoxin](https://github.com/MatthewKaes/Perimortem/blob/main/tetrodotoxin/README.md)
+  introduces the language and toolchain platform
+* [TTX](https://github.com/MatthewKaes/Perimortem/blob/main/ttx/README.md)
+  explains the shared semantic vocabulary
+* [Puffer](https://github.com/MatthewKaes/Perimortem/blob/main/puffer/README.md)
+  documents the command and editor host
+* [Standard Packages](https://github.com/MatthewKaes/Perimortem/blob/main/packages/ttx/README.md)
+  describe the included Memory, Math, System, and Graphics APIs

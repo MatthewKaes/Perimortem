@@ -7,14 +7,11 @@
 
 namespace Ttx::Model {
 
-// Addressable is the narrow contract for a named address to typed data whose
-// exact Type exposes at least one Layout entry. An empty Type remains a valid
-// semantic domain but supplies no value whose stable address can be named. A
-// structured field, receiver, local, external symbol, interpreted endpoint, or
-// runtime object may all be Addressable while publishing different richer
-// contracts. Capabilities related to the Addressable are granted by Dialects
-// specific enrichments, so things like `Writability` are a language construct.
-//
+// Addressable names typed data that another semantic object can reach. Fields,
+// receivers, locals, external symbols, interpreted endpoints, and runtime
+// objects can all share this edge while keeping their richer behavior with the
+// Dialect that defines them. That Dialect also decides whether an address can
+// be written, invoked as a receiver, or observed only as a value.
 class Addressable : public Concept::Abstract {
  public:
   TTX_CONTRACT(Addressable, Abstract);

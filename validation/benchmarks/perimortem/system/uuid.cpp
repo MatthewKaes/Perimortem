@@ -29,7 +29,7 @@ static constexpr auto packed_source_a =
     "550e8400e29b41d4a716446655440000"_bytes;
 static constexpr auto packed_source_b =
     "123e4567e89b42d3a456426614174000"_bytes;
-static Unsigned_64 uuid_source_offset = 0;
+static U64 uuid_source_offset = 0;
 
 static auto select_uuid_source() -> void {
   uuid_source_offset = Random::generate();
@@ -55,7 +55,7 @@ PERIMORTEM_BENCHMARK(SystemUuid, serialize_x1024) {
   // Format an existing UUID without including generation in the measurement.
   Count value = 0;
   for (Count i = 0; i < uuid_batch; i++) {
-    const auto* source = ((Unsigned_64(i) + uuid_source_offset) & 1) == 0
+    const auto* source = ((U64(i) + uuid_source_offset) & 1) == 0
                              ? &serialize_source_a
                              : &serialize_source_b;
     Benchmark::prevent_optimization(source);
@@ -69,7 +69,7 @@ PERIMORTEM_BENCHMARK(SystemUuid, serialize_x1024) {
 PERIMORTEM_BENCHMARK(SystemUuid, deserialize_dashed_x1024) {
   Count value = 0;
   for (Count i = 0; i < uuid_batch; i++) {
-    const auto* source = ((Unsigned_64(i) + uuid_source_offset) & 1) == 0
+    const auto* source = ((U64(i) + uuid_source_offset) & 1) == 0
                              ? &dashed_source_a
                              : &dashed_source_b;
     Benchmark::prevent_optimization(source);
@@ -84,7 +84,7 @@ PERIMORTEM_BENCHMARK(SystemUuid, deserialize_dashed_x1024) {
 PERIMORTEM_BENCHMARK(SystemUuid, deserialize_packed_x1024) {
   Count value = 0;
   for (Count i = 0; i < uuid_batch; i++) {
-    const auto* source = ((Unsigned_64(i) + uuid_source_offset) & 1) == 0
+    const auto* source = ((U64(i) + uuid_source_offset) & 1) == 0
                              ? &packed_source_a
                              : &packed_source_b;
     Benchmark::prevent_optimization(source);

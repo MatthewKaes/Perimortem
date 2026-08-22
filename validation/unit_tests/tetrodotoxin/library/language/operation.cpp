@@ -13,8 +13,8 @@
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_64.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/u64.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -161,7 +161,7 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, retains_nonconstant_inputs) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_64 type;
+  Types::U64 type;
   OperationExpression ordinary("ordinary"_view, type);
   auto& constant = Constants::Unsigned::create_synthetic(domain, type, 1);
   Static::Vector<Reference<Expression>, 2> inputs = {{ordinary, constant}};
@@ -187,7 +187,7 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, finalizes_canonical_inputs) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_64 type;
+  Types::U64 type;
   OperationExpression first("first"_view, type);
   OperationExpression second("second"_view, type);
   auto& folded = Constants::Unsigned::create_synthetic(domain, type, 3);
@@ -211,7 +211,7 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, recursive_partial_fold) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_64 type;
+  Types::U64 type;
   OperationExpression ordinary("ordinary"_view, type);
   auto& input = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& folded = Constants::Unsigned::create_synthetic(domain, type, 2);
@@ -238,7 +238,7 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, completed_result_is_idempotent) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_64 type;
+  Types::U64 type;
   auto& first_input = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& second_input = Constants::Unsigned::create_synthetic(domain, type, 2);
   auto& folded = Constants::Unsigned::create_synthetic(domain, type, 3);
@@ -264,7 +264,7 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, child_failure_propagates) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_64 type;
+  Types::U64 type;
   OperationExpression ordinary("ordinary"_view, type);
   auto& input = Constants::Unsigned::create_synthetic(domain, type, 1);
   Static::Vector<Reference<Expression>, 1> child_inputs = {{input}};
@@ -291,8 +291,8 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, changed_result_type_rejects) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_64 expected_type;
-  Types::Unsigned_8 changed_type;
+  Types::U64 expected_type;
+  Types::U8 changed_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, expected_type, 1);
   auto& changed =
       Constants::Unsigned::create_synthetic(domain, changed_type, 1);
@@ -315,7 +315,7 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, prelink_query_remains_retryable) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_64 type;
+  Types::U64 type;
   auto& input = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& folded = Constants::Unsigned::create_synthetic(domain, type, 2);
   Static::Vector<Reference<Expression>, 1> inputs = {{input}};
@@ -335,7 +335,7 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, dynamic_input_keeps_later_reachable) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_64 type;
+  Types::U64 type;
   OperationExpression dynamic("dynamic"_view, type);
   auto& input = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& folded = Constants::Unsigned::create_synthetic(domain, type, 2);
@@ -359,7 +359,7 @@ PERIMORTEM_UNIT_TEST(
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_64 type;
+  Types::U64 type;
   OperationExpression dynamic("dynamic"_view, type);
   auto& input = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& folded = Constants::Unsigned::create_synthetic(domain, type, 2);
@@ -382,7 +382,7 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, unreachable_input_is_never_queried) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_64 type;
+  Types::U64 type;
   auto& first = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& folded = Constants::Unsigned::create_synthetic(domain, type, 2);
   Static::Vector<Reference<Expression>, 1> child_inputs = {{first}};

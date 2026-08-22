@@ -3,11 +3,9 @@
 
 // The native bridge enters LLVM before the Perimortem owner so LLVM's standard
 // declarations remain confined to this implementation unit.
-// clang-format off
+#if defined(__cplusplus)
 #include "llvm/IR/GlobalVariable.h"
-#include "tetrodotoxin/library/llvm/globals.hpp"
-// clang-format on
-
+#endif
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -23,6 +21,7 @@
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/llvm/body.hpp"
 #include "tetrodotoxin/library/llvm/carriers.hpp"
+#include "tetrodotoxin/library/llvm/globals.hpp"
 #include "tetrodotoxin/library/llvm/program.hpp"
 #include "tetrodotoxin/library/llvm/symbol.hpp"
 
@@ -212,6 +211,15 @@ auto Tetrodotoxin::Library::Llvm::Globals::reserve_foreign(
       reserve(program, addressable, Record(True, abi, symbol, writable));
   if (reserved && *reserved) {
     foreign_addressables.insert(addressable);
+    auto target = get_target(program);
+    if (!target ||
+        !target->add_import(
+            Tetrodotoxin::Linker::Import(
+                writable ? Tetrodotoxin::Linker::Import::Kind::WritableState
+                         : Tetrodotoxin::Linker::Import::Kind::ReadOnlyState,
+                abi, symbol))) {
+      return {};
+    }
   }
 
   return reserved;

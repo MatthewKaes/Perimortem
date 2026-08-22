@@ -18,40 +18,40 @@ class FactoryValue {
   FactoryValue(const FactoryValue&) = delete;
   FactoryValue(FactoryValue&&) = delete;
 
-  static auto create(Allocator::Arena& arena, Unsigned_32 value, Bool selected)
+  static auto create(Allocator::Arena& arena, U32 value, Bool selected)
       -> FactoryValue& {
     return arena.construct_from<FactoryValue>(
         [=]() { return FactoryValue(value, selected); });
   }
 
-  constexpr auto get_value() const -> Unsigned_32 { return value; }
+  constexpr auto get_value() const -> U32 { return value; }
   constexpr auto is_selected() const -> Bool { return selected; }
 
  private:
-  constexpr FactoryValue(Unsigned_32 value, Bool selected)
+  constexpr FactoryValue(U32 value, Bool selected)
       : value(value), selected(selected) {}
 
-  Unsigned_32 value;
+  U32 value;
   Bool selected;
 };
 
-static_assert(!__is_constructible(FactoryValue, Unsigned_32, Bool));
+static_assert(!__is_constructible(FactoryValue, U32, Bool));
 static_assert(!__is_constructible(FactoryValue, const FactoryValue&));
 static_assert(!__is_constructible(FactoryValue, FactoryValue&&));
 
 PERIMORTEM_UNIT_TEST(Arena, reserve) {
   class RequiredValue {
    public:
-    constexpr RequiredValue(Unsigned_32 value) : value(value) {}
+    constexpr RequiredValue(U32 value) : value(value) {}
 
-    constexpr auto get_value() const -> Unsigned_32 { return value; }
+    constexpr auto get_value() const -> U32 { return value; }
 
    private:
-    Unsigned_32 value;
+    U32 value;
   };
 
   Allocator::Arena arena;
-  Unsigned_32& scalar = arena.reserve<Unsigned_32>();
+  U32& scalar = arena.reserve<U32>();
   auto values = arena.reserve<RequiredValue>(2);
   auto* value_data = values.get_data();
 
@@ -59,10 +59,10 @@ PERIMORTEM_UNIT_TEST(Arena, reserve) {
   value_data[0] = RequiredValue(1);
   value_data[1] = RequiredValue(2);
 
-  EXPECT_EQ(scalar, Unsigned_32(7));
+  EXPECT_EQ(scalar, U32(7));
   EXPECT_EQ(values.get_size(), Count(2));
-  EXPECT_EQ(value_data[0].get_value(), Unsigned_32(1));
-  EXPECT_EQ(value_data[1].get_value(), Unsigned_32(2));
+  EXPECT_EQ(value_data[0].get_value(), U32(1));
+  EXPECT_EQ(value_data[1].get_value(), U32(2));
 }
 
 PERIMORTEM_UNIT_TEST(Arena, owner_factory) {
@@ -70,6 +70,6 @@ PERIMORTEM_UNIT_TEST(Arena, owner_factory) {
 
   FactoryValue& value = FactoryValue::create(arena, 42, True);
 
-  EXPECT_EQ(value.get_value(), Unsigned_32(42));
+  EXPECT_EQ(value.get_value(), U32(42));
   EXPECT(value.is_selected());
 }

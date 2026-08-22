@@ -20,13 +20,13 @@ class File {
   class Fingerprint {
    public:
     constexpr Fingerprint(
-        Unsigned_64 device = 0,
-        Unsigned_64 node = 0,
-        Unsigned_64 size = 0,
-        Signed_64 modified_seconds = 0,
-        Signed_64 modified_nanoseconds = 0,
-        Signed_64 changed_seconds = 0,
-        Signed_64 changed_nanoseconds = 0)
+        U64 device = 0,
+        U64 node = 0,
+        U64 size = 0,
+        S64 modified_seconds = 0,
+        S64 modified_nanoseconds = 0,
+        S64 changed_seconds = 0,
+        S64 changed_nanoseconds = 0)
         : device(device),
           node(node),
           size(size),
@@ -46,13 +46,13 @@ class File {
     constexpr auto get_size() const -> Count { return Count(size); }
 
    private:
-    Unsigned_64 device;
-    Unsigned_64 node;
-    Unsigned_64 size;
-    Signed_64 modified_seconds;
-    Signed_64 modified_nanoseconds;
-    Signed_64 changed_seconds;
-    Signed_64 changed_nanoseconds;
+    U64 device;
+    U64 node;
+    U64 size;
+    S64 modified_seconds;
+    S64 modified_nanoseconds;
+    S64 changed_seconds;
+    S64 changed_nanoseconds;
   };
 
   // Snapshot couples owned bytes with metadata taken from the same opened
@@ -105,9 +105,9 @@ class File {
     auto exists(Core::View::Bytes relative_path) const -> Bool;
 
    private:
-    Root(Signed_32 descriptor);
+    Root(S32 descriptor);
 
-    Signed_32 descriptor;
+    S32 descriptor;
   };
 
   static auto read(Core::View::Bytes location)

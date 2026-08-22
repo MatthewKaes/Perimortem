@@ -8,11 +8,11 @@
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/types/r32.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
-#include "tetrodotoxin/library/language/types/real_32.hpp"
-#include "tetrodotoxin/library/language/types/signed_8.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_16.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/s8.hpp"
+#include "tetrodotoxin/library/language/types/u16.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -60,12 +60,12 @@ PERIMORTEM_UNIT_TEST(LibraryRange, exact_materialization) {
   Ttx::Lexical::Tokenizer tokenizer(domain, {}, "range-link.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
-  Types::Unsigned_8 unsigned_8;
-  Types::Signed_8 signed_8;
-  RangeExpression unsigned_start("unsigned start"_view, unsigned_8);
-  RangeExpression unsigned_end("unsigned end"_view, unsigned_8);
-  RangeExpression signed_start("signed start"_view, signed_8);
-  RangeExpression signed_end("signed end"_view, signed_8);
+  Types::U8 u8;
+  Types::S8 s8;
+  RangeExpression unsigned_start("unsigned start"_view, u8);
+  RangeExpression unsigned_end("unsigned end"_view, u8);
+  RangeExpression signed_start("signed start"_view, s8);
+  RangeExpression signed_end("signed end"_view, s8);
   auto& first =
       Operations::Range::create_synthetic(domain, unsigned_start, unsigned_end);
   auto& repeated =
@@ -86,8 +86,8 @@ PERIMORTEM_UNIT_TEST(LibraryRange, exact_materialization) {
   const auto& signed_type =
       static_cast<const Types::Range&>(signed_range.get_type());
   EXPECT(&first.get_type() == &repeated.get_type());
-  EXPECT(&first_type.get_element_type() == &unsigned_8);
-  EXPECT(&signed_type.get_element_type() == &signed_8);
+  EXPECT(&first_type.get_element_type() == &u8);
+  EXPECT(&signed_type.get_element_type() == &s8);
   EXPECT(fold_is_dynamic(first));
   EXPECT(errors.is_empty());
 }
@@ -100,13 +100,13 @@ PERIMORTEM_UNIT_TEST(LibraryRange, integer_legality) {
   Ttx::Lexical::Tokenizer tokenizer(domain, {}, "range-link.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
-  Types::Unsigned_8 unsigned_8;
-  Types::Unsigned_16 unsigned_16;
-  Types::Real_32 real_32;
-  RangeExpression unsigned_value("unsigned"_view, unsigned_8);
-  RangeExpression other_width("other width"_view, unsigned_16);
+  Types::U8 u8;
+  Types::U16 u16;
+  Types::R32 r32;
+  RangeExpression unsigned_value("unsigned"_view, u8);
+  RangeExpression other_width("other width"_view, u16);
   RangeExpression flag("flag"_view, resolve_library_flag(source));
-  RangeExpression real("real"_view, real_32);
+  RangeExpression real("real"_view, r32);
   RangeExpression unresolved("unresolved"_view, Invalid::get_invalid());
   auto& mismatch =
       Operations::Range::create_synthetic(domain, unsigned_value, other_width);

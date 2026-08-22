@@ -120,10 +120,10 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
       "// Swizzle value flow.\n"
       "dialect : Library;\n"
       "public Packet : struct {\n"
-      "  private state secret : Unsigned_64;\n"
-      "  public state width : Unsigned_64;\n"
-      "  public state height : Unsigned_64;\n"
-      "  public gather : func = [self] -> [Unsigned_64, Unsigned_64] {\n"
+      "  private state secret : U64;\n"
+      "  public state width : U64;\n"
+      "  public state height : U64;\n"
+      "  public gather : func = [self] -> [U64, U64] {\n"
       "    return self.[secret, height];\n"
       "  }\n"
       "  public echo : func = [.value : Packet] -> Packet {\n"
@@ -131,14 +131,14 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
       "  }\n"
       "}\n"
       "public Dimensions : struct {\n"
-      "  public state first : Unsigned_64; public state second : Unsigned_64;\n"
+      "  public state first : U64; public state second : U64;\n"
       "}\n"
       "private packet : Packet;\n"
       "private empty : func = [] -> [] { return packet.[]; }\n"
-      "private single : Unsigned_64 = packet.[width,];\n"
+      "private single : U64 = packet.[width,];\n"
       "private dimensions : Dimensions = "
       "packet.[height, width];\n"
-      "private chained : Unsigned_64 = "
+      "private chained : U64 = "
       "Packet -> echo(packet).[width] + 1;"_view;
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
@@ -161,13 +161,13 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
   ASSERT(gather);
   auto gather_return = find_return(*gather);
   ASSERT(gather_return);
-  const Abstract& unsigned_64 = monograph->resolve_context("Unsigned_64"_view);
+  const Abstract& u64 = monograph->resolve_context("U64"_view);
   EXPECT_TEXT(
       gather_return->get_anchor().get_span().caculate_text(source),
       "return self.[secret, height];"_view);
   ASSERT_EQ(gather->get_results().get_size(), Count(2));
-  EXPECT(&*gather->get_results().get_abstract(0) == &unsigned_64);
-  EXPECT(&*gather->get_results().get_abstract(1) == &unsigned_64);
+  EXPECT(&*gather->get_results().get_abstract(0) == &u64);
+  EXPECT(&*gather->get_results().get_abstract(1) == &u64);
 
   auto empty = find_function(monograph->get_source(), "empty"_view);
   auto single = find_field(monograph->get_source(), "single"_view);
@@ -194,7 +194,7 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
 
   ASSERT_EQ(single_swizzle.get_layout().get_size(), Count(1));
   EXPECT(is_projection(single_swizzle, 0, *width));
-  EXPECT(&single_swizzle.get_type() == &unsigned_64);
+  EXPECT(&single_swizzle.get_type() == &u64);
   EXPECT(single_swizzle.fits(single->get_type()));
   ASSERT_EQ(dimensions_swizzle.get_layout().get_size(), Count(2));
   EXPECT(is_projection(dimensions_swizzle, 0, *height));
@@ -202,8 +202,7 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
   EXPECT(&dimensions_swizzle.get_type() == &Invalid::get_invalid());
   EXPECT(dimensions_swizzle.fits(dimensions->get_type()));
   Language::Types::Fixed fixed_pair(
-      "Fixed[Unsigned_64, 2]"_view,
-      static_cast<const Language::Model::Type&>(unsigned_64), 2);
+      "Fixed[U64, 2]"_view, static_cast<const Language::Model::Type&>(u64), 2);
   EXPECT(dimensions_swizzle.fits(fixed_pair));
 
   ASSERT(chained->get_initializer()->is<Language::Operations::Add>());
@@ -215,9 +214,9 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, named_pack_reorders_real_producers) {
       "// Named Pack Swizzle.\n"
       "dialect : Library;\n"
       "public Pair : struct {\n"
-      "  public state first : Bool; public state second : Unsigned_64;\n"
+      "  public state first : Bool; public state second : U64;\n"
       "}\n"
-      "private left : Unsigned_64 = 7;\n"
+      "private left : U64 = 7;\n"
       "private right : Bool = false;\n"
       "private reordered : Pair = "
       "(.x = left, .y = right).[y, x];"_view;
@@ -271,16 +270,16 @@ PERIMORTEM_UNIT_TEST(
       "dialect : Library;\n"
       "public Results : struct {\n"
       "  public produce : func = [] -> [\n"
-      "    .count : Unsigned_64, .flag : Bool,\n"
+      "    .count : U64, .flag : Bool,\n"
       "  ] {\n"
       "    return (.flag = false, .count = 7);\n"
       "  }\n"
       "}\n"
       "public Reordered : struct {\n"
-      "  public state first : Bool; public state second : Unsigned_64;\n"
+      "  public state first : Bool; public state second : U64;\n"
       "}\n"
       "public Original : struct {\n"
-      "  public state first : Unsigned_64; public state second : Bool;\n"
+      "  public state first : U64; public state second : Bool;\n"
       "}\n"
       "private reordered : Reordered = "
       "Results -> produce().[flag, count];\n"
@@ -358,23 +357,23 @@ PERIMORTEM_UNIT_TEST(
 PERIMORTEM_UNIT_TEST(SwizzleTests, invalid_selections_are_rejected) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Unknown Swizzle name.\ndialect : Library;\n"
-    "public Packet : struct { public width : Unsigned_64; }\n"
+    "public Packet : struct { public width : U64; }\n"
     "private packet : Packet;\n"
-    "private invalid : Unsigned_64 = packet.[missing];"_view,
+    "private invalid : U64 = packet.[missing];"_view,
     "// Inaccessible Swizzle name.\ndialect : Library;\n"
-    "public Packet : struct { private secret : Unsigned_64; }\n"
+    "public Packet : struct { private secret : U64; }\n"
     "private packet : Packet;\n"
-    "private invalid : Unsigned_64 = packet.[secret];"_view,
+    "private invalid : U64 = packet.[secret];"_view,
     "// Incompatible Swizzle shape.\ndialect : Library;\n"
     "public Packet : struct {\n"
-    "  public width : Unsigned_64; public height : Unsigned_64;\n"
+    "  public width : U64; public height : U64;\n"
     "}\n"
     "public Pair : struct { public first : Bool; public second : Bool; }\n"
     "private packet : Packet;\n"
     "private invalid : Pair = packet.[width, height];"_view,
     "// Unknown named Pack slot.\ndialect : Library;\n"
-    "private value : Unsigned_64 = 0;\n"
-    "private invalid : Unsigned_64 = (.known = value).[missing];"_view,
+    "private value : U64 = 0;\n"
+    "private invalid : U64 = (.known = value).[missing];"_view,
   }};
 
   for (Count index = 0; index < sources.get_size(); index++) {
@@ -385,13 +384,13 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, invalid_selections_are_rejected) {
 PERIMORTEM_UNIT_TEST(SwizzleTests, malformed_selection_is_atomic) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
     "// Missing Swizzle close.\ndialect : Library;\n"
-    "public Packet : struct { public width : Unsigned_64; }\n"
+    "public Packet : struct { public width : U64; }\n"
     "private packet : Packet; private invalid := packet.[width;"_view,
     "// Missing Swizzle name.\ndialect : Library;\n"
-    "public Packet : struct { public width : Unsigned_64; }\n"
+    "public Packet : struct { public width : U64; }\n"
     "private packet : Packet; private invalid := packet.[,width];"_view,
     "// Repeated Swizzle separator.\ndialect : Library;\n"
-    "public Packet : struct { public width : Unsigned_64; }\n"
+    "public Packet : struct { public width : U64; }\n"
     "private packet : Packet; private invalid := packet.[width,,];"_view,
   }};
 

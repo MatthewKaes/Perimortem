@@ -2,24 +2,24 @@
 dialect : Library;
 
 foreign "C" {
-  expose state library_foreign_bias  : Unsigned_64;
-  public state library_foreign_state : Unsigned_64;
+  expose state library_foreign_bias  : U64;
+  public state library_foreign_state : U64;
 
-  public func library_foreign_add[.left : Unsigned_64, .right : Unsigned_64] -> Unsigned_64;
-  public func llvm_large_sum[.value : CrossArtifactLarge] -> Unsigned_64;
+  public func library_foreign_add[.left : U64, .right : U64] -> U64;
+  public func llvm_large_sum[.value : CrossArtifactLarge] -> U64;
 }
 
-private total : Unsigned_64 = 0;
+private total : U64 = 0;
 
 @abi("C") @symbol("library_cross_artifact")
-public cross_artifact : func = [] -> Unsigned_64 {
+public cross_artifact : func = [] -> U64 {
   state value : CrossArtifactLarge = (.first = 4, .second = 5, .third = 6);
   return foreign -> llvm_large_sum(value);
 }
 
 // Stable C interoperability entry with repeated TTX-owned Static state.
 @abi("C") @symbol("library_native")
-public library_native : func = [] -> Unsigned_64 {
+public library_native : func = [] -> U64 {
   total += PrivateOps -> increment();
   foreign.library_foreign_state = total;
   return foreign -> library_foreign_add(
@@ -32,11 +32,11 @@ public library_native : func = [] -> Unsigned_64 {
 // provider's Large Type. The shared C boundary, rather than one LLVM module,
 // must agree on its physical System V aggregate representation.
 private CrossArtifactLarge : struct {
-  public state first  : Unsigned_64 = 0;
-  public state second : Unsigned_64 = 0;
-  public state third  : Unsigned_64 = 0;
+  public state first  : U64 = 0;
+  public state second : U64 = 0;
+  public state third  : U64 = 0;
 }
 
 private PrivateOps : struct {
-  public increment : func = [] -> Unsigned_64 : return 20;
+  public increment : func = [] -> U64 : return 20;
 }

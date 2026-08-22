@@ -28,13 +28,12 @@ class Serial {
   class Value {
    public:
     constexpr Value() : type_info(0), value(0) {}
-    constexpr Value(Signed_64 value)
-        : type_info(0x8000000000000000), value(value) {}
+    constexpr Value(S64 value) : type_info(0x8000000000000000), value(value) {}
     constexpr Value(View::Bytes view)
         : type_info(view.get_size()), blob(view.get_data()) {}
 
     constexpr operator View::Bytes() { return get_view(); }
-    constexpr operator Signed_64() { return get_value(); }
+    constexpr operator S64() { return get_value(); }
 
     constexpr auto get_view() -> View::Bytes {
       if (type_info & 0x8000000000000000) {
@@ -44,12 +43,12 @@ class Serial {
       return View::Bytes(blob, type_info);
     }
 
-    constexpr auto get_value() -> Signed_64 {
+    constexpr auto get_value() -> S64 {
       if (type_info & 0x8000000000000000) {
         return value;
       }
 
-      return Signed_64();
+      return S64();
     }
 
     constexpr auto is_blob() -> Bool {
@@ -60,10 +59,10 @@ class Serial {
     // Value keeps its blob/value discriminator in type_info so the complete
     // schemaless read remains 16 bytes. Static::Union would require a separate
     // tag and grow this hot return type to 24 bytes.
-    Unsigned_64 type_info;
+    U64 type_info;
     union {
-      const Unsigned_8* blob;
-      Signed_64 value;
+      const U8* blob;
+      S64 value;
     };
   };
 
@@ -83,7 +82,7 @@ class Serial {
 
   // Reads the next value in the stream and explicitly parses it as a signed
   // value. If the value is actually a blob then 0 is returned.
-  auto read_value() -> Signed_64;
+  auto read_value() -> S64;
 
   // Reads the next value in the stream and explicitly parses it as a signed
   // value. If the value is actually a regular value than an empty view is

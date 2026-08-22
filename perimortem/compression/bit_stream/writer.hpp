@@ -24,16 +24,16 @@ class Writer {
   Writer(Memory::Dynamic::Bytes& output) : output(output) {}
 
   // Write `length` bits of `value` LSB-first (extra bits, block headers).
-  auto write_bits(Unsigned_32 value, Count length) -> void;
+  auto write_bits(U32 value, Count length) -> void;
   // Write a pre-reversed Huffman code returned by `Huffman::encode_symbol`.
-  auto write_code(Unsigned_32 code, Count length) -> void;
+  auto write_code(U32 code, Count length) -> void;
   auto flush() -> void;
 
  private:
   auto drain() -> void;
 
   Memory::Dynamic::Bytes& output;
-  Unsigned_64 accumulator = 0;
+  U64 accumulator = 0;
   Count bits = 0;
 };
 

@@ -8,27 +8,18 @@
 
 namespace Ttx::Model {
 
-// Alias is the closed named-redirection method in the TTX graph. It preserves
-// the authored local name and documentation while borrowing the Abstract it
-// redirects to. It is not a Type, owner, container, or resolution result, and
-// its immediate target is deliberately opaque to consumers.
+// Alias gives one authored local name and its Documentation to an existing
+// semantic identity. Resolution follows an Alias chain to the first concrete
+// identity, where the consumer can use that owner's real contract.
 //
-// `get_name()` returns the local alias name. `resolve()` alone follows Alias
-// edges and returns the first non-Alias identity. It does not ask that identity
-// to resolve again. Alias is opaque to every other operation; a consumer
-// resolves it and then invokes the selected identity's contract explicitly.
+// Local Documentation leads the target Documentation through Merged. When the
+// Alias adds no local prose, it can borrow the target Documentation directly
+// and avoid an empty wrapper.
 //
-// When constructing an Alias `Documentations::Merged` is the preferred model as
-// it enables forwarding of the target documentation, however for optimization
-// if the Alias provides no wrapping documentation then the target's
-// documentation can be passed to the Alias directly without a `Merged`
-// wrapper.
-//
-// A derived graph owner may reserve an Alias identity before its target is
-// known, then bind that target once during graph completion. Until then
-// resolution returns Invalid. Repeating the exact binding is harmless;
-// attempting to change it fails. The graph owner must keep a bound target alive
-// and reject Alias cycles before publishing the completed graph.
+// Some declaration owners reserve an Alias before its target has completed.
+// They bind that target once during graph construction and keep it alive beside
+// the Alias. Repeating the same binding is harmless, while a changed target or
+// a cycle makes publication fail.
 class Alias : public Concept::Abstract {
  public:
   TTX_CONTRACT(Alias, Abstract);
@@ -67,17 +58,17 @@ class Alias : public Concept::Abstract {
         });
   }
 
-  // Alias never lends its target's context implicitly. The consumer resolves
-  // this edge first and then invokes the selected owner's exact operation.
+  // Context belongs to the selected target rather than its local name.
+  // Resolving the Alias first makes that ownership visible to the consumer.
   constexpr auto resolve_context(Perimortem::Core::View::Bytes) const
       -> const Abstract& override {
     return Concept::Invalid::get_invalid();
   }
 
  protected:
-  // Staged construction exists only for a concrete graph owner that cannot
-  // know the target before its definition pass completes. Ordinary callers
-  // construct an already bound Alias through the public constructors above.
+  // A declaration owner can use staged construction when its target settles in
+  // a later definition pass. Callers that already know the target use the
+  // complete public constructors.
   constexpr Alias(
       Perimortem::Core::View::Bytes name,
       const Concept::Documentation& documentation)

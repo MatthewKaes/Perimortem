@@ -374,10 +374,10 @@ PERIMORTEM_UNIT_TEST(StructureTests, declaration_reorder) {
     "// Structure test.\n"
     "dialect : Library;\n"
     "public First : struct { public state next : Second; }\n"
-    "public Second : struct { public state value : Unsigned_64; }"_view,
+    "public Second : struct { public state value : U64; }"_view,
     "// Structure test.\n"
     "dialect : Library;\n"
-    "public Second : struct { public state value : Unsigned_64; }\n"
+    "public Second : struct { public state value : U64; }\n"
     "public First : struct { public state next : Second; }"_view,
   }};
 
@@ -570,7 +570,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, empty_types_are_static_only) {
   EXPECT(empty_result.get_results().fits(first_empty_result.get_results()));
 
   const auto& scalar = static_cast<const Ttx::Model::Type&>(
-      monograph->resolve_context("Unsigned_8"_view));
+      monograph->resolve_context("U8"_view));
   ASSERT_EQ(scalar.get_layout().get_size(), Count(1));
   auto scalar_layout_type = scalar.get_layout().get_abstract(0);
   ASSERT(scalar_layout_type);
@@ -668,7 +668,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
       "public Packet : struct {\n"
       "  private exact : Bool = false;\n"
       "  private copy : Bool = exact;\n"
-      "  private narrow : Unsigned_8 = 255;\n"
+      "  private narrow : U8 = 255;\n"
       "}"_view;
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
@@ -780,7 +780,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
   EXPECT(&root_copy.get_type() == &root.get_type());
   EXPECT(&root.get_type() == &monograph.resolve_context("Bool"_view));
   EXPECT(&scalar_copy.get_type() == &scalar.get_type());
-  EXPECT(&scalar.get_type() == &monograph.resolve_context("Unsigned_64"_view));
+  EXPECT(&scalar.get_type() == &monograph.resolve_context("U64"_view));
   auto root_copy_initializer = root_copy.get_initializer();
   ASSERT(root_copy_initializer);
   ASSERT(root_copy_initializer->is<Language::Expressions::Identifier>());
@@ -889,8 +889,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_public_type_reachability) {
 
 PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
-    "// Structure initializer test.\ndialect : Library; public Packet : struct { private value : Unsigned_8 = false; }"_view,
-    "// Structure initializer test.\ndialect : Library; public Packet : struct { private value : Unsigned_8 = 256; }"_view,
+    "// Structure initializer test.\ndialect : Library; public Packet : struct { private value : U8 = false; }"_view,
+    "// Structure initializer test.\ndialect : Library; public Packet : struct { private value : U8 = 256; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -939,13 +939,13 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
     EXPECT(&*retained_initializer == &*authored_initializer);
     ASSERT_EQ(errors.get_size(), Count(1));
     EXPECT(has_diagnostic(
-        errors, i == 0 ? "private value : Unsigned_8 = false;"_view
-                       : "private value : Unsigned_8 = 256;"_view));
+        errors, i == 0 ? "private value : U8 = false;"_view
+                       : "private value : U8 = 256;"_view));
     EXPECT(has_diagnostic(
         errors,
         "Initializer for Field 'value' does not fit declared Type "
-        "'Unsigned_8'."_view));
-    EXPECT(has_diagnostic(errors, "Target accepts: [Unsigned_8]"_view));
+        "'U8'."_view));
+    EXPECT(has_diagnostic(errors, "Target accepts: [U8]"_view));
     EXPECT(has_diagnostic(
         errors,
         "Change the initializer or declare the exact Type it produces."_view));

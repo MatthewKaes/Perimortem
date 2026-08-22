@@ -17,7 +17,7 @@ namespace Ttx::Lexical {
 // concrete Lexer contract and may be remapped whenever that contract changes.
 class Code {
  public:
-  enum class Type : Unsigned_8 {
+  enum class Type : U8 {
     // ========================================================================
     //                             Control Types
     //
@@ -182,7 +182,7 @@ class Code {
   Type type = Type::Terminal;
 };
 
-static_assert(static_cast<Unsigned_8>(Code::Type::Terminal) == 0x00);
-static_assert(static_cast<Unsigned_8>(Code::Type::Unknown) == 0xFF);
+static_assert(static_cast<U8>(Code::Type::Terminal) == 0x00);
+static_assert(static_cast<U8>(Code::Type::Unknown) == 0xFF);
 
 }  // namespace Ttx::Lexical

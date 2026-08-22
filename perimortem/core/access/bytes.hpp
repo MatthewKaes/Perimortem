@@ -12,7 +12,7 @@ namespace Perimortem::Core::Access {
 // A raw read/write view of bytes with no endianness.
 class Bytes {
  public:
-  using data_type = Unsigned_8;
+  using data_type = U8;
 
   // Default to empty string.
   constexpr Bytes() : source_block(nullptr), size(0) {}

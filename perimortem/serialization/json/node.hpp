@@ -41,38 +41,34 @@ class Node {
     set(value);
   }
 
-  Node(Signed_64 value) : data{.ptr = nullptr, .size = 0, .state = 0} {
-    set(value);
+  Node(S64 value) : data{.ptr = nullptr, .size = 0, .state = 0} { set(value); }
+
+  Node(R32 value) : data{.ptr = nullptr, .size = 0, .state = 0} {
+    set(R64(value));
   }
 
-  Node(Real_32 value) : data{.ptr = nullptr, .size = 0, .state = 0} {
-    set(Real_64(value));
-  }
-
-  Node(Real_64 value) : data{.ptr = nullptr, .size = 0, .state = 0} {
-    set(value);
-  }
+  Node(R64 value) : data{.ptr = nullptr, .size = 0, .state = 0} { set(value); }
 
   Node(Bool value) : data{.ptr = nullptr, .size = 0, .state = 0} { set(value); }
 
   auto set(const Core::View::Bytes value) -> void;
   auto set(const Core::View::Vector<Node> value) -> void;
   auto set(const Core::View::Vector<Member> value) -> void;
-  auto set(Signed_64 value) -> void;
-  auto set(Real_64 value) -> void;
+  auto set(S64 value) -> void;
+  auto set(R64 value) -> void;
   auto set(Bool value) -> void;
   auto set() -> void;
 
-  auto at(Unsigned_32 index) const -> const Node;
+  auto at(U32 index) const -> const Node;
   auto at(const Core::View::Bytes name) const -> const Node;
 
-  auto operator[](Unsigned_32 index) const -> const Node;
+  auto operator[](U32 index) const -> const Node;
   auto operator[](const Core::View::Bytes name) const -> const Node;
 
   auto contains(const Core::View::Bytes name) const -> Bool;
 
   auto get_flag() const -> Bool;
-  auto get_number() const -> Signed_64;
+  auto get_number() const -> S64;
   auto get_real() const -> double;
   auto get_string() const -> const Core::View::Bytes;
   auto decode_string(Memory::Allocator::Arena& arena) const
@@ -105,12 +101,12 @@ class Node {
   struct {
     union {
       const void* ptr;
-      Signed_64 number;
-      Real_64 real;
+      S64 number;
+      R64 real;
       Bool flag;
     };
-    Unsigned_32 size;
-    Unsigned_32 state;
+    U32 size;
+    U32 state;
   } data;
 };
 

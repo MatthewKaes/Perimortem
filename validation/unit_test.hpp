@@ -28,14 +28,14 @@ auto error_contains(
 
 auto expected(Bool value, Bool actual) -> void;
 auto expected(Perimortem::Core::View::Bytes value, Bool actual) -> void;
-auto expected(Signed_16 value, Bool actual) -> void;
-auto expected(Unsigned_16 value, Bool actual) -> void;
-auto expected(Unsigned_32 value, Bool actual) -> void;
-auto expected(Unsigned_64 value, Bool actual) -> void;
-auto expected(Signed_32 value, Bool actual) -> void;
-auto expected(Signed_64 value, Bool actual) -> void;
+auto expected(S16 value, Bool actual) -> void;
+auto expected(U16 value, Bool actual) -> void;
+auto expected(U32 value, Bool actual) -> void;
+auto expected(U64 value, Bool actual) -> void;
+auto expected(S32 value, Bool actual) -> void;
+auto expected(S64 value, Bool actual) -> void;
 auto expected(CppSize value, Bool actual) -> void;
-auto expected(Real_64 value, Bool actual) -> void;
+auto expected(R64 value, Bool actual) -> void;
 auto expected_text(
     Perimortem::Core::View::Bytes value,
     Perimortem::Core::View::Bytes other,

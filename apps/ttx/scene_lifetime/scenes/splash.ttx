@@ -7,12 +7,12 @@
 dialect : Scene;
 
 private const bottom_icon : Graphics::Sprite = new;
-private const fade_time   : Real_64 = 1.0;
-private const hold_time   : Real_64 = 1.5;
+private const fade_time   : R64 = 1.0;
+private const hold_time   : R64 = 1.5;
 private const top_icon    : Graphics::Sprite = new;
 
 signal finished;
-private state elapsed : Real_64 = 0.0;
+private state elapsed : R64 = 0.0;
 
 Scene prepare[self] -> Void {
   state image := Graphics::Image -> decode($[resources/logo.png]);
@@ -23,11 +23,11 @@ Scene prepare[self] -> Void {
 }
 
 Scene release[self] -> Void : return;
-Scene update[self, .delta_time : Real_64] -> Scene::Flow {
+Scene update[self, .delta_time : R64] -> Scene::Flow {
   self.elapsed = self.elapsed + delta_time;
 
-  const duration : Real_64 = fade_time * 2.0 + hold_time;
-  state alpha    : Real_64 = 0.0;
+  const duration : R64 = fade_time * 2.0 + hold_time;
+  state alpha    : R64 = 0.0;
   if (self.elapsed < fade_time) : alpha = self.elapsed / fade_time;
   if (self.elapsed >= fade_time and self.elapsed < fade_time + hold_time) : alpha =
       1.0;

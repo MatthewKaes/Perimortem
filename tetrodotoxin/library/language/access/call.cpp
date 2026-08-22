@@ -55,12 +55,10 @@ static auto select_result_type(const Abstract& result)
                      : select_type(resolved);
 }
 
-// The Callable result Layout describes what one invocation produces, while
-// this Layout preserves which invocation produced it. Fitting therefore
-// delegates to the immutable signature shape, but a successful fitted query
-// returns the Call rather than laundering value flow into a result Type. This
-// is Call's canonical output Layout, not a shadow inventory: it borrows the
-// Callable and retains no copied entries, names, or Types.
+// The Callable describes the result shape shared by every invocation. This
+// Layout borrows that shape while keeping the Call as its producer, so fitted
+// flow still points back to the invocation that created it. Borrowing also
+// keeps result entries, names, and Types in one place.
 static auto create_layout(
     Memory::Allocator::Arena& domain,
     const Language::Access::Call& call,
@@ -127,9 +125,9 @@ static auto create_layout(
   return domain.construct<Layout>(call, callable);
 }
 
-// Self input reflection composes the real receiver with the authored argument
-// Pack without creating another producer or copying either Layout. Static Calls
-// need no composition because their Type receiver contributes no runtime value.
+// A Self Call contributes its real receiver as the first runtime input, then
+// follows it with the authored argument Pack. Static lookup uses a Type only as
+// context, so its runtime input is already the argument Pack itself.
 static auto create_inputs(
     Memory::Allocator::Arena& domain,
     const Language::Expression& receiver,
@@ -246,8 +244,8 @@ auto Language::Access::Call::parse(
     return {};
   }
 
-  // The Token and its source spelling share the retained source lifetime,
-  // so delayed lookup can borrow the authored bytes directly.
+  // The Token and its spelling share the source transaction lifetime. Delayed
+  // lookup can borrow those authored bytes until linking selects the Callable.
   Core::View::Bytes name = name_token.caculate_text(cursor.get_source_text());
   Anchor anchor = Anchor::create(
       name_token, receiver_anchor->get_span(),
@@ -267,12 +265,14 @@ auto Language::Access::Call::link(
     return True;
   }
 
-  // Every access first completes its receiver. Static and Self are outcomes of
-  // that result, not parser modes or retained role flags.
+  // Completing the receiver tells invocation lookup which role the source
+  // actually produced. A Type leads to Static lookup, while an Addressable
+  // leads to Self lookup with a runtime receiver.
   BAIL_IF(!receiver.link(cursor, lexical_context, access_scope));
   BAIL_IF(!arguments.link(cursor, lexical_context, access_scope));
-  // A Type receiver proves Static lookup but argument positions are value
-  // flow. Preserve that split before Callable fitting reads the Pack Layout.
+  // Static lookup uses the Type as context, while argument positions still
+  // describe value flow. Keeping that split here gives fitting the exact Pack
+  // Layout it expects.
   if (&arguments.resolve() != &arguments) {
     cursor.create_expression_error(
         get_anchor(),
@@ -356,8 +356,8 @@ auto Language::Access::Call::link(
   }
 
   if (callable) {
-    // Repeated linking may revalidate the surrounding graph, but this
-    // invocation keeps its successfully published producer Layout.
+    // Repeated linking can revalidate the surrounding graph. Reusing the
+    // published producer Layout keeps this invocation's value identity stable.
     return True;
   }
 
@@ -376,9 +376,9 @@ auto Language::Access::Call::link(
   callable = Reference<const Language::Model::Callable>(*selected);
   output = retained_output;
 
-  // Call deliberately does not delegate to Expression::link. Invocations with
-  // empty or multiple result Layouts are complete even though scalar get_type()
-  // is Invalid. The selected Callable remains the exact result Layout owner.
+  // Invocation completion follows the complete result Layout rather than the
+  // scalar Type shortcut in Expression. Empty and multiple results can then
+  // complete normally while the selected Callable remains their shape owner.
   return True;
 }
 
@@ -481,8 +481,8 @@ auto Language::Access::Call::get_produced(Count index) const
     return {};
   }
 
-  // Every result belongs to this invocation even though its immutable
-  // signature Layout supplies the descriptor shape.
+  // The immutable signature supplies each descriptor, while the Call remains
+  // the producer that owns this invocation's results.
   return Ttx::Model::Pack::Produced{*this, index};
 }
 
@@ -499,10 +499,9 @@ auto Language::Access::Call::resolve() const -> const Abstract& {
 }
 
 auto Language::Access::Call::finalize(Cursor& cursor) -> void {
-  // Receiver and argument Pack are the complete evaluation inputs owned by
-  // this invocation. A Call retained directly by a Block is the effect itself.
-  // Discarded result flow must not turn that effectful Call into a fold
-  // request.
+  // Receiver and argument Pack are the complete evaluation inputs for this
+  // invocation. When a Block retains the Call directly, evaluating those
+  // inputs is the effect itself even when the result flow is discarded.
   receiver.finalize(cursor);
   arguments.finalize(cursor);
 }
@@ -656,4 +655,33 @@ auto Language::Access::Call::get_callable() const
           -> Core::Option<const Language::Model::Callable&> {
         return selected.get();
       });
+}
+
+auto Language::Access::Call::get_argument_parameter(Count index) const
+    -> Core::Option<const Ttx::Model::Addressable&> {
+  const Ttx::Concept::Layout& layout = arguments.get_layout();
+  BAIL_IF(index >= layout.get_size() || layout.get_name(index));
+  auto produced = arguments.get_produced(index);
+  BAIL_IF(!produced);
+
+  for (const Input& input : fitted_inputs.get_view()) {
+    if (&input.get_source() == &arguments) {
+      if (index >= input.get_offset() &&
+          index < input.get_offset() + input.get_size()) {
+        return index == input.get_offset()
+                   ? Core::Option<const Ttx::Model::Addressable&>(
+                         input.get_parameter())
+                   : Core::Option<const Ttx::Model::Addressable&>();
+      }
+      continue;
+    }
+
+    if (&input.get_source() != &produced->producer ||
+        produced->producer.get_layout().get_size() != 1 ||
+        produced->local_index != input.get_offset() || input.get_size() != 1) {
+      continue;
+    }
+    return input.get_parameter();
+  }
+  return {};
 }

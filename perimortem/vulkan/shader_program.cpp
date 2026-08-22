@@ -56,7 +56,7 @@ static auto make_shader_module(VkDevice device, const Render::Module& source)
   }
 
   VkShaderModuleCreateInfo info = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-  info.codeSize = source.words.get_size() * sizeof(Unsigned_32);
+  info.codeSize = source.words.get_size() * sizeof(U32);
   info.pCode = source.words.get_data();
 
   VkShaderModule module = VK_NULL_HANDLE;
@@ -90,16 +90,16 @@ auto Vulkan::ShaderProgram::create(
   const auto* host_input_data = source_host_input_ranges.get_data();
   for (Count i = 0; i < program.push_constant_count; i++) {
     const auto& source_range = host_input_data[i];
-    if (source_range.size == 0 || source_range.offset > Unsigned_32(-1) ||
-        source_range.size > Unsigned_32(-1) ||
+    if (source_range.size == 0 || source_range.offset > U32(-1) ||
+        source_range.size > U32(-1) ||
         ((source_range.offset | source_range.size) & 3) != 0) {
       Diagnostics::Log::fatal("Vulkan: Invalid render host input range."_view);
     }
 
     auto& target_range = program.push_constant_ranges[i];
     target_range.stageFlags = to_vk_stage_flags(source_range.stages);
-    target_range.offset = Unsigned_32(source_range.offset);
-    target_range.size = Unsigned_32(source_range.size);
+    target_range.offset = U32(source_range.offset);
+    target_range.size = U32(source_range.size);
   }
 
   Static::Vector<VkShaderModule, max_shader_modules> shader_modules;
@@ -169,14 +169,14 @@ auto Vulkan::ShaderProgram::create(
   }};
   VkPipelineDynamicStateCreateInfo dynamic_state = {
     VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
-  dynamic_state.dynamicStateCount = Unsigned_32(dynamic_states.get_size());
+  dynamic_state.dynamicStateCount = U32(dynamic_states.get_size());
   dynamic_state.pDynamicStates = dynamic_states.get_data();
 
   VkPipelineLayoutCreateInfo layout_info = {
     VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-  layout_info.setLayoutCount = Unsigned_32(descriptor_set_layouts.get_size());
+  layout_info.setLayoutCount = U32(descriptor_set_layouts.get_size());
   layout_info.pSetLayouts = descriptor_set_layouts.get_data();
-  layout_info.pushConstantRangeCount = Unsigned_32(program.push_constant_count);
+  layout_info.pushConstantRangeCount = U32(program.push_constant_count);
   layout_info.pPushConstantRanges = program.push_constant_ranges.get_data();
 
   require_success(
@@ -191,7 +191,7 @@ auto Vulkan::ShaderProgram::create(
   VkGraphicsPipelineCreateInfo pipeline_info = {
     VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
   pipeline_info.pNext = &rendering;
-  pipeline_info.stageCount = Unsigned_32(source_modules.get_size());
+  pipeline_info.stageCount = U32(source_modules.get_size());
   pipeline_info.pStages = stages.get_data();
   pipeline_info.pVertexInputState = &vertex_input;
   pipeline_info.pInputAssemblyState = &input_assembly;
@@ -270,8 +270,8 @@ auto Vulkan::ShaderProgram::bind_descriptor_set(
   }
 
   vkCmdBindDescriptorSets(
-      command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, Unsigned_32(set),
-      1, &descriptor_set, 0, nullptr);
+      command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, U32(set), 1,
+      &descriptor_set, 0, nullptr);
 }
 
 auto Vulkan::ShaderProgram::push_constants(
@@ -290,17 +290,17 @@ auto Vulkan::ShaderProgram::push_constants(
 
   vkCmdPushConstants(
       command_buffer, layout, range.stageFlags, range.offset,
-      Unsigned_32(source.get_size()), source.get_data());
+      U32(source.get_size()), source.get_data());
 }
 
 auto Vulkan::ShaderProgram::draw(
     VkCommandBuffer command_buffer,
     Count vertex_count) const -> void {
-  if (vertex_count == 0 || vertex_count > Unsigned_32(-1)) {
+  if (vertex_count == 0 || vertex_count > U32(-1)) {
     Diagnostics::Log::fatal("Vulkan: Invalid render vertex count."_view);
   }
 
-  vkCmdDraw(command_buffer, Unsigned_32(vertex_count), 1, 0, 0);
+  vkCmdDraw(command_buffer, U32(vertex_count), 1, 0, 0);
 }
 
 auto Vulkan::ShaderProgram::get_layout() const -> VkPipelineLayout {

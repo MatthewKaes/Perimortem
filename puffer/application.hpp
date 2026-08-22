@@ -7,15 +7,16 @@
 
 namespace Puffer {
 
-// Application owns one source-free App entry compilation request. Dependency
-// Interfaces and the root Complete Archive reconstruct the semantic graph;
-// only the resulting host entry object leaves the transaction.
+// Application turns one archived App selection into the native entry object
+// requested by the host. Dependency Interfaces and the root Complete Archive
+// rebuild the semantic graph for that request, then the finished entry object
+// leaves the transaction as its product.
 class Application {
  public:
   constexpr Application(const Perimortem::System::Args::Values& arguments)
       : arguments(arguments) {}
 
-  auto run() const -> Signed_32;
+  auto run() const -> S32;
 
  private:
   const Perimortem::System::Args::Values& arguments;

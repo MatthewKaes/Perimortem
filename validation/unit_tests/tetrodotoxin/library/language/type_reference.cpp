@@ -135,8 +135,8 @@ PERIMORTEM_UNIT_TEST(
       "dialect : Library;\n"
       "public Catalog : struct {\n"
       "  public values : Access[Later];\n"
-      "  public nested : View[Fixed[Unsigned_8, 4,],];\n"
-      "  public repeated : View[Fixed[Unsigned_8, 4]];\n"
+      "  public nested : View[Fixed[U8, 4,],];\n"
+      "  public repeated : View[Fixed[U8, 4]];\n"
       "}\n"
       "public Later : struct { public state ready : Bool; }\n"
       "public Node : struct {\n"
@@ -182,10 +182,8 @@ PERIMORTEM_UNIT_TEST(
 
   auto fixed = nested_view->get_element_type().select<Language::Types::Fixed>();
   ASSERT(fixed);
-  EXPECT(
-      &fixed->get_element_type() ==
-      &monograph->resolve_context("Unsigned_8"_view));
-  EXPECT_EQ(fixed->get_extent(), Unsigned_64(4));
+  EXPECT(&fixed->get_element_type() == &monograph->resolve_context("U8"_view));
+  EXPECT_EQ(fixed->get_extent(), U64(4));
 
   const Type* values_type = &values->get_type();
   const Type* nested_type = &nested->get_type();
@@ -303,8 +301,8 @@ PERIMORTEM_UNIT_TEST(
       "ConcreteTypeArguments"_view,
       "// Concrete Type argument rejection.\n"
       "dialect : Library;\n"
-      "public invalid : Unsigned_8[Unsigned_8];"_view,
-      "Unsigned_8[Unsigned_8]"_view,
+      "public invalid : U8[U8];"_view,
+      "U8[U8]"_view,
       "Library Type arguments require a Generic at the route terminal."_view,
       {},
       {},
@@ -333,18 +331,18 @@ PERIMORTEM_UNIT_TEST(
       "WrongGenericCategory"_view,
       "// Generic category rejection.\n"
       "dialect : Library;\n"
-      "public invalid : Fixed[Unsigned_8, false];"_view,
-      "Fixed[Unsigned_8, false]"_view,
+      "public invalid : Fixed[U8, false];"_view,
+      "Fixed[U8, false]"_view,
       "Library Generic argument 2 does not satisfy its parameter category."_view,
-      "type-reference.ttx:3:36:"_view,
+      "type-reference.ttx:3:28:"_view,
       "^----"_view,
     },
     {
       "RejectedGenericFormula"_view,
       "// Generic formula rejection.\n"
       "dialect : Library;\n"
-      "public invalid : Fixed[Unsigned_8, 0];"_view,
-      "Fixed[Unsigned_8, 0]"_view,
+      "public invalid : Fixed[U8, 0];"_view,
+      "Fixed[U8, 0]"_view,
       "Library Generic rejected this argument combination."_view,
       {},
       {},

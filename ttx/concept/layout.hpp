@@ -11,26 +11,21 @@
 
 namespace Ttx::Concept {
 
-// Layout is the identity-free descriptor for one promised value shape. Types
-// and Callables expose required Layouts while Packs expose the Layout of values
-// they supply. Layout is not an Abstract and acquires no producer identity,
-// resolution, or ownership of the objects it describes.
+// Layout describes the shape promised by a Type or Callable and the shape
+// supplied by a Pack. It borrows the real semantic identities in that shape, so
+// fitting can preserve both order and source ownership without creating another
+// graph object.
 //
-// Layout does not copy Types, documentation, attributes, defaults, or target
-// storage facts out of its entries. It may borrow names for its slots without
-// renaming the source Abstracts. A consumer asks only for order, the real
-// Abstract at an index, whether one Layout fits another, and the source object
-// that supplies each target slot. Indexing absence and fitting errors remain
-// ordinary query results rather than semantic Invalid graph edges.
+// Consumers can inspect an entry, borrow its slot name, test fitting, and find
+// the source object that supplies a target slot. Documentation, defaults, and
+// physical storage remain with the owners that understand them.
 //
-// Model::Layouts::Value, Fluid, Named, Ranged, and Composite express different
-// fitting rules through inheritance rather than a tag on one record. Layout
-// therefore has no incomplete state. An unfinished Type, Pack, or host object
-// resolves to Invalid. Once resolution succeeds its concrete Layout contract is
-// available.
+// Value, Fluid, Named, Ranged, and Composite Layouts each express their fitting
+// rule through the same contract. Once a semantic owner resolves successfully,
+// its concrete Layout is complete and ready to share.
 class Layout {
  public:
-  enum class Errors : Unsigned_8 {
+  enum class Errors : U8 {
     IndexOutOfBounds,
     SizeMismatch,
     IncompatibleFit,
@@ -56,8 +51,8 @@ class Layout {
 
   // Tests one source slot against one target slot while preserving the source
   // Layout's concrete fitting rules. Named uses this primitive after matching
-  // slot names; Composite delegates it to the child that owns the source
-  // edge. The indices belong to the complete source and target Layouts.
+  // slot names. Composite delegates it to the child that owns the source edge.
+  // The indices belong to the complete source and target Layouts.
   virtual constexpr auto fits_entry(
       const Layout& target,
       Count source_index,

@@ -8,7 +8,7 @@
 #include "perimortem/serialization/json/blueprint.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "tetrodotoxin/library/language/access/call.hpp"
+#include "puffer/lsp/semantic.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/enumeration.hpp"
@@ -17,10 +17,8 @@
 #include "tetrodotoxin/library/language/constants/real.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
-#include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/flow/local.hpp"
-#include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
@@ -50,7 +48,7 @@ static auto append_bytes(
 
   output << "\""_view;
   for (Count index = 0; index < visible; index++) {
-    Unsigned_8 byte = value[index];
+    U8 byte = value[index];
     if (byte == 0x09) {
       output << "\\t"_view;
     } else if (byte == 0x0A) {
@@ -123,8 +121,9 @@ static auto append_pack(
     Stream::Textual<Managed::Bytes>& output,
     const Model::Pack& pack,
     Count depth) -> void {
-  // Recursive Options can describe deeply nested constant flow. A presentation
-  // limit keeps one hover bounded without changing the retained value.
+  // Options can nest deeply enough to overwhelm a tooltip even when the
+  // retained value is valid. This limit keeps the editor response readable
+  // while leaving the semantic value untouched.
   if (depth > 8) {
     output << "<depth limit>"_view;
     return;
@@ -177,23 +176,77 @@ static auto writability_name(Writability writability) -> View::Bytes {
   return writability == Writability::Constant ? "const"_view : "state"_view;
 }
 
-static auto semantic_subject(const Abstract& semantic) -> const Abstract& {
-  auto call = semantic.select<Tetrodotoxin::Library::Language::Access::Call>();
-  if (call) {
-    auto callable = call->get_callable();
-    if (callable) {
-      return *callable;
+static auto append_type(
+    Stream::Textual<Managed::Bytes>& output,
+    const Abstract& semantic) -> void {
+  auto type = semantic.select<Model::Type>();
+  if (!type) {
+    auto addressable = semantic.select<Model::Addressable>();
+    if (addressable) {
+      type = addressable->get_type();
+    }
+  }
+  if (!type) {
+    const Abstract& resolved = semantic.resolve();
+    type = resolved.select<Model::Type>();
+  }
+  output << (type ? type->get_name() : "<invalid>"_view);
+}
+
+static auto append_signature_layout(
+    Stream::Textual<Managed::Bytes>& output,
+    const Ttx::Concept::Layout& layout,
+    Bool parameters) -> void {
+  if (!parameters && layout.get_size() == 1 && !layout.get_name(0)) {
+    auto entry = layout.get_abstract(0);
+    if (entry) {
+      auto addressable = entry->select<Model::Addressable>();
+      if (addressable && addressable->get_name() == "self"_view) {
+        output << "self"_view;
+      } else {
+        append_type(output, *entry);
+      }
+      return;
     }
   }
 
-  auto expression = semantic.select<Expression>();
-  if (expression) {
-    const Abstract& result = expression->get_result();
-    if (&result != &*expression && !result.is<Invalid>()) {
-      return result;
+  output << "["_view;
+  for (Count index = 0; index < layout.get_size(); index++) {
+    if (index != 0) {
+      output << ", "_view;
     }
+    auto entry = layout.get_abstract(index);
+    if (!entry) {
+      output << "<invalid>"_view;
+      continue;
+    }
+
+    auto addressable = entry->select<Model::Addressable>();
+    View::Bytes name = layout.get_name(index).visit(
+        []() -> View::Bytes { return {}; },
+        [](View::Bytes selected) -> View::Bytes { return selected; });
+    if (name.is_empty() && addressable) {
+      name = addressable->get_name();
+    }
+    if (name == "self"_view) {
+      output << "self"_view;
+      continue;
+    }
+    if (!name.is_empty()) {
+      output << "."_view << name << " : "_view;
+    }
+    append_type(output, *entry);
   }
-  return semantic;
+  output << "]"_view;
+}
+
+static auto append_callable(
+    Stream::Textual<Managed::Bytes>& output,
+    const Model::Callable& callable) -> void {
+  output << "func "_view << callable.get_name();
+  append_signature_layout(output, callable.get_parameters(), True);
+  output << " -> "_view;
+  append_signature_layout(output, callable.get_results(), False);
 }
 
 static auto append_declaration(
@@ -225,26 +278,20 @@ static auto append_declaration(
 
   auto parameter = subject.select<Parameter>();
   if (parameter) {
-    output << "parameter "_view << parameter->get_name() << " : "_view
+    output << ".parameter "_view << parameter->get_name() << " : "_view
            << parameter->get_type().get_name();
-    return True;
-  }
-
-  auto function = subject.select<Function>();
-  if (function) {
-    output << "func "_view << function->get_name();
     return True;
   }
 
   auto callable = subject.select<Model::Callable>();
   if (callable) {
-    output << "callable "_view << callable->get_name();
+    append_callable(output, *callable);
     return True;
   }
 
   auto type = subject.select<Model::Type>();
   if (type) {
-    output << "type "_view << type->get_name();
+    output << "Type "_view << type->get_name();
     return True;
   }
 

@@ -9,28 +9,19 @@
 
 namespace Ttx::Model {
 
-// Type is the narrow Abstract contract for semantic objects that can occupy a
-// value or lowering position. It contributes target neutral recursive
-// shape. Type itself does not require size, alignment, offsets, register
-// selection, calling convention, documentation, aliases, or one universal
-// child table. Concrete languages may add representation facts without
-// changing this host neutral contract. Atomic and structural Types expose their
-// real shape through Layout. Contextual and receiver queries remain the
-// Abstract contract on the durable identity.
+// Type is the shared contract for a semantic identity that can participate in
+// value flow and lowering. Its Layout describes target neutral shape, while the
+// concrete language owns scalar families, defaults, access rules, and any
+// representation facts needed by its compilers.
 //
-// A host may reserve a stable Type before all of its facts are available. That
-// object resolves to Invalid until its owner can answer the Type contract. No
-// universal publication phase or Incomplete Layout is required. The host may
-// later enrich the same nonmoving object, replace its enclosing system, or use
-// another resolution policy without changing this interface.
+// A language may reserve the Type identity before every declaration edge is
+// ready. It resolves to Invalid during that work, then exposes its completed
+// Layout through the same object.
 //
-// Once Type resolution succeeds, get_layout() returns its Layout shape. An
-// atomic Type uses one Value leaf containing its exact identity. A structural
-// Type overrides that leaf with its real shape. A completed Type admitted to
-// value flow always has at least one entry. A structural Type with no entries
-// remains a contextual namespace and cannot be instantiated or produced. A
-// homogeneous Ranged layout can expose one repeated Type across a compact
-// interval, as in Bytes[N], without allocating one semantic node per index.
+// Atomic Types use one Value leaf containing their exact identity. Structural
+// Types expose the shape built by their owner. A completed Type admitted to
+// ordinary value flow has at least one entry, while an empty Type remains
+// useful as a context for names and Static Callables.
 class Type : public Concept::Abstract {
  public:
   TTX_CONTRACT(Type, Abstract);

@@ -19,22 +19,21 @@ class Huffman {
   class Code {
    public:
     constexpr Code() {}
-    constexpr Code(Unsigned_32 code, Count length)
-        : length(length), code(code) {}
+    constexpr Code(U32 code, Count length) : length(length), code(code) {}
 
-    constexpr auto get_code() const -> Unsigned_32 { return code; }
+    constexpr auto get_code() const -> U32 { return code; }
     constexpr auto get_length() const -> Count { return length; }
 
    private:
     Count length = 0;
-    Unsigned_32 code = 0;
+    U32 code = 0;
   };
 
-  static constexpr Unsigned_16 invalid_symbol = 0xFFFF;
+  static constexpr U16 invalid_symbol = 0xFFFF;
   static constexpr Count max_code_bits = 15;
   static constexpr Count max_symbol_count = 320;
 
-  constexpr Huffman(Core::View::Vector<Unsigned_8> code_lengths) {
+  constexpr Huffman(Core::View::Vector<U8> code_lengths) {
     const auto* lengths = code_lengths.get_data();
     Core::Static::Vector<Count, max_code_bits + 2> bit_length_count;
     for (Count symbol = 0; symbol < code_lengths.get_size(); symbol++) {
@@ -46,7 +45,7 @@ class Huffman {
       }
     }
 
-    Unsigned_32 canonical_code = 0;
+    U32 canonical_code = 0;
     for (Count i = 1; i <= max_bits; i++) {
       base_code[i] = canonical_code;
       canonical_code = (canonical_code + bit_length_count[i]) << 1;
@@ -67,19 +66,18 @@ class Huffman {
       Count length = lengths[i];
       if (length > 0) {
         Count position = fill_offset[length]++;
-        symbol_map[position] = Unsigned_16(i);
+        symbol_map[position] = U16(i);
         // Store codes in bit-reversed form so the writer can place them
         // directly into the accumulator without a per-symbol reversal.
-        Unsigned_32 canonical =
-            base_code[length] + Unsigned_32(position - base_index[length]);
-        Unsigned_32 reversed = 0;
+        U32 canonical = base_code[length] + U32(position - base_index[length]);
+        U32 reversed = 0;
         for (Count bit = 0; bit < length; bit++) {
           reversed = (reversed << 1) | (canonical & 1);
           canonical >>= 1;
         }
 
         encode_codes[i] = reversed;
-        encode_lengths[i] = Unsigned_8(length);
+        encode_lengths[i] = U8(length);
       }
     }
 
@@ -91,42 +89,40 @@ class Huffman {
         continue;
       }
 
-      Unsigned_32 stream_bits = encode_codes[symbol];
+      U32 stream_bits = encode_codes[symbol];
       Count extensions = fast_table_size >> length;
       for (Count k = 0; k < extensions; k++) {
         fast_table[stream_bits | (k << length)] =
-            FastEntry{Unsigned_16(symbol), Unsigned_8(length)};
+            FastEntry{U16(symbol), U8(length)};
       }
     }
   }
 
   // Simple generator for creating all the fixed literal lengths.
   static constexpr auto make_fixed_literal() -> Huffman {
-    Core::Static::Vector<Unsigned_8, 288> code_lengths(
-        [](Count i) -> Unsigned_8 {
-          switch (i) {
-          case 144 ... 255:
-            return 9;
-          case 256 ... 279:
-            return 7;
-          default:
-            return 8;
-          }
-        });
+    Core::Static::Vector<U8, 288> code_lengths([](Count i) -> U8 {
+      switch (i) {
+      case 144 ... 255:
+        return 9;
+      case 256 ... 279:
+        return 7;
+      default:
+        return 8;
+      }
+    });
     return Huffman(code_lengths.get_view());
   }
 
   static auto compute_lengths(
-      Core::View::Vector<Unsigned_32> frequencies,
-      Core::Access::Vector<Unsigned_8> lengths) -> void;
+      Core::View::Vector<U32> frequencies,
+      Core::Access::Vector<U8> lengths) -> void;
 
   static constexpr auto make_fixed_distance() -> Huffman {
-    Core::Static::Vector<Unsigned_8, 30> code_lengths(
-        [](Count i) -> Unsigned_8 { return 5; });
+    Core::Static::Vector<U8, 30> code_lengths([](Count i) -> U8 { return 5; });
     return Huffman(code_lengths.get_view());
   }
 
-  constexpr auto decode_symbol(BitStream::Reader& reader) const -> Unsigned_16 {
+  constexpr auto decode_symbol(BitStream::Reader& reader) const -> U16 {
     // Fast path: one 9-bit peek + table lookup covers codes up to 9 bits long.
     const auto fast_key = reader.peek_code(fast_bits);
     const FastEntry& fast_entry = fast_table[fast_key];
@@ -136,7 +132,7 @@ class Huffman {
     }
 
     // Slow path: bit-by-bit accumulation for codes longer than 9 bits.
-    Unsigned_32 accumulated_code = 0;
+    U32 accumulated_code = 0;
     for (Count i = 1; i <= max_bits; i++) {
       accumulated_code = (accumulated_code << 1) | reader.read_bit().value;
       const auto code_index = base_index[i];
@@ -162,19 +158,19 @@ class Huffman {
 
  private:
   struct FastEntry {
-    Unsigned_16 symbol = invalid_symbol;
-    Unsigned_8 length = 0;
+    U16 symbol = invalid_symbol;
+    U8 length = 0;
   };
 
   static constexpr Count fast_bits = 9;
   static constexpr Count fast_table_size = 1 << fast_bits;
 
   Core::Static::Vector<FastEntry, fast_table_size> fast_table;
-  Core::Static::Vector<Unsigned_32, max_symbol_count> encode_codes;
-  Core::Static::Vector<Unsigned_16, max_symbol_count> symbol_map;
+  Core::Static::Vector<U32, max_symbol_count> encode_codes;
+  Core::Static::Vector<U16, max_symbol_count> symbol_map;
   Core::Static::Vector<Count, max_code_bits + 2> base_index;
-  Core::Static::Vector<Unsigned_32, max_code_bits + 2> base_code;
-  Core::Static::Vector<Unsigned_8, max_symbol_count> encode_lengths;
+  Core::Static::Vector<U32, max_code_bits + 2> base_code;
+  Core::Static::Vector<U8, max_symbol_count> encode_lengths;
   Count max_bits = 0;
 };
 

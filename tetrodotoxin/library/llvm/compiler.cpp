@@ -14,9 +14,9 @@ using namespace Perimortem;
 auto Tetrodotoxin::Library::Llvm::Compiler::compile(
     Memory::Allocator::Arena& arena,
     const Request& request) const -> Utility::Result<Products, Failure> {
-  Unsigned_32 major = 0;
-  Unsigned_32 minor = 0;
-  Unsigned_32 patch = 0;
+  U32 major = 0;
+  U32 minor = 0;
+  U32 patch = 0;
   LLVMGetVersion(&major, &minor, &patch);
   if (major != LLVM_VERSION_MAJOR || minor != LLVM_VERSION_MINOR ||
       patch != LLVM_VERSION_PATCH) {

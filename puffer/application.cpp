@@ -17,6 +17,7 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/llvm/program.hpp"
+#include "tetrodotoxin/linker/manifest.hpp"
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
@@ -58,18 +59,18 @@ static auto publish(Core::View::Bytes path, Core::View::Bytes contents)
   return System::File::write(contents, path);
 }
 
-auto Puffer::Application::run() const -> Signed_32 {
-  Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::console_sink);
-  Core::Diagnostics::Log::set_disable_header(True);
+auto Puffer::Application::run() const -> S32 {
+  Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::plain_sink);
 
   Core::View::Bytes complete_path = value(arguments, "complete"_view);
   Core::View::Bytes app_member = value(arguments, "app-member"_view);
   Core::View::Bytes artifact = value(arguments, "artifact"_view);
   Core::View::Bytes ir_path = value(arguments, "ir"_view);
   Core::View::Bytes object_path = value(arguments, "object"_view);
+  Core::View::Bytes abi_manifest_path = value(arguments, "abi-manifest"_view);
   if (complete_path.is_empty() || app_member.is_empty() || ir_path.is_empty() ||
-      object_path.is_empty() || ir_path == object_path ||
-      artifact != "x86_64-sysv-linux"_view) {
+      object_path.is_empty() || abi_manifest_path.is_empty() ||
+      ir_path == object_path || artifact != "x86_64-sysv-linux"_view) {
     Core::Diagnostics::Log::error(
         "Puffer Application mode received an incomplete request."_view);
     return 2;
@@ -85,6 +86,7 @@ auto Puffer::Application::run() const -> Signed_32 {
   Environment::Workspace workspace(toolchain);
 
   Memory::Dynamic::Vector<Memory::Dynamic::Bytes> dependency_bytes;
+  Memory::Managed::Vector<Package::Archive::Archive> dependency_archives(arena);
   for (Core::View::Bytes dependency_path : values(arguments, "dep"_view)) {
     auto bytes = System::File::read(dependency_path);
     if (!bytes) {
@@ -99,6 +101,44 @@ auto Puffer::Application::run() const -> Signed_32 {
         !workspace.restore_package(*archive, archive->get_identity())) {
       return 1;
     }
+    dependency_archives.insert(*archive);
+  }
+
+  Memory::Dynamic::Vector<Memory::Dynamic::Bytes> dependency_manifest_bytes;
+  Memory::Managed::Vector<Linker::Manifest> dependency_manifests(arena);
+  for (Core::View::Bytes manifest_path : values(arguments, "dep-abi"_view)) {
+    auto bytes = System::File::read(manifest_path);
+    if (!bytes) {
+      return 1;
+    }
+    dependency_manifest_bytes.emplace(
+        static_cast<Memory::Dynamic::Bytes&&>(*bytes));
+    auto decoded = Linker::Manifest::read(
+        arena,
+        dependency_manifest_bytes[dependency_manifest_bytes.get_size() - 1]);
+    Bool retained = decoded.visit(
+        [&](const Linker::Manifest& manifest) -> Bool {
+          dependency_manifests.insert(manifest);
+          return True;
+        },
+        [](const Linker::Manifest::Error&) -> Bool { return False; });
+    if (!retained) {
+      return 1;
+    }
+  }
+  for (const Package::Archive::Archive& archive :
+       dependency_archives.get_view()) {
+    Count matches = 0;
+    for (const Linker::Manifest& manifest : dependency_manifests.get_view()) {
+      matches +=
+          manifest.get_artifact() == artifact && archive.matches(manifest) ? 1
+                                                                           : 0;
+    }
+    if (matches != 1) {
+      Core::Diagnostics::Log::error(
+          "Puffer Application could not match one dependency ABI Manifest."_view);
+      return 1;
+    }
   }
 
   auto complete_bytes = System::File::read(complete_path);
@@ -110,6 +150,23 @@ auto Puffer::Application::run() const -> Signed_32 {
   if (!root_archive ||
       root_archive->get_profile() != Language::Persistence::Profile::Complete ||
       !workspace.restore_package(*root_archive, root_archive->get_identity())) {
+    return 1;
+  }
+
+  auto root_manifest_bytes = System::File::read(abi_manifest_path);
+  if (!root_manifest_bytes) {
+    return 1;
+  }
+  auto root_manifest = Linker::Manifest::read(arena, *root_manifest_bytes);
+  Bool root_abi_matches = root_manifest.visit(
+      [&](const Linker::Manifest& manifest) -> Bool {
+        return manifest.get_artifact() == artifact &&
+               root_archive->matches(manifest);
+      },
+      [](const Linker::Manifest::Error&) -> Bool { return False; });
+  if (!root_abi_matches) {
+    Core::Diagnostics::Log::error(
+        "Puffer Application rejected a stale native ABI Manifest."_view);
     return 1;
   }
 
@@ -162,11 +219,11 @@ auto Puffer::Application::run() const -> Signed_32 {
   }
 
   return target.compile().visit(
-      [&](const Library::Llvm::Products& products) -> Signed_32 {
+      [&](const Library::Llvm::Products& products) -> S32 {
         return publish(ir_path, products.get_llvm_ir()) &&
                        publish(object_path, products.get_object())
                    ? 0
                    : 1;
       },
-      [](const Library::Llvm::Failure&) -> Signed_32 { return 1; });
+      [](const Library::Llvm::Failure&) -> S32 { return 1; });
 }

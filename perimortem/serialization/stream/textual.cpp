@@ -40,61 +40,61 @@ auto Stream::Textual<storage_type>::operator<<(Bool flag) -> Textual& {
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Unsigned_8 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(U8 value) -> Textual& {
   write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Unsigned_16 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(U16 value) -> Textual& {
   write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Unsigned_32 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(U32 value) -> Textual& {
   write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Unsigned_64 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(U64 value) -> Textual& {
   write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Signed_8 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(S8 value) -> Textual& {
   write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Signed_16 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(S16 value) -> Textual& {
   write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Signed_32 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(S32 value) -> Textual& {
   write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Signed_64 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(S64 value) -> Textual& {
   write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Real_32 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(R32 value) -> Textual& {
   write(storage, value);
   return *this;
 }
 
 template <typename storage_type>
-auto Stream::Textual<storage_type>::operator<<(Real_64 value) -> Textual& {
+auto Stream::Textual<storage_type>::operator<<(R64 value) -> Textual& {
   write(storage, value);
   return *this;
 }

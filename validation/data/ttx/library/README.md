@@ -61,9 +61,9 @@ Parameters and results are Layout descriptors, while returns and swizzles
 produce Packs whose output Layouts are fitted by their receivers:
 
 ```ttx
-public classify : func = [.value : Unsigned_64] -> [
+public classify : func = [.value : U64] -> [
   .accepted : Bool,
-  .adjusted : Unsigned_64,
+  .adjusted : U64,
 ]
 
 return (.adjusted = value + 1, .accepted = value > 0);
@@ -87,7 +87,7 @@ entries. It has no implicit empty View fallback.
 
 * `Packet` is an inline Struct with public Fields, private state, and Static and
   Self Callables.
-* `Mode` is an `Unsigned_8` Enumeration with ordered named cases.
+* `Mode` is an `U8` Enumeration with ordered named cases.
 * `Session` is an Object whose aliases share nonnull reference identity.
 * `PacketAlias` retains an Alias to the real `Packet` Type.
 * `PrivateOps` is a private Struct selected as a Type context for Static calls.

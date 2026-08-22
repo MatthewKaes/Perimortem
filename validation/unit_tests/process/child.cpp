@@ -23,7 +23,7 @@ static constexpr View::Bytes request_bytes = "request\n"_view;
 static constexpr View::Bytes response_bytes = "response\n"_view;
 static constexpr View::Bytes diagnostic_bytes = "diagnostic\n"_view;
 
-static auto write_all(Signed_32 descriptor, View::Bytes bytes) -> Bool {
+static auto write_all(S32 descriptor, View::Bytes bytes) -> Bool {
   Count offset = 0;
   while (offset < bytes.get_size()) {
     ssize_t count =
@@ -43,9 +43,9 @@ static auto write_all(Signed_32 descriptor, View::Bytes bytes) -> Bool {
   return True;
 }
 
-static auto read_all(Signed_32 descriptor) -> Dynamic::Bytes {
+static auto read_all(S32 descriptor) -> Dynamic::Bytes {
   Dynamic::Bytes bytes;
-  Static::Vector<Unsigned_8, 4096> buffer;
+  Static::Vector<U8, 4096> buffer;
   while (true) {
     ssize_t count = read(descriptor, buffer.get_data(), buffer.get_size());
     if (count > 0) {
@@ -61,7 +61,7 @@ static auto read_all(Signed_32 descriptor) -> Dynamic::Bytes {
   }
 }
 
-static auto run_child(View::Bytes mode) -> Signed_32 {
+static auto run_child(View::Bytes mode) -> S32 {
   if (mode == "contract"_view) {
     Dynamic::Bytes input = read_all(STDIN_FILENO);
     if (!(input == request_bytes)) {
@@ -85,9 +85,9 @@ static auto run_child(View::Bytes mode) -> Signed_32 {
 }
 
 auto Process::Fixture::dispatch(
-    Signed_32 argument_count,
+    S32 argument_count,
     const char* const arguments[],
-    Signed_32& status) -> Bool {
+    S32& status) -> Bool {
   if (argument_count < 2 ||
       NullTerminated::to_view(arguments[1]) != child_switch) {
     return False;
@@ -103,7 +103,7 @@ auto Process::Fixture::dispatch(
 }
 
 static auto executable_path() -> Dynamic::Bytes {
-  Static::Vector<Unsigned_8, 4096> path;
+  Static::Vector<U8, 4096> path;
   ssize_t size = readlink(
       "/proc/self/exe", Data::cast<char>(path.get_data()), path.get_size());
   if (size <= 0 || Count(size) == path.get_size()) {
@@ -117,7 +117,7 @@ static auto observe(
     View::Bytes executable,
     View::Bytes mode,
     View::Bytes input = View::Bytes(),
-    Unsigned_64 timeout_nanoseconds = 1'000'000'000) -> Process::Observation {
+    U64 timeout_nanoseconds = 1'000'000'000) -> Process::Observation {
   Static::Vector<View::Bytes, 2> arguments = {{child_switch, mode}};
   Process::Request request = {
     .executable = executable,
@@ -163,7 +163,7 @@ PERIMORTEM_UNIT_TEST(ProcessTests, deadline_terminates_child) {
   EXPECT(observation.launched);
   EXPECT(observation.timed_out);
   EXPECT(observation.runner_error.is_empty());
-  EXPECT_EQ(observation.exit_status, Signed_32(128 + SIGKILL));
+  EXPECT_EQ(observation.exit_status, S32(128 + SIGKILL));
   EXPECT(
       Process::compare(observation, completed) == Process::Difference::Timeout);
 }

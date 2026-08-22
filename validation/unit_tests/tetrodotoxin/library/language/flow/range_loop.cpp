@@ -87,11 +87,11 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
   static constexpr View::Bytes source =
       "// Range loop graph.\n"
       "dialect : Library;\n"
-      "public sum : func = [] -> Unsigned_64 {\n"
-      "  state entry : Unsigned_64 = 7;\n"
-      "  state total : Unsigned_64 = 0;\n"
-      "  for [.entry : Unsigned_64] in 0...3 {\n"
-      "    state copy : Unsigned_64 = entry;\n"
+      "public sum : func = [] -> U64 {\n"
+      "  state initial : U64 = 7;\n"
+      "  state total : U64 = 0;\n"
+      "  for [.entry : U64] in 0...3 {\n"
+      "    state copy : U64 = entry;\n"
       "    total += copy;\n"
       "  }\n"
       "  return total;\n"
@@ -126,14 +126,14 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
   EXPECT(&loop.get_body().resolve_context("entry"_view) == &*binding);
   EXPECT(
       &function->get_body()->resolve_context("entry"_view) ==
-      &statements.get_data()[0].get_root());
+      &Invalid::get_invalid());
   EXPECT(
       &loop.get_body().resolve_context("total"_view) ==
       &statements.get_data()[1].get_root());
   EXPECT_TEXT(
       loop.get_anchor().get_span().caculate_text(source),
-      "for [.entry : Unsigned_64] in 0...3 {\n"
-      "    state copy : Unsigned_64 = entry;\n"
+      "for [.entry : U64] in 0...3 {\n"
+      "    state copy : U64 = entry;\n"
       "    total += copy;\n"
       "  }"_view);
 
@@ -151,11 +151,12 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
 }
 
 PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_and_range_must_match) {
-  static constexpr Static::Vector<View::Bytes, 4> sources = {{
-    "// Different integer Type.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : Signed_64] in 0...3 {} return; }"_view,
-    "// Not a Range.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : Unsigned_64] in 3 {} return; }"_view,
-    "// Multiple Range values.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : Unsigned_64] in (0...3, 4...6) {} return; }"_view,
+  static constexpr Static::Vector<View::Bytes, 5> sources = {{
+    "// Different integer Type.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : S64] in 0...3 {} return; }"_view,
+    "// Not a Range.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : U64] in 3 {} return; }"_view,
+    "// Multiple Range values.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : U64] in (0...3, 4...6) {} return; }"_view,
     "// Empty binding Type.\ndialect : Library; private Empty : struct {} private invalid : func = [] -> [] { for [.entry : Empty] in 0...3 {} return; }"_view,
+    "// Shadowed binding.\ndialect : Library; private invalid : func = [] -> [] { state entry : U64 = 0; for [.entry : U64] in 0...3 {} return; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -168,10 +169,10 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, view_and_access_are_iterable) {
       "// Contiguous loop inputs.\n"
       "dialect : Library;\n"
       "public scan : func = [] -> [] {\n"
-      "  state writable : Access[Unsigned_64];\n"
-      "  state readonly : View[Unsigned_64];\n"
-      "  for [.entry : Unsigned_64] in writable {}\n"
-      "  for [.entry : Unsigned_64] in readonly {}\n"
+      "  state writable : Access[U64];\n"
+      "  state readonly : View[U64];\n"
+      "  for [.entry : U64] in writable {}\n"
+      "  for [.entry : U64] in readonly {}\n"
       "  return;\n"
       "}"_view;
   auto workspace_toolchain = create_library_toolchain();
@@ -203,8 +204,8 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, view_and_access_are_iterable) {
 
 PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_read_only_and_does_not_leak) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
-    "// Immutable binding.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : Unsigned_64] in 0...3 { entry = 1; } return; }"_view,
-    "// Leaked binding.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : Unsigned_64] in 0...3 {} state copy : Unsigned_64 = entry; return; }"_view,
+    "// Immutable binding.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : U64] in 0...3 { entry = 1; } return; }"_view,
+    "// Leaked binding.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : U64] in 0...3 {} state copy : U64 = entry; return; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -216,8 +217,8 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, loop_does_not_cover_function_result) {
   static constexpr View::Bytes source =
       "// Range may be empty.\n"
       "dialect : Library;\n"
-      "private invalid : func = [] -> Unsigned_64 {\n"
-      "  for [.entry : Unsigned_64] in 0...0 { return entry; }\n"
+      "private invalid : func = [] -> U64 {\n"
+      "  for [.entry : U64] in 0...0 { return entry; }\n"
       "}"_view;
   EXPECT(rejects_link(source));
 }
@@ -227,7 +228,7 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, body_control_targets_exact_loop) {
       "// Range control.\n"
       "dialect : Library;\n"
       "public scan : func = [] -> [] {\n"
-      "  for [.entry : Unsigned_64] in 0...2 : break;\n"
+      "  for [.entry : U64] in 0...2 : break;\n"
       "  return;\n"
       "}"_view;
   auto workspace_toolchain = create_library_toolchain();
@@ -249,10 +250,10 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, body_control_targets_exact_loop) {
 
 PERIMORTEM_UNIT_TEST(RangeLoopTests, malformed_binding_is_rejected) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
-    "// Bare binding.\ndialect : Library; private invalid : func = [] -> [] { for .entry : Unsigned_64 in 0...3 {} return; }"_view,
+    "// Bare binding.\ndialect : Library; private invalid : func = [] -> [] { for .entry : U64 in 0...3 {} return; }"_view,
     "// Empty binding.\ndialect : Library; private invalid : func = [] -> [] { for [] in 0...3 {} return; }"_view,
-    "// Positional binding.\ndialect : Library; private invalid : func = [] -> [] { for [Unsigned_64] in 0...3 {} return; }"_view,
-    "// Missing body.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : Unsigned_64] in 0...3 return; }"_view,
+    "// Positional binding.\ndialect : Library; private invalid : func = [] -> [] { for [U64] in 0...3 {} return; }"_view,
+    "// Missing body.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : U64] in 0...3 return; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -260,5 +261,5 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, malformed_binding_is_rejected) {
   }
 
   EXPECT(rejects_link(
-      "// Multiple bindings.\ndialect : Library; private invalid : func = [] -> [] { for [.left : Unsigned_64, .right : Unsigned_64] in 0...3 {} return; }"_view));
+      "// Multiple bindings.\ndialect : Library; private invalid : func = [] -> [] { for [.left : U64, .right : U64] in 0...3 {} return; }"_view));
 }

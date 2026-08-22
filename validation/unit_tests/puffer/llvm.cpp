@@ -53,7 +53,8 @@ static auto compile_source(
 
   Library::Llvm::Request request(
       static_cast<const Library::Language::Monograph&>(*interpreted), errors,
-      path, source, Library::Llvm::Target::X86_64SysV, debug);
+      path, source, Library::Llvm::Target::X86_64SysV, debug,
+      Library::Llvm::Unit("LlvmTest"_view));
   Library::Llvm::Compiler compiler;
   return compiler.compile(products, request);
 }
@@ -208,7 +209,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),
-          "!DIBasicType(name: \"Unsigned_64\", size: 64, encoding: "
+          "!DIBasicType(name: \"U64\", size: 64, encoding: "
           "DW_ATE_unsigned)"_view) != Count(-1));
   EXPECT(
       Algorithm::search(
@@ -228,7 +229,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),
-          "!DILocalVariable(name: \"pair\""_view) != Count(-1));
+          "!DILocalVariable(name: \"pair_value\""_view) != Count(-1));
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),
@@ -312,18 +313,22 @@ PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
   EXPECT(
       Algorithm::search(
           first_products->get_header(),
-          "typedef struct ttx_Option_5bUnsigned_5f64_5d {\n"
+          "typedef struct ttx_llvmtest_Option_5bU64_5d {\n"
           "  uint64_t value;\n"
           "  bool set;\n"_view) != Count(-1));
   EXPECT(
       Algorithm::search(
           first_products->get_header(),
-          "typedef struct ttx_View_5bUnsigned_5f64_5d {\n"
+          "typedef struct ttx_llvmtest_View_5bU64_5d {\n"
           "  const uint64_t *data;\n"_view) != Count(-1));
   EXPECT(
       Algorithm::search(
           first_products->get_header(),
           "uint64_t llvm_bytes_api(void);"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(
+          first_products->get_header(),
+          "#define TTX_ABI_FINGERPRINT_llvmtest \""_view) != Count(-1));
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),
@@ -339,7 +344,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, scoped_static_debug_metadata) {
       "// Scoped Static debug acceptance.\n"
       "dialect : Library;\n"
       "public Holder : struct {\n"
-      "  public cached : Unsigned_64 = 7;\n"
+      "  public cached : U64 = 7;\n"
       "}\n"_view;
   Allocator::Arena domain;
   Errors errors;
@@ -409,7 +414,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, backend_rejections_report_source) {
     },
     {
       "// Object buffer owning element.\ndialect : Library;\n"
-      "public Node : object { public state value : Unsigned_64; }\n"
+      "public Node : object { public state value : U64; }\n"
       "@abi(\"C\")\npublic entry : func = [.value : Object[Node]] -> [] "
       "{ return; }\n"_view,
       "requires one value-only element Type"_view,

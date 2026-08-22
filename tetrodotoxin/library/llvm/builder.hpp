@@ -22,7 +22,7 @@ namespace Tetrodotoxin::Library::Llvm {
 // while Builder writes directly into the Body owned by this transaction.
 class Builder {
  public:
-  enum class Arithmetic : Unsigned_8 {
+  enum class Arithmetic : U8 {
     Add,
     Subtract,
     Multiply,
@@ -30,7 +30,7 @@ class Builder {
     Modulo,
   };
 
-  enum class Comparison : Unsigned_8 {
+  enum class Comparison : U8 {
     Equal,
     NotEqual,
     Less,
@@ -39,17 +39,17 @@ class Builder {
     GreaterEqual,
   };
 
-  enum class Logical : Unsigned_8 {
+  enum class Logical : U8 {
     And,
     Or,
   };
 
-  enum class LoopAction : Unsigned_8 {
+  enum class LoopAction : U8 {
     Break,
     Continue,
   };
 
-  enum class Write : Unsigned_8 {
+  enum class Write : U8 {
     Assign,
     Add,
     Subtract,
@@ -296,6 +296,13 @@ class Builder {
       const Ttx::Model::Pack& result,
       const Ttx::Model::Type& type,
       const Ttx::Model::Pack& values) const -> Bool;
+  auto construct_provider(
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Type& type,
+      const Ttx::Model::Pack& arguments,
+      Perimortem::Core::View::Vector<
+          Ttx::Concept::Reference<const Ttx::Model::Addressable>> parameters)
+      const -> Bool;
   auto return_values(const Ttx::Model::Pack& values) const -> Bool;
   auto leave_loop(LoopAction action, const Ttx::Concept::Abstract& target) const
       -> Bool;
@@ -315,7 +322,7 @@ class Builder {
   auto begin_enumeration(
       const Ttx::Concept::Abstract& owner,
       const Ttx::Concept::Layout& bindings,
-      Perimortem::Core::View::Vector<Unsigned_64> values,
+      Perimortem::Core::View::Vector<U64> values,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names) const
       -> Bool;
   auto end_iteration(const Ttx::Concept::Abstract& owner) const -> Bool;
@@ -357,15 +364,15 @@ class Builder {
   auto unsigned_value(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Pack& result,
-      Unsigned_64 value) const -> Bool;
+      U64 value) const -> Bool;
   auto signed_value(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Pack& result,
-      Signed_64 value) const -> Bool;
+      S64 value) const -> Bool;
   auto real_value(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Pack& result,
-      Real_64 value) const -> Bool;
+      R64 value) const -> Bool;
   auto bytes_value(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Pack& result,
@@ -377,7 +384,7 @@ class Builder {
       const Ttx::Model::Pack& result,
       const Ttx::Model::Type& result_type,
       LLVMValueRef value,
-      Perimortem::Core::View::Vector<Unsigned_64> values,
+      Perimortem::Core::View::Vector<U64> values,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names) const
       -> Bool;
   auto logical_not(

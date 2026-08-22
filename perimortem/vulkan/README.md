@@ -1,8 +1,9 @@
 # Perimortem Vulkan
 
-Perimortem Vulkan is the Vulkan renderer. It takes backend-independent draw data
-from Graphics and turns it into Vulkan images, buffers, pipelines, commands,
-and presentation work.
+Tetrodotoxin windowed applications can use Perimortem Vulkan as their native
+renderer. It takes backend independent draw data from Graphics and turns it
+into Vulkan images, buffers, pipelines, commands, and presentation work. The
+same renderer remains available to C++ applications that submit Graphics data.
 
 The application owns the window and event loop. It gives the renderer a native
 presentation surface and its current size. Window management stays in System,

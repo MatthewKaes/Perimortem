@@ -15,54 +15,20 @@
 
 #include "puffer/lsp/documents.hpp"
 #include "puffer/lsp/hover.hpp"
+#include "puffer/lsp/inlay_hints.hpp"
 #include "puffer/lsp/rpc/executor.hpp"
+#include "puffer/lsp/semantic.hpp"
 #include "puffer/lsp/semantic_tokens.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "ttx/lexical/formatter.hpp"
+#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 using namespace Puffer;
-
-struct Position {
-  Count line;
-  Count character;
-};
-
-static auto find_end_position(View::Bytes source) -> Position {
-  Position position = {};
-
-  for (Count offset = 0; offset < source.get_size();) {
-    Unsigned_8 lead = source[offset];
-    if (lead == '\n') {
-      position.line++;
-      position.character = 0;
-      offset++;
-      continue;
-    }
-
-    Count width = 1;
-    Count units = 1;
-    if (lead >= 0xC2 && lead <= 0xDF) {
-      width = 2;
-    } else if (lead >= 0xE0 && lead <= 0xEF) {
-      width = 3;
-    } else if (lead >= 0xF0 && lead <= 0xF4) {
-      width = 4;
-      units = 2;
-    }
-
-    if (offset + width > source.get_size()) {
-      width = 1;
-      units = 1;
-    }
-
-    position.character += units;
-    offset += width;
-  }
-
-  return position;
-}
 
 static auto publish_diagnostics(
     Lsp::Documents& documents,
@@ -70,6 +36,8 @@ static auto publish_diagnostics(
     View::Bytes uri) -> Lsp::Rpc::Response {
   Allocator::Arena& arena = message.get_arena();
   Managed::Vector<Json::Node> diagnostics(arena);
+  View::Bytes source = documents.get_text(uri);
+  const Lsp::PositionEncoding& encoding = documents.get_position_encoding();
   auto selected = documents.get_diagnostics(uri);
   if (selected) {
     const Ttx::Lexical::Errors& errors = selected->get_errors();
@@ -82,13 +50,15 @@ static auto publish_diagnostics(
       Ttx::Lexical::Anchor anchor = errors.get_anchor(index);
       Ttx::Lexical::Token token = anchor.get_token();
       Ttx::Lexical::Span span = anchor.get_span();
-      if (!token && span) {
-        token = span.get_start();
+      Count start_offset =
+          token ? token.get_offset() : (span ? span.get_offset() : Count(0));
+      Count size =
+          token ? token.get_size() : (span ? span.get_size() : Count(0));
+      auto start = encoding.locate(source, start_offset);
+      auto end = encoding.locate(source, start_offset + size);
+      if (!start || !end) {
+        continue;
       }
-      Count line = token && token.get_line() != 0 ? token.get_line() - 1 : 0;
-      Count column =
-          token && token.get_column() != 0 ? token.get_column() - 1 : 0;
-      Count width = token ? token.get_size() : 0;
       diagnostics.insert(
           Json::Blueprint{
             {
@@ -96,16 +66,16 @@ static auto publish_diagnostics(
                {
                  {"start"_view,
                   {
-                    {"line"_view, line},
-                    {"character"_view, column},
+                    {"line"_view, start->get_line()},
+                    {"character"_view, start->get_character()},
                   }},
                  {"end"_view,
                   {
-                    {"line"_view, line},
-                    {"character"_view, column + width},
+                    {"line"_view, end->get_line()},
+                    {"character"_view, end->get_character()},
                   }},
                }},
-              {"severity"_view, Signed_64(1)},
+              {"severity"_view, S64(1)},
               {"source"_view, "ttx"_view},
               {"message"_view, errors.get_message(index)},
             }}.construct(arena));
@@ -125,9 +95,28 @@ static auto publish_diagnostics(
     }}.construct(arena);
 }
 
-auto Puffer::Lsp::initialize(Documents&, const Rpc::Message& message)
+static auto select_position_encoding(const Lsp::Rpc::Message& message)
+    -> Lsp::PositionEncoding {
+  // UTF 8 uses the same byte units as TTX source locations. Older clients may
+  // omit this list or offer only UTF 16, so the protocol fallback remains the
+  // safe default for those sessions.
+  Json::Array offered = message
+                            .get_params()["capabilities"_view]["general"_view]
+                                         ["positionEncodings"_view]
+                            .get_array();
+  for (const Json::Node& candidate : offered) {
+    if (candidate.decode_string(message.get_arena()) == "utf-8"_view) {
+      return Lsp::PositionEncoding(Lsp::PositionEncoding::Kind::Utf8);
+    }
+  }
+  return Lsp::PositionEncoding();
+}
+
+auto Puffer::Lsp::initialize(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response {
   auto& arena = message.get_arena();
+  PositionEncoding encoding = select_position_encoding(message);
+  documents.set_position_encoding(encoding);
   return message.report_result(
       Json::Blueprint{
         {
@@ -138,13 +127,15 @@ auto Puffer::Lsp::initialize(Documents&, const Rpc::Message& message)
            }},
           {"capabilities"_view,
            {
-             {"positionEncoding"_view, "utf-16"_view},
+             {"positionEncoding"_view, encoding.get_name()},
              {"textDocumentSync"_view,
               {
                 {"openClose"_view, True},
-                {"change"_view, Signed_64(1)},
+                {"change"_view, S64(1)},
               }},
              {"hoverProvider"_view, True},
+             {"inlayHintProvider"_view, True},
+             {"definitionProvider"_view, True},
              {"documentFormattingProvider"_view, True},
              {"semanticTokensProvider"_view,
               {
@@ -162,11 +153,15 @@ auto Puffer::Lsp::document_formatting(
   View::Bytes uri =
       message.get_params()["textDocument"_view]["uri"_view].decode_string(
           arena);
-  Dynamic::Bytes source = documents.get_text(uri);
-  Ttx::Lexical::Tokenizer tokenizer(arena, source.get_view(), uri);
+  View::Bytes source = documents.get_text(uri);
+  Ttx::Lexical::Tokenizer tokenizer(arena, source, uri);
   Dynamic::Bytes formatted = Ttx::Lexical::Formatter(tokenizer).format();
   View::Bytes formatted_text = arena.proxy(formatted.get_view());
-  Position end = find_end_position(source.get_view());
+  auto end =
+      documents.get_position_encoding().locate(source, source.get_size());
+  if (!end) {
+    return message.report_result(Json::Node());
+  }
 
   Managed::Vector<Json::Node> edits(arena);
   edits.insert(
@@ -181,8 +176,8 @@ auto Puffer::Lsp::document_formatting(
               }},
              {"end"_view,
               {
-                {"line"_view, end.line},
-                {"character"_view, end.character},
+                {"line"_view, end->get_line()},
+                {"character"_view, end->get_character()},
               }},
            }},
           {"newText"_view, formatted_text},
@@ -250,9 +245,50 @@ auto Puffer::Lsp::semantic_tokens(
   const auto uri =
       message.get_params()["textDocument"_view]["uri"_view].decode_string(
           message.get_arena());
-  Dynamic::Bytes source = documents.get_text(uri);
+  View::Bytes source = documents.get_text(uri);
+  View::Vector<Ttx::Lexical::Token> tokens = documents.get_tokens(uri);
+  auto associations = documents.get_associations(uri);
   return message.report_result(
-      Lsp::semantic_tokens_for(message.get_arena(), source.get_view()));
+      Lsp::semantic_tokens_for(
+          message.get_arena(), source, documents.get_position_encoding(),
+          tokens, associations ? &*associations : nullptr));
+}
+
+auto Puffer::Lsp::inlay_hints(Documents& documents, const Rpc::Message& message)
+    -> Rpc::Response {
+  Allocator::Arena& arena = message.get_arena();
+  const Json::Node params = message.get_params();
+  View::Bytes uri =
+      params["textDocument"_view]["uri"_view].decode_string(arena);
+  const Json::Node range = params["range"_view];
+  const Json::Node start_line = range["start"_view]["line"_view];
+  const Json::Node start_character = range["start"_view]["character"_view];
+  const Json::Node end_line = range["end"_view]["line"_view];
+  const Json::Node end_character = range["end"_view]["character"_view];
+  if (uri.is_empty() || !start_line.is_number() ||
+      !start_character.is_number() || !end_line.is_number() ||
+      !end_character.is_number() || start_line.get_number() < 0 ||
+      start_character.get_number() < 0 || end_line.get_number() < 0 ||
+      end_character.get_number() < 0) {
+    return message.report_result(Json::Node());
+  }
+
+  auto associations = documents.get_associations(uri);
+  if (!associations) {
+    Managed::Vector<Json::Node> empty(arena);
+    return message.report_result(Json::Node(empty.get_view()));
+  }
+  View::Bytes source = documents.get_text(uri);
+  const PositionEncoding& encoding = documents.get_position_encoding();
+  return message.report_result(
+      Lsp::inlay_hints_for(
+          arena, source, encoding, *associations,
+          PositionEncoding::Position(
+              Count(start_line.get_number()),
+              Count(start_character.get_number())),
+          PositionEncoding::Position(
+              Count(end_line.get_number()),
+              Count(end_character.get_number()))));
 }
 
 auto Puffer::Lsp::hover(Documents& documents, const Rpc::Message& message)
@@ -268,10 +304,83 @@ auto Puffer::Lsp::hover(Documents& documents, const Rpc::Message& message)
   }
 
   auto semantic = documents.find_semantic(
-      uri, Count(line.get_number()), Count(character.get_number()));
+      uri, PositionEncoding::Position(
+               Count(line.get_number()), Count(character.get_number())));
   if (!semantic) {
     return message.report_result(Json::Node());
   }
 
   return message.report_result(semantic_hover(message.get_arena(), *semantic));
+}
+
+auto Puffer::Lsp::definition(Documents& documents, const Rpc::Message& message)
+    -> Rpc::Response {
+  Allocator::Arena& arena = message.get_arena();
+  const Json::Node params = message.get_params();
+  View::Bytes uri =
+      params["textDocument"_view]["uri"_view].decode_string(arena);
+  const Json::Node line = params["position"_view]["line"_view];
+  const Json::Node character = params["position"_view]["character"_view];
+  if (uri.is_empty() || !line.is_number() || !character.is_number() ||
+      line.get_number() < 0 || character.get_number() < 0) {
+    return message.report_result(Json::Node());
+  }
+
+  auto semantic = documents.find_semantic(
+      uri, PositionEncoding::Position(
+               Count(line.get_number()), Count(character.get_number())));
+  if (!semantic) {
+    return message.report_result(Json::Node());
+  }
+
+  const Ttx::Concept::Abstract& subject = semantic_subject(*semantic);
+  Bool definable =
+      subject.is<Ttx::Model::Alias>() ||
+      subject.is<Tetrodotoxin::Library::Language::Model::Addressable>() ||
+      subject.is<Tetrodotoxin::Library::Language::Model::Callable>() ||
+      subject.is<Tetrodotoxin::Library::Language::Model::Type>();
+  if (!definable) {
+    return message.report_result(Json::Node());
+  }
+  auto location = documents.find_definition(uri, subject);
+  if (!location) {
+    return message.report_result(Json::Node());
+  }
+
+  Ttx::Lexical::Anchor anchor = location->get_anchor();
+  Ttx::Lexical::Token focus = anchor.get_token();
+  Ttx::Lexical::Span span = anchor.get_span();
+  Count start_offset =
+      focus ? focus.get_offset() : (span ? span.get_offset() : Count(0));
+  Count size = focus ? focus.get_size() : (span ? span.get_size() : Count(0));
+  const PositionEncoding& encoding = documents.get_position_encoding();
+  auto start = encoding.locate(location->get_source_text(), start_offset);
+  auto end = encoding.locate(location->get_source_text(), start_offset + size);
+  if (!start || !end) {
+    return message.report_result(Json::Node());
+  }
+
+  Dynamic::Bytes resolved_uri = documents.resolve_uri(*location);
+  if (resolved_uri.is_empty()) {
+    return message.report_result(Json::Node());
+  }
+  View::Bytes target_uri = arena.proxy(resolved_uri.get_view());
+  return message.report_result(
+      Json::Blueprint{
+        {
+          {"uri"_view, target_uri},
+          {"range"_view,
+           {
+             {"start"_view,
+              {
+                {"line"_view, start->get_line()},
+                {"character"_view, start->get_character()},
+              }},
+             {"end"_view,
+              {
+                {"line"_view, end->get_line()},
+                {"character"_view, end->get_character()},
+              }},
+           }},
+        }}.construct(arena));
 }

@@ -161,7 +161,7 @@ PERIMORTEM_UNIT_TEST(SerializationJson, decode_string_escapes) {
   Json::Node malformed("kept \\uD800 and \\q"_view);
   EXPECT_TEXT(malformed.decode_string(arena), "kept \\uD800 and \\q"_view);
 
-  Json::Node not_a_string(Signed_64(42));
+  Json::Node not_a_string(S64(42));
   EXPECT_TEXT(not_a_string.decode_string(arena), View::Bytes());
 }
 

@@ -20,8 +20,8 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Validation;
 
-enum class TestCause : Unsigned_8 {
-  Unknown = Unsigned_8(-1),
+enum class TestCause : U8 {
+  Unknown = U8(-1),
   Unreadable = 0,
 };
 
@@ -88,7 +88,7 @@ PERIMORTEM_UNIT_TEST(LanguageError, stable_identity) {
 }
 
 PERIMORTEM_UNIT_TEST(LanguageError, context_rejection) {
-  Unsigned_8 binary_route[] = {'x', 0, 'y'};
+  U8 binary_route[] = {'x', 0, 'y'};
   const View::Bytes routes[] = {
     {},
     "member"_view,

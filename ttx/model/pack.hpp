@@ -10,16 +10,15 @@
 
 namespace Ttx::Model {
 
-// Pack is the Abstract contract for one produced value flow. It preserves the
-// producer identity needed by linking, tools, and lowering while its Layout is
-// the identity free descriptor used to fit that flow into a required shape.
-// A one value Expression, an empty return, and a multiple value swizzle are all
-// Packs without acquiring an aggregate Type.
+// Pack carries one produced value flow and remembers the semantic object that
+// created each visible output. Its Layout describes how that flow can fit a
+// receiving contract. One value, an empty return, a named argument group, and a
+// multiple value swizzle can all remain Packs until a language chooses a Type
+// that materializes them.
 //
-// Layout inspection is total even while a staged Pack resolves Invalid. A
-// missing or nonvalue output may expose an empty Layout safely, but only a Pack
-// that resolves to itself supplies that shape as completed zero value flow.
-// Once resolution succeeds the Layout is stable for the Pack's lifetime.
+// Layout inspection remains available while staged flow is incomplete. Once a
+// Pack resolves successfully, its output Layout stays stable for the lifetime
+// of that graph.
 class Pack : public Concept::Abstract {
  public:
   // Produced identifies the real Pack that computes one visible output slot.

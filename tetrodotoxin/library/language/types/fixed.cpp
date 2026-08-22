@@ -8,6 +8,8 @@
 #include "tetrodotoxin/library/builtin/fixed/access.hpp"
 #include "tetrodotoxin/library/builtin/fixed/view.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
+#include "tetrodotoxin/library/language/constants/bytes.hpp"
+#include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -22,7 +24,7 @@ Types::Fixed::Fixed(
     Allocator::Arena& domain,
     View::Bytes name,
     const Model::Type& element,
-    ::Unsigned_64 extent,
+    ::U64 extent,
     const Model::Type& access_type,
     const Model::Type& view_type)
     : name(name),
@@ -37,7 +39,7 @@ Types::Fixed::Fixed(
 
 auto Types::Fixed::create_default(Allocator::Arena& arena) const
     -> Option<Model::Pack&> {
-  BAIL_IF(get_extent() == 0 || get_extent() > Unsigned_64(Count(-1)));
+  BAIL_IF(get_extent() == 0 || get_extent() > U64(Count(-1)));
 
   Managed::Vector<Reference<Model::Pack>> values(arena);
   values.reset(Count(get_extent()));
@@ -75,6 +77,27 @@ static auto fold_output(Model::Pack& source, Count index)
   return const_cast<Constant&>(*constant);
 }
 
+static auto create_bytes(
+    Allocator::Arena& arena,
+    const Types::Fixed& type,
+    View::Vector<Reference<Model::Pack>> values) -> Option<Model::Pack&> {
+  auto element =
+      type.get_element_type().resolve().select<Model::Types::Unsigned>();
+  BAIL_IF(!element || element->get_size() != 1);
+
+  auto storage = arena.allocate(values.get_size());
+  Count index = 0;
+  for (const Reference<Model::Pack>& selected : values) {
+    auto value = selected.get().select<Constants::Unsigned>();
+    BAIL_IF(!value || value->get_value() > U64(U8(-1)));
+    storage.get_data()[index] = U8(value->get_value());
+    index++;
+  }
+
+  return Constants::Bytes::create_synthetic(
+      arena, type, View::Bytes(storage.get_data(), storage.get_size()));
+}
+
 auto Types::Fixed::create_fitted(Allocator::Arena& arena, Model::Pack& source)
     const -> Option<Model::Pack&> {
   BAIL_IF(!source.fits(*this));
@@ -85,6 +108,11 @@ auto Types::Fixed::create_fitted(Allocator::Arena& arena, Model::Pack& source)
     auto value = fold_output(source, index);
     BAIL_IF(!value);
     values.insert(*value);
+  }
+
+  auto element = get_element_type().resolve().select<Model::Types::Unsigned>();
+  if (element && element->get_size() == 1) {
+    return create_bytes(arena, *this, values.get_view());
   }
   return Model::Pack::create_folded(arena, values.get_view());
 }

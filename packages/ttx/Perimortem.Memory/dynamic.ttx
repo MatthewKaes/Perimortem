@@ -1,7 +1,7 @@
 // Dynamic values backed by the Perimortem Memory ABI.
 dialect : Library;
 
-// Bytes is a worker-local, copy-on-write container of Unsigned_8 values.
+// Bytes is a worker-local, copy-on-write container of U8 values.
 //
 // It retains one Object buffer and a separate logical size. Self operations
 // mutate the receiver by reference and return that same reference for chaining.
@@ -9,36 +9,33 @@ dialect : Library;
 // across an operation that can replace the backing Object.
 public Bytes : struct {
   // Owns the initialized byte capacity shared by copied Bytes values.
-  private state data : Object[Unsigned_8];
+  private state data : Object[U8];
 
   // Records how many leading elements currently belong to this Bytes value.
-  private state size : Unsigned_64;
+  private state size : U64;
 
   // Creates an independent Bytes containing every element of left followed by
   // every element of right. Neither input View is modified.
-  public concat : func = [.left : View[Unsigned_8], .right : View[Unsigned_8]] ->
-      Bytes {
+  public concat : func = [.left : View[U8], .right : View[U8]] -> Bytes {
     state left_size  := left -> get_size();
     state right_size := right -> get_size();
     state required   := left_size + right_size;
     state result     : Bytes;
     state access     := result.data -> reserve(required);
-    for [.index : Unsigned_64] in 0...left_size : access[index] = left:[index];
-    for [.index : Unsigned_64] in 0...right_size : access[left_size + index] = right:[index];
+    for [.index : U64] in 0...left_size : access[index] = left:[index];
+    for [.index : U64] in 0...right_size : access[left_size + index] = right:[index];
 
     result.size = required;
     return result;
   }
 
   // Creates an independent Bytes containing every element of view.
-  public copy : func = [.view : View[Unsigned_8]] -> Bytes : return Bytes -> concat(
-    new[View[Unsigned_8]],
-    view,
-  );
+  public copy : func = [.view : View[U8]] -> Bytes : return Bytes -> concat(new[View[U8]],
+    view);
 
   // Appends count copies of byte and returns this receiver for chaining.
   // A zero count leaves both the logical size and backing Object unchanged.
-  public append : func = [self, .byte : Unsigned_8, .count : Unsigned_64] -> self {
+  public append : func = [self, .byte : U8, .count : U64] -> self {
     if count == 0 : return self;
 
     state start    := self.size;
@@ -46,7 +43,7 @@ public Bytes : struct {
     self -> prepare_write(required);
 
     state access := self.data -> get_access();
-    for [.index : Unsigned_64] in 0...count : access[start + index] = byte;
+    for [.index : U64] in 0...count : access[start + index] = byte;
 
     self.size = required;
   }
@@ -56,7 +53,7 @@ public Bytes : struct {
 
   // Appends every element of view and returns this receiver for chaining.
   // An empty View leaves both the logical size and backing Object unchanged.
-  public concat : func = [self, .view : View[Unsigned_8]] -> self {
+  public concat : func = [self, .view : View[U8]] -> self {
     if view -> is_empty() : return self;
 
     state count    := view -> get_size();
@@ -65,20 +62,20 @@ public Bytes : struct {
     self -> prepare_write(required);
 
     state access := self.data -> get_access();
-    for [.index : Unsigned_64] in 0...count : access[start + index] = view:[index];
+    for [.index : U64] in 0...count : access[start + index] = view:[index];
 
     self.size = required;
   }
 
   // Returns the number of byte elements available in the backing Object.
   // Capacity may be greater than the logical size.
-  public get_capacity : func = [self] -> Unsigned_64 : return self.data -> get_capacity();
+  public get_capacity : func = [self] -> U64 : return self.data -> get_capacity();
 
   // Returns the number of bytes in the logical value.
-  public get_size : func = [self] -> Unsigned_64 : return self.size;
+  public get_size : func = [self] -> U64 : return self.size;
 
   // Borrows a read-only View over exactly the logical bytes.
-  public get_view : func = [self] -> View[Unsigned_8] : return self.data -> get_view() ->
+  public get_view : func = [self] -> View[U8] : return self.data -> get_view() ->
       slice(0, self.size);
 
   // Returns whether the logical size is zero.
@@ -88,13 +85,13 @@ public Bytes : struct {
   // The operation is a no-op when the current Object already has enough room.
   public reserve : func = [
     self,
-    .required_size : Unsigned_64,
+    .required_size : U64,
   ] -> self : if required_size > self.data -> get_capacity() : self.data -> reserve(required_size);
 
   // Changes the logical size and grows capacity when required.
   // Existing initialized capacity is preserved; newly allocated elements use
-  // the Unsigned_8 default.
-  public resize : func = [self, .new_size : Unsigned_64] -> self {
+  // the U8 default.
+  public resize : func = [self, .new_size : U64] -> self {
     if new_size > self.data -> get_capacity() : self.data -> reserve(new_size);
 
     self.size = new_size;
@@ -102,7 +99,7 @@ public Bytes : struct {
 
   // Removes count bytes from the front and shifts the remaining bytes to zero.
   // Removing at least the logical size is equivalent to clear.
-  public shrink : func = [self, .count : Unsigned_64] -> self {
+  public shrink : func = [self, .count : U64] -> self {
     if count >= self.size : return self -> clear();
     if count == 0 : return self;
 
@@ -110,8 +107,7 @@ public Bytes : struct {
     self -> prepare_write(self.size);
 
     state access := self.data -> get_access();
-    for [.index : Unsigned_64] in 0...remaining : access[index] = access:[index +
-        count];
+    for [.index : U64] in 0...remaining : access[index] = access:[index + count];
 
     self.size = remaining;
   }
@@ -119,14 +115,13 @@ public Bytes : struct {
   // Borrows the available portion of one logical interval.
   // The result is clipped at the logical size and is empty when start is out
   // of bounds.
-  public slice : func = [self, .start : Unsigned_64, .count : Unsigned_64] -> View[
-    Unsigned_8,
-  ] : return self -> get_view() -> slice(start, count);
+  public slice : func = [self, .start : U64, .count : U64] -> View[U8] : return self ->
+      get_view() -> slice(start, count);
 
   // Ensures the next write has required capacity and private storage.
   // Growth already replaces the receiver with an unshared Object; otherwise a
   // shared buffer is cloned before writable Access is requested.
-  private prepare_write : func = [self, .required : Unsigned_64] -> [] {
+  private prepare_write : func = [self, .required : U64] -> [] {
     self.data -> reserve(required);
     if self.data -> is_shared() : self.data -> clone();
   }

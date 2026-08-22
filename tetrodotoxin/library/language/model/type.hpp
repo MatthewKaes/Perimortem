@@ -34,7 +34,7 @@ class Type : public Ttx::Model::Type {
   // Access makes receiver intent explicit at every Library Type query. Static
   // selects through a Type identity, while Self selects through one real
   // Addressable instance. There is no implicit overload that guesses the role.
-  enum class Access : ::Unsigned_8 {
+  enum class Access : ::U8 {
     Self,
     Static,
   };
@@ -140,6 +140,14 @@ class Type : public Ttx::Model::Type {
       Perimortem::Core::Option<const Ttx::Concept::Abstract&>) const
       -> Perimortem::Core::Option<Pack&> {
     return {};
+  }
+
+  // An Interface-restored aggregate lowers through its exact Type owner. The
+  // Type supplies the provider's admitted Field inventory while the Builder
+  // owns only its target ABI and native invocation.
+  virtual auto lower_provider(Llvm::Builder&, const Pack&, const Pack&) const
+      -> Bool {
+    return False;
   }
 
   // Receiving a Pack is Type policy because a target may admit flow that its

@@ -101,8 +101,7 @@ PERIMORTEM_UNIT_TEST(DefinitionTests, type_qualifier) {
   DefinitionDialect dialect;
   DefinitionHost host(arena, dialect);
   Errors errors;
-  View::Bytes retained_source =
-      arena.proxy("private value : Unsigned_64 = 1;"_view);
+  View::Bytes retained_source = arena.proxy("private value : U64 = 1;"_view);
   View::Bytes retained_path = arena.proxy("<typed definition>"_view);
   Tokenizer& tokenizer =
       arena.construct<Tokenizer>(arena, retained_source, retained_path);
@@ -126,7 +125,7 @@ PERIMORTEM_UNIT_TEST(DefinitionTests, malformed_prefix_fails) {
   DefinitionHost host(arena, dialect);
   Errors errors;
   View::Bytes retained_source =
-      arena.proxy("@note public private value : Unsigned_64 = 1;"_view);
+      arena.proxy("@note public private value : U64 = 1;"_view);
   View::Bytes retained_path = arena.proxy("<malformed definition>"_view);
   Tokenizer& tokenizer =
       arena.construct<Tokenizer>(arena, retained_source, retained_path);

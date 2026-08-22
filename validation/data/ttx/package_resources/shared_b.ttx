@@ -1,4 +1,4 @@
 //
 dialect : Library;
 
-public const shared_header_b : Fixed[Unsigned_8, 64] = $[resources/table.bin]:[0, 64];
+public const shared_header_b : Fixed[U8, 64] = $[resources/table.bin]:[0, 64];

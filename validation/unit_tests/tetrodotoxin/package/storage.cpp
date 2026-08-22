@@ -29,14 +29,11 @@ using namespace Tetrodotoxin;
 using namespace Validation;
 
 static_assert(
-    static_cast<Unsigned_8>(Package::Storage::Failure::Error::Unknown) ==
-    Unsigned_8(-1));
+    static_cast<U8>(Package::Storage::Failure::Error::Unknown) == U8(-1));
 static_assert(
-    static_cast<Unsigned_8>(Package::Storage::Failure::Error::InvalidRoute) ==
-    Unsigned_8(0));
+    static_cast<U8>(Package::Storage::Failure::Error::InvalidRoute) == U8(0));
 static_assert(
-    static_cast<Unsigned_8>(Package::Storage::Failure::Error::Unreadable) ==
-    Unsigned_8(1));
+    static_cast<U8>(Package::Storage::Failure::Error::Unreadable) == U8(1));
 static_assert(__is_trivially_destructible(Package::Storage::Failure));
 
 static constexpr Count temporary_path_capacity = 160;
@@ -84,9 +81,9 @@ static auto cleanup_tree(View::Bytes root) -> void {
 
   for (Count i = 0; i < cache_growth_count; i++) {
     Static::Bytes<32> member;
-    Signed_32 written = snprintf(
+    S32 written = snprintf(
         Data::cast<char>(member.get_data()), member.get_size(),
-        "cache_%02llu.bin", Unsigned_64(i));
+        "cache_%02llu.bin", U64(i));
     if (written <= 0 || Count(written) >= member.get_size()) {
       continue;
     }
@@ -100,7 +97,7 @@ static auto cleanup_tree(View::Bytes root) -> void {
 class TemporaryPackage {
  public:
   TemporaryPackage() {
-    Signed_32 root_written = snprintf(
+    S32 root_written = snprintf(
         Data::cast<char>(root_path.get_data()), root_path.get_size(),
         "/tmp/tetrodotoxin_package_input_root_XXXXXX");
     if (root_written <= 0 || Count(root_written) >= root_path.get_size()) {
@@ -112,7 +109,7 @@ class TemporaryPackage {
       return;
     }
 
-    Signed_32 outside_written = snprintf(
+    S32 outside_written = snprintf(
         Data::cast<char>(outside_path.get_data()), outside_path.get_size(),
         "/tmp/tetrodotoxin_package_input_outside_XXXXXX");
     if (outside_written <= 0 ||
@@ -177,7 +174,7 @@ class TemporaryPackage {
 
   auto create_directory(View::Bytes member) const -> Bool {
     Dynamic::Bytes path = join_path(get_root(), member);
-    Signed_32 created = mkdir(native_path(path), S_IRWXU);
+    S32 created = mkdir(native_path(path), S_IRWXU);
     return created == 0;
   }
 
@@ -185,7 +182,7 @@ class TemporaryPackage {
       -> Bool {
     Dynamic::Bytes path = join_path(get_root(), member);
     Dynamic::Bytes target = join_path(get_outside_root(), outside_member);
-    Signed_32 linked = symlink(native_path(target), native_path(path));
+    S32 linked = symlink(native_path(target), native_path(path));
     return linked == 0;
   }
 
@@ -193,7 +190,7 @@ class TemporaryPackage {
       const -> Bool {
     Dynamic::Bytes existing = join_path(get_root(), existing_member);
     Dynamic::Bytes linked = join_path(get_root(), linked_member);
-    Signed_32 created = link(native_path(existing), native_path(linked));
+    S32 created = link(native_path(existing), native_path(linked));
     return created == 0;
   }
 
@@ -201,27 +198,26 @@ class TemporaryPackage {
       -> Bool {
     Dynamic::Bytes replacement = join_path(get_root(), replacement_member);
     Dynamic::Bytes target = join_path(get_root(), target_member);
-    Signed_32 moved = rename(native_path(replacement), native_path(target));
+    S32 moved = rename(native_path(replacement), native_path(target));
     return moved == 0;
   }
 
   auto rename_root() -> Bool {
-    Signed_32 written = snprintf(
+    S32 written = snprintf(
         Data::cast<char>(moved_path.get_data()), moved_path.get_size(),
         "%s_moved", Data::cast<const char>(root_path.get_data()));
     if (written <= 0 || Count(written) >= moved_path.get_size()) {
       return False;
     }
 
-    Signed_32 moved = rename(
+    S32 moved = rename(
         Data::cast<const char>(root_path.get_data()),
         Data::cast<const char>(moved_path.get_data()));
     return moved == 0;
   }
 
   auto create_replacement_root() const -> Bool {
-    Signed_32 created =
-        mkdir(Data::cast<const char>(root_path.get_data()), S_IRWXU);
+    S32 created = mkdir(Data::cast<const char>(root_path.get_data()), S_IRWXU);
     return created == 0;
   }
 
@@ -241,7 +237,7 @@ class WorkingDirectory {
     }
 
     Dynamic::Bytes native(location);
-    Signed_32 changed = chdir(native_path(native));
+    S32 changed = chdir(native_path(native));
     entered = changed == 0;
   }
 
@@ -264,15 +260,15 @@ class WorkingDirectory {
       return False;
     }
 
-    Signed_32 restored = fchdir(descriptor);
-    Signed_32 closed = close(descriptor);
+    S32 restored = fchdir(descriptor);
+    S32 closed = close(descriptor);
     descriptor = -1;
     entered = False;
     return restored == 0 && closed == 0;
   }
 
  private:
-  Signed_32 descriptor = -1;
+  S32 descriptor = -1;
   Bool entered = False;
 };
 
@@ -397,7 +393,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, content_stability) {
   auto original_read = storage->read("stable.bin"_view);
   Package::Content* original = select_content(original_read);
   ASSERT(original != nullptr);
-  const Unsigned_8* original_identity = original->get_contents().get_data();
+  const U8* original_identity = original->get_contents().get_data();
 
   ASSERT(temporary.write("stable.bin"_view, "mutated"_view));
   auto mutation_read = storage->read("./stable.bin"_view);
@@ -458,9 +454,9 @@ PERIMORTEM_UNIT_TEST(PackageStorage, cache_growth_and_move) {
 
   for (Count i = 0; i < cache_growth_count; i++) {
     Static::Bytes<32> member;
-    Signed_32 written = snprintf(
+    S32 written = snprintf(
         Data::cast<char>(member.get_data()), member.get_size(),
-        "cache_%02llu.bin", Unsigned_64(i));
+        "cache_%02llu.bin", U64(i));
     ASSERT(written > 0 && Count(written) < member.get_size());
 
     View::Bytes route = member.slice(0, Count(written));

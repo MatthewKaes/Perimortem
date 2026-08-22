@@ -38,7 +38,7 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
       [](const Abstract& direct) -> const Abstract& { return direct; });
 }
 
-enum class PersistedArgument : Unsigned_8 {
+enum class PersistedArgument : U8 {
   Reference,
   Unsigned,
   Signed,
@@ -52,30 +52,30 @@ static auto write_argument(
   return argument.visit(
       []() -> Bool { return False; },
       [&](const Language::TypeReference& reference) -> Bool {
-        writer.write(Unsigned_8(PersistedArgument::Reference));
+        writer.write(U8(PersistedArgument::Reference));
         return reference.persist(writer);
       },
       [&](const Abstract& selected) -> Bool {
         auto unsigned_value = selected.select<Language::Constants::Unsigned>();
         if (unsigned_value) {
-          writer.write(Unsigned_8(PersistedArgument::Unsigned));
+          writer.write(U8(PersistedArgument::Unsigned));
           writer.write(unsigned_value->get_value());
           return True;
         }
 
         auto signed_value = selected.select<Language::Constants::Signed>();
         if (signed_value) {
-          writer.write(Unsigned_8(PersistedArgument::Signed));
+          writer.write(U8(PersistedArgument::Signed));
           writer.write(signed_value->get_value());
           return True;
         }
 
         if (selected.is<Language::Constants::False>()) {
-          writer.write(Unsigned_8(PersistedArgument::False));
+          writer.write(U8(PersistedArgument::False));
           return True;
         }
         if (selected.is<Language::Constants::True>()) {
-          writer.write(Unsigned_8(PersistedArgument::True));
+          writer.write(U8(PersistedArgument::True));
           return True;
         }
         return False;
@@ -94,7 +94,7 @@ static auto read_argument(
     Memory::Allocator::Arena& arena,
     const Abstract& context)
     -> Core::Option<Language::TypeReference::Argument> {
-  auto kind = reader.read_unsigned_8();
+  auto kind = reader.read_u8();
   BAIL_IF(!kind);
 
   switch (PersistedArgument(*kind)) {
@@ -105,8 +105,8 @@ static auto read_argument(
     return Language::TypeReference::Argument(retained);
   }
   case PersistedArgument::Unsigned: {
-    auto value = reader.read_unsigned_64();
-    auto type = resolve_root_type(context, "Unsigned_64"_view);
+    auto value = reader.read_u64();
+    auto type = resolve_root_type(context, "U64"_view);
     auto selected =
         type ? type->select<Language::Model::Types::Unsigned>()
              : Core::Option<const Language::Model::Types::Unsigned&>();
@@ -117,8 +117,8 @@ static auto read_argument(
         static_cast<const Abstract&>(constant));
   }
   case PersistedArgument::Signed: {
-    auto value = reader.read_signed_64();
-    auto type = resolve_root_type(context, "Signed_64"_view);
+    auto value = reader.read_s64();
+    auto type = resolve_root_type(context, "S64"_view);
     auto selected = type
                         ? type->select<Language::Model::Types::Signed>()
                         : Core::Option<const Language::Model::Types::Signed&>();
@@ -150,9 +150,9 @@ static auto read_argument(
 
 auto Language::TypeReference::parse(const Abstract& context, Cursor& cursor)
     -> Core::Option<TypeReference> {
-  // Dispatch has already selected a Type edge, so malformed arguments reject
-  // that declaration instead of making the same spelling available to a
-  // competing production.
+  // Dispatch has already chosen this Type route. Reporting malformed arguments
+  // here points the author back to that declaration instead of asking the
+  // parser to reinterpret the same spelling.
   auto& domain = cursor.get_arena();
   auto route = parse_route(cursor);
   BAIL_IF(!route);
@@ -169,9 +169,9 @@ auto Language::TypeReference::parse(const Abstract& context, Cursor& cursor)
           auto nested = parse(context, entry);
           BAIL_IF(!nested);
 
-          // A nested route is retained once in the same Arena as this authored
-          // shape. The Layout parser owns punctuation while TypeReference keeps
-          // the delayed source edge required by recursive linking.
+          // A nested route shares the Arena of the authored argument shape. The
+          // Layout parser handles its punctuation, while TypeReference keeps
+          // the source edge needed when recursive linking reaches it.
           const TypeReference& retained =
               domain.construct<TypeReference>(*nested);
           arguments.insert(Argument(retained));
@@ -195,9 +195,9 @@ auto Language::TypeReference::parse(const Abstract& context, Cursor& cursor)
           return False;
         }
 
-        // Literal owns the complete concrete literal grammar and diagnostics.
-        // TypeReference only distinguishes that real semantic edge from a
-        // nested delayed Type route.
+        // Literal already owns its grammar and diagnostics. TypeReference only
+        // needs to remember that this argument is a stable semantic identity
+        // rather than another route waiting for context.
         auto literal = Parser::Literal::parse(context, entry);
         BAIL_IF(!literal);
         arguments.insert(Argument(*literal));
@@ -210,7 +210,7 @@ auto Language::TypeReference::parse(const Abstract& context, Cursor& cursor)
       Anchor::create(
           route->get_anchor().get_token(),
           Span(route->get_anchor().get_token(), *closing)),
-      arguments.get_view());
+      route->terminal, arguments.get_view());
   return completed;
 }
 
@@ -253,7 +253,7 @@ auto Language::TypeReference::parse_route(Cursor& cursor)
   Count end = Count(last.get_offset()) + Count(last.get_size());
   return TypeReference(
       cursor.get_source_text().slice(start, end - start),
-      Anchor::create(first, Span(first, last)));
+      Anchor::create(first, Span(first, last)), last);
 }
 
 auto Language::TypeReference::get_size() const -> Count {
@@ -318,9 +318,9 @@ auto Language::TypeReference::get_argument(Count index) const
 
 auto Language::TypeReference::persist(Archive::Writer& writer) const -> Bool {
   auto record = writer.begin(Archive::Tag::TypeReference);
-  BAIL_IF(!writer.write(route) || get_argument_size() > Unsigned_32(-1));
+  BAIL_IF(!writer.write(route) || get_argument_size() > U32(-1));
 
-  writer.write(Unsigned_32(get_argument_size()));
+  writer.write(U32(get_argument_size()));
   for (Count index = 0; index < get_argument_size(); index++) {
     auto argument = get_argument(index);
     BAIL_IF(!argument || !write_argument(writer, *argument));
@@ -334,13 +334,12 @@ auto Language::TypeReference::restore(
     const Abstract& context) -> Core::Option<TypeReference> {
   auto record = reader.read_record();
   BAIL_IF(
-      !record ||
-      record->get_tag() != Unsigned_16(Archive::Tag::TypeReference) ||
+      !record || record->get_tag() != U16(Archive::Tag::TypeReference) ||
       record->is_optional());
 
   Archive::Reader contents(record->get_payload());
   auto route = contents.read_bytes();
-  auto count = contents.read_unsigned_32();
+  auto count = contents.read_u32();
   BAIL_IF(!route || route->is_empty() || !count);
 
   Memory::Managed::Vector<Argument> restored(arena);
@@ -356,7 +355,7 @@ auto Language::TypeReference::restore(
     selected_arguments = restored.get_view();
   }
   return TypeReference(
-      arena.proxy(*route), Anchor::create(Span()), selected_arguments);
+      arena.proxy(*route), Anchor::create(Span()), Token(), selected_arguments);
 }
 
 static auto map_failure(
@@ -386,8 +385,8 @@ auto Language::TypeReference::resolve_with_root(
     const Abstract& context,
     Root root,
     Core::Option<Cursor&> cursor) const -> Resolution {
-  // Lexical authority applies only to the unqualified root. Every explicit
-  // suffix is an ordinary public context query on the identity just selected.
+  // The declaration context gives the root name its lexical authority. Each
+  // explicit suffix then asks the identity selected by the preceding segment.
   const Abstract* selected = &context.resolve_context(get_root());
   if (root == Root::Lexical) {
     auto type = context.select<Language::Model::Type>();
@@ -400,8 +399,9 @@ auto Language::TypeReference::resolve_with_root(
   }
 
   for (Count i = 1; i < get_size(); i++) {
-    // TypeReference performs the explicit Alias resolution required before a
-    // selected target may receive the next ordinary context query.
+    // Alias resolution reveals the identity that can answer the next ordinary
+    // context query. Keeping that step visible also preserves Alias opacity for
+    // every other consumer.
     const Abstract& route_context = resolve_alias(*selected);
     if (route_context.is<Invalid>()) {
       return Failure(Failure::Type::Route, anchor, i - 1);
@@ -433,10 +433,18 @@ auto Language::TypeReference::resolve_with_root(
   if (!generic) {
     return Failure(Failure::Type::Generic, anchor);
   }
+  if (cursor) {
+    // The authored name still denotes the Generic even though applying its
+    // arguments returns a materialized Type. Recording the terminal Token lets
+    // editor tooling show that distinction with the same identity selected by
+    // resolution.
+    cursor->get_associations().create(
+        Anchor::create(terminal, Span(terminal)), *generic);
+  }
 
-  // Resolution needs one transient real Layout. Generic copies its normalized
-  // semantic key into its own Arena before this local storage leaves. Nested
-  // routes use the same root policy so arguments cannot acquire extra access.
+  // Resolution assembles one temporary Layout from the real argument
+  // identities. Generic copies its normalized key into its own Arena before
+  // this storage leaves, and nested routes follow the same root access policy.
   Memory::Dynamic::Vector<Reference<const Abstract>> linked(
       arguments->get_size());
   const auto* argument_data = arguments->get_data();
@@ -478,9 +486,9 @@ auto Language::TypeReference::resolve_with_root(
         return type;
       },
       [&](const Generic::Failure& failure) -> Resolution {
-        // Generic owns source free formula failures. TypeReference maps the
-        // parameter index back to authored syntax because it owns those
-        // Anchors.
+        // Generic knows which formula parameter failed, while TypeReference
+        // knows where that argument was written. Joining those facts gives the
+        // diagnostic the right authored Anchor.
         Anchor failure_anchor = anchor;
         Count index = failure.get_argument();
         if (failure.get_type() == Generic::Failure::Type::Parameter &&
@@ -529,8 +537,7 @@ auto Language::TypeReference::report(Cursor& cursor, const Failure& failure)
   switch (failure.get_type()) {
   case Failure::Type::Route: {
     auto report = cursor.create_report(failure.get_anchor());
-    report << "Library route segment "_view
-           << Unsigned_64(failure.get_index() + 1)
+    report << "Library route segment "_view << U64(failure.get_index() + 1)
            << " did not resolve in its selected context."_view;
     report.get_hint()
         << "Publish that exact name before linking this declaration."_view;
@@ -538,8 +545,7 @@ auto Language::TypeReference::report(Cursor& cursor, const Failure& failure)
   }
   case Failure::Type::Argument: {
     auto report = cursor.create_report(failure.get_anchor());
-    report << "Library Generic argument "_view
-           << Unsigned_64(failure.get_index() + 1)
+    report << "Library Generic argument "_view << U64(failure.get_index() + 1)
            << " did not resolve to one Library Type."_view;
     report.get_hint()
         << "Use a Type route or one literal accepted by this Generic."_view;
@@ -565,8 +571,7 @@ auto Language::TypeReference::report(Cursor& cursor, const Failure& failure)
     return;
   case Failure::Type::Parameter: {
     auto report = cursor.create_report(failure.get_anchor());
-    report << "Library Generic argument "_view
-           << Unsigned_64(failure.get_index() + 1)
+    report << "Library Generic argument "_view << U64(failure.get_index() + 1)
            << " does not satisfy its parameter category."_view;
     report.get_hint()
         << "Use the Type or scalar Constant category required at this position."_view;

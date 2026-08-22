@@ -17,7 +17,7 @@ extern void* memmove(void* dest, const void* src, size_t count) noexcept(true);
 
 extern int memcmp(const void* a, const void* b, size_t count) noexcept(true);
 
-extern void* memset(void* a, Signed_32 value, size_t count) noexcept(true);
+extern void* memset(void* a, S32 value, size_t count) noexcept(true);
 }  // extern "C"
 
 namespace Perimortem::Core::Data {
@@ -30,7 +30,7 @@ enum class ByteOrder {
 
 // Type helpers
 template <typename storage>
-consteval auto size_in_bits() -> Unsigned_64 {
+consteval auto size_in_bits() -> U64 {
   return sizeof(storage) * 8;
 }
 
@@ -77,19 +77,18 @@ auto cast(void* source) -> target_type* {
 }
 
 template <typename storage_type>
-auto copy(Unsigned_8* dest, const storage_type* src, Count count = 1)
-    -> storage_type* {
+auto copy(U8* dest, const storage_type* src, Count count = 1) -> storage_type* {
   return reinterpret_cast<storage_type*>(
-      memcpy(dest, src, Unsigned_64(sizeof(storage_type)) * count));
+      memcpy(dest, src, U64(sizeof(storage_type)) * count));
 }
 
 template <typename storage_type>
-auto copy(Unsigned_8* dest, storage_type src) -> storage_type* {
+auto copy(U8* dest, storage_type src) -> storage_type* {
   return reinterpret_cast<storage_type*>(
-      memcpy(dest, &src, Unsigned_64(sizeof(storage_type))));
+      memcpy(dest, &src, U64(sizeof(storage_type))));
 }
 
-inline auto set(Unsigned_8* dest, Unsigned_8 value, Count count = 1) -> void {
+inline auto set(U8* dest, U8 value, Count count = 1) -> void {
   memset(dest, value, count);
 }
 
@@ -111,7 +110,7 @@ constexpr auto
 
     return true;
   } else {
-    return memcmp(dest, src, Unsigned_64(sizeof(storage_type)) * count) == 0;
+    return memcmp(dest, src, U64(sizeof(storage_type)) * count) == 0;
   }
 }
 
@@ -136,7 +135,7 @@ constexpr auto ensure_endian(storage_type value) -> storage_type {
 template <ByteOrder target, typename storage_type>
 constexpr auto write(storage_type* dest, storage_type value) -> void {
   value = Data::ensure_endian<Data::ByteOrder::Native, target>(value);
-  Data::copy(reinterpret_cast<Unsigned_8*>(dest), &value, 1);
+  Data::copy(reinterpret_cast<U8*>(dest), &value, 1);
 }
 
 // Swaps two objects using laundering mechanics to avoid intermediary objects.
@@ -146,7 +145,7 @@ constexpr auto write(storage_type* dest, storage_type value) -> void {
 template <typename type>
 constexpr auto swap(type& a, type& b) -> void {
   if !consteval {
-    alignas(alignof(type)) Unsigned_8 forgetful[sizeof(type)];
+    alignas(alignof(type)) U8 forgetful[sizeof(type)];
     memcpy(&forgetful, &a, sizeof(type));
     memcpy((void*)&a, &b, sizeof(type));
     memcpy((void*)&b, &forgetful, sizeof(type));

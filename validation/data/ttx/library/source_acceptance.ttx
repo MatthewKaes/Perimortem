@@ -2,7 +2,7 @@
 dialect : Library;
 
 @catalog("scalar") @catalog("scalar")
-public CountAlias : alias = Unsigned_64;
+public CountAlias : alias = U64;
 
 @initializer @abi("C")
 public session : Session = new[Session](.id = 7);
@@ -11,7 +11,7 @@ public session : Session = new[Session](.id = 7);
 public exported : func = [] -> CountAlias : return 7;
 
 @presentation
-public Mode : enum[Unsigned_8] {
+public Mode : enum[U8] {
   idle = 0;
   ready = 1;
 }

@@ -107,16 +107,16 @@ auto Language::Operations::Divide::evaluate_constants(
         Tetrodotoxin::Library::Language::Model::Types::Signed>(
         [&](const Tetrodotoxin::Library::Language::Model::Types::Signed& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          Signed_64 divisor = right_value->get_value();
+          S64 divisor = right_value->get_value();
           if (divisor == 0) {
             return Expression::Error(
                 Expression::Error::Type::DivisionByZero, *this);
           }
 
-          Signed_64 value = 0;
+          S64 value = 0;
           if (divisor == -1) {
-            Bool overflow = __builtin_sub_overflow(
-                Signed_64(0), left_value->get_value(), &value);
+            Bool overflow =
+                __builtin_sub_overflow(S64(0), left_value->get_value(), &value);
             if (overflow ||
                 !Core::Math::is_representable(value, type.get_size())) {
               return Expression::Error(
@@ -157,13 +157,13 @@ auto Language::Operations::Divide::evaluate_constants(
         Tetrodotoxin::Library::Language::Model::Types::Unsigned>(
         [&](const Tetrodotoxin::Library::Language::Model::Types::Unsigned& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          Unsigned_64 divisor = right_value->get_value();
+          U64 divisor = right_value->get_value();
           if (divisor == 0) {
             return Expression::Error(
                 Expression::Error::Type::DivisionByZero, *this);
           }
 
-          Unsigned_64 value = left_value->get_value() / divisor;
+          U64 value = left_value->get_value() / divisor;
           if (!Core::Math::is_representable(value, type.get_size())) {
             return Expression::Error(
                 Expression::Error::Type::ArithmeticOverflow, *this);
@@ -194,14 +194,13 @@ auto Language::Operations::Divide::evaluate_constants(
     return selected.visit<Tetrodotoxin::Library::Language::Model::Types::Real>(
         [&](const Tetrodotoxin::Library::Language::Model::Types::Real& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          if (type.get_size() == sizeof(Real_32)) {
-            Real_32 value = Real_32(left_value->get_value()) /
-                            Real_32(right_value->get_value());
-            return Constants::Real::create_synthetic(
-                domain, type, Real_64(value));
+          if (type.get_size() == sizeof(R32)) {
+            R32 value =
+                R32(left_value->get_value()) / R32(right_value->get_value());
+            return Constants::Real::create_synthetic(domain, type, R64(value));
           }
 
-          if (type.get_size() == sizeof(Real_64)) {
+          if (type.get_size() == sizeof(R64)) {
             return Constants::Real::create_synthetic(
                 domain, type,
                 left_value->get_value() / right_value->get_value());

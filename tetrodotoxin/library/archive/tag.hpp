@@ -8,7 +8,7 @@ namespace Tetrodotoxin::Library::Archive {
 // Tag is the frozen Library Archive Format 1 vocabulary. Records retain their
 // own byte extent, allowing a future reader to skip an unknown optional record
 // without interpreting any of its contents.
-enum class Tag : Unsigned_16 {
+enum class Tag : U16 {
   Source = 1,
   Import = 2,
   Foreign = 3,

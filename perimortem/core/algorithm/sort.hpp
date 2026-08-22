@@ -107,7 +107,7 @@ constexpr auto sort(Core::Access::Vector<type> access)
       }
 
       // Also a bit janky, but we always have valid data and this let's us
-      // easily capture if j would go below zero without SignedBytes_64.
+      // easily capture if j would go below zero without S64.
       Count j = i;
       do {
         Core::Data::swap(data[j - 1], data[j]);

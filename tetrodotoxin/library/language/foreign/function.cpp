@@ -30,8 +30,7 @@ auto Language::Foreign::Function::restore(
     Foreign& host) -> Option<Function&> {
   auto record = reader.read_record();
   BAIL_IF(
-      !record ||
-      record->get_tag() != Unsigned_16(Archive::Tag::ForeignFunction) ||
+      !record || record->get_tag() != U16(Archive::Tag::ForeignFunction) ||
       record->is_optional());
 
   Archive::Reader contents(record->get_payload());

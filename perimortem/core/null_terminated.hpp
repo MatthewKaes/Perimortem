@@ -23,23 +23,23 @@ inline auto to_view(const char* str) -> Perimortem::Core::View::Bytes {
     return Perimortem::Core::View::Bytes();
   }
 
-  return Perimortem::Core::View::Bytes(Data::cast<const Unsigned_8>(str), size);
+  return Perimortem::Core::View::Bytes(Data::cast<const U8>(str), size);
 }
 
 template <CppSize size_including_null>
 struct CString {
-  Unsigned_8 content[size_including_null - 1]{};
+  U8 content[size_including_null - 1]{};
 
   consteval CString(const char (&source)[size_including_null]) {
     for (Count i = 0; i < get_size(); i++) {
-      content[i] = Unsigned_8(source[i]);
+      content[i] = U8(source[i]);
     }
   }
 
   consteval operator Core::View::Bytes() const { return get_view(); }
 
   consteval auto get_size() const -> Count { return size_including_null - 1; }
-  consteval auto get_data() const -> const Unsigned_8* { return content; }
+  consteval auto get_data() const -> const U8* { return content; }
   consteval auto get_view() const -> const Core::View::Bytes {
     return Core::View::Bytes(content, get_size());
   }

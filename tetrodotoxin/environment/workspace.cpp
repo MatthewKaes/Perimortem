@@ -64,9 +64,9 @@ auto Environment::Workspace::interpret_source(
     View::Bytes semantic_name,
     View::Bytes diagnostic_path,
     View::Bytes contents) -> Option<Language::Monograph&> {
-  // Source backed graph objects retain views into this candidate Arena. Keeping
-  // the complete lexical and semantic transaction under one handle makes every
-  // rejection release those views as one lifetime decision.
+  // Source graph objects borrow bytes and Tokens from this candidate Arena.
+  // Keeping the lexical and semantic work under one handle lets any rejection
+  // release the whole unfinished graph together.
   Dynamic::Record<Allocator::Arena> transaction;
   View::Bytes retained_contents = transaction->proxy(contents);
   View::Bytes retained_path = transaction->proxy(diagnostic_path);
@@ -96,9 +96,9 @@ auto Environment::Workspace::interpret_source(
   }
 
   if (monograph->is<Package::Language::Monograph>()) {
-    // Package completion needs its fixed member barrier. Letting the direct
-    // path retain a manifest would publish aliases before their member owners
-    // exist.
+    // A manifest needs the Package path because its member table forms one
+    // completion barrier. Sending it through the direct path could expose an
+    // Alias before the member that owns its target exists.
     cursor.create_error(
         "A Package manifest must be completed through Workspace Package "
         "import."_view);
@@ -123,12 +123,16 @@ auto Environment::Workspace::interpret_source(
     return {};
   }
 
-  // Publication follows complete source semantics. Until this point the
-  // Workspace has no lookup edge or retained Arena for the candidate graph.
+  // Publication comes after the source graph completes. That ordering keeps
+  // unfinished identities out of lookup and gives the retained Arena the same
+  // lifetime as the Monograph it supports.
   published_sources.insert({
+    .package_root = {},
     .diagnostic_path = retained_path,
+    .source_text = retained_contents,
     .transaction = transaction,
     .monograph = *monograph,
+    .tokens = tokenizer.get_tokens(),
     .associations = associations,
   });
   View::Bytes retained_name = arena.proxy(semantic_name);
@@ -143,9 +147,9 @@ auto Environment::Workspace::import_package(
     View::Bytes root_logical_route,
     View::Bytes root_package_identity,
     Version root_package_version) -> Option<Language::Monograph&> {
-  // Storage has no authored Cursor until the manifest is read. Root and
-  // manifest acquisition failures stay in process diagnostics, while every
-  // later failure uses the matching source Cursor.
+  // Reading the manifest creates the first authored Cursor. Failures before
+  // that point belong to Package acquisition, while later failures can use the
+  // exact source text and Anchor from that Cursor.
   Allocator::Arena acquisition;
 
   if (!snapshots) {
@@ -179,7 +183,8 @@ auto Environment::Workspace::import_package(
   }
 
   // The manifest begins the candidate graph. Its bytes, Tokens, Cursor, and
-  // Package Monograph share one Arena so any rejection releases them together.
+  // Package Monograph share one Arena, so a rejected import releases every
+  // borrowed view together.
   Dynamic::Record<Allocator::Arena> root_transaction;
   View::Bytes root_contents = root_transaction->proxy(manifest->get_contents());
   View::Bytes root_path =
@@ -220,8 +225,8 @@ auto Environment::Workspace::import_package(
     return {};
   }
 
-  // Package interpretation establishes the complete Dependency and Source
-  // description table before Workspace acquires any member.
+  // Interpreting the manifest gives Workspace the complete Dependency and
+  // Source table before it starts acquiring members.
   Count root_error_count = errors.get_size();
   auto root_owner = Language::Dialect::interpret_source(
       toolchain.get_dialects(), root_cursor, *this);
@@ -243,16 +248,18 @@ auto Environment::Workspace::import_package(
   }
   Package::Language::Monograph& root = *selected_root;
 
-  // Package resources borrow this import's confined Storage only while sources
-  // parse. Sealing before linking removes that physical capability.
+  // Package resources borrow this import's confined Storage while sources are
+  // parsed. Sealing it before linking leaves later semantic stages with only
+  // the resources the Package already selected.
   if (!root.get_resources().connect(*storage)) {
     root_cursor.create_error(
         "The Package resource table rejected its one import storage."_view);
     return {};
   }
 
-  // Dependencies are completed Workspace facts, not nested import requests.
-  // Exact identity and version matching keeps this transaction's scope fixed.
+  // Dependencies arrive as completed Workspace facts. Matching their exact
+  // identity and version keeps this import focused on the graph named by its
+  // manifest.
   View::Vector<Package::Language::Dependency> dependencies =
       root.get_dependencies();
   for (Count dependency_index = 0; dependency_index < dependencies.get_size();
@@ -297,8 +304,9 @@ auto Environment::Workspace::import_package(
     }
   }
 
-  // Workspace keeps every candidate Arena local while Package records only
-  // borrowed mappings. An early return destroys the complete candidate set.
+  // Workspace keeps candidate Arenas local while Package records borrowed
+  // mappings into them. An early return then releases the complete candidate
+  // set before anything becomes visible.
   Dynamic::Vector<Dynamic::Record<Allocator::Arena>> candidate_transactions(
       root.get_sources().get_size() + 1);
   Managed::Vector<Language::Monograph*> candidates(acquisition);
@@ -309,8 +317,8 @@ auto Environment::Workspace::import_package(
   cursors.insert(&root_cursor);
   diagnostic_paths.insert(root_path);
 
-  // Each declared Source gets its own owner and Cursor so source backed values
-  // and diagnostics retain the member's exact text and location.
+  // Each declared Source gets its own owner and Cursor. Source values and
+  // diagnostics can then retain the exact text and location of that member.
   Bool parsed = True;
   for (const Package::Language::Source& source : root.get_sources()) {
     Option<Package::Content&> content =
@@ -354,8 +362,9 @@ auto Environment::Workspace::import_package(
       continue;
     }
 
-    // The root manifest already fixed the complete table. Accepting a Package
-    // member here would recursively grow that table outside this barrier.
+    // The root manifest has already fixed the complete member table. Treating
+    // one member as another Package would grow the table after its barrier and
+    // leave the import order responsible for its shape.
     if (member->is<Package::Language::Monograph>()) {
       cursor.create_error(
           "A Package Source cannot create another Package import."_view);
@@ -377,16 +386,18 @@ auto Environment::Workspace::import_package(
     cursors.insert(&cursor);
     diagnostic_paths.insert(source_path);
   }
-  // Source parsing is the only stage with storage access. Linking observes a
-  // sealed Package context whose semantic candidates can no longer expand.
+  // Source parsing is where Package Storage becomes authored language facts.
+  // Linking receives the sealed context after that conversion, when the set of
+  // semantic candidates is already fixed.
   root.get_resources().seal();
 
   if (!parsed) {
     return {};
   }
 
-  // Every parse valid identity must exist before any member resolves context.
-  // This keeps authored Source order from deciding which routes are visible.
+  // Every parsed identity enters the candidate set before any member resolves
+  // context. Authored Source order therefore cannot decide which routes are
+  // visible.
   Bool linked = True;
   for (Count i = 0; i < candidates.get_size(); i++) {
     Count source_error_count = errors.get_size();
@@ -404,8 +415,8 @@ auto Environment::Workspace::import_package(
     return {};
   }
 
-  // Finalization may consume linked declarations from any member, so no
-  // candidate enters it until the whole graph links.
+  // Finalization can consume linked declarations from any member. Waiting for
+  // the whole graph to link gives each candidate the same completed context.
   Bool finalized = True;
   for (Count i = 0; i < candidates.get_size(); i++) {
     Count source_error_count = errors.get_size();
@@ -423,13 +434,18 @@ auto Environment::Workspace::import_package(
     return {};
   }
 
-  // Retaining all Arenas is the transaction commit. Package aliases become
-  // durable only with their owners, and every failure above publishes nothing.
+  // Retaining every Arena commits the transaction. Package Aliases and their
+  // owners become durable together, while a failure before this point leaves
+  // the Workspace unchanged.
+  View::Bytes retained_package_root = arena.proxy(package_root);
   for (Count i = 0; i < candidate_transactions.get_size(); i++) {
     published_sources.insert({
+      .package_root = retained_package_root,
       .diagnostic_path = diagnostic_paths[i],
+      .source_text = cursors[i]->get_source_text(),
       .transaction = candidate_transactions[i],
       .monograph = *candidates[i],
+      .tokens = cursors[i]->get_tokens(),
       .associations = cursors[i]->get_associations(),
     });
   }
@@ -581,12 +597,36 @@ auto Environment::Workspace::get_associations(View::Bytes diagnostic_path) const
   return {};
 }
 
+auto Environment::Workspace::get_tokens(View::Bytes diagnostic_path) const
+    -> View::Vector<Token> {
+  for (const PublishedSource& source : published_sources.get_view()) {
+    if (source.diagnostic_path == diagnostic_path) {
+      return source.tokens;
+    }
+  }
+  return {};
+}
+
 auto Environment::Workspace::get_associations(
     const Language::Monograph& monograph) const -> Option<const Associations&> {
   for (Count i = 0; i < published_sources.get_size(); i++) {
     const PublishedSource& source = published_sources[i];
     if (&source.monograph == &monograph) {
       return source.associations;
+    }
+  }
+
+  return {};
+}
+
+auto Environment::Workspace::find_authored_location(
+    const Abstract& semantic) const -> Option<AuthoredLocation> {
+  for (const PublishedSource& source : published_sources.get_view()) {
+    auto anchor = source.associations.find(semantic);
+    if (anchor) {
+      return AuthoredLocation(
+          source.package_root, source.diagnostic_path, source.source_text,
+          *anchor);
     }
   }
 

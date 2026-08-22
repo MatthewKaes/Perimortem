@@ -9,12 +9,12 @@
 
 using namespace Perimortem;
 
-static auto select_object(Unsigned_8* payload) -> Core::Object<> {
+static auto select_object(U8* payload) -> Core::Object<> {
   return Core::Object<>(payload);
 }
 
 extern "C" auto perimortem_core_object_allocate(
-    const Core::Object<>::Descriptor* descriptor) -> Unsigned_8* {
+    const Core::Object<>::Descriptor* descriptor) -> U8* {
   if (!descriptor) {
     Core::Diagnostics::Log::fatal(
         "Core Object ABI received an empty descriptor."_view);
@@ -26,7 +26,7 @@ extern "C" auto perimortem_core_object_allocate(
 extern "C" auto perimortem_core_object_allocate_buffer(
     const Core::Object<>::Descriptor* descriptor,
     Count count,
-    Count element_size) -> Unsigned_8* {
+    Count element_size) -> U8* {
   if (!descriptor) {
     Core::Diagnostics::Log::fatal(
         "Core Object ABI received an empty descriptor."_view);
@@ -35,22 +35,22 @@ extern "C" auto perimortem_core_object_allocate_buffer(
   return Core::Object<>::create(*descriptor, count, element_size).get_payload();
 }
 
-extern "C" auto perimortem_core_object_retain(Unsigned_8* payload) -> void {
+extern "C" auto perimortem_core_object_retain(U8* payload) -> void {
   select_object(payload).retain();
 }
 
-extern "C" auto perimortem_core_object_release(Unsigned_8* payload) -> void {
+extern "C" auto perimortem_core_object_release(U8* payload) -> void {
   select_object(payload).release();
 }
 
-extern "C" auto perimortem_core_object_capacity(Unsigned_8* payload) -> Count {
+extern "C" auto perimortem_core_object_capacity(U8* payload) -> Count {
   return select_object(payload).get_capacity();
 }
 
 extern "C" auto perimortem_core_object_clone(
-    Unsigned_8* payload,
+    U8* payload,
     const Core::Object<>::Descriptor* descriptor,
-    Count element_size) -> Unsigned_8* {
+    Count element_size) -> U8* {
   if (!descriptor || element_size == 0) {
     Core::Diagnostics::Log::fatal(
         "Core Object clone received an invalid buffer contract."_view);
@@ -70,17 +70,16 @@ extern "C" auto perimortem_core_object_clone(
   return replacement.get_payload();
 }
 
-extern "C" auto perimortem_core_object_reservations(Unsigned_8* payload)
-    -> Count {
+extern "C" auto perimortem_core_object_reservations(U8* payload) -> Count {
   return select_object(payload).get_reservations();
 }
 
 extern "C" auto perimortem_core_object_reserve(
-    Unsigned_8* payload,
+    U8* payload,
     const Core::Object<>::Descriptor* descriptor,
     Count count,
     Count element_size,
-    const Unsigned_8* default_value) -> Unsigned_8* {
+    const U8* default_value) -> U8* {
   if (!descriptor || element_size == 0 || count > Count(-1) / element_size ||
       (count != 0 && !default_value)) {
     Core::Diagnostics::Log::fatal(
@@ -116,4 +115,4 @@ extern "C" auto perimortem_core_object_reserve(
   return replacement.get_payload();
 }
 
-extern "C" auto perimortem_core_object_finalize_trivial(Unsigned_8*) -> void {}
+extern "C" auto perimortem_core_object_finalize_trivial(U8*) -> void {}

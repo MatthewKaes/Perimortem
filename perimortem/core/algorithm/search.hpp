@@ -14,7 +14,7 @@ namespace Perimortem::Core::Algorithm {
 auto search(View::Bytes src, View::Bytes value) -> Count;
 
 // Fast vectorized sub string search for a particular byte in a View::Bytes.
-auto search(View::Bytes src, Unsigned_8 value) -> Count;
+auto search(View::Bytes src, U8 value) -> Count;
 
 // Returns the index of the smallest element in a View::Vector.
 // If multiple elements are the smallest then the lowest index is used.

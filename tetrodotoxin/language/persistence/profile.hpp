@@ -11,7 +11,7 @@ namespace Tetrodotoxin::Language::Persistence {
 // Complete includes its public and private query contract while Interface
 // retains only the public contract required by dependent consumers. Execution
 // remains in the Dialect's compiled Terminal products.
-enum class Profile : Unsigned_8 {
+enum class Profile : U8 {
   Complete,
   Interface,
 };

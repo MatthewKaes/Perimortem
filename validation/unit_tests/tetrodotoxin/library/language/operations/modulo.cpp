@@ -17,10 +17,10 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
-#include "tetrodotoxin/library/language/types/real_32.hpp"
-#include "tetrodotoxin/library/language/types/signed_8.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_16.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/r32.hpp"
+#include "tetrodotoxin/library/language/types/s8.hpp"
+#include "tetrodotoxin/library/language/types/u16.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -170,23 +170,22 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection_and_partial) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Signed_8 signed_8;
-  Types::Unsigned_8 unsigned_8;
-  Types::Unsigned_16 unsigned_16;
-  Types::Real_32 real_32;
+  Types::S8 s8;
+  Types::U8 u8;
+  Types::U16 u16;
+  Types::R32 r32;
   Types::Boolean boolean;
   Types::Fixed bytes_type(
-      "Fixed[Unsigned_8,1]"_view,
-      resolve_library_unsigned(source, "Unsigned_8"_view), 1);
+      "Fixed[U8,1]"_view, resolve_library_unsigned(source, "U8"_view), 1);
   ModuloUnresolvedType unresolved_type;
-  ModuloExpression signed_left("signed left"_view, signed_8);
-  ModuloExpression signed_right("signed right"_view, signed_8);
-  ModuloExpression unsigned_left("unsigned left"_view, unsigned_8);
-  ModuloExpression unsigned_right("unsigned right"_view, unsigned_8);
-  ModuloExpression other("other"_view, unsigned_16);
+  ModuloExpression signed_left("signed left"_view, s8);
+  ModuloExpression signed_right("signed right"_view, s8);
+  ModuloExpression unsigned_left("unsigned left"_view, u8);
+  ModuloExpression unsigned_right("unsigned right"_view, u8);
+  ModuloExpression other("other"_view, u16);
   ModuloExpression unresolved("unresolved"_view, unresolved_type);
   ModuloExpression invalid("invalid"_view, Invalid::get_invalid());
-  auto& real = Constants::Real::create_synthetic(domain, real_32, 1.0);
+  auto& real = Constants::Real::create_synthetic(domain, r32, 1.0);
   auto& truth = Constants::True::create_synthetic(domain, boolean);
   auto& bytes =
       Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
@@ -218,8 +217,8 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection_and_partial) {
 
   auto retained = selected(unsigned_exact.fold());
 
-  EXPECT(&signed_exact.get_type() == &signed_8);
-  EXPECT(&unsigned_exact.get_type() == &unsigned_8);
+  EXPECT(&signed_exact.get_type() == &s8);
+  EXPECT(&unsigned_exact.get_type() == &u8);
   EXPECT_NOT(retained);
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
   EXPECT(unresolved_pair.get_type().resolve().is<Invalid>());
@@ -233,8 +232,8 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, integer_remainders) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Signed_8 signed_type;
-  Types::Unsigned_8 unsigned_type;
+  Types::S8 signed_type;
+  Types::U8 unsigned_type;
   auto& positive = Constants::Signed::create_synthetic(domain, signed_type, 7);
   auto& negative = Constants::Signed::create_synthetic(domain, signed_type, -7);
   auto& three = Constants::Signed::create_synthetic(domain, signed_type, 3);
@@ -325,17 +324,16 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, integer_remainders) {
       positive_fold && negative_fold && negative_divisor_fold &&
       both_negative_fold && zero_fold && one_fold && minimum_fold &&
       unsigned_fold && unsigned_zero_fold && unsigned_endpoint_fold);
-  EXPECT(value_is<Constants::Signed>(*positive_fold, Signed_64(1)));
-  EXPECT(value_is<Constants::Signed>(*negative_fold, Signed_64(-1)));
-  EXPECT(value_is<Constants::Signed>(*negative_divisor_fold, Signed_64(1)));
-  EXPECT(value_is<Constants::Signed>(*both_negative_fold, Signed_64(-1)));
-  EXPECT(value_is<Constants::Signed>(*zero_fold, Signed_64(0)));
-  EXPECT(value_is<Constants::Signed>(*one_fold, Signed_64(0)));
-  EXPECT(value_is<Constants::Signed>(*minimum_fold, Signed_64(-2)));
-  EXPECT(value_is<Constants::Unsigned>(*unsigned_fold, Unsigned_64(1)));
-  EXPECT(value_is<Constants::Unsigned>(*unsigned_zero_fold, Unsigned_64(0)));
-  EXPECT(
-      value_is<Constants::Unsigned>(*unsigned_endpoint_fold, Unsigned_64(0)));
+  EXPECT(value_is<Constants::Signed>(*positive_fold, S64(1)));
+  EXPECT(value_is<Constants::Signed>(*negative_fold, S64(-1)));
+  EXPECT(value_is<Constants::Signed>(*negative_divisor_fold, S64(1)));
+  EXPECT(value_is<Constants::Signed>(*both_negative_fold, S64(-1)));
+  EXPECT(value_is<Constants::Signed>(*zero_fold, S64(0)));
+  EXPECT(value_is<Constants::Signed>(*one_fold, S64(0)));
+  EXPECT(value_is<Constants::Signed>(*minimum_fold, S64(-2)));
+  EXPECT(value_is<Constants::Unsigned>(*unsigned_fold, U64(1)));
+  EXPECT(value_is<Constants::Unsigned>(*unsigned_zero_fold, U64(0)));
+  EXPECT(value_is<Constants::Unsigned>(*unsigned_endpoint_fold, U64(0)));
   EXPECT(&positive_fold->get_type() == &signed_type);
   EXPECT(&unsigned_fold->get_type() == &unsigned_type);
   EXPECT(reports(
@@ -359,7 +357,7 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, recursive_provenance_and_atomicity) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 selected_type;
+  Types::U8 selected_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
   auto& folded =
       Constants::Unsigned::create_synthetic(domain, selected_type, 13);
@@ -381,12 +379,12 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, recursive_provenance_and_atomicity) {
 
   ASSERT(first && second);
   EXPECT(&*first == &*second);
-  EXPECT(value_is<Constants::Unsigned>(*first, Unsigned_64(3)));
+  EXPECT(value_is<Constants::Unsigned>(*first, U64(3)));
   EXPECT(child.get_evaluations() == 1);
   EXPECT(reports(
       failure.fold(), Expression::Error::Type::InvalidConstant, failing));
 
-  const auto& parser_type = resolve_library_signed(source, "Signed_64"_view);
+  const auto& parser_type = resolve_library_signed(source, "S64"_view);
   Errors success_errors;
   Tokenizer success_tokens(domain, "-7 % -3"_view, "modulo.ttx"_view);
   Ttx::Lexical::Associations success_associations(success_tokens.get_arena());
@@ -424,9 +422,9 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, recursive_provenance_and_atomicity) {
   auto parsed_fold = parsed->visit<Operation>(
       [&](Operation& operation) { return selected(operation.fold()); },
       [](Abstract&) -> Option<Expression&> { return {}; });
-  auto parsed_value =
-      parsed_fold ? get_value<Constants::Signed, Signed_64>(*parsed_fold)
-                  : Option<Signed_64>();
+  auto parsed_value = parsed_fold
+                          ? get_value<Constants::Signed, S64>(*parsed_fold)
+                          : Option<S64>();
 
   ASSERT(parsed_value);
   EXPECT(*parsed_value == -1);

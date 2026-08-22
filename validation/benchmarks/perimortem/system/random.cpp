@@ -20,7 +20,7 @@ static Harness SystemRandom = {
 
 PERIMORTEM_BENCHMARK(SystemRandom, generate_1024) {
   // Throughput benchmark: 1024 Philox-derived 64-bit values.
-  Unsigned_64 accumulator = 0;
+  U64 accumulator = 0;
   for (Count batch_index = 0; batch_index < random_batch; batch_index++) {
     accumulator ^= Random::generate();
   }
@@ -30,7 +30,7 @@ PERIMORTEM_BENCHMARK(SystemRandom, generate_1024) {
 
 PERIMORTEM_BENCHMARK(SystemRandom, read_entropy_1024) {
   // Throughput benchmark: 1024 OS entropy reads.
-  Unsigned_64 accumulator = 0;
+  U64 accumulator = 0;
   for (Count batch_index = 0; batch_index < random_batch; batch_index++) {
     accumulator ^= Random::read_entropy();
   }

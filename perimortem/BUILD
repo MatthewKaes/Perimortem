@@ -23,17 +23,47 @@ cc_library(
 )
 
 cc_library(
-    name = "abi",
-    srcs = glob([
-        "abi/**/*.cpp",
-    ]),
-    hdrs = glob(["abi/**/*.hpp"]),
+    name = "abi_core",
+    srcs = glob(["abi/core/*.cpp"]) + ["abi/log.cpp"],
+    hdrs = glob(["abi/core/*.hpp"]),
     copts = ["-Wreturn-type-c-linkage"],
     includes = ["."],
     deps = [
         ":core",
+    ],
+)
+
+cc_library(
+    name = "abi_memory",
+    hdrs = glob(["abi/memory/**/*.hpp"]),
+    includes = ["."],
+    deps = [
+        ":core",
+        ":memory",
+    ],
+)
+
+cc_library(
+    name = "abi_system",
+    srcs = glob(["abi/system/*.cpp"]),
+    hdrs = glob(["abi/system/*.hpp"]),
+    copts = ["-Wreturn-type-c-linkage"],
+    includes = ["."],
+    deps = [
+        ":abi_core",
+        ":abi_memory",
+        ":core",
         ":memory",
         ":system",
+    ],
+)
+
+cc_library(
+    name = "abi",
+    deps = [
+        ":abi_core",
+        ":abi_memory",
+        ":abi_system",
     ],
 )
 

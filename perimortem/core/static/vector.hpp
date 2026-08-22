@@ -25,7 +25,7 @@ class Vector {
 
   // Static vectors initialize their complete storage from one aggregate
   // source. Call sites use an extra pair of braces to create that source, as in
-  // `Static::Vector<Unsigned_8, 3> values = {{1, 2, 3}}`.
+  // `Static::Vector<U8, 3> values = {{1, 2, 3}}`.
   //
   // Tables of aggregate elements spell the first value's type so the outer
   // list resolves to Storage before C++ elides the remaining element braces.

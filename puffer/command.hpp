@@ -10,13 +10,13 @@ namespace Puffer {
 // Command retains one native invocation and selects its single requested mode.
 class Command {
  public:
-  constexpr Command(Signed_32 argument_count, char** argument_values)
+  constexpr Command(S32 argument_count, char** argument_values)
       : argument_count(argument_count), argument_values(argument_values) {}
 
-  auto run() const -> Signed_32;
+  auto run() const -> S32;
 
  private:
-  Signed_32 argument_count;
+  S32 argument_count;
   char** argument_values;
 };
 

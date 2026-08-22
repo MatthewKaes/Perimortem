@@ -24,7 +24,7 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // the final discard case for absence. A selected body never falls through.
 class Match : public Ttx::Concept::Abstract {
  public:
-  enum class CaseKind : Unsigned_8 {
+  enum class CaseKind : U8 {
     Constant,
     Value,
   };

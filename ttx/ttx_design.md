@@ -38,43 +38,35 @@ The benefit is that a consumer can ask the original semantic object for the
 contract it needs. The cost is that there is no universal declaration record to
 inspect when the concrete owner has not exposed that contract.
 
-## Lessons from LLVM IR
+## One meaning, several consumers
 
-TTX draws heavily from LLVM IR's success as a focused intermediate
-representation.
-LLVM IR has a clear place in the compilation pipeline, a bounded common
-vocabulary, explicit context and module ownership, and well defined transitions
-into target products. TTX applies those lessons to an earlier boundary where
-source languages and tools still need access to semantic meaning.
+An extensible toolchain works best when every useful fact has one clear owner.
+A concrete language creates the semantic identity because it knows what that
+identity means. TTX gives other domains a small set of stable questions they can
+ask of the same object.
 
-The first column names an LLVM IR design area. The other columns show what TTX
-carries forward and where it chooses a different boundary.
+That arrangement lets one completed Workspace serve several kinds of consumer:
 
-| LLVM IR | Similarities | Key differences |
-| --- | --- | --- |
-| **Primary role.** LLVM IR represents a lowered program for optimization and code generation | Both provide a focused vocabulary between producers and consumers | TTX represents semantic identity and applicability before a concrete lowering has been chosen |
-| **Type identity.** LLVM Types belong to an LLVM context and describe values admitted by the lowered program | Both make identity meaningful within an owning live context | A TTX Type is the exact object constructed by its language owner. Equal structure or equal Layout never creates Type identity |
-| **Physical layout.** LLVM DataLayout gives target size and alignment meaning to IR Types | Both require target specific information before typed input becomes a physical machine representation | TTX Layout answers semantic fitting only. Concrete languages define scalar families and abstract machine storage requirements. Target object layout, offsets, registers, address spaces, pointer forms, and calling conventions belong to the Terminal producer |
-| **Composition.** LLVM links lowered modules and definitions | Both let independently constructed parts meet through explicit contracts | TTX connects owner constructed identities while their richer language semantics are still live in one graph |
-| **Transformation.** LLVM passes intentionally replace instructions and values | Both allow later stages to derive more specific facts | A successful TTX identity remains stable while later phases connect it, complete it, and answer richer queries |
-| **Extension model.** LLVM extends its program model through instructions, intrinsics, metadata, passes, and targets | Both keep specialized facts with specialized producers and consumers | TTX concrete languages retain their complete models behind a closed shared semantic vocabulary |
-| **Source relationship.** LLVM IR intentionally leaves most source structure behind during lowering | Neither representation needs to be a universal syntax tree | TTX leaves spelling, syntax, and source shaped facts with the concrete language owner from the beginning |
-| **Durable form.** LLVM textual IR and bitcode preserve LLVM IR outside one process | Both require an explicit format when a result must outlive its producer | The TTX graph has no generic serialized form. Each Terminal producer defines its output, and semantic restoration constructs a fresh graph from facts defined by their semantic owners |
-| **Verification.** LLVM IR structure is a public product accepted by verifiers and downstream tools | Both benefit from testing observable behavior through independent consumers | TTX graph shape matters only where identity, order, resolution, or another semantic contract makes it observable. A Terminal is proved through its own format and consumer |
-| **Ecosystem.** LLVM provides optimizers, code generators, debugger integration, and broad language support | Both are infrastructure intended to be embedded in larger systems | TTX stays focused on semantic composition and relies on systems such as LLVM for downstream optimization and target support |
+* Package follows names, dependencies, and reconstructable language facts
+* Editors use source Anchors, Documentation, and semantic categories
+* Compilers use Type, Pack, Layout, Addressable, and Callable contracts
+* Runtimes receive finished products and the values defined by their language
+* Language aware tools can still inspect the richer concrete object
 
-There has also been continuing work across LLVM, including LLDB, to make source
-language, debugger, and expression evaluation models more modular. Those
-systems must preserve established APIs and C and C++ behavior. TTX follows the
-same ownership direction from the other logical extreme. TTX was designed
-without inheriting a frontend or debugger compatibility surface, so each
-concrete language owns its complete set of Types from the beginning.
+The shared graph remains live while those domains need to cooperate. Later
+stages can connect an identity, complete it, and answer richer queries, but the
+identity itself stays stable. This gives every consumer the same answer without
+making one consumer's representation the toolchain's universal model.
 
-LLVM IR remains the stronger choice once a project needs its optimizer, target
-model, code generators, or surrounding tool ecosystem. TTX is useful earlier,
-when several language and tool owners must share exact semantic relationships
-without turning one frontend or backend representation into the universal
-model. The two layers can be used together.
+Physical representation begins only when a product needs it. A CPU compiler
+chooses registers and calling conventions. A GPU compiler chooses storage
+classes and bindings. An Archive writer chooses durable reconstruction facts.
+TTX Layout continues to describe semantic shape and fitting across all three
+uses.
+
+Finished compiler formats remain valuable downstream tools within the platform.
+Their role is to carry the completed facts needed by a target, while TTX keeps
+the language meaning shared by the wider Workspace.
 
 ## Source, Tokens, and meaning
 
@@ -92,6 +84,11 @@ Direct construction removes a translation layer and lets each language preserve
 the distinctions its consumers actually use. The corresponding cost is that
 TTX cannot provide generic AST visitors or source transformations across
 unrelated languages.
+
+TTX stores source locations as byte offsets because its source is UTF 8. Editors
+sometimes count characters another way, so the editor host translates
+positions from the retained text when it prepares a response. Keeping that
+translation at the edge lets every editor use the same Anchors.
 
 The ownership progression is:
 
@@ -382,15 +379,9 @@ used only from source need no reconstruction contract. Each target must derive
 physical representation. Generic AST traversal, operation rewriting, and
 backend services come from other layers rather than TTX.
 
-LLVM IR is the direct choice when the problem begins with lowered computation.
-MLIR is the stronger foundation when extensible operation based transformation
-is the central design. Clang is the stronger foundation when faithful C or C++
-semantics and tooling are the product. A conventional language AST and typed
-intermediate representation are usually simpler when one frontend owns the
-whole program.
-
-TTX occupies the earlier boundary where independent owners still need to share
-meaning. Concrete languages decide which Types exist, how names are published,
-which writes are legal, how Callables are selected, and how expressions produce
-Packs. Targets, runtimes, packages, and tools consume those facts without
-becoming new TTX categories.
+A smaller source model may be enough when one language owns the whole program
+and one consumer owns every output. TTX earns its place when independent owners
+still need to share meaning. Concrete languages decide which Types exist, how
+names are published, which writes are legal, how Callables are selected, and
+how expressions produce Packs. Targets, runtimes, Packages, and tools consume
+those facts without becoming new TTX categories.

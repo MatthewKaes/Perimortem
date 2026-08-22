@@ -52,7 +52,7 @@ class Worker {
  private:
   // pthread_t is an unsigned long on Linux x86_64 (8 bytes, 8-byte aligned).
   // Validated by static_assert in thread.cpp.
-  Unsigned_64 handle = 0;
+  U64 handle = 0;
 };
 
 }  // namespace Perimortem::Core::Thread

@@ -22,17 +22,15 @@ using namespace Ttx::Model;
 static auto is_integer_type(const Abstract& selected) -> Bool {
   return selected.visit<Tetrodotoxin::Library::Language::Model::Types::Signed>(
       [](const Tetrodotoxin::Library::Language::Model::Types::Signed& type) {
-        return type.get_size() > 0 && type.get_size() <= sizeof(Signed_64)
-                   ? True
-                   : False;
+        return type.get_size() > 0 && type.get_size() <= sizeof(S64) ? True
+                                                                     : False;
       },
       [](const Abstract& selected) {
         return selected.visit<
             Tetrodotoxin::Library::Language::Model::Types::Unsigned>(
             [](const Tetrodotoxin::Library::Language::Model::Types::Unsigned&
                    type) {
-              return type.get_size() > 0 &&
-                             type.get_size() <= sizeof(Unsigned_64)
+              return type.get_size() > 0 && type.get_size() <= sizeof(U64)
                          ? True
                          : False;
             },
@@ -123,17 +121,17 @@ auto Language::Operations::Modulo::evaluate_constants(
         Tetrodotoxin::Library::Language::Model::Types::Signed>(
         [&](const Tetrodotoxin::Library::Language::Model::Types::Signed& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          Signed_64 divisor = right_value->get_value();
+          S64 divisor = right_value->get_value();
           if (divisor == 0) {
             return Expression::Error(
                 Expression::Error::Type::DivisionByZero, *this);
           }
 
-          Signed_64 value = 0;
+          S64 value = 0;
           if (divisor == -1) {
-            Signed_64 negated = 0;
+            S64 negated = 0;
             Bool overflow = __builtin_sub_overflow(
-                Signed_64(0), left_value->get_value(), &negated);
+                S64(0), left_value->get_value(), &negated);
             if (overflow ||
                 !Core::Math::is_representable(negated, type.get_size())) {
               return Expression::Error(
@@ -174,13 +172,13 @@ auto Language::Operations::Modulo::evaluate_constants(
         Tetrodotoxin::Library::Language::Model::Types::Unsigned>(
         [&](const Tetrodotoxin::Library::Language::Model::Types::Unsigned& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          Unsigned_64 divisor = right_value->get_value();
+          U64 divisor = right_value->get_value();
           if (divisor == 0) {
             return Expression::Error(
                 Expression::Error::Type::DivisionByZero, *this);
           }
 
-          Unsigned_64 value = left_value->get_value() % divisor;
+          U64 value = left_value->get_value() % divisor;
           if (!Core::Math::is_representable(value, type.get_size())) {
             return Expression::Error(
                 Expression::Error::Type::ArithmeticOverflow, *this);

@@ -27,43 +27,43 @@ PERIMORTEM_UNIT_TEST(SerializationStream, binary_endian) {
   Dynamic::Bytes output;
   Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> writer(output);
 
-  writer << Unsigned_16(0x1234) << Unsigned_32(0xAABBCCDD) << "OK"_view;
+  writer << U16(0x1234) << U32(0xAABBCCDD) << "OK"_view;
 
   ASSERT_EQ(output.get_size(), Count(8));
-  EXPECT_EQ(output[0], Unsigned_8(0x34));
-  EXPECT_EQ(output[1], Unsigned_8(0x12));
-  EXPECT_EQ(output[2], Unsigned_8(0xDD));
-  EXPECT_EQ(output[3], Unsigned_8(0xCC));
-  EXPECT_EQ(output[4], Unsigned_8(0xBB));
-  EXPECT_EQ(output[5], Unsigned_8(0xAA));
-  EXPECT_EQ(output[6], Unsigned_8('O'));
-  EXPECT_EQ(output[7], Unsigned_8('K'));
+  EXPECT_EQ(output[0], U8(0x34));
+  EXPECT_EQ(output[1], U8(0x12));
+  EXPECT_EQ(output[2], U8(0xDD));
+  EXPECT_EQ(output[3], U8(0xCC));
+  EXPECT_EQ(output[4], U8(0xBB));
+  EXPECT_EQ(output[5], U8(0xAA));
+  EXPECT_EQ(output[6], U8('O'));
+  EXPECT_EQ(output[7], U8('K'));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationStream, big_endian) {
   Dynamic::Bytes output;
   Stream::Binary<Data::ByteOrder::Big, Dynamic::Bytes> writer(output);
 
-  writer << Unsigned_16(0x1234) << Unsigned_32(0xAABBCCDD);
+  writer << U16(0x1234) << U32(0xAABBCCDD);
 
   ASSERT_EQ(output.get_size(), Count(6));
-  EXPECT_EQ(output[0], Unsigned_8(0x12));
-  EXPECT_EQ(output[1], Unsigned_8(0x34));
-  EXPECT_EQ(output[2], Unsigned_8(0xAA));
-  EXPECT_EQ(output[3], Unsigned_8(0xBB));
-  EXPECT_EQ(output[4], Unsigned_8(0xCC));
-  EXPECT_EQ(output[5], Unsigned_8(0xDD));
+  EXPECT_EQ(output[0], U8(0x12));
+  EXPECT_EQ(output[1], U8(0x34));
+  EXPECT_EQ(output[2], U8(0xAA));
+  EXPECT_EQ(output[3], U8(0xBB));
+  EXPECT_EQ(output[4], U8(0xCC));
+  EXPECT_EQ(output[5], U8(0xDD));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationStream, binary_reals) {
   Static::Bytes<12> expected;
   Writer::Binary<Data::ByteOrder::Little> expected_writer(
       expected.get_access());
-  expected_writer << Real_32(12.5) << Real_64(-0.125);
+  expected_writer << R32(12.5) << R64(-0.125);
 
   Dynamic::Bytes output;
   Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> writer(output);
-  writer << Real_32(12.5) << Real_64(-0.125);
+  writer << R32(12.5) << R64(-0.125);
 
   EXPECT(output.get_view() == expected.get_view());
 }
@@ -72,12 +72,12 @@ PERIMORTEM_UNIT_TEST(SerializationStream, binary_appends) {
   Dynamic::Bytes output("prefix"_view);
   Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> writer(output);
 
-  writer << View::Bytes() << Unsigned_16(0x1234);
+  writer << View::Bytes() << U16(0x1234);
 
   ASSERT_EQ(output.get_size(), Count(8));
   EXPECT_TEXT(output.slice(0, 6), "prefix"_view);
-  EXPECT_EQ(output[6], Unsigned_8(0x34));
-  EXPECT_EQ(output[7], Unsigned_8(0x12));
+  EXPECT_EQ(output[6], U8(0x34));
+  EXPECT_EQ(output[7], U8(0x12));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationStream, managed_write) {
@@ -85,19 +85,19 @@ PERIMORTEM_UNIT_TEST(SerializationStream, managed_write) {
   Managed::Bytes output(arena);
   Stream::Binary<Data::ByteOrder::Little, Managed::Bytes> writer(output);
 
-  writer << Unsigned_8(0x7F) << Unsigned_16(0x1234);
+  writer << U8(0x7F) << U16(0x1234);
 
   ASSERT_EQ(output.get_size(), Count(3));
-  EXPECT_EQ(output[0], Unsigned_8(0x7F));
-  EXPECT_EQ(output[1], Unsigned_8(0x34));
-  EXPECT_EQ(output[2], Unsigned_8(0x12));
+  EXPECT_EQ(output[0], U8(0x7F));
+  EXPECT_EQ(output[1], U8(0x34));
+  EXPECT_EQ(output[2], U8(0x12));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationStream, vector_write) {
-  Static::Vector<Unsigned_16, 3> values = {{
-    Unsigned_16(0x0102),
-    Unsigned_16(0x0304),
-    Unsigned_16(0x0506),
+  Static::Vector<U16, 3> values = {{
+    U16(0x0102),
+    U16(0x0304),
+    U16(0x0506),
   }};
   Dynamic::Bytes output;
   Stream::Binary<Data::ByteOrder::Big, Dynamic::Bytes> writer(output);
@@ -105,19 +105,19 @@ PERIMORTEM_UNIT_TEST(SerializationStream, vector_write) {
   writer << values.get_view();
 
   ASSERT_EQ(output.get_size(), Count(6));
-  EXPECT_EQ(output[0], Unsigned_8(0x01));
-  EXPECT_EQ(output[1], Unsigned_8(0x02));
-  EXPECT_EQ(output[2], Unsigned_8(0x03));
-  EXPECT_EQ(output[3], Unsigned_8(0x04));
-  EXPECT_EQ(output[4], Unsigned_8(0x05));
-  EXPECT_EQ(output[5], Unsigned_8(0x06));
+  EXPECT_EQ(output[0], U8(0x01));
+  EXPECT_EQ(output[1], U8(0x02));
+  EXPECT_EQ(output[2], U8(0x03));
+  EXPECT_EQ(output[3], U8(0x04));
+  EXPECT_EQ(output[4], U8(0x05));
+  EXPECT_EQ(output[5], U8(0x06));
 }
 
 PERIMORTEM_UNIT_TEST(SerializationStream, native_vector) {
-  Static::Vector<Unsigned_32, 3> values = {{
-    Unsigned_32(0x01020304),
-    Unsigned_32(0x11223344),
-    Unsigned_32(0xAABBCCDD),
+  Static::Vector<U32, 3> values = {{
+    U32(0x01020304),
+    U32(0x11223344),
+    U32(0xAABBCCDD),
   }};
   Dynamic::Bytes output;
   Stream::Binary<Data::ByteOrder::Native, Dynamic::Bytes> writer(output);
@@ -132,8 +132,8 @@ PERIMORTEM_UNIT_TEST(SerializationStream, textual_api) {
   Dynamic::Bytes output;
   Stream::Textual<Dynamic::Bytes> writer(output);
 
-  writer << "value="_view << Unsigned_32(120000) << ","_view << Signed_32(-31)
-         << " "_view << True;
+  writer << "value="_view << U32(120000) << ","_view << S32(-31) << " "_view
+         << True;
 
   EXPECT_TEXT(output, "value=120000,-31 true"_view);
 }
@@ -142,7 +142,7 @@ PERIMORTEM_UNIT_TEST(SerializationStream, textual_appends) {
   Dynamic::Bytes output("prefix="_view);
   Stream::Textual<Dynamic::Bytes> writer(output);
 
-  writer << Unsigned_8(42) << ";payload"_view;
+  writer << U8(42) << ";payload"_view;
 
   EXPECT_TEXT(output, "prefix=42;payload"_view);
 }
@@ -152,7 +152,7 @@ PERIMORTEM_UNIT_TEST(SerializationStream, managed_textual) {
   Managed::Bytes output(arena);
   Stream::Textual<Managed::Bytes> writer(output);
 
-  writer << Real_32(12.5) << " "_view << False;
+  writer << R32(12.5) << " "_view << False;
 
   EXPECT_TEXT(output.get_view(), "12.5 false"_view);
 }

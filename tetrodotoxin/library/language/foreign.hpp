@@ -29,7 +29,7 @@ class Foreign final : public Ttx::Concept::Abstract {
   // State Types settle before Function signatures may consume them. Finalize is
   // a publication barrier only because bodyless declarations add no later graph
   // identities or evaluation work.
-  enum class Stage : Unsigned_8 {
+  enum class Stage : U8 {
     Authored,
     TypesLinked,
     CallablesLinked,

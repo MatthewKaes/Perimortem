@@ -1,24 +1,23 @@
 # TTX
 
-TTX is a small shared vocabulary for tools and languages that need to describe
-the same program. It defines common ideas such as Types, values, addresses,
-callable code, and the shape of data without forcing every language into one
-syntax tree or one universal type system.
+TTX is the shared semantic vocabulary that makes Tetrodotoxin extensible. It
+gives purpose specific languages a common way to describe Types, values,
+addresses, Callables, Layouts, source locations, and documentation while each
+language keeps the model that makes its domain useful.
 
-Each language still decides what its source means. TTX only defines the pieces
-that a Package manager, compiler, editor, or runtime may need to inspect. Those
-systems can refer to the same program object directly instead of building and
-synchronizing private copies.
+A Package manager, editor, compiler, or runtime can ask those common questions
+of the original language object. The answer stays attached to one identity
+instead of being copied into a private model for every tool.
 
-[Tetrodotoxin](../tetrodotoxin/README.md) is the reference host in this
-repository. It uses TTX to keep the objects created by several languages in one
-Workspace. Tetrodotoxin provides Packages, compilers, and runtime policy, while
-TTX remains independent from those choices.
+[Tetrodotoxin](../tetrodotoxin/README.md) brings those objects together in one
+Workspace. TTX remains small enough to be used by another host, but its clearest
+role in this repository is the semantic foundation shared by the complete
+Tetrodotoxin platform.
 
 ## Where TTX sits
 
-TTX sits between reading source and producing a file for a particular tool or
-machine:
+TTX connects authored source to every part of the platform that needs to
+understand its meaning:
 
 ```text
 authored source
@@ -28,17 +27,12 @@ authored source
 -> LLVM IR, SPIR-V, editor data, Archives, or another final product
 ```
 
-The live graph keeps facts that still matter before a target, runtime, or output
-format has been chosen. A tool can ask which Type an Alias represents, which
-Type an Addressable reaches, which values a Pack supplies, which Layout a
-Callable accepts, or whether one Layout fits another. TTX does not decide how
-those facts become registers, offsets, editor messages, or stored bytes.
-
-TTX therefore appears earlier than LLVM IR in a compiler. LLVM IR describes
-computation after the language has chosen a form suitable for optimization and
-machine-code generation. TTX keeps language-level meaning available while
-several languages and tools are still putting the program together. A project
-can use TTX for that shared meaning and LLVM IR for CPU compilation.
+The live graph keeps facts that still matter while languages and tools are
+putting the program together. A tool can ask which Type an Alias represents,
+which Type an Addressable reaches, which values a Pack supplies, which Layout a
+Callable accepts, or whether one Layout fits another. Physical registers,
+offsets, editor messages, and stored bytes appear later in the component that
+owns each product.
 
 ## The shared vocabulary
 
@@ -159,49 +153,43 @@ A restored Archive must present the same public names, categories,
 relationships, order, Layout behavior, and language facts. It does not need to
 reproduce process addresses or the old in-memory arrangement.
 
-## Relationship to other compiler models
+## How the platform uses TTX
 
-[LLVM IR](https://llvm.org/docs/LangRef.html) is the natural companion when a
-completed program needs optimization and machine code. It is already past many
-of the source and language decisions that TTX keeps available.
+TTX gives each part of Tetrodotoxin a useful view of the same program:
 
-[MLIR](https://mlir.llvm.org/) is a closer comparison when a project needs an
-extensible family of intermediate representations and rewrite pipelines. TTX
-also lets independently owned domains compose, but they meet through semantic
-identities rather than expressing every domain as operations and values. MLIR
-is a stronger fit when progressive transformation is the center of the design.
-TTX is aimed at the earlier problem of sharing meaning before the project
-commits to one lowered representation.
+* Dialects publish exact semantic identities while retaining their own grammar
+  and richer language rules
+* Workspace keeps those identities and their source transactions alive through
+  completion
+* Package connects sources and dependencies through stable authored routes
+* Puffer uses Anchors, Documentation, and common semantic categories for editor
+  services
+* Compilers consume Types, Packs, Layouts, Addressables, and Callables before
+  choosing a physical representation
+* Archive writers ask each persistent Dialect for the facts needed to build a
+  fresh equivalent Monograph
 
-A language AST remains the direct choice when one frontend owns the source and
-needs a rich model of its declarations and syntax. Clang is the stronger choice
-when faithful C or C++ semantics and its mature tooling ecosystem are the
-product. TTX gains a smaller cross-language boundary by leaving those rich
-rules with each concrete language. The cost is that TTX does not provide them
-on the language's behalf.
+No single consumer becomes the master model for the others. The common graph
+stays focused on meaning that crosses a boundary, while a compiler module,
+debug record, formatted source, or Archive carries the facts needed by its next
+consumer.
 
-## Is TTX a fit for my project?
+## Why keep the boundary small?
 
-TTX is designed for projects where several languages or semantic domains must
-compose before lowering, or where packages, editors, compilers, and runtimes
-would otherwise keep translating the same facts into private models. It is
-particularly useful when exact identity matters across those boundaries and
-when one completed graph must feed several independent products.
+TTX is most useful when several languages or semantic domains compose in one
+Workspace, or when Packages, editors, compilers, and runtimes would otherwise
+translate the same facts into private models. Exact identity can then cross
+those boundaries and one completed graph can feed several products.
 
-That flexibility asks more of a project than a conventional compiler stack.
-Every concrete language must own its grammar, semantic objects, diagnostics,
-and the work it contributes to the host's completion barriers. A persistent
-language must also define and validate the facts needed to reconstruct its part
-of the graph. Persistence is optional. TTX does not provide a generic AST,
-optimizer, ABI model, target layout engine, debugger model, or graph
-serializer.
+That flexibility asks each language to own its grammar, semantic objects,
+diagnostics, and contribution to the host's completion barriers. A persistent
+language also defines and validates the facts needed to reconstruct its part of
+the graph. TTX supplies the shared contracts rather than guessing those richer
+rules on the language's behalf.
 
-Another foundation is probably a better fit when the project begins with
-lowered computation, when operation rewriting is the main abstraction, when C
-or C++ compatibility is required, or when one language can be served cleanly by
-one AST and one typed intermediate representation. TTX is a semantic companion
-to downstream compiler infrastructure, not a drop in replacement for the LLVM
-or Clang ecosystems.
+Keeping the boundary small is what makes it useful to a family of domain
+specific languages. A new Dialect can expose the pieces that cooperate with the
+platform without surrendering the concepts that make its source worth having.
 
 ## Further reading
 
@@ -209,5 +197,5 @@ or Clang ecosystems.
   and Terminal boundaries take this form.
 * [TTX semantics](ttx_semantics.md) is the normative lexical and semantic
   contract.
-* [Tetrodotoxin](../tetrodotoxin/README.md) shows how the reference host
+* [Tetrodotoxin](../tetrodotoxin/README.md) shows how the complete platform
   composes concrete languages around TTX.

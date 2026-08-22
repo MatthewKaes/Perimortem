@@ -14,12 +14,12 @@
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
-#include "tetrodotoxin/library/language/types/real_32.hpp"
-#include "tetrodotoxin/library/language/types/real_64.hpp"
-#include "tetrodotoxin/library/language/types/signed_8.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_16.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_64.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/r32.hpp"
+#include "tetrodotoxin/library/language/types/r64.hpp"
+#include "tetrodotoxin/library/language/types/s8.hpp"
+#include "tetrodotoxin/library/language/types/u16.hpp"
+#include "tetrodotoxin/library/language/types/u64.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -89,45 +89,45 @@ static auto reports(
       });
 }
 
-static auto get_unsigned(const Expression& expression) -> Option<Unsigned_64> {
+static auto get_unsigned(const Expression& expression) -> Option<U64> {
   return expression.visit<Constants::Unsigned>(
-      [](const Constants::Unsigned& value) -> Option<Unsigned_64> {
+      [](const Constants::Unsigned& value) -> Option<U64> {
         return value.get_value();
       },
-      [](const Abstract&) -> Option<Unsigned_64> { return {}; });
+      [](const Abstract&) -> Option<U64> { return {}; });
 }
 
-static auto get_signed(const Expression& expression) -> Option<Signed_64> {
+static auto get_signed(const Expression& expression) -> Option<S64> {
   return expression.visit<Constants::Signed>(
-      [](const Constants::Signed& value) -> Option<Signed_64> {
+      [](const Constants::Signed& value) -> Option<S64> {
         return value.get_value();
       },
-      [](const Abstract&) -> Option<Signed_64> { return {}; });
+      [](const Abstract&) -> Option<S64> { return {}; });
 }
 
-static auto get_real(const Expression& expression) -> Option<Real_64> {
+static auto get_real(const Expression& expression) -> Option<R64> {
   return expression.visit<Constants::Real>(
-      [](const Constants::Real& value) -> Option<Real_64> {
+      [](const Constants::Real& value) -> Option<R64> {
         return value.get_value();
       },
-      [](const Abstract&) -> Option<Real_64> { return {}; });
+      [](const Abstract&) -> Option<R64> { return {}; });
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, exact_type_selection_and_partial) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 unsigned_8;
-  Types::Unsigned_16 unsigned_16;
-  Types::Signed_8 signed_8;
-  Types::Real_32 real_32;
-  AddExpression unsigned_left("unsigned left"_view, unsigned_8);
-  AddExpression unsigned_right("unsigned right"_view, unsigned_8);
-  AddExpression other_width("other width"_view, unsigned_16);
-  AddExpression signed_left("signed left"_view, signed_8);
-  AddExpression signed_right("signed right"_view, signed_8);
-  AddExpression real_left("real left"_view, real_32);
-  AddExpression real_right("real right"_view, real_32);
+  Types::U8 u8;
+  Types::U16 u16;
+  Types::S8 s8;
+  Types::R32 r32;
+  AddExpression unsigned_left("unsigned left"_view, u8);
+  AddExpression unsigned_right("unsigned right"_view, u8);
+  AddExpression other_width("other width"_view, u16);
+  AddExpression signed_left("signed left"_view, s8);
+  AddExpression signed_right("signed right"_view, s8);
+  AddExpression real_left("real left"_view, r32);
+  AddExpression real_right("real right"_view, r32);
   auto& unsigned_add =
       Operations::Add::create_synthetic(domain, unsigned_left, unsigned_right);
   auto& signed_add =
@@ -141,9 +141,9 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, exact_type_selection_and_partial) {
   EXPECT(link_operation(signed_add, source));
   EXPECT(link_operation(real_add, source));
   EXPECT_NOT(link_operation(mismatched, source));
-  EXPECT(&unsigned_add.get_type() == &unsigned_8);
-  EXPECT(&signed_add.get_type() == &signed_8);
-  EXPECT(&real_add.get_type() == &real_32);
+  EXPECT(&unsigned_add.get_type() == &u8);
+  EXPECT(&signed_add.get_type() == &s8);
+  EXPECT(&real_add.get_type() == &r32);
   EXPECT_NOT(selected(unsigned_add.fold()));
 }
 
@@ -151,23 +151,18 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, integer_width_and_host_overflow) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 unsigned_8;
-  Types::Unsigned_64 unsigned_64;
-  Types::Signed_8 signed_8;
-  auto& unsigned_max =
-      Constants::Unsigned::create_synthetic(domain, unsigned_8, 255);
-  auto& unsigned_one =
-      Constants::Unsigned::create_synthetic(domain, unsigned_8, 1);
-  auto& host_max = Constants::Unsigned::create_synthetic(
-      domain, unsigned_64, Unsigned_64(-1));
-  auto& host_one =
-      Constants::Unsigned::create_synthetic(domain, unsigned_64, 1);
-  auto& signed_max = Constants::Signed::create_synthetic(domain, signed_8, 127);
-  auto& signed_min =
-      Constants::Signed::create_synthetic(domain, signed_8, -128);
-  auto& signed_one = Constants::Signed::create_synthetic(domain, signed_8, 1);
+  Types::U8 u8;
+  Types::U64 u64;
+  Types::S8 s8;
+  auto& unsigned_max = Constants::Unsigned::create_synthetic(domain, u8, 255);
+  auto& unsigned_one = Constants::Unsigned::create_synthetic(domain, u8, 1);
+  auto& host_max = Constants::Unsigned::create_synthetic(domain, u64, U64(-1));
+  auto& host_one = Constants::Unsigned::create_synthetic(domain, u64, 1);
+  auto& signed_max = Constants::Signed::create_synthetic(domain, s8, 127);
+  auto& signed_min = Constants::Signed::create_synthetic(domain, s8, -128);
+  auto& signed_one = Constants::Signed::create_synthetic(domain, s8, 1);
   auto& signed_negative_one =
-      Constants::Signed::create_synthetic(domain, signed_8, -1);
+      Constants::Signed::create_synthetic(domain, s8, -1);
   auto& width_overflow =
       Operations::Add::create_synthetic(domain, unsigned_max, unsigned_one);
   auto& host_overflow =
@@ -199,8 +194,8 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, integer_results_retain_type) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 unsigned_type;
-  Types::Signed_8 signed_type;
+  Types::U8 unsigned_type;
+  Types::S8 signed_type;
   auto& unsigned_left =
       Constants::Unsigned::create_synthetic(domain, unsigned_type, 12);
   auto& unsigned_right =
@@ -221,25 +216,22 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, integer_results_retain_type) {
   ASSERT(unsigned_result && signed_result);
   EXPECT(&unsigned_result->get_type() == &unsigned_type);
   EXPECT(&signed_result->get_type() == &signed_type);
-  EXPECT(get_unsigned(*unsigned_result) == Option<Unsigned_64>(42));
-  EXPECT(get_signed(*signed_result) == Option<Signed_64>(-3));
+  EXPECT(get_unsigned(*unsigned_result) == Option<U64>(42));
+  EXPECT(get_signed(*signed_result) == Option<S64>(-3));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, ieee_real_domains) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Real_32 real_32;
-  Types::Real_64 real_64;
-  auto& narrow_left =
-      Constants::Real::create_synthetic(domain, real_32, Real_64(1.1));
-  auto& narrow_right =
-      Constants::Real::create_synthetic(domain, real_32, Real_64(2.2));
+  Types::R32 r32;
+  Types::R64 r64;
+  auto& narrow_left = Constants::Real::create_synthetic(domain, r32, R64(1.1));
+  auto& narrow_right = Constants::Real::create_synthetic(domain, r32, R64(2.2));
   auto& infinity =
-      Constants::Real::create_synthetic(domain, real_64, __builtin_inf());
-  auto& one = Constants::Real::create_synthetic(domain, real_64, Real_64(1));
-  auto& nan =
-      Constants::Real::create_synthetic(domain, real_64, __builtin_nan(""));
+      Constants::Real::create_synthetic(domain, r64, __builtin_inf());
+  auto& one = Constants::Real::create_synthetic(domain, r64, R64(1));
+  auto& nan = Constants::Real::create_synthetic(domain, r64, __builtin_nan(""));
   auto& narrow =
       Operations::Add::create_synthetic(domain, narrow_left, narrow_right);
   auto& infinite = Operations::Add::create_synthetic(domain, infinity, one);
@@ -255,8 +247,8 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, ieee_real_domains) {
   auto narrow_value = get_real(*narrow_result);
   auto infinite_value = get_real(*infinite_result);
   auto unordered_value = get_real(*unordered_result);
-  EXPECT(narrow_value && *narrow_value == Real_64(Real_32(1.1) + Real_32(2.2)));
-  EXPECT(&narrow_result->get_type() == &real_32);
+  EXPECT(narrow_value && *narrow_value == R64(R32(1.1) + R32(2.2)));
+  EXPECT(&narrow_result->get_type() == &r32);
   EXPECT(infinite_value && __builtin_isinf(*infinite_value));
   EXPECT(unordered_value && __builtin_isnan(*unordered_value));
 }
@@ -265,7 +257,7 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_fold_is_idempotent) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 type;
+  Types::U8 type;
   auto& one = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& two = Constants::Unsigned::create_synthetic(domain, type, 2);
   auto& three = Constants::Unsigned::create_synthetic(domain, type, 3);
@@ -278,14 +270,14 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_fold_is_idempotent) {
   auto child_result = selected(child.fold());
   ASSERT(first && second && child_result);
   EXPECT(&*first == &*second);
-  EXPECT(get_unsigned(*first) == Option<Unsigned_64>(6));
+  EXPECT(get_unsigned(*first) == Option<U64>(6));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_error_keeps_child_origin) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 type;
+  Types::U8 type;
   auto& maximum = Constants::Unsigned::create_synthetic(domain, type, 255);
   auto& one = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& child = Operations::Add::create_synthetic(domain, maximum, one);
@@ -300,7 +292,7 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, invalid_constant_keeps_operand_origin) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 type;
+  Types::U8 type;
   auto& wrong = Constants::Bytes::create_synthetic(domain, type, {});
   auto& valid = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& add = Operations::Add::create_synthetic(domain, wrong, valid);
@@ -313,19 +305,17 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, rejects_nonnumeric_and_mixed_domains) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 unsigned_8;
-  Types::Signed_8 signed_8;
-  Types::Real_32 real_32;
+  Types::U8 u8;
+  Types::S8 s8;
+  Types::R32 r32;
   Types::Fixed bytes_type(
-      "Fixed[Unsigned_8,1]"_view,
-      resolve_library_unsigned(source, "Unsigned_8"_view), 1);
+      "Fixed[U8,1]"_view, resolve_library_unsigned(source, "U8"_view), 1);
   auto& truth =
       Constants::True::create_synthetic(domain, resolve_library_flag(source));
   auto& bytes = Constants::Bytes::create_synthetic(domain, bytes_type, {});
-  auto& unsigned_value =
-      Constants::Unsigned::create_synthetic(domain, unsigned_8, 1);
-  auto& signed_value = Constants::Signed::create_synthetic(domain, signed_8, 1);
-  auto& real_value = Constants::Real::create_synthetic(domain, real_32, 1.0);
+  auto& unsigned_value = Constants::Unsigned::create_synthetic(domain, u8, 1);
+  auto& signed_value = Constants::Signed::create_synthetic(domain, s8, 1);
+  auto& real_value = Constants::Real::create_synthetic(domain, r32, 1.0);
   auto& bool_add = Operations::Add::create_synthetic(domain, truth, truth);
   auto& bytes_add = Operations::Add::create_synthetic(domain, bytes, bytes);
   auto& mixed_integer =

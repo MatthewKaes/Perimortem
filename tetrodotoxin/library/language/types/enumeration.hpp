@@ -126,15 +126,14 @@ class Enumeration : public Model::Type {
     return source_cases.get_size();
   }
 
-  auto get_case_value(Count index) const
-      -> Perimortem::Core::Option<Unsigned_64>;
+  auto get_case_value(Count index) const -> Perimortem::Core::Option<U64>;
 
   auto get_case_name(Count index) const -> Perimortem::Core::View::Bytes;
 
-  auto find_case_name(Unsigned_64 value) const -> Perimortem::Core::View::Bytes;
+  auto find_case_name(U64 value) const -> Perimortem::Core::View::Bytes;
 
  private:
-  enum class Stage : ::Unsigned_8 {
+  enum class Stage : ::U8 {
     Authored,
     StorageLinked,
     Finalized,

@@ -209,8 +209,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, original_operation_and_link) {
   ASSERT(link_one(domain, *monograph, *parsed, source, errors));
   ASSERT(link_one(domain, *monograph, *parsed, source, errors));
   EXPECT(&*expression == identity);
-  EXPECT(
-      &parsed->get_type() == &monograph->resolve_context("Unsigned_64"_view));
+  EXPECT(&parsed->get_type() == &monograph->resolve_context("U64"_view));
   EXPECT(errors.is_empty());
 }
 

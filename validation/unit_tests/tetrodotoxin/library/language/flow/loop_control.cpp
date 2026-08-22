@@ -81,7 +81,7 @@ PERIMORTEM_UNIT_TEST(LoopControlTests, nearest_loop_identity) {
       "    if true { continue; }\n"
       "    break;\n"
       "  }\n"
-      "  for [.entry : Unsigned_64] in 0...2 {\n"
+      "  for [.entry : U64] in 0...2 {\n"
       "    if true { continue; }\n"
       "    while false { break; }\n"
       "    continue;\n"
@@ -166,7 +166,7 @@ PERIMORTEM_UNIT_TEST(LoopControlTests, outside_loop_is_rejected) {
 PERIMORTEM_UNIT_TEST(LoopControlTests, must_end_its_block) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Form after break.\ndialect : Library; private invalid : func = [] -> [] { while true { break; return; } return; }"_view,
-    "// Form after continue.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : Unsigned_64] in 0...1 { continue; return; } return; }"_view,
+    "// Form after continue.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : U64] in 0...1 { continue; return; } return; }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
@@ -176,8 +176,8 @@ PERIMORTEM_UNIT_TEST(LoopControlTests, must_end_its_block) {
 
 PERIMORTEM_UNIT_TEST(LoopControlTests, loop_does_not_cover_result) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
-    "// While may break.\ndialect : Library; private invalid : func = [] -> Unsigned_64 { while true { break; } }"_view,
-    "// Range may continue zero times.\ndialect : Library; private invalid : func = [] -> Unsigned_64 { for [.entry : Unsigned_64] in 0...0 { continue; } }"_view,
+    "// While may break.\ndialect : Library; private invalid : func = [] -> U64 { while true { break; } }"_view,
+    "// Range may continue zero times.\ndialect : Library; private invalid : func = [] -> U64 { for [.entry : U64] in 0...0 { continue; } }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {

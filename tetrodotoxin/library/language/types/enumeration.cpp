@@ -34,9 +34,9 @@ auto Types::Enumeration::persist(Archive::Writer& writer) const -> Bool {
   Archive::Declaration declaration(definition);
   BAIL_IF(
       !declaration.write(writer) || !storage_reference.persist(writer) ||
-      cases.get_size() > Unsigned_32(-1));
+      cases.get_size() > U32(-1));
 
-  writer.write(Unsigned_32(cases.get_size()));
+  writer.write(U32(cases.get_size()));
   for (Count index = 0; index < cases.get_size(); index++) {
     auto case_record = writer.begin(Archive::Tag::EnumerationCase);
     const Ttx::Model::Alias& selected =
@@ -57,13 +57,13 @@ auto Types::Enumeration::restore(
     Abstract& host) -> Option<Enumeration&> {
   auto record = reader.read_record();
   BAIL_IF(
-      !record || record->get_tag() != Unsigned_16(Archive::Tag::Enumeration) ||
+      !record || record->get_tag() != U16(Archive::Tag::Enumeration) ||
       record->is_optional());
 
   Archive::Reader contents(record->get_payload());
   auto declaration = Archive::Declaration::read(contents, arena);
   auto storage = TypeReference::restore(contents, arena, host);
-  auto count = contents.read_unsigned_32();
+  auto count = contents.read_u32();
   BAIL_IF(!declaration || !storage || !count);
 
   auto& definition = declaration->create_definition(arena, host);
@@ -77,12 +77,12 @@ auto Types::Enumeration::restore(
     auto case_record = contents.read_record();
     BAIL_IF(
         !case_record ||
-        case_record->get_tag() != Unsigned_16(Archive::Tag::EnumerationCase) ||
+        case_record->get_tag() != U16(Archive::Tag::EnumerationCase) ||
         case_record->is_optional());
     Archive::Reader case_contents(case_record->get_payload());
     auto documentation = case_contents.read_documentation(arena);
     auto name = case_contents.read_bytes();
-    auto value = case_contents.read_unsigned_64();
+    auto value = case_contents.read_u64();
     BAIL_IF(
         !documentation || !name || name->is_empty() || !value ||
         !case_contents.is_complete());
@@ -118,7 +118,7 @@ static auto select_intrinsic_type(
 
 static auto select_name_type(const Types::Enumeration& enumeration)
     -> Option<const Model::Type&> {
-  auto bytes = select_intrinsic_type(enumeration, "Unsigned_8"_view);
+  auto bytes = select_intrinsic_type(enumeration, "U8"_view);
   const Abstract& selected =
       enumeration.get_host().resolve_context("View"_view).resolve();
   auto generic = selected.select<Generic>();
@@ -147,8 +147,8 @@ struct ParsedCase {
 };
 
 struct ParsedValue {
-  Signed_64 signed_value;
-  Unsigned_64 unsigned_value;
+  S64 signed_value;
+  U64 unsigned_value;
 };
 
 static auto parse_case(Cursor& cursor, const Documentation& documentation)
@@ -206,7 +206,7 @@ static auto read_unsigned(
     Core::View::Bytes text,
     Anchor anchor,
     Cursor& cursor,
-    Unsigned_64& value) -> Bool {
+    U64& value) -> Bool {
   Bool hexadecimal = text.slice(0, 2) == "0x"_view;
   Reader::Textual reader(text.slice(hexadecimal ? 2 : 0));
   value = reader.read_unsigned(hexadecimal ? 16 : 10);
@@ -214,7 +214,7 @@ static auto read_unsigned(
     cursor.create_expression_error(
         anchor,
         "Enumeration case exceeds the unsigned host integer domain."_view,
-        "Use a complete integer representable by Unsigned_64."_view);
+        "Use a complete integer representable by U64."_view);
     return False;
   }
 
@@ -225,21 +225,21 @@ static auto read_signed(
     Core::View::Bytes text,
     Anchor anchor,
     Cursor& cursor,
-    Signed_64& value) -> Bool {
+    S64& value) -> Bool {
   if (text.slice(0, 2) == "0x"_view) {
-    Unsigned_64 unsigned_value = 0;
+    U64 unsigned_value = 0;
     Bool parsed = read_unsigned(text, anchor, cursor, unsigned_value);
     BAIL_IF(!parsed);
-    if (unsigned_value > Unsigned_64(__INT64_MAX__)) {
+    if (unsigned_value > U64(__INT64_MAX__)) {
       cursor.create_expression_error(
           anchor,
           "Enumeration hexadecimal case exceeds the signed host integer "
           "domain."_view,
-          "Use a value no greater than Signed_64 maximum."_view);
+          "Use a value no greater than S64 maximum."_view);
       return False;
     }
 
-    value = Signed_64(unsigned_value);
+    value = S64(unsigned_value);
     return True;
   }
 
@@ -248,7 +248,7 @@ static auto read_signed(
   if (!reader.is_valid() || reader.get_location() != reader.get_size()) {
     cursor.create_expression_error(
         anchor, "Enumeration case exceeds the signed host integer domain."_view,
-        "Use a complete integer representable by Signed_64."_view);
+        "Use a complete integer representable by S64."_view);
     return False;
   }
 
@@ -384,7 +384,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::link_types(
     return False;
   }
 
-  auto count_type = select_intrinsic_type(*this, "Unsigned_64"_view);
+  auto count_type = select_intrinsic_type(*this, "U64"_view);
   auto unsigned_count = count_type
                             ? count_type->select<Model::Types::Unsigned>()
                             : Option<const Model::Types::Unsigned&>();
@@ -393,7 +393,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::link_types(
     cursor.create_expression_error(
         get_anchor(),
         "Enumeration could not materialize its generated Callable Types."_view,
-        "Keep Unsigned_8, Unsigned_64, and View available in the Library root."_view);
+        "Keep U8, U64, and View available in the Library root."_view);
     return False;
   }
 
@@ -421,7 +421,7 @@ auto Types::Enumeration::link_restored_types() -> Bool {
       !selected_type || (!selected_type->is<Model::Types::Signed>() &&
                          !selected_type->is<Model::Types::Unsigned>()));
 
-  auto count_type = select_intrinsic_type(*this, "Unsigned_64"_view);
+  auto count_type = select_intrinsic_type(*this, "U64"_view);
   auto unsigned_count = count_type
                             ? count_type->select<Model::Types::Unsigned>()
                             : Option<const Model::Types::Unsigned&>();
@@ -480,7 +480,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize(
   if (type.is<Tetrodotoxin::Library::Language::Model::Types::Signed>()) {
     for (Count i = 0; i < source_cases.get_size(); i++) {
       const SourceCase& source_case = source_cases[i];
-      Signed_64 value = 0;
+      S64 value = 0;
       Bool parsed = read_signed(
           source_case.value, source_case.value_anchor, cursor, value);
       if (!parsed) {
@@ -516,7 +516,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize(
         continue;
       }
 
-      Unsigned_64 value = 0;
+      U64 value = 0;
       Bool parsed = read_unsigned(
           source_case.value, source_case.value_anchor, cursor, value);
       if (!parsed) {
@@ -547,9 +547,9 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize(
   for (Count i = 0; i < source_cases.get_size(); i++) {
     const SourceCase& source_case = source_cases[i];
     const ParsedValue& value = values[i];
-    Unsigned_64 representation = type.is<Model::Types::Signed>()
-                                     ? Unsigned_64(value.signed_value)
-                                     : value.unsigned_value;
+    U64 representation = type.is<Model::Types::Signed>()
+                             ? U64(value.signed_value)
+                             : value.unsigned_value;
     const Abstract& constant = Constants::Enumeration::create_authored(
         domain, *this, representation, source_case.value_anchor);
     const Ttx::Model::Alias& alias = domain.construct<Ttx::Model::Alias>(
@@ -619,7 +619,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::get_cases() const
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_value(
-    Count index) const -> Option<Unsigned_64> {
+    Count index) const -> Option<U64> {
   if (index >= cases.get_size()) {
     return {};
   }
@@ -629,8 +629,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_value(
                    .get()
                    .resolve()
                    .select<Constants::Enumeration>();
-  return value ? Option<Unsigned_64>(value->get_value())
-               : Option<Unsigned_64>();
+  return value ? Option<U64>(value->get_value()) : Option<U64>();
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_name(
@@ -641,7 +640,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_name(
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::find_case_name(
-    Unsigned_64 value) const -> Core::View::Bytes {
+    U64 value) const -> Core::View::Bytes {
   for (Count index = 0; index < cases.get_size(); index++) {
     auto candidate = get_case_value(index);
     if (candidate && *candidate == value) {
@@ -677,7 +676,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::accepts_iteration(
   auto name_name = bindings.get_name(1);
   auto view = name ? name->get_type().resolve().select<Types::View>()
                    : Option<const Types::View&>();
-  auto byte_type = select_intrinsic_type(*this, "Unsigned_8"_view);
+  auto byte_type = select_intrinsic_type(*this, "U8"_view);
   return name_name && *name_name == "name"_view && view && byte_type &&
          &view->get_element_type().resolve() == &byte_type->resolve();
 }
@@ -689,7 +688,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::begin_iteration(
     const Ttx::Model::Pack&) const -> Bool {
   BAIL_IF(!accepts_iteration(bindings));
 
-  Dynamic::Vector<Unsigned_64> values;
+  Dynamic::Vector<U64> values;
   Dynamic::Vector<Core::View::Bytes> names;
   values.resize(cases.get_size());
   if (bindings.get_size() == 2) {
@@ -785,7 +784,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::complete(
 
     if (storage->is<Model::Types::Signed>()) {
       if (!program.get_debug().signed_enumerator(
-              program, *this, alias, Signed_64(*value))) {
+              program, *this, alias, S64(*value))) {
         return False;
       }
     } else {

@@ -15,7 +15,7 @@ class Object : public Structure {
   Object(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition,
-      Bool provider_construction = True);
+      Bool provides_initialization = True);
 
  public:
   TTX_CONTRACT(Object, Structure);

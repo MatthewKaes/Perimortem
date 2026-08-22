@@ -51,7 +51,7 @@ class Record {
   constexpr auto operator*() const -> const value_type& { return *get_value(); }
 
  private:
-  static auto destroy(Unsigned_8* payload) -> void {
+  static auto destroy(U8* payload) -> void {
     Core::Data::cast<value_type>(payload)->~value_type();
   }
 
@@ -65,6 +65,6 @@ class Record {
   Core::Object<> object;
 };
 
-static_assert(sizeof(Record<Unsigned_8>) == sizeof(Core::Object<>));
+static_assert(sizeof(Record<U8>) == sizeof(Core::Object<>));
 
 }  // namespace Perimortem::Memory::Dynamic

@@ -55,8 +55,7 @@ auto Lsp::Rpc::Executor<dispatch_table>::create_connection(
   Count path_length =
       Math::min(pipe_name.get_size(), Count(sizeof(address.sun_path) - 1));
   Data::copy(
-      Data::cast<Unsigned_8>(address.sun_path), pipe_name.get_data(),
-      path_length);
+      Data::cast<U8>(address.sun_path), pipe_name.get_data(), path_length);
   address.sun_path[path_length] = '\0';
 
   auto connect_result =
@@ -83,7 +82,7 @@ auto Lsp::Rpc::Executor<dispatch_table>::write_jsonrpc_frame(View::Bytes view)
 
   Count bytes_written = 0;
   while (bytes_written < view.get_size()) {
-    Signed_64 bytes = write(
+    S64 bytes = write(
         socket_descriptor, view.get_data() + bytes_written,
         view.get_size() - bytes_written);
     if (bytes <= 0) {

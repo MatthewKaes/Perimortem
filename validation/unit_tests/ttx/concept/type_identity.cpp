@@ -17,7 +17,7 @@ static Harness TtxTypeIdentity = {
 };
 
 PERIMORTEM_UNIT_TEST(TtxTypeIdentity, stable_and_distinct) {
-  Unsigned_64 first = get_type_identity<FirstIdentity>();
+  U64 first = get_type_identity<FirstIdentity>();
 
   EXPECT_EQ(first, get_type_identity<FirstIdentity>());
   EXPECT_NOT(first == get_type_identity<SecondIdentity>());

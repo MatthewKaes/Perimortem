@@ -9,6 +9,7 @@
 
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Llvm {
 
@@ -37,22 +38,62 @@ class Unit {
     Perimortem::Core::View::Bytes symbol;
   };
 
+  // TypeBinding gives one exact semantic Type its durable Package route. The
+  // C header consumes this target fact so every compilation names an imported
+  // carrier through its provider rather than the current consumer.
+  class TypeBinding {
+   public:
+    constexpr TypeBinding(
+        const Ttx::Model::Type& semantic,
+        Perimortem::Core::View::Bytes package,
+        Perimortem::Core::View::Bytes member,
+        Perimortem::Core::View::Bytes route)
+        : semantic(semantic), package(package), member(member), route(route) {}
+
+    constexpr auto get_semantic() const -> const Ttx::Model::Type& {
+      return semantic.get();
+    }
+
+    constexpr auto get_package() const -> Perimortem::Core::View::Bytes {
+      return package;
+    }
+
+    constexpr auto get_member() const -> Perimortem::Core::View::Bytes {
+      return member;
+    }
+
+    constexpr auto get_route() const -> Perimortem::Core::View::Bytes {
+      return route;
+    }
+
+   private:
+    Ttx::Concept::Reference<const Ttx::Model::Type> semantic;
+    Perimortem::Core::View::Bytes package;
+    Perimortem::Core::View::Bytes member;
+    Perimortem::Core::View::Bytes route;
+  };
+
   constexpr Unit(
       Perimortem::Core::View::Bytes package = {},
       Perimortem::Core::View::Bytes member = {},
       Perimortem::Core::View::Bytes artifact = {},
       Perimortem::Core::View::Vector<Binding> external = {},
+      Perimortem::Core::View::Vector<TypeBinding> types = {},
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> headers =
+          {},
       Perimortem::Core::Option<
           Ttx::Concept::Reference<const Ttx::Concept::Abstract>> local = {})
       : package(package),
         member(member),
         artifact(artifact),
         external(external),
+        types(types),
+        headers(headers),
         local(local) {}
 
   constexpr auto bind(const Ttx::Concept::Abstract& semantic) const -> Unit {
     return Unit(
-        package, member, artifact, external,
+        package, member, artifact, external, types, headers,
         Ttx::Concept::Reference<const Ttx::Concept::Abstract>(semantic));
   }
 
@@ -86,11 +127,29 @@ class Unit {
     return {};
   }
 
+  auto find_type(const Ttx::Model::Type& semantic) const
+      -> Perimortem::Core::Option<const TypeBinding&> {
+    for (Count index = 0; index < types.get_size(); index++) {
+      const TypeBinding& binding = types.get_data()[index];
+      if (&binding.get_semantic() == &semantic) {
+        return binding;
+      }
+    }
+    return {};
+  }
+
+  constexpr auto get_headers() const
+      -> Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> {
+    return headers;
+  }
+
  private:
   Perimortem::Core::View::Bytes package;
   Perimortem::Core::View::Bytes member;
   Perimortem::Core::View::Bytes artifact;
   Perimortem::Core::View::Vector<Binding> external;
+  Perimortem::Core::View::Vector<TypeBinding> types;
+  Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> headers;
   Perimortem::Core::Option<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       local;

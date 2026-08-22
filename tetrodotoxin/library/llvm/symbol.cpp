@@ -21,7 +21,7 @@ static auto append_encoded_name(
   constexpr auto digits = "0123456789abcdef"_view;
 
   for (Count index = 0; index < value.get_size(); index++) {
-    Unsigned_8 byte = value[index];
+    U8 byte = value[index];
     Bool alphanumeric = Bool(
         (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
         (byte >= '0' && byte <= '9'));
@@ -100,7 +100,7 @@ auto Tetrodotoxin::Library::Llvm::Symbol::validate(Core::View::Bytes value)
   }
 
   for (Count index = 0; index < value.get_size(); index++) {
-    Unsigned_8 byte = value[index];
+    U8 byte = value[index];
     Bool letter =
         Bool((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z'));
     Bool valid = Bool(

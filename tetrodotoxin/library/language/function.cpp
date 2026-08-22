@@ -32,7 +32,7 @@ auto Language::Function::restore(
     Abstract& host) -> Option<Function&> {
   auto record = reader.read_record();
   BAIL_IF(
-      !record || record->get_tag() != Unsigned_16(Archive::Tag::Function) ||
+      !record || record->get_tag() != U16(Archive::Tag::Function) ||
       record->is_optional());
 
   Archive::Reader contents(record->get_payload());

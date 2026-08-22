@@ -63,13 +63,13 @@ static auto get_range_count(Language::Expression& expression)
   return scalar->visit<Language::Constants::Signed>(
       [](const Language::Constants::Signed& value) -> Core::Option<Count> {
         BAIL_IF(value.get_value() < 0);
-        Unsigned_64 selected = Unsigned_64(value.get_value());
-        BAIL_IF(selected > Unsigned_64(Count(-1)));
+        U64 selected = U64(value.get_value());
+        BAIL_IF(selected > U64(Count(-1)));
         return Count(selected);
       },
       [](const Abstract& selected) -> Core::Option<Count> {
         auto value = selected.select<Language::Constants::Unsigned>();
-        BAIL_IF(!value || value->get_value() > Unsigned_64(Count(-1)));
+        BAIL_IF(!value || value->get_value() > U64(Count(-1)));
         return Count(value->get_value());
       });
 }

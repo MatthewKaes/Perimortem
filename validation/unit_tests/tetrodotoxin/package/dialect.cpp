@@ -210,10 +210,10 @@ PERIMORTEM_UNIT_TEST(PackageDialect, dependency_statement) {
   EXPECT_TEXT(parsed->get_package_name(), "Perimortem.Graphics.Math"_view);
   EXPECT(parsed->get_version() == Version(12, 34));
   EXPECT(span.get_start().get_code() == Code::Type::Resolve);
-  EXPECT_EQ(span.get_start().get_offset(), Unsigned_16(0));
+  EXPECT_EQ(span.get_start().get_offset(), U16(0));
   EXPECT_TEXT(span.get_start().caculate_text(source), "resolve"_view);
   EXPECT(span.get_end().get_code() == Code::Type::EndStatement);
-  EXPECT_EQ(span.get_end().get_offset(), Unsigned_16(58));
+  EXPECT_EQ(span.get_end().get_offset(), U16(58));
   EXPECT_TEXT(span.get_end().caculate_text(source), ";"_view);
   EXPECT_TEXT(
       span.caculate_text(source),
@@ -282,12 +282,10 @@ PERIMORTEM_UNIT_TEST(PackageDialect, ordered_monograph) {
 
   const auto* dependency_data = dependencies.get_data();
   const auto* source_data = sources.get_data();
-  EXPECT_EQ(
-      dependency_data[0].get_span().get_start().get_line(), Unsigned_16(4));
-  EXPECT_EQ(
-      dependency_data[1].get_span().get_start().get_line(), Unsigned_16(5));
-  EXPECT_EQ(source_data[0].get_span().get_start().get_line(), Unsigned_16(6));
-  EXPECT_EQ(source_data[1].get_span().get_start().get_line(), Unsigned_16(7));
+  EXPECT_EQ(dependency_data[0].get_span().get_start().get_line(), U16(4));
+  EXPECT_EQ(dependency_data[1].get_span().get_start().get_line(), U16(5));
+  EXPECT_EQ(source_data[0].get_span().get_start().get_line(), U16(6));
+  EXPECT_EQ(source_data[1].get_span().get_start().get_line(), U16(7));
 
   ASSERT_EQ(monograph.get_documentation().line_count(), 1);
   EXPECT_TEXT(

@@ -13,8 +13,9 @@
 
 namespace Tetrodotoxin::Language {
 
-// Monograph is the semantic root produced in one source Arena. Workspace owns
-// that Arena and retains it only after the complete source succeeds.
+// A Monograph is the lasting semantic result of one source. It shares the
+// source transaction Arena with every identity created during interpretation,
+// and Workspace retains that complete lifetime after the source succeeds.
 class Monograph : public Ttx::Concept::Abstract {
  public:
   TTX_CONTRACT(Monograph, Ttx::Concept::Abstract);
@@ -38,20 +39,21 @@ class Monograph : public Ttx::Concept::Abstract {
     return language;
   }
 
-  // Layer selection compares an installed Abstract context by exact live
-  // identity. Contract type identities and authored names never participate.
+  // Some Dialects build one fixed child language layer into their result. Exact
+  // installed Dialect identity selects that child, which keeps the relationship
+  // consistent with the Toolchain that interpreted the source.
   virtual auto get_layer(const Ttx::Concept::Abstract& requested) const
       -> Perimortem::Core::Option<const Monograph&>;
 
-  // Linking may connect declarations only after every source in the enclosing
-  // transaction has established its stable graph identities. Finalization then
-  // validates those completed edges in the transaction's second barrier.
+  // Linking begins after every source in the transaction has established stable
+  // identities. Finalization follows as a second barrier where each Monograph
+  // can validate edges that may cross into another source.
   virtual auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
   virtual auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool;
 
-  // Restored graphs cross the same Package-wide barriers without manufacturing
-  // source text or a Cursor. A persistent Dialect reports rejection through
-  // process Diagnostics while these operations preserve transaction ordering.
+  // Restored graphs cross the same Package barriers even though they have no
+  // source Cursor. A persistent Dialect reports rejection through process
+  // Diagnostics while these operations preserve the authored transaction order.
   virtual auto link_restored() -> Bool;
   virtual auto finalize_restored() -> Bool;
 
@@ -59,16 +61,16 @@ class Monograph : public Ttx::Concept::Abstract {
       -> const Ttx::Concept::Abstract& override;
 
  protected:
-  // Concrete facts remain in the same lifetime domain as their Monograph so
-  // graph edges never outlive their storage.
+  // Keeping concrete facts in the Monograph's lifetime domain lets graph edges
+  // remain valid for as long as Workspace exposes the source result.
   Perimortem::Memory::Allocator::Arena& domain;
 
-  // Parsed Documentation already belongs to the retained source Arena.
+  // Parsed Documentation shares the retained source Arena.
   const Ttx::Concept::Documentation& documentation;
 
-  // The outer semantic context is borrowed for unresolved root queries. It is
-  // neither transaction storage nor an Interpretation layer, and Monograph
-  // never owns or mirrors its bindings.
+  // The outer semantic context answers unresolved root queries. Borrowing it
+  // keeps those bindings with their real owner while the Monograph retains only
+  // its own source graph.
   Ttx::Concept::Abstract& context;
 
  private:

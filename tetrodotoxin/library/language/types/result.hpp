@@ -14,7 +14,7 @@ namespace Tetrodotoxin::Library::Language::Types {
 // the value and requires the enclosing Function to receive the error.
 class Result : public Model::Type {
  public:
-  enum class Kind : Unsigned_8 {
+  enum class Kind : U8 {
     Value,
     Error,
   };

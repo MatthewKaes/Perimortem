@@ -56,7 +56,7 @@ and `resume`:
 Scene prepare[self] -> []
 Scene pause[self] -> []
 Scene resume[self] -> []
-Scene update[self, .delta_time : Real_64] -> []
+Scene update[self, .delta_time : R64] -> []
 Scene release[self] -> []
 ```
 
@@ -149,7 +149,7 @@ Field whose Type does not support Graphics hosting remains ordinary Scene state.
 Delta time is scheduler input after `self`:
 
 ```ttx
-Scene update[self, .delta_time : Real_64] -> [] {
+Scene update[self, .delta_time : R64] -> [] {
   self.elapsed = self.elapsed + delta_time;
   if (self.elapsed > 1.0) {
     emit finished;

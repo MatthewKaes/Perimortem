@@ -540,12 +540,12 @@ auto Language::Model::Pack::persist_folded(
   }
 
   const Layout& layout = value.get_layout();
-  BAIL_IF(layout.is_empty() || layout.get_size() > Unsigned_32(-1));
+  BAIL_IF(layout.is_empty() || layout.get_size() > U32(-1));
 
   Bool named = Bool(layout.get_name(0));
   auto record = writer.begin(Archive::Tag::PackGroup);
-  writer.write(Unsigned_32(layout.get_size()));
-  writer.write(Unsigned_32(named ? layout.get_size() : 0));
+  writer.write(U32(layout.get_size()));
+  writer.write(U32(named ? layout.get_size() : 0));
   for (Count index = 0; named && index < layout.get_size(); index++) {
     auto name = layout.get_name(index);
     BAIL_IF(!name || !writer.write(*name));
@@ -587,7 +587,7 @@ static auto restore_bytes_type(
     Memory::Allocator::Arena& arena,
     const Abstract& context,
     Count extent) -> Core::Option<const Language::Model::Type&> {
-  auto element = resolve_type(context, "Unsigned_8"_view);
+  auto element = resolve_type(context, "U8"_view);
   auto fixed = context.resolve_context("Fixed"_view)
                    .resolve()
                    .select<Language::Generic>();
@@ -595,7 +595,7 @@ static auto restore_bytes_type(
 
   Core::Static::Vector<Language::Generic::Argument, 2> arguments = {{
     Language::Generic::Argument(*element),
-    Language::Generic::Argument(Unsigned_64(extent)),
+    Language::Generic::Argument(U64(extent)),
   }};
   return fixed->materialize(arguments.get_view())
       .visit(
@@ -618,8 +618,8 @@ auto Language::Model::Pack::restore_folded(
   Archive::Tag tag = Archive::Tag(record->get_tag());
   switch (tag) {
   case Archive::Tag::PackGroup: {
-    auto count = contents.read_unsigned_32();
-    auto name_count = contents.read_unsigned_32();
+    auto count = contents.read_u32();
+    auto name_count = contents.read_u32();
     BAIL_IF(
         !count || *count == 0 || !name_count ||
         (*name_count != 0 && *name_count != *count));
@@ -657,7 +657,7 @@ auto Language::Model::Pack::restore_folded(
   }
   case Archive::Tag::ConstantUnsigned: {
     auto type_name = contents.read_bytes();
-    auto value = contents.read_unsigned_64();
+    auto value = contents.read_u64();
     auto type = type_name ? resolve_type(lexical_context, *type_name)
                           : Core::Option<const Language::Model::Type&>();
     auto selected =
@@ -669,7 +669,7 @@ auto Language::Model::Pack::restore_folded(
   }
   case Archive::Tag::ConstantSigned: {
     auto type_name = contents.read_bytes();
-    auto value = contents.read_signed_64();
+    auto value = contents.read_s64();
     auto type = type_name ? resolve_type(lexical_context, *type_name)
                           : Core::Option<const Language::Model::Type&>();
     auto selected = type
@@ -681,7 +681,7 @@ auto Language::Model::Pack::restore_folded(
   }
   case Archive::Tag::ConstantReal: {
     auto type_name = contents.read_bytes();
-    auto value = contents.read_real_64();
+    auto value = contents.read_r64();
     auto type = type_name ? resolve_type(lexical_context, *type_name)
                           : Core::Option<const Language::Model::Type&>();
     auto selected = type ? type->select<Language::Model::Types::Real>()
@@ -717,7 +717,7 @@ auto Language::Model::Pack::restore_folded(
   }
   case Archive::Tag::ConstantEnumeration: {
     auto type_name = contents.read_bytes();
-    auto value = contents.read_unsigned_64();
+    auto value = contents.read_u64();
     auto type = type_name ? resolve_type(lexical_context, *type_name)
                           : Core::Option<const Language::Model::Type&>();
     auto selected = type ? type->select<Language::Types::Enumeration>()
@@ -729,7 +729,7 @@ auto Language::Model::Pack::restore_folded(
   case Archive::Tag::ConstantOption: {
     auto ignored_type_name = contents.read_bytes();
     auto element_name = contents.read_bytes();
-    auto present = contents.read_unsigned_8();
+    auto present = contents.read_u8();
     auto element = element_name ? resolve_type(lexical_context, *element_name)
                                 : Core::Option<const Language::Model::Type&>();
     BAIL_IF(!ignored_type_name || !element || !present || *present > 1);
@@ -756,14 +756,14 @@ auto Language::Model::Pack::restore_folded(
     auto ignored_type_name = contents.read_bytes();
     auto value_name = contents.read_bytes();
     auto error_name = contents.read_bytes();
-    auto kind = contents.read_unsigned_8();
+    auto kind = contents.read_u8();
     auto value = value_name ? resolve_type(lexical_context, *value_name)
                             : Core::Option<const Language::Model::Type&>();
     auto error = error_name ? resolve_type(lexical_context, *error_name)
                             : Core::Option<const Language::Model::Type&>();
     BAIL_IF(
         !ignored_type_name || !value || !error || !kind ||
-        *kind > Unsigned_8(Language::Types::Result::Kind::Error));
+        *kind > U8(Language::Types::Result::Kind::Error));
     Core::Static::Vector<Language::Generic::Argument, 2> arguments = {{
       Language::Generic::Argument(*value),
       Language::Generic::Argument(*error),
@@ -774,7 +774,7 @@ auto Language::Model::Pack::restore_folded(
                          : Core::Option<const Language::Types::Result&>();
     auto payload = restore_folded(contents, arena, lexical_context);
     BAIL_IF(!selected || !payload || !contents.is_complete());
-    auto restored = *kind == Unsigned_8(Language::Types::Result::Kind::Value)
+    auto restored = *kind == U8(Language::Types::Result::Kind::Value)
                         ? Language::Constants::Result::create_value(
                               arena, *selected, *payload)
                         : Language::Constants::Result::create_error(

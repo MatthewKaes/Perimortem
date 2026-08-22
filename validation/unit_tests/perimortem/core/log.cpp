@@ -65,7 +65,7 @@ static auto has_valid_header(View::Bytes entry) -> Bool {
   }
 
   // Validate all number values
-  const Unsigned_8* b = entry.get_data() + 2;
+  const U8* b = entry.get_data() + 2;
   if (b[2] != ':' || b[5] != ':' || b[8] != '.') {
     return false;
   }
@@ -115,7 +115,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, info_record) {
 
   ASSERT(entry.get_size() > 0);
   EXPECT(has_valid_header(entry));
-  EXPECT_EQ(entry[entry.get_size() - 1], Unsigned_8('\n'));
+  EXPECT_EQ(entry[entry.get_size() - 1], U8('\n'));
   EXPECT(
       contains(entry, "validation/unit_tests/perimortem/core/log.cpp:"_view));
   EXPECT(contains(entry, "[main]"_view));
@@ -127,7 +127,7 @@ PERIMORTEM_UNIT_TEST(DiagnosticsLog, message_raii_guard) {
 
   {
     Diagnostics::Log::Message<64> message(Diagnostics::Log::Level::Info);
-    message << "builder emitted value="_view << Unsigned_32(42);
+    message << "builder emitted value="_view << U32(42);
     EXPECT_EQ(total_events, events_before);
   }
 

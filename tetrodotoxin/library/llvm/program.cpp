@@ -3,11 +3,11 @@
 
 // LLVM must enter before Perimortem so the standard placement declaration is
 // visible before the freestanding fallback used by Perimortem headers.
-// clang-format off
+#if defined(__cplusplus)
+#include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
-#include "tetrodotoxin/library/llvm/program.hpp"
-// clang-format on
-
+#endif
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "llvm-c/Core.h"
@@ -23,6 +23,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include "tetrodotoxin/library/llvm/header.hpp"
+#include "tetrodotoxin/library/llvm/program.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -31,6 +32,57 @@ using namespace Tetrodotoxin::Library;
 static auto llvm_text(Core::View::Bytes value) -> llvm::StringRef {
   return llvm::StringRef(
       reinterpret_cast<const char*>(value.get_data()), value.get_size());
+}
+
+static auto write_abi_value(
+    llvm::raw_ostream& output,
+    const llvm::Module& module,
+    Core::View::Bytes symbol) -> void {
+  output << llvm_text(symbol) << '|';
+  const llvm::GlobalValue* value = module.getNamedValue(llvm_text(symbol));
+  if (const auto* function = llvm::dyn_cast_or_null<llvm::Function>(value)) {
+    output << "function|" << U64(function->getCallingConv()) << '|';
+    function->getFunctionType()->print(output);
+    output << '|';
+    function->getAttributes().print(output);
+  } else if (
+      const auto* global =
+          llvm::dyn_cast_or_null<llvm::GlobalVariable>(value)) {
+    output << "state|" << (global->isConstant() ? "readonly|" : "writable|");
+    global->getValueType()->print(output);
+  } else {
+    output << "missing";
+  }
+  output << '\n';
+}
+
+static auto create_abi_fingerprint(
+    const llvm::Module& module,
+    Llvm::Target target,
+    Core::View::Bytes header,
+    Core::View::Vector<Llvm::Export> exports,
+    Core::View::Vector<Llvm::Publication> publications,
+    Core::View::Vector<Tetrodotoxin::Linker::Import> imports)
+    -> Tetrodotoxin::Linker::Fingerprint {
+  llvm::SmallVector<char, 0> description;
+  llvm::raw_svector_ostream output(description);
+  output << llvm_text(Llvm::get_name(target)) << '\n'
+         << module.getDataLayoutStr() << '\n'
+         << llvm_text(header) << '\n';
+  for (const Llvm::Export& exported : exports) {
+    write_abi_value(output, module, exported.get_symbol());
+  }
+  for (const Llvm::Publication& publication : publications) {
+    write_abi_value(output, module, publication.get_symbol());
+  }
+  for (const Tetrodotoxin::Linker::Import& import : imports) {
+    output << U64(import.get_kind()) << '|' << llvm_text(import.get_abi())
+           << '|';
+    write_abi_value(output, module, import.get_symbol());
+  }
+  return Tetrodotoxin::Linker::Fingerprint::create(
+      Core::View::Bytes(
+          reinterpret_cast<const U8*>(description.data()), description.size()));
 }
 
 Llvm::Program::Program(
@@ -51,7 +103,8 @@ Llvm::Program::Program(
       context(*LLVMContextCreate()),
       module(*LLVMModuleCreateWithNameInContext("tetrodotoxin", &context)),
       exports(arena),
-      publications(arena) {}
+      publications(arena),
+      imports(arena) {}
 
 auto Llvm::Program::get_name() const -> Core::View::Bytes {
   return "Program"_view;
@@ -66,7 +119,7 @@ Llvm::Program::~Program() {
   debug.release();
   target_machine.visit(
       []() {},
-      [](Unsigned_8& machine) {
+      [](U8& machine) {
         delete reinterpret_cast<llvm::TargetMachine*>(&machine);
       });
   LLVMDisposeModule(&module);
@@ -94,7 +147,7 @@ auto Llvm::Program::initialize() -> Bool {
   if (!selected) {
     return fail_backend(
         Core::View::Bytes(
-            reinterpret_cast<const Unsigned_8*>(error.data()), error.size()));
+            reinterpret_cast<const U8*>(error.data()), error.size()));
   }
 
   llvm::TargetOptions options;
@@ -107,7 +160,7 @@ auto Llvm::Program::initialize() -> Bool {
         "LLVM could not create the selected target machine."_view);
   }
 
-  target_machine = *reinterpret_cast<Unsigned_8*>(machine);
+  target_machine = *reinterpret_cast<U8*>(machine);
   native_module.setTargetTriple(target_triple);
   native_module.setDataLayout(machine->createDataLayout());
   return debug.initialize(*this, source_path, source_text);
@@ -157,7 +210,7 @@ auto Llvm::Program::compile() -> Utility::Result<Products, Failure> {
   if (llvm::verifyModule(native_module, &verification_stream)) {
     fail_backend(
         Core::View::Bytes(
-            reinterpret_cast<const Unsigned_8*>(verification.data()),
+            reinterpret_cast<const U8*>(verification.data()),
             verification.size()));
   }
 
@@ -192,19 +245,31 @@ auto Llvm::Program::compile() -> Utility::Result<Products, Failure> {
   passes.run(native_module);
 
   auto header = Header::create(
-      get_arena(), get_carriers(), get_functions(), get_globals(),
+      get_arena(), get_carriers(), get_functions(), get_globals(), get_unit(),
       exports.get_view());
   if (!header) {
     return Failure::ToolchainFailed;
   }
 
-  Core::View::Bytes ir_view(
-      reinterpret_cast<const Unsigned_8*>(ir.data()), ir.size());
+  Tetrodotoxin::Linker::Fingerprint abi_fingerprint = create_abi_fingerprint(
+      native_module, target, header->get_view(), exports.get_view(),
+      publications.get_view(), imports.get_view());
+  Core::View::Bytes header_view = header->get_view();
+  if (!unit.is_package_member() && !unit.get_package().is_empty()) {
+    auto identified = Header::identify(
+        get_arena(), header_view, unit.get_package(), abi_fingerprint);
+    if (!identified) {
+      return Failure::ToolchainFailed;
+    }
+    header_view = identified->get_view();
+  }
+
+  Core::View::Bytes ir_view(reinterpret_cast<const U8*>(ir.data()), ir.size());
   Core::View::Bytes object_view(
-      reinterpret_cast<const Unsigned_8*>(object.data()), object.size());
+      reinterpret_cast<const U8*>(object.data()), object.size());
   return Products(
-      get_arena().proxy(ir_view), get_arena().proxy(object_view),
-      header->get_view(), publications.get_view());
+      get_arena().proxy(ir_view), get_arena().proxy(object_view), header_view,
+      publications.get_view(), abi_fingerprint, imports.get_view());
 }
 
 auto Llvm::Program::resolve_context(Core::View::Bytes) const
@@ -220,6 +285,21 @@ auto Llvm::Program::add_publication(Publication value) -> void {
     }
   }
   publications.insert(value);
+}
+
+auto Llvm::Program::add_import(Tetrodotoxin::Linker::Import value) -> Bool {
+  for (const Tetrodotoxin::Linker::Import& existing : imports.get_view()) {
+    if (existing.get_symbol() != value.get_symbol()) {
+      continue;
+    }
+    if (existing == value) {
+      return True;
+    }
+    return fail_backend(
+        "One native import symbol carries conflicting ABI declarations."_view);
+  }
+  imports.insert(value);
+  return True;
 }
 
 auto Llvm::Program::add_export(Export value) -> void {

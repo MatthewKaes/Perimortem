@@ -51,12 +51,12 @@ PERIMORTEM_UNIT_TEST(AttributeTests, scalar_prefix) {
   EXPECT_TEXT(data[0].get_key(), "marker"_view);
   EXPECT(!data[0].has_value());
   EXPECT_TEXT(*data[1].get_value().find<View::Bytes>(), "value"_view);
-  EXPECT_EQ(*data[2].get_value().find<Unsigned_64>(), Unsigned_64(7));
-  EXPECT_EQ(*data[3].get_value().find<Signed_64>(), Signed_64(-2));
-  EXPECT_EQ(*data[4].get_value().find<Real_64>(), Real_64(-0.5));
+  EXPECT_EQ(*data[2].get_value().find<U64>(), U64(7));
+  EXPECT_EQ(*data[3].get_value().find<S64>(), S64(-2));
+  EXPECT_EQ(*data[4].get_value().find<R64>(), R64(-0.5));
   EXPECT_EQ(*data[5].get_value().find<Bool>(), True);
-  EXPECT_EQ(*data[6].get_value().find<Unsigned_64>(), Unsigned_64(42));
-  EXPECT_EQ(*data[7].get_value().find<Signed_64>(), Signed_64(-42));
+  EXPECT_EQ(*data[6].get_value().find<U64>(), U64(42));
+  EXPECT_EQ(*data[7].get_value().find<S64>(), S64(-42));
   EXPECT_TEXT(
       data[1].get_anchor().get_token().caculate_text(source), "text"_view);
   EXPECT_TEXT(

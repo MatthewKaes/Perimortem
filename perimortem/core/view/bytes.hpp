@@ -21,7 +21,7 @@ namespace Perimortem::Core::View {
 // to Bytes data.
 class Bytes {
  public:
-  using data_type = Unsigned_8;
+  using data_type = U8;
 
   // Default to empty string.
   constexpr Bytes() : source_block(nullptr), size(0) {}
@@ -29,10 +29,9 @@ class Bytes {
   constexpr Bytes(const View::Bytes&) = default;
 
   template <Count N>
-  constexpr Bytes(const Unsigned_8 (&source)[N])
-      : source_block(&source[0]), size(N) {}
+  constexpr Bytes(const U8 (&source)[N]) : source_block(&source[0]), size(N) {}
 
-  constexpr Bytes(const Unsigned_8* source, Count source_size)
+  constexpr Bytes(const U8* source, Count source_size)
       : source_block(source), size(source_size) {}
 
   constexpr auto operator==(const View::Bytes& rhs) const -> Bool {
@@ -44,9 +43,9 @@ class Bytes {
     return !operator==(rhs);
   }
 
-  constexpr auto operator[](Count index) const -> Unsigned_8 {
+  constexpr auto operator[](Count index) const -> U8 {
     if (index >= size) [[unlikely]] {
-      return Unsigned_8();
+      return U8();
     }
 
     return source_block[index];
@@ -64,10 +63,10 @@ class Bytes {
 
   constexpr auto is_empty() const -> Bool { return size == 0; };
   constexpr auto get_size() const -> Count { return size; };
-  constexpr auto get_data() const -> const Unsigned_8* { return source_block; };
+  constexpr auto get_data() const -> const U8* { return source_block; };
 
  private:
-  const Unsigned_8* source_block;
+  const U8* source_block;
   Count size;
 };
 

@@ -22,12 +22,12 @@ class Reader {
   class Record {
    public:
     constexpr Record(
-        Unsigned_16 tag,
+        U16 tag,
         Bool optional,
         Perimortem::Core::View::Bytes payload)
         : tag(tag), optional(optional), payload(payload) {}
 
-    constexpr auto get_tag() const -> Unsigned_16 { return tag; }
+    constexpr auto get_tag() const -> U16 { return tag; }
 
     constexpr auto is_optional() const -> Bool { return optional; }
 
@@ -36,7 +36,7 @@ class Reader {
     }
 
    private:
-    Unsigned_16 tag;
+    U16 tag;
     Bool optional;
     Perimortem::Core::View::Bytes payload;
   };
@@ -50,17 +50,17 @@ class Reader {
 
   auto read_record() -> Perimortem::Core::Option<Record>;
 
-  auto read_unsigned_8() -> Perimortem::Core::Option<Unsigned_8>;
+  auto read_u8() -> Perimortem::Core::Option<U8>;
 
-  auto read_unsigned_16() -> Perimortem::Core::Option<Unsigned_16>;
+  auto read_u16() -> Perimortem::Core::Option<U16>;
 
-  auto read_unsigned_32() -> Perimortem::Core::Option<Unsigned_32>;
+  auto read_u32() -> Perimortem::Core::Option<U32>;
 
-  auto read_unsigned_64() -> Perimortem::Core::Option<Unsigned_64>;
+  auto read_u64() -> Perimortem::Core::Option<U64>;
 
-  auto read_signed_64() -> Perimortem::Core::Option<Signed_64>;
+  auto read_s64() -> Perimortem::Core::Option<S64>;
 
-  auto read_real_64() -> Perimortem::Core::Option<Real_64>;
+  auto read_r64() -> Perimortem::Core::Option<R64>;
 
   auto read_bytes() -> Perimortem::Core::Option<Perimortem::Core::View::Bytes>;
 

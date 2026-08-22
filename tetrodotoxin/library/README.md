@@ -21,7 +21,7 @@ Canonical grammar reference: [Library.g4](grammar/Library.g4).
 // A reusable Library source.
 dialect : Library;
 
-public twice : func = [.value : Unsigned_64] -> Unsigned_64 {
+public twice : func = [.value : U64] -> U64 {
   return value * 2;
 }
 ```
@@ -179,8 +179,8 @@ Parentheses group Packs and brackets describe Layouts:
 (.x = left, .y = right)         // named Pack
 
 []                              // empty Layout
-[Unsigned_64, Bool]             // positional Layout
-[.x : Unsigned_64, .y : Bool]   // named Layout
+[U64, Bool]             // positional Layout
+[.x : U64, .y : Bool]   // named Layout
 ```
 
 A Function always has an empty or Named parameter Layout. Its result may use
@@ -188,13 +188,13 @@ any empty, scalar, positional, or Named Layout:
 
 ```ttx
 public pair : func = [
-  .left : Unsigned_64,
+  .left : U64,
   .right : Bool,
-] -> [Unsigned_64, Bool]
+] -> [U64, Bool]
 
-public classify : func = [.value : Unsigned_64] -> [
+public classify : func = [.value : U64] -> [
   .accepted : Bool,
-  .adjusted : Unsigned_64,
+  .adjusted : U64,
 ] {
   return (.accepted = value > 0, .adjusted = value + 1);
 }
@@ -223,11 +223,11 @@ Swizzle selects named Addressables and returns their values as one reordered
 positional Pack:
 
 ```ttx
-state dimensions : Fixed[Unsigned_64, 2] = packet.[width, height];
+state dimensions : Fixed[U64, 2] = packet.[width, height];
 ```
 
 The result is a Pack over the real selected producers. It becomes
-`Fixed[Unsigned_64, 2]` only because the receiving declaration chooses that
+`Fixed[U64, 2]` only because the receiving declaration chooses that
 Type. The swizzle itself creates no aggregate Type.
 
 Plain brackets are reference access on `Access[T]`. They never substitute a
@@ -275,9 +275,9 @@ error, as is another operand Type.
 Library provides these scalar families:
 
 * `Bool`
-* `Signed_8`, `Signed_16`, `Signed_32`, and `Signed_64`
-* `Unsigned_8`, `Unsigned_16`, `Unsigned_32`, and `Unsigned_64`
-* `Real_32` and `Real_64`
+* `S8`, `S16`, `S32`, and `S64`
+* `U8`, `U16`, `U32`, and `U64`
+* `R32` and `R64`
 
 These are Library refinements of its one Type protocol. `Bool` proves the
 Library Flag contract, and the integer and real families prove Library Signed,
@@ -302,16 +302,16 @@ arguments must themselves resolve to Library Types and may recursively apply
 another formula:
 
 ```ttx
-Fixed[Unsigned_8, 64]
-View[Unsigned_8]
-View[Fixed[Unsigned_8, 4]]
-Access[Unsigned_8]
-Range[Unsigned_64]
-Option[View[Unsigned_8]]
-Result[View[Unsigned_8], ParseError]
+Fixed[U8, 64]
+View[U8]
+View[Fixed[U8, 4]]
+Access[U8]
+Range[U64]
+Option[View[U8]]
+Result[View[U8], ParseError]
 ```
 
-`Fixed[T, extent]` requires its `extent` to be a positive exact `Unsigned_64`
+`Fixed[T, extent]` requires its `extent` to be a positive exact `U64`
 value known during linking. Every generated container Type requires an element
 Type with a nonempty Layout. `View` is a borrowed contiguous view.
 `Access` additionally carries the language's writable contiguous capability.
@@ -338,7 +338,7 @@ Callables through one callable surface. A Generic installs its required
 Callables when it materializes the exact Type, so lookup, reflection, and
 completion enumerate the same identities regardless of their origin.
 `view -> get_size()` and `access -> get_size()` return the runtime element count
-as exact `Unsigned_64`; `is_empty()` reports whether that count is zero and
+as exact `U64`; `is_empty()` reports whether that count is zero and
 folds for immutable Views. `fixed -> get_view()` borrows the complete Fixed
 storage without changing its read only authority. Byte literals remain Fixed
 values and therefore use this explicit conversion when a View is required. A
@@ -371,7 +371,7 @@ destruction; authored nonnull Objects still destroy their contained Object
 Fields recursively.
 
 `Dynamic::Bytes` is the worker-local copy-on-write byte value. Its native
-carrier is `Object[Unsigned_8]` plus one logical size. Copying the value retains
+carrier is `Object[U8]` plus one logical size. Copying the value retains
 the Object, while a writable operation detaches shared storage before exposing
 it. Capacity remains owned by Bibliotheca rather than duplicated in Bytes.
 `bytes -> get_view()` borrows the complete contents and
@@ -451,8 +451,8 @@ where that Type creates its Pack.
 an omitted Field value, a missing scalar slice element, and postfix `option!`:
 
 ```ttx
-state count := new[Unsigned_32];
-state block := new[Fixed[Unsigned_8, 8]];
+state count := new[U32];
+state block := new[Fixed[U8, 8]];
 state session := new[Session];
 ```
 
@@ -488,7 +488,7 @@ the absent state does not construct that referenced identity.
 
 Cleared memory may make initialization faster, but it does not define these
 defaults. Every initializer required by the Type still runs. An empty
-`View[Unsigned_8]` is still one View value rather than a Pack with no values.
+`View[U8]` is still one View value rather than a Pack with no values.
 
 A missing scalar `value:[index]` returns the element Type's default. Every slot
 of `value:[start, count]` applies that same rule independently, so the result
@@ -627,8 +627,8 @@ Every ordinary Library member begins with one shared Definition:
 
 ```ttx
 @tooling("entry") public twice : func = [
-  .value : Unsigned_64,
-] -> Unsigned_64 {
+  .value : U64,
+] -> U64 {
   return value * 2;
 }
 ```
@@ -688,11 +688,11 @@ An empty Composite can still own Static Functions and nested Types, which makes
 it a natural namespace without manufacturing a value for compatibility.
 
 ```ttx
-public width : Unsigned_64 = 0;
-private checksum : Unsigned_64 = 0;
-public const signature : Unsigned_64 = 1;
-private state updates : Unsigned_64 = 0;
-expose state progress : Unsigned_64 = 0;
+public width : U64 = 0;
+private checksum : U64 = 0;
+public const signature : U64 = 1;
+private state updates : U64 = 0;
+expose state progress : U64 = 0;
 ```
 
 Visibility controls selection:
@@ -731,11 +731,11 @@ may use any source-admissible Library default.
 
 ```ttx
 public Packet : struct {
-  public state width : Unsigned_64 = 0;
-  public state height : Unsigned_64 = 0;
-  private state checksum : Unsigned_64 = 0;
+  public state width : U64 = 0;
+  public state height : U64 = 0;
+  private state checksum : U64 = 0;
 
-  public area : func = [self] -> Unsigned_64 {
+  public area : func = [self] -> U64 {
     return self.width * self.height;
   }
 }
@@ -757,10 +757,10 @@ value identity and lifetime:
 
 ```ttx
 public Session : object {
-  expose state progress : Unsigned_64 = 0;
-  private state token : Unsigned_64 = 7;
+  expose state progress : U64 = 0;
+  private state token : U64 = 7;
 
-  public advance : func = [self, .amount : Unsigned_64] -> Unsigned_64 {
+  public advance : func = [self, .amount : U64] -> U64 {
     self.progress = self.progress + amount;
     return self.progress;
   }
@@ -844,7 +844,7 @@ An Enumeration selects an exact Library Signed or Unsigned storage Type and
 declares named integer cases:
 
 ```ttx
-public Mode : enum[Unsigned_8] {
+public Mode : enum[U8] {
   idle = 0;
   running = 1;
   stopped = 2;
@@ -859,9 +859,9 @@ integer is zero. That representable value remains valid even when no case Alias
 names it.
 
 Every Enumeration publishes one Static const `size` Addressable and one Self
-`get_name()` Callable. `Mode.size` is the exact compile time `Unsigned_64` case
+`get_name()` Callable. `Mode.size` is the exact compile time `U64` case
 count. `mode -> get_name()` returns the authored case name as
-`View[Unsigned_8]`, or an empty View when no case names that representable
+`View[U8]`, or an empty View when no case names that representable
 value. When several cases share that value, it returns the first authored name.
 Case name bytes are immutable program data.
 
@@ -877,13 +877,13 @@ for [.value : Mode] in Mode {
 A name Layout instead binds the exact storage value and its authored name:
 
 ```ttx
-for [.value : Unsigned_8, .name : View[Unsigned_8]] in Mode {
+for [.value : U8, .name : View[U8]] in Mode {
   name -> consume();
 }
 ```
 
 The first Type must be the Enumeration's exact storage Type. The second Type is
-exactly `View[Unsigned_8]`. The reserved `value` and `name` binding names make
+exactly `View[U8]`. The reserved `value` and `name` binding names make
 the two iteration contracts unambiguous.
 
 ## Functions and invocation roles
@@ -895,9 +895,9 @@ that spelling. A scalar Type is shorthand for a result Layout with one entry:
 
 ```ttx
 public add : func = [
-  .left : Unsigned_64,
-  .right : Unsigned_64,
-] -> Unsigned_64 {
+  .left : U64,
+  .right : U64,
+] -> U64 {
   return left + right;
 }
 ```
@@ -1023,7 +1023,7 @@ same Block model supports compact Functions and control flow without a wrapper
 or caller specific parse path:
 
 ```ttx
-private classify : func = [.value : Unsigned_64] -> Unsigned_64 : return value;
+private classify : func = [.value : U64] -> U64 : return value;
 
 if ready : total += 1; else : total = 0;
 ```
@@ -1055,9 +1055,12 @@ declaration requires an initializer that folds completely during linking. It
 never creates mutable local storage or an assignment target. An explicit Type
 receives and fits the initializer. An inferred local retains the initializer's
 exact completed Type under the same rules as an inferred Field. A local becomes
-visible after its declaration. A nested Block may shadow it with a different
-identity. A standalone `{ ... }` is itself one Statement and retains that exact
-nested Block rather than fabricating a control-flow owner.
+visible after its declaration. Every Local, `for` entry, and match payload name
+must be absent from its complete reachable lexical context. A nested Block
+therefore cannot shadow a preceding Local, Function parameter, loop entry,
+match payload, or another enclosing binding. A standalone `{ ... }` is itself
+one Statement and retains that exact nested Block rather than fabricating a
+control-flow owner.
 
 Diagnostic recovery does not change that transaction boundary. When an
 explicit Local Type has settled but its initializer fails, later Statements in
@@ -1158,7 +1161,7 @@ registry or imported declaration table.
 An embedded operand asks the exact source Package for retained bytes:
 
 ```ttx
-public const signature : Fixed[Unsigned_8, 4] = 0x[54 54 58 31];
+public const signature : Fixed[U8, 4] = 0x[54 54 58 31];
 public const table := $[resources/table.bin];
 public const header := $[resources/table.bin]:[0, 64];
 ```
@@ -1181,7 +1184,7 @@ may consume Function publication requests such as:
 
 ```ttx
 @abi("C")
-public library_native : func = [] -> Unsigned_64 {
+public library_native : func = [] -> U64 {
   return 42;
 }
 ```

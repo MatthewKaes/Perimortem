@@ -27,13 +27,13 @@ auto Language::Field::persist(Archive::Writer& writer) const -> Bool {
   Archive::Declaration declaration(definition);
   BAIL_IF(!declaration.write(writer));
 
-  writer.write(Unsigned_8(writability));
-  writer.write(Unsigned_8(type_reference ? 1 : 0));
+  writer.write(U8(writability));
+  writer.write(U8(type_reference ? 1 : 0));
   BAIL_IF(type_reference && !type_reference->persist(writer));
 
   Bool include_constant = writability == Writability::Constant;
   auto folded = include_constant ? get_constant() : Option<Model::Pack&>();
-  writer.write(Unsigned_8(include_constant ? 1 : 0));
+  writer.write(U8(include_constant ? 1 : 0));
   BAIL_IF(
       include_constant &&
       (!folded || !Model::Pack::persist_folded(writer, *folded)));
@@ -43,8 +43,8 @@ auto Language::Field::persist(Archive::Writer& writer) const -> Bool {
 auto Language::Field::persist_slot(Archive::Writer& writer, Count ordinal) const
     -> Bool {
   auto record = writer.begin(Archive::Tag::FieldSlot);
-  writer.write(Unsigned_64(ordinal));
-  writer.write(Unsigned_8(type_reference ? 1 : 0));
+  writer.write(U64(ordinal));
+  writer.write(U8(type_reference ? 1 : 0));
   BAIL_IF(type_reference && !type_reference->persist(writer));
   return writer.finish(record);
 }
@@ -55,16 +55,16 @@ auto Language::Field::restore(
     Abstract& host) -> Option<Field&> {
   auto record = reader.read_record();
   BAIL_IF(
-      !record || record->get_tag() != Unsigned_16(Archive::Tag::Field) ||
+      !record || record->get_tag() != U16(Archive::Tag::Field) ||
       record->is_optional());
 
   Archive::Reader contents(record->get_payload());
   auto declaration = Archive::Declaration::read(contents, arena);
-  auto encoded_writability = contents.read_unsigned_8();
-  auto has_type = contents.read_unsigned_8();
+  auto encoded_writability = contents.read_u8();
+  auto has_type = contents.read_u8();
   BAIL_IF(
       !declaration || !encoded_writability ||
-      *encoded_writability > Unsigned_8(Writability::Constant) || !has_type ||
+      *encoded_writability > U8(Writability::Constant) || !has_type ||
       *has_type > 1);
 
   Option<TypeReference> type_reference;
@@ -74,7 +74,7 @@ auto Language::Field::restore(
     type_reference = *restored;
   }
 
-  auto has_initializer = contents.read_unsigned_8();
+  auto has_initializer = contents.read_u8();
   BAIL_IF(!has_initializer || *has_initializer > 1);
   Option<Model::Pack&> initializer;
   if (*has_initializer == 1) {
@@ -98,12 +98,12 @@ auto Language::Field::restore_slot(
     Count ordinal) -> Option<Field&> {
   auto record = reader.read_record();
   BAIL_IF(
-      !record || record->get_tag() != Unsigned_16(Archive::Tag::FieldSlot) ||
+      !record || record->get_tag() != U16(Archive::Tag::FieldSlot) ||
       record->is_optional());
 
   Archive::Reader contents(record->get_payload());
-  auto encoded_ordinal = contents.read_unsigned_64();
-  auto has_type = contents.read_unsigned_8();
+  auto encoded_ordinal = contents.read_u64();
+  auto has_type = contents.read_u8();
   BAIL_IF(
       !encoded_ordinal || *encoded_ordinal != ordinal || !has_type ||
       *has_type > 1);

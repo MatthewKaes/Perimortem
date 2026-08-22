@@ -68,7 +68,7 @@ auto Builtin::View::Slice::lower_call(
 }
 
 static auto select_unsigned(const Ttx::Model::Pack& values, Count index)
-    -> Core::Option<Unsigned_64> {
+    -> Core::Option<U64> {
   auto produced = values.get_produced(index);
   BAIL_IF(!produced);
   auto constant = produced->producer.select<Language::Constants::Unsigned>();
@@ -94,8 +94,8 @@ static auto select_unsigned(const Ttx::Model::Pack& values, Count index)
   auto selected = folded->get_produced(produced->local_index);
   BAIL_IF(!selected);
   constant = selected->producer.select<Language::Constants::Unsigned>();
-  return constant ? Core::Option<Unsigned_64>(constant->get_value())
-                  : Core::Option<Unsigned_64>();
+  return constant ? Core::Option<U64>(constant->get_value())
+                  : Core::Option<U64>();
 }
 
 auto Builtin::View::Slice::fold_call(
@@ -109,8 +109,8 @@ auto Builtin::View::Slice::fold_call(
   auto start = select_unsigned(arguments, 0);
   auto count = select_unsigned(arguments, 1);
   BAIL_IF(
-      !bytes || !start || !count || *start > Unsigned_64(Count(-1)) ||
-      *count > Unsigned_64(Count(-1)));
+      !bytes || !start || !count || *start > U64(Count(-1)) ||
+      *count > U64(Count(-1)));
 
   Core::View::Bytes selected =
       bytes->get_value().slice(Count(*start), Count(*count));

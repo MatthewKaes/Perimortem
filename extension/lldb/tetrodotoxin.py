@@ -168,7 +168,7 @@ def contiguous_summary(value, _internal_dictionary):
         if opening >= 0 and type_name.endswith("]")
         else state[2].GetCanonicalType().GetName()
     )
-    if dynamic_bytes or element_name == "Unsigned_8":
+    if dynamic_bytes or element_name == "U8":
         quoted = _quote_bytes(value, state)
         return f"Dynamic::Bytes({quoted})" if dynamic_bytes else quoted
 

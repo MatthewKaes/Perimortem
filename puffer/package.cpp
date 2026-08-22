@@ -13,12 +13,12 @@
 
 #include "perimortem/system/file.hpp"
 #include "perimortem/system/version.hpp"
+#include "perimortem/serialization/stream/textual.hpp"
 
 #include "tetrodotoxin/app/dialect.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/language/construction.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
@@ -26,8 +26,11 @@
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/llvm/compiler.hpp"
+#include "tetrodotoxin/library/llvm/header.hpp"
 #include "tetrodotoxin/library/llvm/program.hpp"
 #include "tetrodotoxin/library/llvm/symbol.hpp"
+#include "tetrodotoxin/linker/manifest.hpp"
+#include "tetrodotoxin/linker/provider.hpp"
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/archive/writer.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
@@ -69,7 +72,7 @@ static auto parse_debug(Core::View::Bytes text)
   return {};
 }
 
-static auto split(Core::View::Bytes value, Unsigned_8 separator, Count index)
+static auto split(Core::View::Bytes value, U8 separator, Count index)
     -> Core::View::Bytes {
   Count selected = 0;
   Count start = 0;
@@ -87,8 +90,7 @@ static auto split(Core::View::Bytes value, Unsigned_8 separator, Count index)
   return {};
 }
 
-static auto split_count(Core::View::Bytes value, Unsigned_8 separator)
-    -> Count {
+static auto split_count(Core::View::Bytes value, U8 separator) -> Count {
   Count count = value.is_empty() ? 0 : 1;
   for (Count index = 0; index < value.get_size(); index++) {
     count += value[index] == separator ? 1 : 0;
@@ -116,17 +118,6 @@ static auto append_host_path(
     Memory::Managed::Bytes& output,
     const Ttx::Concept::Abstract& semantic,
     Count start) -> Bool {
-  auto construction = semantic.select<Library::Language::Construction>();
-  if (construction) {
-    BAIL_IF(!append_host_path(output, construction->get_owner(), start));
-    if (output.get_size() != start) {
-      output.concat("::"_view);
-    }
-    output.concat(construction->get_name());
-    output.concat("[static]"_view);
-    return True;
-  }
-
   auto function = semantic.select<Library::Language::Function>();
   if (function) {
     BAIL_IF(!append_host_path(
@@ -178,7 +169,109 @@ static auto create_route(
   return output.get_view();
 }
 
-enum class RouteKind : Unsigned_8 {
+static auto resolve_context_route(
+    const Ttx::Concept::Abstract& root,
+    Core::View::Bytes route) -> Core::Option<const Ttx::Concept::Abstract&> {
+  Ttx::Concept::Reference<const Ttx::Concept::Abstract> selected(root);
+  Count start = 0;
+  for (Count index = 0; index <= route.get_size(); index++) {
+    Bool end = index == route.get_size();
+    Bool separator = !end && index + 1 < route.get_size() &&
+                     route[index] == ':' && route[index + 1] == ':';
+    if (!end && !separator) {
+      continue;
+    }
+    Core::View::Bytes segment = route.slice(start, index - start);
+    BAIL_IF(segment.is_empty());
+    selected = Ttx::Concept::Reference<const Ttx::Concept::Abstract>(
+        selected.get().resolve_context(segment).resolve());
+    BAIL_IF(selected.get().is<Ttx::Concept::Invalid>());
+    if (separator) {
+      index++;
+    }
+    start = index + 1;
+  }
+  return selected.get();
+}
+
+static auto select_library(
+    const Tetrodotoxin::Language::Monograph& member,
+    const Ttx::Concept::Abstract& library_dialect)
+    -> Core::Option<const Library::Language::Monograph&> {
+  auto direct = member.select<Library::Language::Monograph>();
+  if (direct) {
+    return *direct;
+  }
+  auto layer = member.get_layer(library_dialect);
+  return layer ? layer->select<Library::Language::Monograph>()
+               : Core::Option<const Library::Language::Monograph&>();
+}
+
+static auto retain_type_binding(
+    Memory::Allocator::Arena& arena,
+    Memory::Managed::Vector<Library::Llvm::Unit::TypeBinding>& bindings,
+    Core::View::Bytes package,
+    Core::View::Bytes member,
+    Core::View::Bytes route,
+    const Ttx::Concept::Abstract& selected) -> Bool {
+  const Ttx::Concept::Abstract& resolved = selected.resolve();
+  auto type = resolved.select<Library::Language::Model::Type>();
+  if (!type) {
+    return True;
+  }
+
+  for (const Library::Llvm::Unit::TypeBinding& binding : bindings.get_view()) {
+    if (&binding.get_semantic() == &*type) {
+      return True;
+    }
+    if (binding.get_package() == package && binding.get_route() == route) {
+      return False;
+    }
+  }
+
+  Core::View::Bytes retained_route = arena.proxy(route);
+  bindings.insert(
+      Library::Llvm::Unit::TypeBinding(*type, package, member, retained_route));
+  auto composite = type->select<Library::Language::Types::Composite>();
+  if (!composite) {
+    return True;
+  }
+
+  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& nested :
+       composite->get_types()) {
+    Memory::Managed::Bytes nested_route(arena, retained_route);
+    nested_route.concat("::"_view);
+    nested_route.concat(nested.get().get_name());
+    if (!retain_type_binding(
+            arena, bindings, package, member, nested_route.get_view(),
+            nested.get())) {
+      return False;
+    }
+  }
+  return True;
+}
+
+static auto retain_library_types(
+    Memory::Allocator::Arena& arena,
+    Memory::Managed::Vector<Library::Llvm::Unit::TypeBinding>& bindings,
+    Core::View::Bytes package,
+    Core::View::Bytes member,
+    const Library::Language::Monograph& library) -> Bool {
+  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& selected :
+       library.get_source().get_types()) {
+    Memory::Managed::Bytes route(arena, member);
+    route.concat("::"_view);
+    route.concat(selected.get().get_name());
+    if (!retain_type_binding(
+            arena, bindings, package, member, route.get_view(),
+            selected.get())) {
+      return False;
+    }
+  }
+  return True;
+}
+
+enum class RouteKind : U8 {
   Static,
   SelfCallable,
 };
@@ -193,6 +286,20 @@ struct UnitSpecification {
   Core::View::Bytes ir;
   Core::View::Bytes object;
 };
+
+static auto parse_import_kind(Core::View::Bytes value)
+    -> Core::Option<Linker::Import::Kind> {
+  if (value == "function"_view) {
+    return Linker::Import::Kind::Function;
+  }
+  if (value == "readonly"_view) {
+    return Linker::Import::Kind::ReadOnlyState;
+  }
+  if (value == "writable"_view) {
+    return Linker::Import::Kind::WritableState;
+  }
+  return {};
+}
 
 static auto terminal(Core::View::Bytes segment) -> Core::Option<RouteTerminal> {
   constexpr Core::View::Bytes static_callable = "[static]"_view;
@@ -219,6 +326,11 @@ static auto terminal(Core::View::Bytes segment) -> Core::Option<RouteTerminal> {
 static auto resolve_route(
     const Package::Language::Monograph& package,
     Core::View::Bytes route) -> Core::Option<const Ttx::Concept::Abstract&> {
+  auto direct = resolve_context_route(package, route);
+  if (direct && direct->resolve().is<Library::Language::Model::Type>()) {
+    return direct->resolve();
+  }
+
   Memory::Dynamic::Vector<Core::View::Bytes> segments;
   Count start = 0;
   for (Count index = 0; index <= route.get_size(); index++) {
@@ -286,28 +398,44 @@ static auto report_errors(const Ttx::Lexical::Errors& errors) -> void {
   }
 }
 
-auto Puffer::Package::run() const -> Signed_32 {
-  Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::console_sink);
-  Core::Diagnostics::Log::set_disable_header(True);
+auto Puffer::Package::run() const -> S32 {
+  Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::plain_sink);
 
   Core::View::Bytes manifest = value(arguments, "manifest"_view);
   Core::View::Bytes identity = value(arguments, "name"_view);
   Core::View::Bytes complete_path = value(arguments, "complete"_view);
   Core::View::Bytes interface_path = value(arguments, "interface"_view);
   Core::View::Bytes header_path = value(arguments, "header"_view);
+  Core::View::Bytes abi_manifest_path = value(arguments, "abi-manifest"_view);
   System::Version version =
       System::Version::parse(value(arguments, "version"_view));
   auto debug = parse_debug(value(arguments, "debug"_view));
   Core::View::Bytes artifact = value(arguments, "artifact"_view);
   if (manifest.is_empty() || identity.is_empty() || complete_path.is_empty() ||
       interface_path.is_empty() || header_path.is_empty() ||
-      version.is_null() || !debug || artifact != "x86_64-sysv-linux"_view) {
+      abi_manifest_path.is_empty() || version.is_null() || !debug ||
+      artifact != "x86_64-sysv-linux"_view) {
     Core::Diagnostics::Log::error(
         "Puffer Package mode received an incomplete request."_view);
     return 2;
   }
 
   Memory::Allocator::Arena arena;
+  Memory::Dynamic::Vector<Linker::Provider> providers;
+  for (Core::View::Bytes specification :
+       values(arguments, "native-provider"_view)) {
+    if (split_count(specification, '|') != 4) {
+      return 2;
+    }
+    auto kind = parse_import_kind(split(specification, '|', 2));
+    if (!kind) {
+      return 2;
+    }
+    providers.insert(
+        Linker::Provider(
+            split(specification, '|', 0), split(specification, '|', 1), *kind,
+            "C"_view, split(specification, '|', 3)));
+  }
   Environment::Toolchain toolchain;
   if (!toolchain.install<Tetrodotoxin::Package::Dialect>("Package"_view) ||
       !toolchain.install<Library::Dialect>("Library"_view) ||
@@ -349,6 +477,43 @@ auto Puffer::Package::run() const -> Signed_32 {
     dependency_archives.insert(*archive);
   }
 
+  Memory::Dynamic::Vector<Memory::Dynamic::Bytes> dependency_manifest_bytes;
+  Memory::Managed::Vector<Linker::Manifest> dependency_manifests(arena);
+  for (Core::View::Bytes manifest_path : values(arguments, "dep-abi"_view)) {
+    auto bytes = System::File::read(manifest_path);
+    if (!bytes) {
+      return 1;
+    }
+    dependency_manifest_bytes.emplace(
+        static_cast<Memory::Dynamic::Bytes&&>(*bytes));
+    auto decoded = Linker::Manifest::read(
+        arena,
+        dependency_manifest_bytes[dependency_manifest_bytes.get_size() - 1]);
+    Bool retained = decoded.visit(
+        [&](const Linker::Manifest& manifest) -> Bool {
+          dependency_manifests.insert(manifest);
+          return True;
+        },
+        [](const Linker::Manifest::Error&) -> Bool { return False; });
+    if (!retained) {
+      return 1;
+    }
+  }
+  for (const Tetrodotoxin::Package::Archive::Archive& archive :
+       dependency_archives.get_view()) {
+    Count matches = 0;
+    for (const Linker::Manifest& manifest : dependency_manifests.get_view()) {
+      matches +=
+          manifest.get_artifact() == artifact && archive.matches(manifest) ? 1
+                                                                           : 0;
+    }
+    if (matches != 1) {
+      Core::Diagnostics::Log::error(
+          "Puffer Package could not match one dependency ABI Manifest."_view);
+      return 1;
+    }
+  }
+
   Core::View::Bytes package_root;
   Core::View::Bytes manifest_route;
   if (!package_paths(manifest, package_root, manifest_route)) {
@@ -364,6 +529,67 @@ auto Puffer::Package::run() const -> Signed_32 {
   if (!root) {
     report_errors(errors);
     return 1;
+  }
+
+  auto library_dialect = toolchain.find("Library"_view);
+  if (!library_dialect) {
+    return 1;
+  }
+
+  Memory::Managed::Vector<Library::Llvm::Unit::TypeBinding> type_bindings(
+      arena);
+  Memory::Managed::Vector<Core::View::Bytes> dependency_headers(arena);
+  for (const Tetrodotoxin::Package::Archive::Archive& dependency :
+       dependency_archives.get_view()) {
+    Memory::Managed::Bytes header_path(arena);
+    Serialization::Stream::Textual<Memory::Managed::Bytes> header_stream(
+        header_path);
+    header_stream << dependency.get_identity() << "/"_view
+                  << dependency.get_version().get_major() << "."_view
+                  << dependency.get_version().get_minor() << "/c_abi.h"_view;
+    dependency_headers.insert(header_path.get_view());
+    auto dependency_root =
+        workspace.resolve_context(dependency.get_identity())
+            .resolve()
+            .select<Tetrodotoxin::Package::Language::Monograph>();
+    if (!dependency_root) {
+      return 1;
+    }
+    for (const Tetrodotoxin::Package::Archive::Member& archived_member :
+         dependency.get_members()) {
+      auto selected = resolve_context_route(
+          *dependency_root, archived_member.get_semantic_name());
+      auto member =
+          selected ? selected->select<Tetrodotoxin::Language::Monograph>()
+                   : Core::Option<const Tetrodotoxin::Language::Monograph&>();
+      auto library = member
+                         ? select_library(*member, *library_dialect)
+                         : Core::Option<const Library::Language::Monograph&>();
+      if (library && !retain_library_types(
+                         arena, type_bindings, dependency.get_identity(),
+                         archived_member.get_semantic_name(), *library)) {
+        Core::Diagnostics::Log::error(
+            "Puffer Package found colliding dependency ABI Type routes."_view);
+        return 1;
+      }
+    }
+  }
+
+  for (const Tetrodotoxin::Package::Language::Source& source :
+       root->get_sources()) {
+    auto selected = resolve_context_route(*root, source.get_local_name());
+    auto member =
+        selected ? selected->select<Tetrodotoxin::Language::Monograph>()
+                 : Core::Option<const Tetrodotoxin::Language::Monograph&>();
+    auto library = member ? select_library(*member, *library_dialect)
+                          : Core::Option<const Library::Language::Monograph&>();
+    if (library && !retain_library_types(
+                       arena, type_bindings, identity, source.get_local_name(),
+                       *library)) {
+      Core::Diagnostics::Log::error(
+          "Puffer Package found colliding local ABI Type routes."_view);
+      return 1;
+    }
   }
 
   Memory::Managed::Vector<Library::Llvm::Unit::Binding> external(arena);
@@ -395,6 +621,8 @@ auto Puffer::Package::run() const -> Signed_32 {
 
   Memory::Managed::Vector<Tetrodotoxin::Package::Archive::Export> exports(
       arena);
+  Memory::Managed::Vector<Linker::Import> selected_imports(arena);
+  Memory::Managed::Bytes abi_description(arena, artifact);
   Memory::Dynamic::Bytes combined_header;
   Memory::Dynamic::Vector<UnitSpecification> units;
   for (Core::View::Bytes specification : values(arguments, "unit"_view)) {
@@ -438,9 +666,10 @@ auto Puffer::Package::run() const -> Signed_32 {
     Core::View::Bytes source_path = unit_specification->source;
     Core::View::Bytes ir_path = unit_specification->ir;
     Core::View::Bytes object_path = unit_specification->object;
-    const Ttx::Concept::Abstract& selected =
-        root->resolve_context(member_name).resolve();
-    auto member = selected.select<Tetrodotoxin::Language::Monograph>();
+    auto selected = resolve_context_route(*root, member_name);
+    auto member =
+        selected ? selected->select<Tetrodotoxin::Language::Monograph>()
+                 : Core::Option<const Tetrodotoxin::Language::Monograph&>();
     if (!member) {
       return 1;
     }
@@ -450,7 +679,8 @@ auto Puffer::Package::run() const -> Signed_32 {
       return 1;
     }
     Library::Llvm::Unit unit(
-        identity, member_name, artifact, external.get_view());
+        identity, member_name, artifact, external.get_view(),
+        type_bindings.get_view(), dependency_headers.get_view());
     Library::Llvm::Products products = [&]() {
       auto library = member->select<Library::Language::Monograph>();
       if (library) {
@@ -489,6 +719,51 @@ auto Puffer::Package::run() const -> Signed_32 {
       return 1;
     }
     combined_header.concat(products.get_header());
+    abi_description.concat(products.get_abi_fingerprint().render(arena));
+
+    for (const Linker::Import& import : products.get_imports()) {
+      Core::Option<Linker::Import> selected_import;
+      Core::Option<Linker::Provider::Error> selection_error;
+      Linker::Provider::select(providers.get_view(), artifact, import)
+          .visit(
+              [&](const Linker::Import& selected) {
+                selected_import = selected;
+              },
+              [&](Linker::Provider::Error error) { selection_error = error; });
+      if (selection_error || !selected_import) {
+        Core::Diagnostics::Log::Message<384> message(
+            Core::Diagnostics::Log::Level::Error, Core::Diagnostics::Source());
+        message << "Puffer Package native provider selection failed for `"_view
+                << import.get_symbol() << "` with reason `"_view
+                << (selection_error && *selection_error ==
+                                           Linker::Provider::Error::Ambiguous
+                        ? "ambiguous"_view
+                        : "missing"_view)
+                << "`."_view;
+        return 1;
+      }
+
+      Linker::Import selected = *selected_import;
+      Bool duplicate = False;
+      for (const Linker::Import& existing : selected_imports.get_view()) {
+        if (existing.get_symbol() != selected.get_symbol()) {
+          continue;
+        }
+        if (!(existing == selected)) {
+          Core::Diagnostics::Log::error(
+              "Puffer Package selected conflicting providers for one import."_view);
+          return 1;
+        }
+        duplicate = True;
+        break;
+      }
+      if (!duplicate) {
+        selected_imports.insert(selected);
+        abi_description.concat(selected.get_provider());
+        abi_description.concat(selected.get_abi());
+        abi_description.concat(selected.get_symbol());
+      }
+    }
 
     for (const Library::Llvm::Publication& publication :
          products.get_publications()) {
@@ -530,7 +805,25 @@ auto Puffer::Package::run() const -> Signed_32 {
     }
   }
 
-  Core::View::Bytes artifacts[] = {artifact};
+  Linker::Fingerprint abi_fingerprint =
+      Linker::Fingerprint::create(abi_description.get_view());
+  auto identified_header = Library::Llvm::Header::identify(
+      arena, combined_header.get_view(), identity, abi_fingerprint);
+  if (!identified_header) {
+    return 1;
+  }
+  Linker::Manifest native_manifest(
+      identity, version, artifact, artifact, abi_fingerprint,
+      selected_imports.get_view());
+  auto manifest_bytes = Linker::Manifest::write(native_manifest);
+  if (!manifest_bytes) {
+    return 1;
+  }
+
+  Tetrodotoxin::Package::Archive::Artifact artifacts[] = {
+    Tetrodotoxin::Package::Archive::Artifact(
+        artifact, artifact, abi_fingerprint, selected_imports.get_view()),
+  };
   auto complete = Tetrodotoxin::Package::Archive::Writer::write(
       *root, identity, version, Language::Persistence::Profile::Complete,
       artifacts, exports.get_view());
@@ -539,7 +832,8 @@ auto Puffer::Package::run() const -> Signed_32 {
       artifacts, exports.get_view());
   if (!complete || !interface || !publish(complete_path, *complete) ||
       !publish(interface_path, *interface) ||
-      !publish(header_path, combined_header)) {
+      !publish(header_path, identified_header->get_view()) ||
+      !publish(abi_manifest_path, *manifest_bytes)) {
     Core::Diagnostics::Log::error(
         "Puffer Package could not publish its completed products."_view);
     return 1;

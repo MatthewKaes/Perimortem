@@ -23,19 +23,19 @@ class Blueprint {
       Core::View::Bytes,
       Core::View::Vector<Blueprint>,
       Node,
-      Signed_64,
-      Real_64,
+      S64,
+      R64,
       Bool>;
 
  public:
   Blueprint() = default;
   Blueprint(Core::View::Bytes text) : value(text) {}
-  // Bool has its own JSON representation. Other integers use Signed_64.
+  // Bool has its own JSON representation. Other integers use S64.
   template <typename Integer>
     requires(__is_integral(Integer) && !__is_same(Integer, bool))
-  Blueprint(Integer number) : value(Signed_64(number)) {}
-  Blueprint(Real_64 real) : value(real) {}
-  Blueprint(Real_32 real) : Blueprint(Real_64(real)) {}
+  Blueprint(Integer number) : value(S64(number)) {}
+  Blueprint(R64 real) : value(real) {}
+  Blueprint(R32 real) : Blueprint(R64(real)) {}
   Blueprint(Bool flag) : value(flag) {}
   Blueprint(const Node& node) : value(node) {}
 
@@ -44,11 +44,11 @@ class Blueprint {
   template <typename Integer>
     requires(__is_integral(Integer) && !__is_same(Integer, bool))
   Blueprint(Core::View::Bytes member_name, Integer number)
-      : name(member_name), value(Signed_64(number)) {}
-  Blueprint(Core::View::Bytes member_name, Real_64 real)
+      : name(member_name), value(S64(number)) {}
+  Blueprint(Core::View::Bytes member_name, R64 real)
       : name(member_name), value(real) {}
-  Blueprint(Core::View::Bytes member_name, Real_32 real)
-      : Blueprint(member_name, Real_64(real)) {}
+  Blueprint(Core::View::Bytes member_name, R32 real)
+      : Blueprint(member_name, R64(real)) {}
   Blueprint(Core::View::Bytes member_name, Bool flag)
       : name(member_name), value(flag) {}
   Blueprint(Core::View::Bytes member_name, const Node& node)

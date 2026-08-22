@@ -3,6 +3,6 @@
 
 #include "puffer/command.hpp"
 
-Signed_32 main(Signed_32 argc, char** argv) {
+S32 main(S32 argc, char** argv) {
   return Puffer::Command(argc, argv).run();
 }

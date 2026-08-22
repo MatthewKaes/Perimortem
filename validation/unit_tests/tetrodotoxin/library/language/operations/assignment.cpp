@@ -73,17 +73,17 @@ PERIMORTEM_UNIT_TEST(
       "// Assignment graph.\n"
       "dialect : Library;\n"
       "public Data : struct {\n"
-      "  public value : Unsigned_64 = 0;\n"
-      "  expose state guarded : Unsigned_64 = 0;\n"
+      "  public value : U64 = 0;\n"
+      "  expose state guarded : U64 = 0;\n"
       "  public mutate : func = [self] -> [] {\n"
       "    self.guarded += 1;\n"
       "    return;\n"
       "  }\n"
       "}\n"
-      "private global : Unsigned_64 = 0;\n"
+      "private global : U64 = 0;\n"
       "public run : func = [] -> [] {\n"
-      "  state local : Unsigned_64 = 1;\n"
-      "  state access : Access[Unsigned_64];\n"
+      "  state local : U64 = 1;\n"
+      "  state access : Access[U64];\n"
       "  Data.value = local + 2 * 3;\n"
       "  global = Data.value;\n"
       "  local += 3;\n"
@@ -171,7 +171,7 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, complete_pack_fits_target) {
       "// Assignment Pack.\n"
       "dialect : Library;\n"
       "public Pair : struct {\n"
-      "  public state number : Unsigned_64;\n"
+      "  public state number : U64;\n"
       "  public state flag : Bool;\n"
       "}\n"
       "public run : func = [] -> Pair {\n"
@@ -190,7 +190,7 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, immutable_targets_are_rejected) {
   static constexpr View::Bytes writable =
       "// Public state write.\n"
       "dialect : Library;\n"
-      "public Data : struct { public state value : Unsigned_64; }\n"
+      "public Data : struct { public state value : U64; }\n"
       "private data : Data;\n"
       "private write : func = [] -> [] { data.value = 1; return; }"_view;
   auto workspace_toolchain = create_library_toolchain();
@@ -200,10 +200,10 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, immutable_targets_are_rejected) {
   EXPECT(errors.is_empty());
 
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
-    "// Const Local.\ndialect : Library; private invalid : func = [] -> [] { const value : Unsigned_64 = 1; value = 2; return; }"_view,
-    "// Const Field.\ndialect : Library; private const value : Unsigned_64 = 1; private invalid : func = [] -> [] { value = 2; return; }"_view,
-    "// Parameter target.\ndialect : Library; private invalid : func = [.value : Unsigned_64] -> [] { value = 2; return; }"_view,
-    "// External state.\ndialect : Library; public Data : struct { expose state value : Unsigned_64 = 0; } private data : Data; private invalid : func = [] -> [] { data.value = 2; return; }"_view,
+    "// Const Local.\ndialect : Library; private invalid : func = [] -> [] { const value : U64 = 1; value = 2; return; }"_view,
+    "// Const Field.\ndialect : Library; private const value : U64 = 1; private invalid : func = [] -> [] { value = 2; return; }"_view,
+    "// Parameter target.\ndialect : Library; private invalid : func = [.value : U64] -> [] { value = 2; return; }"_view,
+    "// External state.\ndialect : Library; public Data : struct { expose state value : U64 = 0; } private data : Data; private invalid : func = [] -> [] { data.value = 2; return; }"_view,
   }};
 
   for (Count index = 0; index < sources.get_size(); index++) {
@@ -214,11 +214,11 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, immutable_targets_are_rejected) {
 PERIMORTEM_UNIT_TEST(AssignmentTests, invalid_values_and_targets_are_rejected) {
   static constexpr Static::Vector<View::Bytes, 7> sources = {{
     "// Plain mismatch.\ndialect : Library; private invalid : func = [] -> [] { state value : Bool = false; value = 1; return; }"_view,
-    "// Compound mismatch.\ndialect : Library; private invalid : func = [] -> [] { state value : Unsigned_64 = 0; value += -1; return; }"_view,
+    "// Compound mismatch.\ndialect : Library; private invalid : func = [] -> [] { state value : U64 = 0; value += -1; return; }"_view,
     "// Compound nonnumeric.\ndialect : Library; private invalid : func = [] -> [] { state value : Bool = false; value += true; return; }"_view,
-    "// Pack mismatch.\ndialect : Library; private invalid : func = [] -> [] { state value : Unsigned_64 = 0; value = (1, 2); return; }"_view,
+    "// Pack mismatch.\ndialect : Library; private invalid : func = [] -> [] { state value : U64 = 0; value = (1, 2); return; }"_view,
     "// Computed target.\ndialect : Library; private invalid : func = [] -> [] { 1 + 2 = 3; return; }"_view,
-    "// Missing source.\ndialect : Library; private invalid : func = [] -> [] { state value : Unsigned_64 = 0; value = ; return; }"_view,
+    "// Missing source.\ndialect : Library; private invalid : func = [] -> [] { state value : U64 = 0; value = ; return; }"_view,
     "// Type target.\ndialect : Library; private invalid : func = [] -> [] { Bool = true; return; }"_view,
   }};
 

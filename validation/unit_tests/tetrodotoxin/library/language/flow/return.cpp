@@ -85,7 +85,7 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
       "// Return Layout flow.\n"
       "dialect : Library;\n"
       "public Packet : struct {\n"
-      "  public state number : Unsigned_64; public state flag : Bool;\n"
+      "  public state number : U64; public state flag : Bool;\n"
       "}\n"
       "public Flow : struct {\n"
       "  public bare_result : func = [] -> [] { return; }\n"
@@ -95,17 +95,17 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
       "  public scalar : func = [] -> Bool { return true; }\n"
       "  public grouped_scalar : func = [] -> Bool { return (true); }\n"
       "  public grouped_pair : func = [.packet : Packet] -> "
-      "[Unsigned_64, Bool] {\n"
+      "[U64, Bool] {\n"
       "    return (packet.number, packet.flag);\n"
       "  }\n"
       "  public named_pair : func = [.packet : Packet] -> "
-      "[.number : Unsigned_64, .flag : Bool] {\n"
+      "[.number : U64, .flag : Bool] {\n"
       "    return (.flag = packet.flag, .number = packet.number);\n"
       "  }\n"
-      "  public pair : func = [.packet : Packet] -> [Unsigned_64, Bool] {\n"
+      "  public pair : func = [.packet : Packet] -> [U64, Bool] {\n"
       "    return packet.[number, flag];\n"
       "  }\n"
-      "  public called : func = [.packet : Packet] -> [Unsigned_64, Bool] {\n"
+      "  public called : func = [.packet : Packet] -> [U64, Bool] {\n"
       "    return Flow -> pair(packet);\n"
       "  }\n"
       "  public empty_swizzle : func = [.packet : Packet] -> [] {\n"
@@ -185,7 +185,7 @@ PERIMORTEM_UNIT_TEST(ReturnTests, incompatible_flow_is_rejected) {
     "// Value in empty return.\ndialect : Library; private invalid : func = [] -> [] { return true; }"_view,
     "// Scalar mismatch.\ndialect : Library; private invalid : func = [] -> Bool { return 1; }"_view,
     "// Explicit empty mismatch.\ndialect : Library; private invalid : func = [] -> Bool { return (); }"_view,
-    "// Positional Pack mismatch.\ndialect : Library; private invalid : func = [] -> [Unsigned_64, Bool] { return (true, 1); }"_view,
+    "// Positional Pack mismatch.\ndialect : Library; private invalid : func = [] -> [U64, Bool] { return (true, 1); }"_view,
     "// Named Pack mismatch.\ndialect : Library; private invalid : func = [] -> [.left : Bool] { return (.right = true); }"_view,
   }};
   for (Count i = 0; i < sources.get_size(); i++) {

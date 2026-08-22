@@ -40,9 +40,7 @@ class Hashable {
   }
 
   ~Hashable() { destruct_count++; }
-  auto hash() const -> Unsigned_64 {
-    return Perimortem::Core::Hash(id).get_value();
-  }
+  auto hash() const -> U64 { return Perimortem::Core::Hash(id).get_value(); }
 
   auto operator==(const Hashable& rhs) const -> Bool { return rhs.id == id; }
 

@@ -28,7 +28,7 @@ using Memory;
 ```
 
 The Memory source authors the two-word byte carrier as one
-`Object[Unsigned_8]` plus its logical size. Ordinary recursive Structure
+`Object[U8]` plus its logical size. Ordinary recursive Structure
 ownership retains and releases that Object without native lifecycle Attributes.
 Consumers therefore share one Type identity rather than materializing matching
 but unrelated byte carriers in every source root.
@@ -70,7 +70,7 @@ Library hash contract.
 `Perimortem.Math` supplies the concrete Library numeric and vector Types used by
 the provided Render, Shader, and Graphics contracts. `Math::Vec4D`, for example,
 is an inline Struct with named `x`, `y`, `z`, and `w` entries of exact
-`Real_32` Type.
+`R32` Type.
 
 These Types are ordinary Library Structs. Their operations obey Library's exact
 Type rules, so structural coincidence does not convert a Graphics point or tone
@@ -84,6 +84,11 @@ explicit Foreign declarations. Package native locators connect those declared
 symbols to the Perimortem System runtime. Neither Library nor Workspace knows a
 special System namespace. System depends on `Perimortem.Memory`, so its Terminal
 Callables and their callers exchange the same `Dynamic::Bytes` identity.
+
+The build selects `Perimortem.System.Host` as the logical provider for the
+current target. Package records that choice beside each imported symbol in its
+Archive artifact and Linker ABI Manifest, while the Foreign graph remains the
+same across host implementations.
 
 ### Terminal lines
 
@@ -100,9 +105,9 @@ value entirely through authored Memory Package behavior.
 The canonical Echo loop therefore remains ordinary Library control flow:
 
 ```ttx
-const prefix : View[Unsigned_8] = "Echo: ":[0, 6];
-const quit : View[Unsigned_8] = "quit":[0, 4];
-const exit : View[Unsigned_8] = "exit":[0, 4];
+const prefix : View[U8] = "Echo: ":[0, 6];
+const quit : View[U8] = "quit":[0, 4];
+const exit : View[U8] = "exit":[0, 4];
 
 while true {
   state line := System::Terminal -> read_line()?;
@@ -160,7 +165,7 @@ math value and keep a distinct Graphics Type where point, size, color, or image
 meaning matters.
 
 `Point2D`, `Size2D`, and `Tone` are inline Struct values. Point coordinates and
-Tone channels are `Real_64`. Pixel width and height are `Unsigned_32`. `Image`
+Tone channels are `R64`. Pixel width and height are `U32`. `Image`
 and `Sprite` are nonnull Objects. An Image owns a stable decoded pixel result or
 represents the authored empty image state. Backend textures and upload resources
 are not part of that Object's semantic identity.
@@ -168,7 +173,7 @@ are not part of that Object's semantic identity.
 `Sprite` is a nonnull Object that supports Tetrodotoxin Graphics hosting. Its
 public mutable Fields are `image`, `size_pixels`, `position`, `tone`, `visible`,
 and `z_index`. Their Types are `Image`, `Size2D`,
-`Point2D`, `Tone`, `Bool`, and `Signed_64` in that order. Construction creates a
+`Point2D`, `Tone`, `Bool`, and `S64` in that order. Construction creates a
 valid unconfigured Sprite with an empty Image, zero size and position, opaque
 white tone, visible state, and zero draw index. It produces no draw until it has
 drawable content. Those authored Field initializers determine Sprite's semantic

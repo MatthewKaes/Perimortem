@@ -13,7 +13,7 @@
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -157,8 +157,8 @@ static auto rejects_committed_index_suffix(
 
 PERIMORTEM_UNIT_TEST(LibraryIndex, scalar_write_target_rejects_value_read) {
   Allocator::Arena domain;
-  Library::Language::Types::Unsigned_8 element;
-  Library::Language::Types::Access access("Access[Unsigned_8]"_view, element);
+  Library::Language::Types::U8 element;
+  Library::Language::Types::Access access("Access[U8]"_view, element);
   IndexBinding binding("storage"_view, access);
   IndexContext context(binding);
   Library::Dialect dialect;
@@ -219,8 +219,8 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, scalar_write_target_rejects_value_read) {
 
 PERIMORTEM_UNIT_TEST(LibraryIndex, ranged_write_is_complete_pack_atomic) {
   Allocator::Arena domain;
-  Library::Language::Types::Unsigned_8 element;
-  Library::Language::Types::Access access("Access[Unsigned_8]"_view, element);
+  Library::Language::Types::U8 element;
+  Library::Language::Types::Access access("Access[U8]"_view, element);
   IndexBinding binding("storage"_view, access);
   IndexContext context(binding);
   Library::Dialect dialect;
@@ -260,8 +260,8 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, ranged_write_is_complete_pack_atomic) {
 
 PERIMORTEM_UNIT_TEST(LibraryIndex, invalid_domains_are_rejected) {
   Allocator::Arena domain;
-  Library::Language::Types::Unsigned_8 element;
-  Library::Language::Types::Access access("Access[Unsigned_8]"_view, element);
+  Library::Language::Types::U8 element;
+  Library::Language::Types::Access access("Access[U8]"_view, element);
   Library::Language::Types::Boolean value_type;
   IndexBinding storage("storage"_view, access);
   IndexBinding value("value"_view, value_type);
@@ -299,8 +299,8 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, invalid_domains_are_rejected) {
 
 PERIMORTEM_UNIT_TEST(LibraryIndex, malformed_postfix_is_committed) {
   Allocator::Arena domain;
-  Library::Language::Types::Unsigned_8 element;
-  Library::Language::Types::Access access("Access[Unsigned_8]"_view, element);
+  Library::Language::Types::U8 element;
+  Library::Language::Types::Access access("Access[U8]"_view, element);
   IndexBinding storage("storage"_view, access);
   IndexContext context(storage);
   Library::Dialect dialect;

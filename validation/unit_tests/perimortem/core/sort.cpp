@@ -35,7 +35,7 @@ class SortBytes {
     return *this;
   }
 
-  auto append(Unsigned_8 byte) -> void { bytes.append(byte); }
+  auto append(U8 byte) -> void { bytes.append(byte); }
 
   constexpr auto get_view() const -> View::Bytes { return bytes.get_view(); }
 
@@ -52,8 +52,8 @@ static Harness AlgoSort = {
 };
 
 PERIMORTEM_UNIT_TEST(AlgoSort, simple_sort) {
-  constexpr Signed_32 test_const[] = {9, 8, 1, 4, 3, 7};
-  Signed_32 test[] = {9, 8, 1, 4, 3, 7};
+  constexpr S32 test_const[] = {9, 8, 1, 4, 3, 7};
+  S32 test[] = {9, 8, 1, 4, 3, 7};
 
   constexpr auto sorted_const = Algorithm::sort(test_const);
   auto sorted = Algorithm::sort(Access::Vector(test));
@@ -75,8 +75,8 @@ PERIMORTEM_UNIT_TEST(AlgoSort, simple_sort) {
 }
 
 PERIMORTEM_UNIT_TEST(AlgoSort, empty_sort) {
-  constexpr auto sorted_const = Algorithm::sort(Access::Vector<Signed_32>());
-  auto sorted = Algorithm::sort(Access::Vector<Signed_32>());
+  constexpr auto sorted_const = Algorithm::sort(Access::Vector<S32>());
+  auto sorted = Algorithm::sort(Access::Vector<S32>());
 
   EXPECT_EQ(sorted.get_size(), 0);
   EXPECT_EQ(sorted_const.get_size(), 0);
@@ -84,7 +84,7 @@ PERIMORTEM_UNIT_TEST(AlgoSort, empty_sort) {
 
 PERIMORTEM_UNIT_TEST(AlgoSort, large_sort) {
   constexpr auto item_count = 10017;
-  Signed_32 test[item_count] = {};
+  S32 test[item_count] = {};
   for (Count i = 0; i < item_count; i++) {
     test[i] = item_count - i - 1;
   }
@@ -102,8 +102,8 @@ PERIMORTEM_UNIT_TEST(AlgoSort, dynamic_types) {
   for (Count i = 0; i < item_count; i++) {
     Count value = item_count - i - 1;
     test[i] = "test_string #"_view;
-    test[i].append(Unsigned_8('0' + (value / 10)));
-    test[i].append(Unsigned_8('0' + (value % 10)));
+    test[i].append(U8('0' + (value / 10)));
+    test[i].append(U8('0' + (value % 10)));
   }
 
   auto sorted = Algorithm::sort(Access::Vector(test));
@@ -112,8 +112,8 @@ PERIMORTEM_UNIT_TEST(AlgoSort, dynamic_types) {
   Dynamic::Bytes validate = {};
   for (Count i = 0; i < item_count; i++) {
     validate = "test_string #"_view;
-    validate.append(Unsigned_8('0' + (i / 10)));
-    validate.append(Unsigned_8('0' + (i % 10)));
+    validate.append(U8('0' + (i / 10)));
+    validate.append(U8('0' + (i % 10)));
     EXPECT_TEXT(sorted_data[i].get_view(), validate.get_view());
   }
 }

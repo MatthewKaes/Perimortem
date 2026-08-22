@@ -258,6 +258,30 @@ auto Language::Flow::Match::link(
       }
 
       auto binding = entry.payload->get().select<Payload>();
+      const Abstract& shadowed =
+          binding ? lexical_context.resolve_context(binding->get_name())
+                  : Invalid::get_invalid();
+      if (!shadowed.is<Invalid>()) {
+        auto report = cursor.create_report(entry.anchor);
+        report
+            << "Library match payload shadows a reachable lexical binding."_view;
+        auto& note = report.get_hint();
+        note << "Rename this payload so every enclosing name remains "
+                "unambiguous."_view;
+        auto original = cursor.get_associations().find(shadowed);
+        if (original) {
+          Token focus = original->get_token();
+          if (!focus) {
+            focus = original->get_span().get_start();
+          }
+          if (focus) {
+            note << " Original declaration: "_view << cursor.get_source_path()
+                 << ":"_view << focus.get_line() << ":"_view
+                 << focus.get_column() << "."_view;
+          }
+        }
+        failed = True;
+      }
       if (!binding || !binding->bind(option_type->get_element_type())) {
         cursor.create_expression_error(
             entry.anchor,
@@ -267,6 +291,7 @@ auto Language::Flow::Match::link(
         continue;
       }
 
+      cursor.get_associations().create(entry.anchor, *binding);
       failed |= !entry.body.get().link(cursor);
     }
 

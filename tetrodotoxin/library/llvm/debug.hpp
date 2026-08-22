@@ -26,7 +26,7 @@ namespace Tetrodotoxin::Library::Llvm {
 // this owner.
 class Debug {
  public:
-  enum class Level : Unsigned_8 {
+  enum class Level : U8 {
     None,
     Line,
     Full,
@@ -114,13 +114,13 @@ class Debug {
       Ttx::Concept::Abstract& program,
       const Ttx::Model::Type& type,
       const Ttx::Concept::Abstract& enumerator,
-      Signed_64 value) -> Bool;
+      S64 value) -> Bool;
 
   auto unsigned_enumerator(
       Ttx::Concept::Abstract& program,
       const Ttx::Model::Type& type,
       const Ttx::Concept::Abstract& enumerator,
-      Unsigned_64 value) -> Bool;
+      U64 value) -> Bool;
 
   auto global(
       Ttx::Concept::Abstract& program,

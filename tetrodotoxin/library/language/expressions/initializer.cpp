@@ -98,6 +98,19 @@ auto Language::Expressions::Initializer::create_synthetic(
   return initializer;
 }
 
+auto Language::Expressions::Initializer::create_provider(
+    Memory::Allocator::Arena& domain,
+    const Language::Model::Type& type,
+    Language::Model::Pack& arguments) -> Initializer& {
+  Initializer& initializer = Expression::create_synthetic<Initializer>(
+      domain, [&](Core::Option<Ttx::Lexical::Anchor> source) -> Initializer {
+        return Initializer({}, arguments, source);
+      });
+  initializer.expected_type = Reference<const Language::Model::Type>(type);
+  initializer.provider = True;
+  return initializer;
+}
+
 Language::Expressions::Initializer::Initializer(
     Core::Option<TypeReference> target_reference,
     Language::Model::Pack& arguments,
@@ -163,7 +176,12 @@ auto Language::Expressions::Initializer::lower(Llvm::Builder& body) const
   }
 
   auto values = get_completed_values();
-  auto type = get_type().resolve().select<Ttx::Model::Type>();
+  auto type = get_type().resolve().select<Language::Model::Type>();
+
+  if (provider) {
+    return type && arguments.lower(body) &&
+           type->lower_provider(body, *this, arguments);
+  }
 
   if (!values || !type) {
     return False;
@@ -186,6 +204,11 @@ auto Language::Expressions::Initializer::link(
     Ttx::Lexical::Cursor& cursor,
     const Abstract& lexical_context,
     Core::Option<const Abstract&> access_scope) -> Bool {
+  if (expected_type && provider) {
+    BAIL_IF(!arguments.link(cursor, lexical_context, access_scope));
+    return Expression::link(cursor, lexical_context, access_scope);
+  }
+
   if (expected_type && completed_values) {
     BAIL_IF(
         !completed_values->get().link(cursor, lexical_context, access_scope));
@@ -246,17 +269,13 @@ auto Language::Expressions::Initializer::link(
     auto aggregate = value->select<Initializer>();
     if (aggregate && !aggregate->get_anchor()) {
       auto aggregate_values = aggregate->get_completed_values();
-      if (!aggregate_values) {
-        cursor.create_expression_error(
-            get_anchor(), "Type default did not provide completed values."_view,
-            "Keep default construction total for every completed value Type."_view);
-        return False;
+      if (aggregate_values) {
+        // A local aggregate exposes the Type-owned completed Field values.
+        // A restored aggregate instead remains the real provider Initializer
+        // so lowering can invoke its provider without inventing those Fields.
+        completed =
+            Reference<Model::Pack>(const_cast<Model::Pack&>(*aggregate_values));
       }
-      // The authored expression already carries the selected Type identity.
-      // Retaining the synthetic aggregate beneath it would duplicate the same
-      // construction node instead of exposing the Type owned default values.
-      completed =
-          Reference<Model::Pack>(const_cast<Model::Pack&>(*aggregate_values));
     }
 
     expected_type = Reference<const Language::Model::Type>(*target);

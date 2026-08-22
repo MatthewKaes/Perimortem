@@ -16,36 +16,34 @@ class Time {
   // Allows for centralized conversion into actual time units for measurement.
   class Duration {
    public:
-    Duration(Unsigned_64 delta) : nanosecond_delta(delta) {};
+    Duration(U64 delta) : nanosecond_delta(delta) {};
 
     // Converts a delta time into nanoseconds.
-    constexpr auto convert_to_nanoseconds() -> Unsigned_64 {
-      return nanosecond_delta;
-    }
+    constexpr auto convert_to_nanoseconds() -> U64 { return nanosecond_delta; }
 
     // Converts a delta time into microseconds.
-    constexpr auto convert_to_microseconds() -> Real_64 {
-      return nanosecond_delta / Real_64(1'000.0);
+    constexpr auto convert_to_microseconds() -> R64 {
+      return nanosecond_delta / R64(1'000.0);
     }
 
     // Converts a delta time into milliseconds.
-    constexpr auto convert_to_milliseconds() -> Real_64 {
-      return nanosecond_delta / Real_64(1'000'000.0);
+    constexpr auto convert_to_milliseconds() -> R64 {
+      return nanosecond_delta / R64(1'000'000.0);
     }
 
     // Converts a delta time into seconds.
     // Drops the micro & nano second portions.
-    constexpr auto convert_to_seconds() -> Real_64 {
-      return (nanosecond_delta / 1'000'000.0) / Real_64(1'000.0);
+    constexpr auto convert_to_seconds() -> R64 {
+      return (nanosecond_delta / 1'000'000.0) / R64(1'000.0);
     }
 
    private:
-    Unsigned_64 nanosecond_delta;
+    U64 nanosecond_delta;
   };
 
   Time() : timestamp(0) {};
-  Time(Unsigned_64 stamp) : timestamp(stamp) {};
-  Time(Unsigned_64 seconds, Unsigned_64 nanoseconds)
+  Time(U64 stamp) : timestamp(stamp) {};
+  Time(U64 seconds, U64 nanoseconds)
       : timestamp(seconds * 1'000'000'000 + nanoseconds) {};
 
   // Returns a time object capturing the delta time from UNIX epoch.
@@ -67,7 +65,7 @@ class Time {
   };
 
   // Gets the raw 64 bit time stamp in nanoseconds.
-  constexpr auto get_stamp() const -> Unsigned_64 { return timestamp; }
+  constexpr auto get_stamp() const -> U64 { return timestamp; }
 
   // Calculation the time between two time points.
   // If none is provided then `Time::now()` is used as the end point.
@@ -83,7 +81,7 @@ class Time {
   auto calculate_clock() const -> Static::Bytes<12>;
 
  private:
-  Unsigned_64 timestamp;
+  U64 timestamp;
 };
 
 }  // namespace Perimortem::Core

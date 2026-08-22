@@ -17,8 +17,7 @@ class Version {
  public:
   constexpr Version() = default;
 
-  constexpr Version(Unsigned_16 major, Unsigned_16 minor)
-      : major(major), minor(minor) {}
+  constexpr Version(U16 major, U16 minor) : major(major), minor(minor) {}
 
   // Parses the canonical textual representation without ever constructing a
   // floating-point value. Leading zeroes are rejected so accepted text has one
@@ -31,7 +30,7 @@ class Version {
     }
 
     for (Count i = 0; i < text.get_size(); i++) {
-      Unsigned_8 byte = text[i];
+      U8 byte = text[i];
       if (byte == '.') {
         if (separator != Count(-1)) {
           return {};
@@ -55,25 +54,25 @@ class Version {
       return {};
     }
 
-    Unsigned_32 parsed_major = 0;
+    U32 parsed_major = 0;
     for (Count i = 0; i < separator; i++) {
-      Unsigned_32 digit = Unsigned_32(text[i] - '0');
-      if (parsed_major > (Unsigned_16(-1) - digit) / 10) {
+      U32 digit = U32(text[i] - '0');
+      if (parsed_major > (U16(-1) - digit) / 10) {
         return {};
       }
       parsed_major = parsed_major * 10 + digit;
     }
 
-    Unsigned_32 parsed_minor = 0;
+    U32 parsed_minor = 0;
     for (Count i = separator + 1; i < text.get_size(); i++) {
-      Unsigned_32 digit = Unsigned_32(text[i] - '0');
-      if (parsed_minor > (Unsigned_16(-1) - digit) / 10) {
+      U32 digit = U32(text[i] - '0');
+      if (parsed_minor > (U16(-1) - digit) / 10) {
         return {};
       }
       parsed_minor = parsed_minor * 10 + digit;
     }
 
-    return Version(Unsigned_16(parsed_major), Unsigned_16(parsed_minor));
+    return Version(U16(parsed_major), U16(parsed_minor));
   }
 
   constexpr auto operator==(const Version& rhs) const -> Bool {
@@ -96,15 +95,15 @@ class Version {
     return rhs < *this;
   }
 
-  constexpr auto get_major() const -> Unsigned_16 { return major; }
+  constexpr auto get_major() const -> U16 { return major; }
 
-  constexpr auto get_minor() const -> Unsigned_16 { return minor; }
+  constexpr auto get_minor() const -> U16 { return minor; }
 
   constexpr auto is_null() const -> Bool { return major == 0 && minor == 0; }
 
  private:
-  Unsigned_16 major = 0;
-  Unsigned_16 minor = 0;
+  U16 major = 0;
+  U16 minor = 0;
 };
 
 static_assert(sizeof(Version) == 4);
