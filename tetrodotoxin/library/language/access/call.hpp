@@ -17,11 +17,10 @@
 
 namespace Tetrodotoxin::Library::Language::Access {
 
-// Call owns one complete postfix invocation and its argument Pack. The receiver
-// Expression determines Static or Self selection from the exact
-// semantic result produced during linking. Composite registration guarantees
-// one Callable per name and receiver role, so Call validates one selected
-// signature rather than searching an overload set.
+// Call represents one complete postfix invocation and keeps its argument Pack.
+// The receiver's completed result chooses Static or Self lookup. Composite has
+// already admitted one Callable for that name and role, which lets the Call
+// validate the selected signature without rebuilding an overload search.
 class Call : public Expression {
  public:
   TTX_CONTRACT(Call, Expression);
@@ -64,6 +63,13 @@ class Call : public Expression {
 
   auto get_callable() const -> Perimortem::Core::Option<const Model::Callable&>;
 
+  // Fitting already records which parameter accepted each argument output.
+  // This query turns that evidence into one label at an authored insertion
+  // point. Named arguments carry their own labels, and a composed Pack has one
+  // useful insertion point, so its first output represents the whole Pack.
+  auto get_argument_parameter(Count index) const
+      -> Perimortem::Core::Option<const Ttx::Model::Addressable&>;
+
   constexpr auto get_arguments() const -> const Language::Model::Pack& {
     return arguments;
   }
@@ -75,8 +81,9 @@ class Call : public Expression {
   }
 
  private:
-  // Input retains the one parameter mapping proven during linking. Lowering
-  // consumes this evidence without repeating named or positional fitting.
+  // Each fitted input keeps the parameter and the slice of produced values that
+  // reached it. Lowering can reuse that decision instead of repeating argument
+  // matching.
   class Input {
    public:
     constexpr Input(

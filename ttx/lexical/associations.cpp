@@ -24,22 +24,23 @@ auto Lexical::Associations::create(
   }
 
   associations.insert({
-    .anchor = anchor,
-    .semantic = Concept::Reference<const Concept::Abstract>(semantic),
+    anchor,
+    semantic,
   });
 }
 
 auto Lexical::Associations::find_at(Count offset) const
     -> Option<const Concept::Abstract&> {
-  Option<const Association&> selected;
+  Option<const Associations::Entry&> selected;
   Bool selected_focus = False;
   Count selected_extent = Count(-1);
 
   auto source_associations = associations.get_view();
   for (Count i = 0; i < source_associations.get_size(); i++) {
-    const Association& association = source_associations.get_data()[i];
-    Lexical::Token focus = association.anchor.get_token();
-    Lexical::Span span = association.anchor.get_span();
+    const Associations::Entry& association = source_associations.get_data()[i];
+    Lexical::Anchor anchor = association.get_anchor();
+    Lexical::Token focus = anchor.get_token();
+    Lexical::Span span = anchor.get_span();
     Bool contains_focus = contains(focus, offset);
     Bool contains_span = contains(span, offset);
     if (!contains_focus && !contains_span) {
@@ -59,14 +60,14 @@ auto Lexical::Associations::find_at(Count offset) const
     return {};
   }
 
-  return selected->semantic.get();
+  return selected->get_semantic();
 }
 
 auto Lexical::Associations::find(const Concept::Abstract& semantic) const
     -> Option<Lexical::Anchor> {
-  for (const Association& association : associations.get_view()) {
-    if (&association.semantic.get() == &semantic) {
-      return association.anchor;
+  for (const Entry& association : associations.get_view()) {
+    if (&association.get_semantic() == &semantic) {
+      return association.get_anchor();
     }
   }
 

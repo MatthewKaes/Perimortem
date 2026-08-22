@@ -1,8 +1,8 @@
 # Perimortem System
 
-Perimortem System provides the operating-system services used by applications.
-This includes process startup, arguments, files, paths, terminals, clocks,
-input, windows, and event loops.
+Tetrodotoxin applications use Perimortem System for their native host services.
+The same layer supports ordinary C++ applications with process startup,
+arguments, files, paths, terminals, clocks, input, windows, and event loops.
 
 The public System API does not expose Linux, Windows, Wayland, or Win32 handles.
 Those details stay inside the selected platform backend.

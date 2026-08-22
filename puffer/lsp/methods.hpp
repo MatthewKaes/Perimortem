@@ -14,8 +14,9 @@
 
 namespace Puffer::Lsp {
 
-// Each method translates one protocol request into the narrow Documents query
-// it owns. The dispatch table fixes the complete server surface at build time.
+// Each handler turns one protocol message into a small Documents query. Keeping
+// the table here makes the language server's visible surface easy to inspect
+// alongside those handlers.
 auto initialize(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
 auto document_formatting(Documents& documents, const Rpc::Message& message)
@@ -30,6 +31,8 @@ auto did_change_watched_files(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
 auto semantic_tokens(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
+auto inlay_hints(Documents& documents, const Rpc::Message& message)
+    -> Rpc::Response;
 auto hover(Documents& documents, const Rpc::Message& message) -> Rpc::Response;
 auto definition(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
@@ -37,7 +40,7 @@ auto definition(Documents& documents, const Rpc::Message& message)
 using Method =
     Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Rpc::DispatchFunc>;
 
-inline constexpr Perimortem::Core::Static::Vector<Method, 9> method_table = {{
+inline constexpr Perimortem::Core::Static::Vector<Method, 10> method_table = {{
   Method{"initialize"_view, initialize},
   {"textDocument/formatting"_view, document_formatting},
   {"textDocument/didOpen"_view, did_open},
@@ -45,6 +48,7 @@ inline constexpr Perimortem::Core::Static::Vector<Method, 9> method_table = {{
   {"textDocument/didClose"_view, did_close},
   {"workspace/didChangeWatchedFiles"_view, did_change_watched_files},
   {"textDocument/semanticTokens/full"_view, semantic_tokens},
+  {"textDocument/inlayHint"_view, inlay_hints},
   {"textDocument/hover"_view, hover},
   {"textDocument/definition"_view, definition},
 }};

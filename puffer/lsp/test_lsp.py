@@ -26,6 +26,7 @@ REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 BINARY = os.environ.get(
     "PUFFER_BINARY",
     os.path.join(REPO_ROOT, ".bin/bin/puffer/puffer"))
+POSITION_ENCODING = "utf-16" if "--utf16" in sys.argv else "utf-8"
 
 
 def lsp_frame(obj):
@@ -65,7 +66,7 @@ def read_lsp_response(conn, timeout=5.0):
         return None
 
 
-def send_format(conn, source_text, name):
+def send_format_edit(conn, source_text, name):
     """Open and format one document through the standard LSP request."""
     uri = f"file:///{name}"
     send_did_open(conn, uri, source_text)
@@ -89,7 +90,12 @@ def send_format(conn, source_text, name):
     if len(edits) != 1 or "newText" not in edits[0]:
         print(f"  ERROR: response for {name} has no complete document edit")
         return None
-    return edits[0]["newText"]
+    return edits[0]
+
+
+def send_format(conn, source_text, name):
+    edit = send_format_edit(conn, source_text, name)
+    return edit.get("newText") if edit else None
 
 
 def send_did_open(conn, uri, source_text):
@@ -122,16 +128,13 @@ def send_did_change(conn, uri, source_text, version):
 
 def send_hover(conn, uri, source_text, needle, request_id, start=0):
     offset = source_text.index(needle, start)
-    line = source_text.count("\n", 0, offset)
-    line_start = source_text.rfind("\n", 0, offset) + 1
-    character = len(source_text[line_start:offset].encode("utf-16-le")) // 2
     conn.sendall(lsp_frame({
         "jsonrpc": "2.0",
         "id": request_id,
         "method": "textDocument/hover",
         "params": {
             "textDocument": {"uri": uri},
-            "position": {"line": line, "character": character},
+            "position": source_position(source_text, offset),
         },
     }))
     return read_lsp_response(conn, timeout=10.0)
@@ -140,8 +143,9 @@ def send_hover(conn, uri, source_text, needle, request_id, start=0):
 def source_position(source_text, offset):
     line = source_text.count("\n", 0, offset)
     line_start = source_text.rfind("\n", 0, offset) + 1
-    character = len(
-        source_text[line_start:offset].encode("utf-16-le")) // 2
+    prefix = source_text[line_start:offset]
+    character = (len(prefix.encode("utf-8")) if POSITION_ENCODING == "utf-8"
+                 else len(prefix.encode("utf-16-le")) // 2)
     return {"line": line, "character": character}
 
 
@@ -181,6 +185,22 @@ def send_semantic_tokens(conn, uri, request_id):
     return read_lsp_response(conn, timeout=10.0)
 
 
+def send_inlay_hints(conn, uri, source_text, request_id):
+    conn.sendall(lsp_frame({
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": "textDocument/inlayHint",
+        "params": {
+            "textDocument": {"uri": uri},
+            "range": {
+                "start": {"line": 0, "character": 0},
+                "end": source_position(source_text, len(source_text)),
+            },
+        },
+    }))
+    return read_lsp_response(conn, timeout=10.0)
+
+
 def semantic_token_texts(source_text, data):
     lines = source_text.splitlines(keepends=True)
     line = 0
@@ -196,9 +216,26 @@ def semantic_token_texts(source_text, data):
             column += delta_start
 
         if line < len(lines):
-            tokens.append((lines[line][column:column + length], token_type))
+            encoded = lines[line].encode(
+                "utf-8" if POSITION_ENCODING == "utf-8" else "utf-16-le")
+            unit = 1 if POSITION_ENCODING == "utf-8" else 2
+            text = encoded[column * unit:(column + length) * unit].decode(
+                "utf-8" if POSITION_ENCODING == "utf-8" else "utf-16-le")
+            tokens.append((text, token_type))
 
     return tokens
+
+
+def semantic_token_records(data):
+    line = 0
+    column = 0
+    records = []
+    for i in range(0, len(data), 5):
+        delta_line, delta_start, length, token_type, modifiers = data[i:i + 5]
+        line += delta_line
+        column = delta_start if delta_line else column + delta_start
+        records.append((line, column, length, token_type, modifiers))
+    return records
 
 
 def run_test():
@@ -264,27 +301,43 @@ def run_test():
         "params": {
             "processId": os.getpid(),
             "clientInfo": {"name": "ttx-test"},
-            "capabilities": {},
+            "capabilities": {
+                "general": {
+                    "positionEncodings": (
+                        ["utf-16"] if POSITION_ENCODING == "utf-16"
+                        else ["utf-8", "utf-16"]),
+                },
+            },
         },
     }))
 
     init_resp = read_lsp_response(conn)
     caps = {}
+    generic_token = None
     if init_resp:
         caps = init_resp.get("result", {}).get("capabilities", {})
         info = init_resp.get("result", {}).get("serverInfo", {})
         print(f"  Server: {info.get('name')} v{info.get('version')}")
         print(f"  Capabilities: {list(caps.keys())}")
+        check(caps.get("positionEncoding") == POSITION_ENCODING,
+              f"server negotiates {POSITION_ENCODING} document positions")
         check("semanticTokensProvider" in caps,
               "server advertises semantic tokens")
         semantic_provider = caps.get("semanticTokensProvider", {})
         legend = semantic_provider.get("legend", {})
         check("keyword" in legend.get("tokenTypes", []),
               "semantic token legend includes keyword")
+        generic_types = legend.get("tokenTypes", [])
+        generic_token = (generic_types.index("generic")
+                         if "generic" in generic_types else None)
+        check(generic_token is not None,
+              "semantic token legend includes Generic formulas")
         check(bool(semantic_provider.get("full")),
               "server supports full semantic token requests")
         check(bool(caps.get("hoverProvider")),
               "server advertises semantic hover")
+        check(bool(caps.get("inlayHintProvider")),
+              "server advertises parameter inlay hints")
         check(bool(caps.get("definitionProvider")),
               "server advertises go to definition")
         check(bool(caps.get("documentFormattingProvider")),
@@ -545,6 +598,131 @@ def run_test():
     check("if" not in shader_texts and "continue" not in shader_texts,
           "Shader document filters Library-only control keywords")
 
+    print("\n--- Parameter inlay hints: retained Call fitting ---")
+    hint_source = (
+        "// Inlay hint source.\n"
+        "dialect : Library;\n"
+        "public Pair : struct {\n"
+        "  public state left  : U64;\n"
+        "  public state right : U64;\n"
+        "}\n"
+        "public combine : func = [.left : U64, .right : U64] -> U64 : "
+        "return left + right;\n"
+        "public consume : func = [.pair : Pair] -> U64 : "
+        "return pair.left + pair.right;\n"
+        "public hints : func = [] -> U64 {\n"
+        "  state direct := source -> combine(1, 2);\n"
+        "  state named := source -> combine(.left = 3, .right = 4);\n"
+        "  return direct + named + source -> consume(5, 6);\n"
+        "}\n"
+    )
+    hint_uri = "file:///semantic-inlay-hints.ttx"
+    hint_diagnostics = send_did_open(conn, hint_uri, hint_source)
+    check(hint_diagnostics is not None and not hint_diagnostics.get(
+        "params", {}).get("diagnostics", []),
+        "inlay hint source completes its semantic Call mappings")
+    hint_resp = send_inlay_hints(conn, hint_uri, hint_source, 23)
+    hints = hint_resp.get("result", []) if hint_resp else []
+    direct_start = hint_source.index("combine(1, 2)")
+    composed_start = hint_source.index("consume(5, 6)")
+    expected_hints = [
+        (".left =", source_position(
+            hint_source, hint_source.index("1", direct_start))),
+        (".right =", source_position(
+            hint_source, hint_source.index("2", direct_start))),
+        (".pair =", source_position(
+            hint_source, hint_source.index("5", composed_start))),
+    ]
+    actual_hints = [(hint.get("label"), hint.get("position"))
+                    for hint in hints]
+    check(actual_hints == expected_hints,
+          "positional and composed Packs use exact fitted parameter hints")
+    check(all(hint.get("kind") == 2 and hint.get("paddingRight") is True
+              for hint in hints),
+          "inlay hints publish standard parameter presentation")
+
+    print(f"\n--- {POSITION_ENCODING} protocol position boundary ---")
+    unicode_source = (
+        "// Unicode protocol source.\n"
+        "dialect : Library;\n"
+        "private const prefix := \"😀\" -> get_view(); public echo : func = "
+        "[.value : U64] -> U64 : return value;\n"
+        "public run : func = [] -> U64 { const local := \"😀\" -> get_view(); "
+        "return source -> echo(7); }"
+    )
+    unicode_uri = "file:///semantic-unicode.ttx"
+    unicode_diagnostics = send_did_open(conn, unicode_uri, unicode_source)
+    check(unicode_diagnostics is not None and not unicode_diagnostics.get(
+        "params", {}).get("diagnostics", []),
+        "Unicode protocol source completes without diagnostics")
+    unicode_use = unicode_source.index("source -> echo")
+    unicode_hover = send_hover(
+        conn, unicode_uri, unicode_source, "echo", 25, unicode_use)
+    unicode_markdown = (
+        (unicode_hover.get("result") or {}).get("contents", {}).get("value", "")
+        if unicode_hover else "")
+    check("func echo[.value : U64] -> U64" in unicode_markdown,
+          f"hover maps {POSITION_ENCODING} positions after an astral character")
+    unicode_definition = send_definition(
+        conn, unicode_uri, unicode_source, "echo", 26, unicode_use)
+    unicode_declaration = unicode_source.index("public echo")
+    check(matches_location(
+        unicode_definition, unicode_uri, unicode_source, "echo",
+        unicode_declaration),
+        "definition projects an Anchor after an astral character")
+    unicode_inlays = send_inlay_hints(
+        conn, unicode_uri, unicode_source, 27)
+    unicode_hint_values = (
+        unicode_inlays.get("result", []) if unicode_inlays else [])
+    argument = unicode_source.index("7", unicode_use)
+    check(unicode_hint_values == [{
+        "position": source_position(unicode_source, argument),
+        "label": ".value =",
+        "kind": 2,
+        "paddingRight": True,
+    }], f"inlay positions use the negotiated {POSITION_ENCODING} encoding")
+    unicode_semantic = send_semantic_tokens(conn, unicode_uri, 28)
+    unicode_data = (
+        unicode_semantic.get("result", {}).get("data", [])
+        if unicode_semantic else [])
+    first_string = unicode_source.index('"😀"')
+    expected_string_position = source_position(unicode_source, first_string)
+    expected_string_length = (
+        len('"😀"'.encode("utf-8")) if POSITION_ENCODING == "utf-8"
+        else len('"😀"'.encode("utf-16-le")) // 2)
+    check(any(
+        line == expected_string_position["line"] and
+        character == expected_string_position["character"] and
+        length == expected_string_length and token_type == 9
+        for line, character, length, token_type, _ in
+        semantic_token_records(unicode_data)),
+        f"semantic token range counts negotiated {POSITION_ENCODING} units")
+    unicode_edit = send_format_edit(conn, unicode_source, "unicode.ttx")
+    check(unicode_edit is not None and
+          unicode_edit.get("range", {}).get("end") ==
+          source_position(unicode_source, len(unicode_source)),
+          f"formatting range ends at the negotiated {POSITION_ENCODING} position")
+
+    unicode_invalid = (
+        "// Unicode diagnostic source.\n"
+        "dialect : Library;\n"
+        "private broken : func = [] -> [] { \"😀\"; $ }\n"
+    )
+    invalid_uri = "file:///semantic-unicode-invalid.ttx"
+    invalid_diagnostics = send_did_open(
+        conn, invalid_uri, unicode_invalid)
+    invalid_entries = (
+        invalid_diagnostics.get("params", {}).get("diagnostics", [])
+        if invalid_diagnostics else [])
+    invalid_offset = unicode_invalid.index("$")
+    invalid_start = source_position(unicode_invalid, invalid_offset)
+    invalid_end = source_position(unicode_invalid, invalid_offset + 1)
+    check(any(
+        diagnostic.get("range", {}).get("start") == invalid_start and
+        diagnostic.get("range", {}).get("end") == invalid_end
+        for diagnostic in invalid_entries),
+        "diagnostic range projects the focused Token at the protocol boundary")
+
     print("\n--- Semantic hover: completed Library graph ---")
     hover_path = os.path.join(
         REPO_ROOT, "validation", "data", "ttx", "llvm",
@@ -558,6 +736,16 @@ def run_test():
           "textDocument/publishDiagnostics" and
           not hover_diagnostics.get("params", {}).get("diagnostics", []),
           "valid attributed documentation publishes no diagnostics")
+    hover_semantic_resp = send_semantic_tokens(conn, hover_uri, 24)
+    hover_semantic_data = (
+        hover_semantic_resp.get("result", {}).get("data", [])
+        if hover_semantic_resp else [])
+    hover_semantic_tokens = semantic_token_texts(
+        hover_source, hover_semantic_data)
+    check(generic_token is not None and
+          ("Option", generic_token) in hover_semantic_tokens and
+          ("Object", generic_token) in hover_semantic_tokens,
+          "completed Generic formula identities receive their own token type")
     use_start = hover_source.index("total += OptionOps -> forward")
     present_resp = send_hover(
         conn, hover_uri, hover_source, "present", 30, use_start)
@@ -622,9 +810,9 @@ def run_test():
     function_markdown = (
         (function_resp.get("result") or {}).get("contents", {}).get("value", "")
         if function_resp else "")
-    check("func execute" in function_markdown and
+    check("func execute[] -> U64" in function_markdown and
           "Test documentation string for function" in function_markdown,
-          "Function hover includes documentation interleaved with attributes")
+          "Function hover includes its complete signature and documentation")
 
     changed_hover_source = hover_source.replace(
         "private const present : Maybe = 5;",
@@ -750,9 +938,10 @@ def run_test():
         .get("contents", {}).get("value", "")
         if foreign_call_resp else "")
     check(
-        "```tetrodotoxin\nfunc llvm_object_identity\n```" in
+        "```tetrodotoxin\nfunc llvm_object_identity"
+        "[.value : Object[U8]] -> U64\n```" in
         foreign_call_markdown,
-        "Foreign Callable hover uses func highlighting")
+        "Foreign Callable hover shows its complete signature")
 
     dense_call_start = hover_source.index("foreign -> llvm_dense_access")
     dense_foreign_definition = send_definition(

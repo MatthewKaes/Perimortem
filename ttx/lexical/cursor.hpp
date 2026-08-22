@@ -18,9 +18,10 @@
 
 namespace Ttx::Lexical {
 
-// Cursor is the one mutable position over an immutable authored Token stream.
-// Grammar owners consume that position only after deterministic dispatch, and
-// every failure is published to the operation error log.
+// Cursor gives a grammar one shared position in immutable authored Tokens and
+// carries source Errors and Associations through the same transaction.
+// Deterministic dispatch lets each grammar owner advance it after recognizing
+// the form it owns.
 class Cursor {
  public:
   constexpr Cursor(
@@ -30,25 +31,19 @@ class Cursor {
       : tokenizer(tokenizer), errors(errors), associations(associations) {}
   Cursor(const Cursor&) = delete;
 
-  // A grammar owner may add one required syntax diagnostic only when a nested
-  // parser did not already publish the more precise reason for rejection.
+  // Nested parsers can report a more precise error before returning. Capturing
+  // this count lets the outer grammar notice that work and avoid adding a
+  // second, less useful diagnostic.
   constexpr auto get_error_count() const -> Count { return errors.get_size(); }
 
-  // Gets the token from the tokenizer at the current location.
-  // If the current index is out of bounds then an empty token is returned.
   constexpr auto current() const -> Lexical::Token {
     return tokenizer.get_tokens()[index];
   }
 
-  // Looks at a Token relative to the current position. Positive offsets look
-  // forward and negative offsets look backward. Passing zero returns current,
-  // while either stream boundary returns an empty Token.
   constexpr auto peek(S64 offset) const -> Lexical::Token {
     return tokenizer.get_tokens()[index + offset];
   }
 
-  // Advances at most to the tokenizer's terminal token and returns the
-  // token that was current before advancing.
   constexpr auto consume() -> Lexical::Token {
     Lexical::Token consumed = current();
     if (index + 1 < tokenizer.get_tokens().get_size()) {
@@ -58,9 +53,9 @@ class Cursor {
     return consumed;
   }
 
-  // Requires the current token to have the expected Code. Success consumes and
-  // returns the token. Failure records the provided message on the mismatched
-  // token and returns an invalid end of stream token.
+  // Grammar code usually knows the friendlier message, while Cursor can always
+  // describe the exact Token mismatch. A supplied message becomes the main
+  // diagnostic and keeps that lexical comparison as a useful hint.
   constexpr auto require(
       Code::Type type,
       Perimortem::Core::View::Bytes message = {}) -> Lexical::Token {
@@ -72,9 +67,8 @@ class Cursor {
                    << " but got "_view << current().get_code().get_semantics()
                    << "."_view;
 
-      // If no message was supplied then upgrade the hint message to the error
-      // message, but if a richer message was supplied then downgrade the info
-      // to the hint message.
+      // With no richer message, the lexical comparison is the useful error.
+      // Otherwise the grammar message leads and the comparison adds context.
       if (message.is_empty()) {
         create_token_error(hint_message);
       } else {
@@ -87,18 +81,15 @@ class Cursor {
     return consume();
   }
 
-  // Creates a source level error message.
-  // Views can be temporary as the error context copies the data into its local
-  // memory space in case the error outlives the source.
+  // Errors copies message text into its Arena. Callers can safely assemble that
+  // text in temporary buffers and choose the source focus that best explains
+  // the failure.
   auto create_error(
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) const -> void {
     create_expression_error(Anchor::create(Span()), message, hint);
   }
 
-  // Creates an error at the current token.
-  // Views can be temporary as the error context copies the data into its local
-  // memory space in case the error outlives the source.
   auto create_token_error(
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) const -> void {
@@ -112,10 +103,9 @@ class Cursor {
     create_expression_error(Anchor::create(Span(token)), message, hint);
   }
 
-  // A Span defaults its diagnostic focus to the opening Token. Callers with a
-  // more precise semantic Token provide the Anchor overload directly.
-  // Views can be temporary as the error context copies the data into its local
-  // memory space in case the error outlives the source.
+  // A Span uses its opening Token as the natural focus. Semantic owners that
+  // know a more useful Token can pass an Anchor while keeping the broader range
+  // for the editor.
   auto create_expression_error(
       Lexical::Span span,
       Perimortem::Core::View::Bytes message,
@@ -145,8 +135,9 @@ class Cursor {
     report.get_hint() << hint;
   }
 
-  // Some semantic errors contribute directly to a Report. Cursor supplies the
-  // authored source facts without exposing its Errors owner to the consumer.
+  // A few semantic owners add structured detail directly to a Report. Cursor
+  // lends them the same source and Errors context so those diagnostics join the
+  // current operation log.
   auto create_report(Lexical::Span span) const -> Errors::Report {
     return create_report(Anchor::create(span));
   }
@@ -162,14 +153,10 @@ class Cursor {
         anchor);
   }
 
-  // Statement recovery is intentionally small.
-  //
-  // A malformed statement can skip to the next statement so later syntax still
-  // reports errors in the same pass. Broader recovery belongs to the caller
-  // because only that layer knows how much grammar is safe to skip.
-  //
-  // By default `Terminal`, `EndStatement` and `ScopeEnd` are used as the sync
-  // points but this can vary by dialect.
+  // Statement recovery stops at the small boundaries every grammar can
+  // recognize. That lets parsing continue after one malformed statement. A
+  // caller can provide a different set when its Dialect knows a safer place to
+  // resume.
   constexpr auto recover_to_statement(
       Perimortem::Core::View::Vector<Code::Type> terminals = {{
         Code::Type::Terminal,
@@ -182,11 +169,9 @@ class Cursor {
       type = current().get_code();
     }
 
-    // Consume the terminal to get it out of the way to keep parser logic
-    // simple.
-    //
-    // It's safe to consume end of stream since the cursor makes sure to never
-    // pass the end of the token stream.
+    // The boundary belongs to the malformed statement too, so consuming it
+    // leaves the next parser at fresh syntax. At the end of the stream Cursor
+    // simply remains on its terminal Token.
     if (type.is_one_of(terminals)) {
       consume();
     }
@@ -197,12 +182,10 @@ class Cursor {
     return span.caculate_text(get_source_text());
   }
 
-  // Checks if the current cursor is exactly one type.
   constexpr auto matches(Code::Type type) const -> Bool {
     return current().get_code() == type;
   }
 
-  // Checks to see if the Code is an item in a range of possible values.
   constexpr auto is_one_of(
       Perimortem::Core::View::Vector<Code::Type> types) const -> Bool {
     return current().get_code().is_one_of(types);
@@ -226,8 +209,14 @@ class Cursor {
     return tokenizer.get_source_path();
   }
 
-  // Returns the source artifact populated by semantic owners while this Cursor
-  // drives the transaction. Workspace publishes the artifact, not the Cursor.
+  constexpr auto get_tokens() const
+      -> Perimortem::Core::View::Vector<Lexical::Token> {
+    return tokenizer.get_tokens();
+  }
+
+  // Semantic owners add authored identities while Cursor still has their exact
+  // source context. Workspace later publishes these same Associations beside
+  // the completed graph.
   constexpr auto get_associations() -> Lexical::Associations& {
     return associations;
   }

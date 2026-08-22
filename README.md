@@ -1,74 +1,112 @@
-# Perimortem
+# Tetrodotoxin
 
-Perimortem is a general-purpose runtime library for performance-sensitive
-applications and engines. It provides the low-level data, memory, system,
-serialization, compression, image, and rendering components needed to build a
-runtime without imposing an application language or scene model.
+Tetrodotoxin is an extensible language and toolchain platform for building
+domain specific systems. It brings source languages, shared semantic meaning,
+Packages, compilers, editor tooling, and a native runtime together under one
+design.
 
-Perimortem stays independent from Tetrodotoxin and TTX. This repository develops
-all three together, with dependencies flowing in one direction:
+Large systems often contain several languages even when only one of them looks
+like ordinary application code. Package manifests, reusable libraries,
+application policy, scene state, render contracts, and shaders each ask
+different questions. Tetrodotoxin lets each of those domains keep a language
+that fits its work while still participating in one program.
 
-```text
-Tetrodotoxin -> TTX -> Perimortem
-```
+![Tetrodotoxin editor preview](extension/media/ttx-preview.png)
 
-The arrows point toward dependencies. Tetrodotoxin uses TTX to describe programs,
-and both use Perimortem for runtime services. Perimortem does not know about TTX
-source or Tetrodotoxin applications, so it remains useful to ordinary C++
-programs and other language frontends.
+## One platform, several languages
 
-## Runtime design
+A Tetrodotoxin language is a Dialect. Each Dialect owns its grammar, semantic
+objects, diagnostics, and contribution to program completion. TTX supplies the
+small vocabulary that lets independently designed Dialects share Types, values,
+addresses, Callables, Layouts, source locations, and documentation.
 
-Perimortem separates portable domain data from operating-system integration
-and concrete rendering APIs.
+Those shared facts live together in a Workspace. Package gives sources stable
+names and reproducible dependencies. Puffer opens the same Workspace for the
+command line and editor. Compilers and linkers derive native or GPU products
+from the completed program, while Perimortem supplies the runtime foundation
+used by generated applications.
 
-```text
-application or runtime composition
-|-- System
-`-- Vulkan -> Graphics
+This means a new Dialect can join an existing package graph, editor session,
+and build without translating its model into a universal declaration tree. It
+shares only the contracts that another language or tool can genuinely use.
 
-Graphics -> Compression
-Graphics -> Memory
-System   -> Memory
-Memory   -> Core
-```
+## The platform
 
-`Core` provides the small data, view, algorithm, diagnostics, and threading
-building blocks used throughout the runtime. [Memory](perimortem/memory/README.md)
-provides allocation local to one worker, reference counted managed Object
-storage, and automatic construction and destruction. `Compression` and
-`Serialization` build file format algorithms on those foundations.
+### TTX semantic vocabulary
 
-[System](perimortem/system/README.md) owns operating-system concerns such as
-files, arguments, random and identity services, input, windows, platform events,
-and application lifecycle. CPU target contracts remain separate from Linux or
-Windows host backends. Wayland and Win32 implementations belong behind the same
-System responsibility rather than inside Graphics or Vulkan.
+[TTX](ttx/README.md) defines the shared lexical and semantic contracts. It keeps
+exact identity and value flow available across language boundaries while each
+Dialect retains its richer model.
 
-`Graphics` owns backend-independent concepts such as pixels, decoded images,
-and render descriptions. It does not own windows, devices, presentation,
-application lifecycle, or Vulkan objects. A C++ application and a compiled TTX
-application must be able to produce the same Graphics data.
+### Languages and application models
 
-[`Graphics::Render`](perimortem/graphics/render/) describes a rendering
-pipeline without creating backend resources. It provides the shaders, input
-layouts, and bindings a backend needs to build its own program. Draw values and
-backend lifetimes remain separate from that reusable description.
+[Tetrodotoxin](tetrodotoxin/README.md) provides a family of Dialects that can be
+used together:
 
-`Vulkan` is a concrete rendering backend. It depends on Graphics and translates
-Graphics data into devices, surfaces, swapchains, pipelines, commands, and
-synchronization. The application-facing runtime coordinates native System
-window handles with the selected backend. Graphics never dispatches to Vulkan,
-and Vulkan never receives TTX or editor objects.
+* Package names dependencies, sources, resources, and durable Archives
+* Library defines reusable CPU code and data
+* App describes startup and application policy
+* Scene models long lived interactive state and lifecycle
+* Render declares GPU facing contracts
+* Shader implements those contracts for GPU execution
+* Foreign connects authored CPU code to an external ABI
 
-This structure leaves room for other rendering backends. The application chooses
-the backend it uses, while Graphics stays independent from that choice.
+Projects can add Dialects for their own problem domains without adding another
+semantic host around the toolchain.
 
-## Building and validation
+### Workspace and Packages
 
-The supported build target is x86-64 Linux with Clang and Bazel. The windowed
-runtime requires Wayland, and the Vulkan backend requires a Vulkan loader and
-driver.
+Environment gives related source results one lifetime and completes them as a
+single semantic island. Package makes that island reproducible through explicit
+dependency versions, semantic source names, confined resources, and Archives.
+The [standard Packages](packages/ttx/README.md) provide the Memory, Math, System,
+and Graphics APIs used by the included application models.
+
+### Developer experience
+
+The [Tetrodotoxin extension](extension/README.md) brings source understanding,
+navigation, formatting, diagnostics, and native debugging into Visual Studio
+Code. [Puffer](puffer/README.md) is the command and editor host that assembles a
+Workspace and coordinates the requested products.
+
+### Compilers and Terminal products
+
+Library can compile CPU code, Shader can produce GPU modules, Package can write
+semantic Archives, and Linker can combine native products into programs. Each
+component owns its output format. Tetrodotoxin calls an output independent of
+the live Workspace a Terminal product.
+
+### Native runtime foundation
+
+Perimortem is the C++ runtime layer beneath Tetrodotoxin. It provides memory,
+system, serialization, compression, image, and rendering services used by the
+toolchain and generated programs. Its APIs remain useful to ordinary C++
+applications, while Tetrodotoxin Packages expose selected runtime services to
+authored languages.
+
+The Perimortem name remains in runtime namespaces and Package identities because
+it describes that concrete layer. Tetrodotoxin is the product and platform that
+brings the complete repository together.
+
+## Explore Tetrodotoxin
+
+* [Tetrodotoxin overview](tetrodotoxin/README.md) introduces Dialects,
+  Workspaces, Packages, and Terminal products
+* [TTX overview](ttx/README.md) explains the shared semantic vocabulary
+* [Language integration](tetrodotoxin/language/README.md) explains how a custom
+  Dialect joins the platform
+* [Library](tetrodotoxin/library/README.md) documents the reusable CPU language
+* [App](tetrodotoxin/app/README.md), [Scene](tetrodotoxin/scene/README.md),
+  [Render](tetrodotoxin/render/README.md), and
+  [Shader](tetrodotoxin/shader/README.md) describe the included application
+  models
+* [Puffer](puffer/README.md) documents the command and editor host
+
+## Build and try the editor
+
+The current development environment targets x86 64 Linux with Clang and Bazel.
+Windowed applications use Wayland and the Vulkan backend uses the installed
+Vulkan loader and driver.
 
 Build the repository with:
 
@@ -76,56 +114,23 @@ Build the repository with:
 bazel build //...
 ```
 
-Run the complete unit-test suite with:
+Run the complete unit suite with:
 
 ```sh
 bazel run //validation:unit_tests --config=debug
 ```
 
-Automation can reduce console spam with:
+Build the Visual Studio Code extension with:
 
 ```sh
-bazel run //validation:unit_tests --config=debug -- silent
+./extension/package.sh
 ```
 
-`silent` still runs the complete suite and reports failures, final totals, and
-total execution time.
+Adding `--install` installs the generated VSIX after packaging it.
 
-The small C++ composition example at
-[`apps/perimortem/basic_window`](apps/perimortem/basic_window) creates a System
-window and a Vulkan renderer without involving TTX. It is the runtime-side
-reference path for bringing up the corresponding Tetrodotoxin application.
-Build and run it with:
+## Project status
 
-```sh
-bazel run //apps/perimortem/basic_window
-```
-
-## Tetrodotoxin tooling
-
-Tetrodotoxin is the compiler and toolchain developed alongside Perimortem. Its
-language and compiler design are documented in
-[`tetrodotoxin/README.md`](tetrodotoxin/README.md), while the semantic data
-model is documented in [`ttx/README.md`](ttx/README.md).
-
-The repository includes a VS Code extension backed by the Puffer language
-server. Build and install it with:
-
-```sh
-./tetrodotoxin/lsp/package.sh --install
-```
-
-Package the extension without installing it by omitting `--install`. Editors
-that support LSP over a Unix-domain socket can run `puffer --pipe=<socket>`
-directly.
-
-## Support boundary
-
-Perimortem is an active research and development project rather than a
-production-supported runtime. Its supported environment is x86-64 Linux with
-Wayland and Vulkan. Other operating systems and rendering backends remain
-outside that support boundary.
-
-If you are interested in low-level performance engineering, Agner Fog's
-[optimization manuals](https://www.agner.org/optimize/) are an excellent
-reference.
+Tetrodotoxin is an active research and development platform. Its distribution
+is designed as a self contained SDK for editing, packaging, compiling, linking,
+and debugging Tetrodotoxin projects. The supported development host is x86 64
+Linux with Wayland and Vulkan.

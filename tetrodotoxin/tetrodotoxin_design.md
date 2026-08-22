@@ -1,10 +1,10 @@
 # Tetrodotoxin Design
 
-Tetrodotoxin is a host for programs made from several purpose specific source
-languages. It lets those languages share semantic identity and value shape
-without requiring them to share one declaration hierarchy, type system, or
-lowered representation. Together their concrete objects form one live multi
-domain semantic IR inside a Workspace.
+Tetrodotoxin is a language and toolchain platform for programs made from several
+purpose specific source languages. Those languages share semantic identity and
+value shape without giving up their own declaration hierarchy, Type system, or
+execution model. Together their concrete objects form one live multi domain
+program inside a Workspace.
 
 The architecture divides the work by owner:
 
@@ -15,7 +15,8 @@ The architecture divides the work by owner:
   completion.
 * Package supplies the required toolchain services for reproducible composition
   and semantic Archives.
-* Compiler, linker, runtime, and application components own their products and
+* Puffer gives command line tools and editors one application host.
+* Compiler, Linker, runtime, and application components own their products and
   policies outside the live graph.
 
 This division is useful when a Package declaration, Library Function, App
@@ -29,33 +30,29 @@ reader decide whether this architecture fits a project. This document explains
 the choices and costs behind it. The precise shared contracts live in
 [TTX semantics](../ttx/ttx_semantics.md).
 
-## What Tetrodotoxin takes from LLVM
+## One toolchain, several languages
 
-Tetrodotoxin draws from LLVM IR's successful separation between source language
-semantics and a compact representation built for optimization and code
-generation. Completed CPU facts can lower to LLVM IR without asking LLVM to
-remain the Package model, editor model, or durable source type system.
+Tetrodotoxin treats language design as part of the platform rather than a
+frontend that must stand alone. Each Dialect keeps the model suited to its
+source questions, while TTX carries the smaller set of facts that another
+language or tool can use directly.
 
-The same modular instinct applies earlier in the toolchain. Each Tetrodotoxin
-Dialect uses a model suited to its own source questions, while TTX carries the
-smaller set of facts that other languages and tools can use directly. A
-consumer reaches the language object that owns a fact until it deliberately
-derives a product for another system.
+That split gives the whole toolchain a shared shape. Environment manages live
+program identity. Package manages reproducible composition. Puffer manages
+command and editor sessions. Compilers and Linker own finished products. The
+runtime supplies native services. Each layer can grow around the same program
+without importing another layer's private representation.
 
-There has been continuing work across LLVM, including LLDB, to improve this kind
-of subsystem ownership and to build compatibility representations only where a
-consumer requires them. Tetrodotoxin explores the other logical extreme. It was
-designed without inheriting a C frontend or debugger compatibility surface, so
-independent language ownership and one composable source tree are foundational
-rather than retrofitted boundaries.
+A consumer reaches the language object that owns a fact until it deliberately
+derives a product for a different system. CPU code may become an optimizer's
+input, GPU code may become a device module, and semantic facts may become a
+Package Archive. Those products carry the information needed by their next
+consumer, while the live Workspace keeps the richer meaning shared by the
+platform.
 
-LLVM IR remains an important destination in this architecture. Once IR leaves
-the compilation request, it is a Terminal product containing the target facts
-needed by LLVM and its downstream consumers. The live Tetrodotoxin graph keeps
-the richer language meaning that lowering was allowed to discard.
-
-The detailed comparison with LLVM IR is in
-[TTX design](../ttx/ttx_design.md#lessons-from-llvm-ir).
+This is the reason the common vocabulary stays small. Tetrodotoxin can add new
+application models and domain languages without turning their distinctive
+concepts into fields on one central declaration record.
 
 ## The choices and their costs
 
@@ -558,11 +555,10 @@ that must retain their own models, when exact identity crosses those language
 boundaries, and when the same completed program feeds compilers, editors,
 packages, and runtimes.
 
-It is a weaker fit when a project needs one established language frontend, one
-generic rewrite IR, or immediate access to a mature optimizer and debugger
-ecosystem. Those projects can use Clang, MLIR, or LLVM directly with less host
-machinery. When Tetrodotoxin is used with a downstream IR system, completed
-facts can lower into a suitable representation such as LLVM IR.
+A project with one small language, one semantic model, and one output may need
+less host machinery. Tetrodotoxin earns its complexity when a growing system
+would otherwise build a separate package graph, editor model, compiler shell,
+and runtime bridge for every domain language.
 
 Persistence is a deliberate commitment rather than a requirement for every
 Dialect. A persistent Dialect owns its source semantics, completion rules,

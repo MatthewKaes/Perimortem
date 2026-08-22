@@ -150,9 +150,9 @@ static auto read_argument(
 
 auto Language::TypeReference::parse(const Abstract& context, Cursor& cursor)
     -> Core::Option<TypeReference> {
-  // Dispatch has already selected a Type edge, so malformed arguments reject
-  // that declaration instead of making the same spelling available to a
-  // competing production.
+  // Dispatch has already chosen this Type route. Reporting malformed arguments
+  // here points the author back to that declaration instead of asking the
+  // parser to reinterpret the same spelling.
   auto& domain = cursor.get_arena();
   auto route = parse_route(cursor);
   BAIL_IF(!route);
@@ -169,9 +169,9 @@ auto Language::TypeReference::parse(const Abstract& context, Cursor& cursor)
           auto nested = parse(context, entry);
           BAIL_IF(!nested);
 
-          // A nested route is retained once in the same Arena as this authored
-          // shape. The Layout parser owns punctuation while TypeReference keeps
-          // the delayed source edge required by recursive linking.
+          // A nested route shares the Arena of the authored argument shape. The
+          // Layout parser handles its punctuation, while TypeReference keeps
+          // the source edge needed when recursive linking reaches it.
           const TypeReference& retained =
               domain.construct<TypeReference>(*nested);
           arguments.insert(Argument(retained));
@@ -195,9 +195,9 @@ auto Language::TypeReference::parse(const Abstract& context, Cursor& cursor)
           return False;
         }
 
-        // Literal owns the complete concrete literal grammar and diagnostics.
-        // TypeReference only distinguishes that real semantic edge from a
-        // nested delayed Type route.
+        // Literal already owns its grammar and diagnostics. TypeReference only
+        // needs to remember that this argument is a stable semantic identity
+        // rather than another route waiting for context.
         auto literal = Parser::Literal::parse(context, entry);
         BAIL_IF(!literal);
         arguments.insert(Argument(*literal));
@@ -210,7 +210,7 @@ auto Language::TypeReference::parse(const Abstract& context, Cursor& cursor)
       Anchor::create(
           route->get_anchor().get_token(),
           Span(route->get_anchor().get_token(), *closing)),
-      arguments.get_view());
+      route->terminal, arguments.get_view());
   return completed;
 }
 
@@ -253,7 +253,7 @@ auto Language::TypeReference::parse_route(Cursor& cursor)
   Count end = Count(last.get_offset()) + Count(last.get_size());
   return TypeReference(
       cursor.get_source_text().slice(start, end - start),
-      Anchor::create(first, Span(first, last)));
+      Anchor::create(first, Span(first, last)), last);
 }
 
 auto Language::TypeReference::get_size() const -> Count {
@@ -355,7 +355,7 @@ auto Language::TypeReference::restore(
     selected_arguments = restored.get_view();
   }
   return TypeReference(
-      arena.proxy(*route), Anchor::create(Span()), selected_arguments);
+      arena.proxy(*route), Anchor::create(Span()), Token(), selected_arguments);
 }
 
 static auto map_failure(
@@ -385,8 +385,8 @@ auto Language::TypeReference::resolve_with_root(
     const Abstract& context,
     Root root,
     Core::Option<Cursor&> cursor) const -> Resolution {
-  // Lexical authority applies only to the unqualified root. Every explicit
-  // suffix is an ordinary public context query on the identity just selected.
+  // The declaration context gives the root name its lexical authority. Each
+  // explicit suffix then asks the identity selected by the preceding segment.
   const Abstract* selected = &context.resolve_context(get_root());
   if (root == Root::Lexical) {
     auto type = context.select<Language::Model::Type>();
@@ -399,8 +399,9 @@ auto Language::TypeReference::resolve_with_root(
   }
 
   for (Count i = 1; i < get_size(); i++) {
-    // TypeReference performs the explicit Alias resolution required before a
-    // selected target may receive the next ordinary context query.
+    // Alias resolution reveals the identity that can answer the next ordinary
+    // context query. Keeping that step visible also preserves Alias opacity for
+    // every other consumer.
     const Abstract& route_context = resolve_alias(*selected);
     if (route_context.is<Invalid>()) {
       return Failure(Failure::Type::Route, anchor, i - 1);
@@ -432,10 +433,18 @@ auto Language::TypeReference::resolve_with_root(
   if (!generic) {
     return Failure(Failure::Type::Generic, anchor);
   }
+  if (cursor) {
+    // The authored name still denotes the Generic even though applying its
+    // arguments returns a materialized Type. Recording the terminal Token lets
+    // editor tooling show that distinction with the same identity selected by
+    // resolution.
+    cursor->get_associations().create(
+        Anchor::create(terminal, Span(terminal)), *generic);
+  }
 
-  // Resolution needs one transient real Layout. Generic copies its normalized
-  // semantic key into its own Arena before this local storage leaves. Nested
-  // routes use the same root policy so arguments cannot acquire extra access.
+  // Resolution assembles one temporary Layout from the real argument
+  // identities. Generic copies its normalized key into its own Arena before
+  // this storage leaves, and nested routes follow the same root access policy.
   Memory::Dynamic::Vector<Reference<const Abstract>> linked(
       arguments->get_size());
   const auto* argument_data = arguments->get_data();
@@ -477,9 +486,9 @@ auto Language::TypeReference::resolve_with_root(
         return type;
       },
       [&](const Generic::Failure& failure) -> Resolution {
-        // Generic owns source free formula failures. TypeReference maps the
-        // parameter index back to authored syntax because it owns those
-        // Anchors.
+        // Generic knows which formula parameter failed, while TypeReference
+        // knows where that argument was written. Joining those facts gives the
+        // diagnostic the right authored Anchor.
         Anchor failure_anchor = anchor;
         Count index = failure.get_argument();
         if (failure.get_type() == Generic::Failure::Type::Parameter &&

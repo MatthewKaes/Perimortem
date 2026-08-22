@@ -9,7 +9,7 @@
 
 #include "perimortem/serialization/json/blueprint.hpp"
 
-#include "ttx/lexical/cursor.hpp"
+#include "tetrodotoxin/library/language/generic.hpp"
 #include "ttx/lexical/lexicon.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -33,6 +33,7 @@ enum SemanticToken : S64 {
   SemanticNumber,
   SemanticOperator,
   SemanticDecorator,
+  SemanticGeneric,
 };
 
 static auto should_filter_shader_keyword(Code code) -> Bool {
@@ -155,8 +156,20 @@ static auto contextual_semantic_token(
     View::Vector<Token> tokens,
     Count index,
     View::Bytes source,
-    View::Bytes dialect) -> S64 {
+    View::Bytes dialect,
+    const Associations* associations) -> S64 {
   Code code = tokens[index].get_code();
+  if (code == Code::Type::Type && associations) {
+    Token token = tokens[index];
+    for (const Associations::Entry& entry : associations->get_entries()) {
+      Token focus = entry.get_anchor().get_token();
+      if (focus.get_offset() == token.get_offset() &&
+          focus.get_size() == token.get_size() &&
+          entry.get_semantic().is<Tetrodotoxin::Library::Language::Generic>()) {
+        return SemanticGeneric;
+      }
+    }
+  }
   if (code != Code::Type::Addressable) {
     return classify_semantic_token(code);
   }
@@ -201,13 +214,18 @@ auto Lsp::semantic_legend(Allocator::Arena& arena) -> Json::Node {
          "number"_view,
          "operator"_view,
          "decorator"_view,
+         "generic"_view,
        }},
       Json::Blueprint::empty_array("tokenModifiers"_view),
     }}.construct(arena);
 }
 
-auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
-    -> Json::Node {
+auto Lsp::semantic_tokens_for(
+    Allocator::Arena& arena,
+    View::Bytes source,
+    const PositionEncoding& encoding,
+    View::Vector<Token> source_tokens,
+    const Associations* source_associations) -> Json::Node {
   Managed::Vector<Json::Node> data(arena);
   if (source.is_empty()) {
     const Json::Node data_node(data.get_view());
@@ -217,13 +235,20 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
       }}.construct(arena);
   }
 
-  Tokenizer tokenizer(arena, source, "lsp-buffer.ttx"_view);
-  View::Vector<Token> tokens = tokenizer.get_tokens();
-  Errors errors;
-  Ttx::Lexical::Associations associations(tokenizer.get_arena());
-  Cursor cursor(tokenizer, errors, associations);
+  View::Vector<Token> tokens = source_tokens;
+  // A completed Workspace lends the same Tokens that built its graph. Draft
+  // text has no published graph yet, so a local Tokenizer keeps basic coloring
+  // useful while the author repairs the source.
+  if (tokens.is_empty()) {
+    auto& tokenizer =
+        arena.construct<Tokenizer>(arena, source, "lsp-buffer.ttx"_view);
+    tokens = tokenizer.get_tokens();
+  }
 
-  View::Bytes dialect = source_dialect(tokens, cursor.get_source_text());
+  View::Bytes dialect = source_dialect(tokens, source);
+  // LSP stores each token position relative to the token emitted before it.
+  // Remembering that position here lets filtered Tokens disappear cleanly from
+  // the editor stream.
   U32 previous_line = 0;
   U32 previous_column = 0;
   Bool emitted = False;
@@ -234,30 +259,40 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
       continue;
     }
 
-    View::Bytes text = token.caculate_text(cursor.get_source_text());
+    View::Bytes text = token.caculate_text(source);
     if (text.is_empty() || has_newline(text)) {
       continue;
     }
 
-    S64 token_type =
-        contextual_semantic_token(tokens, i, cursor.get_source_text(), dialect);
+    S64 token_type = contextual_semantic_token(
+        tokens, i, source, dialect, source_associations);
     if (token_type < 0) {
       continue;
     }
 
-    U32 line = token.get_line() - 1;
-    U32 column = token.get_column() - 1;
+    Count start_offset = token.get_offset();
+    Count byte_width = token.get_size();
+    if (token.get_code() == Code::Type::Attribute) {
+      Count prefix = Lexicon::get_spelling(Code::Type::Attribute).get_size();
+      BAIL_IF(start_offset < prefix);
+      start_offset -= prefix;
+      byte_width += prefix;
+    }
+    auto start = encoding.locate(source, start_offset);
+    auto end = encoding.locate(source, start_offset + byte_width);
+    if (!start || !end || start->get_line() != end->get_line()) {
+      continue;
+    }
+
+    U32 line = U32(start->get_line());
+    U32 column = U32(start->get_character());
     U32 delta_line = emitted ? line - previous_line : line;
     U32 delta_column =
         emitted && delta_line == 0 ? column - previous_column : column;
 
     data.insert(Json::Node(S64(delta_line)));
     data.insert(Json::Node(S64(delta_column)));
-    Count width = text.get_size();
-    if (token.get_code() == Code::Type::Attribute) {
-      width += Lexicon::get_spelling(Code::Type::Attribute).get_size();
-    }
-    data.insert(Json::Node(S64(width)));
+    data.insert(Json::Node(S64(end->get_character() - start->get_character())));
     data.insert(Json::Node(token_type));
     data.insert(Json::Node(S64(0)));
 

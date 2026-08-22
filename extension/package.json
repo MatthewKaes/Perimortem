@@ -1,21 +1,22 @@
 {
   "name": "tetrodotoxin-lsp",
-  "description": "TTX language support for Perimortem's Tetrodotoxin Source IR",
+  "description": "A unified editor and native debugging experience for the Tetrodotoxin language and toolchain",
   "categories": [
     "Programming Languages"
   ],
-  "displayName": "Tetrodotoxin TTX",
+  "displayName": "Tetrodotoxin",
   "publisher": "Perimortem",
   "author": "Matt Kaes",
   "license": "MIT",
   "icon": "media/icon.png",
-  "version": "0.1.28",
+  "version": "0.1.29",
   "keywords": [
     "TTX",
     "Tetrodotoxin",
-    "Perimortem",
-    "source IR",
+    "domain specific language",
+    "compiler toolchain",
     "language server",
+    "native debugging",
     "shader"
   ],
   "pricing": "Free",
@@ -88,6 +89,22 @@
       }
     },
     "configurationDefaults": {
+      "editor.semanticTokenColorCustomizations": {
+        "rules": {
+          "type:tetrodotoxin": {
+            "foreground": "#f7a3a7",
+            "fontStyle": ""
+          },
+          "class:tetrodotoxin": {
+            "foreground": "#f7a3a7",
+            "fontStyle": ""
+          },
+          "generic:tetrodotoxin": {
+            "foreground": "#ed868a",
+            "fontStyle": ""
+          }
+        }
+      },
       "editor.tokenColorCustomizations": {
         "textMateRules": [
           {
@@ -251,13 +268,6 @@
             "scope": "entity.name.type.intrinsic.tetrodotoxin",
             "settings": {
               "foreground": "#dd6d72",
-              "fontStyle": ""
-            }
-          },
-          {
-            "scope": "entity.name.type.generic.tetrodotoxin",
-            "settings": {
-              "foreground": "#ed868a",
               "fontStyle": ""
             }
           },

@@ -19,14 +19,11 @@
 
 namespace Tetrodotoxin::Library::Language {
 
-// TypeReference is one authored Type route with no semantic identity and an
-// optional Generic argument shape. The Anchor keeps exact lexical evidence
-// while every route remains one source view. Linking splits that spelling only
-// to issue the next contextual query. It does not build a parallel path graph
-// or preselect a semantic category for any intermediate segment. The source
-// transaction Arena remains alive with its completed graph, so delayed linking
-// does not copy the spelling. Nested TypeReferences and literal identities
-// remain source facts until the declaration owner links the shape.
+// TypeReference keeps the authored spelling of one Type route until its graph
+// context is ready. Its Anchor preserves the exact source evidence, while the
+// source transaction keeps the spelling alive. Linking can then walk each
+// segment through ordinary context queries and ask a Generic to materialize
+// arguments only when the route reaches one.
 class TypeReference {
  public:
   using Argument = Perimortem::Core::Static::
@@ -67,9 +64,9 @@ class TypeReference {
       const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<TypeReference>;
 
-  // Consumes only a qualified Type route. Owners whose grammar excludes
-  // Generic arguments use this boundary instead of accepting every form a
-  // complete TypeReference may represent.
+  // Some grammars need only a qualified route and have nowhere to place Generic
+  // arguments. This parser shares route handling while leaving those arguments
+  // to the complete TypeReference grammar.
   static auto parse_route(Ttx::Lexical::Cursor& cursor)
       -> Perimortem::Core::Option<TypeReference>;
 
@@ -99,35 +96,35 @@ class TypeReference {
         [](const auto& selected) -> Count { return selected.get_size(); });
   }
 
-  // Alias completion recursively advances only nested authored routes. Literal
-  // arguments are already stable semantic identities and remain private to the
-  // materialization query that cannot mutate the literal.
+  // Alias completion revisits nested authored routes because their targets may
+  // still be settling in the same Type barrier. Literal arguments already name
+  // stable identities that the later materialization query can use directly.
   auto get_argument_reference(Count index) const
       -> Perimortem::Core::Option<const TypeReference&>;
 
   auto get_argument(Count index) const
       -> Perimortem::Core::Option<const Argument&>;
 
-  // Owners with only a route compare the exact contextual spelling they
-  // retained. Generic application is deliberately excluded because the selected
-  // Generic, not authored syntax comparison, owns semantic argument identity.
+  // Route matching helps declaration owners that still have only authored
+  // spelling. Once Generic arguments appear, their selected Generic owns the
+  // semantic identity and textual comparison no longer answers the same
+  // question.
   auto matches_route(const TypeReference& other) const -> Bool;
 
-  // Ordinary resolution asks the supplied graph context for the root and every
-  // selected identity for its next segment. It carries no declaration
-  // authority, so publication can replay an authored route exactly as an
-  // external consumer would observe it.
+  // Public resolution follows the route exactly as another graph consumer sees
+  // it. The supplied context resolves the root, then each selected identity
+  // answers the next segment.
   auto resolve(const Ttx::Concept::Abstract& context) const -> Resolution;
 
-  // Alias completion has no Cursor but still begins at its actual declaration
-  // host. Only that first name receives lexical lookup. Every explicit suffix
-  // remains an ordinary query on the identity selected before it.
+  // Alias completion starts from the declaration's real host, where the root
+  // name has its lexical authority. Each suffix then follows the identity
+  // selected by the segment before it.
   auto resolve_lexical(const Ttx::Concept::Abstract& context) const
       -> Resolution;
 
-  // Committed declaration owners publish the typed failure immediately.
-  // Alias closure alone uses source free resolution while forward targets may
-  // still settle during the same Type barrier.
+  // Declaration owners can publish a typed failure as soon as the route
+  // settles. Alias closure has no Cursor, but its forward target may still
+  // complete during the same Type barrier.
   auto resolve_authored(
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& context) const
@@ -151,12 +148,17 @@ class TypeReference {
   constexpr TypeReference(
       Perimortem::Core::View::Bytes route,
       Ttx::Lexical::Anchor anchor,
+      Ttx::Lexical::Token terminal,
       Perimortem::Core::Option<Perimortem::Core::View::Vector<Argument>>
           arguments = {})
-      : route(route), anchor(anchor), arguments(arguments) {}
+      : route(route),
+        anchor(anchor),
+        terminal(terminal),
+        arguments(arguments) {}
 
   Perimortem::Core::View::Bytes route;
   Ttx::Lexical::Anchor anchor;
+  Ttx::Lexical::Token terminal;
   Perimortem::Core::Option<Perimortem::Core::View::Vector<Argument>> arguments;
 };
 

@@ -15,9 +15,10 @@
 
 namespace Tetrodotoxin::Environment {
 
-// Toolchain owns one immutable installed Dialect graph shared by every
-// Workspace created by the host. Dialects retain only their configured names
-// and downward dependency edges; semantic identities remain Workspace owned.
+// Toolchain owns the installed family of Tetrodotoxin languages. Every
+// Workspace can borrow the same immutable Dialect identities, while the
+// semantic objects produced from a source stay with that Workspace. Installing
+// dependencies first makes the language family one clear directed graph.
 class Toolchain {
  public:
   Toolchain();

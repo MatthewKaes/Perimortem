@@ -1,19 +1,18 @@
 # Puffer
 
-Puffer is the user facing compiler driver and LSP application shell for
-Tetrodotoxin. It accepts command line and language server requests, invokes the
-reusable Tetrodotoxin libraries, and presents Diagnostics or completed products
-to the user.
+Puffer is the user facing command and editor host for Tetrodotoxin. It opens
+sources, assembles a Toolchain, builds a Workspace, and presents Diagnostics or
+completed products through the interface that requested them.
 
-It occupies the same user facing role as the `clang` executable in an LLVM
-toolchain. It is the program a user or build system invokes, but it does not own
-every compilation stage or output format.
+This makes Puffer the everyday entrance to the platform without turning it into
+the owner of every compilation stage. Environment still owns Workspace
+lifetime, Package owns reproducible composition, each Dialect owns its language,
+and each compiler or Linker owns the product it creates.
 
-Build systems and editors can talk to Puffer through its command line or
-language server protocol. Applications that need a different transport,
-session model, or user interface can use the Tetrodotoxin libraries directly.
-The same language, Package, compiler, and Archive behavior is available in both
-forms.
+Build systems use Puffer through its command interface, while editors use its
+language server. Applications that need another transport, session model, or
+user interface can embed the same Tetrodotoxin libraries directly. Both paths
+observe the same language, Package, compiler, and Archive behavior.
 
 ## Application role
 
@@ -100,9 +99,10 @@ formats, then writes or displays their results.
 The direct native path accepts one completed standalone Library source. It does
 not start Package restoration or manufacture publication between Monographs.
 Puffer owns command selection, stderr request errors, source diagnostic
-presentation, and atomic publication. The backend in [`llvm/`](llvm/README.md)
-owns LLVM lowering and returns completed bytes only. Generated Objects use the
-linked Perimortem reference counted runtime surface.
+presentation, and atomic publication. The
+[Library LLVM backend](../tetrodotoxin/library/llvm/README.md) owns lowering and
+returns completed bytes only. Generated Objects use the linked Perimortem
+reference counted runtime surface.
 
 ```text
 puffer -library \
@@ -176,24 +176,31 @@ Run Puffer over a local socket:
 puffer --pipe=<socket-path>
 ```
 
-The language server supports:
+Puffer speaks the position encoding offered by the editor. UTF 8 matches TTX's
+source bytes directly, while clients such as VS Code currently ask for UTF 16
+coordinates. The translation stays at the protocol boundary where Puffer still
+has the source text needed to perform it.
 
-* initialization using UTF 16 document positions
+Once a document is open, the server provides:
+
+* UTF 8 positions for clients that count bytes and UTF 16 compatibility for
+  clients that count code units
 * opening, replacing, and closing complete document text
 * source diagnostics with authored ranges
-* semantic hover for documentation, declaration facts, Types, and constants
+* semantic hover with complete Callable signatures, documentation, declaration
+  facts, Types, and constants
+* parameter name inlay hints derived from each Call's retained input fitting
 * go to definition for authored semantic identities across Package sources
-* semantic tokens for complete TTX documents
+* semantic tokens that recognize Generic formulas selected by the completed
+  graph
 * clean shutdown and exit handling
 
 The [Tetrodotoxin TTX extension](../extension/README.md) packages and launches
 this server for `.ttx` documents.
 
-The Perimortem distribution builds Puffer with the fixed set of Dialects owned
-by this project. It is not a universal host that discovers arbitrary Dialects at
-runtime. A project extending TTX builds its own Puffer with its additional
-Dialect installed, then packages that binary with its language extension. A
-future tutorial will walk through that source and extension customization.
+The Tetrodotoxin distribution builds Puffer with the Dialects that belong to
+this platform. A project extending TTX builds Puffer with its additional
+Dialect installed, then packages that Toolchain with its language extension.
 
 See [Tetrodotoxin](../tetrodotoxin/README.md) for the host and its Dialects and
 [TTX](../ttx/README.md) for the shared semantic vocabulary.

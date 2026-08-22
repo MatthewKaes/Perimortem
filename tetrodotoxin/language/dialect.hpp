@@ -19,10 +19,11 @@
 
 namespace Tetrodotoxin::Language {
 
-// One Dialect is a stateless language protocol installed in an Environment
-// Toolchain. Its immutable name and downward dependency edges are shared by
-// every Workspace borrowing that Toolchain. A source Cursor exposes the
-// transaction Arena used by every identity produced while reading that source.
+// A Dialect is one language installed in a Tetrodotoxin Toolchain. It owns the
+// grammar and semantic construction for that language while remaining reusable
+// across every Workspace that borrows the Toolchain. Each source Cursor lends
+// the Arena where that interpretation creates its Monograph and semantic
+// identities.
 class Dialect : public Ttx::Concept::Abstract {
  public:
   TTX_CONTRACT(Dialect, Ttx::Concept::Abstract);
@@ -42,25 +43,26 @@ class Dialect : public Ttx::Concept::Abstract {
           installed,
       Perimortem::Core::View::Bytes name) -> Perimortem::Core::Option<Dialect&>;
 
-  // Reads the one shared source envelope, selects an exact installed Dialect,
-  // and returns that Dialect's sole parse result.
+  // Every Tetrodotoxin source begins with the same documentation and Dialect
+  // envelope. Reading it here gives the selected language one consistent entry
+  // point and one Monograph result.
   static auto interpret_source(
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<Dialect>>
           installed,
       Ttx::Lexical::Cursor& cursor,
       Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
 
-  // Encode only the durable facts owned by this Dialect. An engaged empty byte
-  // value is a successful empty payload while no value reports unsupported or
-  // failed encoding.
+  // A persistent Dialect chooses the durable facts that can rebuild its own
+  // Monograph. An engaged empty value is a valid empty payload, while absence
+  // reports that encoding was unavailable or failed.
   virtual auto encode(
       const Ttx::Concept::Abstract& monograph,
       Persistence::Profile profile) const
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
-  // Restore one opaque payload using the same transaction context as authored
-  // interpretation. The explicit payload is reconstruction input rather than
-  // a second contextual wrapper.
+  // Restoration receives the same Arena, Documentation, and outer context as
+  // authored interpretation. The payload replaces source reading while the
+  // language keeps its ordinary construction and completion rules.
   virtual auto restore(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes payload,

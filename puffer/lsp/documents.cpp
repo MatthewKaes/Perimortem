@@ -465,9 +465,9 @@ auto Lsp::Documents::erase(View::Bytes uri) -> void {
   }
 }
 
-auto Lsp::Documents::get_text(View::Bytes uri) const -> Dynamic::Bytes {
+auto Lsp::Documents::get_text(View::Bytes uri) const -> View::Bytes {
   Count slot = find(uri);
-  return slot == Count(-1) ? Dynamic::Bytes() : records[slot].text;
+  return slot == Count(-1) ? View::Bytes() : records[slot].text.get_view();
 }
 
 auto Lsp::Documents::create_workspace(Document& document)
@@ -546,65 +546,19 @@ auto Lsp::Documents::get_diagnostics(View::Bytes uri) -> Option<Diagnostics> {
   return Diagnostics(*errors, source_name);
 }
 
-static auto utf_16_position_to_byte(
-    View::Bytes source,
-    Count target_line,
-    Count target_character) -> Option<Count> {
-  Count offset = 0;
-  Count line = 0;
-  while (line < target_line && offset < source.get_size()) {
-    if (source[offset++] == '\n') {
-      line++;
-    }
-  }
-
-  if (line != target_line) {
-    return {};
-  }
-
-  Count units = 0;
-  while (offset < source.get_size() && source[offset] != '\n' &&
-         units < target_character) {
-    U8 lead = source[offset];
-    Count width = 1;
-    Count code_units = 1;
-    if (lead >= 0xC2 && lead <= 0xDF) {
-      width = 2;
-    } else if (lead >= 0xE0 && lead <= 0xEF) {
-      width = 3;
-    } else if (lead >= 0xF0 && lead <= 0xF4) {
-      width = 4;
-      code_units = 2;
-    }
-
-    if (units + code_units > target_character ||
-        offset + width > source.get_size()) {
-      return {};
-    }
-    for (Count index = 1; index < width; index++) {
-      if ((source[offset + index] & 0xC0) != 0x80) {
-        width = 1;
-        code_units = 1;
-        break;
-      }
-    }
-    offset += width;
-    units += code_units;
-  }
-
-  return units == target_character ? Option<Count>(offset) : Option<Count>();
-}
-
 auto Lsp::Documents::find_semantic(
     View::Bytes uri,
-    Count line,
-    Count utf_16_character) -> Option<const Ttx::Concept::Abstract&> {
+    const PositionEncoding::Position& position)
+    -> Option<const Ttx::Concept::Abstract&> {
   Count slot = find(uri);
   BAIL_IF(slot == Count(-1));
 
   Document& document = records[slot];
+  // The source text is available here, which makes this the natural place to
+  // turn an editor coordinate back into TTX's authored byte offset. The lookup
+  // that follows can then stay entirely within canonical lexical facts.
   auto offset =
-      utf_16_position_to_byte(document.text.get_view(), line, utf_16_character);
+      position_encoding.find_offset(document.text.get_view(), position);
   BAIL_IF(!offset);
 
   View::Bytes source_name = document.package_root.is_empty()
@@ -617,82 +571,61 @@ auto Lsp::Documents::find_semantic(
                       : Option<const Ttx::Concept::Abstract&>();
 }
 
-struct SourcePosition {
-  Count line = 0;
-  Count character = 0;
-};
+auto Lsp::Documents::set_position_encoding(PositionEncoding selected) -> void {
+  position_encoding = selected;
+}
 
-static auto byte_to_utf_16_position(View::Bytes source, Count target)
-    -> Option<SourcePosition> {
-  BAIL_IF(target > source.get_size());
+auto Lsp::Documents::get_position_encoding() const -> const PositionEncoding& {
+  return position_encoding;
+}
 
-  SourcePosition position;
-  Count offset = 0;
-  while (offset < target) {
-    U8 lead = source[offset];
-    if (lead == '\n') {
-      position.line++;
-      position.character = 0;
-      offset++;
-      continue;
-    }
+auto Lsp::Documents::get_associations(View::Bytes uri)
+    -> Option<const Ttx::Lexical::Associations&> {
+  Count slot = find(uri);
+  BAIL_IF(slot == Count(-1));
 
-    Count width = 1;
-    Count units = 1;
-    if (lead >= 0xC2 && lead <= 0xDF) {
-      width = 2;
-    } else if (lead >= 0xE0 && lead <= 0xEF) {
-      width = 3;
-    } else if (lead >= 0xF0 && lead <= 0xF4) {
-      width = 4;
-      units = 2;
-    }
+  Document& document = records[slot];
+  auto workspace = get_workspace(document);
+  BAIL_IF(!workspace);
+  View::Bytes source_name = document.package_root.is_empty()
+                                ? document.uri.get_view()
+                                : document.logical_route.get_view();
+  return workspace->get_associations(source_name);
+}
 
-    if (offset + width > target) {
-      return {};
-    }
-    for (Count index = 1; index < width; index++) {
-      if ((source[offset + index] & 0xC0) != 0x80) {
-        width = 1;
-        units = 1;
-        break;
-      }
-    }
-    offset += width;
-    position.character += units;
-  }
-  return position;
+auto Lsp::Documents::get_tokens(View::Bytes uri)
+    -> View::Vector<Ttx::Lexical::Token> {
+  Count slot = find(uri);
+  BAIL_IF(slot == Count(-1));
+
+  Document& document = records[slot];
+  auto workspace = get_workspace(document);
+  BAIL_IF(!workspace);
+  View::Bytes source_name = document.package_root.is_empty()
+                                ? document.uri.get_view()
+                                : document.logical_route.get_view();
+  return workspace->get_tokens(source_name);
 }
 
 auto Lsp::Documents::find_definition(
     View::Bytes source_uri,
-    const Ttx::Concept::Abstract& semantic) -> Option<Location> {
+    const Ttx::Concept::Abstract& semantic)
+    -> Option<Environment::Workspace::AuthoredLocation> {
   Count slot = find(source_uri);
   BAIL_IF(slot == Count(-1));
 
   Document& source_document = records[slot];
   auto workspace = get_workspace(source_document);
   BAIL_IF(!workspace);
-  auto authored = workspace->find_authored_location(semantic);
-  BAIL_IF(!authored);
+  return workspace->find_authored_location(semantic);
+}
 
-  Ttx::Lexical::Anchor anchor = authored->get_anchor();
-  Ttx::Lexical::Token focus = anchor.get_token();
-  Ttx::Lexical::Span span = anchor.get_span();
-  BAIL_IF(!focus && !span);
-  Count start = focus ? focus.get_offset() : span.get_offset();
-  Count size = focus ? focus.get_size() : span.get_size();
-  View::Bytes target_source = authored->get_source_text();
-  BAIL_IF(
-      start > target_source.get_size() ||
-      size > target_source.get_size() - start);
-  auto start_position = byte_to_utf_16_position(target_source, start);
-  auto end_position = byte_to_utf_16_position(target_source, start + size);
-  BAIL_IF(!start_position || !end_position);
-
+auto Lsp::Documents::resolve_uri(
+    const Environment::Workspace::AuthoredLocation& authored) const
+    -> Dynamic::Bytes {
   Dynamic::Bytes target_uri;
-  View::Bytes package_root = authored->get_package_root();
-  View::Bytes diagnostic_path = authored->get_diagnostic_path();
+  View::Bytes package_root = authored.get_package_root();
+  View::Bytes diagnostic_path = authored.get_diagnostic_path();
   for (const Document& document : records.get_view()) {
     if (!document.active) {
       continue;
@@ -725,9 +658,7 @@ auto Lsp::Documents::find_definition(
     }
   }
 
-  return Location(
-      target_uri, start_position->line, start_position->character,
-      end_position->line, end_position->character);
+  return target_uri;
 }
 
 auto Lsp::Documents::invalidate_package(View::Bytes root) -> void {

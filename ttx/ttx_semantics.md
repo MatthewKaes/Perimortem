@@ -63,6 +63,11 @@ that range with the independent Token a diagnostic should emphasize. An Anchor
 created from only a Span focuses its opening Token. A synthetic semantic fact
 has no Anchor.
 
+Tokens, Spans, and Anchors measure source in UTF 8 bytes. An editor protocol may
+count the same text differently, so its host translates those offsets while it
+has the source available. This keeps the authored lexical facts useful to every
+host without making editor coordinates part of TTX.
+
 A Code stream is meaningful only with the Lexer contract and source bytes that
 produced it. Tokens are decoded source spans, not an independent serialized
 program.

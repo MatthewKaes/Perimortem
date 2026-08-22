@@ -46,9 +46,6 @@
           "include": "#intrinsic_types"
         },
         {
-          "include": "#generic_formulas"
-        },
-        {
           "include": "#function_declarations"
         },
         {
@@ -165,10 +162,6 @@
     "intrinsic_types": {
       "name": "entity.name.type.intrinsic.tetrodotoxin",
       "match": "(?<![A-Za-z0-9_])(?:U(?:8|16|32|64)|S(?:8|16|32|64)|R(?:32|64)|Bool)(?![A-Za-z0-9_])"
-    },
-    "generic_formulas": {
-      "name": "entity.name.type.generic.tetrodotoxin",
-      "match": "(?<![A-Za-z0-9_])(?:Access|Fixed|Object|Option|Range|Result|View)(?![A-Za-z0-9_])"
     },
     "function_declarations": {
       "match": "\\b(func)\\s+([a-z_][a-zA-Z0-9_]*)",

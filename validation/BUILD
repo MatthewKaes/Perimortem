@@ -198,6 +198,7 @@ cc_binary(
         ":test_headers",
         "//packages/ttx:perimortem_system",
         "//perimortem",
+        "//puffer:position_encoding",
         "//tetrodotoxin:app",
         "//tetrodotoxin:diagnostics",
         "//tetrodotoxin:environment",
