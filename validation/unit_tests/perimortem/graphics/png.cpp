@@ -28,16 +28,16 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, red_1x1_dimensions) {
 
   auto image = Formats::Png::decode(*source);
 
-  EXPECT_EQ(image.get_width(), Unsigned_32(1));
-  EXPECT_EQ(image.get_height(), Unsigned_32(1));
-  EXPECT_EQ(image.get_color_depth(), Unsigned_8(8));
+  EXPECT_EQ(image.get_width(), U32(1));
+  EXPECT_EQ(image.get_height(), U32(1));
+  EXPECT_EQ(image.get_color_depth(), U8(8));
 
   auto pixels = image.get_pixels();
   ASSERT_EQ(pixels.get_size(), Count(1));
-  EXPECT_EQ(pixels.get_data()[0].red, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[0].green, Unsigned_8(0x00));
-  EXPECT_EQ(pixels.get_data()[0].blue, Unsigned_8(0x00));
-  EXPECT_EQ(pixels.get_data()[0].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].red, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].green, U8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].blue, U8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].alpha, U8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, checkerboard_2x2) {
@@ -49,22 +49,22 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, checkerboard_2x2) {
   auto pixels = image.get_pixels();
 
   ASSERT_EQ(pixels.get_size(), Count(4));
-  EXPECT_EQ(pixels.get_data()[0].red, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[0].green, Unsigned_8(0x00));
-  EXPECT_EQ(pixels.get_data()[0].blue, Unsigned_8(0x00));
-  EXPECT_EQ(pixels.get_data()[0].alpha, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[1].red, Unsigned_8(0x00));
-  EXPECT_EQ(pixels.get_data()[1].green, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[1].blue, Unsigned_8(0x00));
-  EXPECT_EQ(pixels.get_data()[1].alpha, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[2].red, Unsigned_8(0x00));
-  EXPECT_EQ(pixels.get_data()[2].green, Unsigned_8(0x00));
-  EXPECT_EQ(pixels.get_data()[2].blue, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[2].alpha, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[3].red, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[3].green, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[3].blue, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[3].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].red, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].green, U8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].blue, U8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].alpha, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[1].red, U8(0x00));
+  EXPECT_EQ(pixels.get_data()[1].green, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[1].blue, U8(0x00));
+  EXPECT_EQ(pixels.get_data()[1].alpha, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[2].red, U8(0x00));
+  EXPECT_EQ(pixels.get_data()[2].green, U8(0x00));
+  EXPECT_EQ(pixels.get_data()[2].blue, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[2].alpha, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].red, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].green, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].blue, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].alpha, U8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, decode_rgb_to_rgba) {
@@ -77,12 +77,12 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, decode_rgb_to_rgba) {
 
   // RGB source: alpha must be synthesized as fully opaque.
   ASSERT_EQ(pixels.get_size(), Count(3));
-  EXPECT_EQ(pixels.get_data()[0].red, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[0].alpha, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[1].green, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[1].alpha, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[2].blue, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[2].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].red, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].alpha, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[1].green, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[1].alpha, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[2].blue, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[2].alpha, U8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, gray_to_rgba) {
@@ -95,25 +95,25 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, gray_to_rgba) {
 
   // Greyscale source: gray value replicates to all three color channels.
   ASSERT_EQ(pixels.get_size(), Count(4));
-  EXPECT_EQ(pixels.get_data()[0].red, Unsigned_8(0x00));
-  EXPECT_EQ(pixels.get_data()[0].green, Unsigned_8(0x00));
-  EXPECT_EQ(pixels.get_data()[0].blue, Unsigned_8(0x00));
-  EXPECT_EQ(pixels.get_data()[0].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[0].red, U8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].green, U8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].blue, U8(0x00));
+  EXPECT_EQ(pixels.get_data()[0].alpha, U8(0xFF));
 
-  EXPECT_EQ(pixels.get_data()[1].red, Unsigned_8(0x40));
-  EXPECT_EQ(pixels.get_data()[1].green, Unsigned_8(0x40));
-  EXPECT_EQ(pixels.get_data()[1].blue, Unsigned_8(0x40));
-  EXPECT_EQ(pixels.get_data()[1].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[1].red, U8(0x40));
+  EXPECT_EQ(pixels.get_data()[1].green, U8(0x40));
+  EXPECT_EQ(pixels.get_data()[1].blue, U8(0x40));
+  EXPECT_EQ(pixels.get_data()[1].alpha, U8(0xFF));
 
-  EXPECT_EQ(pixels.get_data()[2].red, Unsigned_8(0x80));
-  EXPECT_EQ(pixels.get_data()[2].green, Unsigned_8(0x80));
-  EXPECT_EQ(pixels.get_data()[2].blue, Unsigned_8(0x80));
-  EXPECT_EQ(pixels.get_data()[2].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[2].red, U8(0x80));
+  EXPECT_EQ(pixels.get_data()[2].green, U8(0x80));
+  EXPECT_EQ(pixels.get_data()[2].blue, U8(0x80));
+  EXPECT_EQ(pixels.get_data()[2].alpha, U8(0xFF));
 
-  EXPECT_EQ(pixels.get_data()[3].red, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[3].green, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[3].blue, Unsigned_8(0xFF));
-  EXPECT_EQ(pixels.get_data()[3].alpha, Unsigned_8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].red, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].green, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].blue, U8(0xFF));
+  EXPECT_EQ(pixels.get_data()[3].alpha, U8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, decode_gradient_4x4) {
@@ -125,12 +125,12 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, decode_gradient_4x4) {
   auto pixels = image.get_pixels();
 
   ASSERT_EQ(pixels.get_size(), Count(16));
-  EXPECT_EQ(pixels.get_data()[0].red, Unsigned_8(0));
-  EXPECT_EQ(pixels.get_data()[0].green, Unsigned_8(0));
-  EXPECT_EQ(pixels.get_data()[0].blue, Unsigned_8(128));
-  EXPECT_EQ(pixels.get_data()[15].red, Unsigned_8(255));
-  EXPECT_EQ(pixels.get_data()[15].green, Unsigned_8(255));
-  EXPECT_EQ(pixels.get_data()[15].blue, Unsigned_8(128));
+  EXPECT_EQ(pixels.get_data()[0].red, U8(0));
+  EXPECT_EQ(pixels.get_data()[0].green, U8(0));
+  EXPECT_EQ(pixels.get_data()[0].blue, U8(128));
+  EXPECT_EQ(pixels.get_data()[15].red, U8(255));
+  EXPECT_EQ(pixels.get_data()[15].green, U8(255));
+  EXPECT_EQ(pixels.get_data()[15].blue, U8(128));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, decode_pattern_8x1) {
@@ -142,20 +142,20 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, decode_pattern_8x1) {
   auto pixels = image.get_pixels();
 
   ASSERT_EQ(pixels.get_size(), Count(8));
-  EXPECT_EQ(pixels.get_data()[0].red, Unsigned_8(100));
-  EXPECT_EQ(pixels.get_data()[0].green, Unsigned_8(200));
-  EXPECT_EQ(pixels.get_data()[0].blue, Unsigned_8(50));
-  EXPECT_EQ(pixels.get_data()[0].alpha, Unsigned_8(255));
-  EXPECT_EQ(pixels.get_data()[4].red, Unsigned_8(100));
-  EXPECT_EQ(pixels.get_data()[4].green, Unsigned_8(200));
+  EXPECT_EQ(pixels.get_data()[0].red, U8(100));
+  EXPECT_EQ(pixels.get_data()[0].green, U8(200));
+  EXPECT_EQ(pixels.get_data()[0].blue, U8(50));
+  EXPECT_EQ(pixels.get_data()[0].alpha, U8(255));
+  EXPECT_EQ(pixels.get_data()[4].red, U8(100));
+  EXPECT_EQ(pixels.get_data()[4].green, U8(200));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, decode_invalid) {
   constexpr Static::Bytes<8> garbage = {
     {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}};
   auto image = Formats::Png::decode(garbage);
-  EXPECT_EQ(image.get_width(), Unsigned_32(0));
-  EXPECT_EQ(image.get_height(), Unsigned_32(0));
+  EXPECT_EQ(image.get_width(), U32(0));
+  EXPECT_EQ(image.get_height(), U32(0));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_1x1) {
@@ -167,15 +167,15 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_1x1) {
   ASSERT(encoded.get_size() > 0);
 
   auto decoded = Formats::Png::decode(encoded.get_view());
-  EXPECT_EQ(decoded.get_width(), Unsigned_32(1));
-  EXPECT_EQ(decoded.get_height(), Unsigned_32(1));
+  EXPECT_EQ(decoded.get_width(), U32(1));
+  EXPECT_EQ(decoded.get_height(), U32(1));
 
   auto decoded_pixels = decoded.get_pixels();
   ASSERT_EQ(decoded_pixels.get_size(), Count(1));
-  EXPECT_EQ(decoded_pixels.get_data()[0].red, Unsigned_8(0x12));
-  EXPECT_EQ(decoded_pixels.get_data()[0].green, Unsigned_8(0x34));
-  EXPECT_EQ(decoded_pixels.get_data()[0].blue, Unsigned_8(0x56));
-  EXPECT_EQ(decoded_pixels.get_data()[0].alpha, Unsigned_8(0x78));
+  EXPECT_EQ(decoded_pixels.get_data()[0].red, U8(0x12));
+  EXPECT_EQ(decoded_pixels.get_data()[0].green, U8(0x34));
+  EXPECT_EQ(decoded_pixels.get_data()[0].blue, U8(0x56));
+  EXPECT_EQ(decoded_pixels.get_data()[0].alpha, U8(0x78));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_checker) {
@@ -190,15 +190,15 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_checker) {
   ASSERT(encoded.get_size() > 0);
 
   auto decoded = Formats::Png::decode(encoded.get_view());
-  EXPECT_EQ(decoded.get_width(), Unsigned_32(2));
-  EXPECT_EQ(decoded.get_height(), Unsigned_32(2));
+  EXPECT_EQ(decoded.get_width(), U32(2));
+  EXPECT_EQ(decoded.get_height(), U32(2));
 
   auto decoded_pixels = decoded.get_pixels();
   ASSERT_EQ(decoded_pixels.get_size(), Count(4));
-  EXPECT_EQ(decoded_pixels.get_data()[0].red, Unsigned_8(0xFF));
-  EXPECT_EQ(decoded_pixels.get_data()[1].green, Unsigned_8(0xFF));
-  EXPECT_EQ(decoded_pixels.get_data()[2].blue, Unsigned_8(0xFF));
-  EXPECT_EQ(decoded_pixels.get_data()[3].red, Unsigned_8(0xFF));
+  EXPECT_EQ(decoded_pixels.get_data()[0].red, U8(0xFF));
+  EXPECT_EQ(decoded_pixels.get_data()[1].green, U8(0xFF));
+  EXPECT_EQ(decoded_pixels.get_data()[2].blue, U8(0xFF));
+  EXPECT_EQ(decoded_pixels.get_data()[3].red, U8(0xFF));
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_64x64) {
@@ -209,8 +209,7 @@ PERIMORTEM_UNIT_TEST(GraphicsPng, roundtrip_64x64) {
   for (Count row = 0; row < height; row++) {
     for (Count col = 0; col < width; col++) {
       source_pixels[row * width + col] = {
-        Unsigned_8(col * 8), Unsigned_8(row * 8), Unsigned_8(128),
-        Unsigned_8(255)};
+        U8(col * 8), U8(row * 8), U8(128), U8(255)};
     }
   }
 

@@ -19,7 +19,7 @@ class Object;
 template <>
 class Object<void> {
  public:
-  using Finalizer = void (*)(Unsigned_8*);
+  using Finalizer = void (*)(U8*);
 
   class Descriptor {
    public:
@@ -37,7 +37,7 @@ class Object<void> {
   };
 
   constexpr Object() = default;
-  explicit constexpr Object(Unsigned_8* payload) : payload(payload) {}
+  explicit constexpr Object(U8* payload) : payload(payload) {}
 
   static auto create(const Descriptor& descriptor) -> Object;
   static auto create(
@@ -48,7 +48,7 @@ class Object<void> {
   auto retain() const -> void;
   auto release() const -> void;
 
-  constexpr auto get_payload() const -> Unsigned_8* { return payload; }
+  constexpr auto get_payload() const -> U8* { return payload; }
   auto get_capacity() const -> Count;
   auto get_reservations() const -> Count;
   auto get_descriptor() const -> const Descriptor&;
@@ -56,7 +56,7 @@ class Object<void> {
   constexpr auto is_empty() const -> Bool { return !payload; }
 
  private:
-  Unsigned_8* payload = {};
+  U8* payload = {};
 };
 
 // Object<T> is the typed Core owner mirrored by Library Object[T]. Empty
@@ -141,7 +141,7 @@ class Object {
   }
 
  private:
-  static auto destroy_buffer(Unsigned_8* payload) -> void {
+  static auto destroy_buffer(U8* payload) -> void {
     Count capacity = Bibliotheca::capacity(payload) / sizeof(value_type);
     value_type* values = Data::cast<value_type>(payload);
     for (Count index = capacity; index != 0; index--) {
@@ -180,14 +180,14 @@ class Object {
   Object<> storage;
 };
 
-static_assert(sizeof(Object<>) == sizeof(Unsigned_8*));
-static_assert(alignof(Object<>) == alignof(Unsigned_8*));
+static_assert(sizeof(Object<>) == sizeof(U8*));
+static_assert(alignof(Object<>) == alignof(U8*));
 static_assert(__is_trivially_copyable(Object<>));
 static_assert(
     sizeof(Object<>::Descriptor) ==
     sizeof(Count) * 2 + sizeof(Object<>::Finalizer));
 static_assert(alignof(Object<>::Descriptor) == alignof(Count));
 static_assert(__is_standard_layout(Object<>::Descriptor));
-static_assert(sizeof(Object<Unsigned_8>) == sizeof(Object<>));
+static_assert(sizeof(Object<U8>) == sizeof(Object<>));
 
 }  // namespace Perimortem::Core

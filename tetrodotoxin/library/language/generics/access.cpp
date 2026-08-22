@@ -27,7 +27,7 @@ auto Generics::Access::create(
   }
 
   auto size_type = get_context()
-                       .resolve_context("Unsigned_64"_view)
+                       .resolve_context("U64"_view)
                        .resolve()
                        .select<Language::Model::Type>();
   auto flag_type = get_context()

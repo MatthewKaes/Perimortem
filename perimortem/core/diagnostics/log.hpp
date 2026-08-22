@@ -15,7 +15,7 @@ namespace Perimortem::Core::Diagnostics {
 
 class Log {
  public:
-  enum class Level : Unsigned_8 {
+  enum class Level : U8 {
     Debug,
     Info,
     Warning,

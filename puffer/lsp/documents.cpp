@@ -29,13 +29,13 @@ using namespace Perimortem::System;
 using namespace Puffer;
 using namespace Tetrodotoxin;
 
-static auto decode_hex(Unsigned_8 value) -> Option<Unsigned_8> {
+static auto decode_hex(U8 value) -> Option<U8> {
   if (value >= '0' && value <= '9') {
-    return Unsigned_8(value - '0');
+    return U8(value - '0');
   } else if (value >= 'A' && value <= 'F') {
-    return Unsigned_8(value - 'A' + 10);
+    return U8(value - 'A' + 10);
   } else if (value >= 'a' && value <= 'f') {
-    return Unsigned_8(value - 'a' + 10);
+    return U8(value - 'a' + 10);
   }
 
   return {};
@@ -66,7 +66,7 @@ static auto decode_file_uri(View::Bytes uri) -> Dynamic::Bytes {
       return {};
     }
 
-    path.append(Unsigned_8((*high << 4) | *low));
+    path.append(U8((*high << 4) | *low));
     index += 2;
   }
 
@@ -79,7 +79,7 @@ static auto encode_file_uri(View::Bytes path) -> Dynamic::Bytes {
   constexpr View::Bytes hexadecimal = "0123456789ABCDEF"_view;
   Dynamic::Bytes uri("file://"_view);
   for (Count index = 0; index < path.get_size(); index++) {
-    Unsigned_8 byte = path[index];
+    U8 byte = path[index];
     Bool unreserved = (byte >= 'A' && byte <= 'Z') ||
                       (byte >= 'a' && byte <= 'z') ||
                       (byte >= '0' && byte <= '9') || byte == '-' ||
@@ -565,7 +565,7 @@ static auto utf_16_position_to_byte(
   Count units = 0;
   while (offset < source.get_size() && source[offset] != '\n' &&
          units < target_character) {
-    Unsigned_8 lead = source[offset];
+    U8 lead = source[offset];
     Count width = 1;
     Count code_units = 1;
     if (lead >= 0xC2 && lead <= 0xDF) {
@@ -629,7 +629,7 @@ static auto byte_to_utf_16_position(View::Bytes source, Count target)
   SourcePosition position;
   Count offset = 0;
   while (offset < target) {
-    Unsigned_8 lead = source[offset];
+    U8 lead = source[offset];
     if (lead == '\n') {
       position.line++;
       position.character = 0;

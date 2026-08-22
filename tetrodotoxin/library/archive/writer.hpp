@@ -36,17 +36,17 @@ class Writer {
 
   auto finish(Record record) -> Bool;
 
-  auto write(Unsigned_8 value) -> void;
+  auto write(U8 value) -> void;
 
-  auto write(Unsigned_16 value) -> void;
+  auto write(U16 value) -> void;
 
-  auto write(Unsigned_32 value) -> void;
+  auto write(U32 value) -> void;
 
-  auto write(Unsigned_64 value) -> void;
+  auto write(U64 value) -> void;
 
-  auto write(Signed_64 value) -> void;
+  auto write(S64 value) -> void;
 
-  auto write(Real_64 value) -> void;
+  auto write(R64 value) -> void;
 
   auto write(Perimortem::Core::View::Bytes value) -> Bool;
 

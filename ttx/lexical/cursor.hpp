@@ -43,7 +43,7 @@ class Cursor {
   // Looks at a Token relative to the current position. Positive offsets look
   // forward and negative offsets look backward. Passing zero returns current,
   // while either stream boundary returns an empty Token.
-  constexpr auto peek(Signed_64 offset) const -> Lexical::Token {
+  constexpr auto peek(S64 offset) const -> Lexical::Token {
     return tokenizer.get_tokens()[index + offset];
   }
 

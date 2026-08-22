@@ -4,5 +4,5 @@ dialect : Library;
 public reveal : func = [] -> Hidden : return (.value = 0);
 
 private Hidden : struct {
-  public value : Unsigned_64 = 0;
+  public value : U64 = 0;
 }

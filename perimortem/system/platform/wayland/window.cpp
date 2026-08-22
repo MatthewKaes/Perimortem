@@ -28,10 +28,7 @@ const wl_registry_listener Platform::Wayland::Window::registry_listener = {
   Platform::Wayland::Window::on_registry_global_remove,
 };
 
-Platform::Wayland::Window::Window(
-    Unsigned_32 width,
-    Unsigned_32 height,
-    const char* title) {
+Platform::Wayland::Window::Window(U32 width, U32 height, const char* title) {
   initial_width = width;
   initial_height = height;
   logical_width = width;
@@ -125,15 +122,15 @@ auto Platform::Wayland::Window::poll_events() -> Bool {
   return !close_requested;
 }
 
-auto Platform::Wayland::Window::get_logical_width() const -> Unsigned_32 {
+auto Platform::Wayland::Window::get_logical_width() const -> U32 {
   return logical_width;
 }
 
-auto Platform::Wayland::Window::get_logical_height() const -> Unsigned_32 {
+auto Platform::Wayland::Window::get_logical_height() const -> U32 {
   return logical_height;
 }
 
-auto Platform::Wayland::Window::get_scale() const -> Unsigned_32 {
+auto Platform::Wayland::Window::get_scale() const -> U32 {
   return scale;
 }
 
@@ -182,10 +179,9 @@ auto Platform::Wayland::Window::on_shell_configure(
     int32_t width,
     int32_t height) -> void {
   auto* window = static_cast<Platform::Wayland::Window*>(data);
-  auto new_width =
-      width > 0 ? static_cast<Unsigned_32>(width) : window->initial_width;
+  auto new_width = width > 0 ? static_cast<U32>(width) : window->initial_width;
   auto new_height =
-      height > 0 ? static_cast<Unsigned_32>(height) : window->initial_height;
+      height > 0 ? static_cast<U32>(height) : window->initial_height;
   if (new_width != window->logical_width ||
       new_height != window->logical_height) {
     window->logical_width = new_width;
@@ -209,8 +205,8 @@ auto Platform::Wayland::Window::on_surface_preferred_buffer_scale(
     wl_surface*,
     int32_t factor) -> void {
   auto* window = static_cast<Platform::Wayland::Window*>(data);
-  if (static_cast<Unsigned_32>(factor) != window->scale) {
-    window->scale = static_cast<Unsigned_32>(factor);
+  if (static_cast<U32>(factor) != window->scale) {
+    window->scale = static_cast<U32>(factor);
     window->needs_resize = True;
   }
 }

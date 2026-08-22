@@ -35,9 +35,9 @@ static Harness BinaryBench = {
 
 PERIMORTEM_BENCHMARK(BinaryBench, binary_read_32) {
   Reader::Binary<Data::ByteOrder::Little> reader(io_buffer.get_view());
-  Unsigned_32 accumulator = 0;
+  U32 accumulator = 0;
   while (reader.get_location() < io_buffer.get_size() - 64) {
-    accumulator ^= reader.read_unsigned_32();
+    accumulator ^= reader.read_u32();
   }
 
   Benchmark::prevent_optimization(accumulator);
@@ -45,9 +45,9 @@ PERIMORTEM_BENCHMARK(BinaryBench, binary_read_32) {
 
 PERIMORTEM_BENCHMARK(BinaryBench, binary_read_64) {
   Reader::Binary<Data::ByteOrder::Little> reader(io_buffer.get_view());
-  Unsigned_64 accumulator = 0;
+  U64 accumulator = 0;
   while (reader.get_location() < io_buffer.get_size() - 64) {
-    accumulator ^= reader.read_unsigned_64();
+    accumulator ^= reader.read_u64();
   }
 
   Benchmark::prevent_optimization(accumulator);
@@ -67,7 +67,7 @@ PERIMORTEM_BENCHMARK(BinaryBench, binary_read_view) {
 PERIMORTEM_BENCHMARK(BinaryBench, binary_write_32) {
   Writer::Binary<Data::ByteOrder::Little> writer(io_buffer.get_access());
   while (writer.get_location() < io_buffer.get_size() - 64) {
-    writer << Unsigned_32(writer.get_location());
+    writer << U32(writer.get_location());
   }
 
   Count writer_location = writer.get_location();
@@ -77,7 +77,7 @@ PERIMORTEM_BENCHMARK(BinaryBench, binary_write_32) {
 PERIMORTEM_BENCHMARK(BinaryBench, binary_write_64) {
   Writer::Binary<Data::ByteOrder::Little> writer(io_buffer.get_access());
   while (writer.get_location() < io_buffer.get_size() - 64) {
-    writer << Unsigned_64(writer.get_location());
+    writer << U64(writer.get_location());
   }
 
   Count writer_location = writer.get_location();

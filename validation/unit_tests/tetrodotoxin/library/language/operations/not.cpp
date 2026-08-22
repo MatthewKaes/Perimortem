@@ -15,7 +15,7 @@
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
-#include "tetrodotoxin/library/language/types/signed_8.hpp"
+#include "tetrodotoxin/library/language/types/s8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -76,10 +76,10 @@ PERIMORTEM_UNIT_TEST(LibraryNot, type_selection_and_partial) {
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
   Types::Boolean distinct_bool;
-  Types::Signed_8 signed_8;
+  Types::S8 s8;
   NotExpression canonical("canonical"_view, resolve_library_flag(source));
   NotExpression distinct("distinct"_view, distinct_bool);
-  NotExpression signed_value("signed"_view, signed_8);
+  NotExpression signed_value("signed"_view, s8);
   NotExpression unresolved("unresolved"_view, Invalid::get_invalid());
   auto& canonical_not = Operations::Not::create_synthetic(domain, canonical);
   auto& distinct_not = Operations::Not::create_synthetic(domain, distinct);

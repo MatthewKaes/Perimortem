@@ -366,7 +366,7 @@ def run_test():
     system_markdown = (
         system_result.get("contents", {}).get("value", "")
         if system_result else "")
-    check("state line_prefix : View[Unsigned_8]" in system_markdown,
+    check("state line_prefix : View[U8]" in system_markdown,
           "Package hover uses the shared cross-source analysis snapshot")
     helper_call = main_source.index("Helper -> prefix")
     prefix_definition = send_definition(
@@ -384,7 +384,7 @@ def run_test():
         bytes_result.get("contents", {}).get("value", "")
         if bytes_result else "")
     check("Type Bytes" in bytes_markdown and
-          "copy-on-write container of Unsigned_8 values" in bytes_markdown,
+          "copy-on-write container of U8 values" in bytes_markdown,
           "Package hover preserves exported Bytes Type documentation")
     memory_path = os.path.join(
         REPO_ROOT, "packages", "ttx", "Perimortem.Memory", "dynamic.ttx")
@@ -442,7 +442,7 @@ def run_test():
     restored_markdown = (
         restored_result.get("contents", {}).get("value", "")
         if restored_result else "")
-    check("state line_prefix : View[Unsigned_8]" in restored_markdown,
+    check("state line_prefix : View[U8]" in restored_markdown,
           "restoring an overlay rebuilds one complete Package snapshot")
 
     renamed_system = system_source.replace(
@@ -462,7 +462,7 @@ def run_test():
     dependency_restored_markdown = (
         dependency_restored_result.get("contents", {}).get("value", "")
         if dependency_restored_result else "")
-    check("state line_prefix : View[Unsigned_8]" in
+    check("state line_prefix : View[U8]" in
           dependency_restored_markdown,
           "restoring a dependency overlay rebuilds its consumers")
 
@@ -569,11 +569,11 @@ def run_test():
     absent_markdown = (
         absent_resp.get("result", {}).get("contents", {}).get("value", "")
         if absent_resp else "")
-    check("const present : Option[Unsigned_64]" in present_markdown,
+    check("const present : Option[U64]" in present_markdown,
           "hover resolves present to its exact Field and Type")
     check("= some(5)" in present_markdown,
           "hover displays present's folded Option payload")
-    check("const absent : Option[Unsigned_64]" in absent_markdown,
+    check("const absent : Option[U64]" in absent_markdown,
           "hover resolves absent to its exact Field and Type")
     check("= absent" in absent_markdown,
           "hover displays absent's folded Option state")
@@ -584,7 +584,7 @@ def run_test():
     frozen_markdown = (
         frozen_resp.get("result", {}).get("contents", {}).get("value", "")
         if frozen_resp else "")
-    check("const frozen_dense : Fixed[Unsigned_64,4]" in frozen_markdown,
+    check("const frozen_dense : Fixed[U64,4]" in frozen_markdown,
           "hover resolves the const Fixed stack Local and exact Type")
     check("= (5, 6, 7, 8)" in frozen_markdown,
           "hover displays the const Fixed Local's folded values")
@@ -595,7 +595,7 @@ def run_test():
     bytes_markdown = (
         bytes_resp.get("result", {}).get("contents", {}).get("value", "")
         if bytes_resp else "")
-    check("const left : View[Unsigned_8]" in bytes_markdown,
+    check("const left : View[U8]" in bytes_markdown,
           "hover resolves the const byte View and exact Type")
     check('= "Hi"' in bytes_markdown,
           "hover displays the const byte View as an escaped string")
@@ -645,12 +645,12 @@ def run_test():
         "// Storage Type documentation.\n"
         "public Bucket : struct {\n"
         "  // Current value documentation.\n"
-        "  public state value : Unsigned_64 = 1;\n"
+        "  public state value : U64 = 1;\n"
         "}\n"
         "// Alias documentation.\n"
         "public BucketAlias : alias = Bucket;\n"
-        "private inspect : func = [] -> Unsigned_64 {\n"
-        "  const escaped : View[Unsigned_8] = "
+        "private inspect : func = [] -> U64 {\n"
+        "  const escaped : View[U8] = "
         "0x[09 0A 0D 22 5C 60 41 FF] -> get_view();\n"
         "  state bucket : BucketAlias = (.value = 2);\n"
         "  return bucket.value;\n"
@@ -665,9 +665,9 @@ def run_test():
     field_markdown = (
         field_resp.get("result", {}).get("contents", {}).get("value", "")
         if field_resp else "")
-    check("state value : Unsigned_64" in field_markdown,
+    check("state value : U64" in field_markdown,
           "hover resolves a state Field declaration and exact Type")
-    check("```tetrodotoxin\nstate value : Unsigned_64\n```" in
+    check("```tetrodotoxin\nstate value : U64\n```" in
           field_markdown,
           "state Field hover uses one theme-highlighted declaration")
     check("Current value documentation." in field_markdown and
@@ -727,7 +727,7 @@ def run_test():
         "definition preserves the authored Alias identity")
 
     foreign_parameter_start = hover_source.index(
-        ".value : Object[Unsigned_8]")
+        ".value : Object[U8]")
     foreign_parameter_resp = send_hover(
         conn, hover_uri, hover_source, "value", 47,
         foreign_parameter_start)
@@ -736,7 +736,7 @@ def run_test():
         .get("contents", {}).get("value", "")
         if foreign_parameter_resp else "")
     check(
-        "```tetrodotoxin\n.parameter value : Object[Unsigned_8]\n```" in
+        "```tetrodotoxin\n.parameter value : Object[U8]\n```" in
         foreign_parameter_markdown,
         "Parameter hover uses pack-parameter highlighting")
 

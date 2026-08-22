@@ -20,7 +20,7 @@ using namespace Perimortem::Memory;
 using namespace Perimortem;
 
 // Distance codes zero through twenty nine use base distances and extra bits.
-constexpr Static::Vector<Unsigned_16, 30> distance_base = {{
+constexpr Static::Vector<U16, 30> distance_base = {{
   1,    2,    3,    4,    5,    7,    9,    13,    17,    25,
   33,   49,   65,   97,   129,  193,  257,  385,   513,   769,
   1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577,
@@ -29,20 +29,20 @@ constexpr Static::Vector<Unsigned_16, 30> distance_base = {{
 // Maps indexes to the correct code length alphabet ordering.
 // The order puts the most commonly nonzero lengths first so the transmitted
 // sequence can be truncated as soon as all trailing entries are zero.
-constexpr Static::Vector<Unsigned_8, 19> code_length_order = {{
+constexpr Static::Vector<U8, 19> code_length_order = {{
   16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
 }};
 
 constexpr Count deflate_literal_len_count = 286;
 constexpr Count deflate_distance_count = 30;
 
-enum class BlockType : Unsigned_8 {
+enum class BlockType : U8 {
   Stored = 0,
   FixedHuffman = 1,
   DynamicHuffman = 2,
 };
 
-enum class Encodings : Unsigned_16 {
+enum class Encodings : U16 {
   Standard = 15,
   Repeat = 16,
   ShortZeros = 17,
@@ -58,21 +58,21 @@ class BackReferenceEncoding {
       : symbol(0), extra_bits(0), extra_value(0) {}
   constexpr BackReferenceEncoding(
       Count symbol,
-      Unsigned_32 extra_value,
+      U32 extra_value,
       Count extra_bits)
       : symbol(symbol), extra_bits(extra_bits), extra_value(extra_value) {}
 
   auto get_symbol() const -> Count { return symbol; }
-  auto get_extra_value() const -> Unsigned_32 { return extra_value; }
+  auto get_extra_value() const -> U32 { return extra_value; }
   auto get_extra_bits() const -> Count { return extra_bits; }
 
   // Length codes 257 through 285 use base lengths and extra bits.
-  static constexpr Static::Vector<Unsigned_16, 29> length_base = {{
+  static constexpr Static::Vector<U16, 29> length_base = {{
     3,  4,  5,  6,  7,  8,  9,  10, 11,  13,  15,  17,  19,  23,  27,
     31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258,
   }};
 
-  static constexpr Static::Vector<Unsigned_8, 29> length_extra_bits = {{
+  static constexpr Static::Vector<U8, 29> length_extra_bits = {{
     0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2,
     2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0,
   }};
@@ -94,7 +94,7 @@ class BackReferenceEncoding {
       }
 
       table[i - Compression::Lz77::min_match] = BackReferenceEncoding(
-          length_symbol_offset + code, Unsigned_32(i - length_base[code]),
+          length_symbol_offset + code, U32(i - length_base[code]),
           length_extra_bits[code]);
     }
 
@@ -104,7 +104,7 @@ class BackReferenceEncoding {
  private:
   Count symbol;
   Count extra_bits;
-  Unsigned_32 extra_value;
+  U32 extra_value;
 };
 
 constexpr Static::Vector<BackReferenceEncoding, 256> length_encoding_table =
@@ -119,54 +119,52 @@ constexpr Static::Vector<BackReferenceEncoding, 256> length_encoding_table =
 class Token {
  public:
   Token() = default;
-  Token(Unsigned_8 literal_value)
+  Token(U8 literal_value)
       : length(0),
         extra_value(0),
         distance_symbol(0),
         extra_bits(0),
         literal(literal_value) {}
   Token(Count match_length, const BackReferenceEncoding& distance_encoding)
-      : length(Unsigned_16(match_length)),
-        extra_value(Unsigned_16(distance_encoding.get_extra_value())),
-        distance_symbol(Unsigned_8(distance_encoding.get_symbol())),
-        extra_bits(Unsigned_8(distance_encoding.get_extra_bits())),
+      : length(U16(match_length)),
+        extra_value(U16(distance_encoding.get_extra_value())),
+        distance_symbol(U8(distance_encoding.get_symbol())),
+        extra_bits(U8(distance_encoding.get_extra_bits())),
         literal(0) {}
 
   auto is_match() const -> Bool {
-    return length >= Unsigned_16(Compression::Lz77::min_match);
+    return length >= U16(Compression::Lz77::min_match);
   }
 
   auto get_length() const -> Count { return Count(length); }
   auto get_distance_symbol() const -> Count { return Count(distance_symbol); }
-  auto get_extra_value() const -> Unsigned_32 {
-    return Unsigned_32(extra_value);
-  }
+  auto get_extra_value() const -> U32 { return U32(extra_value); }
   auto get_extra_bits() const -> Count { return Count(extra_bits); }
-  auto get_literal() const -> Unsigned_8 { return literal; }
+  auto get_literal() const -> U8 { return literal; }
 
  private:
-  Unsigned_16 length;
-  Unsigned_16 extra_value;
-  Unsigned_8 distance_symbol;
-  Unsigned_8 extra_bits;
-  Unsigned_8 literal;
+  U16 length;
+  U16 extra_value;
+  U8 distance_symbol;
+  U8 extra_bits;
+  U8 literal;
 };
 
 // A single entry in a run length encoded code length sequence.
 class RleEntry {
  public:
   RleEntry() : extra_value(0), symbol(0), extra_bits(0) {}
-  RleEntry(Unsigned_8 symbol, Unsigned_8 extra_bits, Unsigned_32 extra_value)
+  RleEntry(U8 symbol, U8 extra_bits, U32 extra_value)
       : extra_value(extra_value), symbol(symbol), extra_bits(extra_bits) {}
 
-  auto get_symbol() const -> Unsigned_8 { return symbol; }
-  auto get_extra_bits() const -> Unsigned_8 { return extra_bits; }
-  auto get_extra_value() const -> Unsigned_32 { return extra_value; }
+  auto get_symbol() const -> U8 { return symbol; }
+  auto get_extra_bits() const -> U8 { return extra_bits; }
+  auto get_extra_value() const -> U32 { return extra_value; }
 
  private:
-  Unsigned_32 extra_value;
-  Unsigned_8 symbol;
-  Unsigned_8 extra_bits;
+  U32 extra_value;
+  U8 symbol;
+  U8 extra_bits;
 };
 
 // Validates all the header data in one go.
@@ -174,24 +172,24 @@ class RleEntry {
 // be run, even on release builds.
 constexpr auto validate_header(View::Bytes source) -> Bool {
   constexpr Count deflate_min_input_size = 7;
-  constexpr Unsigned_8 deflate_compression_method = 8;
-  constexpr Unsigned_32 deflate_fcheck_modulus = 31;
+  constexpr U8 deflate_compression_method = 8;
+  constexpr U32 deflate_fcheck_modulus = 31;
   if (source.get_size() < deflate_min_input_size) [[unlikely]] {
     Diagnostics::Log::error(
         "Compression: Input too short to be a valid deflate stream"_view);
     return False;
   }
 
-  Unsigned_8 deflate_cmf = source[0];
-  Unsigned_8 deflate_flag = source[1];
+  U8 deflate_cmf = source[0];
+  U8 deflate_flag = source[1];
   if ((deflate_cmf & 0x0F) != deflate_compression_method) [[unlikely]] {
     Diagnostics::Log::error(
         "Compression: Unsupported compression method in deflate header"_view);
     return False;
   }
 
-  if (((Unsigned_32(deflate_cmf) * 256 + deflate_flag) %
-       deflate_fcheck_modulus) != 0) [[unlikely]] {
+  if (((U32(deflate_cmf) * 256 + deflate_flag) % deflate_fcheck_modulus) != 0)
+      [[unlikely]] {
     Diagnostics::Log::error(
         "Compression: Deflate header integrity check failed"_view);
     return False;
@@ -212,12 +210,12 @@ constexpr auto write_header(Dynamic::Bytes& output) -> void {
 }
 
 // Adler 32 calculation for checksum operations.
-constexpr auto calculate_checksum(View::Bytes data) -> Unsigned_32 {
-  constexpr Unsigned_64 adler_modulus = 65521;
+constexpr auto calculate_checksum(View::Bytes data) -> U32 {
+  constexpr U64 adler_modulus = 65521;
   constexpr Count batch_size = 5552;
-  Unsigned_64 s1 = 1;
-  Unsigned_64 s2 = 0;
-  const Unsigned_8* source_pointer = data.get_data();
+  U64 s1 = 1;
+  U64 s2 = 0;
+  const U8* source_pointer = data.get_data();
   Count remaining = data.get_size();
   while (remaining >= batch_size) {
     for (Count i = 0; i < batch_size; i++) {
@@ -238,7 +236,7 @@ constexpr auto calculate_checksum(View::Bytes data) -> Unsigned_32 {
 
   s1 %= adler_modulus;
   s2 %= adler_modulus;
-  return Unsigned_32((s2 << 16) | s1);
+  return U32((s2 << 16) | s1);
 }
 
 // O(1) distance encoding through bit width arithmetic.
@@ -247,11 +245,10 @@ constexpr auto encode_distance(Count d) -> BackReferenceEncoding {
     return BackReferenceEncoding(d - 1, 0, 0);
   }
 
-  const Count msb = Count(31 - __builtin_clzg(Unsigned_32(d - 1), 32));
+  const Count msb = Count(31 - __builtin_clzg(U32(d - 1), 32));
   const Count code = 2 * msb + (((d - 1) >> (msb - 1)) & 1);
   const Count extra_bits = msb - 1;
-  return BackReferenceEncoding(
-      code, Unsigned_32(d - distance_base[code]), extra_bits);
+  return BackReferenceEncoding(code, U32(d - distance_base[code]), extra_bits);
 }
 
 constexpr auto inflate_symbols(
@@ -259,17 +256,17 @@ constexpr auto inflate_symbols(
     const Compression::Huffman& distance_table,
     Compression::BitStream::Reader& reader,
     Dynamic::Bytes& output) -> Bool {
-  constexpr Unsigned_16 end_of_block_symbol = 256;
-  constexpr Unsigned_16 length_code_start = 257;
+  constexpr U16 end_of_block_symbol = 256;
+  constexpr U16 length_code_start = 257;
   while (reader.is_valid()) {
-    Unsigned_16 symbol = literal_table.decode_symbol(reader);
+    U16 symbol = literal_table.decode_symbol(reader);
     if (symbol == Compression::Huffman::invalid_symbol) [[unlikely]] {
       return False;
     }
 
     // Append regular symbols to the output
     if (symbol < end_of_block_symbol) {
-      output.append(Unsigned_8(symbol));
+      output.append(U8(symbol));
       continue;
     }
 
@@ -290,12 +287,12 @@ constexpr auto inflate_symbols(
         BackReferenceEncoding::length_base[length_code] +
         reader.read_code(BackReferenceEncoding::length_extra_bits[length_code]);
 
-    Unsigned_16 distance_symbol = distance_table.decode_symbol(reader);
+    U16 distance_symbol = distance_table.decode_symbol(reader);
     if (distance_symbol >= distance_base.get_size()) [[unlikely]] {
       return False;
     }
 
-    constexpr Static::Vector<Unsigned_8, 30> distance_extra_bits = {{
+    constexpr Static::Vector<U8, 30> distance_extra_bits = {{
       0, 0, 0, 0, 1, 1, 2, 2,  3,  3,  4,  4,  5,  5,  6,
       6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13,
     }};
@@ -337,20 +334,20 @@ constexpr auto inflate_stored(
     Compression::BitStream::Reader& reader,
     Dynamic::Bytes& output) -> Bool {
   constexpr Count stored_block_header_size = 4;
-  constexpr Unsigned_16 stored_block_complement_check = 0xFFFF;
+  constexpr U16 stored_block_complement_check = 0xFFFF;
 
   const auto block_header = reader.read_raw_bytes(stored_block_header_size);
   if (!reader.is_valid()) [[unlikely]] {
     return False;
   }
 
-  Unsigned_16 block_length =
+  U16 block_length =
       Data::ensure_endian<Data::ByteOrder::Little, Data::ByteOrder::Native>(
-          *Data::cast<Unsigned_16>(block_header.get_data()));
-  Unsigned_16 block_length_complement =
+          *Data::cast<U16>(block_header.get_data()));
+  U16 block_length_complement =
       Data::ensure_endian<Data::ByteOrder::Little, Data::ByteOrder::Native>(
-          *Data::cast<Unsigned_16>(block_header.get_data() + 2));
-  if (Unsigned_16(block_length ^ block_length_complement) !=
+          *Data::cast<U16>(block_header.get_data() + 2));
+  if (U16(block_length ^ block_length_complement) !=
       stored_block_complement_check) [[unlikely]] {
     return False;
   }
@@ -384,37 +381,37 @@ constexpr auto inflate_dynamic(
     return False;
   }
 
-  Static::Vector<Unsigned_8, code_length_order.get_size()> huffman_lengths;
+  Static::Vector<U8, code_length_order.get_size()> huffman_lengths;
   for (Count i = 0; i < huffman_code_count; i++) {
-    huffman_lengths[code_length_order[i]] = Unsigned_8(reader.read_code(3));
+    huffman_lengths[code_length_order[i]] = U8(reader.read_code(3));
   }
 
   const auto dynamic_table = Compression::Huffman(huffman_lengths);
   Count total_codes = literal_code_count + distance_code_count;
-  Static::Vector<Unsigned_8, Compression::Huffman::max_symbol_count>
+  Static::Vector<U8, Compression::Huffman::max_symbol_count>
       actual_literal_len_lengths;
 
   Count decode_index = 0;
   while (decode_index < total_codes && reader.is_valid()) {
-    Unsigned_16 symbol = dynamic_table.decode_symbol(reader);
+    U16 symbol = dynamic_table.decode_symbol(reader);
 
-    Unsigned_8 value = 0;
+    U8 value = 0;
     Count element_count = Count(-1);
     switch (symbol) {
-    case 0 ... Unsigned_16(Encodings::Standard):
-      value = Unsigned_8(symbol);
+    case 0 ... U16(Encodings::Standard):
+      value = U8(symbol);
       element_count = 1;
       break;
-    case Unsigned_16(Encodings::Repeat):
+    case U16(Encodings::Repeat):
       value =
           decode_index > 0 ? actual_literal_len_lengths[decode_index - 1] : 0;
       element_count = reader.read_code(2) + 3;
       break;
-    case Unsigned_16(Encodings::ShortZeros):
+    case U16(Encodings::ShortZeros):
       value = 0;
       element_count = reader.read_code(3) + 3;
       break;
-    case Unsigned_16(Encodings::LongZeros):
+    case U16(Encodings::LongZeros):
       value = 0;
       element_count = reader.read_code(7) + 11;
       break;
@@ -446,7 +443,7 @@ constexpr auto inflate_dynamic(
   // per RFC 1951. This strict check ensures Perimortem inflate agrees with
   // every conformant DEFLATE decoder rather than silently tolerating bad
   // tables.
-  auto is_valid_kraft = [](View::Vector<Unsigned_8> lengths) -> Bool {
+  auto is_valid_kraft = [](View::Vector<U8> lengths) -> Bool {
     const auto* length_data = lengths.get_data();
     Count max_length = 0;
     for (Count i = 0; i < lengths.get_size(); i++) {
@@ -487,23 +484,22 @@ constexpr auto inflate_dynamic(
 
 constexpr auto write_checksum(Dynamic::Bytes& output, View::Bytes source)
     -> void {
-  Unsigned_32 checksum = calculate_checksum(source);
+  U32 checksum = calculate_checksum(source);
 
-  output.resize(output.get_size() + sizeof(Unsigned_32));
+  output.resize(output.get_size() + sizeof(U32));
   Data::write<Data::ByteOrder::Big>(
-      Data::cast<Unsigned_32>(
-          output.get_access().get_data() + output.get_size() -
-          sizeof(Unsigned_32)),
+      Data::cast<U32>(
+          output.get_access().get_data() + output.get_size() - sizeof(U32)),
       checksum);
 }
 
 constexpr auto test_checksum(View::Bytes stream, View::Bytes source) -> Bool {
-  Unsigned_32 stream_checksum = calculate_checksum(stream);
+  U32 stream_checksum = calculate_checksum(stream);
 
-  Unsigned_32 checksum =
+  U32 checksum =
       Data::ensure_endian<Data::ByteOrder::Big, Data::ByteOrder::Native>(
-          *Data::cast<Unsigned_32>(
-              source.get_data() + source.get_size() - sizeof(Unsigned_32)));
+          *Data::cast<U32>(
+              source.get_data() + source.get_size() - sizeof(U32)));
   if (stream_checksum != checksum) [[unlikely]] {
     Diagnostics::Log::Message<128> error_message(
         Diagnostics::Log::Level::Error);
@@ -564,13 +560,13 @@ constexpr auto write_deflate_footer(
 }
 
 constexpr auto rle_encode_code_lengths(
-    View::Vector<Unsigned_8> literal_len_lengths,
-    View::Vector<Unsigned_8> distance_lengths,
+    View::Vector<U8> literal_len_lengths,
+    View::Vector<U8> distance_lengths,
     Static::Vector<RleEntry, 320>& output) -> Count {
   const Count literal_length_count = literal_len_lengths.get_size();
   const auto* literal_data = literal_len_lengths.get_data();
   const auto* distance_data = distance_lengths.get_data();
-  auto lengths_at = [&](Count index) -> Unsigned_8 {
+  auto lengths_at = [&](Count index) -> U8 {
     return index < literal_length_count
                ? literal_data[index]
                : distance_data[index - literal_length_count];
@@ -580,7 +576,7 @@ constexpr auto rle_encode_code_lengths(
   Count count = 0;
   Count position = 0;
   while (position < total) {
-    Unsigned_8 length = lengths_at(position);
+    U8 length = lengths_at(position);
     if (length == 0) {
       Count run = 1;
       while (position + run < total && lengths_at(position + run) == 0 &&
@@ -589,11 +585,9 @@ constexpr auto rle_encode_code_lengths(
       }
 
       if (run >= 11) {
-        output[count++] =
-            RleEntry(Unsigned_8(18), Unsigned_8(7), Unsigned_32(run - 11));
+        output[count++] = RleEntry(U8(18), U8(7), U32(run - 11));
       } else if (run >= 3) {
-        output[count++] =
-            RleEntry(Unsigned_8(17), Unsigned_8(3), Unsigned_32(run - 3));
+        output[count++] = RleEntry(U8(17), U8(3), U32(run - 3));
       } else {
         for (Count r = 0; r < run; r++) {
           output[count++] = RleEntry();
@@ -602,7 +596,7 @@ constexpr auto rle_encode_code_lengths(
 
       position += run;
     } else {
-      output[count++] = RleEntry(length, Unsigned_8(0), Unsigned_32(0));
+      output[count++] = RleEntry(length, U8(0), U32(0));
       position++;
       Count run = 0;
       while (position + run < total && lengths_at(position + run) == length &&
@@ -611,8 +605,7 @@ constexpr auto rle_encode_code_lengths(
       }
 
       if (run >= 3) {
-        output[count++] =
-            RleEntry(Unsigned_8(16), Unsigned_8(2), Unsigned_32(run - 3));
+        output[count++] = RleEntry(U8(16), U8(2), U32(run - 3));
         position += run;
       }
     }
@@ -623,18 +616,16 @@ constexpr auto rle_encode_code_lengths(
 
 constexpr auto write_dynamic_block_header(
     Compression::BitStream::Writer& writer,
-    View::Vector<Unsigned_8> literal_len_lengths,
+    View::Vector<U8> literal_len_lengths,
     Count literal_index,
-    View::Vector<Unsigned_8> distance_lengths,
+    View::Vector<U8> distance_lengths,
     Count distance_index) -> void {
   Static::Vector<RleEntry, 320> rle;
   Count rle_count = rle_encode_code_lengths(
-      View::Vector<Unsigned_8>(
-          literal_len_lengths.get_data(), literal_index + 257),
-      View::Vector<Unsigned_8>(distance_lengths.get_data(), distance_index + 1),
-      rle);
+      View::Vector<U8>(literal_len_lengths.get_data(), literal_index + 257),
+      View::Vector<U8>(distance_lengths.get_data(), distance_index + 1), rle);
 
-  Static::Vector<Unsigned_32, code_length_order.get_size()> meta_freq;
+  Static::Vector<U32, code_length_order.get_size()> meta_freq;
   for (Count i = 0; i < code_length_order.get_size(); i++) {
     meta_freq[i] = 0;
   }
@@ -643,7 +634,7 @@ constexpr auto write_dynamic_block_header(
     meta_freq[rle[i].get_symbol()]++;
   }
 
-  Static::Vector<Unsigned_8, code_length_order.get_size()> meta_lengths;
+  Static::Vector<U8, code_length_order.get_size()> meta_lengths;
   Compression::Huffman::compute_lengths(
       meta_freq.get_view(), meta_lengths.get_access());
   const Compression::Huffman meta_table(meta_lengths.get_view());
@@ -655,9 +646,9 @@ constexpr auto write_dynamic_block_header(
     code_length--;
   }
 
-  writer.write_bits(Unsigned_32(literal_index), 5);
-  writer.write_bits(Unsigned_32(distance_index), 5);
-  writer.write_bits(Unsigned_32(code_length - 3), 4);
+  writer.write_bits(U32(literal_index), 5);
+  writer.write_bits(U32(distance_index), 5);
+  writer.write_bits(U32(code_length - 3), 4);
   for (Count i = 0; i <= code_length; i++) {
     writer.write_bits(meta_lengths[code_length_order[i]], 3);
   }
@@ -677,7 +668,7 @@ constexpr auto deflate_stored(View::Bytes source) -> Dynamic::Bytes {
 
   const Count output_size = deflate_header_size +
                             block_count * stored_block_header_size +
-                            source.get_size() + sizeof(Unsigned_32);
+                            source.get_size() + sizeof(U32);
 
   Dynamic::Bytes output;
   output.ensure_capacity(output_size);
@@ -685,14 +676,14 @@ constexpr auto deflate_stored(View::Bytes source) -> Dynamic::Bytes {
   for (Count i = 0; i <= source.get_size();) {
     const Count block_size =
         Math::min(source.get_size() - i, max_stored_block_size);
-    const Unsigned_8 is_final_block =
+    const U8 is_final_block =
         (i + block_size >= source.get_size()) ? 0x01 : 0x00;
 
-    output.append(Unsigned_8(is_final_block));
-    output.append(Unsigned_8(block_size & 0xFF));
-    output.append(Unsigned_8((block_size >> 8) & 0xFF));
-    output.append(Unsigned_8((~block_size) & 0xFF));
-    output.append(Unsigned_8(((~block_size) >> 8) & 0xFF));
+    output.append(U8(is_final_block));
+    output.append(U8(block_size & 0xFF));
+    output.append(U8((block_size >> 8) & 0xFF));
+    output.append(U8((~block_size) & 0xFF));
+    output.append(U8(((~block_size) >> 8) & 0xFF));
     if (block_size > 0) {
       output.concat(source.slice(i, block_size));
     }
@@ -721,7 +712,7 @@ constexpr auto deflate_fixed(View::Bytes source, Count search_depth)
 
   Compression::BitStream::Writer writer(output);
   writer.write_bits(0x01, 1);
-  writer.write_bits(Unsigned_32(BlockType::FixedHuffman), 2);
+  writer.write_bits(U32(BlockType::FixedHuffman), 2);
   if (source.get_size() > 0) {
     Compression::Lz77 lz77;
     write_lz77_block(
@@ -737,10 +728,8 @@ constexpr auto collect_lz77_tokens(
     Count search_depth,
     Compression::Lz77& lz77,
     Dynamic::Vector<Token>& tokens,
-    Static::Vector<Unsigned_32, deflate_literal_len_count>&
-        literal_len_frequencies,
-    Static::Vector<Unsigned_32, deflate_distance_count>& distance_frequencies)
-    -> void {
+    Static::Vector<U32, deflate_literal_len_count>& literal_len_frequencies,
+    Static::Vector<U32, deflate_distance_count>& distance_frequencies) -> void {
   // Matches at least this long are emitted immediately without looking ahead.
   // the extra chain search is wasted work when the current match is already
   // good. Same heuristic as zlib level 6.
@@ -759,7 +748,7 @@ constexpr auto collect_lz77_tokens(
       auto next_match =
           lz77.find_match_and_insert(source, position + 1, search_depth);
       if (next_match.get_length() > match.get_length()) {
-        tokens.insert(Token(Unsigned_8(source[position])));
+        tokens.insert(Token(U8(source[position])));
         literal_len_frequencies[Count(source[position])]++;
         position++;
         match = next_match;
@@ -788,7 +777,7 @@ constexpr auto collect_lz77_tokens(
 
       position += match.get_length();
     } else {
-      tokens.insert(Token(Unsigned_8(source[position])));
+      tokens.insert(Token(U8(source[position])));
       literal_len_frequencies[Count(source[position])]++;
       position++;
     }
@@ -832,9 +821,8 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
 
   // Create lz77 and start populating frequency tables.
   Compression::Lz77 lz77;
-  Static::Vector<Unsigned_32, deflate_distance_count> distance_frequencies;
-  Static::Vector<Unsigned_32, deflate_literal_len_count>
-      literal_len_frequencies;
+  Static::Vector<U32, deflate_distance_count> distance_frequencies;
+  Static::Vector<U32, deflate_literal_len_count> literal_len_frequencies;
   literal_len_frequencies[256] = 1;
 
   // Single lz77 pass to collect tokens and count frequencies simultaneously.
@@ -846,8 +834,8 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
       source, search_depth, lz77, tokens, literal_len_frequencies,
       distance_frequencies);
 
-  Static::Vector<Unsigned_8, deflate_literal_len_count> literal_len_lengths;
-  Static::Vector<Unsigned_8, deflate_distance_count> distance_lengths;
+  Static::Vector<U8, deflate_literal_len_count> literal_len_lengths;
+  Static::Vector<U8, deflate_distance_count> distance_lengths;
   Compression::Huffman::compute_lengths(
       literal_len_frequencies.get_view(), literal_len_lengths.get_access());
   Compression::Huffman::compute_lengths(
@@ -894,7 +882,7 @@ constexpr auto deflate_dynamic(View::Bytes source, Count search_depth)
 
   Compression::BitStream::Writer writer(output);
   writer.write_bits(0x01, 1);
-  writer.write_bits(Unsigned_32(BlockType::DynamicHuffman), 2);
+  writer.write_bits(U32(BlockType::DynamicHuffman), 2);
   write_dynamic_block_header(
       writer, literal_len_lengths.get_view(), literal_index,
       distance_lengths.get_view(), distance_index);
@@ -984,7 +972,7 @@ auto Compression::Deflate::deflate(View::Bytes source, Level level)
     Diagnostics::Log::Message<128> warning_message(
         Diagnostics::Log::Level::Warning);
     warning_message << "Compression: unknown compression level "_view
-                    << Unsigned_8(level)
+                    << U8(level)
                     << " requested, defaulting to Level::Default (2)"_view;
     return deflate_dynamic(source, default_search_depth);
   }

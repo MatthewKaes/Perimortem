@@ -220,9 +220,9 @@ auto Library::Language::Foreign::persist(Archive::Writer& writer) const
   auto record = writer.begin(Archive::Tag::Foreign);
   BAIL_IF(
       !writer.write(get_documentation()) || !abi || !writer.write(*abi) ||
-      declarations.get_size() > Unsigned_32(-1));
+      declarations.get_size() > U32(-1));
 
-  writer.write(Unsigned_32(declarations.get_size()));
+  writer.write(U32(declarations.get_size()));
   for (const Reference<Abstract>& declaration : declarations.get_view()) {
     auto state = declaration.get().select<State>();
     if (state) {
@@ -248,13 +248,13 @@ auto Library::Language::Foreign::restore(
 auto Library::Language::Foreign::restore(Archive::Reader& reader) -> Bool {
   auto record = reader.read_record();
   BAIL_IF(
-      !record || record->get_tag() != Unsigned_16(Archive::Tag::Foreign) ||
+      !record || record->get_tag() != U16(Archive::Tag::Foreign) ||
       record->is_optional());
 
   Archive::Reader contents(record->get_payload());
   auto restored_documentation = contents.read_documentation(domain);
   auto restored_abi = contents.read_bytes();
-  auto count = contents.read_unsigned_32();
+  auto count = contents.read_u32();
   BAIL_IF(
       !restored_documentation || !restored_abi || restored_abi->is_empty() ||
       !count);

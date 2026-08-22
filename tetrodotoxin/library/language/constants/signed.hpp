@@ -18,7 +18,7 @@ class Signed : public Constant {
   auto persist(Archive::Writer& writer) const -> Bool override;
 
   TTX_CONTRACT(Signed, Constant);
-  using Value = Signed_64;
+  using Value = S64;
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -74,11 +74,11 @@ class Signed : public Constant {
                 return ::False;
               }
 
-              if (size >= sizeof(Signed_64)) {
+              if (size >= sizeof(S64)) {
                 return ::True;
               }
 
-              Signed_64 limit = Signed_64(1) << (size * 8 - 1);
+              S64 limit = S64(1) << (size * 8 - 1);
               return get_value() >= -limit && get_value() < limit ? ::True
                                                                   : ::False;
             },

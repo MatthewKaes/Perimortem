@@ -221,22 +221,18 @@ PERIMORTEM_UNIT_TEST(LiteralTests, scalar_inference) {
   EXPECT(
       static_cast<const Library::Language::Constants::Unsigned&>(*hexadecimal)
           .get_value() == 42);
+  EXPECT(&decimal->get_type() == &resolve_library_unsigned(graph, "U64"_view));
   EXPECT(
-      &decimal->get_type() ==
-      &resolve_library_unsigned(graph, "Unsigned_64"_view));
-  EXPECT(
-      &hexadecimal->get_type() ==
-      &resolve_library_unsigned(graph, "Unsigned_64"_view));
+      &hexadecimal->get_type() == &resolve_library_unsigned(graph, "U64"_view));
   EXPECT(
       static_cast<const Library::Language::Constants::Signed&>(*signed_value)
           .get_value() == -7);
   EXPECT(
-      &signed_value->get_type() ==
-      &resolve_library_signed(graph, "Signed_64"_view));
+      &signed_value->get_type() == &resolve_library_signed(graph, "S64"_view));
   EXPECT(
       static_cast<const Library::Language::Constants::Real&>(*real)
-          .get_value() == Real_64(1.5));
-  EXPECT(&real->get_type() == &resolve_library_real(graph, "Real_64"_view));
+          .get_value() == R64(1.5));
+  EXPECT(&real->get_type() == &resolve_library_real(graph, "R64"_view));
   EXPECT(cursor.matches(Code::Type::Terminal));
   EXPECT(errors.is_empty());
 }
@@ -279,12 +275,12 @@ PERIMORTEM_UNIT_TEST(LiteralTests, byte_domains) {
   EXPECT(quoted_type.get_extent() == 3);
   EXPECT(
       &quoted_type.get_element_type() ==
-      &resolve_library_unsigned(graph, "Unsigned_8"_view));
+      &resolve_library_unsigned(graph, "U8"_view));
   EXPECT(cursor.matches(Code::Type::Terminal));
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LiteralTests, real_64_domain) {
+PERIMORTEM_UNIT_TEST(LiteralTests, r64_domain) {
   Allocator::Arena domain;
   LiteralObservations observations;
   LiteralContext context(domain, observations);
@@ -306,14 +302,14 @@ PERIMORTEM_UNIT_TEST(LiteralTests, real_64_domain) {
   ASSERT(tiny && wide);
   ASSERT(tiny->is<Library::Language::Constants::Real>());
   ASSERT(wide->is<Library::Language::Constants::Real>());
-  EXPECT(&tiny->get_type() == &resolve_library_real(source, "Real_64"_view));
-  EXPECT(&wide->get_type() == &resolve_library_real(source, "Real_64"_view));
+  EXPECT(&tiny->get_type() == &resolve_library_real(source, "R64"_view));
+  EXPECT(&wide->get_type() == &resolve_library_real(source, "R64"_view));
   EXPECT(
       static_cast<const Library::Language::Constants::Real&>(*tiny)
-          .get_value() > Real_64(0));
+          .get_value() > R64(0));
   EXPECT(
       static_cast<const Library::Language::Constants::Real&>(*wide)
-          .get_value() > Real_64(1e38));
+          .get_value() > R64(1e38));
   EXPECT(tiny_errors.is_empty());
   EXPECT(wide_errors.is_empty());
 }

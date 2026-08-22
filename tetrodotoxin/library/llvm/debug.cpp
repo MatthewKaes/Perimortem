@@ -295,8 +295,7 @@ static auto set_location(Llvm::Body& body, Ttx::Lexical::Anchor anchor)
   builder.SetCurrentDebugLocation(
       llvm::DILocation::get(
           llvm::unwrap<llvm::Function>(body.get_function())->getContext(),
-          Unsigned_32(source_line(anchor)), Unsigned_32(source_column(anchor)),
-          &*scope));
+          U32(source_line(anchor)), U32(source_column(anchor)), &*scope));
   return True;
 }
 
@@ -348,15 +347,14 @@ static auto create_member(
     Core::View::Bytes name,
     llvm::DIType& type,
     Count line = 0) -> llvm::DIDerivedType& {
-  llvm::Type& native_member = *native.getElementType(Unsigned_32(index));
+  llvm::Type& native_member = *native.getElementType(U32(index));
   const llvm::StructLayout& layout =
       *native_module(program).getDataLayout().getStructLayout(&native);
   return *builder.createMemberType(
-      &scope, native_text(name), &file, Unsigned_32(line),
+      &scope, native_text(name), &file, U32(line),
       size_in_bits(program, native_member),
-      Unsigned_32(alignment_in_bits(program, native_member)),
-      layout.getElementOffsetInBits(Unsigned_32(index)), llvm::DINode::FlagZero,
-      &type);
+      U32(alignment_in_bits(program, native_member)),
+      layout.getElementOffsetInBits(U32(index)), llvm::DINode::FlagZero, &type);
 }
 
 static auto create_debug_type(
@@ -382,7 +380,7 @@ static auto create_debug_type(
     Count size = size_in_bits(program, native);
     Count alignment = alignment_in_bits(program, native);
     if (*kind == Llvm::Carriers::Kind::Value) {
-      Unsigned_32 encoding = llvm::dwarf::DW_ATE_unsigned;
+      U32 encoding = llvm::dwarf::DW_ATE_unsigned;
       if (program.get_carriers().is_flag(selected)) {
         encoding = llvm::dwarf::DW_ATE_boolean;
       } else if (program.get_carriers().is_real(selected)) {
@@ -401,9 +399,9 @@ static auto create_debug_type(
     }
 
     if (*kind == Llvm::Carriers::Kind::Enumeration) {
-      Unsigned_32 encoding = program.get_carriers().is_signed(selected)
-                                 ? llvm::dwarf::DW_ATE_signed
-                                 : llvm::dwarf::DW_ATE_unsigned;
+      U32 encoding = program.get_carriers().is_signed(selected)
+                         ? llvm::dwarf::DW_ATE_signed
+                         : llvm::dwarf::DW_ATE_unsigned;
       llvm::DIType& storage =
           *builder->createBasicType("storage", size, encoding);
       llvm::SmallVector<llvm::Metadata*, 16> elements;
@@ -413,9 +411,8 @@ static auto create_debug_type(
       }
 
       llvm::DIType& created = *builder->createEnumerationType(
-          &*file, native_text(selected.get_name()), &*file,
-          Unsigned_32(selected_line), size, Unsigned_32(alignment),
-          builder->getOrCreateArray(elements), &storage);
+          &*file, native_text(selected.get_name()), &*file, U32(selected_line),
+          size, U32(alignment), builder->getOrCreateArray(elements), &storage);
       if (!program.get_debug().publish_type(selected, llvm::wrap(&created))) {
         return {};
       }
@@ -435,12 +432,11 @@ static auto create_debug_type(
         return {};
       }
 
-      llvm::Metadata* subrange =
-          builder->getOrCreateSubrange(0, Signed_64(*extent));
+      llvm::Metadata* subrange = builder->getOrCreateSubrange(0, S64(*extent));
       llvm::DIType& created = *builder->createArrayType(
-          &*file, native_text(selected.get_name()), &*file,
-          Unsigned_32(selected_line), size, Unsigned_32(alignment),
-          &*debug_element, builder->getOrCreateArray({subrange}));
+          &*file, native_text(selected.get_name()), &*file, U32(selected_line),
+          size, U32(alignment), &*debug_element,
+          builder->getOrCreateArray({subrange}));
       if (!program.get_debug().publish_type(selected, llvm::wrap(&created))) {
         return {};
       }
@@ -456,8 +452,8 @@ static auto create_debug_type(
         return {};
       }
 
-      llvm::DIType& pointer = *builder->createPointerType(
-          &*debug_element, size, Unsigned_32(alignment));
+      llvm::DIType& pointer =
+          *builder->createPointerType(&*debug_element, size, U32(alignment));
       if (!program.get_debug().publish_type(selected, llvm::wrap(&pointer))) {
         return {};
       }
@@ -487,8 +483,8 @@ static auto create_debug_type(
                          : builder->createReplaceableCompositeType(
                                llvm::dwarf::DW_TAG_structure_type,
                                native_text(selected.get_name()), &*file, &*file,
-                               Unsigned_32(selected_line), 0, payload_size,
-                               Unsigned_32(payload_alignment));
+                               U32(selected_line), 0, payload_size,
+                               U32(payload_alignment));
       if (!temporary) {
         return {};
       }
@@ -504,7 +500,7 @@ static auto create_debug_type(
       }
 
       llvm::DIType& pointer =
-          *builder->createPointerType(temporary, size, Unsigned_32(alignment));
+          *builder->createPointerType(temporary, size, U32(alignment));
       if (!program.get_debug().publish_type(selected, llvm::wrap(&pointer))) {
         return {};
       }
@@ -533,9 +529,8 @@ static auto create_debug_type(
       }
 
       llvm::DICompositeType* completed = builder->createStructType(
-          &*file, native_text(selected.get_name()), &*file,
-          Unsigned_32(selected_line), payload_size,
-          Unsigned_32(payload_alignment), llvm::DINode::FlagZero, nullptr,
+          &*file, native_text(selected.get_name()), &*file, U32(selected_line),
+          payload_size, U32(payload_alignment), llvm::DINode::FlagZero, nullptr,
           builder->getOrCreateArray(members));
       completed = builder->replaceTemporary(
           llvm::TempDICompositeType(temporary), completed);
@@ -561,7 +556,7 @@ static auto create_debug_type(
 
         llvm::DIType& alias = *builder->createTypedef(
             &*debug_element, native_text(selected.get_name()), &*file,
-            Unsigned_32(selected_line), &*file, Unsigned_32(alignment));
+            U32(selected_line), &*file, U32(alignment));
         if (!program.get_debug().publish_type(selected, llvm::wrap(&alias))) {
           return {};
         }
@@ -579,13 +574,12 @@ static auto create_debug_type(
     auto retained_scope = structured ? program.get_debug().find_scope(selected)
                                      : Core::Option<LLVMMetadataRef>();
     llvm::DICompositeType* temporary =
-        retained_scope
-            ? llvm::dyn_cast<llvm::DICompositeType>(
-                  llvm::unwrap(*retained_scope))
-            : builder->createReplaceableCompositeType(
-                  llvm::dwarf::DW_TAG_structure_type,
-                  native_text(selected.get_name()), &*file, &*file,
-                  Unsigned_32(selected_line), 0, size, Unsigned_32(alignment));
+        retained_scope ? llvm::dyn_cast<llvm::DICompositeType>(
+                             llvm::unwrap(*retained_scope))
+                       : builder->createReplaceableCompositeType(
+                             llvm::dwarf::DW_TAG_structure_type,
+                             native_text(selected.get_name()), &*file, &*file,
+                             U32(selected_line), 0, size, U32(alignment));
     if (!temporary) {
       return {};
     }
@@ -644,17 +638,17 @@ static auto create_debug_type(
       alternatives.push_back(builder->createMemberType(
           temporary, "value", &*file, 0,
           size_in_bits(program, *llvm::unwrap(*native_value)),
-          Unsigned_32(alignment_in_bits(program, *llvm::unwrap(*native_value))),
-          0, llvm::DINode::FlagZero, &*debug_value));
+          U32(alignment_in_bits(program, *llvm::unwrap(*native_value))), 0,
+          llvm::DINode::FlagZero, &*debug_value));
       alternatives.push_back(builder->createMemberType(
           temporary, "error", &*file, 0,
           size_in_bits(program, *llvm::unwrap(*native_error)),
-          Unsigned_32(alignment_in_bits(program, *llvm::unwrap(*native_error))),
-          0, llvm::DINode::FlagZero, &*debug_error));
+          U32(alignment_in_bits(program, *llvm::unwrap(*native_error))), 0,
+          llvm::DINode::FlagZero, &*debug_error));
       llvm::DICompositeType* debug_storage = builder->createUnionType(
           temporary, "storage", &*file, 0,
           size_in_bits(program, *llvm::unwrap(*storage)),
-          Unsigned_32(alignment_in_bits(program, *llvm::unwrap(*storage))),
+          U32(alignment_in_bits(program, *llvm::unwrap(*storage))),
           llvm::DINode::FlagZero, builder->getOrCreateArray(alternatives));
       members.push_back(&create_member(
           program, *builder, *file, *temporary, *native_struct, 0,
@@ -684,7 +678,7 @@ static auto create_debug_type(
       llvm::Type& pointer_native = *native_struct->getElementType(0);
       llvm::DIType& pointer = *builder->createPointerType(
           pointed, size_in_bits(program, pointer_native),
-          Unsigned_32(alignment_in_bits(program, pointer_native)));
+          U32(alignment_in_bits(program, pointer_native)));
       llvm::DIType& count =
           *builder->createBasicType("Count", 64, llvm::dwarf::DW_ATE_unsigned);
       members.push_back(&create_member(
@@ -744,9 +738,9 @@ static auto create_debug_type(
     }
 
     llvm::DICompositeType* completed = builder->createStructType(
-        &*file, native_text(selected.get_name()), &*file,
-        Unsigned_32(selected_line), size, Unsigned_32(alignment),
-        llvm::DINode::FlagZero, nullptr, builder->getOrCreateArray(members));
+        &*file, native_text(selected.get_name()), &*file, U32(selected_line),
+        size, U32(alignment), llvm::DINode::FlagZero, nullptr,
+        builder->getOrCreateArray(members));
     completed = builder->replaceTemporary(
         llvm::TempDICompositeType(temporary), completed);
     if (!program.get_debug().replace_type(selected, llvm::wrap(completed))) {
@@ -813,7 +807,7 @@ static auto reserve_debug_scope(
   if (!retained) {
     llvm::DICompositeType& created = *builder->createReplaceableCompositeType(
         llvm::dwarf::DW_TAG_structure_type, native_text(type.get_name()),
-        &*file, &*file, Unsigned_32(line));
+        &*file, &*file, U32(line));
     if (!program.get_debug().publish_scope(type, llvm::wrap(&created))) {
       program.fail_backend(
           "LLVM cannot publish one authored Type debug scope twice."_view);
@@ -867,16 +861,15 @@ static auto create_local_variable(
 
   if (parameter) {
     auto* created = builder->createParameterVariable(
-        &*scope, native_text(addressable.get_name()),
-        Unsigned_32(*parameter + 1), &*file, Unsigned_32(source_line(anchor)),
-        &*type, true);
+        &*scope, native_text(addressable.get_name()), U32(*parameter + 1),
+        &*file, U32(source_line(anchor)), &*type, true);
     return created ? Core::Option<llvm::DILocalVariable&>(*created)
                    : Core::Option<llvm::DILocalVariable&>();
   }
 
   auto* created = builder->createAutoVariable(
       &*scope, native_text(addressable.get_name()), &*file,
-      Unsigned_32(source_line(anchor)), &*type, true);
+      U32(source_line(anchor)), &*type, true);
   return created ? Core::Option<llvm::DILocalVariable&>(*created)
                  : Core::Option<llvm::DILocalVariable&>();
 }
@@ -910,8 +903,8 @@ static auto declare_local(
   llvm::Function& function =
       *llvm::unwrap<llvm::Function>(selected_body->get_function());
   llvm::DILocation* location = llvm::DILocation::get(
-      function.getContext(), Unsigned_32(source_line(anchor)),
-      Unsigned_32(source_column(anchor)), &*scope);
+      function.getContext(), U32(source_line(anchor)),
+      U32(source_column(anchor)), &*scope);
   builder->insertDeclare(
       llvm::unwrap(*address), &*variable, builder->createExpression(), location,
       &function.getEntryBlock());
@@ -948,8 +941,8 @@ static auto describe_local_value(
   llvm::Function& function =
       *llvm::unwrap<llvm::Function>(selected_body->get_function());
   llvm::DILocation* location = llvm::DILocation::get(
-      function.getContext(), Unsigned_32(source_line(anchor)),
-      Unsigned_32(source_column(anchor)), &*scope);
+      function.getContext(), U32(source_line(anchor)),
+      U32(source_column(anchor)), &*scope);
   llvm::Value& native_value = *llvm::unwrap(value);
   if (!native_value.getType()->isAggregateType()) {
     builder->insertDbgValueIntrinsic(
@@ -990,7 +983,7 @@ auto Llvm::Debug::signed_enumerator(
     Ttx::Concept::Abstract& program,
     const Ttx::Model::Type& type,
     const Ttx::Concept::Abstract& enumerator,
-    Signed_64 value) -> Bool {
+    S64 value) -> Bool {
   auto selected = select_program(program);
   if (!selected ||
       selected->get_debug().get_level() != Llvm::Debug::Level::Full) {
@@ -998,17 +991,17 @@ auto Llvm::Debug::signed_enumerator(
   }
 
   auto builder = native_builder(*selected);
-  return builder && publish_enumerator(
-                        type, llvm::wrap(builder->createEnumerator(
-                                  native_text(enumerator.get_name()),
-                                  Unsigned_64(value), false)));
+  return builder &&
+         publish_enumerator(
+             type, llvm::wrap(builder->createEnumerator(
+                       native_text(enumerator.get_name()), U64(value), false)));
 }
 
 auto Llvm::Debug::unsigned_enumerator(
     Ttx::Concept::Abstract& program,
     const Ttx::Model::Type& type,
     const Ttx::Concept::Abstract& enumerator,
-    Unsigned_64 value) -> Bool {
+    U64 value) -> Bool {
   auto selected = select_program(program);
   if (!selected ||
       selected->get_debug().get_level() != Llvm::Debug::Level::Full) {
@@ -1079,11 +1072,10 @@ auto Llvm::Debug::global(
 
     declaration = *builder->createStaticMemberType(
         composite, native_text(addressable.get_name()), &*file,
-        Unsigned_32(source_line(anchor)), &*type,
+        U32(source_line(anchor)), &*type,
         debug_visibility(definition.get_visibility()), nullptr,
         llvm::dwarf::DW_TAG_variable,
-        Unsigned_32(
-            alignment_in_bits(*selected_program, *llvm::unwrap(*physical))));
+        U32(alignment_in_bits(*selected_program, *llvm::unwrap(*physical))));
     if (!publish_member(*host, llvm::wrap(&*declaration))) {
       return selected_program->fail_backend(
           "LLVM cannot retain one Static member declaration twice."_view);
@@ -1094,8 +1086,8 @@ auto Llvm::Debug::global(
       *builder->createGlobalVariableExpression(
           declaration ? static_cast<llvm::DIScope*>(&*file) : &*scope,
           native_text(addressable.get_name()), global->getName(), &*file,
-          Unsigned_32(source_line(anchor)), &*type, bool(local), bool(defined),
-          nullptr, declaration ? &*declaration : nullptr);
+          U32(source_line(anchor)), &*type, bool(local), bool(defined), nullptr,
+          declaration ? &*declaration : nullptr);
   global->addDebugInfo(&expression);
   return True;
 }
@@ -1155,7 +1147,7 @@ auto Llvm::Debug::begin_function(
       llvm::Type& pointer = *llvm::PointerType::getUnqual(module.getContext());
       debug_result = *builder->createPointerType(
           &*debug_result, size_in_bits(*selected_program, pointer),
-          Unsigned_32(alignment_in_bits(*selected_program, pointer)));
+          U32(alignment_in_bits(*selected_program, pointer)));
     }
 
     signature_types.push_back(&*debug_result);
@@ -1174,7 +1166,7 @@ auto Llvm::Debug::begin_function(
     Count alignment = alignment_in_bits(*selected_program, *returned_struct);
     llvm::DICompositeType* temporary = builder->createReplaceableCompositeType(
         llvm::dwarf::DW_TAG_structure_type, "TTX results", &*file, &*file,
-        Unsigned_32(source_line(anchor)), 0, size, Unsigned_32(alignment));
+        U32(source_line(anchor)), 0, size, U32(alignment));
     llvm::SmallVector<llvm::Metadata*, 8> members;
     for (Count index = 0; index < results.get_size(); index++) {
       auto result = select_type(results, index);
@@ -1194,8 +1186,8 @@ auto Llvm::Debug::begin_function(
     }
 
     llvm::DICompositeType* completed = builder->createStructType(
-        &*file, "TTX results", &*file, Unsigned_32(source_line(anchor)), size,
-        Unsigned_32(alignment), llvm::DINode::FlagZero, nullptr,
+        &*file, "TTX results", &*file, U32(source_line(anchor)), size,
+        U32(alignment), llvm::DINode::FlagZero, nullptr,
         builder->getOrCreateArray(members));
     completed = builder->replaceTemporary(
         llvm::TempDICompositeType(temporary), completed);
@@ -1217,7 +1209,7 @@ auto Llvm::Debug::begin_function(
       llvm::Type& pointer = *llvm::PointerType::getUnqual(module.getContext());
       debug_parameter = *builder->createPointerType(
           &*debug_parameter, size_in_bits(*selected_program, pointer),
-          Unsigned_32(alignment_in_bits(*selected_program, pointer)));
+          U32(alignment_in_bits(*selected_program, pointer)));
     }
 
     signature_types.push_back(&*debug_parameter);
@@ -1227,9 +1219,8 @@ auto Llvm::Debug::begin_function(
       builder->getOrCreateTypeArray(signature_types));
   llvm::DISubprogram& scope = *builder->createFunction(
       &*owner_scope, native_text(callable.get_name()), function.getName(),
-      &*file, Unsigned_32(source_line(anchor)), &signature,
-      Unsigned_32(source_line(anchor)), llvm::DINode::FlagPrototyped,
-      llvm::DISubprogram::SPFlagDefinition);
+      &*file, U32(source_line(anchor)), &signature, U32(source_line(anchor)),
+      llvm::DINode::FlagPrototyped, llvm::DISubprogram::SPFlagDefinition);
   function.setSubprogram(&scope);
   selected_body->set_debug_scope(llvm::wrap(&scope));
   return set_location(*selected_body, anchor);
@@ -1280,8 +1271,7 @@ auto Llvm::Debug::begin_block(
   }
 
   llvm::DILexicalBlock& debug_scope = *builder->createLexicalBlock(
-      &*scope, &*file, Unsigned_32(source_line(anchor)),
-      Unsigned_32(source_column(anchor)));
+      &*scope, &*file, U32(source_line(anchor)), U32(source_column(anchor)));
   if (!selected_body->push_debug_scope(llvm::wrap(&debug_scope))) {
     return False;
   }
@@ -1362,7 +1352,7 @@ auto Llvm::Debug::finalize(Ttx::Concept::Abstract& program) -> Bool {
       }
 
       Count size = 0;
-      Unsigned_32 alignment = 0;
+      U32 alignment = 0;
       llvm::DICompositeType* completed = builder->createStructType(
           &*file, temporary->getName(), &*file, temporary->getLine(), size,
           alignment, llvm::DINode::FlagZero, nullptr,

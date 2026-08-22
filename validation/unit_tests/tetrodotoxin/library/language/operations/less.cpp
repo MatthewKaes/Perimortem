@@ -16,12 +16,12 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/operations/multiply.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
-#include "tetrodotoxin/library/language/types/real_32.hpp"
-#include "tetrodotoxin/library/language/types/real_64.hpp"
-#include "tetrodotoxin/library/language/types/signed_8.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_16.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_64.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/r32.hpp"
+#include "tetrodotoxin/library/language/types/r64.hpp"
+#include "tetrodotoxin/library/language/types/s8.hpp"
+#include "tetrodotoxin/library/language/types/u16.hpp"
+#include "tetrodotoxin/library/language/types/u64.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -81,26 +81,23 @@ PERIMORTEM_UNIT_TEST(LibraryLess, type_selection_and_partial) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 unsigned_8;
-  Types::Unsigned_16 unsigned_16;
-  Types::Unsigned_64 unsigned_64;
-  Types::Signed_8 signed_8;
-  Types::Real_32 real_32;
+  Types::U8 u8;
+  Types::U16 u16;
+  Types::U64 u64;
+  Types::S8 s8;
+  Types::R32 r32;
   Types::Fixed bytes_type(
-      "Fixed[Unsigned_8,1]"_view,
-      resolve_library_unsigned(source, "Unsigned_8"_view), 1);
-  LessExpression left("left"_view, unsigned_8);
-  LessExpression same("same"_view, unsigned_8);
-  LessExpression other("other"_view, unsigned_16);
-  LessExpression signed_left("signed"_view, signed_8);
-  LessExpression signed_right("signed right"_view, signed_8);
-  LessExpression real_left("real"_view, real_32);
-  LessExpression real_right("real right"_view, real_32);
+      "Fixed[U8,1]"_view, resolve_library_unsigned(source, "U8"_view), 1);
+  LessExpression left("left"_view, u8);
+  LessExpression same("same"_view, u8);
+  LessExpression other("other"_view, u16);
+  LessExpression signed_left("signed"_view, s8);
+  LessExpression signed_right("signed right"_view, s8);
+  LessExpression real_left("real"_view, r32);
+  LessExpression real_right("real right"_view, r32);
   LessExpression unresolved("unresolved"_view, Invalid::get_invalid());
-  auto& wide_constant =
-      Constants::Unsigned::create_synthetic(domain, unsigned_64, 12);
-  auto& other_constant =
-      Constants::Unsigned::create_synthetic(domain, unsigned_16, 12);
+  auto& wide_constant = Constants::Unsigned::create_synthetic(domain, u64, 12);
+  auto& other_constant = Constants::Unsigned::create_synthetic(domain, u16, 12);
   auto& truth =
       Constants::True::create_synthetic(domain, resolve_library_flag(source));
   auto& bytes =
@@ -149,8 +146,8 @@ PERIMORTEM_UNIT_TEST(LibraryLess, integer_ordering) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 unsigned_type;
-  Types::Signed_8 signed_type;
+  Types::U8 unsigned_type;
+  Types::S8 signed_type;
   auto& zero = Constants::Unsigned::create_synthetic(domain, unsigned_type, 0);
   auto& one = Constants::Unsigned::create_synthetic(domain, unsigned_type, 1);
   auto& minimum =
@@ -187,18 +184,14 @@ PERIMORTEM_UNIT_TEST(LibraryLess, ieee_ordering) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Real_32 real_32;
-  Types::Real_64 real_64;
-  auto& narrow_left =
-      Constants::Real::create_synthetic(domain, real_32, Real_64(1.1));
-  auto& narrow_right =
-      Constants::Real::create_synthetic(domain, real_32, Real_64(2.2));
-  auto& finite =
-      Constants::Real::create_synthetic(domain, real_64, Real_64(4.0));
+  Types::R32 r32;
+  Types::R64 r64;
+  auto& narrow_left = Constants::Real::create_synthetic(domain, r32, R64(1.1));
+  auto& narrow_right = Constants::Real::create_synthetic(domain, r32, R64(2.2));
+  auto& finite = Constants::Real::create_synthetic(domain, r64, R64(4.0));
   auto& infinity =
-      Constants::Real::create_synthetic(domain, real_64, __builtin_inf());
-  auto& nan =
-      Constants::Real::create_synthetic(domain, real_64, __builtin_nan(""));
+      Constants::Real::create_synthetic(domain, r64, __builtin_inf());
+  auto& nan = Constants::Real::create_synthetic(domain, r64, __builtin_nan(""));
   auto& narrow =
       Operations::Less::create_synthetic(domain, narrow_left, narrow_right);
   auto& infinite = Operations::Less::create_synthetic(domain, infinity, finite);
@@ -223,7 +216,7 @@ PERIMORTEM_UNIT_TEST(LibraryLess, recursive_exact_is_idempotent) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 selected_type;
+  Types::U8 selected_type;
   auto& two = Constants::Unsigned::create_synthetic(domain, selected_type, 2);
   auto& five = Constants::Unsigned::create_synthetic(domain, selected_type, 5);
   auto& child = Operations::Multiply::create_synthetic(domain, two, two);

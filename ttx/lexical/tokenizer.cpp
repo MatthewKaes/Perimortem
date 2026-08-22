@@ -39,7 +39,7 @@ class Context {
   // The main parse loop guards current token dispatch with can_parse.
   // Reading through the raw pointer keeps that hot path from repeating the
   // same bounds check for every switch and helper.
-  constexpr auto current() const -> Unsigned_8 {
+  constexpr auto current() const -> U8 {
     return source.get_data()[parse_index];
   }
 
@@ -62,7 +62,7 @@ class Context {
   // Lookahead often asks about a byte that might be past the end of the
   // source. View::Bytes owns that protected access, so Context does not need
   // to duplicate the same end of source logic.
-  constexpr auto peek_ahead(Unsigned_32 amount) const -> Unsigned_8 {
+  constexpr auto peek_ahead(U32 amount) const -> U8 {
     return source[parse_index + amount];
   }
 
@@ -80,8 +80,7 @@ class Context {
 
   // Closes a range token with a possible closing symbol if available.
   template <Bool use_escape, Bool consume_terminal>
-  constexpr auto parse_range(Code::Type type, Unsigned_8 terminal_symbol)
-      -> void {
+  constexpr auto parse_range(Code::Type type, U8 terminal_symbol) -> void {
     // Strip the fixed source prefix.
     strip_source_prefix(type);
 
@@ -140,10 +139,10 @@ class Context {
   }
 
  private:
-  Unsigned_32 token_start = 0;
-  Unsigned_32 parse_index = 0;
-  Unsigned_32 line = 1;
-  Unsigned_32 column = 1;
+  U32 token_start = 0;
+  U32 parse_index = 0;
+  U32 line = 1;
+  U32 column = 1;
   const View::Bytes source;
   Managed::Vector<Token> tokens;
 };

@@ -20,7 +20,7 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // relationship to parser depth or a later lowering decision.
 class LoopControl : public Ttx::Concept::Abstract {
  public:
-  enum class Kind : Unsigned_8 {
+  enum class Kind : U8 {
     Break,
     Continue,
   };

@@ -43,8 +43,8 @@ class Expression : public Model::Pack {
  public:
   class Error {
    public:
-    enum class Type : Unsigned_8 {
-      Unknown = Unsigned_8(-1),
+    enum class Type : U8 {
+      Unknown = U8(-1),
       InvalidOperationType = 0,
       InvalidInput,
       InvalidConstant,

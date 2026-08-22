@@ -12,7 +12,7 @@
 
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/generics/range.hpp"
-#include "tetrodotoxin/library/language/types/signed_16.hpp"
+#include "tetrodotoxin/library/language/types/s16.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -27,14 +27,14 @@ static Harness LibraryRange = {
 };
 
 PERIMORTEM_UNIT_TEST(LibraryRange, direct_contract) {
-  Types::Signed_16 element;
-  Types::Range range("Range[Signed_16]"_view, element);
+  Types::S16 element;
+  Types::Range range("Range[S16]"_view, element);
 
   EXPECT(range.is<Types::Range>());
   EXPECT(range.is<Ttx::Model::Type>());
   EXPECT(range.is<Abstract>());
   EXPECT_NOT(range.is<Generic>());
-  EXPECT_TEXT(range.get_name(), "Range[Signed_16]"_view);
+  EXPECT_TEXT(range.get_name(), "Range[S16]"_view);
   EXPECT(&range.get_element_type() == &element);
   ASSERT_EQ(range.get_layout().get_size(), Count(1));
   EXPECT(&*range.get_layout().get_abstract(0) == &range);
@@ -49,19 +49,19 @@ PERIMORTEM_UNIT_TEST(LibraryRange, formula_legality) {
   const auto& formula =
       static_cast<const Generic&>(root.resolve_context("Range"_view));
   const Static::Vector<Generic::Argument, 1> signed_argument = {{
-    Generic::Argument(resolve_library_signed(root, "Signed_8"_view)),
+    Generic::Argument(resolve_library_signed(root, "S8"_view)),
   }};
   const Static::Vector<Generic::Argument, 1> unsigned_argument = {{
-    Generic::Argument(resolve_library_unsigned(root, "Unsigned_64"_view)),
+    Generic::Argument(resolve_library_unsigned(root, "U64"_view)),
   }};
   const Static::Vector<Generic::Argument, 1> bool_argument = {{
     Generic::Argument(resolve_library_flag(root)),
   }};
   const Static::Vector<Generic::Argument, 1> real_argument = {{
-    Generic::Argument(resolve_library_real(root, "Real_32"_view)),
+    Generic::Argument(resolve_library_real(root, "R32"_view)),
   }};
   const Static::Vector<Generic::Argument, 1> wrong_kind = {{
-    Generic::Argument(Unsigned_64(1)),
+    Generic::Argument(U64(1)),
   }};
   View::Vector<Generic::Argument> wrong_arity;
 
@@ -79,7 +79,7 @@ PERIMORTEM_UNIT_TEST(LibraryRange, formula_legality) {
   EXPECT(signed_type->visit<Types::Range>(
       [&](const Types::Range& selected) {
         return &selected.get_element_type() ==
-                       &resolve_library_signed(root, "Signed_8"_view)
+                       &resolve_library_signed(root, "S8"_view)
                    ? True
                    : False;
       },
@@ -87,7 +87,7 @@ PERIMORTEM_UNIT_TEST(LibraryRange, formula_legality) {
   EXPECT(unsigned_type->visit<Types::Range>(
       [&](const Types::Range& selected) {
         return &selected.get_element_type() ==
-                       &resolve_library_unsigned(root, "Unsigned_64"_view)
+                       &resolve_library_unsigned(root, "U64"_view)
                    ? True
                    : False;
       },
@@ -135,10 +135,10 @@ PERIMORTEM_UNIT_TEST(LibraryRange, materialization_identity) {
   const auto& formula =
       static_cast<const Generic&>(root.resolve_context("Range"_view));
   const Static::Vector<Generic::Argument, 1> first_argument = {{
-    Generic::Argument(resolve_library_unsigned(root, "Unsigned_8"_view)),
+    Generic::Argument(resolve_library_unsigned(root, "U8"_view)),
   }};
   const Static::Vector<Generic::Argument, 1> second_argument = {{
-    Generic::Argument(resolve_library_unsigned(root, "Unsigned_16"_view)),
+    Generic::Argument(resolve_library_unsigned(root, "U16"_view)),
   }};
 
   auto first_result = formula.materialize(first_argument);
@@ -157,6 +157,6 @@ PERIMORTEM_UNIT_TEST(LibraryRange, materialization_identity) {
   ASSERT(first && repeated && second);
   EXPECT(first == repeated);
   EXPECT(first != second);
-  EXPECT_TEXT(first->get_name(), "Range[Unsigned_8]"_view);
-  EXPECT_TEXT(second->get_name(), "Range[Unsigned_16]"_view);
+  EXPECT_TEXT(first->get_name(), "Range[U8]"_view);
+  EXPECT_TEXT(second->get_name(), "Range[U16]"_view);
 }

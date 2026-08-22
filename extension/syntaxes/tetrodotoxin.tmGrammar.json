@@ -157,18 +157,14 @@
           "match": "\\b(and|or)\\b"
         },
         {
-          "name": "keyword.other.foreign.tetrodotoxin",
-          "match": "\\bforeign\\b"
-        },
-        {
           "name": "keyword.other.tetrodotoxin",
-          "match": "\\b(dialect|func|self|new|object|struct|enum|alias|emit|resolve|source|using|from)\\b"
+          "match": "\\b(dialect|foreign|func|self|new|object|struct|enum|alias|emit|resolve|source|using|from)\\b"
         }
       ]
     },
     "intrinsic_types": {
       "name": "entity.name.type.intrinsic.tetrodotoxin",
-      "match": "(?<![A-Za-z0-9_])(?:Unsigned_(?:8|16|32|64)|Signed_(?:8|16|32|64)|Real_(?:32|64)|Bool)(?![A-Za-z0-9_])"
+      "match": "(?<![A-Za-z0-9_])(?:U(?:8|16|32|64)|S(?:8|16|32|64)|R(?:32|64)|Bool)(?![A-Za-z0-9_])"
     },
     "generic_formulas": {
       "name": "entity.name.type.generic.tetrodotoxin",

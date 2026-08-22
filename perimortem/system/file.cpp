@@ -64,7 +64,7 @@ static auto log_file_warning(
     View::Bytes path,
     View::Bytes stage,
     View::Bytes detail_name,
-    Signed_64 detail) -> void {
+    S64 detail) -> void {
   Count logged_path_size = path.get_size();
   if (logged_path_size != 0 && path[logged_path_size - 1] == '\0') {
     logged_path_size--;
@@ -85,13 +85,13 @@ static auto log_file_warning(
 // Reading metadata through its descriptor prevents a pathname replacement from
 // changing which object the transaction observes.
 static auto get_file_fingerprint(
-    Signed_32 descriptor,
+    S32 descriptor,
     View::Bytes operation,
     View::Bytes path) -> Option<File::Fingerprint> {
   struct stat64 status;
-  Signed_32 status_read = fstat64(descriptor, &status);
+  S32 status_read = fstat64(descriptor, &status);
   if (status_read != 0) {
-    Signed_32 status_error = errno;
+    S32 status_error = errno;
     log_file_warning(
         operation, path, "metadata"_view, "errno"_view, status_error);
     return {};
@@ -100,27 +100,26 @@ static auto get_file_fingerprint(
   if (!S_ISREG(status.st_mode)) {
     log_file_warning(
         operation, path, "classification"_view, "mode"_view,
-        Signed_64(status.st_mode));
+        S64(status.st_mode));
     return {};
   }
 
   if (status.st_size < 0) {
     log_file_warning(
-        operation, path, "size"_view, "value"_view, Signed_64(status.st_size));
+        operation, path, "size"_view, "value"_view, S64(status.st_size));
     return {};
   }
 
-  Unsigned_64 size = Unsigned_64(status.st_size);
+  U64 size = U64(status.st_size);
   if (size > max_read_size) {
-    log_file_warning(
-        operation, path, "size"_view, "value"_view, Signed_64(size));
+    log_file_warning(operation, path, "size"_view, "value"_view, S64(size));
     return {};
   }
 
   return File::Fingerprint(
-      Unsigned_64(status.st_dev), Unsigned_64(status.st_ino), size,
-      Signed_64(status.st_mtim.tv_sec), Signed_64(status.st_mtim.tv_nsec),
-      Signed_64(status.st_ctim.tv_sec), Signed_64(status.st_ctim.tv_nsec));
+      U64(status.st_dev), U64(status.st_ino), size, S64(status.st_mtim.tv_sec),
+      S64(status.st_mtim.tv_nsec), S64(status.st_ctim.tv_sec),
+      S64(status.st_ctim.tv_nsec));
 }
 
 // Fills either a Dynamic or Managed Bytes by resizing it to the valid size and
@@ -148,7 +147,7 @@ static auto read_file(
   CppSize items_read =
       fread(data.get_access().get_data(), 1, CppSize(size), file);
   if (items_read != CppSize(size) || ferror(file) != 0) {
-    Signed_32 read_error = errno;
+    S32 read_error = errno;
     log_file_warning(operation, path, "content"_view, "errno"_view, read_error);
     return False;
   }
@@ -169,7 +168,7 @@ static auto write_file(
 
   CppSize items_written = fwrite(data.get_data(), data.get_size(), 1, file);
   if (items_written != 1) {
-    Signed_32 write_error = errno;
+    S32 write_error = errno;
     log_file_warning(
         operation, path, "content"_view, "errno"_view, write_error);
     return False;
@@ -182,12 +181,12 @@ static auto write_file(
 // still report a failure while the stream is being released.
 static auto close_stream(FILE* file, View::Bytes operation, View::Bytes path)
     -> Bool {
-  Signed_32 closed = fclose(file);
+  S32 closed = fclose(file);
   if (closed == 0) {
     return True;
   }
 
-  Signed_32 close_error = errno;
+  S32 close_error = errno;
   log_file_warning(operation, path, "close"_view, "errno"_view, close_error);
   return False;
 }
@@ -195,28 +194,28 @@ static auto close_stream(FILE* file, View::Bytes operation, View::Bytes path)
 #ifdef PERI_LINUX
 // Descriptor only operations use the same checked closure rule as streams.
 static auto close_descriptor(
-    Signed_32 descriptor,
+    S32 descriptor,
     View::Bytes operation,
     View::Bytes path) -> Bool {
-  Signed_32 closed = close(descriptor);
+  S32 closed = close(descriptor);
   if (closed == 0) {
     return True;
   }
 
-  Signed_32 close_error = errno;
+  S32 close_error = errno;
   log_file_warning(operation, path, "close"_view, "errno"_view, close_error);
   return False;
 }
 
 // Root destruction cannot return a failure. Preserve the descriptor identity
 // in diagnostics because Root intentionally does not retain its authored path.
-static auto close_root_descriptor(Signed_32 descriptor) -> void {
-  Signed_32 closed = close(descriptor);
+static auto close_root_descriptor(S32 descriptor) -> void {
+  S32 closed = close(descriptor);
   if (closed == 0) {
     return;
   }
 
-  Signed_32 close_error = errno;
+  S32 close_error = errno;
   Diagnostics::Log::Message<192> warning(
       Diagnostics::Log::Level::Warning, Diagnostics::Source());
   warning << root_close_operation << " failed. descriptor="_view << descriptor
@@ -226,18 +225,15 @@ static auto close_root_descriptor(Signed_32 descriptor) -> void {
 // Opens one member relative to the retained root descriptor. Kernel resolution
 // keeps traversal beneath that root and rejects magic link escapes without
 // reopening the root pathname.
-static auto open_root_member(
-    Signed_32 descriptor,
-    const char* path,
-    Unsigned_64 flags,
-    Unsigned_64 mode = 0) -> Signed_32 {
+static auto
+    open_root_member(S32 descriptor, const char* path, U64 flags, U64 mode = 0)
+        -> S32 {
   open_how policy = {
     .flags = flags,
     .mode = mode,
     .resolve = RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS,
   };
-  return Signed_32(
-      syscall(SYS_openat2, descriptor, path, &policy, sizeof(policy)));
+  return S32(syscall(SYS_openat2, descriptor, path, &policy, sizeof(policy)));
 }
 #endif
 
@@ -292,7 +288,7 @@ static auto create_relative_path(Access::Bytes output, View::Bytes route)
 
 template <typename bytes_type>
 static auto read_root_member(
-    Signed_32 descriptor,
+    S32 descriptor,
     View::Bytes relative_path,
     bytes_type& data,
     File::Fingerprint& fingerprint) -> Bool {
@@ -303,7 +299,7 @@ static auto read_root_member(
   if (!path) {
     log_file_warning(
         root_read_operation, relative_path, "path"_view, "size"_view,
-        Signed_64(relative_path.get_size()));
+        S64(relative_path.get_size()));
     return False;
   }
 
@@ -312,10 +308,10 @@ static auto read_root_member(
 #ifdef PERI_LINUX
   // Stage 2: Open the member beneath the retained root capability, then attach
   // a stream to that exact descriptor. No path lookup occurs between them.
-  Signed_32 member = open_root_member(
-      descriptor, native_path, Unsigned_64(O_RDONLY | O_CLOEXEC));
+  S32 member =
+      open_root_member(descriptor, native_path, U64(O_RDONLY | O_CLOEXEC));
   if (member < 0) {
-    Signed_32 open_error = errno;
+    S32 open_error = errno;
     log_file_warning(
         root_read_operation, relative_path, "open"_view, "errno"_view,
         open_error);
@@ -324,7 +320,7 @@ static auto read_root_member(
 
   FILE* file = fdopen(member, "rb");
   if (!file) {
-    Signed_32 stream_error = errno;
+    S32 stream_error = errno;
     log_file_warning(
         root_read_operation, relative_path, "stream"_view, "errno"_view,
         stream_error);
@@ -352,7 +348,7 @@ static auto read_file(View::Bytes location, bytes_type& data) -> Bool {
   if (!path) {
     log_file_warning(
         file_read_operation, location, "path"_view, "size"_view,
-        Signed_64(location.get_size()));
+        S64(location.get_size()));
     return False;
   }
 
@@ -361,7 +357,7 @@ static auto read_file(View::Bytes location, bytes_type& data) -> Bool {
   const char* native_path = Data::cast<const char>((*path).get_data());
   FILE* file = fopen(native_path, "rb");
   if (!file) {
-    Signed_32 open_error = errno;
+    S32 open_error = errno;
     log_file_warning(
         file_read_operation, location, "open"_view, "errno"_view, open_error);
     return False;
@@ -375,7 +371,7 @@ static auto read_file(View::Bytes location, bytes_type& data) -> Bool {
   return read && closed;
 }
 
-File::Root::Root(Signed_32 descriptor) : descriptor(descriptor) {}
+File::Root::Root(S32 descriptor) : descriptor(descriptor) {}
 
 File::Root::Root(Root&& source) : descriptor(source.descriptor) {
   // Root uniquely owns the retained directory capability. Disable the source
@@ -431,8 +427,7 @@ auto File::Root::open(View::Bytes location) -> Option<Root> {
 #ifdef PERI_LINUX
   // Stage 2: Retain the directory itself as the capability used by every
   // future member operation.
-  Signed_32 descriptor =
-      ::open(native_path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  S32 descriptor = ::open(native_path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   if (descriptor < 0) {
     return {};
   }
@@ -479,8 +474,8 @@ auto File::Root::fingerprint(View::Bytes relative_path) const
   const char* native_path = Data::cast<const char>((*path).get_data());
 
 #ifdef PERI_LINUX
-  Signed_32 member = open_root_member(
-      descriptor, native_path, Unsigned_64(O_RDONLY | O_CLOEXEC));
+  S32 member =
+      open_root_member(descriptor, native_path, U64(O_RDONLY | O_CLOEXEC));
   if (member < 0) {
     return {};
   }
@@ -517,7 +512,7 @@ auto File::Root::write(View::Bytes data, View::Bytes relative_path) const
   if (!path) {
     log_file_warning(
         root_write_operation, relative_path, "path"_view, "size"_view,
-        Signed_64(relative_path.get_size()));
+        S64(relative_path.get_size()));
     return False;
   }
 
@@ -526,13 +521,13 @@ auto File::Root::write(View::Bytes data, View::Bytes relative_path) const
 #ifdef PERI_LINUX
   // Stage 2: Create or replace the member beneath the retained root and attach
   // a stream to that exact descriptor.
-  constexpr Unsigned_64 create_mode =
+  constexpr U64 create_mode =
       S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-  Signed_32 member = open_root_member(
-      descriptor, native_path,
-      Unsigned_64(O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC), create_mode);
+  S32 member = open_root_member(
+      descriptor, native_path, U64(O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC),
+      create_mode);
   if (member < 0) {
-    Signed_32 open_error = errno;
+    S32 open_error = errno;
     log_file_warning(
         root_write_operation, relative_path, "open"_view, "errno"_view,
         open_error);
@@ -541,7 +536,7 @@ auto File::Root::write(View::Bytes data, View::Bytes relative_path) const
 
   FILE* file = fdopen(member, "wb");
   if (!file) {
-    Signed_32 stream_error = errno;
+    S32 stream_error = errno;
     log_file_warning(
         root_write_operation, relative_path, "stream"_view, "errno"_view,
         stream_error);
@@ -579,12 +574,12 @@ auto File::Root::remove(View::Bytes relative_path) const -> Bool {
 #ifdef PERI_LINUX
   // Stage 2: For a nested route, retain its containing directory beneath the
   // root. The final unlink is then relative to an already resolved parent.
-  Signed_32 parent = descriptor;
+  S32 parent = descriptor;
   Bool close_parent = False;
   if (member_offset != 0) {
     path_buffer[member_offset - 1] = '\0';
     parent = open_root_member(
-        descriptor, native_path, Unsigned_64(O_PATH | O_DIRECTORY | O_CLOEXEC));
+        descriptor, native_path, U64(O_PATH | O_DIRECTORY | O_CLOEXEC));
     if (parent < 0) {
       return False;
     }
@@ -595,7 +590,7 @@ auto File::Root::remove(View::Bytes relative_path) const -> Bool {
   // Stage 3: Remove only the final member and close any temporary parent
   // capability before reporting success.
   const char* member_path = native_path + member_offset;
-  Signed_32 removed = unlinkat(parent, member_path, 0);
+  S32 removed = unlinkat(parent, member_path, 0);
 
   Bool parent_closed = True;
   if (close_parent) {
@@ -622,14 +617,14 @@ auto File::Root::exists(View::Bytes relative_path) const -> Bool {
 #ifdef PERI_LINUX
   // Stage 2: Pin the member without opening its content, classify that same
   // descriptor, then include closure in the answer.
-  Signed_32 member = open_root_member(
-      descriptor, native_path, Unsigned_64(O_PATH | O_CLOEXEC));
+  S32 member =
+      open_root_member(descriptor, native_path, U64(O_PATH | O_CLOEXEC));
   if (member < 0) {
     return False;
   }
 
   struct stat64 status;
-  Signed_32 status_read = fstat64(member, &status);
+  S32 status_read = fstat64(member, &status);
   Bool regular = status_read == 0 && S_ISREG(status.st_mode);
 
   Bool closed = close_descriptor(member, root_exists_operation, relative_path);
@@ -669,7 +664,7 @@ auto File::write(View::Bytes data, View::Bytes location) -> Bool {
   if (!path) {
     log_file_warning(
         file_write_operation, location, "path"_view, "size"_view,
-        Signed_64(location.get_size()));
+        S64(location.get_size()));
     return False;
   }
 
@@ -679,7 +674,7 @@ auto File::write(View::Bytes data, View::Bytes location) -> Bool {
   // closure as part of the operation result.
   FILE* file = fopen(native_path, "wb");
   if (!file) {
-    Signed_32 open_error = errno;
+    S32 open_error = errno;
     log_file_warning(
         file_write_operation, location, "open"_view, "errno"_view, open_error);
     return False;
@@ -699,19 +694,19 @@ auto File::replace(View::Bytes source, View::Bytes destination) -> Bool {
     View::Bytes failed = source_path ? destination : source;
     log_file_warning(
         file_replace_operation, failed, "path"_view, "size"_view,
-        Signed_64(failed.get_size()));
+        S64(failed.get_size()));
     return False;
   }
 
   const char* native_source = Data::cast<const char>(source_path->get_data());
   const char* native_destination =
       Data::cast<const char>(destination_path->get_data());
-  Signed_32 replaced = rename(native_source, native_destination);
+  S32 replaced = rename(native_source, native_destination);
   if (replaced == 0) {
     return True;
   }
 
-  Signed_32 replace_error = errno;
+  S32 replace_error = errno;
   log_file_warning(
       file_replace_operation, destination, "rename"_view, "errno"_view,
       replace_error);
@@ -726,7 +721,7 @@ auto File::remove(View::Bytes location) -> Bool {
   }
 
   const char* native_path = Data::cast<const char>((*path).get_data());
-  Signed_32 removed = ::remove(native_path);
+  S32 removed = ::remove(native_path);
   return removed == 0;
 }
 
@@ -741,7 +736,7 @@ auto File::exists(View::Bytes location) -> Bool {
 
 #ifdef PERI_LINUX
   struct stat64 status;
-  Signed_32 status_read = stat64(native_path, &status);
+  S32 status_read = stat64(native_path, &status);
   return status_read == 0 && Bool(status.st_mode & S_IFREG);
 #else
 #error Perimortem does not have a file implementation for this platform.

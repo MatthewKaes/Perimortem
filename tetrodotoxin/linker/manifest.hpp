@@ -24,8 +24,8 @@ namespace Tetrodotoxin::Linker {
 // the logical provider selected for every unresolved Foreign symbol.
 class Manifest {
  public:
-  enum class Error : Unsigned_8 {
-    Unknown = Unsigned_8(-1),
+  enum class Error : U8 {
+    Unknown = U8(-1),
     InvalidFormat = 0,
     UnsupportedFormat,
   };

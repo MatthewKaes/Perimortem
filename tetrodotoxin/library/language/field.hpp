@@ -191,7 +191,7 @@ class Field : public Model::Addressable {
   }
 
  private:
-  enum class ConstantState : Unsigned_8 {
+  enum class ConstantState : U8 {
     Unresolved,
     Folding,
     Folded,

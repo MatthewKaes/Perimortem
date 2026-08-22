@@ -169,11 +169,11 @@ auto Ttx::Lexical::Code::get_semantics() const
   case Type::String:
     return "quoted Bytes literal"_view;
   case Type::Numeric:
-    return "Unsigned_64 literal"_view;
+    return "U64 literal"_view;
   case Type::Hex:
-    return "Unsigned_64 hexadecimal literal"_view;
+    return "U64 hexadecimal literal"_view;
   case Type::Float:
-    return "Real_64 literal"_view;
+    return "R64 literal"_view;
   case Type::Addressable:
     return "Addressable space name"_view;
   case Type::Type:

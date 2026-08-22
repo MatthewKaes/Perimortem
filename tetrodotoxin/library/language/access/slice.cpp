@@ -237,8 +237,8 @@ static auto get_count(
           return Core::Option<Count>{};
         }
 
-        Unsigned_64 selected = Unsigned_64(value.get_value());
-        if (selected > Unsigned_64(Count(-1))) {
+        U64 selected = U64(value.get_value());
+        if (selected > U64(Count(-1))) {
           return Core::Option<Count>{};
         }
 
@@ -250,7 +250,7 @@ static auto get_count(
             [&](const Language::Constants::Unsigned& value)
                 -> Utility::Result<
                     Core::Option<Count>, Language::Expression::Error> {
-              if (value.get_value() > Unsigned_64(Count(-1))) {
+              if (value.get_value() > U64(Count(-1))) {
                 return Core::Option<Count>{};
               }
 
@@ -622,8 +622,8 @@ auto Language::Access::Slice::lower(Llvm::Builder& body) const -> Bool {
       return False;
     }
 
-    auto selected = body.end_slice_slot(
-        *state, element_type->get(), *selected_fallback);
+    auto selected =
+        body.end_slice_slot(*state, element_type->get(), *selected_fallback);
     if (!selected) {
       return False;
     }
@@ -769,7 +769,7 @@ auto Language::Access::Slice::evaluate()
                   return Expression::Error(
                       Expression::Error::Type::InvalidConstant, receiver);
                 }
-                Unsigned_64 selected = Unsigned_64(value.get_data()[*index]);
+                U64 selected = U64(value.get_data()[*index]);
                 return static_cast<Model::Pack&>(
                     Constants::Unsigned::create_synthetic(
                         domain, *byte_type, selected));
@@ -787,8 +787,7 @@ auto Language::Access::Slice::evaluate()
               }
 
               constexpr Count maximum_entries =
-                  (Count(-1) - sizeof(Unsigned_8*)) /
-                  sizeof(Reference<Model::Pack>);
+                  (Count(-1) - sizeof(U8*)) / sizeof(Reference<Model::Pack>);
               if (*range_count > maximum_entries) {
                 // The semantic Pack can describe this count but no host Vector
                 // can retain its folded producers without overflowing its byte
@@ -807,8 +806,7 @@ auto Language::Access::Slice::evaluate()
                 }
 
                 if (has_position) {
-                  Unsigned_64 selected =
-                      Unsigned_64(value.get_data()[position]);
+                  U64 selected = U64(value.get_data()[position]);
                   entries.insert(
                       static_cast<Model::Pack&>(
                           Constants::Unsigned::create_synthetic(

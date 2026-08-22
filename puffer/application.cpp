@@ -59,7 +59,7 @@ static auto publish(Core::View::Bytes path, Core::View::Bytes contents)
   return System::File::write(contents, path);
 }
 
-auto Puffer::Application::run() const -> Signed_32 {
+auto Puffer::Application::run() const -> S32 {
   Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::plain_sink);
 
   Core::View::Bytes complete_path = value(arguments, "complete"_view);
@@ -219,11 +219,11 @@ auto Puffer::Application::run() const -> Signed_32 {
   }
 
   return target.compile().visit(
-      [&](const Library::Llvm::Products& products) -> Signed_32 {
+      [&](const Library::Llvm::Products& products) -> S32 {
         return publish(ir_path, products.get_llvm_ir()) &&
                        publish(object_path, products.get_object())
                    ? 0
                    : 1;
       },
-      [](const Library::Llvm::Failure&) -> Signed_32 { return 1; });
+      [](const Library::Llvm::Failure&) -> S32 { return 1; });
 }

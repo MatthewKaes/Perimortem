@@ -32,13 +32,13 @@ namespace Tetrodotoxin::Shader::Assembler {
 // bytecode emitter.
 class SpirV {
  public:
-  enum class Version : Unsigned_32 {
+  enum class Version : U32 {
     V1_0 = 0x00010000,
   };
 
   // Numeric opcode values come from the SPIR-V grammar. The gaps are part of
   // the format since we don't support the entire SPIR-V Spec yet.
-  enum class Op : Unsigned_16 {
+  enum class Op : U16 {
     Nop = 0,                  // No operation.
     Undef = 1,                // Creates an undefined value of a type.
     SourceContinued = 2,      // Continues source-language debug text.
@@ -88,36 +88,36 @@ class SpirV {
     Return = 253,                 // Returns from the current function.
   };
 
-  enum class Capability : Unsigned_32 {
+  enum class Capability : U32 {
     Shader = 1,
   };
 
-  enum class AddressingModel : Unsigned_32 {
+  enum class AddressingModel : U32 {
     Logical = 0,
   };
 
-  enum class MemoryModel : Unsigned_32 {
+  enum class MemoryModel : U32 {
     GLSL450 = 1,
   };
 
-  enum class ExecutionModel : Unsigned_32 {
+  enum class ExecutionModel : U32 {
     Vertex = 0,
     Fragment = 4,
   };
 
-  enum class ExecutionMode : Unsigned_32 {
+  enum class ExecutionMode : U32 {
     OriginUpperLeft = 7,
   };
 
-  enum class Dim : Unsigned_32 {
+  enum class Dim : U32 {
     D2 = 1,
   };
 
-  enum class ImageFormat : Unsigned_32 {
+  enum class ImageFormat : U32 {
     Unknown = 0,
   };
 
-  enum class StorageClass : Unsigned_32 {
+  enum class StorageClass : U32 {
     UniformConstant = 0,
     Input = 1,
     Uniform = 2,
@@ -126,7 +126,7 @@ class SpirV {
     PushConstant = 9,
   };
 
-  enum class Decoration : Unsigned_32 {
+  enum class Decoration : U32 {
     Block = 2,
     BuiltIn = 11,
     Location = 30,
@@ -137,29 +137,29 @@ class SpirV {
 
   // TODO: We are missing a lotttt of coverage here, but in practice we'll see
   // how much we end up needing.
-  enum class BuiltIn : Unsigned_32 {
+  enum class BuiltIn : U32 {
     Position = 0,
     VertexIndex = 42,
   };
 
-  enum class FunctionControl : Unsigned_32 {
+  enum class FunctionControl : U32 {
     None = 0,
   };
 
-  static constexpr Unsigned_32 magic = 0x07230203;
+  static constexpr U32 magic = 0x07230203;
 
   explicit SpirV(Perimortem::Memory::Dynamic::Bytes& words) : words(words) {}
 
   // Writes the five-word module header. `bound` is one greater than the largest
   // result id the module may use, not the instruction count.
   auto begin_module(
-      Unsigned_32 bound,
+      U32 bound,
       Version version = Version::V1_0,
-      Unsigned_32 generator = 0) -> void;
+      U32 generator = 0) -> void;
 
   // Low-level writing primitives. Most callers should use the typed helpers
   // below so the instruction word count stays paired with the opcode shape.
-  auto word(Unsigned_32 value) -> void;
+  auto word(U32 value) -> void;
   auto instruction(Op opcode, Count word_count) -> void;
   auto literal_string(Perimortem::Core::View::Bytes text) -> Count;
 
@@ -170,145 +170,118 @@ class SpirV {
   auto memory_model(AddressingModel addressing, MemoryModel memory) -> void;
   auto entry_point(
       ExecutionModel model,
-      Unsigned_32 function_id,
+      U32 function_id,
       Perimortem::Core::View::Bytes name) -> void;
   auto entry_point(
       ExecutionModel model,
-      Unsigned_32 function_id,
+      U32 function_id,
       Perimortem::Core::View::Bytes name,
-      Perimortem::Core::View::Vector<Unsigned_32> interface_ids) -> void;
-  auto execution_mode(Unsigned_32 entry_point_id, ExecutionMode mode) -> void;
+      Perimortem::Core::View::Vector<U32> interface_ids) -> void;
+  auto execution_mode(U32 entry_point_id, ExecutionMode mode) -> void;
 
   // Debug names do not define ids. They annotate ids that may be declared
   // later, which is why `shader.cpp` can emit names before the type/function
   // declarations.
-  auto name(Unsigned_32 target_id, Perimortem::Core::View::Bytes name) -> void;
+  auto name(U32 target_id, Perimortem::Core::View::Bytes name) -> void;
   auto member_name(
-      Unsigned_32 target_id,
-      Unsigned_32 member_index,
+      U32 target_id,
+      U32 member_index,
       Perimortem::Core::View::Bytes name) -> void;
 
   // Decorations are semantic metadata consumed by APIs such as Vulkan:
   // locations, descriptor bindings, builtins, push-constant block layout, and
   // byte offsets.
-  auto decorate(Unsigned_32 target_id, Decoration decoration, Unsigned_32 value)
-      -> void;
-  auto decorate(Unsigned_32 target_id, Decoration decoration) -> void;
+  auto decorate(U32 target_id, Decoration decoration, U32 value) -> void;
+  auto decorate(U32 target_id, Decoration decoration) -> void;
   auto member_decorate(
-      Unsigned_32 target_id,
-      Unsigned_32 member_index,
+      U32 target_id,
+      U32 member_index,
       Decoration decoration,
-      Unsigned_32 value) -> void;
+      U32 value) -> void;
 
   // Type declarations produce ids for later instructions. SPIR-V is strongly
   // typed, so loads, variables, constants, and arithmetic all reference type
   // ids.
-  auto type_void(Unsigned_32 result_id) -> void;
-  auto type_bool(Unsigned_32 result_id) -> void;
-  auto type_int(Unsigned_32 result_id, Unsigned_32 width, Bool signedness)
+  auto type_void(U32 result_id) -> void;
+  auto type_bool(U32 result_id) -> void;
+  auto type_int(U32 result_id, U32 width, Bool signedness) -> void;
+  auto type_float(U32 result_id, U32 width) -> void;
+  auto type_vector(U32 result_id, U32 component_type_id, U32 component_count)
       -> void;
-  auto type_float(Unsigned_32 result_id, Unsigned_32 width) -> void;
-  auto type_vector(
-      Unsigned_32 result_id,
-      Unsigned_32 component_type_id,
-      Unsigned_32 component_count) -> void;
   auto type_image(
-      Unsigned_32 result_id,
-      Unsigned_32 sampled_type_id,
+      U32 result_id,
+      U32 sampled_type_id,
       Dim dim,
-      Unsigned_32 depth,
-      Unsigned_32 arrayed,
-      Unsigned_32 multisampled,
-      Unsigned_32 sampled,
+      U32 depth,
+      U32 arrayed,
+      U32 multisampled,
+      U32 sampled,
       ImageFormat format) -> void;
-  auto type_sampler(Unsigned_32 result_id) -> void;
-  auto type_sampled_image(Unsigned_32 result_id, Unsigned_32 image_type_id)
-      -> void;
-  auto type_array(
-      Unsigned_32 result_id,
-      Unsigned_32 element_type_id,
-      Unsigned_32 length_id) -> void;
+  auto type_sampler(U32 result_id) -> void;
+  auto type_sampled_image(U32 result_id, U32 image_type_id) -> void;
+  auto type_array(U32 result_id, U32 element_type_id, U32 length_id) -> void;
   auto type_struct(
-      Unsigned_32 result_id,
-      Perimortem::Core::View::Vector<Unsigned_32> member_type_ids) -> void;
-  auto type_pointer(
-      Unsigned_32 result_id,
-      StorageClass storage_class,
-      Unsigned_32 type_id) -> void;
-  auto type_function(Unsigned_32 result_id, Unsigned_32 return_type_id) -> void;
+      U32 result_id,
+      Perimortem::Core::View::Vector<U32> member_type_ids) -> void;
+  auto type_pointer(U32 result_id, StorageClass storage_class, U32 type_id)
+      -> void;
+  auto type_function(U32 result_id, U32 return_type_id) -> void;
 
   // Constants and variables create module-scope ids. A variable's result type
   // is always a pointer type. Its storage class decides whether it is input,
   // output, push constant, uniform resource, or function-local storage.
-  auto constant(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
-      Unsigned_32 value) -> void;
+  auto constant(U32 result_type_id, U32 result_id, U32 value) -> void;
   auto constant_composite(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
-      Perimortem::Core::View::Vector<Unsigned_32> constituents) -> void;
-  auto variable(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
-      StorageClass storage_class) -> void;
+      U32 result_type_id,
+      U32 result_id,
+      Perimortem::Core::View::Vector<U32> constituents) -> void;
+  auto variable(U32 result_type_id, U32 result_id, StorageClass storage_class)
+      -> void;
 
   // Body instructions are used inside a function after a label has opened a
   // basic block. Result-producing instructions take both a result type id and a
   // fresh result id, matching SPIR-V's SSA-like value model.
-  auto load(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
-      Unsigned_32 pointer_id) -> void;
-  auto store(Unsigned_32 pointer_id, Unsigned_32 object_id) -> void;
+  auto load(U32 result_type_id, U32 result_id, U32 pointer_id) -> void;
+  auto store(U32 pointer_id, U32 object_id) -> void;
   auto access_chain(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
-      Unsigned_32 base_id,
-      Perimortem::Core::View::Vector<Unsigned_32> index_ids) -> void;
+      U32 result_type_id,
+      U32 result_id,
+      U32 base_id,
+      Perimortem::Core::View::Vector<U32> index_ids) -> void;
   auto vector_shuffle(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
-      Unsigned_32 vector_1_id,
-      Unsigned_32 vector_2_id,
-      Perimortem::Core::View::Vector<Unsigned_32> components) -> void;
+      U32 result_type_id,
+      U32 result_id,
+      U32 vector_1_id,
+      U32 vector_2_id,
+      Perimortem::Core::View::Vector<U32> components) -> void;
   auto composite_construct(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
-      Perimortem::Core::View::Vector<Unsigned_32> constituents) -> void;
+      U32 result_type_id,
+      U32 result_id,
+      Perimortem::Core::View::Vector<U32> constituents) -> void;
   auto composite_extract(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
-      Unsigned_32 composite_id,
-      Perimortem::Core::View::Vector<Unsigned_32> indexes) -> void;
+      U32 result_type_id,
+      U32 result_id,
+      U32 composite_id,
+      Perimortem::Core::View::Vector<U32> indexes) -> void;
   auto image_sample_implicit_lod(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
-      Unsigned_32 sampled_image_id,
-      Unsigned_32 coordinate_id) -> void;
-  auto fadd(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
-      Unsigned_32 left_id,
-      Unsigned_32 right_id) -> void;
-  auto fsub(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
-      Unsigned_32 left_id,
-      Unsigned_32 right_id) -> void;
-  auto fmul(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
-      Unsigned_32 left_id,
-      Unsigned_32 right_id) -> void;
+      U32 result_type_id,
+      U32 result_id,
+      U32 sampled_image_id,
+      U32 coordinate_id) -> void;
+  auto fadd(U32 result_type_id, U32 result_id, U32 left_id, U32 right_id)
+      -> void;
+  auto fsub(U32 result_type_id, U32 result_id, U32 left_id, U32 right_id)
+      -> void;
+  auto fmul(U32 result_type_id, U32 result_id, U32 left_id, U32 right_id)
+      -> void;
 
   // Functions contain one or more labelled basic blocks.
   auto function(
-      Unsigned_32 result_type_id,
-      Unsigned_32 result_id,
+      U32 result_type_id,
+      U32 result_id,
       FunctionControl control,
-      Unsigned_32 function_type_id) -> void;
-  auto label(Unsigned_32 result_id) -> void;
+      U32 function_type_id) -> void;
+  auto label(U32 result_id) -> void;
   auto return_void() -> void;
   auto function_end() -> void;
 

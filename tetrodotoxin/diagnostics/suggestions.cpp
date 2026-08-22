@@ -41,10 +41,10 @@ static auto distance(View::Bytes left, View::Bytes right) -> Count {
   // any live cells colliding, regardless of the input lengths.
   constexpr Count row_size = 8;
   constexpr Count row_mask = row_size - 1;
-  Unsigned_8 rows[2][row_size];
+  U8 rows[2][row_size];
   Count previous_row = 0;
   Count current_row = 1;
-  Unsigned_8 unreachable = Unsigned_8(maximum_distance + 1);
+  U8 unreachable = U8(maximum_distance + 1);
   for (Count row = 0; row < 2; row++) {
     for (Count slot = 0; slot < row_size; slot++) {
       rows[row][slot] = unreachable;
@@ -53,7 +53,7 @@ static auto distance(View::Bytes left, View::Bytes right) -> Count {
 
   Count initial_end = Math::min(right.get_size(), maximum_distance);
   for (Count column = 0; column <= initial_end; column++) {
-    rows[previous_row][column & row_mask] = Unsigned_8(column);
+    rows[previous_row][column & row_mask] = U8(column);
   }
 
   for (Count i = 1; i <= left.get_size(); i++) {
@@ -65,22 +65,20 @@ static auto distance(View::Bytes left, View::Bytes right) -> Count {
 
     Count first_column = i > maximum_distance ? i - maximum_distance : 0;
     Count last_column = Math::min(right.get_size(), i + maximum_distance);
-    Unsigned_8 row_minimum = unreachable;
+    U8 row_minimum = unreachable;
     if (first_column == 0) {
-      rows[current_row][0] = Unsigned_8(i);
+      rows[current_row][0] = U8(i);
       row_minimum = rows[current_row][0];
     }
 
     Count column = Math::max(Count(1), first_column);
     for (; column <= last_column; column++) {
-      Unsigned_8 deletion =
-          Unsigned_8(rows[previous_row][column & row_mask] + 1);
-      Unsigned_8 insertion =
-          Unsigned_8(rows[current_row][(column - 1) & row_mask] + 1);
-      Unsigned_8 substitution = Unsigned_8(
-          rows[previous_row][(column - 1) & row_mask] +
-          (left[i - 1] == right[column - 1] ? 0 : 1));
-      Unsigned_8 candidate_distance = Math::min(
+      U8 deletion = U8(rows[previous_row][column & row_mask] + 1);
+      U8 insertion = U8(rows[current_row][(column - 1) & row_mask] + 1);
+      U8 substitution =
+          U8(rows[previous_row][(column - 1) & row_mask] +
+             (left[i - 1] == right[column - 1] ? 0 : 1));
+      U8 candidate_distance = Math::min(
           unreachable, Math::min(Math::min(deletion, insertion), substitution));
       rows[current_row][column & row_mask] = candidate_distance;
       row_minimum = Math::min(row_minimum, candidate_distance);

@@ -346,13 +346,13 @@ PERIMORTEM_UNIT_TEST(AppDialect, rejects_nonstatic_or_nonempty_entries) {
       "// Library.\n"
       "dialect : Library;\n"
       "public Worker : struct {\n"
-      "  public run : func = [.value : Unsigned_64] -> [] : return;\n"
+      "  public run : func = [.value : U64] -> [] : return;\n"
       "}\n"_view;
   static constexpr View::Bytes result_entry =
       "// Library.\n"
       "dialect : Library;\n"
       "public Worker : struct {\n"
-      "  public run : func = [] -> Unsigned_64 : return 0;\n"
+      "  public run : func = [] -> U64 : return 0;\n"
       "}\n"_view;
 
   Environment::Toolchain toolchain;

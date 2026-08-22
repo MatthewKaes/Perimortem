@@ -29,9 +29,9 @@
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
-#include "tetrodotoxin/library/language/types/signed_64.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_64.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/s64.hpp"
+#include "tetrodotoxin/library/language/types/u64.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -197,37 +197,35 @@ static auto reports(
       });
 }
 
-static auto get_unsigned(const Expression& expression) -> Option<Unsigned_64> {
+static auto get_unsigned(const Expression& expression) -> Option<U64> {
   return expression.visit<Constants::Unsigned>(
-      [](const Constants::Unsigned& selected) -> Option<Unsigned_64> {
+      [](const Constants::Unsigned& selected) -> Option<U64> {
         return selected.get_value();
       },
-      [](const Abstract&) -> Option<Unsigned_64> { return {}; });
+      [](const Abstract&) -> Option<U64> { return {}; });
 }
 
-static auto get_unsigned(const Model::Pack& pack, Count index)
-    -> Option<Unsigned_64> {
+static auto get_unsigned(const Model::Pack& pack, Count index) -> Option<U64> {
   auto entry = pack.get_layout().get_abstract(index);
   BAIL_IF(!entry);
   auto constant = entry->select<Constants::Unsigned>();
-  return constant ? Option<Unsigned_64>(constant->get_value())
-                  : Option<Unsigned_64>();
+  return constant ? Option<U64>(constant->get_value()) : Option<U64>();
 }
 
-static auto get_signed(const Expression& expression) -> Option<Signed_64> {
+static auto get_signed(const Expression& expression) -> Option<S64> {
   return expression.visit<Constants::Signed>(
-      [](const Constants::Signed& selected) -> Option<Signed_64> {
+      [](const Constants::Signed& selected) -> Option<S64> {
         return selected.get_value();
       },
-      [](const Abstract&) -> Option<Signed_64> { return {}; });
+      [](const Abstract&) -> Option<S64> { return {}; });
 }
 
-static auto get_real(const Expression& expression) -> Option<Real_64> {
+static auto get_real(const Expression& expression) -> Option<R64> {
   return expression.visit<Constants::Real>(
-      [](const Constants::Real& selected) -> Option<Real_64> {
+      [](const Constants::Real& selected) -> Option<R64> {
         return selected.get_value();
       },
-      [](const Abstract&) -> Option<Real_64> { return {}; });
+      [](const Abstract&) -> Option<R64> { return {}; });
 }
 
 static auto supplies_self(const Slice& value, Count size) -> Bool {
@@ -244,11 +242,11 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type_selection) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  const auto& element = resolve_library_unsigned(source, "Unsigned_8"_view);
-  Types::Signed_64 integer;
-  Types::Fixed fixed("Fixed[Unsigned_8,1]"_view, element, 1);
-  Types::View view("View[Unsigned_8]"_view, element);
-  Types::Access access("Access[Unsigned_8]"_view, element);
+  const auto& element = resolve_library_unsigned(source, "U8"_view);
+  Types::S64 integer;
+  Types::Fixed fixed("Fixed[U8,1]"_view, element, 1);
+  Types::View view("View[U8]"_view, element);
+  Types::Access access("Access[U8]"_view, element);
   ValueExpression fixed_receiver("fixed"_view, fixed);
   ValueExpression view_receiver("view"_view, view);
   ValueExpression access_receiver("access"_view, access);
@@ -277,12 +275,12 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, range_pack_shape) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 element;
-  Types::Signed_64 integer;
-  Types::Unsigned_64 unsigned_integer;
-  Types::Fixed fixed("Fixed[Unsigned_8,8]"_view, element, 8);
-  Types::View view("View[Unsigned_8]"_view, element);
-  Types::Access access("Access[Unsigned_8]"_view, element);
+  Types::U8 element;
+  Types::S64 integer;
+  Types::U64 unsigned_integer;
+  Types::Fixed fixed("Fixed[U8,8]"_view, element, 8);
+  Types::View view("View[U8]"_view, element);
+  Types::Access access("Access[U8]"_view, element);
   ValueExpression fixed_receiver("fixed"_view, fixed);
   ValueExpression view_receiver("view"_view, view);
   ValueExpression access_receiver("access"_view, access);
@@ -335,7 +333,7 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, range_pack_shape) {
   EXPECT(supplies_self(access_size, 4));
   EXPECT(supplies_self(single_size, 1));
   EXPECT(supplies_self(empty, 0));
-  Types::Fixed four_values("Fixed[Unsigned_8,4]"_view, element, 4);
+  Types::Fixed four_values("Fixed[U8,4]"_view, element, 4);
   EXPECT(constant_size.get_layout().fits(four_values.get_layout()));
   EXPECT(empty.get_layout().is_empty());
 }
@@ -344,9 +342,9 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_fold_and_range_provenance) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  const auto& element = resolve_library_unsigned(source, "Unsigned_8"_view);
-  Types::Unsigned_64 integer;
-  Types::Fixed bytes_type("Fixed[Unsigned_8,6]"_view, element, 6);
+  const auto& element = resolve_library_unsigned(source, "U8"_view);
+  Types::U64 integer;
+  Types::Fixed bytes_type("Fixed[U8,6]"_view, element, 6);
   auto& bytes =
       Constants::Bytes::create_synthetic(domain, bytes_type, "abcdef"_view);
   auto& zero = Constants::Unsigned::create_synthetic(domain, integer, 0);
@@ -372,11 +370,11 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_fold_and_range_provenance) {
   auto interior_value = selected_pack(interior.fold());
   auto empty_value = selected_pack(empty.fold());
   auto terminal_value = selected_pack(terminal_empty.fold());
-  auto indexed_byte = indexed ? get_unsigned(*indexed) : Option<Unsigned_64>();
+  auto indexed_byte = indexed ? get_unsigned(*indexed) : Option<U64>();
 
   ASSERT(indexed);
   EXPECT(indexed->is<Constants::Unsigned>());
-  EXPECT(indexed_byte && *indexed_byte == Unsigned_64('b'));
+  EXPECT(indexed_byte && *indexed_byte == U64('b'));
   EXPECT(&indexed->get_type() == &element);
   ASSERT(full_value);
   ASSERT(interior_value);
@@ -391,10 +389,10 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_fold_and_range_provenance) {
   auto interior_first = get_unsigned(*interior_value, 0);
   auto interior_last = get_unsigned(*interior_value, 3);
   ASSERT(full_first && full_last && interior_first && interior_last);
-  EXPECT_EQ(*full_first, Unsigned_64('a'));
-  EXPECT_EQ(*full_last, Unsigned_64('f'));
-  EXPECT_EQ(*interior_first, Unsigned_64('b'));
-  EXPECT_EQ(*interior_last, Unsigned_64('e'));
+  EXPECT_EQ(*full_first, U64('a'));
+  EXPECT_EQ(*full_last, U64('f'));
+  EXPECT_EQ(*interior_first, U64('b'));
+  EXPECT_EQ(*interior_last, U64('e'));
   EXPECT(supplies_self(full, 6));
   EXPECT(supplies_self(interior, 4));
   EXPECT(supplies_self(empty, 0));
@@ -405,9 +403,9 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, partial_folding) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 element;
-  Types::Unsigned_64 integer;
-  Types::Fixed fixed("Fixed[Unsigned_8,4]"_view, element, 4);
+  Types::U8 element;
+  Types::U64 integer;
+  Types::Fixed fixed("Fixed[U8,4]"_view, element, 4);
   ValueExpression dynamic_receiver("receiver"_view, fixed);
   ValueExpression dynamic_index("index"_view, integer);
   ValueExpression dynamic_start("start"_view, integer);
@@ -440,18 +438,18 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, operand_rejection_and_safe_bounds) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  const auto& element = resolve_library_unsigned(source, "Unsigned_8"_view);
-  Types::Unsigned_64 integer;
-  Types::Signed_64 signed_integer;
+  const auto& element = resolve_library_unsigned(source, "U8"_view);
+  Types::U64 integer;
+  Types::S64 signed_integer;
   Types::Boolean flag_type;
-  Types::Fixed fixed("Fixed[Unsigned_8,3]"_view, element, 3);
+  Types::Fixed fixed("Fixed[U8,3]"_view, element, 3);
   auto& bytes = Constants::Bytes::create_synthetic(domain, fixed, "abc"_view);
   auto& zero = Constants::Unsigned::create_synthetic(domain, integer, 0);
   auto& two = Constants::Unsigned::create_synthetic(domain, integer, 2);
   auto& three = Constants::Unsigned::create_synthetic(domain, integer, 3);
   auto& four = Constants::Unsigned::create_synthetic(domain, integer, 4);
   auto& maximum =
-      Constants::Unsigned::create_synthetic(domain, integer, Unsigned_64(-1));
+      Constants::Unsigned::create_synthetic(domain, integer, U64(-1));
   auto& negative =
       Constants::Signed::create_synthetic(domain, signed_integer, -1);
   auto& flag = Constants::True::create_synthetic(domain, flag_type);
@@ -492,16 +490,13 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, operand_rejection_and_safe_bounds) {
   auto nested_index_value = selected(nested_index_bounds.fold());
   auto negative_index_default = negative_index_value
                                     ? get_unsigned(*negative_index_value)
-                                    : Option<Unsigned_64>();
-  auto maximum_index_default = maximum_index_value
-                                   ? get_unsigned(*maximum_index_value)
-                                   : Option<Unsigned_64>();
-  auto index_bounds_default = index_bounds_value
-                                  ? get_unsigned(*index_bounds_value)
-                                  : Option<Unsigned_64>();
-  auto nested_index_default = nested_index_value
-                                  ? get_unsigned(*nested_index_value)
-                                  : Option<Unsigned_64>();
+                                    : Option<U64>();
+  auto maximum_index_default =
+      maximum_index_value ? get_unsigned(*maximum_index_value) : Option<U64>();
+  auto index_bounds_default =
+      index_bounds_value ? get_unsigned(*index_bounds_value) : Option<U64>();
+  auto nested_index_default =
+      nested_index_value ? get_unsigned(*nested_index_value) : Option<U64>();
   ASSERT(
       negative_index_default && maximum_index_default && index_bounds_default &&
       nested_index_default);
@@ -521,11 +516,10 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, operand_rejection_and_safe_bounds) {
   EXPECT_EQ(negative_range->get_layout().get_size(), Count(2));
   EXPECT_EQ(empty_range->get_layout().get_size(), Count(0));
   EXPECT_EQ(partial_range->get_layout().get_size(), Count(2));
-  EXPECT_EQ(get_unsigned(*negative_range, 0), Option<Unsigned_64>(0));
-  EXPECT_EQ(get_unsigned(*negative_range, 1), Option<Unsigned_64>(0));
-  EXPECT_EQ(
-      get_unsigned(*partial_range, 0), Option<Unsigned_64>(Unsigned_64('c')));
-  EXPECT_EQ(get_unsigned(*partial_range, 1), Option<Unsigned_64>(0));
+  EXPECT_EQ(get_unsigned(*negative_range, 0), Option<U64>(0));
+  EXPECT_EQ(get_unsigned(*negative_range, 1), Option<U64>(0));
+  EXPECT_EQ(get_unsigned(*partial_range, 0), Option<U64>(U64('c')));
+  EXPECT_EQ(get_unsigned(*partial_range, 1), Option<U64>(0));
   EXPECT(supplies_self(negative_start, 2));
   EXPECT_EQ(maximum_range.get_layout().get_size(), Count(-1));
   EXPECT(supplies_self(start_bounds, 0));
@@ -540,12 +534,12 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_defaults) {
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
   const auto& boolean = resolve_library_flag(source);
-  const auto& signed_integer = resolve_library_signed(source, "Signed_64"_view);
-  const auto& real = resolve_library_real(source, "Real_64"_view);
-  const auto& index_type = resolve_library_unsigned(source, "Unsigned_64"_view);
+  const auto& signed_integer = resolve_library_signed(source, "S64"_view);
+  const auto& real = resolve_library_real(source, "R64"_view);
+  const auto& index_type = resolve_library_unsigned(source, "U64"_view);
   Types::Fixed booleans("Fixed[Bool,1]"_view, boolean, 1);
-  Types::Fixed signed_values("Fixed[Signed_64,1]"_view, signed_integer, 1);
-  Types::Fixed real_values("Fixed[Real_64,1]"_view, real, 1);
+  Types::Fixed signed_values("Fixed[S64,1]"_view, signed_integer, 1);
+  Types::Fixed real_values("Fixed[R64,1]"_view, real, 1);
   auto& boolean_bytes =
       Constants::Bytes::create_synthetic(domain, booleans, {});
   auto& signed_bytes =
@@ -565,8 +559,8 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_defaults) {
   auto signed_value = selected(signed_default.fold());
   auto real_value = selected(real_default.fold());
   auto signed_payload =
-      signed_value ? get_signed(*signed_value) : Option<Signed_64>();
-  auto real_payload = real_value ? get_real(*real_value) : Option<Real_64>();
+      signed_value ? get_signed(*signed_value) : Option<S64>();
+  auto real_payload = real_value ? get_real(*real_value) : Option<R64>();
 
   ASSERT(boolean_value);
   ASSERT(signed_payload);
@@ -583,10 +577,10 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, unsupported_default_and_payload) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 unsupported_element;
-  const auto& integer = resolve_library_unsigned(source, "Unsigned_64"_view);
-  const auto& signed_integer = resolve_library_signed(source, "Signed_64"_view);
-  Types::Fixed fixed("Fixed[Unsigned_8,1]"_view, unsupported_element, 1);
+  Types::U8 unsupported_element;
+  const auto& integer = resolve_library_unsigned(source, "U64"_view);
+  const auto& signed_integer = resolve_library_signed(source, "S64"_view);
+  Types::Fixed fixed("Fixed[U8,1]"_view, unsupported_element, 1);
   auto& bytes = Constants::Bytes::create_synthetic(domain, fixed, "a"_view);
   ValueConstant opaque(fixed);
   auto& zero = Constants::Unsigned::create_synthetic(domain, integer, 0);
@@ -604,7 +598,7 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, unsupported_default_and_payload) {
   auto missing_value = selected(missing.fold());
   ASSERT(missing_value);
   EXPECT(missing_value->is<Constants::Unsigned>());
-  EXPECT(get_unsigned(*missing_value) == Option<Unsigned_64>(0));
+  EXPECT(get_unsigned(*missing_value) == Option<U64>(0));
   EXPECT(&missing_value->get_type() == &unsupported_element);
   EXPECT(is_dynamic(unsupported.fold()));
   EXPECT(is_dynamic(safe_range.fold()));
@@ -618,9 +612,9 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, child_failure_propagates) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  const auto& element = resolve_library_unsigned(source, "Unsigned_8"_view);
-  const auto& integer = resolve_library_unsigned(source, "Unsigned_64"_view);
-  Types::Fixed fixed("Fixed[Unsigned_8,1]"_view, element, 1);
+  const auto& element = resolve_library_unsigned(source, "U8"_view);
+  const auto& integer = resolve_library_unsigned(source, "U64"_view);
+  Types::Fixed fixed("Fixed[U8,1]"_view, element, 1);
   auto& bytes = Constants::Bytes::create_synthetic(domain, fixed, "a"_view);
   auto& zero = Constants::Unsigned::create_synthetic(domain, integer, 0);
   auto& one = Constants::Unsigned::create_synthetic(domain, integer, 1);

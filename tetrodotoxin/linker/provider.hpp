@@ -18,8 +18,8 @@ namespace Tetrodotoxin::Linker {
 // target cannot accidentally satisfy an Import.
 class Provider {
  public:
-  enum class Error : Unsigned_8 {
-    Unknown = Unsigned_8(-1),
+  enum class Error : U8 {
+    Unknown = U8(-1),
     Missing = 0,
     Ambiguous,
   };

@@ -1,4 +1,4 @@
 //
 dialect : Library;
 
-public missing_body : func = [] -> Unsigned_64;
+public missing_body : func = [] -> U64;

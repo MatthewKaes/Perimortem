@@ -14,7 +14,7 @@ public system_roundtrip : func = [] -> Bool {
 
 public Dynamic : struct {
   public Bytes : struct {
-    private state data : Object[Unsigned_8];
-    private state size : Unsigned_64;
+    private state data : Object[U8];
+    private state size : U64;
   }
 }

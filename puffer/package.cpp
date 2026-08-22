@@ -72,7 +72,7 @@ static auto parse_debug(Core::View::Bytes text)
   return {};
 }
 
-static auto split(Core::View::Bytes value, Unsigned_8 separator, Count index)
+static auto split(Core::View::Bytes value, U8 separator, Count index)
     -> Core::View::Bytes {
   Count selected = 0;
   Count start = 0;
@@ -90,8 +90,7 @@ static auto split(Core::View::Bytes value, Unsigned_8 separator, Count index)
   return {};
 }
 
-static auto split_count(Core::View::Bytes value, Unsigned_8 separator)
-    -> Count {
+static auto split_count(Core::View::Bytes value, U8 separator) -> Count {
   Count count = value.is_empty() ? 0 : 1;
   for (Count index = 0; index < value.get_size(); index++) {
     count += value[index] == separator ? 1 : 0;
@@ -272,7 +271,7 @@ static auto retain_library_types(
   return True;
 }
 
-enum class RouteKind : Unsigned_8 {
+enum class RouteKind : U8 {
   Static,
   SelfCallable,
 };
@@ -399,7 +398,7 @@ static auto report_errors(const Ttx::Lexical::Errors& errors) -> void {
   }
 }
 
-auto Puffer::Package::run() const -> Signed_32 {
+auto Puffer::Package::run() const -> S32 {
   Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::plain_sink);
 
   Core::View::Bytes manifest = value(arguments, "manifest"_view);

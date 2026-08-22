@@ -31,7 +31,7 @@ namespace Tetrodotoxin::Package {
 // its Monograph.
 class Resources {
  private:
-  enum class Stage : Unsigned_8 {
+  enum class Stage : U8 {
     Pending,
     Connected,
     Sealed,

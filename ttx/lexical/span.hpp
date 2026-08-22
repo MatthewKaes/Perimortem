@@ -31,16 +31,12 @@ class Span {
   // A span is valid if its start is valid as end can be a Terminal node.
   constexpr auto is_valid() const -> Bool { return start.is_valid(); }
 
-  constexpr auto get_offset() const -> Unsigned_16 {
-    return start.get_offset();
-  }
-  constexpr auto get_line() const -> Unsigned_16 { return start.get_line(); }
-  constexpr auto get_line_count() const -> Unsigned_16 {
+  constexpr auto get_offset() const -> U16 { return start.get_offset(); }
+  constexpr auto get_line() const -> U16 { return start.get_line(); }
+  constexpr auto get_line_count() const -> U16 {
     return end.get_line() - start.get_line() + 1;
   }
-  constexpr auto get_column() const -> Unsigned_16 {
-    return start.get_column();
-  }
+  constexpr auto get_column() const -> U16 { return start.get_column(); }
   constexpr auto get_size() const -> Count {
     return Count(end.get_offset()) - Count(start.get_offset()) +
            Count(end.get_size());

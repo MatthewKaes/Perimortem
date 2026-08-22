@@ -20,7 +20,7 @@ auto populate_test(View::Bytes text, Count location) -> Static::Bytes<size> {
   Static::Bytes<size> test_data;
   // Create junk data to make sure filtering works.
   for (Count i = 0; i < test_data.get_size(); i++) {
-    test_data[i] = Unsigned_8(i);
+    test_data[i] = U8(i);
   }
 
   Data::copy(test_data.get_data() + location, text.get_data(), text.get_size());
@@ -48,8 +48,8 @@ PERIMORTEM_UNIT_TEST(AlgoSearch, byte_offset) {
 
   source[97] = '\\';
 
-  EXPECT_EQ(Algorithm::search(source, Unsigned_8('\\')), Count(97));
-  EXPECT_EQ(Algorithm::search(source, Unsigned_8('z')), Count(-1));
+  EXPECT_EQ(Algorithm::search(source, U8('\\')), Count(97));
+  EXPECT_EQ(Algorithm::search(source, U8('z')), Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(AlgoSearch, find) {

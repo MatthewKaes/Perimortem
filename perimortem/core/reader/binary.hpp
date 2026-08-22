@@ -30,16 +30,16 @@ class Binary {
   constexpr auto set_location(Count location) -> void { cursor = location; }
   constexpr auto get_location() const -> Count { return cursor; }
 
-  auto read_unsigned_8() -> Unsigned_8;
-  auto read_unsigned_16() -> Unsigned_16;
-  auto read_unsigned_32() -> Unsigned_32;
-  auto read_unsigned_64() -> Unsigned_64;
-  auto read_signed_8() -> Signed_8;
-  auto read_signed_16() -> Signed_16;
-  auto read_signed_32() -> Signed_32;
-  auto read_signed_64() -> Signed_64;
-  auto read_real_32() -> Real_32;
-  auto read_real_64() -> Real_64;
+  auto read_u8() -> U8;
+  auto read_u16() -> U16;
+  auto read_u32() -> U32;
+  auto read_u64() -> U64;
+  auto read_s8() -> S8;
+  auto read_s16() -> S16;
+  auto read_s32() -> S32;
+  auto read_s64() -> S64;
+  auto read_r32() -> R32;
+  auto read_r64() -> R64;
   auto read_bytes(Count count) -> View::Bytes;
 
   constexpr auto get_size() const -> Count { return source.get_size(); }

@@ -38,8 +38,8 @@ class Bytes {
   operator Core::View::Bytes() const { return get_view(); }
   operator Core::Access::Bytes() { return get_access(); }
 
-  auto append(Unsigned_8 byte) -> void;
-  auto append(Unsigned_8 byte, Count amount) -> void;
+  auto append(U8 byte) -> void;
+  auto append(U8 byte, Count amount) -> void;
   auto concat(Core::View::Bytes view) -> void;
   auto proxy(Core::View::Bytes view) -> void;
   // Resizes the container but attempts to preserve as much of the original
@@ -61,10 +61,10 @@ class Bytes {
   // equivilant to a clear.
   auto shrink(Count bytes_to_remove) -> void;
 
-  auto operator[](Count index) const -> Unsigned_8;
-  auto at(Count index) const -> Unsigned_8;
-  auto set(Unsigned_8 target) -> void;
-  auto convert(Unsigned_8 source, Unsigned_8 target) -> void;
+  auto operator[](Count index) const -> U8;
+  auto at(Count index) const -> U8;
+  auto set(U8 target) -> void;
+  auto convert(U8 source, U8 target) -> void;
   auto slice(Count start, Count size) const -> Core::View::Bytes;
 
   constexpr auto get_size() const -> Count { return size; }
@@ -78,9 +78,7 @@ class Bytes {
   // Bytes lifetime.
   auto get_access() -> Core::Access::Bytes;
 
-  auto hash() const -> Unsigned_64 {
-    return Core::Hash(get_view()).get_value();
-  }
+  auto hash() const -> U64 { return Core::Hash(get_view()).get_value(); }
 
   constexpr auto is_empty() const -> Bool { return size == 0; }
 
@@ -91,11 +89,11 @@ class Bytes {
  private:
   auto prepare_write(Count required_capacity) -> Core::Access::Bytes;
 
-  Core::Object<Unsigned_8> data;
+  Core::Object<U8> data;
   Count size = 0;
 };
 
-static_assert(sizeof(Bytes) == sizeof(Unsigned_8*) + sizeof(Count));
+static_assert(sizeof(Bytes) == sizeof(U8*) + sizeof(Count));
 static_assert(alignof(Bytes) == alignof(Count));
 
 }  // namespace Perimortem::Memory::Dynamic

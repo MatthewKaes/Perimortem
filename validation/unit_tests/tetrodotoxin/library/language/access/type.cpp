@@ -73,7 +73,7 @@ PERIMORTEM_UNIT_TEST(TypeAccessTests, local_root_shadows_intrinsic) {
       "dialect : Library;\n"
       "public Host : struct {\n"
       "  public Bool : struct {\n"
-      "    public Nested : struct { private state value : Unsigned_8; }\n"
+      "    public Nested : struct { private state value : U8; }\n"
       "  }\n"
       "  public value : Bool::Nested;\n"
       "}"_view;
@@ -86,7 +86,7 @@ PERIMORTEM_UNIT_TEST(TypeAccessTests, descriptor_is_an_authored_name) {
       "// Descriptor is an ordinary authored Type name.\n"
       "dialect : Library;\n"
       "public Descriptor : struct {\n"
-      "  public Nested : struct { private state value : Unsigned_8; }\n"
+      "  public Nested : struct { private state value : U8; }\n"
       "}\n"
       "private value : Descriptor::Nested;"_view;
 

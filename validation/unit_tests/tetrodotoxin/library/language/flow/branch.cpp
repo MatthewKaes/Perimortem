@@ -76,10 +76,10 @@ PERIMORTEM_UNIT_TEST(BranchTests, retained_blocks_and_condition_pack) {
   static constexpr View::Bytes source =
       "// Branch graph.\n"
       "dialect : Library;\n"
-      "public run : func = [] -> Unsigned_64 {\n"
-      "  state outer : Unsigned_64 = 1;\n"
+      "public run : func = [] -> U64 {\n"
+      "  state outer : U64 = 1;\n"
       "  if (true, 9) {\n"
-      "    state inner : Unsigned_64 = 3;\n"
+      "    state inner : U64 = 3;\n"
       "    inner += 1;\n"
       "  } else {\n"
       "    outer = 2;\n"
@@ -115,7 +115,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, retained_blocks_and_condition_pack) {
   EXPECT_TEXT(
       conditional.get_anchor().get_span().caculate_text(source),
       "if (true, 9) {\n"
-      "    state inner : Unsigned_64 = 3;\n"
+      "    state inner : U64 = 3;\n"
       "    inner += 1;\n"
       "  } else {\n"
       "    outer = 2;\n"
@@ -147,7 +147,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, terminal_if_covers_function_result) {
   static constexpr View::Bytes source =
       "// Terminal branch.\n"
       "dialect : Library;\n"
-      "public select : func = [.flag : Bool] -> Unsigned_64 {\n"
+      "public select : func = [.flag : Bool] -> U64 {\n"
       "  if flag {\n"
       "    return 1;\n"
       "  } else {\n"
@@ -170,7 +170,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, else_if_retains_the_selected_statement) {
   static constexpr View::Bytes source =
       "// Else if statement.\n"
       "dialect : Library;\n"
-      "public select : func = [.first : Bool, .second : Bool] -> Unsigned_64 "
+      "public select : func = [.first : Bool, .second : Bool] -> U64 "
       "{\n"
       "  if first : return 1; else if second : return 2; else : return 3;\n"
       "}"_view;
@@ -224,9 +224,9 @@ PERIMORTEM_UNIT_TEST(BranchTests, while_body_targets_its_branch) {
 
 PERIMORTEM_UNIT_TEST(BranchTests, incomplete_result_paths_are_rejected) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
-    "// Missing alternate.\ndialect : Library; private invalid : func = [.flag : Bool] -> Unsigned_64 { if flag { return 1; } }"_view,
-    "// Falling alternate.\ndialect : Library; private invalid : func = [.flag : Bool] -> Unsigned_64 { if flag { return 1; } else {} }"_view,
-    "// While may not execute.\ndialect : Library; private invalid : func = [.flag : Bool] -> Unsigned_64 { while flag { return 1; } }"_view,
+    "// Missing alternate.\ndialect : Library; private invalid : func = [.flag : Bool] -> U64 { if flag { return 1; } }"_view,
+    "// Falling alternate.\ndialect : Library; private invalid : func = [.flag : Bool] -> U64 { if flag { return 1; } else {} }"_view,
+    "// While may not execute.\ndialect : Library; private invalid : func = [.flag : Bool] -> U64 { while flag { return 1; } }"_view,
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {

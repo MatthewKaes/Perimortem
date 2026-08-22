@@ -114,7 +114,7 @@ PERIMORTEM_UNIT_TEST(TtxType, incomplete_type) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxType, type_fields) {
-  ResolvingType real("Real_32"_view);
+  ResolvingType real("R32"_view);
   real.complete();
   TypeField x("x"_view, real);
   TypeField y("y"_view, real);

@@ -508,17 +508,16 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete_construction(
     Count parameter = offset + index * 2;
     if (record.indirect_parameters[index]) {
       function.addParamAttr(
-          Unsigned_32(parameter),
+          U32(parameter),
           llvm::Attribute::getWithByValType(context, llvm::unwrap(*native)));
       function.addParamAttr(
-          Unsigned_32(parameter),
-          llvm::Attribute::getWithAlignment(
-              context,
-              module.getDataLayout().getABITypeAlign(llvm::unwrap(*native))));
+          U32(parameter), llvm::Attribute::getWithAlignment(
+                              context, module.getDataLayout().getABITypeAlign(
+                                           llvm::unwrap(*native))));
     }
     auto extension = get_extension(*carriers, type);
     if (extension) {
-      function.addParamAttr(Unsigned_32(parameter), *extension);
+      function.addParamAttr(U32(parameter), *extension);
     }
   }
   auto result_extension = get_extension(*carriers, owner);
@@ -741,7 +740,7 @@ auto Tetrodotoxin::Library::Llvm::Functions::call_construction(
   Bool returns_void = Bool(LLVMGetTypeKind(native_result) == LLVMVoidTypeKind);
   LLVMValueRef invoked = LLVMBuildCall2(
       native_body->get_builder(), signature, *record.function,
-      native_arguments.get_data(), Unsigned_32(native_arguments.get_size()),
+      native_arguments.get_data(), U32(native_arguments.get_size()),
       returns_void ? "" : "construction");
   BAIL_IF(!invoked);
   LLVMValueRef returned =
@@ -893,10 +892,10 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
     }
 
     function.addParamAttr(
-        Unsigned_32(index + parameter_offset),
+        U32(index + parameter_offset),
         llvm::Attribute::getWithByValType(context, parameter_types[index]));
     function.addParamAttr(
-        Unsigned_32(index + parameter_offset),
+        U32(index + parameter_offset),
         llvm::Attribute::getWithAlignment(
             context,
             module.getDataLayout().getABITypeAlign(parameter_types[index])));
@@ -905,7 +904,7 @@ auto Tetrodotoxin::Library::Llvm::Functions::complete(
   for (Count index = 0; index < semantic_parameters.get_size(); index++) {
     auto extension = get_extension(*carriers, *semantic_parameters[index]);
     if (extension) {
-      function.addParamAttr(Unsigned_32(index + parameter_offset), *extension);
+      function.addParamAttr(U32(index + parameter_offset), *extension);
     }
   }
 

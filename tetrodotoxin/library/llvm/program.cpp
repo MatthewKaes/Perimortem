@@ -41,7 +41,7 @@ static auto write_abi_value(
   output << llvm_text(symbol) << '|';
   const llvm::GlobalValue* value = module.getNamedValue(llvm_text(symbol));
   if (const auto* function = llvm::dyn_cast_or_null<llvm::Function>(value)) {
-    output << "function|" << Unsigned_64(function->getCallingConv()) << '|';
+    output << "function|" << U64(function->getCallingConv()) << '|';
     function->getFunctionType()->print(output);
     output << '|';
     function->getAttributes().print(output);
@@ -76,14 +76,13 @@ static auto create_abi_fingerprint(
     write_abi_value(output, module, publication.get_symbol());
   }
   for (const Tetrodotoxin::Linker::Import& import : imports) {
-    output << Unsigned_64(import.get_kind()) << '|'
-           << llvm_text(import.get_abi()) << '|';
+    output << U64(import.get_kind()) << '|' << llvm_text(import.get_abi())
+           << '|';
     write_abi_value(output, module, import.get_symbol());
   }
   return Tetrodotoxin::Linker::Fingerprint::create(
       Core::View::Bytes(
-          reinterpret_cast<const Unsigned_8*>(description.data()),
-          description.size()));
+          reinterpret_cast<const U8*>(description.data()), description.size()));
 }
 
 Llvm::Program::Program(
@@ -120,7 +119,7 @@ Llvm::Program::~Program() {
   debug.release();
   target_machine.visit(
       []() {},
-      [](Unsigned_8& machine) {
+      [](U8& machine) {
         delete reinterpret_cast<llvm::TargetMachine*>(&machine);
       });
   LLVMDisposeModule(&module);
@@ -148,7 +147,7 @@ auto Llvm::Program::initialize() -> Bool {
   if (!selected) {
     return fail_backend(
         Core::View::Bytes(
-            reinterpret_cast<const Unsigned_8*>(error.data()), error.size()));
+            reinterpret_cast<const U8*>(error.data()), error.size()));
   }
 
   llvm::TargetOptions options;
@@ -161,7 +160,7 @@ auto Llvm::Program::initialize() -> Bool {
         "LLVM could not create the selected target machine."_view);
   }
 
-  target_machine = *reinterpret_cast<Unsigned_8*>(machine);
+  target_machine = *reinterpret_cast<U8*>(machine);
   native_module.setTargetTriple(target_triple);
   native_module.setDataLayout(machine->createDataLayout());
   return debug.initialize(*this, source_path, source_text);
@@ -211,7 +210,7 @@ auto Llvm::Program::compile() -> Utility::Result<Products, Failure> {
   if (llvm::verifyModule(native_module, &verification_stream)) {
     fail_backend(
         Core::View::Bytes(
-            reinterpret_cast<const Unsigned_8*>(verification.data()),
+            reinterpret_cast<const U8*>(verification.data()),
             verification.size()));
   }
 
@@ -265,10 +264,9 @@ auto Llvm::Program::compile() -> Utility::Result<Products, Failure> {
     header_view = identified->get_view();
   }
 
-  Core::View::Bytes ir_view(
-      reinterpret_cast<const Unsigned_8*>(ir.data()), ir.size());
+  Core::View::Bytes ir_view(reinterpret_cast<const U8*>(ir.data()), ir.size());
   Core::View::Bytes object_view(
-      reinterpret_cast<const Unsigned_8*>(object.data()), object.size());
+      reinterpret_cast<const U8*>(object.data()), object.size());
   return Products(
       get_arena().proxy(ir_view), get_arena().proxy(object_view), header_view,
       publications.get_view(), abi_fingerprint, imports.get_view());

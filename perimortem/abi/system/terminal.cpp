@@ -19,7 +19,7 @@ extern "C" auto perimortem_system_terminal_read_line()
 
   Abi::Memory::Dynamic::Bytes result = Abi::Memory::Dynamic::Bytes::create(
       line->get_view().get_data(), line->get_size());
-  perimortem_core_object_retain(const_cast<Unsigned_8*>(result.get_data()));
+  perimortem_core_object_retain(const_cast<U8*>(result.get_data()));
   return Abi::Core::Option<Abi::Memory::Dynamic::Bytes>::create(result);
 }
 

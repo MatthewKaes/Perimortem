@@ -7,8 +7,8 @@
 
 namespace Perimortem::Abi::Core {
 
-static_assert(sizeof(bool) == sizeof(Unsigned_8));
-static_assert(alignof(bool) == alignof(Unsigned_8));
+static_assert(sizeof(bool) == sizeof(U8));
+static_assert(alignof(bool) == alignof(U8));
 
 // Option is the trivial native carrier for one optional ABI value. The payload
 // precedes its selected state exactly as it does in the language value. ABI
@@ -52,9 +52,9 @@ class Option {
   bool set;
 };
 
-static_assert(__is_trivial(Option<Unsigned_64>));
-static_assert(__is_standard_layout(Option<Unsigned_64>));
-static_assert(Option<Unsigned_64>::get_value_offset() == 0);
-static_assert(Option<Unsigned_64>::get_state_offset() == sizeof(Unsigned_64));
+static_assert(__is_trivial(Option<U64>));
+static_assert(__is_standard_layout(Option<U64>));
+static_assert(Option<U64>::get_value_offset() == 0);
+static_assert(Option<U64>::get_state_offset() == sizeof(U64));
 
 }  // namespace Perimortem::Abi::Core

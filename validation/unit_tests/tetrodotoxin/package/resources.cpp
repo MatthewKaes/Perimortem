@@ -68,7 +68,7 @@ static auto cleanup_tree(View::Bytes root) -> void {
 class TemporaryResources {
  public:
   TemporaryResources() {
-    Signed_32 written = snprintf(
+    S32 written = snprintf(
         Data::cast<char>(root_path.get_data()), root_path.get_size(),
         "/tmp/tetrodotoxin_package_resources_XXXXXX");
     if (written <= 0 || Count(written) >= root_path.get_size()) {
@@ -97,7 +97,7 @@ class TemporaryResources {
 
   auto create_directory(View::Bytes member) const -> Bool {
     Dynamic::Bytes path = join_path(get_root(), member);
-    Signed_32 created = mkdir(native_path(path), S_IRWXU);
+    S32 created = mkdir(native_path(path), S_IRWXU);
     return created == 0;
   }
 

@@ -17,12 +17,8 @@ namespace Tetrodotoxin::Language {
 // and Anchor, while its consumer owns the meaning of the key.
 class Attribute {
  public:
-  using Value = Perimortem::Core::Static::Union<
-      Perimortem::Core::View::Bytes,
-      Unsigned_64,
-      Signed_64,
-      Real_64,
-      Bool>;
+  using Value = Perimortem::Core::Static::
+      Union<Perimortem::Core::View::Bytes, U64, S64, R64, Bool>;
 
   // Consumes the complete consecutive Attribute prefix. Absence is valid and
   // leaves the Cursor unchanged. A malformed prefix publishes no partial view.

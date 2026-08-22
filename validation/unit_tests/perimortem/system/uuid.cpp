@@ -89,7 +89,7 @@ PERIMORTEM_UNIT_TEST(SystemUuid, generate_v4) {
   EXPECT(uuid.is_set());
 
   const auto serialized = uuid.serialize();
-  EXPECT_EQ(serialized[14], Unsigned_8('4'));
+  EXPECT_EQ(serialized[14], U8('4'));
   EXPECT(
       serialized[19] == '8' || serialized[19] == '9' || serialized[19] == 'a' ||
       serialized[19] == 'b');
@@ -100,7 +100,7 @@ PERIMORTEM_UNIT_TEST(SystemUuid, generate_v7) {
 
   auto output = uuid.serialize();
   EXPECT(output.hash());
-  EXPECT_EQ(output[14], Unsigned_8('7'));
+  EXPECT_EQ(output[14], U8('7'));
   EXPECT(
       output[19] == '8' || output[19] == '9' || output[19] == 'a' ||
       output[19] == 'b');

@@ -3,32 +3,29 @@
 
 #pragma once
 
-#include "tetrodotoxin/library/language/model/types/real.hpp"
+#include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "ttx/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Real_64 is the standard 8 byte floating point representation.
-// For ABI evaluation it can be used to represent C/C++'s `double`.
-class Real_64 : public Model::Types::Real {
+// S8 is the standard eight bit Signed Type.
+class S8 : public Model::Types::Signed {
  public:
-  TTX_NAME("Real_64"_view);
+  TTX_NAME("S8"_view);
 
   TTX_DOCUMENTATION(documentation);
 
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
-  constexpr auto get_width() const -> Count override { return 64; }
-  constexpr auto get_size() const -> Count override {
-    return sizeof(::Real_64);
-  }
+  constexpr auto get_width() const -> Count override { return 8; }
+  constexpr auto get_size() const -> Count override { return sizeof(::S8); }
   constexpr auto get_alignment() const -> Count override {
-    return alignof(::Real_64);
+    return alignof(::S8);
   }
 
  private:
   static constexpr Ttx::Model::Documentations::Comment documentation{
-    "Real_64 is stored as an 8 byte IEEE floating value."_view,
+    "S8 is stored as a 1 byte two's-complement integer."_view,
   };
 };
 

@@ -45,7 +45,7 @@ class Abstract {
   // native implementation may return true only for public C++ base contracts,
   // each represented by one unique accessible base subobject. This invariant
   // makes visitor dispatch well defined.
-  virtual constexpr auto implements(::Unsigned_64 requested) const -> Bool {
+  virtual constexpr auto implements(::U64 requested) const -> Bool {
     return requested == get_type_identity<Abstract>();
   }
 
@@ -166,11 +166,11 @@ class Abstract {
 
 // Keep each derived category declaration beside its direct semantic base while
 // preserving the shared live proof implementation.
-#define TTX_CONTRACT(type, base)                                              \
-  using ClassCatagory = type;                                                 \
-  constexpr auto implements(::Unsigned_64 requested) const -> Bool override { \
-    return requested == Ttx::Concept::get_type_identity<type>() ||            \
-           base::implements(requested);                                       \
+#define TTX_CONTRACT(type, base)                                      \
+  using ClassCatagory = type;                                         \
+  constexpr auto implements(::U64 requested) const -> Bool override { \
+    return requested == Ttx::Concept::get_type_identity<type>() ||    \
+           base::implements(requested);                               \
   }
 
 // Compact exact implementations of Abstract's universal presentation slots.

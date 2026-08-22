@@ -111,7 +111,7 @@ class Program : public Ttx::Concept::Abstract {
   Debug debug;
   LLVMOpaqueContext& context;
   LLVMOpaqueModule& module;
-  Perimortem::Core::Option<Unsigned_8&> target_machine;
+  Perimortem::Core::Option<U8&> target_machine;
   Carriers carriers;
   Functions functions;
   Globals globals;

@@ -58,7 +58,7 @@ PERIMORTEM_UNIT_TEST(SignatureTests, named_parameters_and_direct_results) {
       "// Signature identity test.\n"
       "dialect : Library;\n"
       "public inspect : func = [.input : Bool,] -> [\n"
-      "    .count : Unsigned_64, .accepted : Bool,\n"
+      "    .count : U64, .accepted : Bool,\n"
       "  ] { return (.count = 0, .accepted = false); }"_view;
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
@@ -84,9 +84,7 @@ PERIMORTEM_UNIT_TEST(SignatureTests, named_parameters_and_direct_results) {
   ASSERT(results.get_name(0) && results.get_name(1));
   EXPECT_TEXT(*results.get_name(0), "count"_view);
   EXPECT_TEXT(*results.get_name(1), "accepted"_view);
-  EXPECT(
-      &*results.get_abstract(0) ==
-      &monograph->resolve_context("Unsigned_64"_view));
+  EXPECT(&*results.get_abstract(0) == &monograph->resolve_context("U64"_view));
   EXPECT(&*results.get_abstract(1) == &monograph->resolve_context("Bool"_view));
   EXPECT(results.get_abstract(0)->is<Ttx::Model::Type>());
   EXPECT(results.get_abstract(1)->is<Ttx::Model::Type>());
@@ -99,7 +97,7 @@ PERIMORTEM_UNIT_TEST(SignatureTests, self_result_retains_parameter_reference) {
       "// Self reference result.\n"
       "dialect : Library;\n"
       "public Buffer : struct {\n"
-      "  private state size : Unsigned_64;\n"
+      "  private state size : U64;\n"
       "  public clear : func = [self] -> self {\n"
       "    self.size = 0;\n"
       "  }\n"

@@ -28,11 +28,10 @@ using namespace Tetrodotoxin;
 using namespace Validation;
 
 static_assert(
-    static_cast<Unsigned_8>(Package::Repository::Repository::Error::Unknown) ==
-    Unsigned_8(-1));
+    static_cast<U8>(Package::Repository::Repository::Error::Unknown) == U8(-1));
 static_assert(
-    static_cast<Unsigned_8>(
-        Package::Repository::Repository::Error::NotDeclared) == Unsigned_8(0));
+    static_cast<U8>(Package::Repository::Repository::Error::NotDeclared) ==
+    U8(0));
 
 template <typename value_type>
 static auto returns_selection_error(
@@ -70,7 +69,7 @@ static auto selected_native(
 // This manually encoded Format 2 value is independent of Archive Writer. The
 // Repository tests write only this literal or direct byte mutations of it, so
 // the selected file oracle cannot reproduce a Writer defect.
-static constexpr Unsigned_8 format_two_archive[] = {
+static constexpr U8 format_two_archive[] = {
   0x54, 0x54, 0x58, 0x41, 0x02, 0x00, 0x00, 0x00, 0x7D, 0x01, 0x00, 0x00, 0x01,
   0x00, 0x01, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x50, 0x6B,
   0x67, 0x2E, 0x43, 0x6F, 0x72, 0x65, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x00,
@@ -154,12 +153,11 @@ static auto cpu_manifest(
           imports));
 }
 
-static auto set_u16(Dynamic::Bytes& bytes, Count offset, Unsigned_16 value)
-    -> void {
+static auto set_u16(Dynamic::Bytes& bytes, Count offset, U16 value) -> void {
   auto target = bytes.get_access();
   auto* data = target.get_data();
-  data[offset] = Unsigned_8(value);
-  data[offset + 1] = Unsigned_8(value >> 8);
+  data[offset] = U8(value);
+  data[offset + 1] = U8(value >> 8);
 }
 
 static auto archive_with(View::Bytes identity, Version version)
@@ -192,7 +190,7 @@ static auto join_path(View::Bytes root, View::Bytes member) -> Dynamic::Bytes {
 class TemporaryRepositoryFiles {
  public:
   TemporaryRepositoryFiles() {
-    Signed_32 written = snprintf(
+    S32 written = snprintf(
         Data::cast<char>(root.get_data()), root.get_size(),
         "/tmp/tetrodotoxin_repository_XXXXXX");
     if (written <= 0 || Count(written) >= root.get_size()) {

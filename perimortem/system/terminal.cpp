@@ -22,7 +22,7 @@ auto Terminal::read_line() -> Option<Dynamic::Bytes> {
   // A stream can return useful bytes before EOF, so keep the partial line
   // local until LF or a successful final EOF decides the complete result.
   while (true) {
-    Signed_32 next;
+    S32 next;
     next = fgetc(&input);
     if (next == EOF) {
       if (ferror(&input) != 0 || line.is_empty()) {
@@ -37,7 +37,7 @@ auto Terminal::read_line() -> Option<Dynamic::Bytes> {
       break;
     }
 
-    line.append(Unsigned_8(next));
+    line.append(U8(next));
   }
 
   // CR belongs to the terminator only when LF completed this line. A final CR
@@ -60,11 +60,11 @@ auto Terminal::write_line(View::Bytes data) -> Bool {
     failed |= written != data.get_size();
   }
 
-  Signed_32 newline;
+  S32 newline;
   newline = fputc('\n', &output);
   failed |= newline == EOF;
 
-  Signed_32 flushed;
+  S32 flushed;
   flushed = fflush(&output);
   failed |= flushed != 0;
 

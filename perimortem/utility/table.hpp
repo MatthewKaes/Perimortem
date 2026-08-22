@@ -26,10 +26,7 @@ namespace Perimortem::Utility {
 // The source template parameter is a bit funky since the type itself is
 // parameterized over it's source data to create a type that expresses the
 // compressed form of the lookups.
-template <
-    typename value_type,
-    const auto& source,
-    Unsigned_64 cache_line_size = 1>
+template <typename value_type, const auto& source, U64 cache_line_size = 1>
 class Table {
  private:
   // Accepts both a raw C array and a View::Vector as source.
@@ -120,12 +117,12 @@ class Table {
     }
 
     struct Coord {
-      Unsigned_8 item_index = 0;
-      Unsigned_8 item_count = 0;
-      Unsigned_16 byte_index = 0;
+      U8 item_index = 0;
+      U8 item_count = 0;
+      U16 byte_index = 0;
     };
 
-    alignas(64) Core::Static::Vector<Unsigned_8, storage_size> buffer = {};
+    alignas(64) Core::Static::Vector<U8, storage_size> buffer = {};
     Core::Static::Vector<Coord, max_range + 1> buffer_coordinates = {};
     Core::Static::Vector<value_type, get_source_count()> mappings = {};
   };
@@ -144,7 +141,7 @@ class Table {
     const auto item_start = entry.item_index;
     const auto item_count = entry.item_count;
     const auto byte_start = entry.byte_index;
-    for (Unsigned_8 i = 0; i < item_count; i++) {
+    for (U8 i = 0; i < item_count; i++) {
       const auto byte_index = byte_start + i * range_step;
       if (byte_pack.buffer[byte_index] != key[0]) {
         continue;

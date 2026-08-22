@@ -21,7 +21,7 @@ class Enumeration : public Constant {
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
       const Types::Enumeration& type,
-      Unsigned_64 value) -> Enumeration& {
+      U64 value) -> Enumeration& {
     return Expression::create_synthetic<Enumeration>(
         domain, [&](auto source) -> Enumeration {
           return Enumeration(type, value, source);
@@ -31,7 +31,7 @@ class Enumeration : public Constant {
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
       const Types::Enumeration& type,
-      Unsigned_64 value,
+      U64 value,
       Ttx::Lexical::Anchor anchor) -> Enumeration& {
     return Expression::create_authored<Enumeration>(
         domain, anchor, [&](auto source) -> Enumeration {
@@ -43,7 +43,7 @@ class Enumeration : public Constant {
     return type;
   }
 
-  constexpr auto get_value() const -> Unsigned_64 { return value; }
+  constexpr auto get_value() const -> U64 { return value; }
 
   constexpr auto equals(const Constant& rhs) const -> Bool override {
     return rhs.visit<Enumeration>(
@@ -56,12 +56,12 @@ class Enumeration : public Constant {
  private:
   constexpr Enumeration(
       const Types::Enumeration& type,
-      Unsigned_64 value,
+      U64 value,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Constant(anchor), type(type), value(value) {}
 
   const Types::Enumeration& type;
-  Unsigned_64 value;
+  U64 value;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Constants

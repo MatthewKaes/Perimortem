@@ -26,7 +26,7 @@ using namespace Validation;
 // This literal is the independent Format 2 oracle. Keeping it separate from
 // Writer and every Writer helper lets the test detect a shared encoding mistake
 // instead of reproducing one.
-static constexpr Unsigned_8 format_two_golden[] = {
+static constexpr U8 format_two_golden[] = {
   0x54, 0x54, 0x58, 0x41, 0x02, 0x00, 0x00, 0x00, 0x7D, 0x01, 0x00, 0x00, 0x01,
   0x00, 0x01, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x50, 0x6B,
   0x67, 0x2E, 0x43, 0x6F, 0x72, 0x65, 0x02, 0x00, 0x01, 0x00, 0x04, 0x00, 0x00,
@@ -99,22 +99,20 @@ static auto contains(View::Bytes text, View::Bytes fragment) -> Bool {
   return False;
 }
 
-static auto set_u16(Dynamic::Bytes& bytes, Count offset, Unsigned_16 value)
-    -> void {
+static auto set_u16(Dynamic::Bytes& bytes, Count offset, U16 value) -> void {
   auto target = bytes.get_access();
   auto* data = target.get_data();
-  data[offset] = Unsigned_8(value);
-  data[offset + 1] = Unsigned_8(value >> 8);
+  data[offset] = U8(value);
+  data[offset + 1] = U8(value >> 8);
 }
 
-static auto set_u32(Dynamic::Bytes& bytes, Count offset, Unsigned_32 value)
-    -> void {
+static auto set_u32(Dynamic::Bytes& bytes, Count offset, U32 value) -> void {
   auto target = bytes.get_access();
   auto* data = target.get_data();
-  data[offset] = Unsigned_8(value);
-  data[offset + 1] = Unsigned_8(value >> 8);
-  data[offset + 2] = Unsigned_8(value >> 16);
-  data[offset + 3] = Unsigned_8(value >> 24);
+  data[offset] = U8(value);
+  data[offset + 1] = U8(value >> 8);
+  data[offset + 2] = U8(value >> 16);
+  data[offset + 3] = U8(value >> 24);
 }
 
 static auto splice(
@@ -135,7 +133,7 @@ static auto body_splice(
     Count removed,
     View::Bytes inserted) -> Dynamic::Bytes {
   Dynamic::Bytes result = splice(source, offset, removed, inserted);
-  set_u32(result, 8, Unsigned_32(result.get_size() - 12));
+  set_u32(result, 8, U32(result.get_size() - 12));
   return result;
 }
 
@@ -218,13 +216,13 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_two) {
   using Sections = Package::Archive::Archive::Sections;
 
   EXPECT_EQ(Package::Archive::Archive::header_size, Count(12));
-  EXPECT_EQ(Unsigned_16(Sections::Identity), Unsigned_16(1));
-  EXPECT_EQ(Unsigned_16(Sections::Version), Unsigned_16(2));
-  EXPECT_EQ(Unsigned_16(Sections::Dependencies), Unsigned_16(3));
-  EXPECT_EQ(Unsigned_16(Sections::Members), Unsigned_16(4));
-  EXPECT_EQ(Unsigned_16(Sections::ArtifactIds), Unsigned_16(5));
-  EXPECT_EQ(Unsigned_16(Sections::Exports), Unsigned_16(6));
-  EXPECT_EQ(Unsigned_16(Sections::ArtifactMetadata), Unsigned_16(7));
+  EXPECT_EQ(U16(Sections::Identity), U16(1));
+  EXPECT_EQ(U16(Sections::Version), U16(2));
+  EXPECT_EQ(U16(Sections::Dependencies), U16(3));
+  EXPECT_EQ(U16(Sections::Members), U16(4));
+  EXPECT_EQ(U16(Sections::ArtifactIds), U16(5));
+  EXPECT_EQ(U16(Sections::Exports), U16(6));
+  EXPECT_EQ(U16(Sections::ArtifactMetadata), U16(7));
 
   Allocator::Arena arena;
   auto decoded = Package::Archive::Reader::read(arena, golden());
@@ -233,17 +231,15 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_two) {
   ASSERT(archive);
   EXPECT(archive->get_profile() == Language::Persistence::Profile::Complete);
   EXPECT_TEXT(archive->get_identity(), "Pkg.Core"_view);
-  EXPECT_EQ(archive->get_version().get_major(), Unsigned_16(1));
-  EXPECT_EQ(archive->get_version().get_minor(), Unsigned_16(2));
+  EXPECT_EQ(archive->get_version().get_major(), U16(1));
+  EXPECT_EQ(archive->get_version().get_minor(), U16(2));
 
   auto dependencies = archive->get_dependencies();
   ASSERT_EQ(dependencies.get_size(), Count(1));
   EXPECT_TEXT(dependencies.get_data()[0].get_local_name(), "Core"_view);
   EXPECT_TEXT(dependencies.get_data()[0].get_package_name(), "Pkg.Base"_view);
-  EXPECT_EQ(
-      dependencies.get_data()[0].get_version().get_major(), Unsigned_16(3));
-  EXPECT_EQ(
-      dependencies.get_data()[0].get_version().get_minor(), Unsigned_16(4));
+  EXPECT_EQ(dependencies.get_data()[0].get_version().get_major(), U16(3));
+  EXPECT_EQ(dependencies.get_data()[0].get_version().get_minor(), U16(4));
 
   auto members = archive->get_members();
   ASSERT_EQ(members.get_size(), Count(2));
@@ -253,9 +249,9 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_two) {
   EXPECT_TEXT(members.get_data()[1].get_semantic_name(), "Scene::One"_view);
   EXPECT_TEXT(members.get_data()[1].get_dialect_name(), "Scene"_view);
   ASSERT_EQ(members.get_data()[1].get_payload().get_size(), Count(3));
-  EXPECT_EQ(members.get_data()[1].get_payload()[0], Unsigned_8(0xAA));
-  EXPECT_EQ(members.get_data()[1].get_payload()[1], Unsigned_8(0x00));
-  EXPECT_EQ(members.get_data()[1].get_payload()[2], Unsigned_8(0x55));
+  EXPECT_EQ(members.get_data()[1].get_payload()[0], U8(0xAA));
+  EXPECT_EQ(members.get_data()[1].get_payload()[1], U8(0x00));
+  EXPECT_EQ(members.get_data()[1].get_payload()[2], U8(0x55));
 
   auto artifacts = archive->get_artifacts();
   ASSERT_EQ(artifacts.get_size(), Count(2));
@@ -263,7 +259,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_two) {
   EXPECT_TEXT(artifacts.get_data()[0].get_target(), "x86_64-sysv-linux"_view);
   EXPECT_EQ(
       artifacts.get_data()[0].get_fingerprint().get_value(),
-      Unsigned_64(0x0123456789ABCDEF));
+      U64(0x0123456789ABCDEF));
   ASSERT_EQ(artifacts.get_data()[0].get_imports().get_size(), Count(1));
   EXPECT_TEXT(
       artifacts.get_data()[0].get_imports().get_data()[0].get_symbol(),
@@ -398,7 +394,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, empty_inventories) {
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, equal_member_payloads) {
-  const Unsigned_8 payload_bytes[] = {0x10, 0x20};
+  const U8 payload_bytes[] = {0x10, 0x20};
   View::Bytes payload(payload_bytes);
   Package::Archive::Member members[] = {
     Package::Archive::Member("First"_view, "Lib"_view, payload),
@@ -456,8 +452,8 @@ PERIMORTEM_UNIT_TEST(PackageArchive, opaque_export_locators) {
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, format_size_limits) {
-  const Unsigned_8 byte = 'A';
-  const Count oversized_size = Count(Unsigned_32(-1)) + 1;
+  const U8 byte = 'A';
+  const Count oversized_size = Count(U32(-1)) + 1;
   View::Bytes oversized(&byte, oversized_size);
   Package::Archive::Member valid_member("Main"_view, "Lib"_view, View::Bytes());
 
@@ -560,11 +556,11 @@ PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
   EXPECT(rejects(unknown_header_flags));
 
   Dynamic::Bytes short_body(golden());
-  set_u32(short_body, 8, Unsigned_32(golden().get_size() - 13));
+  set_u32(short_body, 8, U32(golden().get_size() - 13));
   EXPECT(rejects(short_body));
 
   Dynamic::Bytes long_body(golden());
-  set_u32(long_body, 8, Unsigned_32(golden().get_size() - 11));
+  set_u32(long_body, 8, U32(golden().get_size() - 11));
   EXPECT(rejects(long_body));
 
   Dynamic::Bytes trailing(golden());
@@ -587,14 +583,14 @@ PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
           "stage=field tag byte_offset=12 unknown_required_tag=8"_view,
           Diagnostics::Log::Level::Debug));
 
-  const Unsigned_8 malformed_optional[] = {
+  const U8 malformed_optional[] = {
     0x08, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0xAA,
   };
   Dynamic::Bytes bad_optional = body_splice(
       golden(), golden().get_size(), 0, View::Bytes(malformed_optional));
   EXPECT(rejects(bad_optional));
 
-  const Unsigned_8 optional[] = {
+  const U8 optional[] = {
     0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xAA,
   };
   Dynamic::Bytes accepted_optional =
@@ -640,7 +636,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, singleton_fields) {
           "body."_view,
           Diagnostics::Log::Level::Debug));
 
-  const Unsigned_8 extra_payload[] = {0xAA};
+  const U8 extra_payload[] = {0xAA};
   Dynamic::Bytes unconsumed_field =
       body_splice(golden(), version_field, 0, View::Bytes(extra_payload));
   set_u32(unconsumed_field, identity_field + 4, 13);
@@ -663,18 +659,18 @@ PERIMORTEM_UNIT_TEST(PackageArchive, framing_boundaries) {
   EXPECT(rejects(null_dependency_version));
 
   Dynamic::Bytes count_overflow(golden());
-  set_u32(count_overflow, member_field + 8, Unsigned_32(-1));
+  set_u32(count_overflow, member_field + 8, U32(-1));
   EXPECT(rejects(count_overflow));
 
   Dynamic::Bytes length_overflow(golden());
-  set_u32(length_overflow, identity_field + 8, Unsigned_32(-1));
+  set_u32(length_overflow, identity_field + 8, U32(-1));
   EXPECT(rejects(length_overflow));
 
   Dynamic::Bytes record_escape(golden());
-  set_u32(record_escape, dependency_field + 12, Unsigned_32(-1));
+  set_u32(record_escape, dependency_field + 12, U32(-1));
   EXPECT(rejects(record_escape));
 
-  const Unsigned_8 extra_record[] = {0xAA};
+  const U8 extra_record[] = {0xAA};
   Dynamic::Bytes unconsumed_record =
       body_splice(golden(), member_field, 0, View::Bytes(extra_record));
   set_u32(unconsumed_record, dependency_field + 4, 33);

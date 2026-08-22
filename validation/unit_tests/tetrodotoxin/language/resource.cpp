@@ -51,7 +51,7 @@ PERIMORTEM_UNIT_TEST(LanguageResource, graph_identity) {
 }
 
 PERIMORTEM_UNIT_TEST(LanguageResource, context_rejection) {
-  Unsigned_8 binary_route[] = {'x', 0, 'y'};
+  U8 binary_route[] = {'x', 0, 'y'};
   const View::Bytes routes[] = {
     {},
     "member"_view,

@@ -25,13 +25,13 @@ static constexpr Count long_worker_name_size = long_worker_name.get_size();
 
 struct WorkerPayloadResult {
   Count byte_count = 0;
-  Unsigned_64 checksum = 0;
+  U64 checksum = 0;
   Bool read_successfully = False;
 };
 
 struct WorkerNameResult {
   Count name_size = 0;
-  Unsigned_64 checksum = 0;
+  U64 checksum = 0;
   Bool matches_expected = False;
   Bool read_successfully = False;
 };
@@ -47,12 +47,12 @@ struct WorkerCountResult {
 static auto fill_worker_payload(
     Static::Bytes<large_worker_payload_size>& payload_bytes) -> void {
   for (Count i = 0; i < payload_bytes.get_size(); i++) {
-    payload_bytes[i] = Unsigned_8((i * 37 + 11) & 0xFF);
+    payload_bytes[i] = U8((i * 37 + 11) & 0xFF);
   }
 }
 
-static auto checksum_worker_payload(View::Bytes payload_bytes) -> Unsigned_64 {
-  Unsigned_64 checksum = 1469598103934665603ull;
+static auto checksum_worker_payload(View::Bytes payload_bytes) -> U64 {
+  U64 checksum = 1469598103934665603ull;
   for (Count i = 0; i < payload_bytes.get_size(); i++) {
     checksum ^= payload_bytes[i];
     checksum *= 1099511628211ull;
@@ -63,7 +63,7 @@ static auto checksum_worker_payload(View::Bytes payload_bytes) -> Unsigned_64 {
 
 static auto read_large_payload_job(View::Bytes job_data) -> void {
   Reader::Binary<Data::ByteOrder::Native> reader(job_data);
-  const Unsigned_64 result_address = reader.read_unsigned_64();
+  const U64 result_address = reader.read_u64();
   const View::Bytes payload_bytes =
       reader.read_bytes(large_worker_payload_size);
   if (result_address == 0) {
@@ -78,8 +78,8 @@ static auto read_large_payload_job(View::Bytes job_data) -> void {
 
 static auto read_thread_name_job(View::Bytes job_data) -> void {
   Reader::Binary<Data::ByteOrder::Native> reader(job_data);
-  const Unsigned_64 result_address = reader.read_unsigned_64();
-  const Unsigned_64 expected_name_size = reader.read_unsigned_64();
+  const U64 result_address = reader.read_u64();
+  const U64 expected_name_size = reader.read_u64();
   const View::Bytes expected_name = reader.read_bytes(expected_name_size);
   if (result_address == 0) {
     return;
@@ -95,7 +95,7 @@ static auto read_thread_name_job(View::Bytes job_data) -> void {
 
 static auto hold_worker_job(View::Bytes job_data) -> void {
   Reader::Binary<Data::ByteOrder::Native> reader(job_data);
-  const Unsigned_64 result_address = reader.read_unsigned_64();
+  const U64 result_address = reader.read_u64();
   if (result_address == 0) {
     return;
   }
@@ -116,15 +116,13 @@ PERIMORTEM_UNIT_TEST(CoreThreadWorker, copies_large_job) {
   Static::Bytes<large_worker_payload_size> expected_payload;
   fill_worker_payload(expected_payload);
 
-  const Unsigned_64 expected_checksum =
-      checksum_worker_payload(expected_payload);
+  const U64 expected_checksum = checksum_worker_payload(expected_payload);
 
-  Static::Bytes<
-      sizeof(Unsigned_64) + large_worker_payload_size + sizeof(Unsigned_64) * 2>
+  Static::Bytes<sizeof(U64) + large_worker_payload_size + sizeof(U64) * 2>
       job_storage;
   Count source_offset = 1;
-  if ((Count(job_storage.get_data() + source_offset) &
-       (sizeof(Unsigned_64) - 1)) == 0) {
+  if ((Count(job_storage.get_data() + source_offset) & (sizeof(U64) - 1)) ==
+      0) {
     source_offset++;
   }
 
@@ -133,7 +131,7 @@ PERIMORTEM_UNIT_TEST(CoreThreadWorker, copies_large_job) {
       job_storage.get_size() - source_offset);
 
   Writer::Binary<Data::ByteOrder::Native> writer(job_data);
-  writer << reinterpret_cast<Unsigned_64>(&worker_result)
+  writer << reinterpret_cast<U64>(&worker_result)
          << expected_payload.get_view();
   ASSERT(writer.is_valid());
 
@@ -152,16 +150,14 @@ PERIMORTEM_UNIT_TEST(CoreThreadWorker, copies_large_job) {
 PERIMORTEM_UNIT_TEST(CoreThreadWorker, copies_thread_name) {
   WorkerNameResult worker_result;
   Static::Bytes<long_worker_name_size> requested_name(long_worker_name);
-  const Unsigned_64 expected_checksum =
-      checksum_worker_payload(long_worker_name);
+  const U64 expected_checksum = checksum_worker_payload(long_worker_name);
 
-  Static::Bytes<
-      sizeof(Unsigned_64) * 2 + long_worker_name_size + sizeof(Unsigned_64) * 2>
+  Static::Bytes<sizeof(U64) * 2 + long_worker_name_size + sizeof(U64) * 2>
       job_storage;
 
   Writer::Binary<Data::ByteOrder::Native> writer(job_storage.get_access());
-  writer << reinterpret_cast<Unsigned_64>(&worker_result)
-         << Unsigned_64(long_worker_name_size) << requested_name.get_view();
+  writer << reinterpret_cast<U64>(&worker_result) << U64(long_worker_name_size)
+         << requested_name.get_view();
   ASSERT(writer.is_valid());
 
   Thread::Worker worker = Thread::Worker::start(
@@ -181,9 +177,9 @@ PERIMORTEM_UNIT_TEST(CoreThreadWorker, worker_count) {
   WorkerCountResult worker_result;
   const Count baseline_worker_count = Thread::Worker::get_worker_count();
 
-  Static::Bytes<sizeof(Unsigned_64)> job_storage;
+  Static::Bytes<sizeof(U64)> job_storage;
   Writer::Binary<Data::ByteOrder::Native> writer(job_storage.get_access());
-  writer << reinterpret_cast<Unsigned_64>(&worker_result);
+  writer << reinterpret_cast<U64>(&worker_result);
   ASSERT(writer.is_valid());
 
   Thread::Worker worker =

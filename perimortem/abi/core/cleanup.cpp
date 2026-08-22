@@ -19,7 +19,7 @@ Abi::Core::Cleanup::~Cleanup() {
     latest = selected.previous;
     selected.destructor();
     Perimortem::Core::Bibliotheca::remit(
-        Perimortem::Core::Data::cast<Unsigned_8>(&selected));
+        Perimortem::Core::Data::cast<U8>(&selected));
   }
 }
 

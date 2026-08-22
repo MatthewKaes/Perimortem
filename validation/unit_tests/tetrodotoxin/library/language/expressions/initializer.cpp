@@ -99,7 +99,7 @@ static auto is_four_zero_values(
     auto entry = completed->get_layout().get_abstract(index);
     if (!entry || !entry->is<Language::Constants::Unsigned>() ||
         static_cast<const Language::Constants::Unsigned&>(*entry).get_value() !=
-            Unsigned_64(0)) {
+            U64(0)) {
       return False;
     }
   }
@@ -111,9 +111,9 @@ PERIMORTEM_UNIT_TEST(InitializerTests, non_object_omission_uses_type_default) {
   static constexpr View::Bytes source =
       "// Non Object default construction.\n"
       "dialect : Library;\n"
-      "public scalar : Unsigned_32 = new[Unsigned_32];\n"
-      "public bytes : Fixed[Unsigned_8, 4] = "
-      "new[Fixed[Unsigned_8, 4]];"_view;
+      "public scalar : U32 = new[U32];\n"
+      "public bytes : Fixed[U8, 4] = "
+      "new[Fixed[U8, 4]];"_view;
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -144,8 +144,8 @@ PERIMORTEM_UNIT_TEST(InitializerTests, non_object_omission_uses_type_default) {
       static_cast<const Language::Constants::Unsigned&>(*direct_scalar);
   EXPECT(&authored_unsigned.get_type() == &scalar.get_type());
   EXPECT(&direct_unsigned.get_type() == &scalar.get_type());
-  EXPECT_EQ(authored_unsigned.get_value(), Unsigned_64(0));
-  EXPECT_EQ(direct_unsigned.get_value(), Unsigned_64(0));
+  EXPECT_EQ(authored_unsigned.get_value(), U64(0));
+  EXPECT_EQ(direct_unsigned.get_value(), U64(0));
   EXPECT(is_four_zero_values(*authored_bytes, bytes.get_type()));
   EXPECT(is_four_zero_values(*direct_bytes, bytes.get_type()));
   EXPECT(errors.is_empty());
@@ -155,8 +155,8 @@ PERIMORTEM_UNIT_TEST(InitializerTests, non_object_supplied_values_rejected) {
   static constexpr View::Bytes source =
       "// Non Object supplied construction.\n"
       "dialect : Library;\n"
-      "public invalid : Unsigned_32 = "
-      "new[Unsigned_32](.value = 1);"_view;
+      "public invalid : U32 = "
+      "new[U32](.value = 1);"_view;
   EXPECT(rejects_interpretation(
       source,
       "Selected Type does not accept supplied initializer values."_view));
@@ -169,7 +169,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, object_omission_and_supplied_arguments) {
       "public Defaults : object { public cache : Bool; public state enabled : "
       "Bool = false; }\n"
       "public Required : object {\n"
-      "  public state first : Unsigned_64;\n"
+      "  public state first : U64;\n"
       "  private state hidden : Bool = false;\n"
       "  expose state second : Bool = false;\n"
       "}\n"
@@ -224,7 +224,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, object_omission_and_supplied_arguments) {
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*configured_first)
           .get_value(),
-      Unsigned_64(4));
+      U64(4));
   EXPECT(errors.is_empty());
 }
 
@@ -232,7 +232,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, positional_object_arguments_rejected) {
   static constexpr View::Bytes source =
       "// Positional Object initializer test.\n"
       "dialect : Library;\n"
-      "public Session : object { public state value : Unsigned_64; }\n"
+      "public Session : object { public state value : U64; }\n"
       "public invalid : Session = new[Session](5);"_view;
   EXPECT(rejects_interpretation(
       source, "Object initializer inputs must name state Fields."_view));
@@ -291,7 +291,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, unknown_name_rejected) {
   static constexpr View::Bytes source =
       "// Unknown initializer input test.\n"
       "dialect : Library;\n"
-      "public Session : object { public state value : Unsigned_64; }\n"
+      "public Session : object { public state value : U64; }\n"
       "public invalid : Session = new[Session](.missing = 1);"_view;
   EXPECT(rejects_link_without_publication(source));
 }
@@ -309,7 +309,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, duplicate_name_rejected) {
   static constexpr View::Bytes source =
       "// Duplicate initializer input test.\n"
       "dialect : Library;\n"
-      "public Session : object { public state value : Unsigned_64; }\n"
+      "public Session : object { public state value : U64; }\n"
       "public invalid : Session = "
       "new[Session](.value = 1, .value = 2);"_view;
   EXPECT(rejects_interpretation(
@@ -320,7 +320,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, mixed_pack_rejected_as_positional) {
   static constexpr View::Bytes source =
       "// Mixed initializer Layout test.\n"
       "dialect : Library;\n"
-      "public Session : object { public state value : Unsigned_64; }\n"
+      "public Session : object { public state value : U64; }\n"
       "public invalid : Session = new[Session](1, .value = 2);"_view;
   EXPECT(rejects_interpretation(
       source, "Object initializer inputs must name state Fields."_view));
@@ -330,7 +330,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, omission_uses_type_default) {
   static constexpr View::Bytes source =
       "// Omitted initializer input test.\n"
       "dialect : Library;\n"
-      "public Session : object { public state value : Unsigned_64; }\n"
+      "public Session : object { public state value : U64; }\n"
       "public created : Session = new[Session];"_view;
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
@@ -351,7 +351,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, omission_uses_type_default) {
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*field_value)
           .get_value(),
-      Unsigned_64(0));
+      U64(0));
   EXPECT(errors.is_empty());
 }
 
@@ -359,7 +359,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, empty_argument_pack_rejected) {
   static constexpr View::Bytes source =
       "// Empty initializer argument test.\n"
       "dialect : Library;\n"
-      "public Session : object { public state value : Unsigned_64; }\n"
+      "public Session : object { public state value : U64; }\n"
       "public invalid : Session = new[Session]();"_view;
   EXPECT(rejects_interpretation(
       source, "Object initializer arguments cannot be empty."_view));
@@ -369,7 +369,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, nested_defaults) {
   static constexpr View::Bytes source =
       "// Nested Object default test.\n"
       "dialect : Library;\n"
-      "public Inner : object { private state value : Unsigned_64; }\n"
+      "public Inner : object { private state value : U64; }\n"
       "public Outer : object {\n"
       "  private state inner : Inner; private state enabled : Bool;\n"
       "}\n"
@@ -404,7 +404,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, input_type_rejected) {
   static constexpr View::Bytes source =
       "// Initializer input Type test.\n"
       "dialect : Library;\n"
-      "public Session : object { public state value : Unsigned_64; }\n"
+      "public Session : object { public state value : U64; }\n"
       "public invalid : Session = new[Session](.value = false);"_view;
   EXPECT(rejects_link_without_publication(source));
 }
@@ -414,7 +414,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, const_field_override_rejected) {
       "// Const initializer ownership test.\n"
       "dialect : Library;\n"
       "public Session : object {\n"
-      "  public const value : Unsigned_64 = 1;\n"
+      "  public const value : U64 = 1;\n"
       "}\n"
       "public invalid : Session = new[Session](.value = 2);"_view;
   EXPECT(rejects_link_without_publication(source));
@@ -424,7 +424,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, mandatory_cycle_rejected) {
   static constexpr View::Bytes static_override =
       "// Static initializer ownership test.\n"
       "dialect : Library;\n"
-      "public Session : object { public value : Unsigned_64 = 1; }\n"
+      "public Session : object { public value : U64 = 1; }\n"
       "public invalid : Session = new[Session](.value = 2);"_view;
   EXPECT(rejects_link_without_publication(static_override));
 

@@ -39,23 +39,23 @@ static Harness HashBench = {
 // a feel for scalar performance since in real use hashes tend to be performed
 // as part of a hot path and it's not typical to vectorize over a range of a
 // thousand keys in one go.
-PERIMORTEM_BENCHMARK(HashBench, unsigned_32_x8192) {
-  Unsigned_32 input = Data::cast<Unsigned_32>(hash_buffer.get_data())[0];
-  Unsigned_64 accumulator = 0;
+PERIMORTEM_BENCHMARK(HashBench, u32_x8192) {
+  U32 input = Data::cast<U32>(hash_buffer.get_data())[0];
+  U64 accumulator = 0;
   for (Count i = 0; i < hash_batch; i++) {
-    Unsigned_64 result = Hash(input).get_value();
+    U64 result = Hash(input).get_value();
     accumulator ^= result;
-    input = Unsigned_32(result);
+    input = U32(result);
   }
 
   Benchmark::prevent_optimization(accumulator);
 }
 
-PERIMORTEM_BENCHMARK(HashBench, unsigned_64_x8192) {
-  Unsigned_64 input = Data::cast<Unsigned_64>(hash_buffer.get_data())[0];
-  Unsigned_64 accumulator = 0;
+PERIMORTEM_BENCHMARK(HashBench, u64_x8192) {
+  U64 input = Data::cast<U64>(hash_buffer.get_data())[0];
+  U64 accumulator = 0;
   for (Count i = 0; i < hash_batch; i++) {
-    Unsigned_64 result = Hash(input).get_value();
+    U64 result = Hash(input).get_value();
     accumulator ^= result;
     input = result;
   }
@@ -68,7 +68,7 @@ static auto compute_hash() -> void {
   // Slide the window by one byte per iteration so the optimizer cannot prove
   // all calls return the same value and fold the XOR chain to zero.
   constexpr Count max_offset = 8;
-  Unsigned_64 accumulator = 0;
+  U64 accumulator = 0;
   for (Count i = 0; i < hash_batch; i++) {
     Count offset = (max_offset > 0) ? (i % (max_offset + 1)) : 0;
     accumulator ^= Hash(hash_buffer.slice(offset, hash_length)).get_value();

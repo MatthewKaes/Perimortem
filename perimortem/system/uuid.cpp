@@ -13,7 +13,7 @@ using namespace Perimortem::Core;
 
 #include <x86intrin.h>
 
-static constexpr Signed_8 null = 0x80;
+static constexpr S8 null = 0x80;
 
 static auto generate_uuid_v4() -> __m128i {
   const auto value = _mm_set_epi64x(Random::generate(), Random::generate());
@@ -26,8 +26,8 @@ static auto generate_uuid_v4() -> __m128i {
 }
 
 static auto generate_uuid_v7() -> __m128i {
-  const Unsigned_64 timestamp = Time::now().get_stamp() / 1'000'000;
-  const Unsigned_64 time_and_random =
+  const U64 timestamp = Time::now().get_stamp() / 1'000'000;
+  const U64 time_and_random =
       ((timestamp & 0xFFFFFFFFFFFF) << 16) | (Random::generate() & 0xFFFF);
   const auto value = _mm_set_epi64x(time_and_random, Random::generate());
 
@@ -92,7 +92,7 @@ static constexpr auto convert_to_nibble(__m256i ascii) -> __m256i {
 
 static constexpr auto deserialize_ascii(
     __m256i ascii_buffer,
-    Static::Vector<Unsigned_64, 2>& high_low) -> void {
+    Static::Vector<U64, 2>& high_low) -> void {
   const auto nibbles = convert_to_nibble(ascii_buffer);
   auto nibble_high = _mm256_slli_epi16(nibbles, 12);
   auto spaced_bytes = _mm256_or_si256(nibbles, nibble_high);
@@ -174,21 +174,21 @@ auto Uuid::serialize() const -> const Static::Bytes<36> {
   // Stamp the dropped ascii into the output.
   // Since shuffle only works on 128 bit lanes for AVX we need to do a stamp for
   // each lane to capture the data that was pushed out.
-  Unsigned_16 dropped_2 = _mm256_extract_epi16(ascii, 7);
-  Unsigned_32 last_4 = _mm256_extract_epi32(ascii, 7);
+  U16 dropped_2 = _mm256_extract_epi16(ascii, 7);
+  U32 last_4 = _mm256_extract_epi32(ascii, 7);
   Data::copy(byte_buffer + 16, dropped_2);
   Data::copy(byte_buffer + 32, last_4);
   return uuid_string;
 }
 
 auto Uuid::generate_v4() -> Uuid {
-  Unsigned_64 values[2];
+  U64 values[2];
   _mm_storeu_si128(Data::cast<__m128i>(values), generate_uuid_v4());
   return Uuid(values[1], values[0]);
 }
 
 auto Uuid::generate_v7() -> Uuid {
-  Unsigned_64 values[2];
+  U64 values[2];
   _mm_storeu_si128(Data::cast<__m128i>(values), generate_uuid_v7());
   return Uuid(values[1], values[0]);
 }

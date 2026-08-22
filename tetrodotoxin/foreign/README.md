@@ -22,12 +22,12 @@ Canonical grammar fragment: [Foreign.g4](grammar/Foreign.g4).
 
 ```ttx
 foreign "C" {
-  expose state external_readonly : Unsigned_64;
-  public state external_counter : Unsigned_64;
+  expose state external_readonly : U64;
+  public state external_counter : U64;
   public func external_add[
-    .left : Unsigned_64,
-    .right : Unsigned_64,
-  ] -> Unsigned_64;
+    .left : U64,
+    .right : U64,
+  ] -> U64;
 }
 ```
 

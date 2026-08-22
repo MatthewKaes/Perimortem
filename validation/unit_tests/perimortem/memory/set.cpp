@@ -25,7 +25,7 @@ static Harness DynamicSet = {
 };
 
 PERIMORTEM_UNIT_TEST(DynamicSet, unique_values) {
-  Dynamic::Set<Signed_32> values;
+  Dynamic::Set<S32> values;
 
   EXPECT(values.insert(1));
   EXPECT(!values.insert(1));
@@ -41,7 +41,7 @@ PERIMORTEM_UNIT_TEST(DynamicSet, unique_values) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicSet, find) {
-  Dynamic::Set<Signed_32> values(4);
+  Dynamic::Set<S32> values(4);
 
   values.insert(1);
   values.insert(2);
@@ -60,23 +60,23 @@ PERIMORTEM_UNIT_TEST(DynamicSet, find) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicSet, visit) {
-  Dynamic::Set<Signed_32> values;
+  Dynamic::Set<S32> values;
   values.insert(1);
   values.insert(2);
   values.insert(4);
 
-  Signed_32 total = 0;
-  values.visit([&total](Signed_32& value) { total += value; });
+  S32 total = 0;
+  values.visit([&total](S32& value) { total += value; });
   EXPECT_EQ(total, 7);
 
   total = 0;
-  const Dynamic::Set<Signed_32>& const_values = values;
-  const_values.visit([&total](const Signed_32& value) { total += value; });
+  const Dynamic::Set<S32>& const_values = values;
+  const_values.visit([&total](const S32& value) { total += value; });
   EXPECT_EQ(total, 7);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicSet, remove) {
-  Dynamic::Set<Signed_32> values;
+  Dynamic::Set<S32> values;
 
   values.insert(1);
   values.insert(2);
@@ -98,7 +98,7 @@ PERIMORTEM_UNIT_TEST(DynamicSet, remove_collisions) {
    public:
     CollisionKey(Count value) : value(value) {}
 
-    constexpr auto hash() const -> Unsigned_64 { return 7; }
+    constexpr auto hash() const -> U64 { return 7; }
     constexpr auto operator==(const CollisionKey& rhs) const -> Bool {
       return value == rhs.value;
     }
@@ -133,7 +133,7 @@ PERIMORTEM_UNIT_TEST(DynamicSet, remove_displacements) {
 
     // Tests can build exact probe chains because Core::Hash delegates to this
     // hook for custom key types.
-    constexpr auto hash() const -> Unsigned_64 { return home; }
+    constexpr auto hash() const -> U64 { return home; }
     constexpr auto operator==(const ProbeKey& rhs) const -> Bool {
       return home == rhs.home && id == rhs.id;
     }
@@ -177,7 +177,7 @@ PERIMORTEM_UNIT_TEST(DynamicSet, remove_displacements) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicSet, insert_stress_test) {
-  Dynamic::Set<Signed_32> values;
+  Dynamic::Set<S32> values;
   for (Count i = 0; i < 1000; i++) {
     EXPECT(values.insert(i));
   }
@@ -229,8 +229,8 @@ PERIMORTEM_UNIT_TEST(DynamicSet, pointer_keys) {
    public:
     StableObjectKey(const StableObject* object) : object(object) {}
 
-    auto hash() const -> Unsigned_64 {
-      return Hash(Unsigned_64(reinterpret_cast<CppSize>(object))).get_value();
+    auto hash() const -> U64 {
+      return Hash(U64(reinterpret_cast<CppSize>(object))).get_value();
     }
 
     constexpr auto operator==(const StableObjectKey& rhs) const -> Bool {
@@ -285,8 +285,8 @@ PERIMORTEM_UNIT_TEST(DynamicSet, key_construction) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicSet, reuse) {
-  Dynamic::Set<Signed_32> values;
-  for (Signed_32 loops = 0; loops < 5; loops++) {
+  Dynamic::Set<S32> values;
+  for (S32 loops = 0; loops < 5; loops++) {
     values.clear();
     ASSERT_EQ(values.get_size(), 0);
     for (Count i = 0; i < 100; i++) {
@@ -318,7 +318,7 @@ PERIMORTEM_UNIT_TEST(DynamicSet, leak_test) {
   }
 
   {
-    Dynamic::Set<Signed_32> large_set;
+    Dynamic::Set<S32> large_set;
     for (Count i = 0; i < 1000; i++) {
       large_set.insert(i);
     }

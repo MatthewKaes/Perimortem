@@ -27,7 +27,7 @@ static auto require_enumeration_read(VkResult result, View::Bytes message)
 static auto choose_surface_format(
     VkPhysicalDevice physical_device,
     VkSurfaceKHR surface) -> VkSurfaceFormatKHR {
-  Unsigned_32 surface_format_count = 0;
+  U32 surface_format_count = 0;
   require_success(
       vkGetPhysicalDeviceSurfaceFormatsKHR(
           physical_device, surface, &surface_format_count, nullptr),
@@ -38,7 +38,7 @@ static auto choose_surface_format(
 
   Perimortem::Memory::Dynamic::Vector<VkSurfaceFormatKHR> surface_formats;
   surface_formats.forgetful_resize(surface_format_count);
-  Unsigned_32 read_surface_format_count = surface_format_count;
+  U32 read_surface_format_count = surface_format_count;
   require_enumeration_read(
       vkGetPhysicalDeviceSurfaceFormatsKHR(
           physical_device, surface, &read_surface_format_count,
@@ -55,7 +55,7 @@ static auto choose_surface_format(
     return preferred_surface_format;
   }
 
-  for (Unsigned_32 i = 0; i < read_surface_format_count; i++) {
+  for (U32 i = 0; i < read_surface_format_count; i++) {
     if (surface_formats[i].format == preferred_surface_format.format &&
         surface_formats[i].colorSpace == preferred_surface_format.colorSpace) {
       return surface_formats[i];
@@ -68,7 +68,7 @@ static auto choose_surface_format(
 static auto choose_present_mode(
     VkPhysicalDevice physical_device,
     VkSurfaceKHR surface) -> VkPresentModeKHR {
-  Unsigned_32 present_mode_count = 0;
+  U32 present_mode_count = 0;
   require_success(
       vkGetPhysicalDeviceSurfacePresentModesKHR(
           physical_device, surface, &present_mode_count, nullptr),
@@ -79,7 +79,7 @@ static auto choose_present_mode(
 
   Perimortem::Memory::Dynamic::Vector<VkPresentModeKHR> present_modes;
   present_modes.forgetful_resize(present_mode_count);
-  Unsigned_32 read_present_mode_count = present_mode_count;
+  U32 read_present_mode_count = present_mode_count;
   require_enumeration_read(
       vkGetPhysicalDeviceSurfacePresentModesKHR(
           physical_device, surface, &read_present_mode_count,
@@ -89,7 +89,7 @@ static auto choose_present_mode(
     Diagnostics::Log::fatal("Vulkan: No swapchain present modes found."_view);
   }
 
-  for (Unsigned_32 i = 0; i < read_present_mode_count; i++) {
+  for (U32 i = 0; i < read_present_mode_count; i++) {
     if (present_modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
       return VK_PRESENT_MODE_MAILBOX_KHR;
     }
@@ -100,8 +100,8 @@ static auto choose_present_mode(
 
 auto Vulkan::Swapchain::build(
     const Vulkan::Context& ctx,
-    Unsigned_32 width,
-    Unsigned_32 height,
+    U32 width,
+    U32 height,
     VkSwapchainKHR old_swapchain) -> Vulkan::Swapchain {
   Vulkan::Swapchain swapchain_state;
   swapchain_state.device = ctx.get_device();
@@ -122,13 +122,13 @@ auto Vulkan::Swapchain::build(
       "Vulkan: Failed to query swapchain surface capabilities."_view);
 
   // Request one more than the minimum to avoid stalling on the driver.
-  Unsigned_32 image_count = surface_capabilities.minImageCount + 1;
+  U32 image_count = surface_capabilities.minImageCount + 1;
   if (surface_capabilities.maxImageCount > 0 &&
       image_count > surface_capabilities.maxImageCount) {
     image_count = surface_capabilities.maxImageCount;
   }
 
-  const Unsigned_32 queue_family = ctx.get_graphics_queue_family();
+  const U32 queue_family = ctx.get_graphics_queue_family();
 
   VkSwapchainCreateInfoKHR swapchain_info = {
     VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
@@ -173,7 +173,7 @@ auto Vulkan::Swapchain::build(
     Diagnostics::Log::fatal("Vulkan: No swapchain images found."_view);
   }
 
-  for (Unsigned_32 i = 0; i < swapchain_state.image_count; i++) {
+  for (U32 i = 0; i < swapchain_state.image_count; i++) {
     VkImageViewCreateInfo image_view_info = {
       VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
     image_view_info.image = swapchain_state.images[i];
@@ -196,19 +196,19 @@ auto Vulkan::Swapchain::build(
 
 auto Vulkan::Swapchain::create(
     const Vulkan::Context& ctx,
-    Unsigned_32 width,
-    Unsigned_32 height) -> Vulkan::Swapchain {
+    U32 width,
+    U32 height) -> Vulkan::Swapchain {
   return build(ctx, width, height, VK_NULL_HANDLE);
 }
 
 auto Vulkan::Swapchain::recreate(
     const Vulkan::Context& ctx,
-    Unsigned_32 width,
-    Unsigned_32 height) -> void {
+    U32 width,
+    U32 height) -> void {
   const VkSwapchainKHR old_swapchain = swapchain;
 
   // Destroy image views but leave the old swapchain alive for oldSwapchain.
-  for (Unsigned_32 i = 0; i < image_count; i++) {
+  for (U32 i = 0; i < image_count; i++) {
     vkDestroyImageView(device, image_views[i], nullptr);
     image_views[i] = VK_NULL_HANDLE;
   }
@@ -222,7 +222,7 @@ auto Vulkan::Swapchain::recreate(
 }
 
 auto Vulkan::Swapchain::destroy(VkDevice target_device) -> void {
-  for (Unsigned_32 i = 0; i < image_count; i++) {
+  for (U32 i = 0; i < image_count; i++) {
     vkDestroyImageView(target_device, image_views[i], nullptr);
   }
 
@@ -269,8 +269,8 @@ auto Vulkan::Swapchain::operator=(Vulkan::Swapchain&& other) noexcept
 }
 
 auto Vulkan::Swapchain::acquire_next_image(VkSemaphore signal_semaphore) const
-    -> Unsigned_32 {
-  Unsigned_32 index = 0;
+    -> U32 {
+  U32 index = 0;
   const VkResult result = vkAcquireNextImageKHR(
       device, swapchain, UINT64_MAX, signal_semaphore, VK_NULL_HANDLE, &index);
   if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
@@ -292,14 +292,14 @@ auto Vulkan::Swapchain::get_format() const -> VkFormat {
   return format;
 }
 
-auto Vulkan::Swapchain::get_image(Unsigned_32 index) const -> VkImage {
+auto Vulkan::Swapchain::get_image(U32 index) const -> VkImage {
   return images[index];
 }
 
-auto Vulkan::Swapchain::get_image_view(Unsigned_32 index) const -> VkImageView {
+auto Vulkan::Swapchain::get_image_view(U32 index) const -> VkImageView {
   return image_views[index];
 }
 
-auto Vulkan::Swapchain::get_image_count() const -> Unsigned_32 {
+auto Vulkan::Swapchain::get_image_count() const -> U32 {
   return image_count;
 }

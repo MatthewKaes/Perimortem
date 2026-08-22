@@ -10,21 +10,13 @@
 
 #include "perimortem/serialization/stream/textual.hpp"
 
-enum class NodeState : Unsigned_32 {
-  Null,
-  String,
-  Number,
-  Real,
-  Object,
-  Array,
-  Flag
-};
+enum class NodeState : U32 { Null, String, Number, Real, Object, Array, Flag };
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 
-static auto hex_value(Unsigned_8 value) -> Signed_32 {
+static auto hex_value(U8 value) -> S32 {
   if (value >= '0' && value <= '9') {
     return value - '0';
   }
@@ -40,71 +32,69 @@ static auto hex_value(Unsigned_8 value) -> Signed_32 {
   return -1;
 }
 
-static auto read_hex_quad(
-    View::Bytes source,
-    Count position,
-    Unsigned_32& value) -> Bool {
+static auto read_hex_quad(View::Bytes source, Count position, U32& value)
+    -> Bool {
   if (position + 4 > source.get_size()) {
     return False;
   }
 
   value = 0;
   for (Count i = 0; i < 4; i++) {
-    Signed_32 digit = hex_value(source[position + i]);
+    S32 digit = hex_value(source[position + i]);
     if (digit < 0) {
       return False;
     }
 
-    value = (value << 4) | Unsigned_32(digit);
+    value = (value << 4) | U32(digit);
   }
 
   return True;
 }
 
-static auto is_high_surrogate(Unsigned_32 value) -> Bool {
+static auto is_high_surrogate(U32 value) -> Bool {
   return value >= 0xD800 && value <= 0xDBFF;
 }
 
-static auto is_low_surrogate(Unsigned_32 value) -> Bool {
+static auto is_low_surrogate(U32 value) -> Bool {
   return value >= 0xDC00 && value <= 0xDFFF;
 }
 
-static auto append_utf8(Managed::Bytes& output, Unsigned_32 codepoint) -> void {
+static auto append_utf8(Managed::Bytes& output, U32 codepoint) -> void {
   if (codepoint <= 0x7F) {
-    output.append(Unsigned_8(codepoint));
+    output.append(U8(codepoint));
     return;
   }
 
   if (codepoint <= 0x7FF) {
-    output.append(Unsigned_8(0xC0 | (codepoint >> 6)));
-    output.append(Unsigned_8(0x80 | (codepoint & 0x3F)));
+    output.append(U8(0xC0 | (codepoint >> 6)));
+    output.append(U8(0x80 | (codepoint & 0x3F)));
     return;
   }
 
   if (codepoint <= 0xFFFF) {
-    output.append(Unsigned_8(0xE0 | (codepoint >> 12)));
-    output.append(Unsigned_8(0x80 | ((codepoint >> 6) & 0x3F)));
-    output.append(Unsigned_8(0x80 | (codepoint & 0x3F)));
+    output.append(U8(0xE0 | (codepoint >> 12)));
+    output.append(U8(0x80 | ((codepoint >> 6) & 0x3F)));
+    output.append(U8(0x80 | (codepoint & 0x3F)));
     return;
   }
 
-  output.append(Unsigned_8(0xF0 | (codepoint >> 18)));
-  output.append(Unsigned_8(0x80 | ((codepoint >> 12) & 0x3F)));
-  output.append(Unsigned_8(0x80 | ((codepoint >> 6) & 0x3F)));
-  output.append(Unsigned_8(0x80 | (codepoint & 0x3F)));
+  output.append(U8(0xF0 | (codepoint >> 18)));
+  output.append(U8(0x80 | ((codepoint >> 12) & 0x3F)));
+  output.append(U8(0x80 | ((codepoint >> 6) & 0x3F)));
+  output.append(U8(0x80 | (codepoint & 0x3F)));
 }
 
 static auto read_unicode_escape(
     View::Bytes source,
     Count slash,
-    Unsigned_32& codepoint,
+    U32& codepoint,
     Count& consumed) -> Bool {
   if (slash + 6 > source.get_size() || source[slash] != '\\' ||
       source[slash + 1] != 'u') {
     return False;
   }
 
-  Unsigned_32 first = 0;
+  U32 first = 0;
   if (!read_hex_quad(source, slash + 2, first)) {
     return False;
   }
@@ -124,7 +114,7 @@ static auto read_unicode_escape(
     return False;
   }
 
-  Unsigned_32 second = 0;
+  U32 second = 0;
   if (!read_hex_quad(source, slash + 8, second) || !is_low_surrogate(second)) {
     return False;
   }
@@ -158,49 +148,49 @@ auto parse_string(View::Bytes source, Count& position) -> View::Bytes {
   return source.slice(start);
 }
 
-auto ignored_characters(Unsigned_8 c) {
+auto ignored_characters(U8 c) {
   return c == ',' || c == '\n' || c == ' ';
 }
 
 auto Json::Node::set(const Core::View::Bytes value) -> void {
   data.ptr = value.get_data();
   data.size = value.get_size();
-  data.state = (Unsigned_32)NodeState::String;
+  data.state = (U32)NodeState::String;
 }
 
 auto Json::Node::set(const Core::View::Vector<Node> value) -> void {
   data.ptr = value.get_data();
   data.size = value.get_size();
-  data.state = (Unsigned_32)NodeState::Array;
+  data.state = (U32)NodeState::Array;
 }
 
 auto Json::Node::set(const Core::View::Vector<Member> value) -> void {
   data.ptr = value.get_data();
   data.size = value.get_size();
-  data.state = (Unsigned_32)NodeState::Object;
+  data.state = (U32)NodeState::Object;
 }
 
-auto Json::Node::set(Signed_64 value) -> void {
+auto Json::Node::set(S64 value) -> void {
   data.number = value;
-  data.state = (Unsigned_32)NodeState::Number;
+  data.state = (U32)NodeState::Number;
 }
 
-auto Json::Node::set(Real_64 value) -> void {
+auto Json::Node::set(R64 value) -> void {
   data.real = value;
-  data.state = (Unsigned_32)NodeState::Real;
+  data.state = (U32)NodeState::Real;
 }
 
 auto Json::Node::set(Bool value) -> void {
   data.flag = value;
-  data.state = (Unsigned_32)NodeState::Flag;
+  data.state = (U32)NodeState::Flag;
 }
 
 auto Json::Node::set() -> void {
-  data.state = (Unsigned_32)NodeState::Null;
+  data.state = (U32)NodeState::Null;
 }
 
-auto Json::Node::at(Unsigned_32 index) const -> const Json::Node {
-  if (data.state == (Unsigned_32)NodeState::Array) {
+auto Json::Node::at(U32 index) const -> const Json::Node {
+  if (data.state == (U32)NodeState::Array) {
     View::Vector<Json::Node> array((const Json::Node*)data.ptr, data.size);
     if (array.get_size() <= index) {
       return Json::Node();
@@ -213,7 +203,7 @@ auto Json::Node::at(Unsigned_32 index) const -> const Json::Node {
 }
 
 auto Json::Node::at(const View::Bytes name) const -> const Json::Node {
-  if (data.state == (Unsigned_32)NodeState::Object) {
+  if (data.state == (U32)NodeState::Object) {
     View::Vector<Member> members((const Member*)data.ptr, data.size);
     for (Count i = 0; i < members.get_size(); i++) {
       if (members.get_data()[i].name == name) {
@@ -225,7 +215,7 @@ auto Json::Node::at(const View::Bytes name) const -> const Json::Node {
   return Json::Node();
 }
 
-auto Json::Node::operator[](Unsigned_32 index) const -> const Json::Node {
+auto Json::Node::operator[](U32 index) const -> const Json::Node {
   return at(index);
 }
 
@@ -234,7 +224,7 @@ auto Json::Node::operator[](const View::Bytes name) const -> const Json::Node {
 }
 
 auto Json::Node::contains(const View::Bytes name) const -> Bool {
-  if (data.state == (Unsigned_32)NodeState::Object) {
+  if (data.state == (U32)NodeState::Object) {
     View::Vector<Member> members((const Member*)data.ptr, data.size);
     return members.contains(
         [name](const Member& member) { return member.name == name; });
@@ -244,15 +234,15 @@ auto Json::Node::contains(const View::Bytes name) const -> Bool {
 }
 
 auto Json::Node::get_flag() const -> Bool {
-  if (data.state == (Unsigned_32)NodeState::Flag) {
+  if (data.state == (U32)NodeState::Flag) {
     return data.flag;
   }
 
   return false;
 }
 
-auto Json::Node::get_number() const -> Signed_64 {
-  if (data.state == (Unsigned_32)NodeState::Number) {
+auto Json::Node::get_number() const -> S64 {
+  if (data.state == (U32)NodeState::Number) {
     return data.number;
   }
 
@@ -260,7 +250,7 @@ auto Json::Node::get_number() const -> Signed_64 {
 }
 
 auto Json::Node::get_real() const -> double {
-  if (data.state == (Unsigned_32)NodeState::Real) {
+  if (data.state == (U32)NodeState::Real) {
     return data.real;
   }
 
@@ -268,8 +258,8 @@ auto Json::Node::get_real() const -> double {
 }
 
 auto Json::Node::get_string() const -> const View::Bytes {
-  if (data.state == (Unsigned_32)NodeState::String) {
-    return View::Bytes((const Unsigned_8*)data.ptr, data.size);
+  if (data.state == (U32)NodeState::String) {
+    return View::Bytes((const U8*)data.ptr, data.size);
   }
 
   return View::Bytes();
@@ -312,7 +302,7 @@ auto Json::Node::decode_string(Allocator::Arena& arena) const -> View::Bytes {
       decoded.append('\f');
       break;
     case 'u': {
-      Unsigned_32 codepoint = 0;
+      U32 codepoint = 0;
       Count consumed = 0;
       if (read_unicode_escape(source, slash, codepoint, consumed)) {
         append_utf8(decoded, codepoint);
@@ -335,7 +325,7 @@ auto Json::Node::decode_string(Allocator::Arena& arena) const -> View::Bytes {
 }
 
 auto Json::Node::get_array() const -> const View::Vector<Node> {
-  if (data.state == (Unsigned_32)NodeState::Array) {
+  if (data.state == (U32)NodeState::Array) {
     return View::Vector<Node>((const Node*)data.ptr, data.size);
   }
 
@@ -343,7 +333,7 @@ auto Json::Node::get_array() const -> const View::Vector<Node> {
 }
 
 auto Json::Node::get_object() const -> const View::Vector<Member> {
-  if (data.state == (Unsigned_32)NodeState::Object) {
+  if (data.state == (U32)NodeState::Object) {
     return View::Vector<Member>((const Member*)data.ptr, data.size);
   }
 
@@ -515,7 +505,7 @@ auto Json::Node::parse(
         position++;
       }
 
-      Signed_64 value = 0;
+      S64 value = 0;
       while (position < source.get_size() && source[position] >= '0' &&
              source[position] <= '9') {
         value *= 10;
@@ -529,8 +519,8 @@ auto Json::Node::parse(
       }
 
       position++;  // consume '.'
-      Real_64 float_value = value;
-      Unsigned_64 divisor = 1;
+      R64 float_value = value;
+      U64 divisor = 1;
 
       // Try to perserve precision by using fixed point and only convert into
       // floating point once.
@@ -542,7 +532,7 @@ auto Json::Node::parse(
         position++;
       }
 
-      set((float_value / Real_64(divisor)) * positive.sign());
+      set((float_value / R64(divisor)) * positive.sign());
       return position;
     }
 
@@ -588,7 +578,7 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
       stream << "["_view;
 
       View::Vector<Json::Node> array = node.get_array();
-      for (Unsigned_32 i = 0; i < array.get_size(); i++) {
+      for (U32 i = 0; i < array.get_size(); i++) {
         self(stream, array.get_data()[i]);
         if (i != array.get_size() - 1) {
           stream << ","_view;
@@ -603,7 +593,7 @@ auto Json::Node::format(Allocator::Arena& arena) const -> View::Bytes {
       stream << "{"_view;
 
       View::Vector<Member> members = node.get_object();
-      for (Unsigned_32 i = 0; i < members.get_size(); i++) {
+      for (U32 i = 0; i < members.get_size(); i++) {
         const auto& member = members.get_data()[i];
         stream << "\""_view << member.name << "\":"_view;
 

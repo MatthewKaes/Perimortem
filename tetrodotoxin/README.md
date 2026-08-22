@@ -57,7 +57,7 @@ Dialect that owns its body:
 // A reusable Library source.
 dialect : Library;
 
-public twice : func = [.value : Unsigned_64] -> Unsigned_64 {
+public twice : func = [.value : U64] -> U64 {
   return value * 2;
 }
 ```

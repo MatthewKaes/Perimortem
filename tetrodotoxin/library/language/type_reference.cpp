@@ -38,7 +38,7 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
       [](const Abstract& direct) -> const Abstract& { return direct; });
 }
 
-enum class PersistedArgument : Unsigned_8 {
+enum class PersistedArgument : U8 {
   Reference,
   Unsigned,
   Signed,
@@ -52,30 +52,30 @@ static auto write_argument(
   return argument.visit(
       []() -> Bool { return False; },
       [&](const Language::TypeReference& reference) -> Bool {
-        writer.write(Unsigned_8(PersistedArgument::Reference));
+        writer.write(U8(PersistedArgument::Reference));
         return reference.persist(writer);
       },
       [&](const Abstract& selected) -> Bool {
         auto unsigned_value = selected.select<Language::Constants::Unsigned>();
         if (unsigned_value) {
-          writer.write(Unsigned_8(PersistedArgument::Unsigned));
+          writer.write(U8(PersistedArgument::Unsigned));
           writer.write(unsigned_value->get_value());
           return True;
         }
 
         auto signed_value = selected.select<Language::Constants::Signed>();
         if (signed_value) {
-          writer.write(Unsigned_8(PersistedArgument::Signed));
+          writer.write(U8(PersistedArgument::Signed));
           writer.write(signed_value->get_value());
           return True;
         }
 
         if (selected.is<Language::Constants::False>()) {
-          writer.write(Unsigned_8(PersistedArgument::False));
+          writer.write(U8(PersistedArgument::False));
           return True;
         }
         if (selected.is<Language::Constants::True>()) {
-          writer.write(Unsigned_8(PersistedArgument::True));
+          writer.write(U8(PersistedArgument::True));
           return True;
         }
         return False;
@@ -94,7 +94,7 @@ static auto read_argument(
     Memory::Allocator::Arena& arena,
     const Abstract& context)
     -> Core::Option<Language::TypeReference::Argument> {
-  auto kind = reader.read_unsigned_8();
+  auto kind = reader.read_u8();
   BAIL_IF(!kind);
 
   switch (PersistedArgument(*kind)) {
@@ -105,8 +105,8 @@ static auto read_argument(
     return Language::TypeReference::Argument(retained);
   }
   case PersistedArgument::Unsigned: {
-    auto value = reader.read_unsigned_64();
-    auto type = resolve_root_type(context, "Unsigned_64"_view);
+    auto value = reader.read_u64();
+    auto type = resolve_root_type(context, "U64"_view);
     auto selected =
         type ? type->select<Language::Model::Types::Unsigned>()
              : Core::Option<const Language::Model::Types::Unsigned&>();
@@ -117,8 +117,8 @@ static auto read_argument(
         static_cast<const Abstract&>(constant));
   }
   case PersistedArgument::Signed: {
-    auto value = reader.read_signed_64();
-    auto type = resolve_root_type(context, "Signed_64"_view);
+    auto value = reader.read_s64();
+    auto type = resolve_root_type(context, "S64"_view);
     auto selected = type
                         ? type->select<Language::Model::Types::Signed>()
                         : Core::Option<const Language::Model::Types::Signed&>();
@@ -318,9 +318,9 @@ auto Language::TypeReference::get_argument(Count index) const
 
 auto Language::TypeReference::persist(Archive::Writer& writer) const -> Bool {
   auto record = writer.begin(Archive::Tag::TypeReference);
-  BAIL_IF(!writer.write(route) || get_argument_size() > Unsigned_32(-1));
+  BAIL_IF(!writer.write(route) || get_argument_size() > U32(-1));
 
-  writer.write(Unsigned_32(get_argument_size()));
+  writer.write(U32(get_argument_size()));
   for (Count index = 0; index < get_argument_size(); index++) {
     auto argument = get_argument(index);
     BAIL_IF(!argument || !write_argument(writer, *argument));
@@ -334,13 +334,12 @@ auto Language::TypeReference::restore(
     const Abstract& context) -> Core::Option<TypeReference> {
   auto record = reader.read_record();
   BAIL_IF(
-      !record ||
-      record->get_tag() != Unsigned_16(Archive::Tag::TypeReference) ||
+      !record || record->get_tag() != U16(Archive::Tag::TypeReference) ||
       record->is_optional());
 
   Archive::Reader contents(record->get_payload());
   auto route = contents.read_bytes();
-  auto count = contents.read_unsigned_32();
+  auto count = contents.read_u32();
   BAIL_IF(!route || route->is_empty() || !count);
 
   Memory::Managed::Vector<Argument> restored(arena);
@@ -529,8 +528,7 @@ auto Language::TypeReference::report(Cursor& cursor, const Failure& failure)
   switch (failure.get_type()) {
   case Failure::Type::Route: {
     auto report = cursor.create_report(failure.get_anchor());
-    report << "Library route segment "_view
-           << Unsigned_64(failure.get_index() + 1)
+    report << "Library route segment "_view << U64(failure.get_index() + 1)
            << " did not resolve in its selected context."_view;
     report.get_hint()
         << "Publish that exact name before linking this declaration."_view;
@@ -538,8 +536,7 @@ auto Language::TypeReference::report(Cursor& cursor, const Failure& failure)
   }
   case Failure::Type::Argument: {
     auto report = cursor.create_report(failure.get_anchor());
-    report << "Library Generic argument "_view
-           << Unsigned_64(failure.get_index() + 1)
+    report << "Library Generic argument "_view << U64(failure.get_index() + 1)
            << " did not resolve to one Library Type."_view;
     report.get_hint()
         << "Use a Type route or one literal accepted by this Generic."_view;
@@ -565,8 +562,7 @@ auto Language::TypeReference::report(Cursor& cursor, const Failure& failure)
     return;
   case Failure::Type::Parameter: {
     auto report = cursor.create_report(failure.get_anchor());
-    report << "Library Generic argument "_view
-           << Unsigned_64(failure.get_index() + 1)
+    report << "Library Generic argument "_view << U64(failure.get_index() + 1)
            << " does not satisfy its parameter category."_view;
     report.get_hint()
         << "Use the Type or scalar Constant category required at this position."_view;

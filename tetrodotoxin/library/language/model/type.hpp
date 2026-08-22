@@ -34,7 +34,7 @@ class Type : public Ttx::Model::Type {
   // Access makes receiver intent explicit at every Library Type query. Static
   // selects through a Type identity, while Self selects through one real
   // Addressable instance. There is no implicit overload that guesses the role.
-  enum class Access : ::Unsigned_8 {
+  enum class Access : ::U8 {
     Self,
     Static,
   };

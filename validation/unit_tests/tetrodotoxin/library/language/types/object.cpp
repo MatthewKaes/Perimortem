@@ -149,7 +149,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, exact_collision_domain) {
     "// Object test.\ndialect : Library; public Session : object { public value : func = [] -> [] {} private value : func = [] -> [] {} }"_view,
     "// Object test.\ndialect : Library; public Same : object {} private Same : object {}"_view,
     "// Object test.\ndialect : Library; public Same : object {} private Same : struct {}"_view,
-    "// Object test.\ndialect : Library; public Same : object {} private Same : enum[Unsigned_8] {}"_view,
+    "// Object test.\ndialect : Library; public Same : object {} private Same : enum[U8] {}"_view,
     "// Object test.\ndialect : Library; public Same : object {} private Same : func = [] -> [] {}"_view,
   }};
 
@@ -239,7 +239,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inherited_initializer_mismatch) {
   static constexpr View::Bytes source =
       "// Object initializer test.\n"
       "dialect : Library;\n"
-      "public Session : object { private state value : Unsigned_8 = false; }"_view;
+      "public Session : object { private state value : U8 = false; }"_view;
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
   Errors errors;

@@ -49,7 +49,7 @@ static auto append_bytes(
 
   output << "\""_view;
   for (Count index = 0; index < visible; index++) {
-    Unsigned_8 byte = value[index];
+    U8 byte = value[index];
     if (byte == 0x09) {
       output << "\\t"_view;
     } else if (byte == 0x0A) {

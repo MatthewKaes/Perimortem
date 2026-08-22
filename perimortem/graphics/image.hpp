@@ -20,17 +20,14 @@ namespace Perimortem::Graphics {
 // The only supported format is currently 8 bits per channel.
 class Image {
  public:
-  enum class Addressing : Unsigned_8 {
+  enum class Addressing : U8 {
     Zero,
     Clamp,
     Wrap,
   };
 
   Image() = default;
-  Image(
-      Unsigned_32 width,
-      Unsigned_32 height,
-      Addressing addressing = Addressing::Zero)
+  Image(U32 width, U32 height, Addressing addressing = Addressing::Zero)
       : pixels(Count(width) * Count(height)),
         width(width),
         height(height),
@@ -42,8 +39,8 @@ class Image {
 
   Image(
       Memory::Dynamic::Vector<Pixel>&& source,
-      Unsigned_32 width,
-      Unsigned_32 height,
+      U32 width,
+      U32 height,
       Addressing addressing = Addressing::Zero)
       : pixels(Core::Data::take(source)),
         width(width),
@@ -64,8 +61,8 @@ class Image {
     }
   }
 
-  auto get_width() const -> Unsigned_32 { return width; }
-  auto get_height() const -> Unsigned_32 { return height; }
+  auto get_width() const -> U32 { return width; }
+  auto get_height() const -> U32 { return height; }
 
   // Returns the contiguous row-major pixel buffer.
   auto get_pixels() const -> Core::View::Vector<Pixel> {
@@ -79,13 +76,13 @@ class Image {
   // different wrapping modes.
   //
   // Use get_pixels() for operations that process the buffer in bulk.
-  auto get_pixel(Signed_32 x, Signed_32 y) const -> Pixel {
+  auto get_pixel(S32 x, S32 y) const -> Pixel {
     if (width == 0 || height == 0) {
       return Pixel();
     }
 
     switch (addressing) {
-      // Any out of bounds values are saturated to Unsigned_8(0)
+      // Any out of bounds values are saturated to U8(0)
     case Addressing::Zero:
       if (x < 0 || x >= width || y < 0 || y >= height) {
         return Pixel();
@@ -95,14 +92,14 @@ class Image {
 
       // Any out of bounds values are clamped to the edges of the image.
     case Addressing::Clamp:
-      x = Core::Math::clamp(x, Signed_32(0), Signed_32(width - 1));
-      y = Core::Math::clamp(y, Signed_32(0), Signed_32(height - 1));
+      x = Core::Math::clamp(x, S32(0), S32(width - 1));
+      y = Core::Math::clamp(y, S32(0), S32(height - 1));
       break;
 
       // Performs domain wrapping for both X and Y.
     case Addressing::Wrap:
-      x = Core::Math::wrap(x, Signed_32(width));
-      y = Core::Math::wrap(y, Signed_32(height));
+      x = Core::Math::wrap(x, S32(width));
+      y = Core::Math::wrap(y, S32(height));
       break;
     }
 
@@ -111,25 +108,23 @@ class Image {
 
   // Returns the number of bits that are used to represent a single value of any
   // given channel.
-  static constexpr auto get_color_depth() -> Unsigned_8 { return color_depth; }
+  static constexpr auto get_color_depth() -> U8 { return color_depth; }
 
   // The number of channels used per logical pixel.
   //
   // The size of a logical pixel in bits is equal to the image's color depth
   // multiplied by the number of channels.
-  static constexpr auto get_channel_count() -> Unsigned_8 {
-    return channel_count;
-  }
+  static constexpr auto get_channel_count() -> U8 { return channel_count; }
 
  private:
   // Currently only 8 bit is supported.
-  static constexpr Unsigned_8 color_depth = 8;
+  static constexpr U8 color_depth = 8;
   // Currently only RGBA is supported.
-  static constexpr Unsigned_8 channel_count = 4;
+  static constexpr U8 channel_count = 4;
 
   Memory::Dynamic::Vector<Pixel> pixels;
-  Unsigned_32 width = 0;
-  Unsigned_32 height = 0;
+  U32 width = 0;
+  U32 height = 0;
   Addressing addressing = Addressing::Zero;
 };
 

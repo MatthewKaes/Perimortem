@@ -11,7 +11,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/generics/access.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -25,14 +25,14 @@ static Harness LibraryAccess = {
 };
 
 PERIMORTEM_UNIT_TEST(LibraryAccess, direct_contract) {
-  Tetrodotoxin::Library::Language::Types::Unsigned_8 element;
-  Types::Access access("Access[Unsigned_8]"_view, element);
+  Tetrodotoxin::Library::Language::Types::U8 element;
+  Types::Access access("Access[U8]"_view, element);
 
   EXPECT(access.is<Types::Access>());
   EXPECT(access.is<Ttx::Model::Type>());
   EXPECT(access.is<Abstract>());
   EXPECT_NOT(access.is<Generic>());
-  EXPECT_TEXT(access.get_name(), "Access[Unsigned_8]"_view);
+  EXPECT_TEXT(access.get_name(), "Access[U8]"_view);
   EXPECT(&access.get_element_type() == &element);
   EXPECT_NOT(access.get_documentation().is_empty());
   EXPECT(&access.resolve_context("member"_view) == &Invalid::get_invalid());
@@ -42,14 +42,14 @@ PERIMORTEM_UNIT_TEST(LibraryAccess, formula_construction) {
   Allocator::Arena arena;
   Tetrodotoxin::Library::Dialect dialect;
   auto& root = create_library_monograph(arena, dialect);
-  Tetrodotoxin::Library::Language::Types::Unsigned_8 element;
+  Tetrodotoxin::Library::Language::Types::U8 element;
   const auto& formula =
       static_cast<const Generic&>(root.resolve_context("Access"_view));
   const Static::Vector<Generic::Argument, 1> accepted = {
     {Generic::Argument(element)},
   };
   const Static::Vector<Generic::Argument, 1> wrong_category = {
-    {Generic::Argument(::Unsigned_64(8))},
+    {Generic::Argument(::U64(8))},
   };
   View::Vector<Generic::Argument> wrong_arity;
 
@@ -57,7 +57,7 @@ PERIMORTEM_UNIT_TEST(LibraryAccess, formula_construction) {
   EXPECT(created.visit(
       [&element](const Model::Type& selected) {
         auto access = selected.select<Types::Access>();
-        return access && selected.get_name() == "Access[Unsigned_8]"_view &&
+        return access && selected.get_name() == "Access[U8]"_view &&
                        &access->get_element_type() == &element
                    ? True
                    : False;

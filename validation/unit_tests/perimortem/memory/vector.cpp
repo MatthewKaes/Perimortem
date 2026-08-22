@@ -15,7 +15,7 @@ static Harness DynamicVector = {
 };
 
 PERIMORTEM_UNIT_TEST(DynamicVector, remove) {
-  Dynamic::Vector<Signed_32> values;
+  Dynamic::Vector<S32> values;
   values.insert(1);
   values.insert(2);
   values.insert(3);
@@ -31,7 +31,7 @@ PERIMORTEM_UNIT_TEST(DynamicVector, remove) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicVector, remove_stable) {
-  Dynamic::Vector<Signed_32> values;
+  Dynamic::Vector<S32> values;
   values.insert(1);
   values.insert(2);
   values.insert(3);

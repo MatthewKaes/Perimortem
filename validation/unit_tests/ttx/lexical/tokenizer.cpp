@@ -104,17 +104,17 @@ PERIMORTEM_UNIT_TEST(TtxLexical, propagation_operator) {
   EXPECT(token_data[0].get_code() == Code::Type::Addressable);
   EXPECT(token_data[1].get_code() == Code::Type::QuestionOp);
   EXPECT_TEXT(token_data[1].caculate_text(source), "?"_view);
-  EXPECT_EQ(token_data[1].get_offset(), Unsigned_32(5));
-  EXPECT_EQ(token_data[1].get_line(), Unsigned_32(1));
-  EXPECT_EQ(token_data[1].get_column(), Unsigned_32(6));
-  EXPECT_EQ(token_data[1].get_size(), Unsigned_32(1));
+  EXPECT_EQ(token_data[1].get_offset(), U32(5));
+  EXPECT_EQ(token_data[1].get_line(), U32(1));
+  EXPECT_EQ(token_data[1].get_column(), U32(6));
+  EXPECT_EQ(token_data[1].get_size(), U32(1));
   EXPECT(token_data[2].get_code() == Code::Type::Addressable);
   EXPECT(token_data[3].get_code() == Code::Type::QuestionOp);
   EXPECT_TEXT(token_data[3].caculate_text(source), "?"_view);
-  EXPECT_EQ(token_data[3].get_offset(), Unsigned_32(11));
-  EXPECT_EQ(token_data[3].get_line(), Unsigned_32(2));
-  EXPECT_EQ(token_data[3].get_column(), Unsigned_32(5));
-  EXPECT_EQ(token_data[3].get_size(), Unsigned_32(1));
+  EXPECT_EQ(token_data[3].get_offset(), U32(11));
+  EXPECT_EQ(token_data[3].get_line(), U32(2));
+  EXPECT_EQ(token_data[3].get_column(), U32(5));
+  EXPECT_EQ(token_data[3].get_size(), U32(1));
   EXPECT(token_data[4].get_code() == Code::Type::Terminal);
 }
 
@@ -161,25 +161,25 @@ PERIMORTEM_UNIT_TEST(TtxLexical, attributes_preserve_source_columns) {
 
   EXPECT(tokens[0].get_code() == Code::Type::Attribute);
   EXPECT_TEXT(tokens[0].caculate_text(source), "first"_view);
-  EXPECT_EQ(tokens[0].get_offset(), Unsigned_32(1));
-  EXPECT_EQ(tokens[0].get_column(), Unsigned_32(1));
-  EXPECT_EQ(tokens[0].get_size(), Unsigned_32(5));
+  EXPECT_EQ(tokens[0].get_offset(), U32(1));
+  EXPECT_EQ(tokens[0].get_column(), U32(1));
+  EXPECT_EQ(tokens[0].get_size(), U32(5));
 
   EXPECT(tokens[1].get_code() == Code::Type::Attribute);
   EXPECT_TEXT(tokens[1].caculate_text(source), "second"_view);
-  EXPECT_EQ(tokens[1].get_offset(), Unsigned_32(8));
-  EXPECT_EQ(tokens[1].get_column(), Unsigned_32(8));
-  EXPECT_EQ(tokens[1].get_size(), Unsigned_32(6));
+  EXPECT_EQ(tokens[1].get_offset(), U32(8));
+  EXPECT_EQ(tokens[1].get_column(), U32(8));
+  EXPECT_EQ(tokens[1].get_size(), U32(6));
 
   EXPECT(tokens[2].get_code() == Code::Type::Addressable);
   EXPECT_TEXT(tokens[2].caculate_text(source), "value"_view);
-  EXPECT_EQ(tokens[2].get_offset(), Unsigned_32(15));
-  EXPECT_EQ(tokens[2].get_column(), Unsigned_32(16));
-  EXPECT_EQ(tokens[2].get_size(), Unsigned_32(5));
+  EXPECT_EQ(tokens[2].get_offset(), U32(15));
+  EXPECT_EQ(tokens[2].get_column(), U32(16));
+  EXPECT_EQ(tokens[2].get_size(), U32(5));
 
   EXPECT(tokens[3].get_code() == Code::Type::Terminal);
-  EXPECT_EQ(tokens[3].get_offset(), Unsigned_32(20));
-  EXPECT_EQ(tokens[3].get_column(), Unsigned_32(21));
+  EXPECT_EQ(tokens[3].get_offset(), U32(20));
+  EXPECT_EQ(tokens[3].get_column(), U32(21));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
@@ -195,8 +195,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
   EXPECT_TEXT(Lexicon::get_spelling(Token::Source), "source"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Emit), "emit"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Expose), "expose"_view);
-  for (Unsigned_8 value = 0; value <= static_cast<Unsigned_8>(Token::Const);
-       value++) {
+  for (U8 value = 0; value <= static_cast<U8>(Token::Const); value++) {
     EXPECT_NOT(Lexicon::get_spelling(Token(value)) == "/>"_view);
   }
   EXPECT(Lexicon::get_spelling(Token::Addressable).is_empty());
@@ -215,12 +214,12 @@ PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
   EXPECT(Lexicon::is_whitespace('\r'));
   EXPECT(Lexicon::is_whitespace('\t'));
   EXPECT_NOT(Lexicon::is_whitespace('\0'));
-  EXPECT_EQ(Lexicon::get_hex_value('0'), Unsigned_8(0));
-  EXPECT_EQ(Lexicon::get_hex_value('9'), Unsigned_8(9));
-  EXPECT_EQ(Lexicon::get_hex_value('A'), Unsigned_8(10));
-  EXPECT_EQ(Lexicon::get_hex_value('F'), Unsigned_8(15));
-  EXPECT_EQ(Lexicon::get_hex_value('a'), Unsigned_8(10));
-  EXPECT_EQ(Lexicon::get_hex_value('f'), Unsigned_8(15));
+  EXPECT_EQ(Lexicon::get_hex_value('0'), U8(0));
+  EXPECT_EQ(Lexicon::get_hex_value('9'), U8(9));
+  EXPECT_EQ(Lexicon::get_hex_value('A'), U8(10));
+  EXPECT_EQ(Lexicon::get_hex_value('F'), U8(15));
+  EXPECT_EQ(Lexicon::get_hex_value('a'), U8(10));
+  EXPECT_EQ(Lexicon::get_hex_value('f'), U8(15));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLexical, spelling_validation) {
@@ -295,8 +294,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, code_semantics) {
       Code(Code::Type::Addressable).get_semantics(),
       "Addressable space name"_view);
   EXPECT_TEXT(
-      Code(Code::Type::Hex).get_semantics(),
-      "Unsigned_64 hexadecimal literal"_view);
+      Code(Code::Type::Hex).get_semantics(), "U64 hexadecimal literal"_view);
   EXPECT_TEXT(Code(Code::Type::Terminal).get_semantics(), "terminal Code"_view);
   EXPECT_TEXT(
       Code(Code::Type::Unknown).get_semantics(), "unknown source Code"_view);
@@ -430,7 +428,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, span_ordering) {
   EXPECT(span);
   EXPECT(span.get_start().get_offset() == early.get_offset());
   EXPECT(span.get_end().get_offset() == late.get_offset());
-  EXPECT_EQ(span.get_line_count(), Unsigned_16(7));
+  EXPECT_EQ(span.get_line_count(), U16(7));
   EXPECT_EQ(span.get_size(), Count(304));
 }
 

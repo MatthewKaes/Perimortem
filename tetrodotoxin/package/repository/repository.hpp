@@ -28,8 +28,8 @@ class Repository {
   // Names the stable caller decision for one rejected Repository selection.
   // Repository keeps declaration and selection details in its Info record
   // because those facts explain the failure without changing recovery policy.
-  enum class Error : Unsigned_8 {
-    Unknown = Unsigned_8(-1),
+  enum class Error : U8 {
+    Unknown = U8(-1),
     NotDeclared = 0,
     Unreadable,
     InvalidFormat,

@@ -29,7 +29,7 @@ auto Reader::Serial::read() -> Value {
 
   auto data = source.get_data();
   auto byte_flag = data[cursor++];
-  Unsigned_8 encoded_size = byte_flag & 0xF;
+  U8 encoded_size = byte_flag & 0xF;
   if (cursor + encoded_size > source.get_size()) {
     Diagnostics::Log::Message<128> error_message(
         Diagnostics::Log::Level::Error);
@@ -42,25 +42,25 @@ auto Reader::Serial::read() -> Value {
     return Value();
   }
 
-  Signed_64 value;
+  S64 value;
   switch (encoded_size) {
   case 1:
     value = source[cursor];
     break;
   case 2: {
-    Unsigned_16 actual_bytes;
-    memcpy(&actual_bytes, data + cursor, sizeof(Unsigned_16));
+    U16 actual_bytes;
+    memcpy(&actual_bytes, data + cursor, sizeof(U16));
     value = Data::ensure_endian<stream_endian, native_endian>(actual_bytes);
     break;
   }
   case 4: {
-    Unsigned_32 actual_bytes;
-    memcpy(&actual_bytes, data + cursor, sizeof(Unsigned_32));
+    U32 actual_bytes;
+    memcpy(&actual_bytes, data + cursor, sizeof(U32));
     value = Data::ensure_endian<stream_endian, native_endian>(actual_bytes);
     break;
   }
   case 8:
-    memcpy(&value, data + cursor, sizeof(Unsigned_64));
+    memcpy(&value, data + cursor, sizeof(U64));
     value = Data::ensure_endian<stream_endian, native_endian>(value);
     break;
   default: {
@@ -106,7 +106,7 @@ auto Reader::Serial::read() -> Value {
   return View::Bytes(blob_start, value);
 }
 
-auto Reader::Serial::read_value() -> Signed_64 {
+auto Reader::Serial::read_value() -> S64 {
   // If attribution isn't set then make it explicit any failures were from the
   // read_value call rather than just read.
   auto attribution = Diagnostics::Log::set_attribution();

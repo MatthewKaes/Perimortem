@@ -18,11 +18,11 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
-#include "tetrodotoxin/library/language/types/real_32.hpp"
-#include "tetrodotoxin/library/language/types/real_64.hpp"
-#include "tetrodotoxin/library/language/types/signed_8.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_16.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/r32.hpp"
+#include "tetrodotoxin/library/language/types/r64.hpp"
+#include "tetrodotoxin/library/language/types/s8.hpp"
+#include "tetrodotoxin/library/language/types/u16.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -156,22 +156,21 @@ PERIMORTEM_UNIT_TEST(LibraryLessEqual, type_selection_and_partial) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Signed_8 signed_8;
-  Types::Unsigned_8 unsigned_8;
-  Types::Unsigned_16 unsigned_16;
-  Types::Real_32 real_32;
+  Types::S8 s8;
+  Types::U8 u8;
+  Types::U16 u16;
+  Types::R32 r32;
   Types::Boolean boolean;
   Types::Fixed bytes_type(
-      "Fixed[Unsigned_8,1]"_view,
-      resolve_library_unsigned(source, "Unsigned_8"_view), 1);
+      "Fixed[U8,1]"_view, resolve_library_unsigned(source, "U8"_view), 1);
   LessEqualUnresolvedType unresolved_type;
-  LessEqualExpression signed_left("signed left"_view, signed_8);
-  LessEqualExpression signed_right("signed right"_view, signed_8);
-  LessEqualExpression unsigned_left("unsigned left"_view, unsigned_8);
-  LessEqualExpression unsigned_right("unsigned right"_view, unsigned_8);
-  LessEqualExpression real_left("real left"_view, real_32);
-  LessEqualExpression real_right("real right"_view, real_32);
-  LessEqualExpression other("other"_view, unsigned_16);
+  LessEqualExpression signed_left("signed left"_view, s8);
+  LessEqualExpression signed_right("signed right"_view, s8);
+  LessEqualExpression unsigned_left("unsigned left"_view, u8);
+  LessEqualExpression unsigned_right("unsigned right"_view, u8);
+  LessEqualExpression real_left("real left"_view, r32);
+  LessEqualExpression real_right("real right"_view, r32);
+  LessEqualExpression other("other"_view, u16);
   LessEqualExpression unresolved("unresolved"_view, unresolved_type);
   LessEqualExpression invalid("invalid"_view, Invalid::get_invalid());
   auto& truth = Constants::True::create_synthetic(domain, boolean);
@@ -221,8 +220,8 @@ PERIMORTEM_UNIT_TEST(LibraryLessEqual, integer_endpoints_and_equality) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Signed_8 signed_type;
-  Types::Unsigned_8 unsigned_type;
+  Types::S8 signed_type;
+  Types::U8 unsigned_type;
   auto& minimum =
       Constants::Signed::create_synthetic(domain, signed_type, -128);
   auto& maximum = Constants::Signed::create_synthetic(domain, signed_type, 127);
@@ -275,23 +274,21 @@ PERIMORTEM_UNIT_TEST(LibraryLessEqual, ieee_domains) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Real_32 real_32;
-  Types::Real_64 real_64;
+  Types::R32 r32;
+  Types::R64 r64;
   auto& narrow_left =
-      Constants::Real::create_synthetic(domain, real_32, 1.00000001);
-  auto& narrow_right = Constants::Real::create_synthetic(domain, real_32, 1.0);
-  auto& wide_low = Constants::Real::create_synthetic(domain, real_64, 3.0);
-  auto& wide_high = Constants::Real::create_synthetic(domain, real_64, 4.0);
-  auto& wide_equal = Constants::Real::create_synthetic(domain, real_64, 4.0);
+      Constants::Real::create_synthetic(domain, r32, 1.00000001);
+  auto& narrow_right = Constants::Real::create_synthetic(domain, r32, 1.0);
+  auto& wide_low = Constants::Real::create_synthetic(domain, r64, 3.0);
+  auto& wide_high = Constants::Real::create_synthetic(domain, r64, 4.0);
+  auto& wide_equal = Constants::Real::create_synthetic(domain, r64, 4.0);
   auto& positive_infinity =
-      Constants::Real::create_synthetic(domain, real_64, __builtin_inf());
+      Constants::Real::create_synthetic(domain, r64, __builtin_inf());
   auto& negative_infinity =
-      Constants::Real::create_synthetic(domain, real_64, -__builtin_inf());
-  auto& nan =
-      Constants::Real::create_synthetic(domain, real_64, __builtin_nan(""));
-  auto& positive_zero = Constants::Real::create_synthetic(domain, real_64, 0.0);
-  auto& negative_zero =
-      Constants::Real::create_synthetic(domain, real_64, -0.0);
+      Constants::Real::create_synthetic(domain, r64, -__builtin_inf());
+  auto& nan = Constants::Real::create_synthetic(domain, r64, __builtin_nan(""));
+  auto& positive_zero = Constants::Real::create_synthetic(domain, r64, 0.0);
+  auto& negative_zero = Constants::Real::create_synthetic(domain, r64, -0.0);
   auto& narrow = Operations::LessEqual::create_synthetic(
       domain, narrow_left, narrow_right);
   auto& wide_true =
@@ -357,7 +354,7 @@ PERIMORTEM_UNIT_TEST(LibraryLessEqual, recursive_provenance_and_atomicity) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 selected_type;
+  Types::U8 selected_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
   auto& folded =
       Constants::Unsigned::create_synthetic(domain, selected_type, 4);
@@ -384,8 +381,7 @@ PERIMORTEM_UNIT_TEST(LibraryLessEqual, recursive_provenance_and_atomicity) {
   EXPECT(reports(
       failure.fold(), Expression::Error::Type::InvalidConstant, failing));
 
-  const auto& parser_type =
-      resolve_library_unsigned(source, "Unsigned_64"_view);
+  const auto& parser_type = resolve_library_unsigned(source, "U64"_view);
   Errors success_errors;
   Tokenizer success_tokens(domain, "2 <= 2"_view, "less-equal.ttx"_view);
   Ttx::Lexical::Associations success_associations(success_tokens.get_arena());

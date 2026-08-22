@@ -1,7 +1,7 @@
 // Interface-only Object construction consumer.
 dialect : Library;
 
-public Value : alias = Provider::Api::Unsigned_64;
+public Value : alias = Provider::Api::U64;
 
 @abi("C") @symbol("ttx_package_native_default")
 public default_value : func = [] -> Value {

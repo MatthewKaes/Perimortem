@@ -16,7 +16,7 @@ template <Count literal_size>
 class Bytes {
  private:
   struct Storage {
-    Unsigned_8 source_block[literal_size];
+    U8 source_block[literal_size];
   };
 
   Storage storage{};
@@ -50,14 +50,14 @@ class Bytes {
   }
 
   // Allows for generating data that would be a pain to manually write out.
-  constexpr Bytes(Unsigned_8 (*generator)(Count)) {
+  constexpr Bytes(U8 (*generator)(Count)) {
     for (Count i = 0; i < literal_size; i++) {
       storage.source_block[i] = generator(i);
     }
   }
 
   // Fast read function that assumes the range is valid.
-  constexpr Bytes(const Unsigned_8* source) {
+  constexpr Bytes(const U8* source) {
     if consteval {
       for (Count i = 0; i < literal_size; i++) {
         storage.source_block[i] = source[i];
@@ -88,11 +88,11 @@ class Bytes {
     return !(*this == rhs);
   }
 
-  constexpr auto operator[](Count index) -> Unsigned_8& {
+  constexpr auto operator[](Count index) -> U8& {
     return storage.source_block[index];
   }
 
-  constexpr auto operator[](Count index) const -> const Unsigned_8& {
+  constexpr auto operator[](Count index) const -> const U8& {
     return storage.source_block[index];
   }
 
@@ -111,15 +111,13 @@ class Bytes {
     return View::Bytes(storage.source_block, literal_size);
   }
 
-  constexpr auto get_data() const -> const Unsigned_8* {
-    return storage.source_block;
-  }
-  constexpr auto get_data() -> Unsigned_8* { return storage.source_block; }
+  constexpr auto get_data() const -> const U8* { return storage.source_block; }
+  constexpr auto get_data() -> U8* { return storage.source_block; }
   constexpr auto get_access() -> Access::Bytes {
     return Access::Bytes(storage.source_block, literal_size);
   }
 
-  constexpr auto hash() const -> Unsigned_64 {
+  constexpr auto hash() const -> U64 {
     return Core::Hash(get_view()).get_value();
   }
 };

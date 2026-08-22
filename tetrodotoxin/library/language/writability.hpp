@@ -11,7 +11,7 @@ namespace Tetrodotoxin::Library::Language {
 // and Locals that create an Addressable. Field visibility independently
 // decides which selected callers may write that storage. Constant marks
 // compile-time value identity rather than an initialization-time write window.
-enum class Writability : ::Unsigned_8 {
+enum class Writability : ::U8 {
   Full,
   Internal,
   Constant,

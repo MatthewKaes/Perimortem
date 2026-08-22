@@ -22,15 +22,15 @@ auto App::Archive::Reader::read(
     Abstract& context) const -> Option<App::Language::Monograph&> {
   LittleReader reader(payload);
   View::Bytes magic = reader.read_bytes(4);
-  Unsigned_16 format = reader.read_unsigned_16();
-  Unsigned_8 encoded_profile = reader.read_unsigned_8();
-  Unsigned_8 runtime = reader.read_unsigned_8();
-  Unsigned_32 route_size = reader.read_unsigned_32();
+  U16 format = reader.read_u16();
+  U8 encoded_profile = reader.read_u8();
+  U8 runtime = reader.read_u8();
+  U32 route_size = reader.read_u32();
   View::Bytes route = reader.read_bytes(route_size);
-  Unsigned_32 callable_size = reader.read_unsigned_32();
+  U32 callable_size = reader.read_u32();
   View::Bytes callable = reader.read_bytes(callable_size);
   Bool valid = magic == "TTAP"_view && format == 1 &&
-               encoded_profile == Unsigned_8(profile) && runtime == 1 &&
+               encoded_profile == U8(profile) && runtime == 1 &&
                !route.is_empty() && !callable.is_empty() &&
                reader.get_location() == payload.get_size();
   if (!valid) {

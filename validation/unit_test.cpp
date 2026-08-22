@@ -102,42 +102,42 @@ auto Test::expected(View::Bytes value, Bool actual) -> void {
   putchar('\n');
 }
 
-auto Test::expected(Unsigned_16 value, Bool actual) -> void {
+auto Test::expected(U16 value, Bool actual) -> void {
   Static::Bytes<32> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto Test::expected(Unsigned_32 value, Bool actual) -> void {
+auto Test::expected(U32 value, Bool actual) -> void {
   Static::Bytes<32> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto Test::expected(Unsigned_64 value, Bool actual) -> void {
+auto Test::expected(U64 value, Bool actual) -> void {
   Static::Bytes<32> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto Test::expected(Signed_16 value, Bool actual) -> void {
+auto Test::expected(S16 value, Bool actual) -> void {
   Static::Bytes<32> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto Test::expected(Signed_32 value, Bool actual) -> void {
+auto Test::expected(S32 value, Bool actual) -> void {
   Static::Bytes<32> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
   fwrite(buffer.get_data(), 1, text.get_location(), stdout);
 }
 
-auto Test::expected(Signed_64 value, Bool actual) -> void {
+auto Test::expected(S64 value, Bool actual) -> void {
   Static::Bytes<32> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
@@ -145,10 +145,10 @@ auto Test::expected(Signed_64 value, Bool actual) -> void {
 }
 
 auto Test::expected(CppSize value, Bool actual) -> void {
-  expected(Signed_64(value), actual);
+  expected(S64(value), actual);
 }
 
-auto Test::expected(Real_64 value, Bool actual) -> void {
+auto Test::expected(R64 value, Bool actual) -> void {
   Static::Bytes<48> buffer;
   Writer::Textual text(buffer.get_access());
   text << (actual ? actual_label : expected_label) << value << "\n"_view;
@@ -215,9 +215,8 @@ static auto output_results(Count test_count) -> void {
         (unsigned long long)not_run_tests, clear_color);
   }
 
-  Real_64 pass_rate = test_count == 0
-                          ? 0.0
-                          : Real_64(passed_tests) / Real_64(test_count) * 100.0;
+  R64 pass_rate =
+      test_count == 0 ? 0.0 : R64(passed_tests) / R64(test_count) * 100.0;
   printf(
       "%s  Pass Rate: %s%llu / %llu%s ( %g %%)\n%s", perimortem_color,
       clear_color, (unsigned long long)passed_tests,
@@ -225,8 +224,8 @@ static auto output_results(Count test_count) -> void {
 }
 
 int main(int argc, const char* argv[]) {
-  Signed_32 process_status = 0;
-  if (Process::Fixture::dispatch(Signed_32(argc), argv, process_status)) {
+  S32 process_status = 0;
+  if (Process::Fixture::dispatch(S32(argc), argv, process_status)) {
     return process_status;
   }
 
@@ -304,7 +303,7 @@ int main(int argc, const char* argv[]) {
 
     Time start = Time::now();
     test.func(result);
-    Real_64 test_time_ms = start.measure().convert_to_milliseconds();
+    R64 test_time_ms = start.measure().convert_to_milliseconds();
 
     selected_harness.teardown();
     Diagnostics::Log::set_sink(Diagnostics::Log::default_sink);
@@ -331,7 +330,7 @@ int main(int argc, const char* argv[]) {
     }
   }
 
-  Real_64 full_time_ms = start_full.measure().convert_to_milliseconds();
+  R64 full_time_ms = start_full.measure().convert_to_milliseconds();
 
   if (!silent) {
     output_break();

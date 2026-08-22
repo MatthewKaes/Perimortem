@@ -24,7 +24,7 @@ Types::Fixed::Fixed(
     Allocator::Arena& domain,
     View::Bytes name,
     const Model::Type& element,
-    ::Unsigned_64 extent,
+    ::U64 extent,
     const Model::Type& access_type,
     const Model::Type& view_type)
     : name(name),
@@ -39,7 +39,7 @@ Types::Fixed::Fixed(
 
 auto Types::Fixed::create_default(Allocator::Arena& arena) const
     -> Option<Model::Pack&> {
-  BAIL_IF(get_extent() == 0 || get_extent() > Unsigned_64(Count(-1)));
+  BAIL_IF(get_extent() == 0 || get_extent() > U64(Count(-1)));
 
   Managed::Vector<Reference<Model::Pack>> values(arena);
   values.reset(Count(get_extent()));
@@ -89,8 +89,8 @@ static auto create_bytes(
   Count index = 0;
   for (const Reference<Model::Pack>& selected : values) {
     auto value = selected.get().select<Constants::Unsigned>();
-    BAIL_IF(!value || value->get_value() > Unsigned_64(Unsigned_8(-1)));
-    storage.get_data()[index] = Unsigned_8(value->get_value());
+    BAIL_IF(!value || value->get_value() > U64(U8(-1)));
+    storage.get_data()[index] = U8(value->get_value());
     index++;
   }
 

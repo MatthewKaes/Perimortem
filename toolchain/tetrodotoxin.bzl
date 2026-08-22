@@ -218,9 +218,9 @@ def _ttx_package_impl(ctx):
     major = ctx.attr.version[0]
     minor = ctx.attr.version[1]
     if major < 0 or major > 65535:
-        fail("ttx_package major must fit in Unsigned_16")
+        fail("ttx_package major must fit in U16")
     if minor < 0 or minor > 65535:
-        fail("ttx_package minor must fit in Unsigned_16")
+        fail("ttx_package minor must fit in U16")
     if major == 0 and minor == 0:
         fail("ttx_package version 0.0 is reserved for an unset version")
     if not ctx.files.sources:

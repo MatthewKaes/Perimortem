@@ -75,10 +75,8 @@ static auto validate_hex(View::Bytes value) -> Bool {
 
 // Range spellings require their closing byte to be the final authored byte.
 // An earlier closing byte would have ended the Tokenizer range.
-static auto validate_range(
-    View::Bytes value,
-    Code::Type type,
-    Unsigned_8 terminal) -> Bool {
+static auto validate_range(View::Bytes value, Code::Type type, U8 terminal)
+    -> Bool {
   View::Bytes prefix = Lexicon::get_spelling(type);
   BAIL_IF(
       !begins_with(value, prefix) || value.get_size() <= prefix.get_size() ||

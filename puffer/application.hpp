@@ -15,7 +15,7 @@ class Application {
   constexpr Application(const Perimortem::System::Args::Values& arguments)
       : arguments(arguments) {}
 
-  auto run() const -> Signed_32;
+  auto run() const -> S32;
 
  private:
   const Perimortem::System::Args::Values& arguments;

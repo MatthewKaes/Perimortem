@@ -183,8 +183,8 @@ PERIMORTEM_UNIT_TEST(LocalTests, const_fixed_retains_folded_values) {
   static constexpr View::Bytes source =
       "// Const Fixed Local.\n"
       "dialect : Library;\n"
-      "public body : func = [] -> Unsigned_64 {\n"
-      "  const dense : Fixed[Unsigned_64, 4] = (5, 6, 7, 8);\n"
+      "public body : func = [] -> U64 {\n"
+      "  const dense : Fixed[U64, 4] = (5, 6, 7, 8);\n"
       "  const extracted := dense:[1];\n"
       "  return extracted;\n"
       "}"_view;
@@ -215,13 +215,13 @@ PERIMORTEM_UNIT_TEST(LocalTests, const_fixed_retains_folded_values) {
     ASSERT(produced);
     auto value = produced->producer.select<Language::Constants::Unsigned>();
     ASSERT(value);
-    EXPECT_EQ(value->get_value(), Unsigned_64(index + 5));
+    EXPECT_EQ(value->get_value(), U64(index + 5));
   }
   auto extracted_value = extracted.get_constant();
   ASSERT(extracted_value);
   auto value = extracted_value->select<Language::Constants::Unsigned>();
   ASSERT(value);
-  EXPECT_EQ(value->get_value(), Unsigned_64(6));
+  EXPECT_EQ(value->get_value(), U64(6));
   EXPECT(errors.is_empty());
 }
 
@@ -305,15 +305,15 @@ PERIMORTEM_UNIT_TEST(
       "// Typed Local diagnostic recovery.\n"
       "dialect : Library;\n"
       "public Pair : struct {\n"
-      "  public state left : Unsigned_64 = 2;\n"
-      "  public state right : Unsigned_64 = 3;\n"
-      "  public sum : func = [self] -> Unsigned_64 {\n"
+      "  public state left : U64 = 2;\n"
+      "  public state right : U64 = 3;\n"
+      "  public sum : func = [self] -> U64 {\n"
       "    return self.left + self.right;\n"
       "  }\n"
       "}\n"
-      "public execute : func = [] -> Unsigned_64 {\n"
+      "public execute : func = [] -> U64 {\n"
       "  state pair : Pair = (.left = 2, .right2 = 3);\n"
-      "  state total : Unsigned_64 = pair -> sum();\n"
+      "  state total : U64 = pair -> sum();\n"
       "  return total;\n"
       "}"_view;
   auto workspace_toolchain = create_library_toolchain();

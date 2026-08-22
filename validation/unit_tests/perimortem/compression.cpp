@@ -129,8 +129,8 @@ PERIMORTEM_UNIT_TEST(CompressionTests, back_references) {
   // Check that ABCD bytes are repeated 50 times.
   ASSERT_EQ(out.get_size(), 100);
   for (Count i = 0; i < 100; i += 2) {
-    EXPECT_EQ(out[i + 0], Unsigned_8(0xAB));
-    EXPECT_EQ(out[i + 1], Unsigned_8(0xCD));
+    EXPECT_EQ(out[i + 0], U8(0xAB));
+    EXPECT_EQ(out[i + 1], U8(0xCD));
   }
 }
 
@@ -143,7 +143,7 @@ PERIMORTEM_UNIT_TEST(CompressionTests, inflate_single_byte) {
   auto out = Compression::Deflate::inflate(single_compressed);
 
   ASSERT_EQ(out.get_size(), 1);
-  EXPECT_EQ(out[0], Unsigned_8(0x42));
+  EXPECT_EQ(out[0], U8(0x42));
 }
 
 PERIMORTEM_UNIT_TEST(CompressionTests, truncated_input) {
@@ -196,7 +196,7 @@ PERIMORTEM_UNIT_TEST(CompressionTests, deflate_single_byte) {
 
   auto recovered = Compression::Deflate::inflate(compressed);
   ASSERT_EQ(recovered.get_size(), Count(1));
-  EXPECT_EQ(recovered[0], Unsigned_8(0x42));
+  EXPECT_EQ(recovered[0], U8(0x42));
 }
 
 PERIMORTEM_UNIT_TEST(CompressionTests, roundtrip_short) {
@@ -212,7 +212,7 @@ PERIMORTEM_UNIT_TEST(CompressionTests, roundtrip_binary) {
   // Binary data with all 256 byte values present.
   Static::Bytes<256> all_bytes;
   for (Count i = 0; i < 256; i++) {
-    all_bytes[i] = Unsigned_8(i);
+    all_bytes[i] = U8(i);
   }
 
   auto compressed = Compression::Deflate::deflate(all_bytes);
@@ -227,16 +227,15 @@ PERIMORTEM_UNIT_TEST(CompressionTests, valid_header) {
   auto compressed = Compression::Deflate::deflate(stored_raw);
 
   ASSERT(compressed.get_size() >= 6);
-  EXPECT_EQ(Unsigned_8(compressed[0] & 0x0F), Unsigned_8(8));
-  EXPECT_EQ(
-      (Unsigned_32(compressed[0]) * 256 + compressed[1]) % 31, Unsigned_32(0));
+  EXPECT_EQ(U8(compressed[0] & 0x0F), U8(8));
+  EXPECT_EQ((U32(compressed[0]) * 256 + compressed[1]) % 31, U32(0));
 }
 
 PERIMORTEM_UNIT_TEST(CompressionTests, repeating_value) {
   constexpr Count source_size = 512;
   Static::Bytes<source_size> source;
   for (Count i = 0; i < source_size; i++) {
-    source[i] = Unsigned_8(0xAA);
+    source[i] = U8(0xAA);
   }
 
   auto compressed = Compression::Deflate::deflate(source);
@@ -252,7 +251,7 @@ PERIMORTEM_UNIT_TEST(CompressionTests, roundtrip_large) {
   constexpr Count size = 8192;
   Static::Bytes<size> large;
   for (Count i = 0; i < size; i++) {
-    large[i] = Unsigned_8((i * 31 + i / 128) & 0xFF);
+    large[i] = U8((i * 31 + i / 128) & 0xFF);
   }
 
   auto compressed = Compression::Deflate::deflate(large);
@@ -267,9 +266,9 @@ PERIMORTEM_UNIT_TEST(CompressionTests, skewed_frequencies) {
   constexpr Count size = 50000;
   Dynamic::Bytes source;
   source.forgetful_resize(size);
-  Data::set(source.get_access().get_data(), Unsigned_8(0), size);
+  Data::set(source.get_access().get_data(), U8(0), size);
   for (Count i = 1; i <= 200; i++) {
-    source.get_access().get_data()[i * 249] = Unsigned_8(i);
+    source.get_access().get_data()[i * 249] = U8(i);
   }
 
   auto compressed = Compression::Deflate::deflate(source.get_view());

@@ -14,16 +14,16 @@ class Textual {
   constexpr Textual(storage_type& storage) : storage(storage) {}
 
   auto operator<<(Bool flag) -> Textual&;
-  auto operator<<(Unsigned_8 byte) -> Textual&;
-  auto operator<<(Unsigned_16 value) -> Textual&;
-  auto operator<<(Unsigned_32 value) -> Textual&;
-  auto operator<<(Unsigned_64 value) -> Textual&;
-  auto operator<<(Signed_8 value) -> Textual&;
-  auto operator<<(Signed_16 value) -> Textual&;
-  auto operator<<(Signed_32 value) -> Textual&;
-  auto operator<<(Signed_64 value) -> Textual&;
-  auto operator<<(Real_32 value) -> Textual&;
-  auto operator<<(Real_64 value) -> Textual&;
+  auto operator<<(U8 byte) -> Textual&;
+  auto operator<<(U16 value) -> Textual&;
+  auto operator<<(U32 value) -> Textual&;
+  auto operator<<(U64 value) -> Textual&;
+  auto operator<<(S8 value) -> Textual&;
+  auto operator<<(S16 value) -> Textual&;
+  auto operator<<(S32 value) -> Textual&;
+  auto operator<<(S64 value) -> Textual&;
+  auto operator<<(R32 value) -> Textual&;
+  auto operator<<(R64 value) -> Textual&;
   auto operator<<(Perimortem::Core::View::Bytes raw) -> Textual&;
   auto operator<<(const char* raw) -> Textual& = delete;
 

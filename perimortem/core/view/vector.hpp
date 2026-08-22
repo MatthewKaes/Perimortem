@@ -87,8 +87,7 @@ class Vector {
   constexpr auto get_size() const -> Count { return size; }
   constexpr auto get_data() const -> const data_type* { return source_block; }
   constexpr auto get_bytes() const -> const Bytes {
-    return Bytes(
-        Data::cast<const Unsigned_8>(source_block), size * sizeof(data_type));
+    return Bytes(Data::cast<const U8>(source_block), size * sizeof(data_type));
   }
 
   constexpr auto begin() const -> Selection<Vector> {

@@ -64,16 +64,16 @@ PERIMORTEM_UNIT_TEST(ForeignTests, source_identity_and_lifecycle) {
       "// Primary Foreign context.\n"
       "foreign \"C\" {\n"
       "  // Shared State category.\n"
-      "  public state shared : Unsigned_64;\n"
-      "  expose state observed : Unsigned_64;\n"
-      "  public state buffer : Fixed[Unsigned_8, 4];\n"
+      "  public state shared : U64;\n"
+      "  expose state observed : U64;\n"
+      "  public state buffer : Fixed[U8, 4];\n"
       "  // Shared Callable category.\n"
-      "  public func transform[.value : Unsigned_64] -> Unsigned_64;\n"
+      "  public func transform[.value : U64] -> U64;\n"
       "  public func notify[] -> [];\n"
       "}\n"
       "// Extended Foreign context.\n"
       "foreign \"C\" {\n"
-      "  public state shared : Unsigned_64;\n"
+      "  public state shared : U64;\n"
       "}\n"_view;
 
   auto workspace_toolchain = create_library_toolchain();
@@ -125,9 +125,7 @@ PERIMORTEM_UNIT_TEST(ForeignTests, source_identity_and_lifecycle) {
   const auto& notify =
       static_cast<const Library::Language::Foreign::Function&>(notify_identity);
 
-  EXPECT(
-      &shared_state.get_type() ==
-      &monograph->resolve_context("Unsigned_64"_view));
+  EXPECT(&shared_state.get_type() == &monograph->resolve_context("U64"_view));
   const auto& state_definition = shared_state.get_definition();
   EXPECT(state_definition.get_visibility() == Visibility::Public);
   EXPECT(observed.get_definition().get_visibility() == Visibility::Exposed);
@@ -139,7 +137,7 @@ PERIMORTEM_UNIT_TEST(ForeignTests, source_identity_and_lifecycle) {
       "Shared State category."_view);
   EXPECT_TEXT(
       state_definition.get_anchor().get_span().caculate_text(source),
-      "public state shared : Unsigned_64;"_view);
+      "public state shared : U64;"_view);
   EXPECT(buffer.get_type().is<Library::Language::Types::Fixed>());
   EXPECT(buffer.get_type_reference().has_arguments());
   EXPECT(shared_state.get_abi() == "C"_view);
@@ -156,7 +154,7 @@ PERIMORTEM_UNIT_TEST(ForeignTests, source_identity_and_lifecycle) {
       "Shared Callable category."_view);
   EXPECT_TEXT(
       function_definition.get_anchor().get_span().caculate_text(source),
-      "public func transform[.value : Unsigned_64] -> Unsigned_64;"_view);
+      "public func transform[.value : U64] -> U64;"_view);
   EXPECT_EQ(transform.get_parameters().get_size(), Count(1));
   EXPECT_EQ(transform.get_results().get_size(), Count(1));
   EXPECT_EQ(notify.get_parameters().get_size(), Count(0));
@@ -169,15 +167,15 @@ PERIMORTEM_UNIT_TEST(ForeignTests, access_invocation_and_category_separation) {
   static constexpr View::Bytes source =
       "// Foreign access integration.\n"
       "dialect : Library;\n"
-      "public shared : Unsigned_64 = 7;\n"
+      "public shared : U64 = 7;\n"
       "foreign \"C\" {\n"
-      "  expose state input : Unsigned_64;\n"
-      "  public state output : Unsigned_64;\n"
-      "  public state shared : Unsigned_64;\n"
-      "  public func shared[.value : Unsigned_64] -> Unsigned_64;\n"
+      "  expose state input : U64;\n"
+      "  public state output : U64;\n"
+      "  public state shared : U64;\n"
+      "  public func shared[.value : U64] -> U64;\n"
       "  public func no_result[] -> [];\n"
       "}\n"
-      "public consume : func = [] -> Unsigned_64 {\n"
+      "public consume : func = [] -> U64 {\n"
       "  foreign.output = foreign.input;\n"
       "  foreign -> no_result();\n"
       "  return foreign -> shared(foreign.output);\n"
@@ -215,10 +213,10 @@ PERIMORTEM_UNIT_TEST(ForeignTests, authored_rejections_are_atomic) {
     {"// Named.\ndialect : Library;\nprivate C : foreign {}"_view,
      "Library members require a Type"_view},
     {"// Const.\ndialect : Library;\nforeign \"C\" { public const value : "
-     "Unsigned_64; }"_view,
+     "U64; }"_view,
      "Foreign const declarations require a loader or embedding contract."_view},
     {"// Private State.\ndialect : Library;\nforeign \"C\" { private state "
-     "value : Unsigned_64; }"_view,
+     "value : U64; }"_view,
      "Private Foreign State is unreachable from its parent Library."_view},
     {"// Private Function.\ndialect : Library;\nforeign \"C\" { private func "
      "call[] -> []; }"_view,
@@ -233,7 +231,7 @@ PERIMORTEM_UNIT_TEST(ForeignTests, authored_rejections_are_atomic) {
      "[] {} }"_view,
      "Foreign Function declarations cannot contain an authored body."_view},
     {"// Conflict.\ndialect : Library;\nforeign \"C\" { public state value : "
-     "Unsigned_64; public state value : Bool; }"_view,
+     "U64; public state value : Bool; }"_view,
      "Repeated Foreign State changes its declaration."_view},
   }};
 
@@ -254,14 +252,14 @@ PERIMORTEM_UNIT_TEST(ForeignTests, link_rejections_keep_source_unpublished) {
       "Foreign State cannot bind an empty Type Layout."_view},
     {"// Exposed write.\ndialect : Library;\nforeign \"C\" { expose state "
      "value "
-     ": Unsigned_64; } public write : func = [] -> [] { foreign.value = 1; "
+     ": U64; } public write : func = [] -> [] { foreign.value = 1; "
      "return; }"_view,
      "Write source Pack is incompatible with this receiving Expression."_view},
     {"// Missing State.\ndialect : Library;\nforeign \"C\" {} public read : "
-     "func = [] -> Unsigned_64 { return foreign.missing; }"_view,
+     "func = [] -> U64 { return foreign.missing; }"_view,
      "Address did not find one readable Addressable"_view},
-    {"// Ambient.\ndialect : Library;\nprivate foreign : Unsigned_64; foreign "
-     "\"C\" {} public read : func = [] -> Unsigned_64 { return "
+    {"// Ambient.\ndialect : Library;\nprivate foreign : U64; foreign "
+     "\"C\" {} public read : func = [] -> U64 { return "
      "foreign.missing; }"_view,
      "Address did not find one readable Addressable"_view},
     {"// Missing Function.\ndialect : Library;\nforeign \"C\" {} public call : "
@@ -269,7 +267,7 @@ PERIMORTEM_UNIT_TEST(ForeignTests, link_rejections_keep_source_unpublished) {
      "Library invocation did not resolve one accessible Callable."_view},
     {"// Arguments.\ndialect : Library;\nforeign \"C\" { public func "
      "use[.value "
-     ": Unsigned_64] -> []; } public call : func = [] -> [] { foreign -> "
+     ": U64] -> []; } public call : func = [] -> [] { foreign -> "
      "use(false); return; }"_view,
      "Library invocation arguments do not fit"_view},
     {"// Dot mismatch.\ndialect : Library;\nforeign \"C\" { public func "
@@ -277,7 +275,7 @@ PERIMORTEM_UNIT_TEST(ForeignTests, link_rejections_keep_source_unpublished) {
      "foreign.shared; }"_view,
      "Address did not find one readable Addressable"_view},
     {"// Arrow mismatch.\ndialect : Library;\nforeign \"C\" { public state "
-     "shared : Unsigned_64; } public call : func = [] -> [] { foreign -> "
+     "shared : U64; } public call : func = [] -> [] { foreign -> "
      "shared(); return; }"_view,
      "Library invocation did not resolve one accessible Callable."_view},
   }};

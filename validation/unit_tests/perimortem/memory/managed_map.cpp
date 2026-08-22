@@ -17,7 +17,7 @@ static Harness ManagedMap = {
 
 PERIMORTEM_UNIT_TEST(ManagedMap, empty) {
   Allocator::Arena arena;
-  Managed::Map<Signed_32, Signed_32> values(arena);
+  Managed::Map<S32, S32> values(arena);
 
   EXPECT(values.is_empty());
   EXPECT_EQ(values.get_size(), Count(0));
@@ -26,7 +26,7 @@ PERIMORTEM_UNIT_TEST(ManagedMap, empty) {
 
 PERIMORTEM_UNIT_TEST(ManagedMap, find) {
   Allocator::Arena arena;
-  Managed::Map<Signed_32, Signed_32> values(arena);
+  Managed::Map<S32, S32> values(arena);
 
   values.insert(4, 5);
 
@@ -44,7 +44,7 @@ PERIMORTEM_UNIT_TEST(ManagedMap, find) {
 
 PERIMORTEM_UNIT_TEST(ManagedMap, simple_insert) {
   Allocator::Arena arena;
-  Managed::Map<Signed_32, Signed_32> values(arena);
+  Managed::Map<S32, S32> values(arena);
 
   values.insert(1, 2);
   values.insert(2, 3);
@@ -58,7 +58,7 @@ PERIMORTEM_UNIT_TEST(ManagedMap, simple_insert) {
 
 PERIMORTEM_UNIT_TEST(ManagedMap, duplicate_keys) {
   Allocator::Arena arena;
-  Managed::Map<Signed_32, Signed_32> values(arena);
+  Managed::Map<S32, S32> values(arena);
 
   values.insert(1, 2);
   values.insert(1, 4);
@@ -71,16 +71,16 @@ PERIMORTEM_UNIT_TEST(ManagedMap, duplicate_keys) {
 
 PERIMORTEM_UNIT_TEST(ManagedMap, visit) {
   Allocator::Arena arena;
-  Managed::Map<Signed_32, Signed_32> values(arena);
+  Managed::Map<S32, S32> values(arena);
 
   values.insert(1, 2);
 
-  Signed_32 found = values.visit(
-      1, [](const Signed_32& selected) { return selected; },
-      []() -> Signed_32 { return -1; });
-  Signed_32 missing = values.visit(
-      4, [](const Signed_32& selected) { return selected; },
-      []() -> Signed_32 { return -1; });
+  S32 found = values.visit(
+      1, [](const S32& selected) { return selected; },
+      []() -> S32 { return -1; });
+  S32 missing = values.visit(
+      4, [](const S32& selected) { return selected; },
+      []() -> S32 { return -1; });
 
   EXPECT_EQ(found, 2);
   EXPECT_EQ(missing, -1);
@@ -88,7 +88,7 @@ PERIMORTEM_UNIT_TEST(ManagedMap, visit) {
 
 PERIMORTEM_UNIT_TEST(ManagedMap, text_keys) {
   Allocator::Arena arena;
-  Managed::Map<Perimortem::Core::View::Bytes, Signed_32> values(arena);
+  Managed::Map<Perimortem::Core::View::Bytes, S32> values(arena);
 
   values["Hello"_view] = 1;
   values["World"_view] = 2;
@@ -102,7 +102,7 @@ PERIMORTEM_UNIT_TEST(ManagedMap, text_keys) {
 
 PERIMORTEM_UNIT_TEST(ManagedMap, clear) {
   Allocator::Arena arena;
-  Managed::Map<Signed_32, Signed_32> values(arena);
+  Managed::Map<S32, S32> values(arena);
 
   values.insert(1, 2);
   values.insert(2, 3);
@@ -116,7 +116,7 @@ PERIMORTEM_UNIT_TEST(ManagedMap, clear) {
 
 PERIMORTEM_UNIT_TEST(ManagedMap, insert_stress_test) {
   Allocator::Arena arena;
-  Managed::Map<Signed_32, Signed_32> values(arena);
+  Managed::Map<S32, S32> values(arena);
   for (Count i = 0; i < 1000; i++) {
     values.insert(i, i + 2);
   }

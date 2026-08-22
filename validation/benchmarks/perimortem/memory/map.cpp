@@ -24,8 +24,8 @@ using namespace Perimortem::Utility;
 using namespace Validation;
 
 constexpr Count max_key_count = 1 << 16;
-static Static::Vector<Signed_32, max_key_count> lookup_keys;
-static Static::Vector<Signed_32, max_key_count> missing_lookup_keys;
+static Static::Vector<S32, max_key_count> lookup_keys;
+static Static::Vector<S32, max_key_count> missing_lookup_keys;
 
 static auto populate_lookup_keys() -> void {
   static Bool populated = False;
@@ -34,26 +34,26 @@ static auto populate_lookup_keys() -> void {
   }
 
   for (Count i = 0; i < max_key_count; i++) {
-    lookup_keys[i] = Signed_32(i);
-    missing_lookup_keys[i] = Signed_32(i);
+    lookup_keys[i] = S32(i);
+    missing_lookup_keys[i] = S32(i);
   }
 
   populated = True;
 }
 
-static Harness MapSigned_32s = {
+static Harness MapS32s = {
   .name = "Map Performance"_view,
   .init = populate_lookup_keys,
 };
 
 template <Count values, Bool lookup>
 static auto map_test() -> void {
-  Dynamic::Map<Signed_32, Signed_32> local_map(values);
+  Dynamic::Map<S32, S32> local_map(values);
   for (Count i = 0; i < values; i++) {
-    local_map.insert(lookup_keys[i], Signed_32(i));
+    local_map.insert(lookup_keys[i], S32(i));
   }
 
-  Signed_32 accumulator = local_map.get_size();
+  S32 accumulator = local_map.get_size();
   if constexpr (lookup) {
     Benchmark::start_time();
     accumulator = 0;
@@ -66,9 +66,9 @@ static auto map_test() -> void {
   Benchmark::prevent_optimization(accumulator);
 }
 
-#define MAP_INT_TEST(count, var)                              \
-  PERIMORTEM_BENCHMARK(MapSigned_32s, var##_##count##_ints) { \
-    map_test<count, var>();                                   \
+#define MAP_INT_TEST(count, var)                        \
+  PERIMORTEM_BENCHMARK(MapS32s, var##_##count##_ints) { \
+    map_test<count, var>();                             \
   }
 
 constexpr auto lookup = True;
@@ -85,7 +85,7 @@ static Harness MapWorkloads = {
   .init = populate_lookup_keys,
 };
 
-static auto pointer_key(Count index, Bool missing = False) -> const Signed_32* {
+static auto pointer_key(Count index, Bool missing = False) -> const S32* {
   if (missing) {
     return missing_lookup_keys.get_data() + index;
   }
@@ -95,7 +95,7 @@ static auto pointer_key(Count index, Bool missing = False) -> const Signed_32* {
 
 template <Count values, Bool misses>
 static auto pointer_lookup_test() -> void {
-  Dynamic::Map<const Signed_32*, Count> map(values);
+  Dynamic::Map<const S32*, Count> map(values);
   for (Count i = 0; i < values; i++) {
     map.insert(pointer_key(i), i);
   }
@@ -103,7 +103,7 @@ static auto pointer_lookup_test() -> void {
   Count accumulator = 0;
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
-    const Signed_32* key = pointer_key(i, misses);
+    const S32* key = pointer_key(i, misses);
     auto entry = map.find(key);
     accumulator += entry ? (*entry).value : 1;
   }
@@ -114,7 +114,7 @@ static auto pointer_lookup_test() -> void {
 
 template <Count values, Bool reserve, Bool duplicate>
 static auto pointer_insert_test() -> void {
-  Dynamic::Map<const Signed_32*, Count> map;
+  Dynamic::Map<const S32*, Count> map;
   if constexpr (reserve) {
     map.ensure_capacity(values);
   }
@@ -218,13 +218,13 @@ static auto create_scramble(Count mask) -> void {
 
 template <Count values, Count mask>
 static auto keyword_test() -> void {
-  Dynamic::Map<View::Bytes, Signed_32> local_map(keyword_count);
+  Dynamic::Map<View::Bytes, S32> local_map(keyword_count);
   for (Count i = 0; i < keyword_count; i++) {
     local_map.insert(keyword_source[i].key, keyword_source[i].value);
   }
 
   create_scramble(mask);
-  Signed_32 accumulator = local_map.get_size();
+  S32 accumulator = local_map.get_size();
 
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {
@@ -238,7 +238,7 @@ static auto keyword_test() -> void {
 template <Count values, Count mask>
 static auto keyword_table() -> void {
   create_scramble(mask);
-  Signed_32 accumulator = 0;
+  S32 accumulator = 0;
 
   Benchmark::start_time();
   for (Count i = 0; i < values; i++) {

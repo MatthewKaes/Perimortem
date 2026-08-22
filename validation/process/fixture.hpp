@@ -7,9 +7,7 @@
 
 namespace Validation::Process::Fixture {
 
-auto dispatch(
-    Signed_32 argument_count,
-    const char* const arguments[],
-    Signed_32& status) -> Bool;
+auto dispatch(S32 argument_count, const char* const arguments[], S32& status)
+    -> Bool;
 
 }  // namespace Validation::Process::Fixture

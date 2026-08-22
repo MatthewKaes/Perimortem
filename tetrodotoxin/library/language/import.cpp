@@ -22,8 +22,7 @@ auto Library::Language::Import::restore(
     const Ttx::Concept::Abstract& context) -> Option<Import> {
   auto record = reader.read_record();
   BAIL_IF(
-      !record ||
-      record->get_tag() != Unsigned_16(Library::Archive::Tag::Import) ||
+      !record || record->get_tag() != U16(Library::Archive::Tag::Import) ||
       record->is_optional());
 
   Library::Archive::Reader contents(record->get_payload());

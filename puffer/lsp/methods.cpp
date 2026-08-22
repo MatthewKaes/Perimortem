@@ -38,7 +38,7 @@ static auto find_end_position(View::Bytes source) -> Position {
   Position position = {};
 
   for (Count offset = 0; offset < source.get_size();) {
-    Unsigned_8 lead = source[offset];
+    U8 lead = source[offset];
     if (lead == '\n') {
       position.line++;
       position.character = 0;
@@ -110,7 +110,7 @@ static auto publish_diagnostics(
                     {"character"_view, column + width},
                   }},
                }},
-              {"severity"_view, Signed_64(1)},
+              {"severity"_view, S64(1)},
               {"source"_view, "ttx"_view},
               {"message"_view, errors.get_message(index)},
             }}.construct(arena));
@@ -147,7 +147,7 @@ auto Puffer::Lsp::initialize(Documents&, const Rpc::Message& message)
              {"textDocumentSync"_view,
               {
                 {"openClose"_view, True},
-                {"change"_view, Signed_64(1)},
+                {"change"_view, S64(1)},
               }},
              {"hoverProvider"_view, True},
              {"definitionProvider"_view, True},

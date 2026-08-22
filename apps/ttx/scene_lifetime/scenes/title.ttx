@@ -20,7 +20,7 @@ Scene prepare[self] -> Void {
 }
 
 Scene release[self] -> Void : return;
-Scene update[self, .delta_time : Real_64] -> Scene::Flow {
+Scene update[self, .delta_time : R64] -> Scene::Flow {
   const input := System -> get_input();
   if (input -> pressed(.key = System::Key -> space())) : return Scene::Flow -> emit(
     self.space_pressed,

@@ -33,7 +33,7 @@ class Executor {
   auto close_connection() -> void;
 
   Documents documents;
-  Signed_32 socket_descriptor = -1;
+  S32 socket_descriptor = -1;
   Bool connection_open = False;
 };
 

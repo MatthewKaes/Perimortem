@@ -26,7 +26,7 @@ class Carriers {
   // Kind describes the completed physical carrier selected by the source Type
   // owner. Consumers can inspect this target fact without rediscovering the
   // concrete declaration that contributed it.
-  enum class Kind : Unsigned_8 {
+  enum class Kind : U8 {
     Value,
     Enumeration,
     Fixed,
@@ -150,7 +150,7 @@ class Carriers {
       -> Perimortem::Core::Option<LLVMValueRef>;
 
  private:
-  enum class Phase : Unsigned_8 {
+  enum class Phase : U8 {
     Reserved,
     Completing,
     Complete,

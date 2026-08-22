@@ -8,27 +8,25 @@
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Unsigned_16 is the standard sixteen bit Type implementing the Unsigned
+// U16 is the standard sixteen bit Type implementing the Unsigned
 // domain.
-class Unsigned_16 : public Model::Types::Unsigned {
+class U16 : public Model::Types::Unsigned {
  public:
-  TTX_NAME("Unsigned_16"_view);
+  TTX_NAME("U16"_view);
 
   TTX_DOCUMENTATION(documentation);
 
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
   constexpr auto get_width() const -> Count override { return 16; }
-  constexpr auto get_size() const -> Count override {
-    return sizeof(::Unsigned_16);
-  }
+  constexpr auto get_size() const -> Count override { return sizeof(::U16); }
   constexpr auto get_alignment() const -> Count override {
-    return alignof(::Unsigned_16);
+    return alignof(::U16);
   }
 
  private:
   static constexpr Ttx::Model::Documentations::Comment documentation{
-    "Unsigned_16 is stored as a 2 byte unsigned integer."_view,
+    "U16 is stored as a 2 byte unsigned integer."_view,
   };
 };
 

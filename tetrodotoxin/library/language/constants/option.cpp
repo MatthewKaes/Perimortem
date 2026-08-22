@@ -16,7 +16,7 @@ auto Constants::Option::persist(Archive::Writer& writer) const -> Bool {
       !writer.write(get_type().get_element_type().get_name()));
 
   auto selected = get_payload();
-  writer.write(Unsigned_8(selected ? 1 : 0));
+  writer.write(U8(selected ? 1 : 0));
   BAIL_IF(
       (selected && !Model::Pack::persist_folded(writer, *selected)) ||
       !writer.finish(record));

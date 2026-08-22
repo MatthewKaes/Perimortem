@@ -80,15 +80,14 @@ auto Types::Source::parse(Cursor& cursor) -> Bool {
 auto Types::Source::persist(Archive::Writer& writer) const -> Bool {
   auto record = writer.begin(Archive::Tag::Source);
   BAIL_IF(
-      !writer.write(get_documentation()) ||
-      import_routes.get_size() > Unsigned_32(-1));
+      !writer.write(get_documentation()) || import_routes.get_size() > U32(-1));
 
-  writer.write(Unsigned_32(import_routes.get_size()));
+  writer.write(U32(import_routes.get_size()));
   for (const Import& import : import_routes.get_view()) {
     BAIL_IF(!import.persist(writer));
   }
 
-  writer.write(Unsigned_8(foreign.is_authored() ? 1 : 0));
+  writer.write(U8(foreign.is_authored() ? 1 : 0));
   BAIL_IF(foreign.is_authored() && !foreign.persist(writer));
 
   Bool public_only = writer.get_profile() ==
@@ -100,7 +99,7 @@ auto Types::Source::persist(Archive::Writer& writer) const -> Bool {
 auto Types::Source::restore(
     Archive::Reader& contents,
     Tetrodotoxin::Language::Persistence::Profile profile) -> Bool {
-  auto import_count = contents.read_unsigned_32();
+  auto import_count = contents.read_u32();
   BAIL_IF(!import_count);
   for (Count index = 0; index < *import_count; index++) {
     auto import = Import::restore(contents, get_domain(), get_host());
@@ -108,7 +107,7 @@ auto Types::Source::restore(
     import_routes.insert(*import);
   }
 
-  auto has_foreign = contents.read_unsigned_8();
+  auto has_foreign = contents.read_u8();
   BAIL_IF(!has_foreign || *has_foreign > 1);
   BAIL_IF(*has_foreign == 1 && !foreign.restore(contents));
   return restore_declarations(contents, profile);

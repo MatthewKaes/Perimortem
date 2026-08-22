@@ -98,7 +98,7 @@ static auto write_encoded_name(
     Bool lowercase = False) -> void {
   constexpr auto hex = "0123456789abcdef"_view;
   for (Count index = 0; index < value.get_size(); index++) {
-    Unsigned_8 byte = value[index];
+    U8 byte = value[index];
     Bool alphanumeric = Bool(
         (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
         (byte >= '0' && byte <= '9'));
@@ -108,7 +108,7 @@ static auto write_encoded_name(
       }
       output << Core::View::Bytes(&byte, 1);
     } else {
-      Core::Static::Vector<Unsigned_8, 3> encoded = {{
+      Core::Static::Vector<U8, 3> encoded = {{
         '_',
         hex[byte >> 4],
         hex[byte & 15],

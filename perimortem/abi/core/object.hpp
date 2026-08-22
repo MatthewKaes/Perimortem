@@ -30,24 +30,23 @@ inline constexpr Perimortem::Core::View::Bytes object_finalize_trivial_symbol =
 }  // namespace Perimortem::Abi::Core
 
 extern "C" auto perimortem_core_object_allocate(
-    const Perimortem::Core::Object<>::Descriptor* descriptor) -> Unsigned_8*;
+    const Perimortem::Core::Object<>::Descriptor* descriptor) -> U8*;
 extern "C" auto perimortem_core_object_allocate_buffer(
     const Perimortem::Core::Object<>::Descriptor* descriptor,
     Count count,
-    Count element_size) -> Unsigned_8*;
-extern "C" auto perimortem_core_object_retain(Unsigned_8* payload) -> void;
-extern "C" auto perimortem_core_object_release(Unsigned_8* payload) -> void;
-extern "C" auto perimortem_core_object_capacity(Unsigned_8* payload) -> Count;
+    Count element_size) -> U8*;
+extern "C" auto perimortem_core_object_retain(U8* payload) -> void;
+extern "C" auto perimortem_core_object_release(U8* payload) -> void;
+extern "C" auto perimortem_core_object_capacity(U8* payload) -> Count;
 extern "C" auto perimortem_core_object_clone(
-    Unsigned_8* payload,
+    U8* payload,
     const Perimortem::Core::Object<>::Descriptor* descriptor,
-    Count element_size) -> Unsigned_8*;
-extern "C" auto perimortem_core_object_reservations(Unsigned_8* payload)
-    -> Count;
+    Count element_size) -> U8*;
+extern "C" auto perimortem_core_object_reservations(U8* payload) -> Count;
 extern "C" auto perimortem_core_object_reserve(
-    Unsigned_8* payload,
+    U8* payload,
     const Perimortem::Core::Object<>::Descriptor* descriptor,
     Count count,
     Count element_size,
-    const Unsigned_8* default_value) -> Unsigned_8*;
-extern "C" auto perimortem_core_object_finalize_trivial(Unsigned_8*) -> void;
+    const U8* default_value) -> U8*;
+extern "C" auto perimortem_core_object_finalize_trivial(U8*) -> void;

@@ -29,16 +29,16 @@ class Textual {
 
   auto operator<<(char character) -> Textual&;
   auto operator<<(const Bool flag) -> Textual&;
-  auto operator<<(const Unsigned_8 byte) -> Textual&;
-  auto operator<<(const Unsigned_16 value) -> Textual&;
-  auto operator<<(const Unsigned_32 value) -> Textual&;
-  auto operator<<(const Unsigned_64 value) -> Textual&;
-  auto operator<<(const Signed_8 value) -> Textual&;
-  auto operator<<(const Signed_16 value) -> Textual&;
-  auto operator<<(const Signed_32 value) -> Textual&;
-  auto operator<<(const Signed_64 value) -> Textual&;
-  auto operator<<(const Real_32 value) -> Textual&;
-  auto operator<<(const Real_64 value) -> Textual&;
+  auto operator<<(const U8 byte) -> Textual&;
+  auto operator<<(const U16 value) -> Textual&;
+  auto operator<<(const U32 value) -> Textual&;
+  auto operator<<(const U64 value) -> Textual&;
+  auto operator<<(const S8 value) -> Textual&;
+  auto operator<<(const S16 value) -> Textual&;
+  auto operator<<(const S32 value) -> Textual&;
+  auto operator<<(const S64 value) -> Textual&;
+  auto operator<<(const R32 value) -> Textual&;
+  auto operator<<(const R64 value) -> Textual&;
   auto operator<<(const View::Bytes raw) -> Textual&;
 
   // Don't let C++ promote or do anything funky with C Strings.
@@ -53,7 +53,7 @@ class Textual {
   }
 
  private:
-  auto write_real(Real_64 real, Real_64 precision) -> void;
+  auto write_real(R64 real, R64 precision) -> void;
   Access::Bytes source;
   Count cursor = 0;
   Bool valid_state = true;

@@ -33,16 +33,9 @@ provide token categories:
 }
 ```
 
-Bracket matching remains active independently. To opt TTX into the editor's
-bracket-pair colors, add the language-specific override:
-
-```json
-{
-  "[tetrodotoxin]": {
-    "editor.bracketPairColorization.enabled": true
-  }
-}
-```
+Bracket matching and automatic closing remain active independently. The
+language configuration supplies no colorized bracket pairs, so global editor
+bracket-pair colors do not override TTX's muted punctuation palette.
 
 Semantic tokens follow TTX's separate source categories. In particular,
 Addressables selected with `.`, Types selected through `::`, and Callables

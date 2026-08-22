@@ -17,12 +17,7 @@ namespace Ttx::Lexical {
 class Token {
  public:
   Token() = default;
-  Token(
-      Unsigned_16 offset,
-      Unsigned_16 line,
-      Unsigned_16 column,
-      Unsigned_8 size,
-      Code code)
+  Token(U16 offset, U16 line, U16 column, U8 size, Code code)
       : offset(offset), line(line), column(column), size(size), code(code) {}
 
   constexpr operator bool() const { return bool(is_valid()); }
@@ -36,17 +31,17 @@ class Token {
     return code != Code::Type::Terminal;
   }
 
-  constexpr auto get_offset() const -> Unsigned_16 { return offset; }
-  constexpr auto get_line() const -> Unsigned_16 { return line; }
-  constexpr auto get_column() const -> Unsigned_16 { return column; }
-  constexpr auto get_size() const -> Unsigned_8 { return size; }
+  constexpr auto get_offset() const -> U16 { return offset; }
+  constexpr auto get_line() const -> U16 { return line; }
+  constexpr auto get_column() const -> U16 { return column; }
+  constexpr auto get_size() const -> U8 { return size; }
   constexpr auto get_code() const -> Code { return code; }
 
  private:
-  Unsigned_16 offset = 0;
-  Unsigned_16 line = 0;
-  Unsigned_16 column = 0;
-  Unsigned_8 size = 0;
+  U16 offset = 0;
+  U16 line = 0;
+  U16 column = 0;
+  U8 size = 0;
   Code code = Code::Type::Terminal;
 };
 

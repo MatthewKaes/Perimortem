@@ -13,14 +13,13 @@ namespace Ttx::Concept {
 // address as an integer keeps callers from treating the carrier as an object.
 // This identity ends with the process and must never enter a durable format.
 template <typename Target>
-inline auto get_type_identity() -> ::Unsigned_64 {
+inline auto get_type_identity() -> ::U64 {
   static_assert(
-      sizeof(__UINTPTR_TYPE__) <= sizeof(::Unsigned_64),
+      sizeof(__UINTPTR_TYPE__) <= sizeof(::U64),
       "A TTX type identity must retain every native pointer value.");
 
-  static const Unsigned_8 identity = 0;
-  return static_cast<::Unsigned_64>(
-      reinterpret_cast<__UINTPTR_TYPE__>(&identity));
+  static const U8 identity = 0;
+  return static_cast<::U64>(reinterpret_cast<__UINTPTR_TYPE__>(&identity));
 }
 
 }  // namespace Ttx::Concept

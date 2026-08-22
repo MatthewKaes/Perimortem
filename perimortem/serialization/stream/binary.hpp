@@ -18,25 +18,25 @@ class Binary {
  public:
   constexpr Binary(storage_type& storage) : storage(storage) {}
 
-  auto operator<<(Unsigned_8 value) -> Binary&;
-  auto operator<<(Unsigned_16 value) -> Binary&;
-  auto operator<<(Unsigned_32 value) -> Binary&;
-  auto operator<<(Unsigned_64 value) -> Binary&;
-  auto operator<<(Signed_8 value) -> Binary&;
-  auto operator<<(Signed_16 value) -> Binary&;
-  auto operator<<(Signed_32 value) -> Binary&;
-  auto operator<<(Signed_64 value) -> Binary&;
-  auto operator<<(Real_32 value) -> Binary&;
-  auto operator<<(Real_64 value) -> Binary&;
+  auto operator<<(U8 value) -> Binary&;
+  auto operator<<(U16 value) -> Binary&;
+  auto operator<<(U32 value) -> Binary&;
+  auto operator<<(U64 value) -> Binary&;
+  auto operator<<(S8 value) -> Binary&;
+  auto operator<<(S16 value) -> Binary&;
+  auto operator<<(S32 value) -> Binary&;
+  auto operator<<(S64 value) -> Binary&;
+  auto operator<<(R32 value) -> Binary&;
+  auto operator<<(R64 value) -> Binary&;
   auto operator<<(Perimortem::Core::View::Bytes blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<Unsigned_8> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<Unsigned_16> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<Unsigned_32> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<Unsigned_64> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<Signed_8> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<Signed_16> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<Signed_32> blob) -> Binary&;
-  auto operator<<(Perimortem::Core::View::Vector<Signed_64> blob) -> Binary&;
+  auto operator<<(Perimortem::Core::View::Vector<U8> blob) -> Binary&;
+  auto operator<<(Perimortem::Core::View::Vector<U16> blob) -> Binary&;
+  auto operator<<(Perimortem::Core::View::Vector<U32> blob) -> Binary&;
+  auto operator<<(Perimortem::Core::View::Vector<U64> blob) -> Binary&;
+  auto operator<<(Perimortem::Core::View::Vector<S8> blob) -> Binary&;
+  auto operator<<(Perimortem::Core::View::Vector<S16> blob) -> Binary&;
+  auto operator<<(Perimortem::Core::View::Vector<S32> blob) -> Binary&;
+  auto operator<<(Perimortem::Core::View::Vector<S64> blob) -> Binary&;
 
  private:
   storage_type& storage;

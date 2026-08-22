@@ -147,7 +147,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, receiving_type_owns_target_fit) {
   static constexpr View::Bytes source =
       "// Receiving Type policy.\n"
       "dialect : Library;\n"
-      "public Maybe : alias = Option[Unsigned_64];\n"
+      "public Maybe : alias = Option[U64];\n"
       "private const present : Maybe = 7;"_view;
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
@@ -167,7 +167,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, receiving_type_owns_target_fit) {
   auto& empty = Language::Model::Pack::create_folded(
       fitted_arena, View::Vector<Reference<Language::Model::Pack>>());
   auto& value = Language::Constants::Unsigned::create_synthetic(
-      fitted_arena, *element, Unsigned_64(7));
+      fitted_arena, *element, U64(7));
 
   EXPECT(empty.fits_into(*maybe));
   EXPECT(value.fits_into(*maybe));
@@ -193,7 +193,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, target_fit_and_unwrap) {
   static constexpr View::Bytes source =
       "// Option target fitting and unwrap.\n"
       "dialect : Library;\n"
-      "public Maybe : alias = Option[Unsigned_64];\n"
+      "public Maybe : alias = Option[U64];\n"
       "private const absent : Maybe = ();\n"
       "private const present : Maybe = 7;\n"
       "private const absent_copy : Maybe = absent;\n"
@@ -242,7 +242,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, target_fit_and_unwrap) {
   ASSERT(payload);
   auto payload_value = select_unsigned(*payload);
   ASSERT(payload_value);
-  EXPECT_EQ(payload_value->get_value(), Unsigned_64(7));
+  EXPECT_EQ(payload_value->get_value(), U64(7));
 
   auto fallback_constant = fallback->get_constant();
   auto selected_constant = selected->get_constant();
@@ -250,8 +250,8 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, target_fit_and_unwrap) {
   auto fallback_value = select_unsigned(*fallback_constant);
   auto selected_value = select_unsigned(*selected_constant);
   ASSERT(fallback_value && selected_value);
-  EXPECT_EQ(fallback_value->get_value(), Unsigned_64(0));
-  EXPECT_EQ(selected_value->get_value(), Unsigned_64(7));
+  EXPECT_EQ(fallback_value->get_value(), U64(0));
+  EXPECT_EQ(selected_value->get_value(), U64(7));
 
   EXPECT(absent_call->get_type().is<Language::Types::Option>());
   EXPECT(&absent_call->get_type() == &present_call->get_type());
@@ -262,7 +262,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_edges_and_folding) {
   static constexpr View::Bytes source =
       "// Option propagation.\n"
       "dialect : Library;\n"
-      "public Maybe : alias = Option[Unsigned_64];\n"
+      "public Maybe : alias = Option[U64];\n"
       "private Nested : alias = Option[Maybe];\n"
       "private const absent : Maybe = ();\n"
       "private const present : Maybe = 7;\n"
@@ -401,7 +401,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_edges_and_folding) {
   ASSERT(present_fold_succeeded && present_folded);
   auto present_value = select_unsigned(*present_folded);
   ASSERT(present_value);
-  EXPECT_EQ(present_value->get_value(), Unsigned_64(7));
+  EXPECT_EQ(present_value->get_value(), U64(7));
 
   Bool absent_fold_succeeded = False;
   Option<Language::Model::Pack&> absent_folded;
@@ -486,12 +486,8 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, production_propagation_fixture) {
                      .resolve()
                      .select<Language::Types::Result>();
   ASSERT(maybe && session && outcome);
-  EXPECT(
-      &maybe->get_element_type() ==
-      &monograph.resolve_context("Unsigned_64"_view));
-  EXPECT(
-      &outcome->get_value_type() ==
-      &monograph.resolve_context("Unsigned_64"_view));
+  EXPECT(&maybe->get_element_type() == &monograph.resolve_context("U64"_view));
+  EXPECT(&outcome->get_value_type() == &monograph.resolve_context("U64"_view));
   EXPECT(&outcome->get_error_type() == &monograph.resolve_context("Bool"_view));
 
   // Published Fields expose fitting and scalar defaults as retained Packs.
@@ -529,7 +525,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, production_propagation_fixture) {
   ASSERT(present_payload);
   auto present_value = select_unsigned(*present_payload);
   ASSERT(present_value);
-  EXPECT_EQ(present_value->get_value(), Unsigned_64(7));
+  EXPECT_EQ(present_value->get_value(), U64(7));
 
   auto defaulted_constant = defaulted->get_constant();
   auto selected_constant = selected->get_constant();
@@ -537,8 +533,8 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, production_propagation_fixture) {
   auto defaulted_value = select_unsigned(*defaulted_constant);
   auto selected_value = select_unsigned(*selected_constant);
   ASSERT(defaulted_value && selected_value);
-  EXPECT_EQ(defaulted_value->get_value(), Unsigned_64(0));
-  EXPECT_EQ(selected_value->get_value(), Unsigned_64(7));
+  EXPECT_EQ(defaulted_value->get_value(), U64(0));
+  EXPECT_EQ(selected_value->get_value(), U64(7));
 
   auto failed_constant = failed->get_constant();
   auto succeeded_constant = succeeded->get_constant();
@@ -563,11 +559,11 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, production_propagation_fixture) {
   EXPECT(succeeded_result->get_kind() == Language::Types::Result::Kind::Value);
   auto succeeded_value = select_unsigned(succeeded_result->get_payload());
   ASSERT(succeeded_value);
-  EXPECT_EQ(succeeded_value->get_value(), Unsigned_64(11));
+  EXPECT_EQ(succeeded_value->get_value(), U64(11));
   auto authored_default_value =
       select_unsigned(authored_default_result->get_payload());
   ASSERT(authored_default_value);
-  EXPECT_EQ(authored_default_value->get_value(), Unsigned_64(0));
+  EXPECT_EQ(authored_default_value->get_value(), U64(0));
 
   Allocator::Arena result_default_domain;
   auto result_default = outcome->create_default(result_default_domain);
@@ -581,7 +577,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, production_propagation_fixture) {
   auto default_result_value =
       select_unsigned(created_default_result->get_payload());
   ASSERT(default_result_value);
-  EXPECT_EQ(default_result_value->get_value(), Unsigned_64(0));
+  EXPECT_EQ(default_result_value->get_value(), U64(0));
 
   auto absent_session_constant = absent_session->get_constant();
   auto session_option = absent_session_constant.visit(
@@ -699,8 +695,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, production_propagation_fixture) {
   EXPECT(*case_kind == Language::Flow::Match::CaseKind::Value);
   auto payload = match->get_case_payload(0);
   ASSERT(payload);
-  EXPECT(
-      &payload->get_type() == &monograph.resolve_context("Unsigned_64"_view));
+  EXPECT(&payload->get_type() == &monograph.resolve_context("U64"_view));
   ASSERT(match->get_case_body(0));
   ASSERT(match->get_default());
 
@@ -730,10 +725,10 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, production_propagation_fixture) {
 
 PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_rejections_are_exact) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
-    "// Propagation receiver mismatch.\ndialect : Library; private invalid : func = [.value : Unsigned_64] -> [] { state selected := value?; return; }"_view,
-    "// Propagation result mismatch.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> Unsigned_64 { return value?; }"_view,
-    "// Propagation multi result.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> [Option[Unsigned_64], Option[Unsigned_64]] { return (value?, value); }"_view,
-    "// Result error cannot disappear.\ndialect : Library; private Outcome : alias = Result[Unsigned_64, Bool]; private invalid : func = [.value : Outcome] -> [] { state selected := value?; return; }"_view,
+    "// Propagation receiver mismatch.\ndialect : Library; private invalid : func = [.value : U64] -> [] { state selected := value?; return; }"_view,
+    "// Propagation result mismatch.\ndialect : Library; private invalid : func = [.value : Option[U64]] -> U64 { return value?; }"_view,
+    "// Propagation multi result.\ndialect : Library; private invalid : func = [.value : Option[U64]] -> [Option[U64], Option[U64]] { return (value?, value); }"_view,
+    "// Result error cannot disappear.\ndialect : Library; private Outcome : alias = Result[U64, Bool]; private invalid : func = [.value : Outcome] -> [] { state selected := value?; return; }"_view,
   }};
   static constexpr Static::Vector<View::Bytes, 4> diagnostics = {{
     "Postfix `?` requires a propagating value Type."_view,
@@ -753,7 +748,7 @@ PERIMORTEM_UNIT_TEST(
   static constexpr View::Bytes identical =
       "// Identical Result alternatives.\n"
       "dialect : Library;\n"
-      "private Invalid : alias = Result[Unsigned_64, Unsigned_64];"_view;
+      "private Invalid : alias = Result[U64, U64];"_view;
   static constexpr View::Bytes empty =
       "// Empty Result alternative.\n"
       "dialect : Library;\n"
@@ -769,10 +764,10 @@ PERIMORTEM_UNIT_TEST(
 PERIMORTEM_UNIT_TEST(PropagationAccessTests, invalid_elimination_is_rejected) {
   static constexpr Static::Vector<View::Bytes, 5> sources = {{
     "// Unwrap receiver mismatch.\ndialect : Library; private invalid : func = [.value : Bool] -> Bool { return value!; }"_view,
-    "// Option slice.\ndialect : Library; private invalid : func = [.value : Option[Unsigned_64]] -> Unsigned_64 { return value:[0]; }"_view,
-    "// Some constructor.\ndialect : Library; private Maybe : alias = Option[Unsigned_64]; private invalid := Maybe -> some(1);"_view,
-    "// Empty constructor.\ndialect : Library; private Maybe : alias = Option[Unsigned_64]; private invalid := Maybe -> empty();"_view,
-    "// Option target mismatch.\ndialect : Library; private invalid : Option[Unsigned_64] = false;"_view,
+    "// Option slice.\ndialect : Library; private invalid : func = [.value : Option[U64]] -> U64 { return value:[0]; }"_view,
+    "// Some constructor.\ndialect : Library; private Maybe : alias = Option[U64]; private invalid := Maybe -> some(1);"_view,
+    "// Empty constructor.\ndialect : Library; private Maybe : alias = Option[U64]; private invalid := Maybe -> empty();"_view,
+    "// Option target mismatch.\ndialect : Library; private invalid : Option[U64] = false;"_view,
   }};
 
   for (Count index = 0; index < sources.get_size(); index++) {

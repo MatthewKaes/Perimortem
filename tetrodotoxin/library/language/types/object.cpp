@@ -38,7 +38,7 @@ auto Types::Object::restore(
     Tetrodotoxin::Language::Persistence::Profile profile) -> Option<Object&> {
   auto record = reader.read_record();
   BAIL_IF(
-      !record || record->get_tag() != Unsigned_16(Archive::Tag::Object) ||
+      !record || record->get_tag() != U16(Archive::Tag::Object) ||
       record->is_optional());
 
   Archive::Reader contents(record->get_payload());

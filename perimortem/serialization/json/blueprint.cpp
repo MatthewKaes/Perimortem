@@ -13,8 +13,8 @@ auto Json::Blueprint::construct(Allocator::Arena& arena) const -> Json::Node {
   return visit(
       []() { return Json::Node(); },
       [](View::Bytes text) { return Json::Node(text); },
-      [](Signed_64 number) { return Json::Node(number); },
-      [](Real_64 real) { return Json::Node(real); },
+      [](S64 number) { return Json::Node(number); },
+      [](R64 real) { return Json::Node(real); },
       [](Bool flag) { return Json::Node(flag); },
       [&](View::Vector<Json::Blueprint> compound) {
         const Bool is_object =

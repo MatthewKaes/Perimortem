@@ -23,7 +23,7 @@ auto Generics::Fixed::create(Perimortem::Core::View::Vector<Argument> arguments)
   const auto* argument_data = arguments.get_data();
   const Language::Model::Type* element =
       argument_data[0].find<const Language::Model::Type&>();
-  const ::Unsigned_64* extent = argument_data[1].find<::Unsigned_64>();
+  const ::U64* extent = argument_data[1].find<::U64>();
   if (!element || !extent || *extent == 0) {
     return {};
   }

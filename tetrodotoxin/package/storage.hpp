@@ -37,8 +37,8 @@ class Storage {
   // it has no identity or use outside this one result.
   class Failure {
    public:
-    enum class Error : Unsigned_8 {
-      Unknown = Unsigned_8(-1),
+    enum class Error : U8 {
+      Unknown = U8(-1),
       InvalidRoute = 0,
       Unreadable,
     };

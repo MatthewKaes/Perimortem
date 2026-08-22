@@ -31,16 +31,15 @@ class Context {
   auto get_physical_device() const -> VkPhysicalDevice;
   auto get_device() const -> VkDevice;
   auto get_graphics_queue() const -> VkQueue;
-  auto get_graphics_queue_family() const -> Unsigned_32;
+  auto get_graphics_queue_family() const -> U32;
   auto get_command_pool() const -> VkCommandPool;
   auto get_surface() const -> VkSurfaceKHR;
 
   // Returns the index of the first memory type that satisfies both the type
   // filter bitmask and the required property flags. Returns UINT32_MAX if
   // no matching type is found.
-  auto find_memory_type(
-      Unsigned_32 type_filter,
-      VkMemoryPropertyFlags properties) const -> Unsigned_32;
+  auto find_memory_type(U32 type_filter, VkMemoryPropertyFlags properties) const
+      -> U32;
 
   // One-shot transfer commands are scoped by the caller: begin records a
   // transient command buffer, submit ends it and blocks until the GPU is done.
@@ -53,7 +52,7 @@ class Context {
   VkPhysicalDevice physical_device = VK_NULL_HANDLE;
   VkDevice device = VK_NULL_HANDLE;
   VkQueue graphics_queue = VK_NULL_HANDLE;
-  Unsigned_32 graphics_queue_family = 0;
+  U32 graphics_queue_family = 0;
   VkCommandPool command_pool = VK_NULL_HANDLE;
 };
 

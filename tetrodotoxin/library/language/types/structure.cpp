@@ -54,7 +54,7 @@ auto Types::Structure::restore(
     -> Option<Structure&> {
   auto record = reader.read_record();
   BAIL_IF(
-      !record || record->get_tag() != Unsigned_16(Archive::Tag::Structure) ||
+      !record || record->get_tag() != U16(Archive::Tag::Structure) ||
       record->is_optional());
 
   Archive::Reader contents(record->get_payload());

@@ -45,18 +45,18 @@ PERIMORTEM_UNIT_TEST(LibraryArchive, frozen_format_one_tags) {
     Library::Archive::Tag::Layout,
     Library::Archive::Tag::FieldSlot,
   }};
-  static constexpr Static::Vector<Unsigned_16, 27> golden = {{
+  static constexpr Static::Vector<U16, 27> golden = {{
     1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14,
     15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
   }};
 
   for (Count index = 0; index < tags.get_size(); index++) {
-    EXPECT_EQ(Unsigned_16(tags[index]), golden[index]);
+    EXPECT_EQ(U16(tags[index]), golden[index]);
   }
 }
 
 PERIMORTEM_UNIT_TEST(LibraryArchive, frozen_format_one_framing) {
-  static constexpr Static::Vector<Unsigned_8, 16> golden = {{
+  static constexpr Static::Vector<U8, 16> golden = {{
     0x54,
     0x54,
     0x58,

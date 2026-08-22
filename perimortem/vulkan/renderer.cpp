@@ -12,8 +12,8 @@ using namespace Perimortem;
 Vulkan::Renderer::Renderer(
     wl_display* display,
     wl_surface* surface,
-    Unsigned_32 width,
-    Unsigned_32 height)
+    U32 width,
+    U32 height)
     : context(Vulkan::Context::create(display, surface)),
       swapchain(Vulkan::Swapchain::create(context, width, height)) {
   allocate_frames();
@@ -29,8 +29,7 @@ auto Vulkan::Renderer::begin_frame(Frame& frame) -> Bool {
   FrameState& state = frames[current_frame];
   vkWaitForFences(context.get_device(), 1, &state.fence, VK_TRUE, UINT64_MAX);
 
-  const Unsigned_32 image_index =
-      swapchain.acquire_next_image(state.image_available);
+  const U32 image_index = swapchain.acquire_next_image(state.image_available);
   if (image_index == UINT32_MAX) {
     return False;
   }
@@ -89,11 +88,11 @@ auto Vulkan::Renderer::wait_idle() -> void {
   }
 }
 
-auto Vulkan::Renderer::get_width() const -> Unsigned_32 {
+auto Vulkan::Renderer::get_width() const -> U32 {
   return swapchain.get_extent().width;
 }
 
-auto Vulkan::Renderer::get_height() const -> Unsigned_32 {
+auto Vulkan::Renderer::get_height() const -> U32 {
   return swapchain.get_extent().height;
 }
 
@@ -112,7 +111,7 @@ auto Vulkan::Renderer::require_success(VkResult result, View::Bytes message)
   }
 }
 
-auto Vulkan::Renderer::resize(Unsigned_32 width, Unsigned_32 height) -> Bool {
+auto Vulkan::Renderer::resize(U32 width, U32 height) -> Bool {
   wait_idle();
   const VkFormat old_format = swapchain.get_format();
   swapchain.recreate(context, width, height);
@@ -175,7 +174,7 @@ auto Vulkan::Renderer::destroy_frames() -> void {
 }
 
 auto Vulkan::Renderer::refresh_swapchain_images() -> void {
-  for (Unsigned_32 i = 0; i < swapchain.get_image_count(); i++) {
+  for (U32 i = 0; i < swapchain.get_image_count(); i++) {
     swapchain_images[i] = swapchain.get_image(i);
   }
 }
@@ -222,8 +221,8 @@ auto Vulkan::Renderer::begin_rendering(const Frame& frame) -> void {
   rendering.pColorAttachments = &color_attachment;
   vkCmdBeginRendering(frame.command_buffer, &rendering);
 
-  const VkViewport viewport = {
-    0.0f, 0.0f, Real_32(frame.width), Real_32(frame.height), 0.0f, 1.0f};
+  const VkViewport viewport = {0.0f, 0.0f, R32(frame.width), R32(frame.height),
+                               0.0f, 1.0f};
   vkCmdSetViewport(frame.command_buffer, 0, 1, &viewport);
   const VkRect2D scissor = {{0, 0}, extent};
   vkCmdSetScissor(frame.command_buffer, 0, 1, &scissor);

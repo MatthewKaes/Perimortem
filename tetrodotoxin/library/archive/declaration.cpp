@@ -10,7 +10,7 @@ using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin;
 
-enum class AttributeValue : Unsigned_8 {
+enum class AttributeValue : U8 {
   Empty,
   Bytes,
   Unsigned,
@@ -27,31 +27,31 @@ static auto write_attribute(
   const auto& value = attribute.get_value();
   return value.visit(
       [&]() -> Bool {
-        writer.write(Unsigned_8(AttributeValue::Empty));
+        writer.write(U8(AttributeValue::Empty));
         return True;
       },
       [&](View::Bytes selected) -> Bool {
-        writer.write(Unsigned_8(AttributeValue::Bytes));
+        writer.write(U8(AttributeValue::Bytes));
         return writer.write(selected);
       },
-      [&](Unsigned_64 selected) -> Bool {
-        writer.write(Unsigned_8(AttributeValue::Unsigned));
+      [&](U64 selected) -> Bool {
+        writer.write(U8(AttributeValue::Unsigned));
         writer.write(selected);
         return True;
       },
-      [&](Signed_64 selected) -> Bool {
-        writer.write(Unsigned_8(AttributeValue::Signed));
+      [&](S64 selected) -> Bool {
+        writer.write(U8(AttributeValue::Signed));
         writer.write(selected);
         return True;
       },
-      [&](Real_64 selected) -> Bool {
-        writer.write(Unsigned_8(AttributeValue::Real));
+      [&](R64 selected) -> Bool {
+        writer.write(U8(AttributeValue::Real));
         writer.write(selected);
         return True;
       },
       [&](Bool selected) -> Bool {
-        writer.write(Unsigned_8(AttributeValue::Flag));
-        writer.write(Unsigned_8(selected ? 1 : 0));
+        writer.write(U8(AttributeValue::Flag));
+        writer.write(U8(selected ? 1 : 0));
         return True;
       });
 }
@@ -60,7 +60,7 @@ static auto read_attribute(
     Library::Archive::Reader& reader,
     Allocator::Arena& arena) -> Option<Language::Attribute> {
   auto key = reader.read_bytes();
-  auto kind = reader.read_unsigned_8();
+  auto kind = reader.read_u8();
   BAIL_IF(!key || key->is_empty() || !kind);
 
   Language::Attribute::Value value;
@@ -74,25 +74,25 @@ static auto read_attribute(
     break;
   }
   case AttributeValue::Unsigned: {
-    auto selected = reader.read_unsigned_64();
+    auto selected = reader.read_u64();
     BAIL_IF(!selected);
     value = Language::Attribute::Value(*selected);
     break;
   }
   case AttributeValue::Signed: {
-    auto selected = reader.read_signed_64();
+    auto selected = reader.read_s64();
     BAIL_IF(!selected);
     value = Language::Attribute::Value(*selected);
     break;
   }
   case AttributeValue::Real: {
-    auto selected = reader.read_real_64();
+    auto selected = reader.read_r64();
     BAIL_IF(!selected);
     value = Language::Attribute::Value(*selected);
     break;
   }
   case AttributeValue::Flag: {
-    auto selected = reader.read_unsigned_8();
+    auto selected = reader.read_u8();
     BAIL_IF(!selected || *selected > 1);
     value = Language::Attribute::Value(*selected == 1 ? True : False);
     break;
@@ -108,13 +108,13 @@ auto Library::Archive::Declaration::read(
     Reader& reader,
     Allocator::Arena& arena) -> Option<Declaration> {
   auto documentation = reader.read_documentation(arena);
-  auto encoded_visibility = reader.read_unsigned_8();
+  auto encoded_visibility = reader.read_u8();
   auto name = reader.read_bytes();
-  auto attribute_count = reader.read_unsigned_32();
+  auto attribute_count = reader.read_u32();
   BAIL_IF(
       !documentation || !encoded_visibility || !name || name->is_empty() ||
       !attribute_count ||
-      *encoded_visibility > Unsigned_8(Language::Visibility::Exposed));
+      *encoded_visibility > U8(Language::Visibility::Exposed));
 
   Managed::Vector<Language::Attribute> attributes(arena);
   for (Count index = 0; index < *attribute_count; index++) {
@@ -129,12 +129,11 @@ auto Library::Archive::Declaration::read(
 }
 
 auto Library::Archive::Declaration::write(Writer& writer) const -> Bool {
-  BAIL_IF(
-      !writer.write(documentation) || attributes.get_size() > Unsigned_32(-1));
+  BAIL_IF(!writer.write(documentation) || attributes.get_size() > U32(-1));
 
-  writer.write(Unsigned_8(visibility));
+  writer.write(U8(visibility));
   BAIL_IF(!writer.write(name));
-  writer.write(Unsigned_32(attributes.get_size()));
+  writer.write(U32(attributes.get_size()));
   for (const Language::Attribute& attribute : attributes) {
     BAIL_IF(!write_attribute(writer, attribute));
   }

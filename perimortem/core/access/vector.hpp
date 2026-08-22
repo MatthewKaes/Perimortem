@@ -57,7 +57,7 @@ class Vector {
   constexpr auto get_size() const -> Count { return size; };
   constexpr auto get_data() -> data_type* { return source_block; };
   constexpr auto get_bytes() const -> Access::Bytes {
-    return Access::Bytes((Unsigned_8*)source_block, size * sizeof(data_type));
+    return Access::Bytes((U8*)source_block, size * sizeof(data_type));
   }
 
   constexpr auto get_view() const -> const View::Vector<data_type> {

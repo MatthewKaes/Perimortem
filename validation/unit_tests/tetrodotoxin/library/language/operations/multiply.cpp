@@ -17,12 +17,12 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
-#include "tetrodotoxin/library/language/types/real_32.hpp"
-#include "tetrodotoxin/library/language/types/real_64.hpp"
-#include "tetrodotoxin/library/language/types/signed_8.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_16.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_64.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/r32.hpp"
+#include "tetrodotoxin/library/language/types/r64.hpp"
+#include "tetrodotoxin/library/language/types/s8.hpp"
+#include "tetrodotoxin/library/language/types/u16.hpp"
+#include "tetrodotoxin/library/language/types/u64.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -130,49 +130,46 @@ static auto reports(
       });
 }
 
-static auto get_unsigned(const Expression& expression) -> Option<Unsigned_64> {
+static auto get_unsigned(const Expression& expression) -> Option<U64> {
   return expression.visit<Constants::Unsigned>(
-      [](const Constants::Unsigned& selected) -> Option<Unsigned_64> {
+      [](const Constants::Unsigned& selected) -> Option<U64> {
         return selected.get_value();
       },
-      [](const Abstract&) -> Option<Unsigned_64> { return {}; });
+      [](const Abstract&) -> Option<U64> { return {}; });
 }
 
-static auto get_signed(const Expression& expression) -> Option<Signed_64> {
+static auto get_signed(const Expression& expression) -> Option<S64> {
   return expression.visit<Constants::Signed>(
-      [](const Constants::Signed& selected) -> Option<Signed_64> {
+      [](const Constants::Signed& selected) -> Option<S64> {
         return selected.get_value();
       },
-      [](const Abstract&) -> Option<Signed_64> { return {}; });
+      [](const Abstract&) -> Option<S64> { return {}; });
 }
 
-static auto get_real(const Expression& expression) -> Option<Real_64> {
+static auto get_real(const Expression& expression) -> Option<R64> {
   return expression.visit<Constants::Real>(
-      [](const Constants::Real& selected) -> Option<Real_64> {
+      [](const Constants::Real& selected) -> Option<R64> {
         return selected.get_value();
       },
-      [](const Abstract&) -> Option<Real_64> { return {}; });
+      [](const Abstract&) -> Option<R64> { return {}; });
 }
 
 PERIMORTEM_UNIT_TEST(LibraryMultiply, type_selection) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 unsigned_8;
-  Types::Unsigned_16 unsigned_16;
-  Types::Unsigned_64 unsigned_64;
+  Types::U8 u8;
+  Types::U16 u16;
+  Types::U64 u64;
   Types::Boolean boolean;
   Types::Fixed bytes_type(
-      "Fixed[Unsigned_8,1]"_view,
-      resolve_library_unsigned(source, "Unsigned_8"_view), 1);
-  MultiplyExpression left("left"_view, unsigned_8);
-  MultiplyExpression same("same"_view, unsigned_8);
-  MultiplyExpression other("other"_view, unsigned_16);
+      "Fixed[U8,1]"_view, resolve_library_unsigned(source, "U8"_view), 1);
+  MultiplyExpression left("left"_view, u8);
+  MultiplyExpression same("same"_view, u8);
+  MultiplyExpression other("other"_view, u16);
   MultiplyExpression unresolved("unresolved"_view, Invalid::get_invalid());
-  auto& wide_constant =
-      Constants::Unsigned::create_synthetic(domain, unsigned_64, 12);
-  auto& other_constant =
-      Constants::Unsigned::create_synthetic(domain, unsigned_16, 12);
+  auto& wide_constant = Constants::Unsigned::create_synthetic(domain, u64, 12);
+  auto& other_constant = Constants::Unsigned::create_synthetic(domain, u16, 12);
   auto& truth = Constants::True::create_synthetic(domain, boolean);
   auto& bytes =
       Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
@@ -200,7 +197,7 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, type_selection) {
 
   auto exact_result = selected(exact.fold());
 
-  EXPECT(&exact.get_type() == &unsigned_8);
+  EXPECT(&exact.get_type() == &u8);
   EXPECT(mixed_left.get_type().resolve().is<Invalid>());
   EXPECT_NOT(exact_result);
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
@@ -214,8 +211,8 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, checked_integer_widths) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 unsigned_type;
-  Types::Signed_8 signed_type;
+  Types::U8 unsigned_type;
+  Types::S8 signed_type;
   auto& fifteen =
       Constants::Unsigned::create_synthetic(domain, unsigned_type, 15);
   auto& seventeen =
@@ -257,13 +254,11 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, checked_integer_widths) {
   auto signed_value = selected(signed_success.fold());
   auto endpoint_value = selected(endpoint.fold());
   auto unsigned_number =
-      unsigned_value ? get_unsigned(*unsigned_value) : Option<Unsigned_64>();
-  auto zero_number =
-      zero_value ? get_unsigned(*zero_value) : Option<Unsigned_64>();
-  auto signed_number =
-      signed_value ? get_signed(*signed_value) : Option<Signed_64>();
+      unsigned_value ? get_unsigned(*unsigned_value) : Option<U64>();
+  auto zero_number = zero_value ? get_unsigned(*zero_value) : Option<U64>();
+  auto signed_number = signed_value ? get_signed(*signed_value) : Option<S64>();
   auto endpoint_number =
-      endpoint_value ? get_signed(*endpoint_value) : Option<Signed_64>();
+      endpoint_value ? get_signed(*endpoint_value) : Option<S64>();
 
   ASSERT(unsigned_value && zero_value && signed_value && endpoint_value);
   EXPECT(&unsigned_value->get_type() == &unsigned_type);
@@ -284,21 +279,16 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, ieee_real_domains) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Real_32 real_32;
-  Types::Real_64 real_64;
-  auto& narrow_left =
-      Constants::Real::create_synthetic(domain, real_32, Real_64(1.1));
-  auto& narrow_right =
-      Constants::Real::create_synthetic(domain, real_32, Real_64(3.0));
-  auto& wide_left =
-      Constants::Real::create_synthetic(domain, real_64, Real_64(-2.5));
-  auto& wide_right =
-      Constants::Real::create_synthetic(domain, real_64, Real_64(4.0));
+  Types::R32 r32;
+  Types::R64 r64;
+  auto& narrow_left = Constants::Real::create_synthetic(domain, r32, R64(1.1));
+  auto& narrow_right = Constants::Real::create_synthetic(domain, r32, R64(3.0));
+  auto& wide_left = Constants::Real::create_synthetic(domain, r64, R64(-2.5));
+  auto& wide_right = Constants::Real::create_synthetic(domain, r64, R64(4.0));
   auto& infinity =
-      Constants::Real::create_synthetic(domain, real_64, __builtin_inf());
-  auto& nan =
-      Constants::Real::create_synthetic(domain, real_64, __builtin_nan(""));
-  auto& one = Constants::Real::create_synthetic(domain, real_64, Real_64(1.0));
+      Constants::Real::create_synthetic(domain, r64, __builtin_inf());
+  auto& nan = Constants::Real::create_synthetic(domain, r64, __builtin_nan(""));
+  auto& one = Constants::Real::create_synthetic(domain, r64, R64(1.0));
   auto& narrow =
       Operations::Multiply::create_synthetic(domain, narrow_left, narrow_right);
   auto& wide =
@@ -317,20 +307,18 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, ieee_real_domains) {
   auto wide_value = selected(wide.fold());
   auto infinite_value = selected(infinite.fold());
   auto unordered_value = selected(unordered.fold());
-  auto narrow_number =
-      narrow_value ? get_real(*narrow_value) : Option<Real_64>();
-  auto wide_number = wide_value ? get_real(*wide_value) : Option<Real_64>();
+  auto narrow_number = narrow_value ? get_real(*narrow_value) : Option<R64>();
+  auto wide_number = wide_value ? get_real(*wide_value) : Option<R64>();
   auto infinite_number =
-      infinite_value ? get_real(*infinite_value) : Option<Real_64>();
+      infinite_value ? get_real(*infinite_value) : Option<R64>();
   auto unordered_number =
-      unordered_value ? get_real(*unordered_value) : Option<Real_64>();
+      unordered_value ? get_real(*unordered_value) : Option<R64>();
 
   ASSERT(narrow_value && wide_value && infinite_value && unordered_value);
-  EXPECT(&narrow_value->get_type() == &real_32);
-  EXPECT(
-      narrow_number && *narrow_number == Real_64(Real_32(1.1) * Real_32(3.0)));
-  EXPECT(&wide_value->get_type() == &real_64);
-  EXPECT(wide_number && *wide_number == Real_64(-10.0));
+  EXPECT(&narrow_value->get_type() == &r32);
+  EXPECT(narrow_number && *narrow_number == R64(R32(1.1) * R32(3.0)));
+  EXPECT(&wide_value->get_type() == &r64);
+  EXPECT(wide_number && *wide_number == R64(-10.0));
   EXPECT(infinite_number && __builtin_isinf(*infinite_number));
   EXPECT(unordered_number && __builtin_isnan(*unordered_number));
 }
@@ -339,7 +327,7 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, recursive_exact_is_idempotent) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 selected_type;
+  Types::U8 selected_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
   auto& folded =
       Constants::Unsigned::create_synthetic(domain, selected_type, 4);
@@ -356,7 +344,7 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, recursive_exact_is_idempotent) {
 
   auto first = selected(multiply.fold());
   auto second = selected(multiply.fold());
-  auto value = first ? get_unsigned(*first) : Option<Unsigned_64>();
+  auto value = first ? get_unsigned(*first) : Option<U64>();
 
   ASSERT(first && second);
   EXPECT(&*first == &*second);

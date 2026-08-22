@@ -16,7 +16,7 @@ using namespace Perimortem::Serialization;
 
 // We truly can't have nice things... Still no proper support for c99
 // initializers.
-constexpr Unsigned_8 decode_lookup[256] = {
+constexpr U8 decode_lookup[256] = {
   _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
   _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,  _,
   _,  _,  _,  _,  _,  _,  _,  62, _,  _,  _,  63, 52, 53, 54, 55, 56, 57,
@@ -25,7 +25,7 @@ constexpr Unsigned_8 decode_lookup[256] = {
   25, _,  _,  _,  _,  _,  _,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
   37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51};
 
-constexpr Unsigned_8 encode_lookup[64] = {
+constexpr U8 encode_lookup[64] = {
   'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
   'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
   'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
@@ -49,7 +49,7 @@ constexpr Count decode_underwrite_bytes = sizeof(__m128i) / 2;
 constexpr Count decode_extra_bytes =
     sizeof(__m256i) / 4 + decode_underwrite_bytes;
 
-auto vectorized_decode(Unsigned_8* text, View::Bytes source) -> Count {
+auto vectorized_decode(U8* text, View::Bytes source) -> Count {
   // On AMD processors that don't support AVX512 they "partially" supports it
   // using two fused AVX2 256bit buffers. To make sure we support just about
   // every modern CPU we can use two parallel AVX2 buffers unrolled. This is esp
@@ -461,11 +461,11 @@ auto vectorize_encode(Access::Bytes output, View::Bytes source) -> void {
       // 1st block
       4 + c_index, 4 + d_index, 4 + a_index, 4 + b_index);
 
-  constexpr auto input_bytes_per_channel = sizeof(Unsigned_32) * 6;
+  constexpr auto input_bytes_per_channel = sizeof(U32) * 6;
   constexpr auto input_bytes_per_iteration =
       input_bytes_per_channel * fused_channels;
 
-  constexpr auto output_bytes_per_channel = sizeof(Unsigned_32) * 8;
+  constexpr auto output_bytes_per_channel = sizeof(U32) * 8;
   constexpr auto output_bytes_per_iteration =
       output_bytes_per_channel * fused_channels;
 
@@ -581,7 +581,7 @@ auto Base64::decode(View::Bytes source) -> Dynamic::Bytes {
       "Base64 decode requires more underwrite bytes than are guaranteed by the "
       "Bibliotheca, ensure Perimortem is configured correctly");
 
-  Unsigned_8* text = bytes.get_access().get_data();
+  U8* text = bytes.get_access().get_data();
   Count actual_size = vectorized_decode(text, source);
   bytes.resize(actual_size);
   return bytes;
@@ -598,7 +598,7 @@ auto Base64::decode(Allocator::Arena& arena, View::Bytes source)
   // Pre-pad by decode_underwrite_bytes so the vectorized loop can underwrite.
   auto storage =
       arena.allocate(decode_underwrite_bytes + size + decode_extra_bytes);
-  Unsigned_8* text = storage.get_data() + decode_underwrite_bytes;
+  U8* text = storage.get_data() + decode_underwrite_bytes;
   Count actual_size = vectorized_decode(text, source);
   return View::Bytes(text, actual_size);
 }

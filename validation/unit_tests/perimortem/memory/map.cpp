@@ -27,7 +27,7 @@ static Harness DynamicMap = {
 };
 
 PERIMORTEM_UNIT_TEST(DynamicMap, find_and_get_entry) {
-  Dynamic::Map<Signed_32, Signed_32> int_map = {{{1, 2}, {2, 3}, {4, 5}}};
+  Dynamic::Map<S32, S32> int_map = {{{1, 2}, {2, 3}, {4, 5}}};
 
   auto found = int_map.find(2);
   ASSERT(found);
@@ -41,8 +41,8 @@ PERIMORTEM_UNIT_TEST(DynamicMap, find_and_get_entry) {
   EXPECT(!const_map.find(8));
 
   Count count = 0;
-  Signed_32 key_sum = 0;
-  Signed_32 value_sum = 0;
+  S32 key_sum = 0;
+  S32 value_sum = 0;
   for (Count entry_index = 0; entry_index < int_map.get_size(); entry_index++) {
     auto* entry = int_map.get_entry(entry_index);
     ASSERT(entry != nullptr);
@@ -58,7 +58,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, find_and_get_entry) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, insert_on_index) {
-  Dynamic::Map<Signed_32, Signed_32> empty_map;
+  Dynamic::Map<S32, S32> empty_map;
 
   // Populate defaults
   for (Count i = 0; i < 10; i++) {
@@ -72,7 +72,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, insert_on_index) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, duplicate_keys) {
-  Dynamic::Map<Signed_32, Signed_32> int_map = {{{1, 2}, {1, 4}}};
+  Dynamic::Map<S32, S32> int_map = {{{1, 2}, {1, 4}}};
 
   EXPECT_EQ(int_map.get_size(), 1);
   ASSERT_EQ(int_map[1], 4);
@@ -84,7 +84,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, duplicate_keys) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, remove) {
-  Dynamic::Map<Signed_32, Signed_32> int_map;
+  Dynamic::Map<S32, S32> int_map;
 
   int_map.ensure_capacity(1000);
   for (Count i = 0; i < 100; i++) {
@@ -103,7 +103,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, remove) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, empty_keys) {
-  Dynamic::Map<Dynamic::Bytes, Signed_32> empty_map;
+  Dynamic::Map<Dynamic::Bytes, S32> empty_map;
 
   Count i = 0;
   while (i < 1000) {
@@ -117,7 +117,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, empty_keys) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, insert_stress_test) {
-  Dynamic::Map<Signed_32, Signed_32> large_map;
+  Dynamic::Map<S32, S32> large_map;
   for (Count i = 0; i < 1000; i++) {
     large_map.insert(i, i + 2);
   }
@@ -133,7 +133,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, key_construction) {
   Count destruct_count = 0;
 
   {
-    Dynamic::Map<Hashable, Signed_32> custom_map;
+    Dynamic::Map<Hashable, S32> custom_map;
     for (Count i = 0; i < 100; i++) {
       custom_map.insert(Hashable(i, construct_count, destruct_count), i);
     }
@@ -153,7 +153,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, value_construction) {
   Count destruct_count = 0;
 
   {
-    Dynamic::Map<Signed_32, Hashable> custom_map;
+    Dynamic::Map<S32, Hashable> custom_map;
     for (Count i = 0; i < 100; i++) {
       custom_map.insert(i, Hashable(i, construct_count, destruct_count));
     }
@@ -169,7 +169,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, value_construction) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_keys) {
-  Dynamic::Map<Dynamic::Bytes, Signed_32> text_map;
+  Dynamic::Map<Dynamic::Bytes, S32> text_map;
 
   text_map["Hello"_view] = 0;
   text_map["World"_view] = 1;
@@ -177,7 +177,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_keys) {
   // Byte keys
   Dynamic::Bytes text;
   text.append('a');
-  for (Unsigned_8 ch = 'A'; ch < 'z'; ch++) {
+  for (U8 ch = 'A'; ch < 'z'; ch++) {
     text.get_access().get_data()[0] = ch;
     text_map[text] = 2 + ch;
   }
@@ -187,7 +187,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_keys) {
   ASSERT_EQ(text_map["Hello"_view], 0);
   ASSERT_EQ(text_map["World"_view], 1);
   ASSERT_EQ(text_map["Longer test string"_view], 2);
-  for (Unsigned_8 ch = 'A'; ch < 'z'; ch++) {
+  for (U8 ch = 'A'; ch < 'z'; ch++) {
     text.get_access().get_data()[0] = ch;
     ASSERT_EQ(text_map[text], 2 + ch);
   }
@@ -200,7 +200,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_keys) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_value) {
-  Dynamic::Map<Signed_32, Dynamic::Bytes> text_map;
+  Dynamic::Map<S32, Dynamic::Bytes> text_map;
 
   text_map[0] = "Hello"_view;
   text_map[1] = "World"_view;
@@ -216,8 +216,8 @@ PERIMORTEM_UNIT_TEST(DynamicMap, dynamic_value) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, assignment) {
-  Dynamic::Map<Signed_32, Signed_32> source = {{{1, 2}, {3, 4}}};
-  Dynamic::Map<Signed_32, Signed_32> destination = {{{5, 6}}};
+  Dynamic::Map<S32, S32> source = {{{1, 2}, {3, 4}}};
+  Dynamic::Map<S32, S32> destination = {{{5, 6}}};
 
   destination = source;
   source[1] = 8;
@@ -228,18 +228,18 @@ PERIMORTEM_UNIT_TEST(DynamicMap, assignment) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, move_assignment) {
-  Dynamic::Map<Signed_32, Signed_32> source = {{{1, 2}, {3, 4}}};
-  Dynamic::Map<Signed_32, Signed_32> destination = {{{5, 6}}};
+  Dynamic::Map<S32, S32> source = {{{1, 2}, {3, 4}}};
+  Dynamic::Map<S32, S32> destination = {{{5, 6}}};
 
-  destination = static_cast<Dynamic::Map<Signed_32, Signed_32>&&>(source);
+  destination = static_cast<Dynamic::Map<S32, S32>&&>(source);
 
   EXPECT_EQ(destination.get_size(), Count(2));
   EXPECT_EQ(destination[1], 2);
 }
 
 PERIMORTEM_UNIT_TEST(DynamicMap, reuse) {
-  Dynamic::Map<Signed_32, Signed_32> reuse_map;
-  for (Signed_32 loops = 0; loops < 5; loops++) {
+  Dynamic::Map<S32, S32> reuse_map;
+  for (S32 loops = 0; loops < 5; loops++) {
     reuse_map.clear();
     ASSERT_EQ(reuse_map.get_size(), 0);
     for (Count i = 0; i < 100; i++) {
@@ -270,7 +270,7 @@ PERIMORTEM_UNIT_TEST(DynamicMap, leak_test) {
   }
 
   {
-    Dynamic::Map<Signed_32, Signed_32> large_map;
+    Dynamic::Map<S32, S32> large_map;
     for (Count i = 0; i < 1000; i++) {
       large_map.insert(i, i + 2);
     }

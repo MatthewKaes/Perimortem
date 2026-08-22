@@ -77,11 +77,11 @@ enum class TraceMutation {
   TruncateAfterMetadata,
 };
 
-static auto is_open_call(Signed_64 call) -> Bool {
+static auto is_open_call(S64 call) -> Bool {
   return call == SYS_open || call == SYS_openat || call == SYS_openat2;
 }
 
-static auto is_metadata_call(Signed_64 call) -> Bool {
+static auto is_metadata_call(S64 call) -> Bool {
   return call == SYS_stat || call == SYS_fstat || call == SYS_newfstatat;
 }
 
@@ -133,11 +133,11 @@ static auto mutate_path(
     const char* path,
     const char* replacement) -> Bool {
   if (mutation == TraceMutation::ReplacePath) {
-    Signed_32 renamed = rename(replacement, path);
+    S32 renamed = rename(replacement, path);
     return renamed == 0;
   }
 
-  Signed_32 truncated = truncate(path, 0);
+  S32 truncated = truncate(path, 0);
   return truncated == 0;
 }
 
@@ -162,7 +162,7 @@ static auto trace_read(
 
   // Stop at every child system call so the pathname can change at an exact
   // boundary without adding a production test seam.
-  Signed_32 status = 0;
+  S32 status = 0;
   pid_t waited = waitpid(child, &status, 0);
   if (waited != child || !WIFSTOPPED(status)) {
     return False;
@@ -208,7 +208,7 @@ static auto trace_read(
       return False;
     }
 
-    Signed_64 call = Signed_64(registers.orig_rax);
+    S64 call = S64(registers.orig_rax);
     if (entering && mutation == TraceMutation::TruncateAfterMetadata &&
         opened && call == SYS_read && !mutated) {
       mutated = mutate_path(mutation, path, replacement);
@@ -216,7 +216,7 @@ static auto trace_read(
 
     entering = !entering;
     if (entering) {
-      Signed_64 call_result = Signed_64(registers.rax);
+      S64 call_result = S64(registers.rax);
       if (is_open_call(call) && call_result >= 0) {
         opened = True;
         if (mutation == TraceMutation::ReplacePath && !mutated) {
@@ -240,7 +240,7 @@ static auto build_member_path(
     CppSize output_size,
     const char* root,
     const char* member) -> Bool {
-  Signed_32 written = snprintf(output, output_size, "%s/%s", root, member);
+  S32 written = snprintf(output, output_size, "%s/%s", root, member);
   return written > 0 && CppSize(written) < output_size;
 }
 
@@ -289,7 +289,7 @@ class TemporaryRoot {
       return;
     }
 
-    Signed_32 written =
+    S32 written =
         snprintf(outside_path, sizeof(outside_path), "%s_outside", root_path);
     if (written <= 0 || CppSize(written) >= sizeof(outside_path)) {
       return;
@@ -343,7 +343,7 @@ class TemporaryRoot {
   }
 
   auto create_outside_directory() const -> Bool {
-    Signed_32 created = mkdir(outside_directory_path, S_IRWXU);
+    S32 created = mkdir(outside_directory_path, S_IRWXU);
     return created == 0;
   }
 
@@ -378,7 +378,7 @@ class TemporaryRoot {
       return False;
     }
 
-    Signed_32 created = mkdir(path, S_IRWXU);
+    S32 created = mkdir(path, S_IRWXU);
     return created == 0;
   }
 
@@ -389,28 +389,28 @@ class TemporaryRoot {
       return False;
     }
 
-    Signed_32 created = symlink(target, path);
+    S32 created = symlink(target, path);
     return created == 0;
   }
 
   auto remove_root() -> Bool {
-    Signed_32 removed = rmdir(root_path);
+    S32 removed = rmdir(root_path);
     return removed == 0;
   }
 
   auto rename_root() -> Bool {
-    Signed_32 written =
+    S32 written =
         snprintf(moved_path, sizeof(moved_path), "%s_moved", root_path);
     if (written <= 0 || CppSize(written) >= sizeof(moved_path)) {
       return False;
     }
 
-    Signed_32 moved = rename(root_path, moved_path);
+    S32 moved = rename(root_path, moved_path);
     return moved == 0;
   }
 
   auto create_replacement_root() const -> Bool {
-    Signed_32 created = mkdir(root_path, S_IRWXU);
+    S32 created = mkdir(root_path, S_IRWXU);
     return created == 0;
   }
 
@@ -534,24 +534,24 @@ PERIMORTEM_UNIT_TEST(SystemFile, unreadable) {
   Bool written = File::write(test_contents, test_output);
   ASSERT(written);
 
-  Signed_32 restricted = chmod(test_output_path, 0);
+  S32 restricted = chmod(test_output_path, 0);
   ASSERT_EQ(restricted, 0);
 
   auto source = File::read(test_output);
 
-  Signed_32 restored = chmod(test_output_path, S_IRUSR | S_IWUSR);
+  S32 restored = chmod(test_output_path, S_IRUSR | S_IWUSR);
   EXPECT_EQ(restored, 0);
   EXPECT_NOT(source);
 }
 
 PERIMORTEM_UNIT_TEST(SystemFile, oversized) {
-  Signed_32 descriptor =
+  S32 descriptor =
       open(test_output_path, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
   ASSERT(descriptor >= 0);
 
   constexpr off_t oversized_file = (off_t(1) << 35) + 1;
-  Signed_32 truncated = ftruncate(descriptor, oversized_file);
-  Signed_32 closed = close(descriptor);
+  S32 truncated = ftruncate(descriptor, oversized_file);
+  S32 closed = close(descriptor);
   ASSERT_EQ(truncated, 0);
   ASSERT_EQ(closed, 0);
 
@@ -622,7 +622,7 @@ PERIMORTEM_UNIT_TEST(SystemFileRoot, open_directory) {
   ASSERT(temporary);
 
   View::Bytes terminated_location(
-      Data::cast<const Unsigned_8>(temporary.get_path()),
+      Data::cast<const U8>(temporary.get_path()),
       strlen(temporary.get_path()) + 1);
   auto root = File::Root::open(terminated_location);
   EXPECT(root);
@@ -969,11 +969,11 @@ PERIMORTEM_UNIT_TEST(SystemFileRoot, root_close_warning) {
   TemporaryRoot temporary;
   ASSERT(temporary);
 
-  Signed_32 descriptor =
+  S32 descriptor =
       open(temporary.get_path(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   ASSERT(descriptor >= 0);
 
-  Signed_32 probe_closed = close(descriptor);
+  S32 probe_closed = close(descriptor);
   ASSERT_EQ(probe_closed, 0);
 
   capture_next_file_log();
@@ -981,7 +981,7 @@ PERIMORTEM_UNIT_TEST(SystemFileRoot, root_close_warning) {
     auto root = File::Root::open(temporary.get_location());
     ASSERT(root);
 
-    Signed_32 forced_close = close(descriptor);
+    S32 forced_close = close(descriptor);
     ASSERT_EQ(forced_close, 0);
   }
 
@@ -997,12 +997,11 @@ PERIMORTEM_UNIT_TEST(SystemFileRoot, magic_link_escape) {
   Bool outside_written = temporary.write_outside(test_contents);
   ASSERT(outside_written);
 
-  Signed_32 outside = open(temporary.get_outside_path(), O_RDONLY | O_CLOEXEC);
+  S32 outside = open(temporary.get_outside_path(), O_RDONLY | O_CLOEXEC);
   ASSERT(outside >= 0);
 
   char target[temporary_path_capacity];
-  Signed_32 written =
-      snprintf(target, sizeof(target), "/proc/self/fd/%d", outside);
+  S32 written = snprintf(target, sizeof(target), "/proc/self/fd/%d", outside);
   Bool target_built = written > 0 && CppSize(written) < sizeof(target);
   Bool linked = False;
   if (target_built) {
@@ -1015,7 +1014,7 @@ PERIMORTEM_UNIT_TEST(SystemFileRoot, magic_link_escape) {
     source = (*root).read("magic"_view);
   }
 
-  Signed_32 closed = close(outside);
+  S32 closed = close(outside);
   ASSERT(root);
   ASSERT(linked);
   EXPECT_EQ(closed, 0);
@@ -1118,7 +1117,7 @@ PERIMORTEM_UNIT_TEST(SystemFileRoot, invalid_route_storage) {
   auto root = File::Root::open(temporary.get_location());
   ASSERT(root);
 
-  Unsigned_8 embedded_null[] = {'f', 'i', 'l', 'e', '\0', 'x'};
+  U8 embedded_null[] = {'f', 'i', 'l', 'e', '\0', 'x'};
   auto embedded_source =
       (*root).read(View::Bytes(embedded_null, sizeof(embedded_null)));
   EXPECT_NOT(embedded_source);

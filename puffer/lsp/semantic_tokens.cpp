@@ -19,7 +19,7 @@ using namespace Perimortem::Serialization;
 using namespace Puffer;
 using namespace Ttx::Lexical;
 
-enum SemanticToken : Signed_64 {
+enum SemanticToken : S64 {
   SemanticNamespace,
   SemanticType,
   SemanticClass,
@@ -57,7 +57,7 @@ static auto has_newline(View::Bytes text) -> Bool {
   return Algorithm::search(text, "\n"_view) != Count(-1);
 }
 
-static auto classify_semantic_token(Code code) -> Signed_64 {
+static auto classify_semantic_token(Code code) -> S64 {
   switch (code.get_type()) {
   case Code::Type::Comment:
     return SemanticComment;
@@ -120,7 +120,7 @@ static auto classify_semantic_token(Code code) -> Signed_64 {
 
   case Code::Type::Unknown:
   case Code::Type::Terminal:
-    return Signed_64(-1);
+    return S64(-1);
 
   default:
     return SemanticKeyword;
@@ -155,7 +155,7 @@ static auto contextual_semantic_token(
     View::Vector<Token> tokens,
     Count index,
     View::Bytes source,
-    View::Bytes dialect) -> Signed_64 {
+    View::Bytes dialect) -> S64 {
   Code code = tokens[index].get_code();
   if (code != Code::Type::Addressable) {
     return classify_semantic_token(code);
@@ -224,8 +224,8 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
   Cursor cursor(tokenizer, errors, associations);
 
   View::Bytes dialect = source_dialect(tokens, cursor.get_source_text());
-  Unsigned_32 previous_line = 0;
-  Unsigned_32 previous_column = 0;
+  U32 previous_line = 0;
+  U32 previous_column = 0;
   Bool emitted = False;
   for (Count i = 0; i < tokens.get_size(); i++) {
     Token token = tokens[i];
@@ -239,27 +239,27 @@ auto Lsp::semantic_tokens_for(Allocator::Arena& arena, View::Bytes source)
       continue;
     }
 
-    Signed_64 token_type =
+    S64 token_type =
         contextual_semantic_token(tokens, i, cursor.get_source_text(), dialect);
     if (token_type < 0) {
       continue;
     }
 
-    Unsigned_32 line = token.get_line() - 1;
-    Unsigned_32 column = token.get_column() - 1;
-    Unsigned_32 delta_line = emitted ? line - previous_line : line;
-    Unsigned_32 delta_column =
+    U32 line = token.get_line() - 1;
+    U32 column = token.get_column() - 1;
+    U32 delta_line = emitted ? line - previous_line : line;
+    U32 delta_column =
         emitted && delta_line == 0 ? column - previous_column : column;
 
-    data.insert(Json::Node(Signed_64(delta_line)));
-    data.insert(Json::Node(Signed_64(delta_column)));
+    data.insert(Json::Node(S64(delta_line)));
+    data.insert(Json::Node(S64(delta_column)));
     Count width = text.get_size();
     if (token.get_code() == Code::Type::Attribute) {
       width += Lexicon::get_spelling(Code::Type::Attribute).get_size();
     }
-    data.insert(Json::Node(Signed_64(width)));
+    data.insert(Json::Node(S64(width)));
     data.insert(Json::Node(token_type));
-    data.insert(Json::Node(Signed_64(0)));
+    data.insert(Json::Node(S64(0)));
 
     previous_line = line;
     previous_column = column;

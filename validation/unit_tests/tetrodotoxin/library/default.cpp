@@ -73,16 +73,16 @@ static auto import_types(
       "public Empty : struct {}\n"
       "public EmptyObject : object {}\n"
       "public Inner : struct {\n"
-      "  private state number : Unsigned_64;\n"
+      "  private state number : U64;\n"
       "  private state enabled : Bool;\n"
       "}\n"
       "public Packet : struct {\n"
       "  private state inner : Inner;\n"
-      "  private state count : Unsigned_64 = 9;\n"
+      "  private state count : U64 = 9;\n"
       "}\n"
-      "public Session : object { private state count : Unsigned_64; }\n"
+      "public Session : object { private state count : U64; }\n"
       "public Safe : object { private state next : Option[Safe]; }\n"
-      "public Mode : enum[Unsigned_8] { ready = 1; }"_view;
+      "public Mode : enum[U8] { ready = 1; }"_view;
   auto imported = workspace.interpret_source(
       errors, "Defaults"_view, "defaults.ttx"_view, source);
   if (!imported || !imported->is<Monograph>()) {
@@ -100,30 +100,20 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, scalar_payloads_and_identity) {
   auto monograph = import_types(workspace, errors);
   ASSERT(monograph);
   const Static::Vector<const Model::Type*, 4> unsigned_types = {{
-    &static_cast<const Model::Type&>(
-        monograph->resolve_context("Unsigned_8"_view)),
-    &static_cast<const Model::Type&>(
-        monograph->resolve_context("Unsigned_16"_view)),
-    &static_cast<const Model::Type&>(
-        monograph->resolve_context("Unsigned_32"_view)),
-    &static_cast<const Model::Type&>(
-        monograph->resolve_context("Unsigned_64"_view)),
+    &static_cast<const Model::Type&>(monograph->resolve_context("U8"_view)),
+    &static_cast<const Model::Type&>(monograph->resolve_context("U16"_view)),
+    &static_cast<const Model::Type&>(monograph->resolve_context("U32"_view)),
+    &static_cast<const Model::Type&>(monograph->resolve_context("U64"_view)),
   }};
   const Static::Vector<const Model::Type*, 4> signed_types = {{
-    &static_cast<const Model::Type&>(
-        monograph->resolve_context("Signed_8"_view)),
-    &static_cast<const Model::Type&>(
-        monograph->resolve_context("Signed_16"_view)),
-    &static_cast<const Model::Type&>(
-        monograph->resolve_context("Signed_32"_view)),
-    &static_cast<const Model::Type&>(
-        monograph->resolve_context("Signed_64"_view)),
+    &static_cast<const Model::Type&>(monograph->resolve_context("S8"_view)),
+    &static_cast<const Model::Type&>(monograph->resolve_context("S16"_view)),
+    &static_cast<const Model::Type&>(monograph->resolve_context("S32"_view)),
+    &static_cast<const Model::Type&>(monograph->resolve_context("S64"_view)),
   }};
   const Static::Vector<const Model::Type*, 2> real_types = {{
-    &static_cast<const Model::Type&>(
-        monograph->resolve_context("Real_32"_view)),
-    &static_cast<const Model::Type&>(
-        monograph->resolve_context("Real_64"_view)),
+    &static_cast<const Model::Type&>(monograph->resolve_context("R32"_view)),
+    &static_cast<const Model::Type&>(monograph->resolve_context("R64"_view)),
   }};
 
   const auto& boolean_type =
@@ -139,7 +129,7 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, scalar_payloads_and_identity) {
     ASSERT(created && created->is<Constants::Unsigned>());
     const auto& value = static_cast<const Constants::Unsigned&>(*created);
     EXPECT(&value.get_type() == type);
-    EXPECT_EQ(value.get_value(), Unsigned_64(0));
+    EXPECT_EQ(value.get_value(), U64(0));
   }
 
   for (Count i = 0; i < signed_types.get_size(); i++) {
@@ -148,7 +138,7 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, scalar_payloads_and_identity) {
     ASSERT(created && created->is<Constants::Signed>());
     const auto& value = static_cast<const Constants::Signed&>(*created);
     EXPECT(&value.get_type() == type);
-    EXPECT_EQ(value.get_value(), Signed_64(0));
+    EXPECT_EQ(value.get_value(), S64(0));
   }
 
   for (Count i = 0; i < real_types.get_size(); i++) {
@@ -157,7 +147,7 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, scalar_payloads_and_identity) {
     ASSERT(created && created->is<Constants::Real>());
     const auto& value = static_cast<const Constants::Real&>(*created);
     EXPECT(&value.get_type() == type);
-    EXPECT_EQ(value.get_value(), Real_64(0));
+    EXPECT_EQ(value.get_value(), R64(0));
   }
 }
 
@@ -168,10 +158,10 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, contiguous_and_optional_values) {
   Ttx::Lexical::Errors errors;
   auto monograph = import_types(workspace, errors);
   ASSERT(monograph);
-  const auto& unsigned_8 = static_cast<const Model::Type&>(
-      monograph->resolve_context("Unsigned_8"_view));
+  const auto& u8 =
+      static_cast<const Model::Type&>(monograph->resolve_context("U8"_view));
   Static::Vector<Generic::Argument, 1> arguments = {{
-    Generic::Argument(unsigned_8),
+    Generic::Argument(u8),
   }};
   const auto& view =
       static_cast<const Generic&>(monograph->resolve_context("View"_view));
@@ -260,8 +250,7 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, aggregate_order_and_fresh_identity) {
   EXPECT_EQ(
       nested_value.get_completed_values()->get_layout().get_size(), Count(2));
   EXPECT_EQ(
-      static_cast<const Constants::Unsigned&>(*count).get_value(),
-      Unsigned_64(9));
+      static_cast<const Constants::Unsigned&>(*count).get_value(), U64(9));
 
   auto first_object =
       static_cast<const Model::Type&>(object).create_default(domain);
@@ -285,10 +274,10 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, fixed_default_and_empty_rejection) {
   Ttx::Lexical::Errors errors;
   auto monograph = import_types(workspace, errors);
   ASSERT(monograph);
-  const auto& unsigned_8 = static_cast<const Model::Type&>(
-      monograph->resolve_context("Unsigned_8"_view));
-  Types::Fixed fixed("Fixed[Unsigned_8,3]"_view, unsigned_8, 3);
-  Types::Fixed empty("Fixed[Unsigned_8,0]"_view, unsigned_8, 0);
+  const auto& u8 =
+      static_cast<const Model::Type&>(monograph->resolve_context("U8"_view));
+  Types::Fixed fixed("Fixed[U8,3]"_view, u8, 3);
+  Types::Fixed empty("Fixed[U8,0]"_view, u8, 0);
 
   auto fixed_default =
       static_cast<const Model::Type&>(fixed).create_default(domain);
@@ -302,8 +291,7 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, fixed_default_and_empty_rejection) {
     auto entry = values.get_abstract(index);
     ASSERT(entry && entry->is<Constants::Unsigned>());
     EXPECT_EQ(
-        static_cast<const Constants::Unsigned&>(*entry).get_value(),
-        Unsigned_64(0));
+        static_cast<const Constants::Unsigned&>(*entry).get_value(), U64(0));
   }
 
   auto empty_default =
@@ -331,11 +319,11 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, enumeration_range_and_optional_default) {
   EXPECT_EQ(
       static_cast<const Constants::Enumeration&>(*enumeration_default)
           .get_value(),
-      Unsigned_64(0));
+      U64(0));
 
-  const auto& unsigned_8 = static_cast<const Model::Type&>(
-      monograph->resolve_context("Unsigned_8"_view));
-  Types::Range range("Range[Unsigned_8]"_view, unsigned_8);
+  const auto& u8 =
+      static_cast<const Model::Type&>(monograph->resolve_context("U8"_view));
+  Types::Range range("Range[U8]"_view, u8);
   auto range_default =
       static_cast<const Model::Type&>(range).create_default(domain);
   ASSERT(range_default && range_default->is<Constants::Range>());

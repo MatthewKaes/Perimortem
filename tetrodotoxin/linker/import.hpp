@@ -14,7 +14,7 @@ namespace Tetrodotoxin::Linker {
 // policy and never enter this record.
 class Import {
  public:
-  enum class Kind : Unsigned_8 {
+  enum class Kind : U8 {
     Function,
     ReadOnlyState,
     WritableState,

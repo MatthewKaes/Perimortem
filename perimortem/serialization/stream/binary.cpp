@@ -37,70 +37,70 @@ static auto write_blob(storage_type& storage, View::Vector<value_type> value)
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
-auto Stream::Binary<stream_endian, storage_type>::operator<<(Unsigned_8 value)
+auto Stream::Binary<stream_endian, storage_type>::operator<<(U8 value)
     -> Binary& {
   write<stream_endian>(storage, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
-auto Stream::Binary<stream_endian, storage_type>::operator<<(Unsigned_16 value)
+auto Stream::Binary<stream_endian, storage_type>::operator<<(U16 value)
     -> Binary& {
   write<stream_endian>(storage, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
-auto Stream::Binary<stream_endian, storage_type>::operator<<(Unsigned_32 value)
+auto Stream::Binary<stream_endian, storage_type>::operator<<(U32 value)
     -> Binary& {
   write<stream_endian>(storage, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
-auto Stream::Binary<stream_endian, storage_type>::operator<<(Unsigned_64 value)
+auto Stream::Binary<stream_endian, storage_type>::operator<<(U64 value)
     -> Binary& {
   write<stream_endian>(storage, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
-auto Stream::Binary<stream_endian, storage_type>::operator<<(Signed_8 value)
+auto Stream::Binary<stream_endian, storage_type>::operator<<(S8 value)
     -> Binary& {
   write<stream_endian>(storage, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
-auto Stream::Binary<stream_endian, storage_type>::operator<<(Signed_16 value)
+auto Stream::Binary<stream_endian, storage_type>::operator<<(S16 value)
     -> Binary& {
   write<stream_endian>(storage, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
-auto Stream::Binary<stream_endian, storage_type>::operator<<(Signed_32 value)
+auto Stream::Binary<stream_endian, storage_type>::operator<<(S32 value)
     -> Binary& {
   write<stream_endian>(storage, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
-auto Stream::Binary<stream_endian, storage_type>::operator<<(Signed_64 value)
+auto Stream::Binary<stream_endian, storage_type>::operator<<(S64 value)
     -> Binary& {
   write<stream_endian>(storage, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
-auto Stream::Binary<stream_endian, storage_type>::operator<<(Real_32 value)
+auto Stream::Binary<stream_endian, storage_type>::operator<<(R32 value)
     -> Binary& {
   write<stream_endian>(storage, value);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
-auto Stream::Binary<stream_endian, storage_type>::operator<<(Real_64 value)
+auto Stream::Binary<stream_endian, storage_type>::operator<<(R64 value)
     -> Binary& {
   write<stream_endian>(storage, value);
   return *this;
@@ -115,56 +115,56 @@ auto Stream::Binary<stream_endian, storage_type>::operator<<(View::Bytes blob)
 
 template <Data::ByteOrder stream_endian, typename storage_type>
 auto Stream::Binary<stream_endian, storage_type>::operator<<(
-    View::Vector<Unsigned_8> blob) -> Binary& {
+    View::Vector<U8> blob) -> Binary& {
   storage.concat(blob.get_bytes());
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
 auto Stream::Binary<stream_endian, storage_type>::operator<<(
-    View::Vector<Unsigned_16> blob) -> Binary& {
+    View::Vector<U16> blob) -> Binary& {
   write_blob<stream_endian>(storage, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
 auto Stream::Binary<stream_endian, storage_type>::operator<<(
-    View::Vector<Unsigned_32> blob) -> Binary& {
+    View::Vector<U32> blob) -> Binary& {
   write_blob<stream_endian>(storage, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
 auto Stream::Binary<stream_endian, storage_type>::operator<<(
-    View::Vector<Unsigned_64> blob) -> Binary& {
+    View::Vector<U64> blob) -> Binary& {
   write_blob<stream_endian>(storage, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
 auto Stream::Binary<stream_endian, storage_type>::operator<<(
-    View::Vector<Signed_8> blob) -> Binary& {
+    View::Vector<S8> blob) -> Binary& {
   write_blob<stream_endian>(storage, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
 auto Stream::Binary<stream_endian, storage_type>::operator<<(
-    View::Vector<Signed_16> blob) -> Binary& {
+    View::Vector<S16> blob) -> Binary& {
   write_blob<stream_endian>(storage, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
 auto Stream::Binary<stream_endian, storage_type>::operator<<(
-    View::Vector<Signed_32> blob) -> Binary& {
+    View::Vector<S32> blob) -> Binary& {
   write_blob<stream_endian>(storage, blob);
   return *this;
 }
 
 template <Data::ByteOrder stream_endian, typename storage_type>
 auto Stream::Binary<stream_endian, storage_type>::operator<<(
-    View::Vector<Signed_64> blob) -> Binary& {
+    View::Vector<S64> blob) -> Binary& {
   write_blob<stream_endian>(storage, blob);
   return *this;
 }

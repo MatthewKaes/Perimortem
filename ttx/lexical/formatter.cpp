@@ -14,7 +14,7 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Ttx::Lexical;
 
-enum class Section : Unsigned_8 {
+enum class Section : U8 {
   Header,
   Import,
   Foreign,
@@ -31,21 +31,21 @@ enum class Section : Unsigned_8 {
   PrivateType,
 };
 
-enum class ScopeRole : Unsigned_8 {
+enum class ScopeRole : U8 {
   Executable,
   Static,
   Instance,
   Enumeration,
 };
 
-enum class Shape : Unsigned_8 {
+enum class Shape : U8 {
   Definition,
   Statement,
   CompressedBlock,
   Block,
 };
 
-enum class AlignmentKind : Unsigned_8 {
+enum class AlignmentKind : U8 {
   None,
   Alias,
   Constant,
@@ -323,7 +323,7 @@ class State {
 
       View::Bytes comment = tokens[index].caculate_text(source);
       for (Count character = 2; character < comment.get_size(); character++) {
-        Unsigned_8 value = comment[character];
+        U8 value = comment[character];
         if (value != ' ' && value != '\t' && value != '\r') {
           return True;
         }
@@ -839,7 +839,7 @@ class State {
     // One paragraph accepts Definitions, Statements, compressed Blocks, then
     // one braced Block. Returning to an earlier stage starts another paragraph.
     return previous.shape == Shape::Block ||
-           Unsigned_8(current.shape) < Unsigned_8(previous.shape);
+           U8(current.shape) < U8(previous.shape);
   }
 
   auto get_output_shape(const Unit& unit, ScopeRole scope) const -> Shape {
@@ -1584,7 +1584,7 @@ class State {
     write_newline();
   }
 
-  constexpr auto uppercase_hex(Unsigned_8 value) const -> Unsigned_8 {
+  constexpr auto uppercase_hex(U8 value) const -> U8 {
     return value >= 'a' && value <= 'f' ? value - ('a' - 'A') : value;
   }
 
@@ -1626,7 +1626,7 @@ class State {
 
     Count digits = 0;
     for (Count index = prefix_size; index + 1 < text.get_size(); index++) {
-      Unsigned_8 value = text[index];
+      U8 value = text[index];
       if (!Lexicon::is_hex(value) && !Lexicon::is_whitespace(value)) {
         return False;
       }
@@ -1719,7 +1719,7 @@ class State {
     column += text.get_size();
   }
 
-  auto append(Unsigned_8 value) -> void {
+  auto append(U8 value) -> void {
     ensure_indent();
     output.append(value);
     column++;

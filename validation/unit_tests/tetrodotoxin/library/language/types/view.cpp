@@ -11,7 +11,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/generics/view.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -25,14 +25,14 @@ static Harness LibraryView = {
 };
 
 PERIMORTEM_UNIT_TEST(LibraryView, direct_contract) {
-  Tetrodotoxin::Library::Language::Types::Unsigned_8 element;
-  Types::View view("View[Unsigned_8]"_view, element);
+  Tetrodotoxin::Library::Language::Types::U8 element;
+  Types::View view("View[U8]"_view, element);
 
   EXPECT(view.is<Types::View>());
   EXPECT(view.is<Ttx::Model::Type>());
   EXPECT(view.is<Abstract>());
   EXPECT_NOT(view.is<Generic>());
-  EXPECT_TEXT(view.get_name(), "View[Unsigned_8]"_view);
+  EXPECT_TEXT(view.get_name(), "View[U8]"_view);
   EXPECT(&view.get_element_type() == &element);
   EXPECT_NOT(view.get_documentation().is_empty());
   EXPECT(&view.resolve_context("member"_view) == &Invalid::get_invalid());
@@ -42,14 +42,14 @@ PERIMORTEM_UNIT_TEST(LibraryView, formula_construction) {
   Allocator::Arena arena;
   Tetrodotoxin::Library::Dialect dialect;
   auto& root = create_library_monograph(arena, dialect);
-  Tetrodotoxin::Library::Language::Types::Unsigned_8 element;
+  Tetrodotoxin::Library::Language::Types::U8 element;
   const auto& formula =
       static_cast<const Generic&>(root.resolve_context("View"_view));
   const Static::Vector<Generic::Argument, 1> accepted = {
     {Generic::Argument(element)},
   };
   const Static::Vector<Generic::Argument, 1> wrong_category = {
-    {Generic::Argument(::Unsigned_64(8))},
+    {Generic::Argument(::U64(8))},
   };
   View::Vector<Generic::Argument> wrong_arity;
 
@@ -57,7 +57,7 @@ PERIMORTEM_UNIT_TEST(LibraryView, formula_construction) {
   EXPECT(created.visit(
       [&element](const Model::Type& selected) {
         auto view = selected.select<Types::View>();
-        return view && selected.get_name() == "View[Unsigned_8]"_view &&
+        return view && selected.get_name() == "View[U8]"_view &&
                        &view->get_element_type() == &element
                    ? True
                    : False;

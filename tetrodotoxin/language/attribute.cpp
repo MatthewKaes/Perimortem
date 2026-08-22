@@ -66,7 +66,7 @@ static auto parse_number(Cursor& cursor) -> Option<Language::Attribute::Value> {
     View::Bytes text =
         Span(first, number).caculate_text(cursor.get_source_text());
     Reader::Textual reader(text);
-    Real_64 parsed = reader.read_real_64();
+    R64 parsed = reader.read_r64();
     if (reader.is_valid() && reader.get_location() == reader.get_size()) {
       value = Language::Attribute::Value(parsed);
     }
@@ -74,7 +74,7 @@ static auto parse_number(Cursor& cursor) -> Option<Language::Attribute::Value> {
     View::Bytes text =
         Span(first, number).caculate_text(cursor.get_source_text());
     Reader::Textual reader(text);
-    Signed_64 parsed = reader.read_signed();
+    S64 parsed = reader.read_signed();
     if (reader.is_valid() && reader.get_location() == reader.get_size()) {
       value = Language::Attribute::Value(parsed);
     }
@@ -82,15 +82,15 @@ static auto parse_number(Cursor& cursor) -> Option<Language::Attribute::Value> {
     View::Bytes text = number.caculate_text(cursor.get_source_text());
     Reader::Textual reader(
         number.get_code() == Code::Type::Hex ? text.slice(2) : text);
-    Unsigned_64 parsed = reader.read_unsigned(
+    U64 parsed = reader.read_unsigned(
         number.get_code() == Code::Type::Hex ? Count(16) : Count(10));
     if (reader.is_valid() && reader.get_location() == reader.get_size()) {
       if (!negative) {
         value = Language::Attribute::Value(parsed);
-      } else if (parsed <= (Unsigned_64(1) << 63)) {
-        Signed_64 signed_value = parsed == (Unsigned_64(1) << 63)
-                                     ? Signed_64(-9223372036854775807LL - 1)
-                                     : -Signed_64(parsed);
+      } else if (parsed <= (U64(1) << 63)) {
+        S64 signed_value = parsed == (U64(1) << 63)
+                               ? S64(-9223372036854775807LL - 1)
+                               : -S64(parsed);
         value = Language::Attribute::Value(signed_value);
       }
     }

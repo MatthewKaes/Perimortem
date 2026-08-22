@@ -19,14 +19,13 @@ using namespace Perimortem;
 constexpr Count hash_size = 32768;
 constexpr Count window_size = 32768;
 constexpr Count window_mask = window_size - 1;
-constexpr Unsigned_32 null_entry = 0xFFFFFFFF;
+constexpr U32 null_entry = 0xFFFFFFFF;
 
 constexpr auto compute_hash(Static::Bytes<3> data) -> Count {
   // Knuth multiplicative hash (2^32 / golden ratio) is fast and provides a
   // better distribution for the has table.
-  constexpr Unsigned_32 knuth_multiplier = 2654435761;
-  Unsigned_32 v = (Unsigned_32(data[0]) << 16) | (Unsigned_32(data[1]) << 8) |
-                  Unsigned_32(data[2]);
+  constexpr U32 knuth_multiplier = 2654435761;
+  U32 v = (U32(data[0]) << 16) | (U32(data[1]) << 8) | U32(data[2]);
   return Count((v * knuth_multiplier) >> 17);
 }
 
@@ -34,7 +33,7 @@ constexpr auto compute_hash(Static::Bytes<3> data) -> Count {
 // bytes, looking for instances of duplication in earlier parts of the source
 // input.
 constexpr auto extend_match(
-    const Unsigned_8* data,
+    const U8* data,
     Count position,
     Count candidate,
     Count scan_limit) -> Count {
@@ -61,12 +60,11 @@ constexpr auto extend_match(
             data + candidate + match_length + avx2_channel_width));
 
     // Perform two parallel compares and merge the masks on the data dependency.
-    const Unsigned_64 mismatch_mask =
-        ~Unsigned_64(_mm256_movemask_epi8(
-            _mm256_cmpeq_epi8(lower_source_chunk, lower_candidate_chunk))) |
-        (~Unsigned_64(_mm256_movemask_epi8(
-             _mm256_cmpeq_epi8(upper_source_chunk, upper_candidate_chunk)))
-         << 32);
+    const U64 mismatch_mask = ~U64(_mm256_movemask_epi8(_mm256_cmpeq_epi8(
+                                  lower_source_chunk, lower_candidate_chunk))) |
+                              (~U64(_mm256_movemask_epi8(_mm256_cmpeq_epi8(
+                                   upper_source_chunk, upper_candidate_chunk)))
+                               << 32);
 
     // Scans 64 bytes to find a mismatch.
     if (mismatch_mask != 0) {
@@ -78,12 +76,10 @@ constexpr auto extend_match(
   }
 
   // First deal with the residual in 8 byte chunks.
-  constexpr Count word_size = Count(sizeof(Unsigned_64));
+  constexpr Count word_size = Count(sizeof(U64));
   while (match_length + word_size <= scan_limit) {
-    Unsigned_64 source_chunk =
-        *Data::cast<Unsigned_64>(data + position + match_length);
-    Unsigned_64 candidate_chunk =
-        *Data::cast<Unsigned_64>(data + candidate + match_length);
+    U64 source_chunk = *Data::cast<U64>(data + position + match_length);
+    U64 candidate_chunk = *Data::cast<U64>(data + candidate + match_length);
     if (source_chunk != candidate_chunk) {
       match_length +=
           Count(__builtin_ctzll(source_chunk ^ candidate_chunk)) / 8;
@@ -110,11 +106,10 @@ Compression::Lz77::Lz77() {
 
 auto Compression::Lz77::reset() -> void {
   Data::set(
-      Data::cast<Unsigned_8>(hash_table.get_data()), Unsigned_8(0xFF),
-      hash_size * sizeof(Unsigned_32));
+      Data::cast<U8>(hash_table.get_data()), U8(0xFF), hash_size * sizeof(U32));
   Data::set(
-      Data::cast<Unsigned_8>(chain_table.get_data()), Unsigned_8(0xFF),
-      window_size * sizeof(Unsigned_32));
+      Data::cast<U8>(chain_table.get_data()), U8(0xFF),
+      window_size * sizeof(U32));
 }
 
 auto Compression::Lz77::insert(View::Bytes source, Count position) -> void {
@@ -124,14 +119,14 @@ auto Compression::Lz77::insert(View::Bytes source, Count position) -> void {
 
   const Count hash = compute_hash(Static::Bytes<3>(source.get_data()));
   chain_table.get_data()[position & window_mask] = hash_table.get_data()[hash];
-  hash_table.get_data()[hash] = Unsigned_32(position);
+  hash_table.get_data()[hash] = U32(position);
 }
 
 auto Compression::Lz77::find_match_and_insert(
     View::Bytes source,
     Count position,
     Count depth) -> Match {
-  const Unsigned_8* data = source.get_data();
+  const U8* data = source.get_data();
   const Count remaining = source.get_size() - position;
 
   // Only perform a match if we have enough bytes for it to be worthwhile.
@@ -142,9 +137,9 @@ auto Compression::Lz77::find_match_and_insert(
   // Insert position before searching so future calls can find it but start the
   // search at the old chain head so we never match position against itself.
   const Count hash = compute_hash(Static::Bytes<3>(data + position));
-  Unsigned_32 candidate = hash_table.get_data()[hash];
+  U32 candidate = hash_table.get_data()[hash];
   chain_table.get_data()[position & window_mask] = candidate;
-  hash_table.get_data()[hash] = Unsigned_32(position);
+  hash_table.get_data()[hash] = U32(position);
 
   Count best_length = min_match - 1;
   Count best_distance = 0;
@@ -180,7 +175,7 @@ auto Compression::Lz77::find_match(
     View::Bytes source,
     Count position,
     Count depth) const -> Match {
-  const Unsigned_8* data = source.get_data();
+  const U8* data = source.get_data();
   const Count remaining = source.get_size() - position;
 
   // Only perform a match if we have enough bytes for it to be worthwhile.
@@ -191,7 +186,7 @@ auto Compression::Lz77::find_match(
   const Count hash = compute_hash(Static::Bytes<3>(data + position));
   Count best_length = min_match - 1;
   Count best_distance = 0;
-  Unsigned_32 candidate = hash_table.get_data()[hash];
+  U32 candidate = hash_table.get_data()[hash];
   const Count scan_limit = Math::min(max_match, remaining);
   for (Count i = 0; i < depth && candidate != null_entry; i++) {
     const Count distance = position - candidate;

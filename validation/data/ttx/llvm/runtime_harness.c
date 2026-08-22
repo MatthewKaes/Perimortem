@@ -26,20 +26,20 @@ _Static_assert(
     sizeof(ttx_results_llvm_5fresults) == 16,
     "multiple results must use their named carrier");
 _Static_assert(
-    sizeof(ttx_runtime_Option_5bUnsigned_5f64_5d) == 16,
+    sizeof(ttx_runtime_Option_5bU64_5d) == 16,
     "Option must store its payload and selected state inline");
 _Static_assert(
-    offsetof(ttx_runtime_Option_5bUnsigned_5f64_5d, value) == 0,
+    offsetof(ttx_runtime_Option_5bU64_5d, value) == 0,
     "Option payload offset changed");
 _Static_assert(
-    offsetof(ttx_runtime_Option_5bUnsigned_5f64_5d, set) == 8,
+    offsetof(ttx_runtime_Option_5bU64_5d, set) == 8,
     "Option selected state offset changed");
 _Static_assert(
-    sizeof(ttx_runtime_Result_5bUnsigned_5f64_2c_20Bool_5d) == 16,
+    sizeof(ttx_runtime_Result_5bU64_2c_20Bool_5d) == 16,
     "Result must store one inline alternative and selected state");
 _Static_assert(
     offsetof(
-        ttx_runtime_Result_5bUnsigned_5f64_2c_20Bool_5d, value_selected) == 8,
+        ttx_runtime_Result_5bU64_2c_20Bool_5d, value_selected) == 8,
     "Result selected state offset changed");
 _Static_assert(
     sizeof(ttx_runtime_Result_5bCounter_2c_20Bool_5d) == 16,
@@ -54,7 +54,7 @@ _Static_assert(
     offsetof(ttx_runtime_Result_5bBool_2c_20Large_5d, value_selected) == 24,
     "Wide Result selected state offset changed");
 _Static_assert(
-    sizeof(ttx_runtime_Access_5bUnsigned_5f64_5d) == 16,
+    sizeof(ttx_runtime_Access_5bU64_5d) == 16,
     "Access must use its pointer and size carrier");
 _Static_assert(
     sizeof(ttx_runtime_Counter) == sizeof(void*),
@@ -74,21 +74,21 @@ void ttx_system_print(uint64_t value) {
   printed_count++;
 }
 
-ttx_runtime_Access_5bUnsigned_5f64_5d llvm_dense_access(void) {
-  return (ttx_runtime_Access_5bUnsigned_5f64_5d){
+ttx_runtime_Access_5bU64_5d llvm_dense_access(void) {
+  return (ttx_runtime_Access_5bU64_5d){
     .data = dense_storage,
     .size = sizeof(dense_storage) / sizeof(dense_storage[0]),
   };
 }
 
-ttx_runtime_View_5bUnsigned_5f64_5d llvm_dense_view(void) {
-  return (ttx_runtime_View_5bUnsigned_5f64_5d){
+ttx_runtime_View_5bU64_5d llvm_dense_view(void) {
+  return (ttx_runtime_View_5bU64_5d){
     .data = view_storage,
     .size = sizeof(view_storage) / sizeof(view_storage[0]),
   };
 }
 
-uint64_t llvm_object_identity(ttx_runtime_Object_5bUnsigned_5f8_5d value) {
+uint64_t llvm_object_identity(ttx_runtime_Object_5bU8_5d value) {
   return (uint64_t)(uintptr_t)value;
 }
 
@@ -99,29 +99,29 @@ int run_runtime_integration(void) {
   const ttx_runtime_Pair pair = llvm_pair();
   const ttx_runtime_Large large = llvm_large();
   const ttx_results_llvm_5fresults results = llvm_results();
-  const ttx_runtime_Option_5bUnsigned_5f64_5d absent = llvm_option(
-      (ttx_runtime_Option_5bUnsigned_5f64_5d){
+  const ttx_runtime_Option_5bU64_5d absent = llvm_option(
+      (ttx_runtime_Option_5bU64_5d){
         .value = UINT64_MAX,
         .set = false,
       });
-  const ttx_runtime_Option_5bUnsigned_5f64_5d present = llvm_option(
-      (ttx_runtime_Option_5bUnsigned_5f64_5d){
+  const ttx_runtime_Option_5bU64_5d present = llvm_option(
+      (ttx_runtime_Option_5bU64_5d){
         .value = UINT64_C(37),
         .set = true,
       });
-  const ttx_runtime_Option_5bUnsigned_5f64_5d stopped =
+  const ttx_runtime_Option_5bU64_5d stopped =
       llvm_bool_propagation(false);
-  const ttx_runtime_Option_5bUnsigned_5f64_5d continued =
+  const ttx_runtime_Option_5bU64_5d continued =
       llvm_bool_propagation(true);
-  const ttx_runtime_Result_5bUnsigned_5f64_2c_20Bool_5d result_value =
+  const ttx_runtime_Result_5bU64_2c_20Bool_5d result_value =
       llvm_result_propagation(
-          (ttx_runtime_Result_5bUnsigned_5f64_2c_20Bool_5d){
+          (ttx_runtime_Result_5bU64_2c_20Bool_5d){
         .value = UINT64_C(41),
         .value_selected = true,
       });
-  const ttx_runtime_Result_5bUnsigned_5f64_2c_20Bool_5d result_error =
+  const ttx_runtime_Result_5bU64_2c_20Bool_5d result_error =
       llvm_result_propagation(
-          (ttx_runtime_Result_5bUnsigned_5f64_2c_20Bool_5d){
+          (ttx_runtime_Result_5bU64_2c_20Bool_5d){
         .error = true,
         .value_selected = false,
       });

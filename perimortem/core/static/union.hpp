@@ -63,9 +63,9 @@ class Union {
   }
 
   template <typename value_type>
-  static consteval auto type_tag() -> Unsigned_8 {
-    Unsigned_8 result = 0;
-    Unsigned_8 candidate = 1;
+  static consteval auto type_tag() -> U8 {
+    U8 result = 0;
+    U8 candidate = 1;
     ((result = __is_same(value_type, value_types) ? candidate : result,
       candidate++),
      ...);
@@ -90,7 +90,7 @@ class Union {
   template <typename Candidate, typename value_type>
   static consteval auto selects() -> bool {
     // An exact alternative always wins. Otherwise the source must construct
-    // exactly one alternative, allowing `Union<Unsigned_64>` to accept an
+    // exactly one alternative, allowing `Union<U64>` to accept an
     // integer literal without making a multi-numeric Union guess its intended
     // type.
     constexpr Count exact_reference = type_count<Candidate>();
@@ -224,8 +224,8 @@ class Union {
     return visit_active<value_types...>(self, visitor);
   }
 
-  alignas(storage_alignment()) Unsigned_8 storage[storage_size()];
-  Unsigned_8 tag = 0;
+  alignas(storage_alignment()) U8 storage[storage_size()];
+  U8 tag = 0;
 
  public:
   constexpr Union() = default;

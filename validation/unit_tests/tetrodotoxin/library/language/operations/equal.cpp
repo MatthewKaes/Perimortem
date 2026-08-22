@@ -18,10 +18,10 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
-#include "tetrodotoxin/library/language/types/real_64.hpp"
-#include "tetrodotoxin/library/language/types/signed_8.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_16.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/r64.hpp"
+#include "tetrodotoxin/library/language/types/s8.hpp"
+#include "tetrodotoxin/library/language/types/u16.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -155,27 +155,25 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, type_selection_and_partial) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Signed_8 signed_8;
-  Types::Unsigned_8 unsigned_8;
-  Types::Unsigned_16 unsigned_16;
-  Types::Real_64 real_64;
+  Types::S8 s8;
+  Types::U8 u8;
+  Types::U16 u16;
+  Types::R64 r64;
   Types::Boolean boolean;
   Types::Fixed bytes_type(
-      "Fixed[Unsigned_8,1]"_view,
-      resolve_library_unsigned(source, "Unsigned_8"_view), 1);
+      "Fixed[U8,1]"_view, resolve_library_unsigned(source, "U8"_view), 1);
   Types::Fixed other_bytes_type(
-      "Fixed[Unsigned_8,2]"_view,
-      resolve_library_unsigned(source, "Unsigned_8"_view), 2);
+      "Fixed[U8,2]"_view, resolve_library_unsigned(source, "U8"_view), 2);
   EqualUnresolvedType unresolved_type;
-  EqualExpression signed_left("signed left"_view, signed_8);
-  EqualExpression signed_right("signed right"_view, signed_8);
-  EqualExpression unsigned_left("unsigned left"_view, unsigned_8);
-  EqualExpression unsigned_right("unsigned right"_view, unsigned_8);
-  EqualExpression real_left("real left"_view, real_64);
-  EqualExpression real_right("real right"_view, real_64);
+  EqualExpression signed_left("signed left"_view, s8);
+  EqualExpression signed_right("signed right"_view, s8);
+  EqualExpression unsigned_left("unsigned left"_view, u8);
+  EqualExpression unsigned_right("unsigned right"_view, u8);
+  EqualExpression real_left("real left"_view, r64);
+  EqualExpression real_right("real right"_view, r64);
   EqualExpression flag_left("flag left"_view, boolean);
   EqualExpression flag_right("flag right"_view, boolean);
-  EqualExpression other("other"_view, unsigned_16);
+  EqualExpression other("other"_view, u16);
   EqualExpression unresolved("unresolved"_view, unresolved_type);
   EqualExpression invalid("invalid"_view, Invalid::get_invalid());
   EqualExpression dynamic_bytes("dynamic bytes"_view, bytes_type);
@@ -238,13 +236,12 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, complete_constant_domains) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Signed_8 signed_type;
-  Types::Unsigned_8 unsigned_type;
-  Types::Real_64 real_type;
+  Types::S8 signed_type;
+  Types::U8 unsigned_type;
+  Types::R64 real_type;
   Types::Boolean boolean;
   Types::Fixed bytes_type(
-      "Fixed[Unsigned_8,2]"_view,
-      resolve_library_unsigned(source, "Unsigned_8"_view), 2);
+      "Fixed[U8,2]"_view, resolve_library_unsigned(source, "U8"_view), 2);
   auto& signed_value =
       Constants::Signed::create_synthetic(domain, signed_type, -8);
   auto& same_signed =
@@ -332,7 +329,7 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, real_equivalence) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Real_64 real_type;
+  Types::R64 real_type;
   auto& left_nan = Constants::Real::create_synthetic(
       domain, real_type, __builtin_nan("left"));
   auto& right_nan = Constants::Real::create_synthetic(
@@ -368,7 +365,7 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, recursive_provenance_and_atomicity) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
-  Types::Unsigned_8 selected_type;
+  Types::U8 selected_type;
   auto& input = Constants::Unsigned::create_synthetic(domain, selected_type, 1);
   auto& folded =
       Constants::Unsigned::create_synthetic(domain, selected_type, 8);
@@ -402,8 +399,7 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, recursive_provenance_and_atomicity) {
       invalid_constant.fold(), Expression::Error::Type::InvalidConstant,
       invalid_child));
 
-  const auto& parser_type =
-      resolve_library_unsigned(source, "Unsigned_64"_view);
+  const auto& parser_type = resolve_library_unsigned(source, "U64"_view);
   Errors success_errors;
   Tokenizer success_tokens(domain, "2 == 2"_view, "equal.ttx"_view);
   Ttx::Lexical::Associations success_associations(success_tokens.get_arena());

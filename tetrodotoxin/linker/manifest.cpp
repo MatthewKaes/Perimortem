@@ -28,20 +28,19 @@ static auto add_size(Count& total, Count value) -> Bool {
 }
 
 static auto add_sized_bytes(Count& total, Core::View::Bytes value) -> Bool {
-  return value.get_size() <= Unsigned_32(-1) &&
-         add_size(total, sizeof(Unsigned_32)) &&
+  return value.get_size() <= U32(-1) && add_size(total, sizeof(U32)) &&
          add_size(total, value.get_size());
 }
 
 static auto write_sized_bytes(LittleWriter& writer, Core::View::Bytes value)
     -> Bool {
-  writer << Unsigned_32(value.get_size()) << value;
+  writer << U32(value.get_size()) << value;
   return writer.is_valid();
 }
 
 static auto read_sized_bytes(LittleReader& reader)
     -> Core::Option<Core::View::Bytes> {
-  Unsigned_32 size = reader.read_unsigned_32();
+  U32 size = reader.read_u32();
   if (reader.get_location() == Count(-1)) {
     return {};
   }
@@ -55,23 +54,22 @@ auto Linker::Manifest::write(const Manifest& manifest)
     -> Core::Option<Memory::Dynamic::Bytes> {
   if (manifest.get_identity().is_empty() || manifest.get_version().is_null() ||
       manifest.get_artifact().is_empty() || manifest.get_target().is_empty() ||
-      manifest.get_imports().get_size() > Unsigned_32(-1)) {
+      manifest.get_imports().get_size() > U32(-1)) {
     return {};
   }
 
   Count size = manifest_magic.get_size();
   if (!add_sized_bytes(size, manifest.get_identity()) ||
-      !add_size(size, sizeof(Unsigned_16) * 2) ||
+      !add_size(size, sizeof(U16) * 2) ||
       !add_sized_bytes(size, manifest.get_artifact()) ||
       !add_sized_bytes(size, manifest.get_target()) ||
-      !add_size(size, sizeof(Unsigned_64) + sizeof(Unsigned_32))) {
+      !add_size(size, sizeof(U64) + sizeof(U32))) {
     return {};
   }
 
   for (const Linker::Import& import : manifest.get_imports()) {
     if (import.get_abi().is_empty() || import.get_symbol().is_empty() ||
-        import.get_provider().is_empty() ||
-        !add_size(size, sizeof(Unsigned_8)) ||
+        import.get_provider().is_empty() || !add_size(size, sizeof(U8)) ||
         !add_sized_bytes(size, import.get_abi()) ||
         !add_sized_bytes(size, import.get_symbol()) ||
         !add_sized_bytes(size, import.get_provider())) {
@@ -93,9 +91,9 @@ auto Linker::Manifest::write(const Manifest& manifest)
     return {};
   }
   writer << manifest.get_fingerprint().get_value()
-         << Unsigned_32(manifest.get_imports().get_size());
+         << U32(manifest.get_imports().get_size());
   for (const Linker::Import& import : manifest.get_imports()) {
-    writer << Unsigned_8(import.get_kind());
+    writer << U8(import.get_kind());
     if (!write_sized_bytes(writer, import.get_abi()) ||
         !write_sized_bytes(writer, import.get_symbol()) ||
         !write_sized_bytes(writer, import.get_provider())) {
@@ -123,27 +121,27 @@ auto Linker::Manifest::read(
 
   LittleReader reader(bytes.slice(manifest_magic.get_size()));
   auto identity = read_sized_bytes(reader);
-  Unsigned_16 major = reader.read_unsigned_16();
-  Unsigned_16 minor = reader.read_unsigned_16();
+  U16 major = reader.read_u16();
+  U16 minor = reader.read_u16();
   auto artifact = read_sized_bytes(reader);
   auto target = read_sized_bytes(reader);
-  Unsigned_64 fingerprint = reader.read_unsigned_64();
-  Unsigned_32 count = reader.read_unsigned_32();
+  U64 fingerprint = reader.read_u64();
+  U32 count = reader.read_u32();
   if (!identity || identity->is_empty() || (major == 0 && minor == 0) ||
       !artifact || artifact->is_empty() || !target || target->is_empty() ||
       reader.get_location() == Count(-1) ||
       Count(count) > (reader.get_size() - reader.get_location()) /
-                         (sizeof(Unsigned_8) + sizeof(Unsigned_32) * 3)) {
+                         (sizeof(U8) + sizeof(U32) * 3)) {
     return Error::InvalidFormat;
   }
 
   Memory::Managed::Vector<Linker::Import> imports(arena);
-  for (Unsigned_32 index = 0; index < count; index++) {
-    Unsigned_8 kind = reader.read_unsigned_8();
+  for (U32 index = 0; index < count; index++) {
+    U8 kind = reader.read_u8();
     auto abi = read_sized_bytes(reader);
     auto symbol = read_sized_bytes(reader);
     auto provider = read_sized_bytes(reader);
-    if (kind > Unsigned_8(Linker::Import::Kind::WritableState) || !abi ||
+    if (kind > U8(Linker::Import::Kind::WritableState) || !abi ||
         abi->is_empty() || !symbol || symbol->is_empty() || !provider ||
         provider->is_empty()) {
       return Error::InvalidFormat;

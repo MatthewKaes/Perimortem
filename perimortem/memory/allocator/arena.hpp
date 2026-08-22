@@ -25,8 +25,8 @@ class Arena {
  public:
   // Attempt to request blocks in 32k pages including the preface and a previous
   // pointer.
-  static constexpr Unsigned_64 page_size = (1 << 15);
-  static constexpr Unsigned_64 arena_alignment = sizeof(Count);
+  static constexpr U64 page_size = (1 << 15);
+  static constexpr U64 arena_alignment = sizeof(Count);
 
   Arena();
   Arena(Arena&&);
@@ -47,7 +47,7 @@ class Arena {
     }
 
     // Align the bump pointer to keep produced data aligned.
-    Unsigned_8* root = rented_block + usage;
+    U8* root = rented_block + usage;
     usage = Core::Data::align<arena_alignment>(usage + bytes_requested);
     return Core::Access::Bytes(root, bytes_requested);
   }
@@ -74,7 +74,7 @@ class Arena {
   template <typename type, typename... arg_types>
   auto construct(arg_types&&... args) -> type& {
     static_assert(alignof(type) <= arena_alignment);
-    Unsigned_8* ptr = allocate(sizeof(type)).get_data();
+    U8* ptr = allocate(sizeof(type)).get_data();
     return *new (ptr) type(static_cast<arg_types&&>(args)...);
   }
 
@@ -88,7 +88,7 @@ class Arena {
     static_assert(alignof(type) <= arena_alignment);
     static_assert(
         __is_same(type, decltype(static_cast<factory_type&&>(factory)())));
-    Unsigned_8* ptr = allocate(sizeof(type)).get_data();
+    U8* ptr = allocate(sizeof(type)).get_data();
     return *new (ptr) type(static_cast<factory_type&&>(factory)());
   }
 
@@ -109,7 +109,7 @@ class Arena {
  private:
   auto fetch_page(Count bytes_requested) -> void;
 
-  Unsigned_8* rented_block;
+  U8* rented_block;
   Count usage;
 };
 

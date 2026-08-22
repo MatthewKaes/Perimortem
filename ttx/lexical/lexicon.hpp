@@ -27,35 +27,35 @@ class Lexicon {
 
   // Accepts one continuation byte after the uppercase opening byte of a Type
   // name.
-  static constexpr auto is_type(Unsigned_8 byte) -> Bool {
+  static constexpr auto is_type(U8 byte) -> Bool {
     return (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
            (byte >= '0' && byte <= '9') || byte == '_';
   }
 
   // Accepts one byte from the lowercase identifier character set.
-  static constexpr auto is_identifier(Unsigned_8 byte) -> Bool {
+  static constexpr auto is_identifier(U8 byte) -> Bool {
     return (byte >= 'a' && byte <= 'z') || (byte >= '0' && byte <= '9') ||
            byte == '_';
   }
 
   // Accepts one byte from the decimal scanner character set.
-  static constexpr auto is_numeric(Unsigned_8 byte) -> Bool {
+  static constexpr auto is_numeric(U8 byte) -> Bool {
     return (byte >= '0' && byte <= '9') || byte == '.';
   }
 
   // Accepts one byte from the hexadecimal digit character set.
-  static constexpr auto is_hex(Unsigned_8 byte) -> Bool {
+  static constexpr auto is_hex(U8 byte) -> Bool {
     return (byte >= '0' && byte <= '9') || (byte >= 'a' && byte <= 'f') ||
            (byte >= 'A' && byte <= 'F');
   }
 
   // Accepts one byte ignored between authored lexical values.
-  static constexpr auto is_whitespace(Unsigned_8 byte) -> Bool {
+  static constexpr auto is_whitespace(U8 byte) -> Bool {
     return byte == ' ' || byte == '\n' || byte == '\r' || byte == '\t';
   }
 
   // Converts one byte already proven by is_hex into its numeric value.
-  static constexpr auto get_hex_value(Unsigned_8 byte) -> Unsigned_8 {
+  static constexpr auto get_hex_value(U8 byte) -> U8 {
     if (byte <= '9') {
       return byte - '0';
     }

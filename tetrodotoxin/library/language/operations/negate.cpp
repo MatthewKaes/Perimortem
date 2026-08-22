@@ -22,17 +22,16 @@ using namespace Ttx::Model;
 static auto is_negatable_type(const Abstract& selected) -> Bool {
   return selected.visit<Tetrodotoxin::Library::Language::Model::Types::Signed>(
       [](const Tetrodotoxin::Library::Language::Model::Types::Signed& type) {
-        return type.get_size() > 0 && type.get_size() <= sizeof(Signed_64)
-                   ? True
-                   : False;
+        return type.get_size() > 0 && type.get_size() <= sizeof(S64) ? True
+                                                                     : False;
       },
       [](const Abstract& selected) {
         return selected
             .visit<Tetrodotoxin::Library::Language::Model::Types::Real>(
                 [](const Tetrodotoxin::Library::Language::Model::Types::Real&
                        type) {
-                  return type.get_size() == sizeof(Real_32) ||
-                                 type.get_size() == sizeof(Real_64)
+                  return type.get_size() == sizeof(R32) ||
+                                 type.get_size() == sizeof(R64)
                              ? True
                              : False;
                 },
@@ -52,9 +51,9 @@ static auto select_result_type(const Language::Expression& operand)
 
 static auto signed_inverse(
     const Tetrodotoxin::Library::Language::Model::Types::Signed& type,
-    Signed_64 operand,
-    Signed_64& result) -> Bool {
-  if (__builtin_sub_overflow(Signed_64(0), operand, &result)) {
+    S64 operand,
+    S64& result) -> Bool {
+  if (__builtin_sub_overflow(S64(0), operand, &result)) {
     return False;
   }
 
@@ -115,7 +114,7 @@ auto Language::Operations::Negate::evaluate_constants(
         Tetrodotoxin::Library::Language::Model::Types::Signed>(
         [&](const Tetrodotoxin::Library::Language::Model::Types::Signed& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          Signed_64 inverse = 0;
+          S64 inverse = 0;
           if (!signed_inverse(type, value->get_value(), inverse)) {
             return Expression::Error(
                 Expression::Error::Type::ArithmeticOverflow, *this);
@@ -140,13 +139,13 @@ auto Language::Operations::Negate::evaluate_constants(
     return selected.visit<Tetrodotoxin::Library::Language::Model::Types::Real>(
         [&](const Tetrodotoxin::Library::Language::Model::Types::Real& type)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-          if (type.get_size() == sizeof(Real_32)) {
-            Real_32 inverse = -Real_32(value->get_value());
+          if (type.get_size() == sizeof(R32)) {
+            R32 inverse = -R32(value->get_value());
             return Constants::Real::create_synthetic(
-                domain, type, Real_64(inverse));
+                domain, type, R64(inverse));
           }
 
-          if (type.get_size() == sizeof(Real_64)) {
+          if (type.get_size() == sizeof(R64)) {
             return Constants::Real::create_synthetic(
                 domain, type, -value->get_value());
           }

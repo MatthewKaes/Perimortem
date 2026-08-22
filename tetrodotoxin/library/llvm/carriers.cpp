@@ -171,9 +171,8 @@ auto Tetrodotoxin::Library::Llvm::Carriers::reserve(
       native = *llvm::Type::getFloatTy(get_context(*target));
     } else if (real && width == 64) {
       native = *llvm::Type::getDoubleTy(get_context(*target));
-    } else if (!real && width != 0 && width <= Unsigned_32(-1)) {
-      native =
-          *llvm::IntegerType::get(get_context(*target), Unsigned_32(width));
+    } else if (!real && width != 0 && width <= U32(-1)) {
+      native = *llvm::IntegerType::get(get_context(*target), U32(width));
     } else {
       fail_type(
           program, type,
@@ -914,16 +913,14 @@ auto Tetrodotoxin::Library::Llvm::Carriers::retain(
       return retain(body, *carrier.element, value);
     }
 
-    llvm::Value& selected =
-        *builder.CreateExtractValue(&native_value, Unsigned_32(1));
+    llvm::Value& selected = *builder.CreateExtractValue(&native_value, U32(1));
     auto constant = llvm::dyn_cast<llvm::ConstantInt>(&selected);
     if (constant) {
       if (constant->isZero()) {
         return True;
       }
 
-      llvm::Value& payload =
-          *builder.CreateExtractValue(&native_value, Unsigned_32(0));
+      llvm::Value& payload = *builder.CreateExtractValue(&native_value, U32(0));
       return retain(body, *carrier.element, llvm::wrap(&payload));
     }
 
@@ -935,8 +932,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::retain(
         &get_function(*native_body));
     builder.CreateCondBr(&selected, &copy, &done);
     builder.SetInsertPoint(&copy);
-    llvm::Value& payload =
-        *builder.CreateExtractValue(&native_value, Unsigned_32(0));
+    llvm::Value& payload = *builder.CreateExtractValue(&native_value, U32(0));
     if (!retain(body, *carrier.element, llvm::wrap(&payload))) {
       return False;
     }
@@ -944,8 +940,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::retain(
     builder.CreateBr(&done);
     builder.SetInsertPoint(&done);
   } else if (carrier.kind == Kind::Result && carrier.element && carrier.error) {
-    llvm::Value& selected =
-        *builder.CreateExtractValue(&native_value, Unsigned_32(1));
+    llvm::Value& selected = *builder.CreateExtractValue(&native_value, U32(1));
     auto constant = llvm::dyn_cast<llvm::ConstantInt>(&selected);
     if (constant) {
       Bool value_selected = !constant->isZero();
@@ -983,7 +978,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::retain(
   } else if (carrier.kind == Kind::Fixed && carrier.element) {
     for (Count index = 0; index < carrier.extent; index++) {
       llvm::Value& element =
-          *builder.CreateExtractValue(&native_value, Unsigned_32(index));
+          *builder.CreateExtractValue(&native_value, U32(index));
       if (!retain(body, *carrier.element, llvm::wrap(&element))) {
         return False;
       }
@@ -1008,7 +1003,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::retain(
       }
 
       llvm::Value& selected =
-          *builder.CreateExtractValue(&native_value, Unsigned_32(index));
+          *builder.CreateExtractValue(&native_value, U32(index));
       if (!retain(body, *field, llvm::wrap(&selected))) {
         return False;
       }
@@ -1059,16 +1054,14 @@ auto Tetrodotoxin::Library::Llvm::Carriers::release(
       return release(body, *carrier.element, value);
     }
 
-    llvm::Value& selected =
-        *builder.CreateExtractValue(&native_value, Unsigned_32(1));
+    llvm::Value& selected = *builder.CreateExtractValue(&native_value, U32(1));
     auto constant = llvm::dyn_cast<llvm::ConstantInt>(&selected);
     if (constant) {
       if (constant->isZero()) {
         return True;
       }
 
-      llvm::Value& payload =
-          *builder.CreateExtractValue(&native_value, Unsigned_32(0));
+      llvm::Value& payload = *builder.CreateExtractValue(&native_value, U32(0));
       return release(body, *carrier.element, llvm::wrap(&payload));
     }
 
@@ -1080,8 +1073,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::release(
         &get_function(*native_body));
     builder.CreateCondBr(&selected, &drop, &done);
     builder.SetInsertPoint(&drop);
-    llvm::Value& payload =
-        *builder.CreateExtractValue(&native_value, Unsigned_32(0));
+    llvm::Value& payload = *builder.CreateExtractValue(&native_value, U32(0));
     if (!release(body, *carrier.element, llvm::wrap(&payload))) {
       return False;
     }
@@ -1089,8 +1081,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::release(
     builder.CreateBr(&done);
     builder.SetInsertPoint(&done);
   } else if (carrier.kind == Kind::Result && carrier.element && carrier.error) {
-    llvm::Value& selected =
-        *builder.CreateExtractValue(&native_value, Unsigned_32(1));
+    llvm::Value& selected = *builder.CreateExtractValue(&native_value, U32(1));
     auto constant = llvm::dyn_cast<llvm::ConstantInt>(&selected);
     if (constant) {
       Bool value_selected = !constant->isZero();
@@ -1128,7 +1119,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::release(
   } else if (carrier.kind == Kind::Fixed && carrier.element) {
     for (Count index = carrier.extent; index != 0; index--) {
       llvm::Value& element =
-          *builder.CreateExtractValue(&native_value, Unsigned_32(index - 1));
+          *builder.CreateExtractValue(&native_value, U32(index - 1));
       if (!release(body, *carrier.element, llvm::wrap(&element))) {
         return False;
       }
@@ -1153,7 +1144,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::release(
       }
 
       llvm::Value& selected =
-          *builder.CreateExtractValue(&native_value, Unsigned_32(index - 1));
+          *builder.CreateExtractValue(&native_value, U32(index - 1));
       if (!release(body, *field, llvm::wrap(&selected))) {
         return False;
       }
@@ -1193,7 +1184,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::select_result(
       *native, value_selected ? "result.value"_view : "result.error"_view);
   builder.CreateStore(llvm::unwrap(value), llvm::unwrap(address));
   llvm::Value* storage = builder.CreateStructGEP(
-      llvm::unwrap(*native), llvm::unwrap(address), Unsigned_32(0));
+      llvm::unwrap(*native), llvm::unwrap(address), U32(0));
   return llvm::wrap(
       builder.CreateLoad(llvm::unwrap(*native_alternative), storage));
 }
@@ -1229,12 +1220,12 @@ auto Tetrodotoxin::Library::Llvm::Carriers::assemble_result(
   llvm::Value* aggregate = llvm::UndefValue::get(native_type);
   aggregate = builder.CreateInsertValue(
       aggregate, value_selected ? builder.getTrue() : builder.getFalse(),
-      Unsigned_32(1));
+      U32(1));
   LLVMValueRef address = native_body->create_entry_alloca(
       *native, value_selected ? "result.value"_view : "result.error"_view);
   builder.CreateStore(aggregate, llvm::unwrap(address));
-  llvm::Value* storage = builder.CreateStructGEP(
-      native_type, llvm::unwrap(address), Unsigned_32(0));
+  llvm::Value* storage =
+      builder.CreateStructGEP(native_type, llvm::unwrap(address), U32(0));
   builder.CreateStore(llvm::unwrap(*payload), storage);
   llvm::Value* selected =
       builder.CreateLoad(native_type, llvm::unwrap(address));
@@ -1290,10 +1281,10 @@ auto Tetrodotoxin::Library::Llvm::Carriers::assemble(
     }
 
     llvm::Value& aggregate = *llvm::UndefValue::get(&native_type);
-    llvm::Value& with_payload = *builder.CreateInsertValue(
-        &aggregate, llvm::unwrap(*payload), Unsigned_32(0));
-    llvm::Value& selected = *builder.CreateInsertValue(
-        &with_payload, builder.getTrue(), Unsigned_32(1));
+    llvm::Value& with_payload =
+        *builder.CreateInsertValue(&aggregate, llvm::unwrap(*payload), U32(0));
+    llvm::Value& selected =
+        *builder.CreateInsertValue(&with_payload, builder.getTrue(), U32(1));
     native_body->mark_owned(type, llvm::wrap(&selected));
     return llvm::wrap(&selected);
   } else if (carrier.kind == Kind::Result) {
@@ -1324,7 +1315,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::assemble(
       }
 
       aggregate = builder.CreateInsertValue(
-          aggregate, llvm::unwrap(*element), Unsigned_32(index));
+          aggregate, llvm::unwrap(*element), U32(index));
     }
 
     native_body->mark_owned(type, llvm::wrap(aggregate));
@@ -1354,7 +1345,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::assemble(
       }
 
       aggregate = builder.CreateInsertValue(
-          aggregate, llvm::unwrap(*field), Unsigned_32(index));
+          aggregate, llvm::unwrap(*field), U32(index));
     }
 
     native_body->mark_owned(type, llvm::wrap(aggregate));
@@ -1371,7 +1362,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::assemble(
     }
 
     aggregate = builder.CreateInsertValue(
-        aggregate, llvm::unwrap(elements[index]), Unsigned_32(index));
+        aggregate, llvm::unwrap(elements[index]), U32(index));
   }
 
   return llvm::wrap(aggregate);
@@ -1623,7 +1614,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::get_object_descriptor(
       }
 
       llvm::Value& address = *builder.CreateStructGEP(
-          llvm::unwrap(*carrier.payload), &payload, Unsigned_32(index - 1));
+          llvm::unwrap(*carrier.payload), &payload, U32(index - 1));
       llvm::Value& value = *builder.CreateLoad(llvm::unwrap(*native), &address);
       if (!release(body, *field, llvm::wrap(&value))) {
         return {};
@@ -1703,7 +1694,7 @@ auto Tetrodotoxin::Library::Llvm::Carriers::construct(
     }
 
     llvm::Value& address = *builder.CreateStructGEP(
-        llvm::unwrap(*carrier.payload), &payload, Unsigned_32(index));
+        llvm::unwrap(*carrier.payload), &payload, U32(index));
     builder.CreateStore(llvm::unwrap(*field), &address);
   }
 

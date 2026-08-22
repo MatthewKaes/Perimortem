@@ -13,16 +13,16 @@
 #include "tetrodotoxin/library/language/generics/result.hpp"
 #include "tetrodotoxin/library/language/generics/view.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
-#include "tetrodotoxin/library/language/types/real_32.hpp"
-#include "tetrodotoxin/library/language/types/real_64.hpp"
-#include "tetrodotoxin/library/language/types/signed_16.hpp"
-#include "tetrodotoxin/library/language/types/signed_32.hpp"
-#include "tetrodotoxin/library/language/types/signed_64.hpp"
-#include "tetrodotoxin/library/language/types/signed_8.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_16.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_32.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_64.hpp"
-#include "tetrodotoxin/library/language/types/unsigned_8.hpp"
+#include "tetrodotoxin/library/language/types/r32.hpp"
+#include "tetrodotoxin/library/language/types/r64.hpp"
+#include "tetrodotoxin/library/language/types/s16.hpp"
+#include "tetrodotoxin/library/language/types/s32.hpp"
+#include "tetrodotoxin/library/language/types/s64.hpp"
+#include "tetrodotoxin/library/language/types/s8.hpp"
+#include "tetrodotoxin/library/language/types/u16.hpp"
+#include "tetrodotoxin/library/language/types/u32.hpp"
+#include "tetrodotoxin/library/language/types/u64.hpp"
+#include "tetrodotoxin/library/language/types/u8.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -54,16 +54,16 @@ Library::Language::Monograph::Monograph(
   // the same objects without a second Type inventory.
   Abstract* identities[] = {
     &domain.construct<Types::Boolean>(),
-    &domain.construct<Types::Unsigned_8>(),
-    &domain.construct<Types::Unsigned_16>(),
-    &domain.construct<Types::Unsigned_32>(),
-    &domain.construct<Types::Unsigned_64>(),
-    &domain.construct<Types::Signed_8>(),
-    &domain.construct<Types::Signed_16>(),
-    &domain.construct<Types::Signed_32>(),
-    &domain.construct<Types::Signed_64>(),
-    &domain.construct<Types::Real_32>(),
-    &domain.construct<Types::Real_64>(),
+    &domain.construct<Types::U8>(),
+    &domain.construct<Types::U16>(),
+    &domain.construct<Types::U32>(),
+    &domain.construct<Types::U64>(),
+    &domain.construct<Types::S8>(),
+    &domain.construct<Types::S16>(),
+    &domain.construct<Types::S32>(),
+    &domain.construct<Types::S64>(),
+    &domain.construct<Types::R32>(),
+    &domain.construct<Types::R64>(),
     &domain.construct<Generics::Access>(domain, *this),
     &domain.construct<Generics::Fixed>(domain, *this),
     &domain.construct<Generics::Option>(domain, *this),
@@ -97,7 +97,7 @@ auto Library::Language::Monograph::restore(
     Abstract& context) -> Option<Monograph&> {
   auto record = reader.read_record();
   BAIL_IF(
-      !record || record->get_tag() != Unsigned_16(Archive::Tag::Source) ||
+      !record || record->get_tag() != U16(Archive::Tag::Source) ||
       record->is_optional() || !reader.is_complete());
 
   Archive::Reader contents(record->get_payload());

@@ -34,7 +34,7 @@ class TypeReference {
 
   class Failure {
    public:
-    enum class Type : Unsigned_8 {
+    enum class Type : U8 {
       Route,
       Argument,
       Generic,
@@ -137,7 +137,7 @@ class TypeReference {
       -> void;
 
  private:
-  enum class Root : Unsigned_8 {
+  enum class Root : U8 {
     Context,
     Lexical,
   };

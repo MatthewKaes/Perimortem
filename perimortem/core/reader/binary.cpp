@@ -72,53 +72,53 @@ static constexpr auto read_real(View::Bytes source, Count& cursor)
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_unsigned_8() -> Unsigned_8 {
-  return read_value<stream_endian, Unsigned_8>(source, cursor);
+auto Reader::Binary<stream_endian>::read_u8() -> U8 {
+  return read_value<stream_endian, U8>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_unsigned_16() -> Unsigned_16 {
-  return read_value<stream_endian, Unsigned_16>(source, cursor);
+auto Reader::Binary<stream_endian>::read_u16() -> U16 {
+  return read_value<stream_endian, U16>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_unsigned_32() -> Unsigned_32 {
-  return read_value<stream_endian, Unsigned_32>(source, cursor);
+auto Reader::Binary<stream_endian>::read_u32() -> U32 {
+  return read_value<stream_endian, U32>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_unsigned_64() -> Unsigned_64 {
-  return read_value<stream_endian, Unsigned_64>(source, cursor);
+auto Reader::Binary<stream_endian>::read_u64() -> U64 {
+  return read_value<stream_endian, U64>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_signed_8() -> Signed_8 {
-  return read_value<stream_endian, Signed_8>(source, cursor);
+auto Reader::Binary<stream_endian>::read_s8() -> S8 {
+  return read_value<stream_endian, S8>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_signed_16() -> Signed_16 {
-  return read_value<stream_endian, Signed_16>(source, cursor);
+auto Reader::Binary<stream_endian>::read_s16() -> S16 {
+  return read_value<stream_endian, S16>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_signed_32() -> Signed_32 {
-  return read_value<stream_endian, Signed_32>(source, cursor);
+auto Reader::Binary<stream_endian>::read_s32() -> S32 {
+  return read_value<stream_endian, S32>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_signed_64() -> Signed_64 {
-  return read_value<stream_endian, Signed_64>(source, cursor);
+auto Reader::Binary<stream_endian>::read_s64() -> S64 {
+  return read_value<stream_endian, S64>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_real_32() -> Real_32 {
-  return read_real<stream_endian, Unsigned_32, Real_32>(source, cursor);
+auto Reader::Binary<stream_endian>::read_r32() -> R32 {
+  return read_real<stream_endian, U32, R32>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>
-auto Reader::Binary<stream_endian>::read_real_64() -> Real_64 {
-  return read_real<stream_endian, Unsigned_64, Real_64>(source, cursor);
+auto Reader::Binary<stream_endian>::read_r64() -> R64 {
+  return read_real<stream_endian, U64, R64>(source, cursor);
 }
 
 template <Data::ByteOrder stream_endian>

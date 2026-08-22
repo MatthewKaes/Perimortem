@@ -27,7 +27,7 @@ class Archive {
   // Defines the complete Format 2 section vocabulary shared by Reader and
   // Writer. The closed set fits in one byte and is widened into the existing
   // unsigned 16 bit tag when encoded.
-  enum class Sections : Unsigned_8 {
+  enum class Sections : U8 {
     Identity = 1,
     Version,
     Dependencies,

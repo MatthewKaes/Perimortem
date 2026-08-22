@@ -23,10 +23,10 @@ auto Tetrodotoxin::Linker::Fingerprint::parse(Core::View::Bytes text)
     return {};
   }
 
-  Unsigned_64 value = 0;
+  U64 value = 0;
   for (Count index = 0; index < text.get_size(); index++) {
-    Unsigned_8 byte = text[index];
-    Unsigned_8 digit = 0;
+    U8 byte = text[index];
+    U8 digit = 0;
     if (byte >= '0' && byte <= '9') {
       digit = byte - '0';
     } else if (byte >= 'a' && byte <= 'f') {

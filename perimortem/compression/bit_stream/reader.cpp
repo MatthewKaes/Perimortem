@@ -13,15 +13,14 @@ using namespace Perimortem;
 // to a 48-bit code + extra-bits pair without a second fill.
 auto Compression::BitStream::Reader::fill() -> void {
   const Count size = data.get_size();
-  const Unsigned_8* source_pointer = data.get_data();
+  const U8* source_pointer = data.get_data();
 
   // Fast path: enough bytes remain for a single unaligned 64-bit load.
   // On little-endian hosts (x86) stream byte order matches load order directly.
   //
   // TODO: Support Big endian at some point.
-  if (byte_position + Count(sizeof(Unsigned_64)) <= size) {
-    Unsigned_64 word =
-        *Data::cast<const Unsigned_64>(source_pointer + byte_position);
+  if (byte_position + Count(sizeof(U64)) <= size) {
+    U64 word = *Data::cast<const U64>(source_pointer + byte_position);
     Count consumed = (64 - buffered_bits) >> 3;
     buffer |= word << buffered_bits;
     byte_position += consumed;
@@ -31,7 +30,7 @@ auto Compression::BitStream::Reader::fill() -> void {
 
   // Slow path: near stream end we need to load byte by byte.
   while (buffered_bits <= 56 && byte_position < size) {
-    buffer |= Unsigned_64(source_pointer[byte_position++]) << buffered_bits;
+    buffer |= U64(source_pointer[byte_position++]) << buffered_bits;
     buffered_bits += 8;
   }
 }
@@ -46,12 +45,12 @@ auto Compression::BitStream::Reader::read_bit() -> Bool {
   }
 
   // Load the lowest bit of the buffer.
-  const Bool bit = buffer & Unsigned_64(1);
+  const Bool bit = buffer & U64(1);
   advance_bits(1);
   return bit;
 }
 
-auto Compression::BitStream::Reader::read_code(Count count) -> Unsigned_32 {
+auto Compression::BitStream::Reader::read_code(Count count) -> U32 {
   if (buffered_bits < count) {
     fill();
     if (buffered_bits < count) [[unlikely]] {
@@ -60,8 +59,8 @@ auto Compression::BitStream::Reader::read_code(Count count) -> Unsigned_32 {
     }
   }
 
-  const Unsigned_32 mask = ((Unsigned_32(1) << count) - Unsigned_32(1));
-  const Unsigned_32 result = Unsigned_32(buffer) & mask;
+  const U32 mask = ((U32(1) << count) - U32(1));
+  const U32 result = U32(buffer) & mask;
   advance_bits(count);
   return result;
 }
@@ -86,10 +85,10 @@ auto Compression::BitStream::Reader::read_raw_bytes(Count count)
   return result;
 }
 
-auto Compression::BitStream::Reader::peek_code(Count count) -> Unsigned_32 {
+auto Compression::BitStream::Reader::peek_code(Count count) -> U32 {
   if (buffered_bits < count) {
     fill();
   }
 
-  return Unsigned_32(buffer) & ((Unsigned_32(1) << count) - Unsigned_32(1));
+  return U32(buffer) & ((U32(1) << count) - U32(1));
 }

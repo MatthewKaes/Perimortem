@@ -20,65 +20,65 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, integers) {
       "-1234 5678 -99999 100000 -1234567890123 9876543210"_view);
 
   EXPECT(reader.has_content());
-  EXPECT_EQ(reader.read_signed(), Signed_64(-1234));
-  EXPECT_EQ(reader.read_signed(), Signed_64(5678));
-  EXPECT_EQ(reader.read_signed(), Signed_64(-99999));
-  EXPECT_EQ(reader.read_signed(), Signed_64(100000));
-  EXPECT_EQ(reader.read_signed(), Signed_64(-1234567890123LL));
-  EXPECT_EQ(reader.read_signed(), Signed_64(9876543210ULL));
+  EXPECT_EQ(reader.read_signed(), S64(-1234));
+  EXPECT_EQ(reader.read_signed(), S64(5678));
+  EXPECT_EQ(reader.read_signed(), S64(-99999));
+  EXPECT_EQ(reader.read_signed(), S64(100000));
+  EXPECT_EQ(reader.read_signed(), S64(-1234567890123LL));
+  EXPECT_EQ(reader.read_signed(), S64(9876543210ULL));
   EXPECT(reader.is_valid());
   EXPECT_EQ(reader.get_location(), reader.get_size());
 }
 
 PERIMORTEM_UNIT_TEST(CoreTextualReader, integer_limits_and_radix) {
   Reader::Textual unsigned_maximum("18446744073709551615"_view);
-  EXPECT_EQ(unsigned_maximum.read_unsigned(), Unsigned_64(-1));
+  EXPECT_EQ(unsigned_maximum.read_unsigned(), U64(-1));
   EXPECT(unsigned_maximum.is_valid());
   EXPECT_EQ(unsigned_maximum.get_location(), unsigned_maximum.get_size());
 
   Reader::Textual signed_limits(
       "-9223372036854775808 9223372036854775807"_view);
-  EXPECT_EQ(signed_limits.read_signed(), Signed_64(-9223372036854775807LL - 1));
-  EXPECT_EQ(signed_limits.read_signed(), Signed_64(9223372036854775807LL));
+  EXPECT_EQ(signed_limits.read_signed(), S64(-9223372036854775807LL - 1));
+  EXPECT_EQ(signed_limits.read_signed(), S64(9223372036854775807LL));
   EXPECT(signed_limits.is_valid());
   EXPECT_EQ(signed_limits.get_location(), signed_limits.get_size());
 
   Reader::Textual hexadecimal("FFFFFFFFFFFFFFFF"_view);
-  EXPECT_EQ(hexadecimal.read_unsigned(16), Unsigned_64(-1));
+  EXPECT_EQ(hexadecimal.read_unsigned(16), U64(-1));
   EXPECT(hexadecimal.is_valid());
   EXPECT_EQ(hexadecimal.get_location(), hexadecimal.get_size());
 
   Reader::Textual unsigned_overflow("18446744073709551616"_view);
-  EXPECT_EQ(unsigned_overflow.read_unsigned(), Unsigned_64(0));
+  EXPECT_EQ(unsigned_overflow.read_unsigned(), U64(0));
   EXPECT_NOT(unsigned_overflow.is_valid());
 
   Reader::Textual positive_overflow("9223372036854775808"_view);
-  EXPECT_EQ(positive_overflow.read_signed(), Signed_64(0));
+  EXPECT_EQ(positive_overflow.read_signed(), S64(0));
   EXPECT_NOT(positive_overflow.is_valid());
 
   Reader::Textual negative_overflow("-9223372036854775809"_view);
-  EXPECT_EQ(negative_overflow.read_signed(), Signed_64(0));
+  EXPECT_EQ(negative_overflow.read_signed(), S64(0));
   EXPECT_NOT(negative_overflow.is_valid());
 
   Reader::Textual hexadecimal_overflow("10000000000000000"_view);
-  EXPECT_EQ(hexadecimal_overflow.read_unsigned(16), Unsigned_64(0));
+  EXPECT_EQ(hexadecimal_overflow.read_unsigned(16), U64(0));
   EXPECT_NOT(hexadecimal_overflow.is_valid());
 
   Reader::Textual invalid_radix("10"_view);
-  EXPECT_EQ(invalid_radix.read_unsigned(1), Unsigned_64(0));
+  EXPECT_EQ(invalid_radix.read_unsigned(1), U64(0));
   EXPECT_NOT(invalid_radix.is_valid());
 }
 
 PERIMORTEM_UNIT_TEST(CoreTextualReader, integers_and_text) {
   Reader::Textual reader("count: 412010 items"_view);
 
-  EXPECT_EQ(reader.read_byte(), Unsigned_8('c'));
+  EXPECT_EQ(reader.read_byte(), U8('c'));
   reader.read_byte();  // 'o'
   reader.read_byte();  // 'u'
   reader.read_byte();  // 'n'
-  EXPECT_EQ(reader.read_byte(), Unsigned_8('t'));
+  EXPECT_EQ(reader.read_byte(), U8('t'));
   reader.read_byte();  // ':'
-  EXPECT_EQ(reader.read_unsigned(), Unsigned_64(412010));
+  EXPECT_EQ(reader.read_unsigned(), U64(412010));
   EXPECT(reader.has_content());
 }
 
@@ -87,8 +87,8 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, boolean) {
   // that for ABI reasons, and use Bool (proper ABI) for "true"/"false".
   Reader::Textual reader("10truefalseTrueFalse"_view);
 
-  EXPECT_EQ(reader.read_byte(), Unsigned_8('1'));
-  EXPECT_EQ(reader.read_byte(), Unsigned_8('0'));
+  EXPECT_EQ(reader.read_byte(), U8('1'));
+  EXPECT_EQ(reader.read_byte(), U8('0'));
   EXPECT(reader.read_flag());
   EXPECT_NOT(reader.read_flag());
   EXPECT(reader.read_flag());
@@ -99,11 +99,11 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, boolean) {
 PERIMORTEM_UNIT_TEST(CoreTextualReader, floats) {
   Reader::Textual reader("12.5 -1.5 2.512 0.0 -0.5"_view);
 
-  EXPECT_EQ(reader.read_real_64(), Real_64(12.5));
-  EXPECT_EQ(reader.read_real_64(), Real_64(-1.5));
-  EXPECT_EQ(reader.read_real_32(), Real_32(2.512f));
-  EXPECT_EQ(reader.read_real_64(), Real_64(0.0));
-  EXPECT_EQ(reader.read_real_64(), Real_64(-0.5));
+  EXPECT_EQ(reader.read_r64(), R64(12.5));
+  EXPECT_EQ(reader.read_r64(), R64(-1.5));
+  EXPECT_EQ(reader.read_r32(), R32(2.512f));
+  EXPECT_EQ(reader.read_r64(), R64(0.0));
+  EXPECT_EQ(reader.read_r64(), R64(-0.5));
   EXPECT(reader.is_valid());
   EXPECT_EQ(reader.get_location(), reader.get_size());
   EXPECT_NOT(reader.has_content());
@@ -112,23 +112,23 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, floats) {
 PERIMORTEM_UNIT_TEST(CoreTextualReader, real_limits) {
   constexpr auto wide_text = "999999999999999999999999999999999999999.0"_view;
   Reader::Textual wide(wide_text);
-  EXPECT(wide.read_real_64() > Real_64(1e38));
+  EXPECT(wide.read_r64() > R64(1e38));
   EXPECT(wide.is_valid());
   EXPECT_EQ(wide.get_location(), wide.get_size());
 
   Reader::Textual wide_32(wide_text);
-  EXPECT_EQ(wide_32.read_real_32(), Real_32(0));
+  EXPECT_EQ(wide_32.read_r32(), R32(0));
   EXPECT_NOT(wide_32.is_valid());
 
   constexpr auto tiny_text =
       "0.000000000000000000000000000000000000000000000000001"_view;
   Reader::Textual tiny(tiny_text);
-  EXPECT(tiny.read_real_64() > Real_64(0));
+  EXPECT(tiny.read_r64() > R64(0));
   EXPECT(tiny.is_valid());
   EXPECT_EQ(tiny.get_location(), tiny.get_size());
 
   Reader::Textual tiny_32(tiny_text);
-  EXPECT_EQ(tiny_32.read_real_32(), Real_32(0));
+  EXPECT_EQ(tiny_32.read_r32(), R32(0));
   EXPECT_NOT(tiny_32.is_valid());
 
   Reader::Textual overflow(
@@ -137,7 +137,7 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, real_limits) {
       "9999999999999999999999999999999999999999999999999999999999999999"
       "9999999999999999999999999999999999999999999999999999999999999999"
       "9999999999999999999999999999999999999999999999999999999999999999.0"_view);
-  EXPECT_EQ(overflow.read_real_64(), Real_64(0));
+  EXPECT_EQ(overflow.read_r64(), R64(0));
   EXPECT_NOT(overflow.is_valid());
 }
 
@@ -171,10 +171,10 @@ PERIMORTEM_UNIT_TEST(CoreTextualReader, just_whitespace) {
   reader.read_unsigned();
   EXPECT_NOT(reader.has_content());
   reader.reset();
-  reader.read_real_32();
+  reader.read_r32();
   EXPECT_NOT(reader.has_content());
   reader.reset();
-  reader.read_real_64();
+  reader.read_r64();
   EXPECT_NOT(reader.has_content());
 }
 
@@ -258,7 +258,7 @@ PERIMORTEM_UNIT_TEST(CoreTextual, characters) {
   Static::Bytes<8> buffer;
   Writer::Textual writer(buffer.get_access());
 
-  writer << Signed_8(-128) << ':' << Unsigned_8(255);
+  writer << S8(-128) << ':' << U8(255);
 
   EXPECT(writer.is_valid());
   EXPECT_TEXT(buffer, "-128:255"_view);
@@ -295,7 +295,7 @@ PERIMORTEM_UNIT_TEST(CoreTextual, floats) {
   writer << 12.08 << 0.0000812;
 
   // Percision test
-  writer << Real_32(-2012.78102) << Real_64(-2012.78102);
+  writer << R32(-2012.78102) << R64(-2012.78102);
 
   EXPECT(writer.is_valid());
   EXPECT_TEXT(

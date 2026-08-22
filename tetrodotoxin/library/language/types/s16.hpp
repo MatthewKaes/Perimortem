@@ -8,26 +8,24 @@
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Signed_64 is the standard sixty four bit Signed Type.
-class Signed_64 : public Model::Types::Signed {
+// S16 is the standard sixteen bit Signed Type.
+class S16 : public Model::Types::Signed {
  public:
-  TTX_NAME("Signed_64"_view);
+  TTX_NAME("S16"_view);
 
   TTX_DOCUMENTATION(documentation);
 
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
-  constexpr auto get_width() const -> Count override { return 64; }
-  constexpr auto get_size() const -> Count override {
-    return sizeof(::Signed_64);
-  }
+  constexpr auto get_width() const -> Count override { return 16; }
+  constexpr auto get_size() const -> Count override { return sizeof(::S16); }
   constexpr auto get_alignment() const -> Count override {
-    return alignof(::Signed_64);
+    return alignof(::S16);
   }
 
  private:
   static constexpr Ttx::Model::Documentations::Comment documentation{
-    "Signed_64 is stored as an 8 byte two's-complement integer."_view,
+    "S16 is stored as a 2 byte two's-complement integer."_view,
   };
 };
 

@@ -37,7 +37,7 @@ static auto open_stream(View::Bytes contents = View::Bytes()) -> FILE* {
     }
   }
 
-  Signed_32 reset;
+  S32 reset;
   reset = fseek(stream, 0, SEEK_SET);
   if (reset != 0) {
     fclose(stream);
@@ -50,19 +50,19 @@ static auto open_stream(View::Bytes contents = View::Bytes()) -> FILE* {
 // The output oracle flushes and sizes the same stream before reading it back.
 // This catches extra terminators and preserves embedded zero bytes exactly.
 static auto read_stream(FILE& stream) -> Option<Dynamic::Bytes> {
-  Signed_32 flushed;
+  S32 flushed;
   flushed = fflush(&stream);
   if (flushed != 0) {
     return {};
   }
 
-  Signed_32 sought;
+  S32 sought;
   sought = fseek(&stream, 0, SEEK_END);
   if (sought != 0) {
     return {};
   }
 
-  Signed_64 length;
+  S64 length;
   length = ftell(&stream);
   if (length < 0) {
     return {};
@@ -320,9 +320,9 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, short_write) {
     return;
   }
 
-  Signed_32 buffering;
+  S32 buffering;
   buffering = setvbuf(output, nullptr, _IONBF, 0);
-  EXPECT_EQ(buffering, Signed_32(0));
+  EXPECT_EQ(buffering, S32(0));
 
   Terminal terminal(*input, *output);
   Bool written;
@@ -344,9 +344,9 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, newline_failure) {
     return;
   }
 
-  Signed_32 buffering;
+  S32 buffering;
   buffering = setvbuf(output, nullptr, _IONBF, 0);
-  EXPECT_EQ(buffering, Signed_32(0));
+  EXPECT_EQ(buffering, S32(0));
 
   Terminal terminal(*input, *output);
   Bool written;
@@ -369,9 +369,9 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, flush_failure) {
     return;
   }
 
-  Signed_32 buffering;
+  S32 buffering;
   buffering = setvbuf(output, Data::cast<char>(buffer.get_data()), _IOFBF, 128);
-  EXPECT_EQ(buffering, Signed_32(0));
+  EXPECT_EQ(buffering, S32(0));
 
   Terminal terminal(*input, *output);
   Bool written;

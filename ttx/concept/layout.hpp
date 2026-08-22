@@ -30,7 +30,7 @@ namespace Ttx::Concept {
 // available.
 class Layout {
  public:
-  enum class Errors : Unsigned_8 {
+  enum class Errors : U8 {
     IndexOutOfBounds,
     SizeMismatch,
     IncompatibleFit,

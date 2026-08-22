@@ -152,7 +152,7 @@ class Functions {
       Ttx::Concept::Reference<const Ttx::Model::Callable>>;
 
  private:
-  enum class Kind : Unsigned_8 {
+  enum class Kind : U8 {
     Function,
     External,
     Foreign,

@@ -16,7 +16,7 @@ using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
 using namespace Validation;
 
-static constexpr Unsigned_8 manifest_golden[] = {
+static constexpr U8 manifest_golden[] = {
   0x54, 0x54, 0x58, 0x41, 0x42, 0x49, 0x30, 0x31, 0x08, 0x00, 0x00, 0x00, 0x50,
   0x6B, 0x67, 0x2E, 0x43, 0x6F, 0x72, 0x65, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00,
   0x00, 0x00, 0x63, 0x70, 0x75, 0x11, 0x00, 0x00, 0x00, 0x78, 0x38, 0x36, 0x5F,
@@ -65,8 +65,7 @@ PERIMORTEM_UNIT_TEST(LinkerManifest, canonical_round_trip) {
   EXPECT(manifest->get_version() == Perimortem::System::Version(1, 2));
   EXPECT_TEXT(manifest->get_artifact(), "cpu"_view);
   EXPECT_TEXT(manifest->get_target(), "x86_64-sysv-linux"_view);
-  EXPECT_EQ(
-      manifest->get_fingerprint().get_value(), Unsigned_64(0x0123456789ABCDEF));
+  EXPECT_EQ(manifest->get_fingerprint().get_value(), U64(0x0123456789ABCDEF));
   ASSERT_EQ(manifest->get_imports().get_size(), Count(1));
   const Linker::Import& imported = manifest->get_imports().get_data()[0];
   EXPECT(imported.get_kind() == Linker::Import::Kind::Function);

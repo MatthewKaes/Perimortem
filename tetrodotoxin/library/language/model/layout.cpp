@@ -155,14 +155,14 @@ auto Language::Model::Layout::interpret(
 
 auto Language::Model::Layout::persist(Archive::Writer& writer) const -> Bool {
   auto record = writer.begin(Archive::Tag::Layout);
-  BAIL_IF(get_size() > Unsigned_32(-1));
+  BAIL_IF(get_size() > U32(-1));
 
-  writer.write(Unsigned_32(get_size()));
+  writer.write(U32(get_size()));
   for (Count index = 0; index < get_size(); index++) {
     BAIL_IF(!writer.write(slots.at(index).name));
 
     auto reference = get_type_reference(index);
-    writer.write(Unsigned_8(reference ? 1 : 0));
+    writer.write(U8(reference ? 1 : 0));
     BAIL_IF(reference && !reference->persist(writer));
   }
   return writer.finish(record);
@@ -175,17 +175,17 @@ auto Language::Model::Layout::restore(
     Bool parameters) -> Option<Layout&> {
   auto record = reader.read_record();
   BAIL_IF(
-      !record || record->get_tag() != Unsigned_16(Archive::Tag::Layout) ||
+      !record || record->get_tag() != U16(Archive::Tag::Layout) ||
       record->is_optional());
 
   Archive::Reader contents(record->get_payload());
-  auto count = contents.read_unsigned_32();
+  auto count = contents.read_u32();
   BAIL_IF(!count || Count(*count) > record->get_payload().get_size());
 
   Managed::Vector<Slot> slots(arena);
   for (Count index = 0; index < *count; index++) {
     auto name = contents.read_bytes();
-    auto has_reference = contents.read_unsigned_8();
+    auto has_reference = contents.read_u8();
     BAIL_IF(!name || !has_reference || *has_reference > 1);
 
     Option<TypeReference> reference;

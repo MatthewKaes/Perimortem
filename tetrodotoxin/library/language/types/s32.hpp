@@ -3,32 +3,29 @@
 
 #pragma once
 
-#include "tetrodotoxin/library/language/model/types/unsigned.hpp"
+#include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "ttx/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Unsigned_64 is the standard sixty four bit Type implementing the Unsigned
-// domain.
-class Unsigned_64 : public Model::Types::Unsigned {
+// S32 is the standard thirty two bit Signed Type.
+class S32 : public Model::Types::Signed {
  public:
-  TTX_NAME("Unsigned_64"_view);
+  TTX_NAME("S32"_view);
 
   TTX_DOCUMENTATION(documentation);
 
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
-  constexpr auto get_width() const -> Count override { return 64; }
-  constexpr auto get_size() const -> Count override {
-    return sizeof(::Unsigned_64);
-  }
+  constexpr auto get_width() const -> Count override { return 32; }
+  constexpr auto get_size() const -> Count override { return sizeof(::S32); }
   constexpr auto get_alignment() const -> Count override {
-    return alignof(::Unsigned_64);
+    return alignof(::S32);
   }
 
  private:
   static constexpr Ttx::Model::Documentations::Comment documentation{
-    "Unsigned_64 is stored as an 8 byte unsigned integer."_view,
+    "S32 is stored as a 4 byte two's-complement integer."_view,
   };
 };
 

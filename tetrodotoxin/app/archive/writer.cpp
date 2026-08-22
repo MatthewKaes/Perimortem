@@ -18,8 +18,7 @@ auto App::Archive::Writer::write(
   View::Bytes route = monograph.get_program().get_route();
   View::Bytes callable = monograph.get_program().get_callable_name();
   Count size = 16 + route.get_size() + callable.get_size();
-  if (route.get_size() > Unsigned_32(-1) ||
-      callable.get_size() > Unsigned_32(-1)) {
+  if (route.get_size() > U32(-1) || callable.get_size() > U32(-1)) {
     return {};
   }
 
@@ -27,12 +26,12 @@ auto App::Archive::Writer::write(
   output.forgetful_resize(size);
   LittleWriter writer(output.get_access());
   writer << "TTAP"_view;
-  writer << Unsigned_16(1);
-  writer << Unsigned_8(profile);
-  writer << Unsigned_8(1);
-  writer << Unsigned_32(route.get_size());
+  writer << U16(1);
+  writer << U8(profile);
+  writer << U8(1);
+  writer << U32(route.get_size());
   writer << route;
-  writer << Unsigned_32(callable.get_size());
+  writer << U32(callable.get_size());
   writer << callable;
   return writer.is_valid() && writer.get_location() == size
              ? Option<Dynamic::Bytes>(Data::take(output))
