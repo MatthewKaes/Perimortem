@@ -1,5 +1,3 @@
-# Tetrodotoxin
-
 <p align="center">
   <img src="extension/media/logo.png" alt="Tetrodotoxin Toolchain" width="100%">
 </p>
