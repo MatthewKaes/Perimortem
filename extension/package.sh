@@ -1,6 +1,6 @@
 #!/bin/bash
-# Perimortem Engine
-# Copyright © Matt Kaes
+# Tetrodotoxin
+# Copyright (c) 2023-present Matt Kaes and contributors
 #
 # Builds Puffer and synchronizes the VSCode extension LSP server. The default
 # mode packages a VSIX after synchronization.

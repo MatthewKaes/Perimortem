@@ -1,5 +1,5 @@
-// Perimortem Engine
-// Copyright © Matt Kaes
+// Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
 
 // Simplified test framework for Perimortem. Now that validation links directly
 // against Perimortem, the framework uses Perimortem types throughout rather

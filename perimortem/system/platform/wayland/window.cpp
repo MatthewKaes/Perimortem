@@ -1,5 +1,5 @@
-// Perimortem Engine
-// Copyright © Matt Kaes
+// Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
 
 // Wayland's C headers can indirectly include libstdc++ <new> on this toolchain.
 // Keep them before Perimortem headers so perimortem.hpp sees the standard-

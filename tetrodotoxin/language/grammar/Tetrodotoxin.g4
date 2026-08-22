@@ -1,5 +1,5 @@
-// Perimortem Engine
-// Copyright © Matt Kaes
+// Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Parser fragments shared by concrete Tetrodotoxin dialects. Semantic result
 // categories remain the responsibility of the consuming dialect even when two

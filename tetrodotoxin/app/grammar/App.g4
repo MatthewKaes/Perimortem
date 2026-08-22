@@ -1,5 +1,5 @@
-// Perimortem Engine
-// Copyright © Matt Kaes
+// Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Canonical App source shape. App owns startup and lifecycle policy while
 // selected Types, Callables, Scenes, and Resources keep their real identities.

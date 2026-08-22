@@ -1,5 +1,5 @@
-// Perimortem Engine
-// Copyright © Matt Kaes
+// Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
 
 // LLVM must enter before Perimortem so the standard placement declaration is
 // visible before the freestanding fallback used by Perimortem headers.

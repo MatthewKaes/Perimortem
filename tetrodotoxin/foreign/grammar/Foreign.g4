@@ -1,5 +1,5 @@
-// Perimortem Engine
-// Copyright © Matt Kaes
+// Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Foreign is an embedded grammar fragment, not an installed source Dialect.
 // The standalone entry lets the fragment be read without first choosing a CPU

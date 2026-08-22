@@ -1,5 +1,5 @@
-// Perimortem Engine
-// Copyright © Matt Kaes
+// Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Canonical Scene source shape. Scene reuses Library declaration shapes but
 // owns signals, lifecycle roles, hosted graphics state, and every body.

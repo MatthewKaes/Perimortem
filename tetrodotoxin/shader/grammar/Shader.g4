@@ -1,5 +1,5 @@
-// Perimortem Engine
-// Copyright © Matt Kaes
+// Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Canonical Shader source shape. Its expressions and bodies are spelled out
 // because similar syntax does not route GPU facts through Library's CPU model.

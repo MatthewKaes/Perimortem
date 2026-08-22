@@ -1,26 +1,16 @@
-#================================================================================#
-#                                                                                #
-#                  Copyright (c) 2023-Present Matt Kaes                          #
-#                                                                                #
-#================================================================================#
+MIT License
 
-All Rights Reserved, however permission is hereby granted, free of charge, to any 
-person obtaining a copy of this software and associated documentation files from
-source (the "Software"), to build and use it for their own personal usage, including
-copying, modifying, merging, publishing and distributing derivative works, subject
-to the following conditions:
+Copyright (c) 2023-present Matt Kaes and contributors
 
-1. The above copyright notice and this permission notice shall be included in 
-all copies or substantial portions of the Software including derivative works.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-2. Media including branding, images, and texts that do not include documentation
-and source code may only be distributed as official packaged releases and are
-not included with the permissions provided to the Software.
-
-Software developed using this Software, either from source or a packaged
-release, may additionally be sold or generally dsitributed with commercial
-intent as long as no media or meaningful piece of this Software is shipped
-as part of the secondary work.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
