@@ -1,7 +1,9 @@
 # TTX
 
-TTX is the shared semantic vocabulary that makes Tetrodotoxin extensible. It
-gives purpose specific languages a common way to describe Types, values,
+> **The common layer should be meaning, not representation.**
+
+TTX is the shared semantic graph vocabulary that makes Tetrodotoxin extensible.
+It gives purpose specific languages a common way to describe Types, values,
 addresses, Callables, Layouts, source locations, and documentation while each
 language keeps the model that makes its domain useful.
 
@@ -13,6 +15,26 @@ instead of being copied into a private model for every tool.
 Workspace. TTX remains small enough to be used by another host, but its clearest
 role in this repository is the semantic foundation shared by the complete
 Tetrodotoxin platform.
+
+## Why TTX exists
+
+One way to make several languages cooperate is to translate all of them into one
+common declaration tree or target IR. That makes the shared representation the
+authority and asks every language to surrender distinctions that do not fit it.
+
+TTX takes the opposite route. A concrete language creates and retains the object
+that owns a fact, then exposes only the host neutral contracts another domain can
+use. The same identity can therefore participate in Package resolution, editor
+navigation, Layout fitting, compilation, and durable reconstruction without a
+shadow model for each consumer.
+
+> **Pull upward every fact that is target neutral and genuinely shared, while
+> leaving richer meaning with its concrete owner.**
+
+This is both the extension rule and the architectural guardrail. A new TTX
+contract should express one meaning shared by independent owners or consumers.
+Source grammar, target layout, runtime policy, and behavior meaningful to only
+one Dialect stay with that owner.
 
 ## Where TTX sits
 

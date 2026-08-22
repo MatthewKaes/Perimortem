@@ -2,35 +2,40 @@
   <img src="extension/media/logo.png" alt="Tetrodotoxin Toolchain" width="100%">
 </p>
 
+> **The common layer should be meaning, not representation.**
+
 Tetrodotoxin is an extensible language and toolchain platform for building
-domain specific systems. It brings source languages, shared semantic meaning,
-Packages, compilers, editor tooling, and a native runtime together under one
-design.
+domain specific systems. It raises several owned language models into one linked
+semantic Workspace, using TTX as their shared graph vocabulary, then derives
+independent Terminal products from that completed meaning.
 
 Large systems often contain several languages even when only one of them looks
 like ordinary application code. Package manifests, reusable libraries,
 application policy, scene state, render contracts, and shaders each ask
 different questions. Tetrodotoxin lets each of those domains keep a language
-that fits its work while still participating in one program.
+that fits its work while still participating in one program, editor session,
+Package graph, and build.
 
 ![Tetrodotoxin editor preview](extension/media/ttx-preview.png)
 
 ## One platform, several languages
 
 A Tetrodotoxin language is a Dialect. Each Dialect owns its grammar, semantic
-objects, diagnostics, and contribution to program completion. TTX supplies the
-small vocabulary that lets independently designed Dialects share Types, values,
-addresses, Callables, Layouts, source locations, and documentation.
+objects, diagnostics, and complete domain meaning. TTX owns only the semantic
+questions genuinely shared across domains: identity, resolution, Types, Packs,
+Layouts, Addressables, Callables, source locations, and documentation.
 
-Those shared facts live together in a Workspace. Package gives sources stable
-names and reproducible dependencies. Puffer opens the same Workspace for the
-command line and editor. Compilers and linkers derive native or GPU products
-from the completed program, while Perimortem supplies the runtime foundation
-used by generated applications.
+Environment gives those identities one Workspace lifetime and owns their
+cross-Dialect linking, completion, and publication. A Terminal producer then
+derives only the target facts needed for its product. LLVM IR, SPIR-V, Archives,
+editor data, and executables remain outputs rather than sources of semantic
+truth.
 
-This means a new Dialect can join an existing package graph, editor session,
-and build without translating its model into a universal declaration tree. It
-shares only the contracts that another language or tool can genuinely use.
+Raising means participation rather than translation. A concrete language object
+exposes TTX contracts on its original identity instead of being copied into a
+universal declaration tree. Tetrodotoxin pulls upward every fact that is target
+neutral and genuinely shared while leaving richer meaning with its concrete
+owner.
 
 ## The platform
 

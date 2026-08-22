@@ -28,6 +28,17 @@ that packages, concrete languages, editors, compilers, and runtimes can exchange
 directly. This includes produced Pack flow as well as the Layout contracts it
 must satisfy. Facts meaningful to only one system stay with that owner.
 
+The governing design test is simple: pull upward every fact that is target
+neutral and genuinely shared while leaving richer meaning with its concrete
+owner. A proposed contract belongs in TTX when independent domains need the same
+question answered with the same meaning. A fact that depends on one grammar,
+runtime policy, target representation, or consumer stays with that system.
+
+This test also makes architectural drift visible. Copying an owner into a shared
+record, introducing a parallel semantic graph, or moving target facts into TTX
+changes the common layer from meaning into representation. The resulting model
+would no longer give every consumer the original semantic fact.
+
 The shared vocabulary contains relationships that are genuinely cross domain
 rather than source features owned by one language.
 A Library Object, a Package Dependency, a Scene signal, and a Shader resource

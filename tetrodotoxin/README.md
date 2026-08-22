@@ -1,17 +1,14 @@
 # Tetrodotoxin
 
-Tetrodotoxin is an extensible language and toolchain platform for systems built
-from several purpose specific languages. Package manifests, reusable CPU
-libraries, application policy, scenes, render contracts, shaders, and foreign
-interfaces can all describe one program while keeping the model that fits their
-own domain.
+Tetrodotoxin raises several owned language models into one linked semantic
+Workspace, using TTX as their shared graph vocabulary, then derives independent
+Terminal products from that completed meaning.
 
-The platform gives those languages a common home. TTX carries the semantic
-facts they genuinely share. Environment keeps their results alive in one
-Workspace. Package gives them reproducible names, dependencies, resources, and
-Archives. Puffer presents the same program to command line tools and editors.
-Compilers, Linker, and the runtime turn the completed Workspace into products
-that can run independently.
+Package manifests, reusable CPU libraries, application policy, scenes, render
+contracts, shaders, and foreign interfaces can all describe one program while
+keeping the model that fits their own domain. Raising means that their original
+identities participate in shared contracts. It does not translate them into a
+second universal language model.
 
 Seven terms make the platform easier to navigate:
 
@@ -46,6 +43,18 @@ objects, contributes to Workspace completion, answers useful queries, and
 reports source errors. In return it joins the same Package graph, editor
 session, source documentation model, and Terminal production path as the
 languages already installed in the Toolchain.
+
+The responsibility split stays explicit:
+
+* A **Dialect** owns its grammar and complete domain meaning.
+* **TTX** owns only semantic questions genuinely shared across domains.
+* **Workspace** owns lifetime, cross-Dialect linking, completion, and
+  publication.
+* A **Terminal producer** owns target specific derivation and lowering.
+
+LLVM IR, SPIR-V, Package Archives, editor data, and executables are products of
+the completed meaning. None becomes the semantic source of truth for the
+languages that produced it.
 
 This design earns its weight when one system contains several semantic domains
 or when the same completed program feeds editors, compilers, Packages, and
