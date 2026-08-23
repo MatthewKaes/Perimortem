@@ -7,7 +7,6 @@
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
@@ -40,9 +39,6 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto link_restored() -> Bool override;
 
   auto finalize_restored() -> Bool override;
-
-  auto lower(Llvm::Program& program) const
-      -> Perimortem::Core::Option<Llvm::Program&>;
 
   auto persist(Archive::Writer& writer) const -> Bool;
 

@@ -1,15 +1,14 @@
-"Pinned LLVM development SDK facade for the Library compiler."
+"Pinned LLVM development SDK facade for the LLVM backend."
 
 package(default_visibility = ["//visibility:private"])
 
-# Library deliberately consumes this through implementation_deps. The facade
-# keeps the external repository name and its component targets out of product
-# BUILD files, while narrow visibility makes accidental use elsewhere a
-# build-time error.
+# The LLVM backend is the only product owner that consumes this facade. Keeping
+# the external repository behind one narrow target prevents SDK headers and
+# compiler flags from becoming ambient inputs to semantic code.
 alias(
     name = "sdk",
     actual = "@llvm_22_1_8//:sdk",
-    visibility = ["//tetrodotoxin:__pkg__"],
+    visibility = ["//backend:__pkg__"],
 )
 
 exports_files([

@@ -7,7 +7,6 @@
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -43,34 +42,6 @@ static auto make_result(
 TTX_BINARY_PARSE(And, And);
 
 TTX_BINARY_OP(And);
-
-auto Language::Operations::And::lower(Llvm::Builder& body) const -> Bool {
-  auto folded = lower_folded(body);
-  if (folded) {
-    return *folded;
-  }
-
-  auto inputs = get_inputs();
-  const Expression& left = inputs.get_data()[0].get();
-  const Expression& right = inputs.get_data()[1].get();
-
-  Bool left_lowered = left.lower(body);
-  if (!left_lowered) {
-    return False;
-  }
-
-  auto state = body.begin_logic(Llvm::Builder::Logical::And, left);
-  if (!state) {
-    return False;
-  }
-
-  Bool right_lowered = right.lower(body);
-  if (!right_lowered) {
-    return False;
-  }
-
-  return body.end_logic(*state, *this, left, right);
-}
 
 auto Language::Operations::And::select_type(const Ttx::Concept::Abstract&) const
     -> Core::Option<const Language::Model::Type&> {

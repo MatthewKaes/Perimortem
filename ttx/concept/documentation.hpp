@@ -8,7 +8,7 @@
 namespace Ttx::Concept {
 
 // Documentation preserves text form in presentation order. It is a borrowed
-// first-class concept, not an Abstract or semantic identity. Abstracts expose
+// first class concept, not an Abstract or semantic identity. Abstracts expose
 // this contract directly as treating documentation as a universal query saves
 // a ton of headache down the road compared to models that treat documentation
 // as an optional chunk of metadata.

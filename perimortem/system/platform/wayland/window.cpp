@@ -2,17 +2,19 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 // Wayland's C headers can indirectly include libstdc++ <new> on this toolchain.
-// Keep them before Perimortem headers so perimortem.hpp sees the standard-
-// library guard and does not provide its placement-new stub.
-// clang-format off
+// Placing them before Perimortem lets perimortem.hpp see the standard library
+// guard and skip its placement new fallback.
+#if __has_include(<wayland-client.h>)
 #include <errno.h>
 #include <poll.h>
 #include <string.h>
 #include <wayland-client.h>
+#else
+#error Wayland client headers are required by the Wayland Window backend
+#endif
 
-#include "perimortem/system/platform/wayland/xdg_shell.hpp"
 #include "perimortem/system/platform/wayland/window.hpp"
-// clang-format on
+#include "perimortem/system/platform/wayland/xdg_shell.hpp"
 
 using namespace Perimortem::System;
 

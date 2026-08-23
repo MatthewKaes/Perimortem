@@ -47,9 +47,6 @@ class Fixed : public Contiguous {
       Model::Pack& source) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
-  auto reserve(Llvm::Program& program) const -> Bool override;
-
-  auto complete(Llvm::Program& program) const -> Bool override;
   TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_layout() const

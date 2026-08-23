@@ -10,7 +10,6 @@
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/archive/writer.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -27,7 +26,7 @@ namespace Tetrodotoxin::Library::Language::Model {
 //
 // The TTX Pack remains the host neutral semantic contract. This derived owner
 // adds only the Library stages needed to bind authored Expressions. Layout
-// observation is total even while a Pack is incomplete. Only self-resolution
+// observation is total even while a Pack is incomplete. Only resolving itself
 // admits that Layout as produced flow, where empty output means zero values
 // rather than an incomplete sentinel.
 class Pack : public Ttx::Model::Pack {
@@ -39,10 +38,6 @@ class Pack : public Ttx::Model::Pack {
       const Ttx::Concept::Abstract& lexical_context,
       Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool = 0;
-
-  // Lowering visits the retained producer graph in evaluation order. The
-  // target Body records physical outputs under this exact Pack identity.
-  virtual auto lower(Llvm::Builder& body) const -> Bool = 0;
 
   virtual auto link_restored(
       const Ttx::Concept::Abstract& lexical_context,
@@ -91,6 +86,15 @@ class Pack : public Ttx::Model::Pack {
   // Finalization visits the real child Packs in evaluation order. It does not
   // imply that empty or multiple value flow can be folded into one value.
   virtual auto finalize(Ttx::Lexical::Cursor& cursor) -> void = 0;
+
+  // A composed Pack exposes its retained producers in evaluation order. Scalar
+  // owners keep this view empty because their concrete semantic edges already
+  // describe evaluation. Terminal producers use this query only after proving
+  // that the Pack is not an Expression.
+  virtual constexpr auto get_entries() const
+      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Pack>> {
+    return {};
+  }
 
   static auto create_empty(
       Perimortem::Memory::Allocator::Arena& domain,

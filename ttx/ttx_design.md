@@ -143,7 +143,7 @@ Structural similarity therefore says nothing about identity. Two Types may
 have equal Layouts and still mean different things. Two Alias objects may have
 different local names and Documentation while representing the same target.
 One Addressable keeps its own identity while reaching a Type. A Pack keeps its
-producer identity while exposing an identity-free output Layout. A Callable
+producer identity while exposing an identity free output Layout. A Callable
 keeps its own identity while its parameters and results expose required
 Layouts.
 
@@ -199,7 +199,7 @@ may cross an arbitrary Abstract context. Their interpretation is not shared:
 TTX Type and Addressable impose no receiver role, forwarding behavior,
 visibility policy, or member inventory. The concrete language refines those
 contracts when it needs such behavior. Type qualification remains ordinary
-one-name contextual resolution rather than a second host-neutral Type lookup.
+one name contextual resolution rather than a second host neutral Type lookup.
 Each query returns the original selected identity or Invalid without searching
 a different category domain.
 
@@ -227,7 +227,7 @@ stable.
 
 A staged Pack follows the same rule. Its Layout query is total and may expose an
 empty shape while the Pack resolves to Invalid. Only a Pack that resolves to
-itself supplies that empty Layout as valid zero-value flow. Once resolution
+itself supplies that empty Layout as valid zero value flow. Once resolution
 succeeds, the Layout is stable.
 
 This supports recursive declarations and source groups without adding an
@@ -250,16 +250,16 @@ semantic identities.
 Pack and Layout deliberately answer different questions. A Pack identifies one
 producer and the values it supplies. A Layout has no semantic identity and
 describes a promised shape. This lets a call, swizzle, return, or other
-multi-value operation remain live value flow without materializing an anonymous
+multiple value operation remain live value flow without materializing an anonymous
 aggregate Type merely so another owner can fit it.
 
-A Pack may be empty, contain one ordinary value-producing expression, or carry
+A Pack may be empty, contain one ordinary value producing expression, or carry
 several positional, named, ranged, or composed values. One expression is
-already a one-value Pack. Grouping it does not create another semantic object.
-A multi-value Pack remains untyped as a group until a receiving declaration or
+already a one value Pack. Grouping it does not create another semantic object.
+A multiple value Pack remains untyped as a group until a receiving declaration or
 operation deliberately materializes one Type. Its individual produced values
 retain their exact semantic identities throughout fitting. An explicit empty
-grouping exposes an empty Layout, so cross-language empty flow needs no Type
+grouping exposes an empty Layout, so cross language empty flow needs no Type
 identity.
 
 The common source convention reinforces the distinction: parentheses group
@@ -272,7 +272,7 @@ A Layout retains an ordered view of exact Abstract identities and answers
 whether one shape fits another. Fitting is directional because a Pack's source
 Layout supplies the values required by a target Layout.
 
-`Value` is the terminal one-entry descriptor for one exact atomic Type. `Fluid`
+`Value` is the terminal one entry descriptor for one exact atomic Type. `Fluid`
 describes positional entries and compares them in order. `Named` describes
 uniquely named slots, matches them by name, then preserves the source Layout's
 fitting rule for each match. A slot may borrow a name independently while
@@ -280,7 +280,7 @@ retaining the exact source Abstract. `Ranged` describes one entry across a fixed
 interval. `Composite` preserves two complete child Layouts.
 
 Successful fitting returns the original source edge that supplies a target
-position. The Pack remains the value-flow owner. Its Layout retains order,
+position. The Pack remains the value flow owner. Its Layout retains order,
 borrowed slot names, and applicability without copying Types, Documentation,
 defaults, or storage facts into a generic member record. A decorator or
 composition delegates entry fitting to the source Layout that owns each edge.
@@ -294,7 +294,7 @@ address space, pointer form, or calling convention questions by itself. Each
 compiler derives and validates those facts for its own Terminal. That extra work
 is the price of keeping the graph target neutral.
 
-An empty Layout is a valid zero-value shape and fits another empty Layout. An
+An empty Layout is a valid zero value shape and fits another empty Layout. An
 empty Pack exposes that shape without requiring a Type identity.
 Atomic Types cannot launder that shape because their Value Layout contains
 their own exact identity. A Type with an empty Layout may still own contextual
@@ -317,7 +317,7 @@ edges cannot reach terminal leaves. Default construction therefore needs no
 second recursion transaction.
 
 Default value and empty Layout are also independent. A View with no elements
-is still one exact View value, so the Pack carrying it has a one-entry Layout.
+is still one exact View value, so the Pack carrying it has a one entry Layout.
 An empty Layout instead describes zero value flow. TTX preserves this
 distinction while leaving every concrete default constructor with its language
 owner.
@@ -328,6 +328,19 @@ A Terminal is a completed output that leaves the live semantic graph. Its use
 is independent of that graph and its process identities. Examples include
 formatted text, editor data, LLVM IR, SPIR-V words, debug data, object modules,
 native binaries, and semantic archives.
+
+Workspace completion is the explicit handoff from semantic raising to Terminal
+production. A target producer begins lowering and owns every representation
+decision for its destination. Formatters and editor producers project selected
+facts, Package serializes an Archive, and Linker composes native products.
+Dialects do not receive producer callbacks, and product facts do not flow back
+into them.
+
+This creates two complementary ways to compose the complete toolchain. Dialects
+choose the meanings that can participate in a Workspace. Terminal producers
+choose the destinations available after that meaning completes. Their symmetry
+is compositional rather than structural: a Dialect owns live semantic objects,
+while a producer consumes them under the contract of one concrete product.
 
 Terminal is a role at a boundary, not an Abstract category or a universal
 product hierarchy. Each concrete producer retains ownership of its format. A
@@ -345,6 +358,10 @@ preserve the target facts needed by their consumers, not the complete language
 graph that produced them. Feeding those products back as TTX Type, Layout, or
 identity authority would ask a lowered representation to recover meaning that
 it no longer carries.
+
+Terminal describes departure from the Workspace rather than the end of all
+lowering. An LLVM or MLIR module can leave Tetrodotoxin as a Terminal product
+and continue through the ordinary lowering pipeline owned by that ecosystem.
 
 A semantic archive has a different purpose. It lets a graph owner avoid source
 acquisition, lexing, and parsing when it retains the facts and relations

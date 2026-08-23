@@ -69,45 +69,16 @@ class Type : public Ttx::Model::Type {
     return False;
   }
 
-  virtual auto lower_propagation(
-      Llvm::Builder&,
-      const Pack&,
-      const Pack&,
-      const Pack&) const -> Bool {
-    return False;
-  }
-
-  virtual auto reserve(Llvm::Program&) const -> Bool { return False; }
-
-  virtual auto complete(Llvm::Program&) const -> Bool { return False; }
-
   // A value edge requires only the physical carrier closure. Declaration
   // inventories remain owned by the Type's module traversal and are not
   // imported merely because a Callable transports this Type.
-  virtual auto reserve_value(Llvm::Program& program) const -> Bool {
-    return reserve(program);
-  }
-
-  virtual auto complete_value(Llvm::Program& program) const -> Bool {
-    return complete(program);
-  }
-
-  virtual auto lower(Llvm::Program&) const -> Bool { return True; }
 
   virtual auto persist(Archive::Writer& writer) const -> Bool;
 
   // Iteration is selected by the exact input Type. The loop supplies its real
   // binding Layout and input Pack, while each iterable Type owns admission and
-  // translates its semantic contents into physical Builder operations.
+  // exposes its semantic contents to a terminal producer.
   virtual auto accepts_iteration(const Ttx::Concept::Layout&) const -> Bool {
-    return False;
-  }
-
-  virtual auto begin_iteration(
-      Llvm::Builder&,
-      const Ttx::Concept::Abstract&,
-      const Ttx::Concept::Layout&,
-      const Ttx::Model::Pack&) const -> Bool {
     return False;
   }
 
@@ -142,13 +113,9 @@ class Type : public Ttx::Model::Type {
     return {};
   }
 
-  // An Interface-restored aggregate lowers through its exact Type owner. The
-  // Type supplies the provider's admitted Field inventory while the Builder
-  // owns only its target ABI and native invocation.
-  virtual auto lower_provider(Llvm::Builder&, const Pack&, const Pack&) const
-      -> Bool {
-    return False;
-  }
+  // A restored Interface aggregate exposes its exact Type owner. The
+  // Type supplies the provider's admitted Field inventory while the terminal
+  // producer owns its target ABI and native invocation.
 
   // Receiving a Pack is Type policy because a target may admit flow that its
   // stored Layout cannot represent before construction. The ordinary policy
@@ -250,8 +217,6 @@ class Type : public Ttx::Model::Type {
           Tetrodotoxin::Language::Visibility::Private) const -> Callables;
 
  protected:
-  auto complete_debug(Llvm::Program& program) const -> Bool;
-
   // Concrete Type construction publishes every authored or generated Callable
   // into this one surface. The Callable parameter Layout remains the only
   // Static or Self role authority.
@@ -262,10 +227,6 @@ class Type : public Ttx::Model::Type {
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Concept::Abstract& callable,
       Bool published) -> void;
-
-  auto reserve_callables(Llvm::Program& program) const -> Bool;
-
-  auto complete_callables(Llvm::Program& program) const -> Bool;
 
   auto get_callable_bindings(
       Tetrodotoxin::Language::Visibility visibility =

@@ -61,8 +61,6 @@ class Match : public Ttx::Concept::Abstract {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
 
-  auto lower(Llvm::Builder& body) const -> Bool;
-
   auto reaches_next_statement() const -> Bool;
 
   TTX_NAME("Match"_view);
@@ -94,6 +92,10 @@ class Match : public Ttx::Concept::Abstract {
             -> Perimortem::Core::Option<const Block&> {
           return selected.get();
         });
+  }
+
+  constexpr auto has_complete_coverage() const -> Bool {
+    return complete_coverage;
   }
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }

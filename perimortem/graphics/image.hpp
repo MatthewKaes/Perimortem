@@ -14,7 +14,7 @@
 
 namespace Perimortem::Graphics {
 
-// A raster image stored as RGBA pixels in row-major order that provides safe
+// A raster image stored as RGBA pixels in row major order that provides safe
 // pixel level access as well as raw buffer access for speed.
 //
 // The only supported format is currently 8 bits per channel.
@@ -64,12 +64,12 @@ class Image {
   auto get_width() const -> U32 { return width; }
   auto get_height() const -> U32 { return height; }
 
-  // Returns the contiguous row-major pixel buffer.
+  // Returns the contiguous row major pixel buffer.
   auto get_pixels() const -> Core::View::Vector<Pixel> {
     return pixels.get_view();
   }
 
-  // Returns the pixel at column x, row y. [0, 0] is the top-left corner, x
+  // Returns the pixel at column x, row y. [0, 0] is the top left corner, x
   // increases to the right, and y increases downward.
   //
   // Negative values are valid given the addressing mode which allows for

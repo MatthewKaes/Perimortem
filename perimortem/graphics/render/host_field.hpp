@@ -7,7 +7,7 @@
 
 namespace Perimortem::Graphics::Render {
 
-// Identifies one named field in the host-input layout. The offset and size are
+// Identifies one named field in the host input layout. The offset and size are
 // retained as reflection data so callers can inspect or populate a layout
 // without exposing compiler types to the graphics runtime.
 struct HostField {

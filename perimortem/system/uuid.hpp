@@ -9,10 +9,10 @@
 
 namespace Perimortem::System {
 
-// A 128-bit UUID value with canonical hexadecimal serialization. The two-word
+// A 128 bit UUID value with canonical hexadecimal serialization. The two word
 // representation keeps comparisons and hashing independent from text format.
-// Construction accepts either 32 hexadecimal digits or the 36-byte dashed
-// spelling. Generation provides random version 4 identifiers and time-ordered
+// Construction accepts either 32 hexadecimal digits or the 36 byte dashed
+// spelling. Generation provides random version 4 identifiers and time ordered
 // version 7 identifiers.
 class Uuid {
   static constexpr auto ascii_to_nibble(U8 byte) -> U64 {

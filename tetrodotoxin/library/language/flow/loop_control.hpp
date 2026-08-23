@@ -36,8 +36,6 @@ class LoopControl : public Ttx::Concept::Abstract {
   auto operator=(const LoopControl&) -> LoopControl& = delete;
   auto operator=(LoopControl&&) -> LoopControl& = delete;
 
-  auto lower(Llvm::Builder& body) const -> Bool;
-
   TTX_NAME("LoopControl"_view);
   TTX_EMPTY_DOCUMENTATION();
   TTX_INVALID_CONTEXT;

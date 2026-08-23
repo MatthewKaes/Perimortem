@@ -35,7 +35,7 @@ class Code {
     Attribute,     // @
     Addressable,   // Any symbol that starts with a lowercase ASCII letter
     Type,          // Any symbol that starts with an uppercase ASCII letter
-    EndStatement,  // ;
+    EndStatement,  // Statement terminator
 
     // ========================================================================
     //                              Data objects
@@ -63,7 +63,7 @@ class Code {
     //                               Operators
     // ========================================================================
     AddOp,          // +
-    SubOp,          // -
+    SubOp,          // Subtraction
     DivOp,          // /
     MulOp,          // *
     ModOp,          // %
@@ -75,8 +75,8 @@ class Code {
     NotEqOp,        // !=
     Assign,         // =
     AddAssign,      // +=
-    SubAssign,      // -=
-    CallOp,         // ->
+    SubAssign,      // Subtraction assignment
+    CallOp,         // Callable access
     AddressOp,      // .
     SwizzleOp,      // .[
     ValueAccessOp,  // :[

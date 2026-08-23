@@ -29,7 +29,6 @@
 #include "tetrodotoxin/library/language/types/option.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
 #include "tetrodotoxin/library/language/types/result.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/concept/reference.hpp"
 
@@ -189,14 +188,9 @@ class Group final : public Language::Model::Pack {
     }
   }
 
-  auto lower(Llvm::Builder& body) const -> Bool override {
-    for (Reference<Language::Model::Pack> entry : entries.get_view()) {
-      if (!entry.get().lower(body)) {
-        return False;
-      }
-    }
-
-    return body.compose(*this);
+  constexpr auto get_entries() const
+      -> Core::View::Vector<Reference<Language::Model::Pack>> override {
+    return entries;
   }
 
   Memory::Managed::Vector<Reference<Language::Model::Pack>> entries;

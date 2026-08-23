@@ -2,14 +2,20 @@
 
 > **The common layer should be meaning, not representation.**
 
-TTX is the shared semantic graph vocabulary that makes Tetrodotoxin extensible.
-It gives purpose specific languages a common way to describe Types, values,
-addresses, Callables, Layouts, source locations, and documentation while each
-language keeps the model that makes its domain useful.
+When a Package names a Library Type, an editor follows that name, and a backend
+compiles its values, all three should be talking about the same thing. TTX gives
+them the vocabulary to do that without asking Library to surrender its own
+language model.
 
-A Package manager, editor, compiler, or runtime can ask those common questions
-of the original language object. The answer stays attached to one identity
-instead of being copied into a private model for every tool.
+TTX is the shared semantic graph vocabulary beneath Tetrodotoxin. Purpose built
+languages use it to expose Types, values, addresses, Callables, Layouts, source
+locations, and documentation on their original objects. A Package manager,
+editor, compiler, or runtime can then ask a common question and receive an
+answer tied to the real identity rather than a private copy.
+
+TTX is not another source language and it is not the representation every
+language eventually becomes. It is the small place where independently owned
+meaning can meet.
 
 [Tetrodotoxin](../tetrodotoxin/README.md) brings those objects together in one
 Workspace. TTX remains small enough to be used by another host, but its clearest
@@ -46,6 +52,7 @@ authored source
 -> Tokens with exact source locations
 -> language objects created from those Tokens
 -> shared questions about the completed program
+-> Terminal producer handoff
 -> LLVM IR, SPIR-V, editor data, Archives, or another final product
 ```
 
@@ -55,6 +62,20 @@ which Type an Addressable reaches, which values a Pack supplies, which Layout a
 Callable accepts, or whether one Layout fits another. Physical registers,
 offsets, editor messages, and stored bytes appear later in the component that
 owns each product.
+
+Everything through the completed Workspace is raising: concrete owners expose
+the meaning they genuinely share without surrendering their richer models. The
+Terminal producer handoff begins the journey out of that graph. A target
+producer may continue through MLIR, LLVM IR, SPIR-V, or another lowering domain,
+while an Archive, formatter, or editor producer can serialize or project the
+facts its consumer needs.
+
+Dialects and Terminal producers are the two composition sides of a complete
+toolchain. Installed Dialects determine what the Workspace can understand.
+Selected Terminal producers determine what completed meaning can become. The
+roles remain deliberately asymmetric: Dialects create and retain semantic
+meaning, while producers consume it without adding target facts back to the
+graph.
 
 ## The shared vocabulary
 
@@ -103,10 +124,10 @@ several copies synchronized.
 
 A Pack preserves the identity of produced value flow without turning that flow
 into a Type. It may supply no values, one value, or several positional, named,
-ranged, or composed values. One ordinary value-producing expression is already
-a Pack, while a multi-value Pack remains fluid until a receiving contract
+ranged, or composed values. One ordinary value producing expression is already
+a Pack, while a multiple value Pack remains fluid until a receiving contract
 chooses to materialize a Type. `()` supplies an empty Layout and fits `[]`
-without inventing a zero-value Type identity.
+without inventing a zero value Type identity.
 
 The common source shapes make that direction visible. Parentheses group values
 that are being supplied, while brackets describe values that are required:
@@ -130,17 +151,17 @@ Omitting a delimiter does not change the semantic Pack or Layout.
 A Layout describes an ordered shape and how supplied values fit it. TTX provides
 five common forms:
 
-- `Value` is an identity-free Layout containing one atomic Type.
-- `Fluid` describes and fits ordered positional entries.
-- `Named` retains uniquely named slots and fits them by name. A slot can borrow
+* `Value` is an identity free Layout containing one atomic Type.
+* `Fluid` describes and fits ordered positional entries.
+* `Named` retains uniquely named slots and fits them by name. A slot can borrow
   a name independently while fitted queries still return the exact source
   identity.
-- `Ranged` describes one entry repeated over a fixed interval.
-- `Composite` joins complete descriptors without flattening them.
+* `Ranged` describes one entry repeated over a fixed interval.
+* `Composite` joins complete descriptors without flattening them.
 
 Layouts describe promised semantic shape and how supplied values fit it. Layout
 decorators preserve the fitting rules of the source that owns each entry. A
-leaf Type contributes its own one-entry Value Layout, while an empty Layout
+leaf Type contributes its own one entry Value Layout, while an empty Layout
 describes no value and fits every other empty Layout. A Type with that shape
 can retain contextual facts, but it cannot enter value flow. An Addressable
 therefore requires a Type with at least one Layout entry. Concrete languages
@@ -166,6 +187,11 @@ Terminal describes where live language objects end, not one shared file format.
 Each compiler, linker, formatter, editor service, or Package defines the output
 it produces. References to live Workspace objects never appear in that output.
 
+The boundary is relative to the Workspace rather than the end of every external
+pipeline. LLVM IR is a Terminal product once it can leave the semantic graph,
+even though LLVM will continue lowering that representation toward machine
+code.
+
 Most Terminal products keep only the facts needed by their next consumer. LLVM
 IR, debug data, and object files cannot rebuild the complete language model. A
 semantic Archive has a different purpose. It keeps enough information for each
@@ -173,7 +199,7 @@ language to create fresh objects without acquiring and parsing the source again.
 
 A restored Archive must present the same public names, categories,
 relationships, order, Layout behavior, and language facts. It does not need to
-reproduce process addresses or the old in-memory arrangement.
+reproduce process addresses or the old in memory arrangement.
 
 ## How the platform uses TTX
 

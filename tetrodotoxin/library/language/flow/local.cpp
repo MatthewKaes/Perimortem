@@ -8,7 +8,6 @@
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -261,50 +260,6 @@ auto Language::Flow::Local::get_documentation() const -> const Documentation& {
 auto Language::Flow::Local::finalize(Cursor& cursor) -> void {
   initializer.visit(
       []() {}, [&](Model::Pack& selected) { selected.finalize(cursor); });
-}
-
-auto Language::Flow::Local::lower(Llvm::Builder& body) const -> Bool {
-  if (writability == Writability::Constant) {
-    if (!body.has_full_debug()) {
-      return True;
-    }
-
-    auto value = get_constant();
-    return value && value->lower(body) &&
-           body.constant_local(*this, *value, anchor);
-  }
-
-  Bool type_ready = get_type().reserve_value(body.get_program()) &&
-                    get_type().complete_value(body.get_program());
-  if (!type_ready) {
-    return False;
-  }
-
-  Core::Option<const Model::Pack&> value = get_initializer();
-  if (!value) {
-    auto created = get_type().create_default(body.get_program().get_arena());
-    if (!created) {
-      return False;
-    }
-
-    value = *created;
-  }
-
-  Bool lowered = value->lower(body);
-  if (!lowered) {
-    Perimortem::Core::Diagnostics::Log::error(
-        "Library LLVM lowering could not emit one Local initializer."_view);
-    return False;
-  }
-
-  Bool bound = body.bind_local(*this, *value);
-  if (!bound) {
-    Perimortem::Core::Diagnostics::Log::error(
-        "Library LLVM lowering could not bind one Local value."_view);
-    return False;
-  }
-
-  return body.local(*this, anchor);
 }
 
 auto Language::Flow::Local::get_constant() const -> Core::Option<Model::Pack&> {

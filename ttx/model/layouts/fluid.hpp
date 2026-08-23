@@ -12,7 +12,7 @@ namespace Ttx::Model::Layouts {
 
 // Fluid is the positional descriptor exposed by a Pack or another ordered
 // source. Its entries are the real produced Abstracts, so fitting preserves
-// their provenance without turning the descriptor into value-flow identity.
+// their provenance without turning the descriptor into value flow identity.
 // Fluid fits another Layout by ordered represented identity and carries no
 // field metadata.
 class Fluid : public Concept::Layout {

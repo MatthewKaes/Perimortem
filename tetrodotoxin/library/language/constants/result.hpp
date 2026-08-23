@@ -9,7 +9,7 @@
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
-// Result is one completed immutable value-or-error selection. Its payload Pack
+// Result is one completed immutable value or error selection. Its payload Pack
 // retains the exact folded alternative without copying producer identity.
 class Result : public Constant {
  public:
@@ -42,7 +42,6 @@ class Result : public Constant {
   }
 
   auto equals(const Constant& rhs) const -> Bool override;
-  auto lower(Llvm::Builder& body) const -> Bool override;
 
   auto persist(Archive::Writer& writer) const -> Bool override;
 

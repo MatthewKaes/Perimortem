@@ -1,13 +1,13 @@
 # Scene
 
-Scene is Tetrodotoxin's language for a retained piece of interactive state. A
-Scene brings together its data, lifecycle functions, signals, and hosted
-graphics objects.
+Interactive state is easier to understand when its data, lifecycle, signals,
+and graphics relationships live together. Scene gives that retained piece of
+an application a language shaped around how it actually behaves.
 
-Each Scene describes how one instance prepares, updates, pauses, resumes, and
-releases its state. [App](../app/README.md) owns the live Scene stack and decides
-when the application moves from one Scene to another. A Scene therefore does not
-need to know which Scene comes before or after it.
+Each Scene explains how one instance prepares, updates, pauses, resumes, and
+releases its state. [App](../app/README.md) owns the live Scene stack and chooses
+when the application moves between them. A Scene can focus on its own world
+without learning which Scene came before it or which one comes next.
 
 Canonical grammar reference: [Scene.g4](grammar/Scene.g4).
 
@@ -39,7 +39,7 @@ Scene Monograph
 
 Only the outer Scene appears as a Package member. It points directly to the real
 Library Object, Fields, and Callables rather than copying them into a separate
-Scene Type. Library tools can inspect the child directly. Scene-aware tools use
+Scene Type. Library tools can inspect the child directly. Scene aware tools use
 the outer layer to see Signals and render relationships as well.
 
 Scene and its Library child complete as one operation. Their errors appear
@@ -158,9 +158,9 @@ Scene update[self, .delta_time : R64] -> [] {
 ```
 
 Elapsed time and process input are ordinary Scene state. The runtime refreshes
-one read-only `System::Input` snapshot at each frame boundary. Terminal and
+one read only `System::Input` snapshot at each frame boundary. Terminal and
 Headless applications use the same lifecycle because `update` has no
-graphics-specific parameter.
+graphics specific parameter.
 
 ## Resources and persistence
 
@@ -175,7 +175,7 @@ closure and compiled artifact locations. Executable Scene behavior remains in
 the compiled artifacts.
 
 Neither profile stores a live Scene instance, current Object values, queued
-frame events, elapsed time, input state, backend resources, or source-level
+frame events, elapsed time, input state, backend resources, or source level
 debugging data.
 
 See [App](../app/README.md) for transition policy,

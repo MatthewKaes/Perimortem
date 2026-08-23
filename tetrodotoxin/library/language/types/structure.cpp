@@ -12,28 +12,12 @@
 #include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
-#include "tetrodotoxin/library/llvm/functions.hpp"
 #include "ttx/concept/reference.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
-
-static auto retain_construction_parameters(
-    const Types::Structure& structure,
-    Dynamic::Vector<Ttx::Concept::Reference<const Ttx::Model::Addressable>>&
-        parameters) -> void {
-  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-       structure.get_addressables()) {
-    auto field = candidate.get().select<Field>();
-    if (field && field->get_writability() == Writability::Internal &&
-        field->get_definition().is_published()) {
-      parameters.insert(*field);
-    }
-  }
-}
 
 auto Types::Structure::persist(Archive::Writer& writer) const -> Bool {
   auto record = writer.begin(Archive::Tag::Structure);
@@ -195,83 +179,4 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
   }();
   creating_default = False;
   return result;
-}
-
-auto Types::Structure::lower_provider(
-    Llvm::Builder& body,
-    const Model::Pack& result,
-    const Model::Pack& arguments) const -> Bool {
-  Dynamic::Vector<Ttx::Concept::Reference<const Ttx::Model::Addressable>>
-      parameters;
-  retain_construction_parameters(*this, parameters);
-  return body.construct_provider(
-      result, *this, arguments, parameters.get_view());
-}
-
-auto Types::Structure::reserve(Llvm::Program& program) const -> Bool {
-  BAIL_IF(!Composite::reserve(program));
-  if (get_layout().is_empty() || !is_externally_reachable(*this)) {
-    return True;
-  }
-
-  Dynamic::Vector<Ttx::Concept::Reference<const Ttx::Model::Addressable>>
-      parameters;
-  retain_construction_parameters(*this, parameters);
-  return program.get_functions().reserve_construction(
-      program, *this, provides_initialization, parameters.get_view());
-}
-
-auto Types::Structure::complete(Llvm::Program& program) const -> Bool {
-  BAIL_IF(!Composite::complete(program));
-  return (get_layout().is_empty() || !is_externally_reachable(*this)) ||
-         program.get_functions().complete_construction(program, *this);
-}
-
-auto Types::Structure::lower(Llvm::Program& program) const -> Bool {
-  BAIL_IF(!Composite::lower(program));
-  if (get_layout().is_empty() || !is_externally_reachable(*this)) {
-    return True;
-  }
-
-  Dynamic::Vector<Llvm::Functions::ConstructionField> fields;
-  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-       get_addressables()) {
-    auto field = candidate.get().select<Field>();
-    if (!field || field->get_writability() != Writability::Internal) {
-      continue;
-    }
-
-    auto authored = field->get_initializer();
-    if (authored) {
-      fields.insert(
-          Llvm::Functions::ConstructionField(
-              *field, *authored, field->get_definition().is_published()));
-      continue;
-    }
-
-    auto fallback = field->get_type().create_default(program.get_arena());
-    BAIL_IF(!fallback);
-    fields.insert(
-        Llvm::Functions::ConstructionField(
-            *field, *fallback, field->get_definition().is_published()));
-  }
-  return program.get_functions().lower_construction(
-      program, *this, fields.get_view());
-}
-
-auto Types::Structure::reserve_carrier(Llvm::Program& program) const
-    -> Option<Bool> {
-  const auto& carriers = program.get_carriers();
-  Llvm::Carriers::Kind kind = get_layout().is_empty()
-                                  ? Llvm::Carriers::Kind::Context
-                                  : Llvm::Carriers::Kind::Structure;
-  return carriers.reserve(program, *this, kind);
-}
-
-auto Types::Structure::complete_carrier(Llvm::Program& program) const -> Bool {
-  const auto& carriers = program.get_carriers();
-  Llvm::Carriers::Kind kind = get_layout().is_empty()
-                                  ? Llvm::Carriers::Kind::Context
-                                  : Llvm::Carriers::Kind::Structure;
-  return carriers.complete(program, *this, kind);
 }

@@ -145,31 +145,6 @@ auto Library::Language::Monograph::finalize_restored() -> Bool {
   return source.finalize_restored();
 }
 
-auto Library::Language::Monograph::lower(Llvm::Program& program) const
-    -> Option<Llvm::Program&> {
-  Bool reserved = source.reserve(program);
-  if (!reserved) {
-    Perimortem::Core::Diagnostics::Log::error(
-        "Library LLVM lowering failed while reserving source declarations."_view);
-    return {};
-  }
-
-  Bool completed = source.complete(program);
-  if (!completed) {
-    Perimortem::Core::Diagnostics::Log::error(
-        "Library LLVM lowering failed while completing source declarations."_view);
-    return {};
-  }
-
-  Bool lowered = source.lower(program);
-  if (!lowered) {
-    Perimortem::Core::Diagnostics::Log::error(
-        "Library LLVM lowering failed while emitting source declarations."_view);
-  }
-
-  return lowered ? Option<Llvm::Program&>(program) : Option<Llvm::Program&>();
-}
-
 auto Library::Language::Monograph::persist(Archive::Writer& writer) const
     -> Bool {
   return source.persist(writer);

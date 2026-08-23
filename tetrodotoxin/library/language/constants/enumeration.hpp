@@ -12,8 +12,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // The raw storage value remains independent from the optional case Aliases.
 class Enumeration : public Constant {
  public:
-  auto lower(Llvm::Builder& body) const -> Bool override;
-
   auto persist(Archive::Writer& writer) const -> Bool override;
 
   TTX_CONTRACT(Enumeration, Constant);

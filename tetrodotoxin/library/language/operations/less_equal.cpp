@@ -12,7 +12,6 @@
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -53,30 +52,6 @@ static auto make_result(
 TTX_BINARY_PARSE(LessEqual, LessEqOp);
 
 TTX_BINARY_OP(LessEqual);
-
-auto Language::Operations::LessEqual::lower(Llvm::Builder& body) const -> Bool {
-  auto folded = lower_folded(body);
-  if (folded) {
-    return *folded;
-  }
-
-  auto inputs = get_inputs();
-  const Expression& left = inputs.get_data()[0].get();
-  const Expression& right = inputs.get_data()[1].get();
-  auto carrier = left.get_type().resolve().select<Ttx::Model::Type>();
-
-  if (!carrier) {
-    return False;
-  }
-
-  Bool lowered = lower_inputs(body);
-  if (!lowered) {
-    return False;
-  }
-
-  return body.compare(
-      Llvm::Builder::Comparison::LessEqual, *carrier, *this, left, right);
-}
 
 auto Language::Operations::LessEqual::select_type(
     const Ttx::Concept::Abstract& context) const

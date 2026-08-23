@@ -11,21 +11,22 @@
 
 #include "perimortem/system/file.hpp"
 
+#include "backend/llvm/compiler.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/llvm/compiler.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Tetrodotoxin;
+using namespace Tetrodotoxin::Backend;
 using namespace Ttx::Lexical;
 using namespace Validation;
 
 static Harness LlvmTests = {
-  .name = "Tetrodotoxin::Library::Llvm"_view,
+  .name = "Tetrodotoxin::Backend::Llvm"_view,
 };
 
 extern "C" auto run_foreign_integration() -> int;
@@ -36,26 +37,26 @@ static auto compile_source(
     Errors& errors,
     View::Bytes path,
     View::Bytes source,
-    Library::Llvm::Debug::Level debug) -> Perimortem::Utility::
-    Result<Library::Llvm::Products, Library::Llvm::Failure> {
+    Llvm::Representation::Debug::Level debug)
+    -> Perimortem::Utility::Result<Llvm::Products, Llvm::Failure> {
   Environment::Toolchain toolchain;
   auto dialect = toolchain.install<Library::Dialect>("Library"_view);
   if (!dialect) {
-    return Library::Llvm::Failure::ToolchainFailed;
+    return Llvm::Failure::ToolchainFailed;
   }
   Environment::Workspace workspace(toolchain);
 
   auto interpreted =
       workspace.interpret_source(errors, "LlvmTest"_view, path, source);
   if (!interpreted || !interpreted->is<Library::Language::Monograph>()) {
-    return Library::Llvm::Failure::SourceRejected;
+    return Llvm::Failure::SourceRejected;
   }
 
-  Library::Llvm::Request request(
+  Llvm::Request request(
       static_cast<const Library::Language::Monograph&>(*interpreted), errors,
-      path, source, Library::Llvm::Target::X86_64SysV, debug,
-      Library::Llvm::Unit("LlvmTest"_view));
-  Library::Llvm::Compiler compiler;
+      path, source, Llvm::Target::X86_64SysV, debug,
+      Llvm::Abi::Unit("LlvmTest"_view));
+  Llvm::Compiler compiler;
   return compiler.compile(products, request);
 }
 
@@ -166,34 +167,34 @@ PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
   Errors first_errors;
   Errors second_errors;
   Errors relocated_errors;
-  Option<Library::Llvm::Products> first_products;
-  Option<Library::Llvm::Products> second_products;
-  Option<Library::Llvm::Products> relocated_products;
+  Option<Llvm::Products> first_products;
+  Option<Llvm::Products> second_products;
+  Option<Llvm::Products> relocated_products;
   compile_source(
       first_domain, first_errors, "validation/data/ttx/llvm/runtime.ttx"_view,
-      *source, Library::Llvm::Debug::Level::Full)
+      *source, Llvm::Representation::Debug::Level::Full)
       .visit(
-          [&](const Library::Llvm::Products& products) {
-            first_products = Option<Library::Llvm::Products>(products);
+          [&](const Llvm::Products& products) {
+            first_products = Option<Llvm::Products>(products);
           },
-          [&](Library::Llvm::Failure) {});
+          [&](Llvm::Failure) {});
   compile_source(
       second_domain, second_errors, "validation/data/ttx/llvm/runtime.ttx"_view,
-      *source, Library::Llvm::Debug::Level::Full)
+      *source, Llvm::Representation::Debug::Level::Full)
       .visit(
-          [&](const Library::Llvm::Products& products) {
-            second_products = Option<Library::Llvm::Products>(products);
+          [&](const Llvm::Products& products) {
+            second_products = Option<Llvm::Products>(products);
           },
-          [&](Library::Llvm::Failure) {});
+          [&](Llvm::Failure) {});
   compile_source(
       relocated_domain, relocated_errors,
       "validation/data/ttx/llvm/relocated_runtime.ttx"_view, *source,
-      Library::Llvm::Debug::Level::Full)
+      Llvm::Representation::Debug::Level::Full)
       .visit(
-          [&](const Library::Llvm::Products& products) {
-            relocated_products = Option<Library::Llvm::Products>(products);
+          [&](const Llvm::Products& products) {
+            relocated_products = Option<Llvm::Products>(products);
           },
-          [&](Library::Llvm::Failure) {});
+          [&](Llvm::Failure) {});
 
   ASSERT(first_products && second_products && relocated_products);
   EXPECT(first_errors.is_empty());
@@ -348,15 +349,15 @@ PERIMORTEM_UNIT_TEST(LlvmTests, scoped_static_debug_metadata) {
       "}\n"_view;
   Allocator::Arena domain;
   Errors errors;
-  Option<Library::Llvm::Products> products;
+  Option<Llvm::Products> products;
   compile_source(
       domain, errors, "scoped_static.ttx"_view, source,
-      Library::Llvm::Debug::Level::Full)
+      Llvm::Representation::Debug::Level::Full)
       .visit(
-          [&](const Library::Llvm::Products& selected) {
-            products = Option<Library::Llvm::Products>(selected);
+          [&](const Llvm::Products& selected) {
+            products = Option<Llvm::Products>(selected);
           },
-          [&](Library::Llvm::Failure) {});
+          [&](Llvm::Failure) {});
 
   ASSERT(products);
   EXPECT(errors.is_empty());
@@ -427,11 +428,11 @@ PERIMORTEM_UNIT_TEST(LlvmTests, backend_rejections_report_source) {
     Bool rejected = False;
     compile_source(
         products, errors, "backend_rejection.ttx"_view, rejection.source,
-        Library::Llvm::Debug::Level::None)
+        Llvm::Representation::Debug::Level::None)
         .visit(
-            [&](const Library::Llvm::Products&) {},
-            [&](Library::Llvm::Failure failure) {
-              rejected = failure == Library::Llvm::Failure::SourceRejected;
+            [&](const Llvm::Products&) {},
+            [&](Llvm::Failure failure) {
+              rejected = failure == Llvm::Failure::SourceRejected;
             });
     EXPECT(rejected);
     EXPECT(contains_error(errors, rejection.message));

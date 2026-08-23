@@ -11,7 +11,7 @@ while rendering stays in Vulkan.
 
 For a Tetrodotoxin application, Vulkan receives the compiled SPIR-V module and
 the selected host surface. Shader describes how CPU and GPU data coordinate.
-Render describes the GPU-facing data. Vulkan then chooses the concrete resource
+Render describes the GPU facing data. Vulkan then chooses the concrete resource
 bindings, creates the device objects, records commands, synchronizes work, and
 presents the result.
 

@@ -40,13 +40,6 @@ class Clone : public Language::Model::Callable {
       const Ttx::Concept::Abstract& receiver,
       const Ttx::Concept::Abstract& host) const -> Bool override;
 
-  auto lower_call(
-      Llvm::Builder& body,
-      const Ttx::Model::Pack& result,
-      Perimortem::Core::View::Vector<LLVMValueRef> inputs,
-      Perimortem::Core::Option<const Ttx::Model::Pack&> receiver_source) const
-      -> Bool override;
-
  private:
   constexpr Clone(Language::Parameter& self) : parameters(self, 1) {}
 

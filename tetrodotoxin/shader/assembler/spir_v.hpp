@@ -10,10 +10,10 @@
 
 namespace Tetrodotoxin::Shader::Assembler {
 
-// Minimal SPIR-V module writer.
+// Minimal SPIR V module writer.
 //
-// SPIR-V is a stream of 32-bit little-endian words, not a byte-oriented opcode
-// stream. A module starts with a five-word header:
+// SPIR V is a stream of 32 bit little endian words, not a byte oriented opcode
+// stream. A module starts with a five word header:
 //
 //   magic, version, generator, bound, schema
 //
@@ -22,13 +22,13 @@ namespace Tetrodotoxin::Shader::Assembler {
 //   high 16 bits = instruction word count
 //   low  16 bits = opcode
 //
-// Operands follow as additional 32-bit words. Strings are UTF-8 bytes packed
-// into words with a trailing null and zero padding. Result ids are module-local
+// Operands follow as additional 32 bit words. Strings are UTF 8 bytes packed
+// into words with a trailing null and zero padding. Result ids are module local
 // names for types, constants, variables, labels, functions, and temporary
 // values. The header bound is one greater than every id that can appear.
 //
 // The assembler writes words but does not validate section ordering or operand
-// types. The selected SPIR-V target owns those rules and this is just a basic
+// types. The selected SPIR V target owns those rules and this is just a basic
 // bytecode emitter.
 class SpirV {
  public:
@@ -36,30 +36,30 @@ class SpirV {
     V1_0 = 0x00010000,
   };
 
-  // Numeric opcode values come from the SPIR-V grammar. The gaps are part of
-  // the format since we don't support the entire SPIR-V Spec yet.
+  // Numeric opcode values come from the SPIR V grammar. The gaps are part of
+  // the format since we don't support the entire SPIR V Spec yet.
   enum class Op : U16 {
     Nop = 0,                  // No operation.
     Undef = 1,                // Creates an undefined value of a type.
-    SourceContinued = 2,      // Continues source-language debug text.
+    SourceContinued = 2,      // Continues source language debug text.
     Source = 3,               // Describes the source language for debug tools.
     SourceExtension = 4,      // Names a source language extension.
     Name = 5,                 // Assigns a debug name to an id.
     MemberName = 6,           // Assigns a debug name to a struct member.
     String = 7,               // Creates a reusable debug string literal.
     Line = 8,                 // Associates following instructions with a line.
-    Extension = 10,           // Requests a SPIR-V extension.
+    Extension = 10,           // Requests a SPIR V extension.
     ExtInstImport = 11,       // Imports an extended instruction set.
     ExtInst = 12,             // Calls an extended instruction.
     MemoryModel = 14,         // Selects addressing and memory semantics.
     EntryPoint = 15,          // Publishes a callable shader entry function.
-    ExecutionMode = 16,       // Adds stage-specific execution metadata.
-    Capability = 17,          // Enables a group of SPIR-V features.
+    ExecutionMode = 16,       // Adds Stage specific execution metadata.
+    Capability = 17,          // Enables a group of SPIR V features.
     TypeVoid = 19,            // Defines the void type.
     TypeBool = 20,            // Defines the bool type.
     TypeInt = 21,             // Defines a signed or unsigned integer type.
     TypeFloat = 22,           // Defines a floating point type.
-    TypeVector = 23,          // Defines a fixed-width vector type.
+    TypeVector = 23,          // Defines a fixed width vector type.
     TypeImage = 25,           // Defines an opaque image resource type.
     TypeSampler = 26,         // Defines an opaque sampler resource type.
     TypeSampledImage = 27,    // Defines the image+sampler value used to sample.
@@ -71,7 +71,7 @@ class SpirV {
     ConstantComposite = 44,   // Creates a vector/struct/array constant.
     Function = 54,            // Begins a function body.
     FunctionEnd = 56,         // Ends the current function body.
-    Variable = 59,            // Declares storage for a pointer-typed value.
+    Variable = 59,            // Declares storage for a pointer typed value.
     Load = 61,                // Reads through a pointer.
     Store = 62,               // Writes through a pointer.
     AccessChain = 65,         // Computes a pointer to a composite member.
@@ -150,20 +150,20 @@ class SpirV {
 
   explicit SpirV(Perimortem::Memory::Dynamic::Bytes& words) : words(words) {}
 
-  // Writes the five-word module header. `bound` is one greater than the largest
+  // Writes the five word module header. `bound` is one greater than the largest
   // result id the module may use, not the instruction count.
   auto begin_module(
       U32 bound,
       Version version = Version::V1_0,
       U32 generator = 0) -> void;
 
-  // Low-level writing primitives. Most callers should use the typed helpers
+  // Low level writing primitives. Most callers should use the typed helpers
   // below so the instruction word count stays paired with the opcode shape.
   auto word(U32 value) -> void;
   auto instruction(Op opcode, Count word_count) -> void;
   auto literal_string(Perimortem::Core::View::Bytes text) -> Count;
 
-  // Logical layout helpers. SPIR-V validators expect these groups in order:
+  // Logical layout helpers. SPIR V validators expect these groups in order:
   // capabilities, extensions/imports, memory model, entry points/execution
   // modes, debug names, annotations, type/global declarations, then functions.
   auto capability(Capability value) -> void;
@@ -189,7 +189,7 @@ class SpirV {
       Perimortem::Core::View::Bytes name) -> void;
 
   // Decorations are semantic metadata consumed by APIs such as Vulkan:
-  // locations, descriptor bindings, builtins, push-constant block layout, and
+  // locations, descriptor bindings, builtins, push constant block layout, and
   // byte offsets.
   auto decorate(U32 target_id, Decoration decoration, U32 value) -> void;
   auto decorate(U32 target_id, Decoration decoration) -> void;
@@ -199,7 +199,7 @@ class SpirV {
       Decoration decoration,
       U32 value) -> void;
 
-  // Type declarations produce ids for later instructions. SPIR-V is strongly
+  // Type declarations produce ids for later instructions. SPIR V is strongly
   // typed, so loads, variables, constants, and arithmetic all reference type
   // ids.
   auto type_void(U32 result_id) -> void;
@@ -227,9 +227,9 @@ class SpirV {
       -> void;
   auto type_function(U32 result_id, U32 return_type_id) -> void;
 
-  // Constants and variables create module-scope ids. A variable's result type
+  // Constants and variables create module scope ids. A variable's result type
   // is always a pointer type. Its storage class decides whether it is input,
-  // output, push constant, uniform resource, or function-local storage.
+  // output, push constant, uniform resource, or function local storage.
   auto constant(U32 result_type_id, U32 result_id, U32 value) -> void;
   auto constant_composite(
       U32 result_type_id,
@@ -239,8 +239,8 @@ class SpirV {
       -> void;
 
   // Body instructions are used inside a function after a label has opened a
-  // basic block. Result-producing instructions take both a result type id and a
-  // fresh result id, matching SPIR-V's SSA-like value model.
+  // basic block. Result producing instructions take both a result type id and a
+  // fresh result id, matching SPIR V's SSA like value model.
   auto load(U32 result_type_id, U32 result_id, U32 pointer_id) -> void;
   auto store(U32 pointer_id, U32 object_id) -> void;
   auto access_chain(
@@ -285,14 +285,14 @@ class SpirV {
   auto return_void() -> void;
   auto function_end() -> void;
 
-  // Counts the 32-bit words needed for a SPIR-V literal string, including its
+  // Counts the 32 bit words needed for a SPIR V literal string, including its
   // required NUL byte and padding.
   static auto literal_string_word_count(Perimortem::Core::View::Bytes text)
       -> Count;
 
   // Lightweight structural check used by tests and the shader compiler. It only
   // verifies the header and instruction bounds. It does not prove semantic
-  // SPIR-V validity.
+  // SPIR V validity.
   static auto is_valid_module(Perimortem::Core::View::Bytes words) -> Bool;
 
  private:

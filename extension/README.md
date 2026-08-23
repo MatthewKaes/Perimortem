@@ -1,15 +1,20 @@
 # Tetrodotoxin for Visual Studio Code
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/MatthewKaes/Tetrodotoxin/main/extension/media/logo.png" alt="Tetrodotoxin Toolchain" width="100%">
+  <img src="https://raw.githubusercontent.com/tetrodotoxin-dev/Tetrodotoxin/main/extension/media/logo.png" alt="Tetrodotoxin Toolchain" width="100%">
 </p>
 
-Tetrodotoxin brings purpose built languages into one coherent systems project.
-This extension gives those languages a shared editor experience, so a Package
-manifest, CPU Library, application policy, Scene, render contract, and Shader
-still feel like parts of the same program.
+Open a Tetrodotoxin project and move from its Package manifest to CPU code,
+application policy, Scene state, render contract, and Shader without changing
+mental models or editor tools. This extension gives every installed language a
+shared editing experience while preserving the meaning that makes each one
+useful.
 
-![Tetrodotoxin editor preview](https://raw.githubusercontent.com/MatthewKaes/Tetrodotoxin/main/extension/media/ttx-preview.png)
+Navigation follows real program identities across files and languages.
+Diagnostics come from the same Workspace used by the build. Formatting and
+source color make dense TTX code easier to read before the program is complete.
+
+![Tetrodotoxin editor preview](https://raw.githubusercontent.com/tetrodotoxin-dev/Tetrodotoxin/main/extension/media/ttx-preview.png)
 
 ## Understand the program as you write it
 
@@ -94,11 +99,11 @@ Code settings:
 
 ## Explore the platform
 
-* [Tetrodotoxin](https://github.com/MatthewKaes/Tetrodotoxin/blob/main/tetrodotoxin/README.md)
+* [Tetrodotoxin](https://github.com/tetrodotoxin-dev/Tetrodotoxin/blob/main/tetrodotoxin/README.md)
   introduces the language and toolchain platform
-* [TTX](https://github.com/MatthewKaes/Tetrodotoxin/blob/main/ttx/README.md)
+* [TTX](https://github.com/tetrodotoxin-dev/Tetrodotoxin/blob/main/ttx/README.md)
   explains the shared semantic vocabulary
-* [Puffer](https://github.com/MatthewKaes/Tetrodotoxin/blob/main/puffer/README.md)
+* [Puffer](https://github.com/tetrodotoxin-dev/Tetrodotoxin/blob/main/puffer/README.md)
   documents the command and editor host
-* [Standard Packages](https://github.com/MatthewKaes/Tetrodotoxin/blob/main/packages/ttx/README.md)
+* [Standard Packages](https://github.com/tetrodotoxin-dev/Tetrodotoxin/blob/main/packages/ttx/README.md)
   describe the included Memory, Math, System, and Graphics APIs

@@ -145,7 +145,7 @@ class Vector {
   // Resizes the container but attempts to preserve as much of the original
   // buffer as will fit in the new size.
   //
-  // Shrinking the size of the buffer is non-destructive and can be recovered by
+  // Shrinking the size of the buffer is nondestructive and can be recovered by
   // resetting the size back to it's old value.
   auto resize(Count new_size) -> void {
     ensure_capacity(new_size);

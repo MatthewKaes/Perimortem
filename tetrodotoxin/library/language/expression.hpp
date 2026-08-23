@@ -122,12 +122,9 @@ class Expression : public Model::Pack {
   // lifecycle by visiting their real child producers in source order.
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  auto lower(Llvm::Builder& body) const -> Bool override;
-
   // Write target lowering evaluates only the receiver and selector facts needed
   // to publish the destination. The write operation lowers its source and then
-  // performs the actual mutation through the Builder.
-  virtual auto lower_write_target(Llvm::Builder& body) const -> Bool;
+  // performs the actual mutation through its selected terminal producer.
 
   // Linking enriches this exact source node after every declaration identity
   // is available. Constants already carry complete Types, while Identifier
@@ -205,8 +202,6 @@ class Expression : public Model::Pack {
   // A completed fold lowers its retained Pack once and aliases this authored
   // Expression to the resulting target values. Absence keeps lowering on the
   // concrete Expression owner.
-  auto lower_folded(Llvm::Builder& body) const
-      -> Perimortem::Core::Option<Bool>;
 
   // Concrete owners supply the builder because only their factory may use the
   // private constructor. The optional Anchor records whether source authored

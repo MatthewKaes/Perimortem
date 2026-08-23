@@ -16,7 +16,7 @@ namespace Ttx::Model::Layouts {
 // Named is a descriptor with one nonempty unique name per source slot. A Pack
 // may expose it for authored named flow, while a Callable or Type may expose it
 // as a required contract. Names may come from the retained Abstracts or from an
-// aligned slot-name view supplied by the owner. In either form fitted queries
+// aligned slot name view supplied by the owner. In either form fitted queries
 // return the original source Abstract and create no renamed semantic identity.
 class Named : public Concept::Layout {
  public:

@@ -62,10 +62,6 @@ class Identifier : public Expression {
 
   auto get_result() const -> const Ttx::Concept::Abstract& override;
 
-  auto lower(Llvm::Builder& body) const -> Bool override;
-
-  auto lower_write_target(Llvm::Builder& body) const -> Bool override;
-
   constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
 
  private:

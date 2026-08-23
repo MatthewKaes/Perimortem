@@ -7,7 +7,7 @@
 
 namespace Puffer::Lsp {
 
-// Selects the declaration identity represented by one source-associated
+// Selects the declaration identity represented by one source associated
 // semantic node.
 auto semantic_subject(const Ttx::Concept::Abstract& semantic)
     -> const Ttx::Concept::Abstract&;

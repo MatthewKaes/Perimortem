@@ -13,7 +13,7 @@
 
 namespace Perimortem::Memory::Managed {
 
-// Arena-backed scalar map for structured views that share one lifetime.
+// Arena backed scalar map for structured views that share one lifetime.
 //
 // Like the other managed structures only insert is supported since all produced
 // data by `Managed` types are meant to be stable.
@@ -211,7 +211,7 @@ class Map {
     buffer = create_buffer(bucket_count);
 
     // A default buffer has no storage or entries to migrate. Keeping initial
-    // allocation separate also makes the source-storage invariant explicit.
+    // allocation separate also makes the source storage invariant explicit.
     if (current.bucket_buffer == nullptr) {
       return;
     }

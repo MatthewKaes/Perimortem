@@ -1,28 +1,28 @@
 # Perimortem Memory
 
-Tetrodotoxin's tools and generated native programs share the allocation domains
-provided by Perimortem Memory. The same APIs remain available to ordinary C++
-systems. Core owns the language visible `Object<T>` value and its physical
-contract, while `Abi::Core` exposes that contract to generated code.
+Tetrodotoxin tools and the programs they generate both need fast ownership that
+can be understood at the language boundary. Perimortem Memory gives them a
+shared allocation foundation while remaining useful to ordinary C++ systems.
 
-`Memory::Dynamic::Record<T>` adapts C++ lifetime management for tooling
-and compiler state whose owner cannot use one Arena transaction. It retains one
-`Core::Object<>` carrier, constructs `T` in its payload, and releases the carrier
-when the final Record is destroyed.
+Core owns the language visible `Object<T>` value and its physical contract.
+`Abi::Core` makes that contract available to generated code.
+`Memory::Dynamic::Record<T>` builds on the same carrier for compiler and tooling
+state whose lifetime extends beyond one Arena transaction. It constructs `T` in
+the payload and lets the final Record release the carrier.
 
-Record is not a language Type, ABI carrier, control block, or alternate Object
-representation. Generated code never names it. The Core Object descriptor and
-the control data adjacent to each allocation remain authoritative for both
-generated Objects and Records.
+Record remains a C++ lifetime tool rather than another language Type or Object
+representation. Generated code can rely on the Core Object descriptor and the
+control data beside each allocation, while tooling gains a convenient owner for
+longer lived state.
 
 `Core::Object<T>` is the C++ reference for Library `Object[T]`. Both use one
-empty-capable word, recover element capacity from Bibliotheca, and expose the
+empty capable word, recover element capacity from Bibliotheca, and expose the
 same writable buffer through every alias. `reserve` replaces only the selected
 handle when it must grow, `is_shared` reports another owned handle, and `clone`
 performs an explicit independent copy. The erased `Core::Object<>`
 specialization is the physical ABI carrier used by generated authored Objects
-and Record. Containers such as Dynamic Bytes may build their own copy-on-write
-policy from those primitives; Object does not impose one.
+and Record. Containers such as Dynamic Bytes may build their own copy on write
+policy from those primitives. Object does not impose one.
 
 ## Worker ownership
 

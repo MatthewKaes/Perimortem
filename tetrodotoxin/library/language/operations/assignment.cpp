@@ -4,7 +4,6 @@
 #include "tetrodotoxin/library/language/operations/assignment.hpp"
 
 #include "tetrodotoxin/library/language/parser/expression.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
@@ -85,21 +84,6 @@ auto Language::Operations::Assignment::finalize(Cursor& cursor) -> void {
   // Finalization follows the same independent edges fixed during linking.
   target.finalize(cursor);
   source.finalize(cursor);
-}
-
-auto Language::Operations::Assignment::lower(Llvm::Builder& body) const
-    -> Bool {
-  Bool target_lowered = target.lower_write_target(body);
-  if (!target_lowered) {
-    return False;
-  }
-
-  Bool source_lowered = source.lower(body);
-  if (!source_lowered) {
-    return False;
-  }
-
-  return body.write(Llvm::Builder::Write::Assign, *this, target, source);
 }
 
 auto Language::Operations::Assignment::get_value_type(Count) const

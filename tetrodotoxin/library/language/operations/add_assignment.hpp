@@ -11,9 +11,9 @@
 
 namespace Tetrodotoxin::Library::Language::Operations {
 
-// AddAssignment owns the explicit `+=` read-modify-write operator. Its target
-// and right operand are the only two graph edges, so lowering never has to
-// deduplicate a hidden Add expression before writing the selected address.
+// AddAssignment owns the explicit `+=` read, modify, and write operator. Its
+// target and right operand are the only two graph edges, so lowering never has
+// to deduplicate a hidden Add expression before writing the selected address.
 class AddAssignment : public Expression {
  public:
   TTX_CONTRACT(AddAssignment, Expression);
@@ -31,8 +31,6 @@ class AddAssignment : public Expression {
       -> Bool override;
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
-
-  auto lower(Llvm::Builder& body) const -> Bool override;
 
   TTX_NAME("AddAssignment"_view);
   TTX_EMPTY_DOCUMENTATION();

@@ -5,7 +5,6 @@
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/alias.hpp"
 
@@ -113,33 +112,4 @@ auto Language::Expressions::Identifier::get_result() const -> const Abstract& {
       [](const Reference<const Abstract>& selected) -> const Abstract& {
         return selected.get();
       });
-}
-
-auto Language::Expressions::Identifier::lower(Llvm::Builder& body) const
-    -> Bool {
-  if (get_result().resolve().is<Language::Model::Type>()) {
-    return True;
-  }
-
-  auto folded = lower_folded(body);
-  if (folded) {
-    return *folded;
-  }
-
-  Bool selected = lower_write_target(body);
-  if (!selected) {
-    return False;
-  }
-
-  return body.load(*this);
-}
-
-auto Language::Expressions::Identifier::lower_write_target(
-    Llvm::Builder& body) const -> Bool {
-  auto addressable = get_result().resolve().select<Model::Addressable>();
-  if (!addressable) {
-    return False;
-  }
-
-  return body.select(*this, *addressable);
 }

@@ -86,12 +86,6 @@ class Field : public Model::Addressable {
   // side inventory is required merely to cache constant producers.
   auto finalize_declaration(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
-  auto reserve_declaration(Llvm::Program& program) const -> Bool override;
-
-  auto complete_declaration(Llvm::Program& program) const -> Bool override;
-
-  auto lower_declaration(Llvm::Program& program) const -> Bool override;
-
   auto persist(Archive::Writer& writer) const -> Bool override;
 
   auto persist_slot(Archive::Writer& writer, Count ordinal) const -> Bool;

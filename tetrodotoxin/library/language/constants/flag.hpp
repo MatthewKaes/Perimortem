@@ -12,8 +12,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // every resolved Flag Type regardless of the toolchain's chosen storage width.
 class Flag : public Constant {
  public:
-  auto lower(Llvm::Builder& body) const -> Bool override;
-
   auto persist(Archive::Writer& writer) const -> Bool override;
 
   TTX_CONTRACT(Flag, Constant);

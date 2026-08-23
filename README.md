@@ -4,115 +4,153 @@
 
 > **The common layer should be meaning, not representation.**
 
-Tetrodotoxin is an extensible language and toolchain platform for building
-domain specific systems. It raises several owned language models into one linked
-semantic Workspace, using TTX as their shared graph vocabulary, then derives
-independent Terminal products from that completed meaning.
+Software stops feeling like one system when every domain brings its own parser,
+package format, editor support, compiler driver, and private idea of the
+program. The languages may work individually, but the people using them are
+left to hold the project together.
 
-Large systems often contain several languages even when only one of them looks
-like ordinary application code. Package manifests, reusable libraries,
-application policy, scene state, render contracts, and shaders each ask
-different questions. Tetrodotoxin lets each of those domains keep a language
-that fits its work while still participating in one program, editor session,
-Package graph, and build.
+Tetrodotoxin is built for the opposite experience. It lets a project use
+several languages chosen for the work they describe while sharing one editor,
+one Package graph, one linked understanding of the program, and one path to
+finished products.
+
+A package manifest can describe composition. Library source can express CPU
+behavior. An App can choose startup policy. Scenes can own interactive state.
+Render contracts and Shaders can meet around GPU work. Each language keeps the
+ideas that make it useful, and Tetrodotoxin connects the meaning they genuinely
+share.
 
 ![Tetrodotoxin editor preview](extension/media/ttx-preview.png)
 
 ## One platform, several languages
 
-A Tetrodotoxin language is a Dialect. Each Dialect owns its grammar, semantic
-objects, diagnostics, and complete domain meaning. TTX owns only the semantic
-questions genuinely shared across domains: identity, resolution, Types, Packs,
-Layouts, Addressables, Callables, source locations, and documentation.
+Imagine adding a scene language to an engine without also inventing a new type
+system, package manager, language server, build driver, and shader bridge. The
+scene language should be able to own lifecycle and signals, reuse ordinary
+Library code for behavior, and meet Render and Shader around graphics. The
+editor should follow those relationships as naturally as the build does.
 
-Environment gives those identities one Workspace lifetime and owns their
-cross-Dialect linking, completion, and publication. A Terminal producer then
-derives only the target facts needed for its product. LLVM IR, SPIR-V, Archives,
-editor data, and executables remain outputs rather than sources of semantic
-truth.
+That is the kind of composition Tetrodotoxin is designed to make practical.
 
-Raising means participation rather than translation. A concrete language object
-exposes TTX contracts on its original identity instead of being copied into a
-universal declaration tree. Tetrodotoxin pulls upward every fact that is target
-neutral and genuinely shared while leaving richer meaning with its concrete
-owner.
+Tetrodotoxin calls each focused language a **Dialect**. A Dialect is more than a
+grammar or a syntax skin. It owns the complete meaning of its domain and joins a
+shared Workspace where other languages and tools can ask the questions they
+have in common. Adding a Dialect gives a new domain a first class place in the
+same project instead of placing another isolated compiler beside it.
 
-## The platform
+The included Dialects show how that grows into a complete platform:
 
-### TTX semantic vocabulary
+* **Package** makes sources, dependencies, resources, and durable Archives
+  reproducible
+* **Library** provides reusable CPU code, data, and native interfaces
+* **App** describes how a finished program starts and moves through its life
+* **Scene** brings interactive state, lifecycle, signals, and graphics together
+* **Render** defines the contract shared by a program and its GPU stages
+* **Shader** implements that contract for GPU execution
+* **Foreign** connects authored CPU code with an external ABI
 
-[TTX](ttx/README.md) defines the shared lexical and semantic contracts. It keeps
-exact identity and value flow available across language boundaries while each
-Dialect retains its richer model.
+These languages are a useful starting family rather than a closed list. A tool,
+engine, or product can add languages for its own domains and let them
+participate in the same experience.
 
-### Languages and application models
+## Build the language your system is missing
 
-[Tetrodotoxin](tetrodotoxin/README.md) provides a family of Dialects that can be
-used together:
+Some ideas never feel at home in a general purpose language. An asset recipe,
+simulation graph, hardware protocol, deployment policy, or data transformation
+may become clearer when its source speaks directly in the concepts its users
+already understand.
 
-* Package names dependencies, sources, resources, and durable Archives
-* Library defines reusable CPU code and data
-* App describes startup and application policy
-* Scene models long lived interactive state and lifecycle
-* Render declares GPU facing contracts
-* Shader implements those contracts for GPU execution
-* Foreign connects authored CPU code to an external ABI
+Tetrodotoxin is intended to make creating that language the beginning of the
+work rather than the beginning of a new toolchain. Its source can join existing
+Packages, refer to Types and Callables from another Dialect, appear naturally in
+the editor, and contribute meaning to more than one backend. A specialized
+language can become a first class part of the product instead of a configuration
+file interpreted at its edge.
 
-Projects can add Dialects for their own problem domains without adding another
-semantic host around the toolchain.
+## Share meaning without flattening it
 
-### Workspace and Packages
+Many extensible toolchains make languages cooperate by translating them into a
+universal declaration tree or intermediate representation as early as
+possible. That creates one convenient shape, but it also makes that shape the
+authority. Anything richer becomes private metadata or disappears.
 
-Environment gives related source results one lifetime and completes them as a
-single semantic island. Package makes that island reproducible through explicit
-dependency versions, semantic source names, confined resources, and Archives.
-The [standard Packages](packages/ttx/README.md) provide the Memory, Math, System,
-and Graphics APIs used by the included application models.
+Tetrodotoxin takes a different route. The real object created by a language
+remains the owner of its meaning. [TTX](ttx/README.md) gives tools and other
+languages a small shared vocabulary for identity, resolution, Types, value
+flow, Layouts, Addressables, Callables, source locations, and documentation.
+The concrete object participates in those contracts without being copied into
+a shadow model.
 
-### Developer experience
+This is what Tetrodotoxin means by **raising**. Languages bring shared meaning
+into one linked Workspace while keeping their richer domain model. Once that
+meaning is complete, independent backends can derive the representations they
+need. LLVM IR, SPIR-V modules, Package Archives, editor data, and executables are
+products of the graph rather than replacements for it.
 
-The [Tetrodotoxin extension](extension/README.md) brings source understanding,
-navigation, formatting, diagnostics, and native debugging into Visual Studio
-Code. [Puffer](puffer/README.md) is the command and editor host that assembles a
-Workspace and coordinates the requested products.
+The design follows one practical guide:
 
-### Compilers and Terminal products
+> **Pull upward every fact that is target neutral and genuinely shared, while
+> leaving richer meaning with its concrete owner.**
 
-Library can compile CPU code, Shader can produce GPU modules, Package can write
-semantic Archives, and Linker can combine native products into programs. Each
-component owns its output format. Tetrodotoxin calls an output independent of
-the live Workspace a Terminal product.
+This does not replace **lowering**. It gives lowering a completed semantic
+starting point. A target producer can carry that meaning into an MLIR pipeline,
+LLVM IR, SPIR-V, or another representation domain, where ordinary progressive
+lowering continues. LLVM IR can be Terminal relative to the Workspace while
+remaining an intermediate representation for LLVM.
 
-### Native runtime foundation
+Terminal producers are the downstream counterpart to Dialects. Dialects
+compose what a Toolchain can understand and raise into a Workspace. Terminal
+producers compose what that Toolchain can produce from completed meaning. They
+are parallel composition points with different ownership: a Dialect creates and
+retains semantic meaning, while a Terminal producer consumes that meaning and
+leaves the graph.
 
-Perimortem is the C++ runtime layer beneath Tetrodotoxin. It provides memory,
-system, serialization, compression, image, and rendering services used by the
-toolchain and generated programs. Its APIs remain useful to ordinary C++
-applications, while Tetrodotoxin Packages expose selected runtime services to
-authored languages.
+Lowering is one kind of Terminal production. Other producers project editor
+information, serialize Package Archives, or compose native programs. Each one
+owns the format and validation contract its next consumer needs.
 
-The Perimortem name remains in runtime namespaces and Package identities because
-it describes that concrete layer. Tetrodotoxin is the product and platform that
-brings the complete repository together.
+## One understanding from editor to executable
 
-## Explore Tetrodotoxin
+Tetrodotoxin is intended to feel like a complete SDK rather than a collection
+of compiler libraries.
 
-* [Tetrodotoxin overview](tetrodotoxin/README.md) introduces Dialects,
-  Workspaces, Packages, and Terminal products
-* [TTX overview](ttx/README.md) explains the shared semantic vocabulary
-* [Language integration](tetrodotoxin/language/README.md) explains how a custom
+The [Visual Studio Code extension](extension/README.md) understands the same
+source identities used by the build. Hover, navigation, parameter hints,
+formatting, diagnostics, and native debugging can therefore follow the real
+program across Package members and language boundaries.
+
+[Puffer](puffer/README.md) is the command and editor host. It assembles the
+selected languages, opens a Workspace, and coordinates the requested products.
+[Environment](tetrodotoxin/environment/README.md) keeps related source results
+alive and completes their links. Backends begin at that completed meaning and
+produce CPU code today, with the same boundary ready for Shader and SPIR-V.
+
+[Standard Packages](packages/ttx/README.md) connect authored programs with
+Memory, Math, System, and Graphics services. Perimortem supplies the native C++
+runtime beneath those Packages and the generated programs. Tetrodotoxin is the
+platform that brings the whole experience together.
+
+## Find your way in
+
+You can start with the part closest to what you want to build:
+
+* [Tetrodotoxin overview](tetrodotoxin/README.md) follows several languages into
+  one Workspace
+* [Language integration](tetrodotoxin/language/README.md) shows how a new
   Dialect joins the platform
-* [Library](tetrodotoxin/library/README.md) documents the reusable CPU language
+* [Library](tetrodotoxin/library/README.md) introduces the reusable CPU language
 * [App](tetrodotoxin/app/README.md), [Scene](tetrodotoxin/scene/README.md),
   [Render](tetrodotoxin/render/README.md), and
-  [Shader](tetrodotoxin/shader/README.md) describe the included application
-  models
-* [Puffer](puffer/README.md) documents the command and editor host
+  [Shader](tetrodotoxin/shader/README.md) show how an application can span
+  several domains
+* [TTX](ttx/README.md) explains the shared semantic vocabulary and the
+  meaning first philosophy behind it
+* [Puffer](puffer/README.md) covers the command line and editor host
 
 ## Build and try the editor
 
 The current development environment targets x86 64 Linux with Clang and Bazel.
-Windowed applications use Wayland and the Vulkan backend uses the installed
+Windowed applications use Wayland, while the Vulkan renderer uses the installed
 Vulkan loader and driver.
 
 Build the repository with:
@@ -137,10 +175,10 @@ Adding `--install` installs the generated VSIX after packaging it.
 
 ## Project status
 
-Tetrodotoxin is an active research and development platform. Its distribution
-is designed as a self contained SDK for editing, packaging, compiling, linking,
-and debugging Tetrodotoxin projects. The supported development host is x86 64
-Linux with Wayland and Vulkan.
+Tetrodotoxin is an active research and development platform. The long term goal
+is a self contained SDK for editing, packaging, compiling, linking, and
+debugging projects built from cooperating languages. The supported development
+host today is x86 64 Linux with Wayland and Vulkan.
 
 ## License
 

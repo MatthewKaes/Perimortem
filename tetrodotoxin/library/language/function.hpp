@@ -53,12 +53,6 @@ class Function : public Model::Callable {
 
   auto finalize_declaration(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
-  auto reserve_declaration(Llvm::Program& program) const -> Bool override;
-
-  auto complete_declaration(Llvm::Program& program) const -> Bool override;
-
-  auto lower_declaration(Llvm::Program& program) const -> Bool override;
-
   auto persist(Archive::Writer& writer) const -> Bool override;
 
   TTX_DOCUMENTATION(get_definition().get_documentation());
@@ -86,6 +80,10 @@ class Function : public Model::Callable {
   auto get_parameters() const -> const Ttx::Concept::Layout& override;
 
   auto get_results() const -> const Ttx::Concept::Layout& override;
+
+  constexpr auto get_parameter_anchor(Count index) const {
+    return signature.get_parameters().get_slot_anchor(index);
+  }
 
   constexpr auto get_host() const -> const Model::Type& {
     return static_cast<const Model::Type&>(get_definition().get_host());

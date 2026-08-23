@@ -8,8 +8,8 @@
 namespace Perimortem::Graphics {
 
 // The canonical decoded RGBA pixel with eight bits per channel. Public channel
-// fields are intentional data-oriented storage. Image algorithms can process a
-// continuous Pixel buffer without accessors obscuring the four-byte layout.
+// fields are intentional data oriented storage. Image algorithms can process a
+// continuous Pixel buffer without accessors obscuring the four byte layout.
 // Encoded formats with another channel order or depth are converted at the
 // codec boundary rather than changing the meaning of this runtime value.
 class Pixel {

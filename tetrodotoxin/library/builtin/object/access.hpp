@@ -39,22 +39,14 @@ class Access : public Language::Model::Callable {
       const Ttx::Concept::Abstract& receiver,
       const Ttx::Concept::Abstract& host) const -> Bool override;
 
-  auto lower_call(
-      Llvm::Builder& body,
-      const Ttx::Model::Pack& result,
-      Perimortem::Core::View::Vector<LLVMValueRef> inputs,
-      Perimortem::Core::Option<const Ttx::Model::Pack&> receiver_source) const
-      -> Bool override;
-
  private:
   constexpr Access(
       Language::Parameter& self,
       const Language::Model::Type& result)
-      : parameters(self, 1), results(result, 1), result_type(result) {}
+      : parameters(self, 1), results(result, 1) {}
 
   Ttx::Model::Layouts::Ranged parameters;
   Ttx::Model::Layouts::Ranged results;
-  const Language::Model::Type& result_type;
   static constexpr Ttx::Model::Documentations::Comment documentation{
     "Borrows writable access to this Object buffer."_view,
   };

@@ -34,10 +34,6 @@ class View : public Contiguous {
 
   auto accepts(const Model::Pack& source) const -> Bool override;
 
-  auto reserve(Llvm::Program& program) const -> Bool override;
-
-  auto complete(Llvm::Program& program) const -> Bool override;
-
   TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_element_type() const -> const Model::Type& override {

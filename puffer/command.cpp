@@ -17,19 +17,20 @@
 #include "perimortem/system/file.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
+#include "backend/llvm/compiler.hpp"
+#include "backend/llvm/products.hpp"
 #include "puffer/application.hpp"
 #include "puffer/lsp/methods.hpp"
 #include "puffer/package.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/llvm/compiler.hpp"
-#include "tetrodotoxin/library/llvm/products.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/formatter.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem;
+using namespace Tetrodotoxin::Backend;
 
 static auto create_config(Memory::Allocator::Arena& arena)
     -> Memory::Managed::Map<Core::View::Bytes, Core::View::Bytes> {
@@ -173,7 +174,7 @@ static auto run_format(const System::Args::Values& args) -> S32 {
 // failure can leave an earlier product published even though all staging
 // writes completed first.
 static auto publish(
-    const Tetrodotoxin::Library::Llvm::Products& products,
+    const Llvm::Products& products,
     Core::View::Bytes ir_path,
     Core::View::Bytes object_path,
     Core::View::Bytes header_path) -> Bool {
@@ -236,13 +237,13 @@ static auto run_library(const System::Args::Values& args) -> S32 {
   }
 
   Core::View::Bytes debug_name = value(args, "debug"_view);
-  Tetrodotoxin::Library::Llvm::Debug::Level debug;
+  Llvm::Representation::Debug::Level debug;
   if (debug_name == "none"_view) {
-    debug = Tetrodotoxin::Library::Llvm::Debug::Level::None;
+    debug = Llvm::Representation::Debug::Level::None;
   } else if (debug_name == "line"_view) {
-    debug = Tetrodotoxin::Library::Llvm::Debug::Level::Line;
+    debug = Llvm::Representation::Debug::Level::Line;
   } else if (debug_name == "full"_view) {
-    debug = Tetrodotoxin::Library::Llvm::Debug::Level::Full;
+    debug = Llvm::Representation::Debug::Level::Full;
   } else {
     write_error("puffer: -debug must be none, line, or full"_view);
     return 2;
@@ -287,21 +288,18 @@ static auto run_library(const System::Args::Values& args) -> S32 {
   }
 
   Memory::Allocator::Arena product_arena;
-  Tetrodotoxin::Library::Llvm::Request request(
-      *monograph, errors, source_path, *source,
-      Tetrodotoxin::Library::Llvm::Target::X86_64SysV, debug,
-      Tetrodotoxin::Library::Llvm::Unit(value(args, "name"_view)));
-  Tetrodotoxin::Library::Llvm::Compiler compiler;
-  Utility::Result<
-      Tetrodotoxin::Library::Llvm::Products,
-      Tetrodotoxin::Library::Llvm::Failure>
-      result = compiler.compile(product_arena, request);
+  Llvm::Request request(
+      *monograph, errors, source_path, *source, Llvm::Target::X86_64SysV, debug,
+      Llvm::Abi::Unit(value(args, "name"_view)));
+  Llvm::Compiler compiler;
+  Utility::Result<Llvm::Products, Llvm::Failure> result =
+      compiler.compile(product_arena, request);
   return result.visit(
-      [&](const Tetrodotoxin::Library::Llvm::Products& products) -> S32 {
+      [&](const Llvm::Products& products) -> S32 {
         return publish(products, ir_path, object_path, header_path) ? 0 : 1;
       },
-      [&](const Tetrodotoxin::Library::Llvm::Failure& failure) -> S32 {
-        if (failure == Tetrodotoxin::Library::Llvm::Failure::SourceRejected) {
+      [&](const Llvm::Failure& failure) -> S32 {
+        if (failure == Llvm::Failure::SourceRejected) {
           render_errors(errors);
         }
 

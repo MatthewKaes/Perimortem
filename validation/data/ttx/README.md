@@ -2,7 +2,7 @@
 
 This directory contains authored TTX inputs, binary resources, and exact process
 observations used by validation tests. Each test chooses the files relevant to
-its own contract; the directory as a whole is a source corpus rather than one
+its own contract. The directory as a whole is a source corpus rather than one
 program.
 
 ## Directory map
@@ -12,8 +12,8 @@ program.
 | [`library/`](library/) | Library source examples, focused rejection inputs, Foreign declarations, and a native C harness |
 | [`package/`](package/) | Focused invalid Package manifests |
 | [`package_resources/`](package_resources/) | A Package with two Library members that share retained resource input |
-| [`oracles/`](oracles/) | Exact Scene-lifecycle observations |
-| [`shader_artifact/`](shader_artifact/) | Preserved Shader and render-format source used for lexical and migration coverage |
+| [`oracles/`](oracles/) | Exact Scene lifecycle observations |
+| [`shader_artifact/`](shader_artifact/) | Preserved Shader and render format source used for lexical and migration coverage |
 
 ## Access syntax in fixtures
 
@@ -48,14 +48,14 @@ source Scenes::Splash from "scenes/splash.ttx";
 ```
 
 `Scenes::Splash` is queried through contextual `::` access. The quoted path is a
-confined Package-root location and does not derive semantic identity.
+confined Package root location and does not derive semantic identity.
 
 ## Resource fixtures
 
 [`package_resources/package.ttx`](package_resources/package.ttx) binds
 `SharedA` and `SharedB`. Both Library sources read
 `resources/table.bin` and select its first 64 bytes. `SharedA` also reads the
-zero-byte `resources/empty.bin`.
+zero byte `resources/empty.bin`.
 
 The first 64 bytes of `table.bin` are:
 
@@ -65,17 +65,17 @@ The first 64 bytes of `table.bin` are:
 
 These files distinguish several resource facts:
 
-- equivalent normalized routes can share one retained input snapshot;
-- separate Library declarations retain separate Constant identities;
-- empty content is a successful Resource;
-- indexed value access selects reachable bytes without changing the Package
+* equivalent normalized routes can share one retained input snapshot
+* separate Library declarations retain separate Constant identities
+* empty content is a successful Resource
+* indexed value access selects reachable bytes without changing the Package
   path.
 
 ## Process observations
 
-Unit validation runs a reserved self-process fixture to prove exact standard
+Unit validation runs a reserved self process fixture to prove exact standard
 input, standard output, standard error, exit status, and timeout observation.
-That fixture validates the process observer itself; it is not evidence for a
+That fixture validates the process observer itself. It is not evidence for a
 generated TTX Terminal.
 
 [`scene_lifetime.golden`](oracles/scene_lifetime.golden) records deterministic
@@ -89,7 +89,7 @@ not make managed Object reclamation observable.
 [`shader_artifact/shader.ttx`](shader_artifact/shader.ttx) demonstrates named
 Stage Layouts and `Formats::Simple` contextual Type access. Its companion
 [`render.ttx`](shader_artifact/render.ttx) preserves the older `Gpu` and
-`ShaderFormat` spellings for migration coverage; the canonical Render model is
+`ShaderFormat` spellings for migration coverage. The canonical Render model is
 documented in [Tetrodotoxin Render](../../../tetrodotoxin/render/README.md).
 
 See the [Library fixture reference](library/README.md),

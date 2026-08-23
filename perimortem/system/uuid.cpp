@@ -109,8 +109,8 @@ static constexpr auto deserialize_ascii(
 }
 
 auto Uuid::deserialize(const Static::Bytes<36>& uuid_string) -> Uuid& {
-  // RFC-4122 spec:
-  // 8-4-4-4-12
+  // RFC 4122 groups hexadecimal digits in widths of eight, four, four, four,
+  // and twelve.
   const auto buffer =
       _mm256_loadu_si256(Data::cast<const __m256i>(uuid_string.get_data()));
   const auto offset_buffer =

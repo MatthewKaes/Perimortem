@@ -8,7 +8,6 @@
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -569,54 +568,6 @@ auto Language::Access::Call::fit_inputs(
   fitted_inputs.insert(
       Input(*parameter, arguments, 0, arguments.get_layout().get_size()));
   return True;
-}
-
-auto Language::Access::Call::lower(Llvm::Builder& body) const -> Bool {
-  auto selected = get_callable();
-  if (!selected) {
-    return False;
-  }
-
-  Llvm::Program& program = body.get_program();
-  if (!selected->reserve_declaration(program) ||
-      !selected->complete_declaration(program)) {
-    return False;
-  }
-
-  if (selected->declares_self()) {
-    Bool receiver_lowered = receiver.lower(body);
-    if (!receiver_lowered) {
-      return False;
-    }
-  }
-
-  Bool arguments_lowered = arguments.lower(body);
-  if (!arguments_lowered) {
-    return False;
-  }
-
-  Memory::Managed::Vector<LLVMValueRef> native_inputs(domain);
-  for (const Input& input : fitted_inputs.get_view()) {
-    auto value = body.fit_input(
-        input.get_parameter(), input.get_source(), input.get_offset(),
-        input.get_size());
-    if (!value) {
-      return False;
-    }
-
-    native_inputs.insert(*value);
-  }
-
-  Core::Option<const Ttx::Model::Pack&> receiver_source;
-  if (selected->declares_self() && !fitted_inputs.is_empty()) {
-    const Input& input = fitted_inputs.at(0);
-    if (input.get_offset() == 0 && input.get_size() == 1) {
-      receiver_source = input.get_source();
-    }
-  }
-
-  return selected->lower_call(
-      body, *this, native_inputs.get_view(), receiver_source);
 }
 
 auto Language::Access::Call::evaluate()

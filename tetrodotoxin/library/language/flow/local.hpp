@@ -42,8 +42,6 @@ class Local : public Model::Addressable {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
 
-  auto lower(Llvm::Builder& body) const -> Bool;
-
   TTX_NAME(name);
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;

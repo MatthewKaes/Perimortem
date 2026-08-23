@@ -4,13 +4,8 @@
 #include "tetrodotoxin/library/language/constants/object.hpp"
 
 #include "tetrodotoxin/library/language/types/object_storage.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 
 using namespace Tetrodotoxin::Library;
-
-auto Language::Constants::Object::lower(Llvm::Builder& body) const -> Bool {
-  return prepare_carrier(body) && body.object_value(get_type(), *this);
-}
 
 auto Language::Constants::Object::persist(Archive::Writer& writer) const
     -> Bool {

@@ -6,7 +6,6 @@
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/model/parser/layout.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -223,30 +222,6 @@ auto Language::Flow::RangeLoop::finalize(Cursor& cursor) -> void {
   body.visit(
       []() {},
       [&](Reference<Block>& selected) { selected.get().finalize(cursor); });
-}
-
-auto Language::Flow::RangeLoop::lower(Llvm::Builder& target) const -> Bool {
-  if (!input_type || !binding_layout || !body) {
-    return False;
-  }
-
-  Bool input_lowered = input.get().lower(target);
-  if (!input_lowered) {
-    return False;
-  }
-
-  Bool began = input_type->get().begin_iteration(
-      target, *this, *binding_layout, input.get());
-  if (!began) {
-    return False;
-  }
-
-  Bool body_lowered = body->get().lower(target);
-  if (!body_lowered) {
-    return False;
-  }
-
-  return target.end_iteration(*this);
 }
 
 auto Language::Flow::RangeLoop::resolve_context(View::Bytes route) const

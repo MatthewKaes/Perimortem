@@ -11,7 +11,7 @@
 
 namespace Perimortem::Core::Static {
 
-// Used to convert string literals into non-null terminated bytes.
+// Used to convert string literals into nonnull terminated bytes.
 template <Count literal_size>
 class Bytes {
  private:

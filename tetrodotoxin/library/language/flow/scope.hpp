@@ -13,7 +13,7 @@ namespace Tetrodotoxin::Library::Language::Flow {
 
 // Scope is the Library execution context available to one retained Statement.
 // It exposes only the authority that expression and control owners cannot infer
-// from their own graph edges. This keeps those queries out of host-neutral TTX
+// from their own graph edges. This keeps those queries out of host neutral TTX
 // and prevents an embedded expression from requiring a concrete Block.
 class Scope : public Ttx::Concept::Abstract {
  public:

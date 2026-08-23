@@ -6,8 +6,6 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/option.hpp"
 
-#include "tetrodotoxin/library/llvm/builder.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "tetrodotoxin/library/language/flow/scope.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/concept/reference.hpp"
@@ -83,10 +81,6 @@ class Statement {
                          Ttx::Lexical::Cursor& cursor) -> void {
             Finalize{}(static_cast<Owner&>(root), cursor);
           },
-          .lower = [](const Ttx::Concept::Abstract& root,
-                      Llvm::Builder& body) -> Bool {
-            return static_cast<const Owner&>(root).lower(body);
-          },
           .reaches_next = [](const Ttx::Concept::Abstract& root) -> Bool {
             return ReachesNext{}(static_cast<const Owner&>(root));
           },
@@ -109,8 +103,6 @@ class Statement {
   constexpr auto finalize(Ttx::Lexical::Cursor& cursor) -> void {
     operations.finalize(root.get(), cursor);
   }
-
-  auto lower(Llvm::Builder& body) const -> Bool;
 
   constexpr auto reaches_next() const -> Bool {
     return operations.reaches_next(root.get());
@@ -141,7 +133,6 @@ class Statement {
   struct Operations {
     Bool (*link)(Ttx::Concept::Abstract&, Ttx::Lexical::Cursor&, Flow::Scope&);
     void (*finalize)(Ttx::Concept::Abstract&, Ttx::Lexical::Cursor&);
-    Bool (*lower)(const Ttx::Concept::Abstract&, Llvm::Builder&);
     Bool (*reaches_next)(const Ttx::Concept::Abstract&);
     Perimortem::Core::Option<Perimortem::Core::View::Bytes> (*get_binding_name)(
         const Ttx::Concept::Abstract&);

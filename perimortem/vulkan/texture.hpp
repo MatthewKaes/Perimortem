@@ -12,9 +12,9 @@
 
 namespace Perimortem::Vulkan {
 
-// Uploads a Graphics::Image to a device-local VkImage and owns the associated
+// Uploads a Graphics::Image to a device local VkImage and owns the associated
 // view, sampler, descriptor set layout, descriptor pool, and descriptor set.
-// Intended for a single combined-image-sampler binding at set 0, binding 0.
+// Intended for a single combined image sampler binding at set 0, binding 0.
 class Texture {
  public:
   static auto create(const Context& ctx, const Graphics::Image& image)

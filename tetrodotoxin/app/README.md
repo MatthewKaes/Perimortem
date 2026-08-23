@@ -1,14 +1,14 @@
 # App
 
-App is Tetrodotoxin's program-level policy language. It plays the role normally
-split between an entry declaration, application manifest, and lifecycle
-configuration. An App selects how a completed program starts, which
-presentation surface it requires, and how its long-lived state is controlled.
+A completed program still needs someone to decide how it begins, what kind of
+surface it presents, and how its long lived state moves forward. App gives those
+choices a small language of their own instead of scattering them across an
+entry Function, build manifest, and host specific startup code.
 
-App points directly to the Library Functions or Scenes that take part in that
-policy. Library compiles the CPU code and the selected platform toolchain links
-the completed native products. App keeps the startup and lifecycle choices
-visible without becoming a machine instruction or linking language.
+An App can point directly to the Library Functions or Scenes that participate
+in that policy. The CPU backend compiles their Library meaning and the platform
+toolchain links the native products. App keeps the human decision visible while
+leaving machine instructions and linking to the systems that own them.
 
 Canonical grammar reference: [App.g4](grammar/App.g4).
 
@@ -61,7 +61,7 @@ lifecycle = Program {
 The selected Callable has an empty parameter Layout and an empty result Layout.
 Static means the call has no implicit Self value. App still retains the exact
 source and Callable selected by the declaration. It does not require the
-Callable's language to publish a zero-value Type.
+Callable's language to publish a zero value Type.
 
 Generated platform entry code invokes it once. The Function may have any
 authored name, and the source file may have any Package member name. App does
@@ -85,10 +85,10 @@ lifecycle = Scene {
 
 App owns the live Scene stack and four transition operations:
 
-- `replace` releases the active Scene and prepares a new destination.
-- `push` pauses and retains the active Scene before preparing a new destination.
-- `pop` releases the active Scene and resumes the retained Scene below it.
-- `exit` releases the complete stack from top to bottom without resuming it.
+* `replace` releases the active Scene and prepares a new destination.
+* `push` pauses and retains the active Scene before preparing a new destination.
+* `pop` releases the active Scene and resumes the retained Scene below it.
+* `exit` releases the complete stack from top to bottom without resuming it.
 
 At the end of each frame, App checks the events published by the active Scene in
 the order they were emitted. The first event with a matching `on` rule wins.
@@ -107,7 +107,7 @@ the first frame.
 
 Each frame follows one observable order:
 
-1. System completes one read-only input snapshot and a monotonic delta time.
+1. System completes one read only input snapshot and a monotonic delta time.
 2. App calls `update` on the active Scene exactly once.
 3. Scene and Graphics make that frame's submission stable.
 4. The selected backend presents the stable submission.
@@ -151,11 +151,11 @@ Building an App selects both a CPU target and a platform host. The CPU target
 defines how functions and values are represented. The Linux or Windows host
 provides process startup, loading, terminals, windows, and events.
 
-Library compiles CPU code with LLVM. The selected platform toolchain links the
+The LLVM backend compiles completed Library meaning. The selected platform toolchain links the
 member objects, runtime libraries, and generated App entry without making LLVM
 or native linking part of App behavior.
 
 See [Scene](../scene/README.md) for Scene roles,
 [Library](../library/README.md) for Callable and named Layout semantics, and the
-[standard packages](../../packages/ttx/README.md) for the source-visible System
+[standard packages](../../packages/ttx/README.md) for the source visible System
 terminal, argument, and input surfaces.

@@ -15,7 +15,7 @@ namespace Perimortem::System {
 class File {
  public:
   // Fingerprint identifies the exact regular filesystem object observed by a
-  // File transaction. Size and modification time detect in-place changes,
+  // File transaction. Size and modification time detect in place changes,
   // while device and inode detect replacement at the same path.
   class Fingerprint {
    public:

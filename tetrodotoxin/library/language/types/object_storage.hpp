@@ -9,8 +9,9 @@
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// ObjectStorage is the generated Object[T] value. It owns one empty-capable
-// managed buffer while its Generic retains the canonical element identity.
+// ObjectStorage is the generated Object[T] value. It owns one carrier that can
+// be empty managed buffer while its Generic retains the canonical element
+// identity.
 class ObjectStorage : public Model::Type {
  public:
   TTX_CONTRACT(ObjectStorage, Model::Type);
@@ -30,10 +31,6 @@ class ObjectStorage : public Model::Type {
 
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
-
-  auto reserve(Llvm::Program& program) const -> Bool override;
-
-  auto complete(Llvm::Program& program) const -> Bool override;
 
   constexpr auto get_element_type() const -> const Model::Type& {
     return element;

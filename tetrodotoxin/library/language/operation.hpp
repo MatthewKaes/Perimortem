@@ -62,8 +62,6 @@ class Operation : public Expression {
   auto fold_input(Count index) -> Perimortem::Utility::
       Result<Perimortem::Core::Option<Expression&>, Expression::Error>;
 
-  auto lower_inputs(Llvm::Builder& body) const -> Bool;
-
   // Concrete evaluation runs only after the ordered traversal completed.
   // This observation unwraps that cached result without changing the
   // authored edge or starting another computation.

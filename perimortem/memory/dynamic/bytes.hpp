@@ -10,7 +10,7 @@
 
 namespace Perimortem::Memory::Dynamic {
 
-// Bytes owns copy-on-write value policy over one worker-local Object buffer.
+// Bytes owns copy on write value policy over one worker local Object buffer.
 // Object itself preserves ordinary reference identity while Bytes alone decides
 // when a shared allocation must be copied before mutation.
 class Bytes {

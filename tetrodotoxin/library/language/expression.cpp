@@ -6,7 +6,6 @@
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -104,30 +103,6 @@ auto Language::Expression::get_produced(Count index) const
 
 auto Language::Expression::finalize(Ttx::Lexical::Cursor&) -> void {
   fold();
-}
-
-auto Language::Expression::lower(Llvm::Builder& body) const -> Bool {
-  auto folded = lower_folded(body);
-  return folded ? *folded : False;
-}
-
-auto Language::Expression::lower_write_target(Llvm::Builder&) const -> Bool {
-  return False;
-}
-
-auto Language::Expression::lower_folded(Llvm::Builder& body) const
-    -> Option<Bool> {
-  auto selected = get_folded();
-  if (!selected || &*selected == this) {
-    return {};
-  }
-
-  Bool lowered = selected->lower(body);
-  if (!lowered) {
-    return False;
-  }
-
-  return body.alias(*this, *selected);
 }
 
 auto Language::Expression::link(

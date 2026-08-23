@@ -60,8 +60,6 @@ class Constant : public Expression {
            &lhs_type == &rhs_type;
   }
 
-  auto prepare_carrier(Llvm::Builder& body) const -> Bool;
-
   static auto have_equal_values(
       const Model::Pack& left,
       const Model::Pack& right) -> Bool;

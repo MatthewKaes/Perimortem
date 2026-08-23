@@ -5,7 +5,7 @@
     "Programming Languages"
   ],
   "displayName": "Tetrodotoxin",
-  "publisher": "Perimortem",
+  "publisher": "Tetrodotoxin-Dev",
   "author": "Matt Kaes",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -26,9 +26,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/MatthewKaes/Tetrodotoxin"
+    "url": "https://github.com/tetrodotoxin-dev/Tetrodotoxin"
   },
-  "homepage": "https://github.com/MatthewKaes/Tetrodotoxin/blob/main/README.md",
+  "homepage": "https://github.com/tetrodotoxin-dev/Tetrodotoxin#readme",
+  "bugs": {
+    "url": "https://github.com/tetrodotoxin-dev/Tetrodotoxin/issues"
+  },
   "activationEvents": [
     "onLanguage:tetrodotoxin",
     "onDebugResolve:lldb",

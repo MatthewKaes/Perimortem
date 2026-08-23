@@ -80,7 +80,8 @@ class Hash {
       return;
     }
 
-    // For empty set value to a const value;
+    // Empty input uses one fixed value so callers receive a stable hash without
+    // reading absent storage.
     case 0:
       value = const_values[4];
       return;

@@ -41,13 +41,6 @@ class Slice : public Language::Model::Callable {
     return results;
   }
 
-  auto lower_call(
-      Llvm::Builder& body,
-      const Ttx::Model::Pack& result,
-      Perimortem::Core::View::Vector<LLVMValueRef> inputs,
-      Perimortem::Core::Option<const Ttx::Model::Pack&> receiver_source) const
-      -> Bool override;
-
   auto fold_call(
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Core::Option<const Language::Model::Pack&> receiver,

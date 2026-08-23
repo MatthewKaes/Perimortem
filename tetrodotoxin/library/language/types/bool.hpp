@@ -28,11 +28,6 @@ class Boolean : public Model::Types::Flag {
   auto fold_propagation(Model::Pack& source) const -> Perimortem::Utility::
       Result<Perimortem::Core::Option<Model::Pack&>, Bool> override;
 
-  auto lower_propagation(
-      Llvm::Builder& body,
-      const Model::Pack& result,
-      const Model::Pack& source,
-      const Model::Pack& escape) const -> Bool override;
   constexpr auto get_width() const -> Count override { return 1; }
   constexpr auto get_size() const -> Count override { return sizeof(::Bool); }
   constexpr auto get_alignment() const -> Count override {

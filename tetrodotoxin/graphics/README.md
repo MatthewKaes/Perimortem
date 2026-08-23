@@ -1,12 +1,14 @@
 # Graphics
 
-Graphics connects completed Scene state to a renderer. Scene owns the objects
-that make up the scene. Graphics reads those objects and creates one stable
-frame submission without teaching Scene about Vulkan, windows, or GPU commands.
+A Scene should be able to describe what exists without learning how Vulkan
+records a command buffer. Graphics makes that separation practical. It reads
+completed Scene objects and gathers one stable frame submission for the
+renderer, while Scene remains focused on interactive meaning.
 
-Graphics is not a Dialect. It is a runtime contract shared by Scene, App,
-Render, Shader, and rendering backends. It does not add a generic scene-node
-Type or copy the program into another semantic graph.
+Graphics is a runtime contract shared by Scene, App, Render, Shader, and the
+rendering backends rather than another Dialect. The same authored objects flow
+through it directly, so there is no generic scene Type or copied graphics graph
+between the application and renderer.
 
 ## Hosted graphics state
 
@@ -50,7 +52,7 @@ while the renderer is reading it.
 
 A backend turns the submission into images, buffers, bindings, draw batches,
 and commands. Perimortem Graphics owns reusable image decoding and
-backend-independent draw data. Vulkan owns device resources, command recording,
+backend independent draw data. Vulkan owns device resources, command recording,
 synchronization, and presentation.
 
 Render and Shader describe what the backend must produce. Vulkan handles and

@@ -1,18 +1,20 @@
 # Puffer
 
-Puffer is the user facing command and editor host for Tetrodotoxin. It opens
-sources, assembles a Toolchain, builds a Workspace, and presents Diagnostics or
-completed products through the interface that requested them.
+Puffer is how people and build systems enter Tetrodotoxin. The command line can
+turn a Package into finished products, while the language server gives an
+editor a live understanding of the same sources. A diagnostic, hover, build,
+and Archive therefore begin from the same view of the program.
 
-This makes Puffer the everyday entrance to the platform without turning it into
-the owner of every compilation stage. Environment still owns Workspace
-lifetime, Package owns reproducible composition, each Dialect owns its language,
-and each compiler or Linker owns the product it creates.
+Behind that experience, Puffer assembles the requested languages and opens a
+Workspace for them. It coordinates the journey without taking ownership away
+from the parts that understand it best. Package still owns reproducible
+composition, each Dialect still owns its language, and each backend or Linker
+still owns the product it creates.
 
-Build systems use Puffer through its command interface, while editors use its
-language server. Applications that need another transport, session model, or
-user interface can embed the same Tetrodotoxin libraries directly. Both paths
-observe the same language, Package, compiler, and Archive behavior.
+Build systems can use the command interface and editors can use the language
+server. A product that needs a different session or interface can embed the
+same Tetrodotoxin libraries directly and keep the same language, Package,
+compiler, and Archive behavior.
 
 ## Application role
 
@@ -38,7 +40,7 @@ Workspace. A Package session reads the selected manifest, recursively loads
 each exact dependency from the configured Package root, detects active cycles,
 and imports the consumer only after its dependencies complete. One shared
 Snapshot owner retains editor overlays and unchanged filesystem bytes across
-those complete graph replacements; no standard Package name is injected into
+those complete graph replacements. No standard Package name is injected into
 an unrelated Package.
 
 Puffer's process model and user interface are optional. Another application can
@@ -68,15 +70,20 @@ Statements, any number of compressed `:` Blocks, then at most one braced Block.
 Returning to an earlier stage inserts one blank line. Documentation begins its
 own stage before the item it describes.
 
-An empty-result Function does not retain redundant trailing `return;`
+An empty result Function does not retain redundant trailing `return;`
 Statements. Formatting removes every consecutive trailing bare return from a
-multi-Statement body. If that leaves no Statement, the canonical spelling is
-`: return;`; an explicitly authored one-line `: return;` is preserved. Returns
+multiple Statement body. If that leaves no Statement, the canonical spelling is
+`: return;`. An explicitly authored one line `: return;` is preserved. Returns
 inside nested Blocks and content following an earlier return are not analyzed
 or removed. The language server exposes the same formatter as standard
 document formatting for open editor buffers.
 
 ## Terminal production
+
+Puffer brings both composition sides together for one request. The installed
+Dialects determine what its Toolchain can understand, while the selected
+Terminal producers determine what the completed Workspace can produce. Puffer
+coordinates that handoff without turning either side into its own model.
 
 For a compilation request, Puffer opens the declared sources and dependencies
 in a Workspace. Environment interprets and checks the complete source group. If
@@ -84,8 +91,8 @@ there are errors, Puffer shows them and does not produce partial output.
 
 When the Workspace is ready, Puffer coordinates the requested products:
 
-* Library compiles CPU code with LLVM.
-* Shader produces SPIR V for the GPU.
+* The LLVM backend compiles completed Library meaning into CPU code.
+* Shader produces SPIR-V for the GPU.
 * Package produces a Complete or Interface Archive.
 * The build toolchain combines native member products into libraries and
   platform executables.
@@ -94,15 +101,15 @@ The request chooses the CPU target, host platform, graphics backend,
 and Archive profile. Puffer passes those choices to the components that own the
 formats, then writes or displays their results.
 
-### Direct Library LLVM request
+### Compile one Library source
 
-The direct native path accepts one completed standalone Library source. It does
-not start Package restoration or manufacture publication between Monographs.
-Puffer owns command selection, stderr request errors, source diagnostic
-presentation, and atomic publication. The
-[Library LLVM backend](../tetrodotoxin/library/llvm/README.md) owns lowering and
-returns completed bytes only. Generated Objects use the linked Perimortem
-reference counted runtime surface.
+The shortest way to try native Library code is to compile one standalone source.
+This path skips Package restoration and keeps the request focused on the source
+in front of you. Puffer selects the command, presents diagnostics, and publishes
+the requested files together. The
+[LLVM backend](../backend/llvm/README.md) performs lowering and returns only
+completed products. Generated Objects use the linked Perimortem reference
+counted runtime surface.
 
 ```text
 puffer -library \
@@ -143,9 +150,10 @@ A Package request imports every dependency through its Interface Archive,
 imports the root source Package once, and compiles each declared member into an
 independent native object. It emits the root Complete and Interface Archives,
 one combined C and C++ declaration header, one native ABI Manifest, and the
-member products declared by the build action. The build supplies manifest-rooted `.ttx` candidates, while
-the Package Source table remains the sole authority for their semantic member
-names and paths. Package coordinates those products without lowering a copied
+member products declared by the build action. The build supplies manifest
+rooted `.ttx` candidates, while the Package Source table remains the sole
+authority for their semantic member names and paths. Package coordinates those
+products without lowering a copied
 semantic graph.
 
 An application request is source free. It restores the root Complete Archive

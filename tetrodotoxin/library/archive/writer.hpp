@@ -13,7 +13,7 @@
 
 namespace Tetrodotoxin::Library::Archive {
 
-// Writer owns one append-only Library payload. Semantic owners open and close
+// Writer owns one append only Library payload. Semantic owners open and close
 // their own bounded records while Writer supplies only physical framing and
 // scalar encoding. It never selects a Library declaration or Expression kind.
 class Writer {

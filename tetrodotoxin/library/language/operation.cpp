@@ -110,16 +110,6 @@ auto Language::Operation::finalize(Ttx::Lexical::Cursor& cursor) -> void {
   Expression::finalize(cursor);
 }
 
-auto Language::Operation::lower_inputs(Llvm::Builder& body) const -> Bool {
-  for (Ttx::Concept::Reference<Expression> input : inputs.get_view()) {
-    if (!input.get().lower(body)) {
-      return False;
-    }
-  }
-
-  return True;
-}
-
 auto Language::Operation::evaluate()
     -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
   Bool all_reached_folded = True;

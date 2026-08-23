@@ -18,7 +18,7 @@ namespace Perimortem::Memory::Allocator {
 // transaction.
 //
 // `construct()` begins an object's lifetime, but Arena does not call individual
-// destructors when it resets. Arena-owned objects must therefore release no
+// destructors when it resets. Arena owned objects must therefore release no
 // independently owned resources from their destructors. In particular, rented
 // Bibliotheca storage must be remitted before the arena is reset or destroyed.
 class Arena {
@@ -39,7 +39,7 @@ class Arena {
     // Fetch a new page if we are full due to either running out of our current
     // page, or needing to allocate an object larger than our page size.
     //
-    // An arena favors cheap allocation over page demotion. A long-lived arena
+    // An arena favors cheap allocation over page demotion. A long lived arena
     // can therefore retain an unusually large page after one large request.
     // Use it for bounded transactions rather than an unbounded object cache.
     if (usage + bytes_requested > page_size) {

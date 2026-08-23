@@ -77,7 +77,7 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, preserves_reference_cv) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, alias_resolves_and_binds_once) {
-  /// A leaf that resolves elsewhere proves Alias returns the first non-Alias
+  /// A leaf that resolves elsewhere proves Alias returns the first non Alias
   /// identity without observing the terminal owner's completion contract.
   class Value : public Abstract {
    public:
@@ -135,7 +135,7 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_resolves_and_binds_once) {
   };
 
   /// A staged Alias exposes only resolution outcomes while its graph owner
-  /// keeps the one-time binding operation behind the derived contract.
+  /// keeps the one time binding operation behind the derived contract.
   class StagedAlias : public Alias {
    public:
     StagedAlias(View::Bytes name, const Documentation& documentation)

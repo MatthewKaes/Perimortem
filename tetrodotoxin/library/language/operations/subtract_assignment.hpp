@@ -11,7 +11,7 @@
 
 namespace Tetrodotoxin::Library::Language::Operations {
 
-// SubtractAssignment owns the explicit `-=` read-modify-write operator. Its
+// SubtractAssignment owns the explicit subtraction assignment operator. Its
 // target and right operand are the only two graph edges, so lowering never has
 // to deduplicate a hidden Subtract expression before writing the address.
 class SubtractAssignment : public Expression {
@@ -31,8 +31,6 @@ class SubtractAssignment : public Expression {
       -> Bool override;
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
-
-  auto lower(Llvm::Builder& body) const -> Bool override;
 
   TTX_NAME("SubtractAssignment"_view);
   TTX_EMPTY_DOCUMENTATION();

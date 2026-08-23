@@ -50,22 +50,12 @@ class Option : public Model::Type {
   auto fold_propagation(Model::Pack& source) const -> Perimortem::Utility::
       Result<Perimortem::Core::Option<Model::Pack&>, Bool> override;
 
-  auto lower_propagation(
-      Llvm::Builder& body,
-      const Model::Pack& result,
-      const Model::Pack& source,
-      const Model::Pack& escape) const -> Bool override;
-
   auto accepts(const Model::Pack& source) const -> Bool override;
 
   auto create_fitted(
       Perimortem::Memory::Allocator::Arena& arena,
       Model::Pack& source) const
       -> Perimortem::Core::Option<Model::Pack&> override;
-
-  auto reserve(Llvm::Program& program) const -> Bool override;
-
-  auto complete(Llvm::Program& program) const -> Bool override;
 
   auto validate_layout(Ttx::Lexical::Cursor& cursor) const -> Bool override;
 

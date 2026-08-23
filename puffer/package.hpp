@@ -7,7 +7,7 @@
 
 namespace Puffer {
 
-// Package owns one command-line Package compilation transaction. It restores
+// Package owns one command line Package compilation transaction. It restores
 // dependency Interfaces, imports the root source Package once, compiles each
 // declared member independently, and publishes the two semantic Archives only
 // after every member product succeeds.

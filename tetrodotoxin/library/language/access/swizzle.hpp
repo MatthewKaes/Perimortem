@@ -52,11 +52,11 @@ class Swizzle : public Expression {
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  auto lower(Llvm::Builder& body) const -> Bool override;
-
   constexpr auto get_receiver() const -> const Language::Model::Pack& {
     return receiver;
   }
+
+  constexpr auto get_projections() const { return projections.get_view(); }
 
  private:
   Swizzle(

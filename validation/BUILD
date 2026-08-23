@@ -204,7 +204,7 @@ cc_binary(
         "//tetrodotoxin:environment",
         "//tetrodotoxin:language",
         "//tetrodotoxin:library",
-        "//tetrodotoxin:library_llvm",
+        "//backend:llvm",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
         "//tetrodotoxin:scene",

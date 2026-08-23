@@ -5,7 +5,6 @@
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -81,13 +80,4 @@ auto Language::Flow::Return::link(
 
 auto Language::Flow::Return::finalize(Cursor& cursor) -> void {
   pack.get().finalize(cursor);
-}
-
-auto Language::Flow::Return::lower(Llvm::Builder& body) const -> Bool {
-  Bool lowered = pack.get().lower(body);
-  if (!lowered) {
-    return False;
-  }
-
-  return body.return_values(pack.get());
 }

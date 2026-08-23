@@ -4,7 +4,6 @@
 #include "tetrodotoxin/library/language/access/address.hpp"
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -137,45 +136,4 @@ auto Language::Access::Address::get_result() const -> const Abstract& {
 auto Language::Access::Address::finalize(Cursor& cursor) -> void {
   receiver.finalize(cursor);
   Expression::finalize(cursor);
-}
-
-auto Language::Access::Address::lower(Llvm::Builder& body) const -> Bool {
-  auto folded = lower_folded(body);
-  if (folded) {
-    return *folded;
-  }
-
-  Bool selected = lower_write_target(body);
-  if (!selected) {
-    return False;
-  }
-
-  return body.load(*this);
-}
-
-auto Language::Access::Address::lower_write_target(Llvm::Builder& body) const
-    -> Bool {
-  auto selected = get_result().resolve().select<Language::Model::Addressable>();
-  auto instance =
-      receiver.get_result().resolve().select<Language::Model::Addressable>();
-  Llvm::Program& program = body.get_program();
-  if (!selected) {
-    return False;
-  }
-
-  if (!selected->reserve_declaration(program) ||
-      !selected->complete_declaration(program)) {
-    return False;
-  }
-
-  if (!instance) {
-    return body.select(*this, *selected);
-  }
-
-  Bool receiver_lowered = receiver.lower(body);
-  if (!receiver_lowered) {
-    return False;
-  }
-
-  return body.select_member(*this, *selected, receiver);
 }

@@ -1,18 +1,25 @@
 # Tetrodotoxin Language
 
-The Tetrodotoxin Language contract explains how a source language joins a
-Workspace. Each language is a Dialect. It reads the Tokens for one source and
-returns a Monograph, which is the lasting result that tools and other languages
-can inspect.
+This is where a new language becomes part of Tetrodotoxin instead of another
+tool beside it. A language that joins here can share source handling,
+diagnostics, Packages, editor sessions, cross language navigation, and Terminal
+production while keeping the grammar and meaning that motivated it in the
+first place.
 
-Package, Library, App, Scene, Render, and Shader all follow this lifecycle. They
-do not translate their source into one common syntax tree or type system. Each
-Dialect keeps the rules that make its language unique and exposes shared TTX
-Types, Layouts, and relationships where another tool can use them.
+Tetrodotoxin calls that language a **Dialect**. For each source, the Dialect
+turns authored Tokens into a **Monograph**, the lasting semantic result that
+other languages and tools can inspect. Related Monographs live together in one
+Workspace and can refer directly to one another.
 
-Together, the Monographs form the live program in a Workspace. General tools
-can use their shared TTX surface, while language-aware tools can ask a concrete
-Dialect for richer details.
+Package, Library, App, Scene, Render, and Shader all use this lifecycle. Their
+objects expose the TTX Types, Layouts, and relationships useful across the
+platform, while language aware tools remain free to explore their richer domain
+models. No common syntax tree has to stand in for the real program.
+
+Dialects are the input side of Toolchain composition. They determine which
+meanings a Workspace can construct. Terminal producers form the complementary
+output side after completion, which lets a new Dialect participate in several
+products without carrying backend policy in its language model.
 
 ## When to implement a Dialect
 
@@ -22,12 +29,12 @@ usually belongs in that language instead. A grammar rule can be shared by
 several Dialects when the complete construct and returned contract are genuinely
 the same.
 
-Adding a Dialect means owning the complete source-language contract. The Dialect
+Adding a Dialect means owning the complete source language contract. The Dialect
 defines how source is read, how names are resolved, which errors are reported,
 how its result is completed, and what an Archive must store. General tools still
 use the common TTX surface, while richer tooling uses the concrete Dialect.
 
-Every top-level Dialect provided by this repository publishes a canonical G4
+Every top level Dialect provided by this repository publishes a canonical G4
 grammar reference for authored language shape and parse order. These references
 describe valid input. The toolchain does not generate or run its parsers from
 them. A custom Dialect owns its grammar but does not have to express it in G4.
@@ -37,7 +44,7 @@ It contains Documentation, Attributes, Visibility, evaluation modifiers, and a
 name followed by `:`. The concrete language reads the qualifier that follows
 and decides what kind of declaration it creates. Definition records how that
 object was introduced, but it is not a second declaration object or a universal
-syntax-tree node.
+syntax tree node.
 
 Every Definition also remembers the language object that hosts it. The host
 records where the declaration was admitted and which private access it may use.
@@ -64,10 +71,10 @@ dialect : Library;
 ```
 
 Environment consumes the envelope with one source transaction Cursor and calls
-the selected Dialect directly with that Cursor, the source-backed
+the selected Dialect directly with that Cursor, the source backed
 Documentation, its Anchor, and the semantic context. The Dialect constructs one
 Monograph in the Cursor's Arena and returns it through an `Option`. Absence is
-the only parse-failure result; there is no second success flag or transaction
+the only parse failure result. There is no second success flag or transaction
 wrapper. Environment links and finalizes that Monograph before retaining its
 Arena and publishing it.
 
@@ -75,7 +82,7 @@ An installed Dialect is itself an ordinary TTX Abstract context. Its exact live
 identity selects Monograph layers, its installed name answers source dispatch,
 and its contextual resolution exposes immutable language vocabulary. A Dialect
 is stateless after Toolchain construction and can serve every Workspace that
-borrows that Toolchain. The operation-local Cursor traverses the source and
+borrows that Toolchain. The operation local Cursor traverses the source and
 publishes textual reports, while Workspace's local Arena handle carries the
 produced root until the Workspace retains or releases it.
 
@@ -92,24 +99,24 @@ resources, or restores an Archive.
 ## Source transaction
 
 Environment owns one local Arena handle and constructs the retained source
-bytes, Tokenizer, and operation-local Cursor in that Arena. It passes the
+bytes, Tokenizer, and operation local Cursor in that Arena. It passes the
 Cursor, opening Documentation, source Anchor, and source semantic context
 directly to the selected installed Dialect. The Dialect uses
-`Cursor::get_arena()` for every source-backed semantic fact and returns one
+`Cursor::get_arena()` for every source backed semantic fact and returns one
 optional Monograph reference from that same Arena.
 
 Comments, Attributes, Tokens, and semantic objects may therefore retain direct
-source-backed views without proxying them into another domain. Workspace keeps
-the Arena handle only after the Monograph completes; dropping a failed handle
+source backed views without proxying them into another domain. Workspace keeps
+the Arena handle only after the Monograph completes. Dropping a failed handle
 releases the whole transaction. An embedded layer uses the same Cursor, Arena,
-and semantic context with its exact child language identity; it does not add a
+and semantic context with its exact child language identity. It does not add a
 transaction wrapper or temporarily mutate shared Dialect state.
 
 Archive reconstruction does not introduce a parallel Restoration context. A
 persistent Dialect receives its destination Arena, opaque payload, and exact
 Package context directly and returns one optional Monograph reference through
 the same ownership contract. A fixed child receives its own payload section
-with that same Package context. Source-free validation and toolchain failures are written to
+with that same Package context. Source free validation and toolchain failures are written to
 Perimortem Diagnostics instead of manufacturing a source Cursor.
 
 ## Dialect dependencies
@@ -119,11 +126,11 @@ its CPU state and functions. Shader uses Library for CPU helpers and Render for
 GPU data. The Workspace creates these dependencies once and gives each language
 the same shared instance.
 
-Dependencies only point from a higher-level language to a lower-level one.
+Dependencies only point from a higher level language to a lower level one.
 Library does not depend on Scene or Shader. Render does not depend on Shader,
 and Shader does not depend on Vulkan. This rule also applies to build targets.
 If two language targets need each other, the shared contract belongs in a
-lower-level owner.
+lower level owner.
 
 When a required language is missing, Tetrodotoxin reports the problem before it
 tries to finish the source. A dependency loop is always an invalid Workspace.
@@ -153,11 +160,11 @@ policy applies.
 A Monograph is the retained result of reading one source with one Dialect. It
 provides:
 
-- stable TTX identity
-- opening Documentation
-- the source transaction Arena that owns source bytes and its semantic graph
-- name resolution defined by its Dialect
-- link and finalize lifecycle stages
+* stable TTX identity
+* opening Documentation
+* the source transaction Arena that owns source bytes and its semantic graph
+* name resolution defined by its Dialect
+* link and finalize lifecycle stages
 
 A Monograph may expose no Types, one global Type, several independent Types,
 package members, entry policy, or another semantic context. Its role is the
@@ -170,7 +177,7 @@ layer and one Render layer. Tools can ask the outer Monograph for a layer by
 using the same Dialect instance installed in the borrowed Toolchain.
 
 This lookup is intentionally narrow. It does not search by name, follow Aliases,
-or create a wrapper around the child. A top-level Monograph answers with itself.
+or create a wrapper around the child. A top level Monograph answers with itself.
 A Scene answers with its Library child. A Shader answers with its Library or
 Render child. Any other request has no result.
 
@@ -221,13 +228,13 @@ absence without introducing a universal error enum.
 
 The Cursor owns all textual TTX contents and the ordered reports produced while
 that source is parsed, linked, and finalized. The outer Monograph and its fixed
-child layers receive that operation-local Cursor explicitly, so lexical and
+child layers receive that operation local Cursor explicitly, so lexical and
 semantic failures point into the authored text without a retained Language
 Diagnostic collection. A Monograph never keeps a Cursor after the operation.
 
-Puffer, an editor, or another source-evaluation caller presents the textual
+Puffer, an editor, or another source evaluation caller presents the textual
 reports written through that Cursor directly to the end user. Binary Archive
-validation and other source-free system or toolchain failures use Perimortem
+validation and other source free system or toolchain failures use Perimortem
 Diagnostics, whose severity and persistence policy belongs to the host. They do
 not invent an authored Token or a second Tetrodotoxin diagnostic model.
 
@@ -235,14 +242,14 @@ not invent an authored Token or a second Tetrodotoxin diagnostic model.
 
 One source participates in three stages:
 
-1. The selected Dialect constructs one optional parse-valid Monograph in the
+1. The selected Dialect constructs one optional parse valid Monograph in the
    source transaction Arena.
 2. Linking resolves every route available to that source and reports failures
    to its Cursor.
 3. Finalization performs language work that depends on linked declarations.
 
-Workspace performs all three stages in one direct-source call and publishes
-only the completed Monograph. Package is the sole multi-source model: it may
+Workspace performs all three stages in one direct source call and publishes
+only the completed Monograph. Package is the sole multiple source model: it may
 interpret all declared members first, then links every member before finalizing
 any of them, and publishes only its completed root. A concrete Monograph may
 organize its own internal dependencies while presenting the same link and
@@ -257,9 +264,9 @@ the corresponding member and leaves its contents to that language.
 
 Persistent payloads have two profiles:
 
-- `Complete` keeps the public and private observations promised by the
+* `Complete` keeps the public and private observations promised by the
   persistent Dialect.
-- `Interface` keeps only the public observations required by dependent
+* `Interface` keeps only the public observations required by dependent
   consumers.
 
 Neither profile implies executable bodies. Each Dialect retains the smallest
@@ -314,7 +321,7 @@ dialect : Package;
 
 An explicit empty comment represents intentionally empty Documentation.
 Absence is a malformed source envelope. Environment passes the exact
-source-backed Documentation directly to the selected Dialect, and the resulting
+source backed Documentation directly to the selected Dialect, and the resulting
 Monograph retains it.
 
 Concrete body grammar starts immediately afterward. A grammar rule belongs to

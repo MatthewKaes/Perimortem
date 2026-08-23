@@ -11,7 +11,6 @@
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -256,8 +255,8 @@ auto Language::Flow::Block::link(Cursor& cursor) -> Bool {
   linked_prefix_size = 0;
   auto ordered = statements.get_view();
   // One ordered pass establishes lexical visibility and reachability together.
-  // The prefix advances before each owner links, so no per-Statement context
-  // wrapper or concrete-kind recovery is needed.
+  // The prefix advances before each owner links, so each Statement can share
+  // the Block context without recovering a concrete owner category.
   for (Count index = 0; index < ordered.get_size(); index++) {
     linked_prefix_size = index;
     Statement& statement = statements.at(index);
@@ -318,20 +317,6 @@ auto Language::Flow::Block::finalize(Cursor& cursor) -> void {
   }
 }
 
-auto Language::Flow::Block::lower(Llvm::Builder& body) const -> Bool {
-  if (!body.begin_block(*this, anchor)) {
-    return False;
-  }
-
-  for (const Statement& statement : statements.get_view()) {
-    if (!statement.lower(body)) {
-      return False;
-    }
-  }
-
-  return body.end_block(*this);
-}
-
 auto Language::Flow::Block::reaches_next_statement() const -> Bool {
   auto ordered = statements.get_view();
   return ordered.is_empty() ||
@@ -340,7 +325,7 @@ auto Language::Flow::Block::reaches_next_statement() const -> Bool {
 
 auto Language::Flow::Block::resolve_context(View::Bytes route) const
     -> const Abstract& {
-  // The active prefix is a source-order link cursor: a Local becomes queryable
+  // The active prefix follows source order. A Local becomes queryable
   // only after every preceding Statement links. Keeping this phase fact on the
   // real Block avoids a wrapper context for every Statement membership.
   auto ordered = statements.get_view();

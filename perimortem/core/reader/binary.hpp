@@ -15,7 +15,7 @@ namespace Perimortem::Core::Reader {
 // protocol data and subviews that start at arbitrary byte offsets.
 //
 // On overflow or any failed read the reader enters an invalid state and all
-// subsequent reads return zero-initialized values without advancing the cursor.
+// subsequent reads return zero initialized values without advancing the cursor.
 template <Data::ByteOrder stream_endian>
 class Binary {
  public:
@@ -24,9 +24,9 @@ class Binary {
 
   // Sets the location of the read cursor.
   //
-  // An out-of-range location invalidates the reader by setting the position to
-  // Count(-1), so using `set_location(Count(-1))` is a cheap way to manually
-  // invalidate a reader.
+  // An out of range location invalidates the reader by setting the position to
+  // the maximum Count value. Converting negative one to Count offers callers a
+  // convenient spelling for that invalid state.
   constexpr auto set_location(Count location) -> void { cursor = location; }
   constexpr auto get_location() const -> Count { return cursor; }
 

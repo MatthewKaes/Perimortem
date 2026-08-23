@@ -59,8 +59,6 @@ class Slice : public Expression {
   auto fits(const Ttx::Model::Type& target) const -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  auto lower(Llvm::Builder& body) const -> Bool override;
-
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
 
   // The first operand is the scalar index or the first position of a range.

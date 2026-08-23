@@ -51,10 +51,6 @@ class Object : public Structure {
   auto persist(Archive::Writer& writer) const -> Bool override;
 
  protected:
-  auto reserve_carrier(Llvm::Program& program) const
-      -> Perimortem::Core::Option<Bool> override;
-
-  auto complete_carrier(Llvm::Program& program) const -> Bool override;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Types

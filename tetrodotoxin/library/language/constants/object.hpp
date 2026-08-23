@@ -28,8 +28,6 @@ class Object : public Constant {
     return has_same_type(rhs) && rhs.is<Object>();
   }
 
-  auto lower(Llvm::Builder& body) const -> Bool override;
-
   auto persist(Archive::Writer& writer) const -> Bool override;
 
  private:

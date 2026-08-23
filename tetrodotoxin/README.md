@@ -1,21 +1,48 @@
 # Tetrodotoxin
 
-Tetrodotoxin raises several owned language models into one linked semantic
-Workspace, using TTX as their shared graph vocabulary, then derives independent
-Terminal products from that completed meaning.
+A serious application rarely has only one kind of meaning. Runtime code,
+package composition, scene state, graphics contracts, and GPU execution each
+benefit from a language shaped around their own work. Building every one as a
+separate tool, however, leaves users with fragmented editors, build systems,
+and incompatible views of the same program.
 
-Package manifests, reusable CPU libraries, application policy, scenes, render
-contracts, shaders, and foreign interfaces can all describe one program while
-keeping the model that fits their own domain. Raising means that their original
-identities participate in shared contracts. It does not translate them into a
-second universal language model.
+Tetrodotoxin gives those languages a place to work together. Each one keeps the
+grammar and semantic model that make it useful, while the platform connects
+their shared identities in one Workspace. The result can be explored in one
+editor and carried through one Package and build experience.
 
-Seven terms make the platform easier to navigate:
+## Why build on Tetrodotoxin?
+
+Domain specific languages are wonderful at making an important problem feel
+native. They become expensive when every new language also needs its own
+package manager, editor protocol, build graph, compiler shell, and runtime
+integration.
+
+Tetrodotoxin lets language authors spend their effort on the domain instead. A
+new language can join the same source lifecycle, diagnostics, documentation,
+Packages, editor session, and Terminal production path already used by the
+rest of the platform. It still owns every rule that makes its domain distinct.
+
+A Package member, Library Type, App lifecycle, Scene signal, and Shader Stage
+can therefore meet as parts of one program without becoming variants of a
+generic declaration record. Editors and backends see their shared meaning, and
+domain aware tools can still ask richer questions of the original language
+object.
+
+Tetrodotoxin calls this **raising**. Several real language models participate in
+one linked semantic Workspace through [TTX](../ttx/README.md), then independent
+producers derive native code, GPU modules, Archives, editor data, and other
+finished products. The common layer stays focused on meaning instead of asking
+every language to adopt one representation.
+
+## A map of the platform
+
+The rest of this guide uses a small set of names:
 
 * **TTX** is the shared vocabulary for source locations, semantic identities,
   Types, values, Layouts, and Callables
 * A **Dialect** gives one source language its grammar and meaning
-* A **Monograph** is the retained result of one source and may include child
+* A **Monograph** is the lasting result of one source and may include child
   layers from languages it builds on
 * A **Workspace** keeps related Monographs and their references alive together
 * A **Package** names the sources, dependencies, resources, and durable facts
@@ -25,32 +52,20 @@ Seven terms make the platform easier to navigate:
 * **Puffer** is the user facing command and editor host for the complete
   Toolchain
 
-## Why build on Tetrodotoxin?
-
-Domain specific languages are most useful when they can preserve the concepts
-their authors care about. They become expensive when every language also needs
-its own package manager, editor protocol, build graph, compiler shell, and
-runtime integration.
-
-Tetrodotoxin separates those concerns. A Dialect owns the grammar and semantic
-objects that make its language distinctive, then exposes common TTX contracts
-where another language or tool needs to cooperate. A Package member, Library
-Type, App lifecycle, Scene signal, and Shader Stage can therefore meet without
-becoming variants of one generic declaration record.
-
-Adding a Dialect means owning more than syntax. The Dialect creates its language
-objects, contributes to Workspace completion, answers useful queries, and
-reports source errors. In return it joins the same Package graph, editor
-session, source documentation model, and Terminal production path as the
-languages already installed in the Toolchain.
-
-The responsibility split stays explicit:
+These owners divide the work so a language can be expressive without taking
+over the whole platform:
 
 * A **Dialect** owns its grammar and complete domain meaning.
 * **TTX** owns only semantic questions genuinely shared across domains.
-* **Workspace** owns lifetime, cross-Dialect linking, completion, and
+* **Workspace** owns lifetime, cross Dialect linking, completion, and
   publication.
-* A **Terminal producer** owns target specific derivation and lowering.
+* A **Terminal producer** owns one independent output through lowering,
+  projection, serialization, linking, or another product specific operation.
+
+Dialects compose what the Toolchain can understand. Terminal producers compose
+what it can produce after that meaning completes. They meet at the finished
+Workspace without sharing ownership: Dialects retain the semantic objects,
+while producers carry selected facts into products that can leave the graph.
 
 LLVM IR, SPIR-V, Package Archives, editor data, and executables are products of
 the completed meaning. None becomes the semantic source of truth for the
@@ -63,7 +78,7 @@ machinery, while a growing family of languages gains a stable place to meet.
 
 ## A family of sources
 
-Every top-level source begins with authored Documentation and selects the
+Every top level source begins with authored Documentation and selects the
 Dialect that owns its body:
 
 ```ttx
@@ -100,10 +115,10 @@ Three questions recur when Tetrodotoxin languages meet:
 3. Which Callable does a language select, and how do values fit its
    parameter and result Layouts?
 
-These questions preserve the existing TTX identities and edges. Host-neutral
+These questions preserve the existing TTX identities and edges. host neutral
 Abstract supplies total query hooks, but it does not prescribe receiver roles,
 visibility, scalar families, or defaults. Library refines Type and Addressable
-once to own those CPU-language rules without creating a second semantic
+once to own those CPU language rules without creating a second semantic
 identity or imposing them on another Dialect's Types.
 
 Together, these objects form the live program in a Workspace. Each Dialect
@@ -126,8 +141,8 @@ receiver policy.
 
 ## Dialects
 
-Tetrodotoxin provides several top-level Dialects and one embedded language
-fragment as building blocks for richer domain-specific solutions:
+Tetrodotoxin provides several top level Dialects and one embedded language
+fragment as building blocks for richer domain specific solutions:
 
 * [Package](package/README.md) declares dependencies, names source members,
   provides confined resources, and defines durable Archives.
@@ -142,9 +157,9 @@ fragment as building blocks for richer domain-specific solutions:
 * [Foreign](foreign/README.md) embeds an external ABI surface inside a source
   that supports CPU execution.
 
-Each top-level Dialect owns its source grammar and constructs concrete
+Each top level Dialect owns its source grammar and constructs concrete
 Monographs directly. Foreign is an embedded language fragment rather than an
-installed top-level Dialect.
+installed top level Dialect.
 
 Some Dialects build on layers from another Dialect. Scene contains one Library
 layer for its CPU state and functions. Shader contains a Library layer for CPU
@@ -154,7 +169,7 @@ grammar and installed dependencies stay consistent. Each child Monograph still
 owns its concrete Types and canonical Generic materializations. The Dialect
 stores no semantic identity.
 
-Dependencies always point toward the lower-level language. Scene depends on
+Dependencies always point toward the lower level language. Scene depends on
 Library. Shader depends on Library and Render. App depends on Library and Scene.
 The reverse dependencies are not allowed, and Shader does not depend on Vulkan.
 The build graph follows the same direction.
@@ -193,7 +208,7 @@ source bytes
 -> TTX Tokens
 -> selected Dialect
 -> direct Cursor, Associations, Documentation, Anchor, and context inputs
--> optional parse-valid Monograph in the source Arena
+-> optional parse valid Monograph in the source Arena
 -> link with the source Cursor
 -> finalize with the source Cursor
 -> retain the Arena and its Monograph to Associations association
@@ -206,27 +221,29 @@ an invalid source for later validation. A Package manifest supplies one fixed
 Source table. Workspace interprets all of those members, links every member
 before finalizing any member, and publishes only the completed Package root.
 Workspace retains each successful Monograph's source transaction Arena
-containing the authored bytes, source-backed values, Tokens, semantic graph,
+containing the authored bytes, source backed values, Tokens, semantic graph,
 and immutable Associations index. The operation Cursor completes before
 publication and is not exposed as completed source state. Tools ask Workspace
 for the exact completed Associations index. A compiler receives the exact
 source facts and caller owned textual error sink required by its transaction.
 
-Once the Workspace is complete, tools and compilers can use the same facts
-without translating the program into another language's model. Library compiles
-CPU layers with LLVM. Shader and Render produce
-SPIR-V for the GPU. Linker combines native objects into ELF or PE programs.
-These finished outputs no longer need the Workspace.
+Once the Workspace is complete, tools and backends can use the same facts
+without translating the program into another language's model. The LLVM
+backend walks Library layers to produce CPU code. A SPIR-V backend will walk
+Shader, Render, and their real Library child to produce GPU modules. Linker
+combines native objects into ELF or PE programs. These finished outputs no
+longer need the Workspace.
 
 ## Leaving the graph
 
 Tetrodotoxin calls an output that no longer needs the live Workspace a Terminal
-product. Linker owns native objects and executables, Shader owns GPU modules,
-and Package owns the semantic Archive.
+product. LLVM owns its object modules, SPIR-V owns GPU modules, Linker owns
+executables, and Package owns the semantic Archive.
 
-Puffer is the user-facing compiler driver and LSP application shell. It
-coordinates each requested product and presents the result while Library,
-Shader, Linker, and Package retain ownership of their formats and semantics.
+Puffer is the user facing compiler driver and LSP application shell. It
+coordinates each requested product and presents the result while backends,
+Linker, and Package retain ownership of their formats and Dialects retain their
+meaning.
 
 Compiled products keep the facts needed by their next consumer. LLVM IR,
 SPIR-V, debug data, and native objects cannot rebuild the complete language
@@ -250,7 +267,7 @@ inside a Scene.
 Restoration creates new objects rather than copying process memory. The new
 graph must expose the same names, Types, relationships, Layouts, ordering, and
 language behavior promised by the Archive. It does not need to use the same
-addresses or internal data structures. Live runtime state and source-to-debug
+addresses or internal data structures. Live runtime state and source to debug
 mapping are not stored in either profile.
 
 The [Tetrodotoxin design](tetrodotoxin_design.md) explains the Terminal and

@@ -75,11 +75,6 @@ class Composite : public Model::Type {
   auto link_aliases() -> Count override;
   auto validate_aliases(Ttx::Lexical::Cursor& cursor) const -> Bool override;
 
-  virtual auto reserve_carrier(Llvm::Program& program) const
-      -> Perimortem::Core::Option<Bool> = 0;
-
-  virtual auto complete_carrier(Llvm::Program& program) const -> Bool = 0;
-
  public:
   TTX_CONTRACT(Composite, Model::Type);
 
@@ -136,16 +131,6 @@ class Composite : public Model::Type {
   auto link_restored_initializers() -> Bool override;
 
   auto finalize_restored() -> Bool override;
-
-  auto reserve(Llvm::Program& program) const -> Bool override;
-
-  auto complete(Llvm::Program& program) const -> Bool override;
-
-  auto reserve_value(Llvm::Program& program) const -> Bool override;
-
-  auto complete_value(Llvm::Program& program) const -> Bool override;
-
-  auto lower(Llvm::Program& program) const -> Bool override;
 
   constexpr auto get_declaration_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {

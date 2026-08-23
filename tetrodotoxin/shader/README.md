@@ -1,14 +1,15 @@
 # Shader
 
-Shader is Tetrodotoxin's language for writing GPU programs that work with both
-[Render](../render/README.md) interfaces and CPU-visible
-[Library](../library/README.md) Types. It checks each stage against its Render
-contract, describes how data moves between CPU and GPU forms, and compiles the
-finished GPU program to SPIR-V.
+Shader lets GPU code live inside the same semantic project as the CPU code and
+rendering contract it serves. It implements authored
+[Render](../render/README.md) interfaces, reuses CPU visible
+[Library](../library/README.md) Types where the two sides meet, and carries the
+finished GPU program toward SPIR-V.
 
-Shader is designed for Tetrodotoxin programs whose CPU and GPU sides share an
-authored contract. It does not try to replace every standalone GLSL, HLSL, or
-platform-specific shader workflow.
+That shared contract is the reason Shader exists. A Stage can be checked against
+the program that will call it before a graphics backend chooses bindings or
+machine representation. Standalone GLSL and HLSL workflows remain useful when
+that cross language relationship is not needed.
 
 Canonical grammar reference: [Shader.g4](grammar/Shader.g4).
 
@@ -47,8 +48,8 @@ Shader Monograph
 
 Only the outer Shader Monograph appears as a Package member. A tool interested
 in Library can ask the Shader for its CPU layer, while a Render tool can ask for
-its GPU layer. A Shader-aware tool can inspect both layers and the bridge between
-them. These are the real child layers, not copies in a second Shader-only model.
+its GPU layer. A Shader aware tool can inspect both layers and the bridge between
+them. These are the real child layers, not copies in a second Shader only model.
 
 Shader completes both children as one operation. Errors from the outer Shader
 and either child appear together in source order. When a Shader is restored from
@@ -76,7 +77,7 @@ A similar Layout does not make two CPU, GPU, or ABI Types interchangeable. A
 managed Library Type cannot become a GPU value merely because their fields look
 alike.
 
-## CPU-to-GPU bridges
+## CPU to GPU bridges
 
 Every bridge names one Library Type and one Render Type, the direction data
 moves, how it is converted or marshaled, and when it must be synchronized.
@@ -93,12 +94,12 @@ side tries to reconstruct the other from offsets or reflection data.
 
 Shader follows the shared TTX access domains:
 
-- `value.name` selects an Addressable from a named Layout.
-- `context::Type` resolves one Type.
-- `receiver -> callable(arguments...)` invokes a Callable admitted by Shader.
-- `.[...]` selects named Layout flow.
+* `value.name` selects an Addressable from a named Layout.
+* `context::Type` resolves one Type.
+* `receiver -> callable(arguments...)` invokes a Callable admitted by Shader.
+* `.[...]` selects named Layout flow.
 
-The keyword forms `and` and `or` own short-circuit logic. Reserved `&` and `|`
+The keyword forms `and` and `or` own short circuit logic. Reserved `&` and `|`
 Tokens are not alternate spellings and remain available for separately defined
 bitwise GPU operations.
 
@@ -113,11 +114,11 @@ and instructions. It can emit validated SPIR-V from a completed Shader without
 reading the source again. The generated SPIR-V is an output of compilation, not
 an input to the language model.
 
-Shader keeps graphics-API-independent marshaling and synchronization
+Shader keeps graphics API independent marshaling and synchronization
 requirements. Vulkan later consumes the generated SPIR-V, Graphics batches,
 and a selected host surface. It chooses concrete offsets and descriptor
 bindings, creates handles and command buffers, synchronizes the device, and
-presents the result. Vulkan-specific rules stay in that backend instead of
+presents the result. Vulkan specific rules stay in that backend instead of
 leaking into Library, Render, or Shader's shared bridge.
 
 ## Persistence
@@ -129,7 +130,7 @@ closure plus compiled artifact locations. Shader operations and stage bodies
 remain source or live Workspace facts.
 
 Neither profile stores live backend handles, commands, device resources,
-generated SPIR-V, or source-level debugging data.
+generated SPIR-V, or source level debugging data.
 
 See [Render](../render/README.md) for the interface and reusable GPU layer,
 [Library](../library/README.md) for CPU semantics, and

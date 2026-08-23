@@ -7,7 +7,7 @@
 
 namespace Ttx::Concept {
 
-// Reference is a non-null borrowed semantic edge. It exists because C++
+// Reference is a nonnull borrowed semantic edge. It exists because C++
 // references cannot be stored directly in contiguous Views or tagged Unions,
 // while raw pointers would make an absent Abstract representable again.
 //
@@ -32,7 +32,7 @@ class Reference {
   }
 
  private:
-  // The pointer is private storage for an assignable non-null reference value.
+  // The pointer is private storage for an assignable nonnull reference value.
   // Construction requires a real Category and no API exposes nullable state.
   Category* abstract;
 };

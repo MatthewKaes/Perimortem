@@ -6,7 +6,6 @@
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -48,23 +47,6 @@ auto Builtin::View::Slice::create(
       Language::Parameter::create_synthetic(domain, "count"_view, count);
   return domain.construct_from<Slice>(
       [&]() -> Slice { return Slice(self, start, size, result); });
-}
-
-auto Builtin::View::Slice::lower_call(
-    Llvm::Builder& body,
-    const Ttx::Model::Pack& result,
-    Core::View::Vector<LLVMValueRef> inputs,
-    Core::Option<const Ttx::Model::Pack&>) const -> Bool {
-  BAIL_IF(inputs.get_size() != 3);
-
-  auto receiver = get_parameters().get_abstract(0);
-  auto receiver_parameter =
-      receiver ? receiver->select<Ttx::Model::Addressable>()
-               : Core::Option<const Ttx::Model::Addressable&>();
-  return receiver_parameter &&
-         body.slice_view(
-             result, result_type, receiver_parameter->get_type(), inputs[0],
-             inputs[1], inputs[2]);
 }
 
 static auto select_unsigned(const Ttx::Model::Pack& values, Count index)

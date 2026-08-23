@@ -11,7 +11,6 @@
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -546,71 +545,4 @@ auto Language::Field::cache_constant() const -> Bool {
         constant_state = ConstantState::Failed;
       });
   return constant_state == ConstantState::Folded;
-}
-
-auto Language::Field::reserve_declaration(Llvm::Program& program) const
-    -> Bool {
-  Bool type_reserved = Model::Addressable::reserve_declaration(program);
-  if (!type_reserved) {
-    return False;
-  }
-
-  if (writability != Writability::Full) {
-    return True;
-  }
-
-  const auto& globals = program.get_globals();
-  auto reserved = globals.reserve_static(program, *this);
-  return reserved ? True : False;
-}
-
-auto Language::Field::complete_declaration(Llvm::Program& program) const
-    -> Bool {
-  Bool type_completed = Model::Addressable::complete_declaration(program);
-  if (!type_completed) {
-    return False;
-  }
-
-  if (writability != Writability::Full) {
-    return True;
-  }
-
-  const auto& globals = program.get_globals();
-  if (!globals.complete(program, *this)) {
-    return False;
-  }
-
-  return program.get_debug().global(program, *this, definition, True, True);
-}
-
-auto Language::Field::lower_declaration(Llvm::Program& program) const -> Bool {
-  if (writability != Writability::Full) {
-    return True;
-  }
-
-  const auto& globals = program.get_globals();
-  Option<const Model::Pack&> value = get_initializer();
-  if (!value) {
-    auto created = get_type().create_default(program.get_arena());
-    if (!created) {
-      return False;
-    }
-
-    value = *created;
-  }
-
-  auto initializer = globals.begin_initializer(program, *this);
-  if (!initializer) {
-    return False;
-  }
-
-  Llvm::Body native_body(program, *this, *initializer);
-  Llvm::Builder body(native_body);
-
-  Bool lowered = value->lower(body);
-  if (!lowered) {
-    return False;
-  }
-
-  return globals.end_initializer(native_body, *this, *value);
 }

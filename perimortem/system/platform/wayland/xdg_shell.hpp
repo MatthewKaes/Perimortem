@@ -11,7 +11,7 @@
 namespace Perimortem::System::Platform::Wayland {
 
 // Owns the XDG protocol proxies that turn one Wayland surface into a toplevel.
-// Protocol objects are generic Wayland proxies at the ABI boundary; keeping
+// Protocol objects are generic Wayland proxies at the ABI boundary. Keeping
 // those handles here avoids manufacturing incomplete C++ object types for each
 // XML protocol name.
 class XdgShell {

@@ -44,8 +44,6 @@ class Index : public Expression {
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  auto lower_write_target(Llvm::Builder& body) const -> Bool override;
-
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
   constexpr auto get_index() const -> const Expression& { return first; }
   constexpr auto get_count() const

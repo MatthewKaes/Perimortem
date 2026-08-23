@@ -30,7 +30,7 @@ compiler use the same target and host boundary.
 The Linux backend provides Linux process and terminal support together with a
 Wayland window and event loop. The Windows backend provides the matching
 services through Win32. Both implement the same System window, input snapshot,
-and presentation-surface contracts.
+and presentation surface contracts.
 
 Application startup selects one backend. It may pass that backend's native
 surface to Vulkan, but Vulkan does not take ownership of the window or event

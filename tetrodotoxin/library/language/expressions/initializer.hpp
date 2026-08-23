@@ -39,8 +39,8 @@ class Initializer : public Expression {
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<Model::Pack>>
           values) -> Initializer&;
 
-  // An Interface-restored aggregate delegates construction to its provider's
-  // native Type operation. The Initializer remains the produced Pack identity;
+  // A restored Interface aggregate delegates construction to its provider's
+  // native Type operation. The Initializer remains the produced Pack identity.
   // no semantic Callable or copied Field model is introduced.
   static auto create_provider(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -71,10 +71,14 @@ class Initializer : public Expression {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  auto lower(Llvm::Builder& body) const -> Bool override;
-
   auto get_completed_values() const
       -> Perimortem::Core::Option<const Model::Pack&>;
+
+  constexpr auto get_arguments() const -> const Model::Pack& {
+    return arguments;
+  }
+
+  constexpr auto uses_provider() const -> Bool { return provider; }
 
  protected:
   auto evaluate() -> Perimortem::Utility::Result<

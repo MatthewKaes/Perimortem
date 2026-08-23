@@ -11,7 +11,7 @@
 namespace Perimortem::Graphics::Render {
 
 // A borrowed shader module selected for one graphics pipeline stage. Keeping
-// the compiled module as 32-bit words preserves its alignment and lets a
+// the compiled module as 32 bit words preserves its alignment and lets a
 // backend derive the byte count without trusting a second size value. An empty
 // entry name selects the conventional `main` entry point.
 struct Module {

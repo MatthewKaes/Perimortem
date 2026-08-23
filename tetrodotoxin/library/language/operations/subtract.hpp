@@ -23,8 +23,6 @@ class Subtract : public Operation {
       Model::Pack& left,
       Ttx::Lexical::Span left_span) -> Perimortem::Core::Option<Expression&>;
 
-  auto lower(Llvm::Builder& body) const -> Bool override;
-
  protected:
   auto evaluate_constants(Perimortem::Memory::Allocator::Arena& domain)
       -> Perimortem::Utility::Result<

@@ -191,7 +191,7 @@ auto Language::Model::Layout::restore(
     Option<TypeReference> reference;
     if (*has_reference == 1) {
       // TypeReference restoration does not resolve its route. The Layout's
-      // source-free link barrier receives the real host after every member has
+      // source free link barrier receives the real host after every member has
       // reserved its declaration identities.
       auto restored = TypeReference::restore(contents, arena, context);
       BAIL_IF(!restored);

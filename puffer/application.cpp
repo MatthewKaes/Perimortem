@@ -12,11 +12,11 @@
 
 #include "perimortem/system/file.hpp"
 
+#include "backend/llvm/representation/program.hpp"
 #include "tetrodotoxin/app/dialect.hpp"
 #include "tetrodotoxin/app/language/monograph.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/llvm/program.hpp"
 #include "tetrodotoxin/linker/manifest.hpp"
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
@@ -25,6 +25,7 @@
 
 using namespace Perimortem;
 using namespace Tetrodotoxin;
+using namespace Tetrodotoxin::Backend;
 
 static auto value(const System::Args::Values& arguments, Core::View::Bytes name)
     -> Core::View::Bytes {
@@ -210,20 +211,19 @@ auto Puffer::Application::run() const -> S32 {
   }
 
   Ttx::Lexical::Errors errors;
-  Library::Llvm::Program target(
-      arena, errors, "<app-entry>"_view, {}, Library::Llvm::Target::X86_64SysV,
-      Library::Llvm::Debug::Level::None, Library::Llvm::Unit());
-  if (!target.initialize() ||
-      !app->get_program().lower(target, *entry_symbol)) {
+  Llvm::Representation::Program target(
+      arena, errors, "<app-entry>"_view, {}, Llvm::Target::X86_64SysV,
+      Llvm::Representation::Debug::Level::None, Llvm::Abi::Unit());
+  if (!target.initialize() || !target.create_process_entry(*entry_symbol)) {
     return 1;
   }
 
   return target.compile().visit(
-      [&](const Library::Llvm::Products& products) -> S32 {
+      [&](const Llvm::Products& products) -> S32 {
         return publish(ir_path, products.get_llvm_ir()) &&
                        publish(object_path, products.get_object())
                    ? 0
                    : 1;
       },
-      [](const Library::Llvm::Failure&) -> S32 { return 1; });
+      [](const Llvm::Failure&) -> S32 { return 1; });
 }

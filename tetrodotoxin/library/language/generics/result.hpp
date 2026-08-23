@@ -10,7 +10,7 @@
 
 namespace Tetrodotoxin::Library::Language::Generics {
 
-// Result is the exact value-or-error formula. Materialization rejects identical
+// Result is the exact value or error formula. Materialization rejects identical
 // alternatives because receiving raw flow must select exactly one state.
 class Result : public Generic {
  public:

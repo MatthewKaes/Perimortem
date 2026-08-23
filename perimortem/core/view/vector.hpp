@@ -8,7 +8,7 @@
 
 namespace Perimortem::Core::View {
 
-// A read-only view of continuous data with possible endianness and structure.
+// A read only view of continuous data with possible endianness and structure.
 //
 // Structured data can be converted to Bytes data in order to interperet it
 // at a byte level, however this is only valid in memory. To write and read

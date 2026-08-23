@@ -203,12 +203,6 @@ auto Language::Program::link_restored(Abstract& context) -> Bool {
   return True;
 }
 
-auto Language::Program::lower(
-    Tetrodotoxin::Library::Llvm::Program& target,
-    View::Bytes entry_symbol) const -> Bool {
-  return entry && target.create_process_entry(entry_symbol);
-}
-
 auto Language::Program::resolve_context(View::Bytes) const -> const Abstract& {
   return Invalid::get_invalid();
 }

@@ -10,7 +10,6 @@
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -63,27 +62,6 @@ static auto signed_inverse(
 TTX_UNARY_PARSE(Negate);
 
 TTX_UNARY_OP(Negate);
-
-auto Language::Operations::Negate::lower(Llvm::Builder& body) const -> Bool {
-  auto folded = lower_folded(body);
-  if (folded) {
-    return *folded;
-  }
-
-  const Expression& operand = get_inputs().get_data()[0].get();
-  auto carrier = get_type().resolve().select<Ttx::Model::Type>();
-
-  if (!carrier) {
-    return False;
-  }
-
-  Bool lowered = lower_inputs(body);
-  if (!lowered) {
-    return False;
-  }
-
-  return body.negate(*carrier, *this, operand);
-}
 
 auto Language::Operations::Negate::select_type(const Ttx::Concept::Abstract&)
     const -> Core::Option<const Language::Model::Type&> {

@@ -62,10 +62,6 @@ class Foreign final : public Ttx::Concept::Abstract {
 
     auto link_restored_declaration_type() -> Bool override;
 
-    auto reserve_declaration(Llvm::Program& program) const -> Bool override;
-
-    auto complete_declaration(Llvm::Program& program) const -> Bool override;
-
     auto persist(Archive::Writer& writer) const -> Bool override;
 
     TTX_DOCUMENTATION(get_definition().get_documentation());
@@ -144,10 +140,6 @@ class Foreign final : public Ttx::Concept::Abstract {
     auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
 
     auto link_restored_declaration_signature() -> Bool override;
-
-    auto reserve_declaration(Llvm::Program& program) const -> Bool override;
-
-    auto complete_declaration(Llvm::Program& program) const -> Bool override;
 
     auto persist(Archive::Writer& writer) const -> Bool override;
 
@@ -234,12 +226,6 @@ class Foreign final : public Ttx::Concept::Abstract {
   auto link_restored() -> Bool;
 
   auto finalize_restored() -> Bool;
-
-  auto reserve(Llvm::Program& program) const -> Bool;
-
-  auto complete(Llvm::Program& program) const -> Bool;
-
-  auto lower(Llvm::Program& program) const -> Bool;
 
   auto persist(Archive::Writer& writer) const -> Bool;
 

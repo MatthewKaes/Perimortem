@@ -11,7 +11,6 @@
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 
@@ -115,48 +114,4 @@ auto Types::Fixed::create_fitted(Allocator::Arena& arena, Model::Pack& source)
     return create_bytes(arena, *this, values.get_view());
   }
   return Model::Pack::create_folded(arena, values.get_view());
-}
-
-auto Types::Fixed::reserve(Llvm::Program& program) const -> Bool {
-  const auto& carriers = program.get_carriers();
-  auto reserved = carriers.reserve(program, *this, Llvm::Carriers::Kind::Fixed);
-  if (!reserved) {
-    return False;
-  }
-
-  if (!*reserved) {
-    return True;
-  }
-
-  Bool element_reserved = element.reserve(program);
-  if (!element_reserved) {
-    return False;
-  }
-
-  return reserve_callables(program);
-}
-
-auto Types::Fixed::complete(Llvm::Program& program) const -> Bool {
-  const auto& carriers = program.get_carriers();
-  auto began = carriers.begin_completion(program, *this);
-  if (!began) {
-    return False;
-  }
-
-  if (!*began) {
-    return True;
-  }
-
-  Bool completed = element.complete(program);
-  if (!completed) {
-    return False;
-  }
-
-  if (!complete_callables(program)) {
-    return False;
-  }
-
-  Bool carrier_completed =
-      carriers.complete(program, *this, Llvm::Carriers::Kind::Fixed);
-  return carrier_completed && complete_debug(program);
 }

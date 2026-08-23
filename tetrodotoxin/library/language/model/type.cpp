@@ -6,7 +6,6 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -110,33 +109,4 @@ auto Language::Model::Type::resolve_type_call(
   }
 
   return Invalid::get_invalid();
-}
-
-auto Language::Model::Type::reserve_callables(Llvm::Program& program) const
-    -> Bool {
-  for (const Reference<Abstract>& binding : get_callables()) {
-    auto callable = binding.get().resolve().select<Language::Model::Callable>();
-    if (!callable || !callable->reserve_declaration(program)) {
-      return False;
-    }
-  }
-
-  return True;
-}
-
-auto Language::Model::Type::complete_callables(Llvm::Program& program) const
-    -> Bool {
-  for (const Reference<Abstract>& binding : get_callables()) {
-    auto callable = binding.get().resolve().select<Language::Model::Callable>();
-    if (!callable || !callable->complete_declaration(program)) {
-      return False;
-    }
-  }
-
-  return True;
-}
-
-auto Language::Model::Type::complete_debug(Llvm::Program& program) const
-    -> Bool {
-  return program.get_debug().type(*this, get_declaration_anchor());
 }

@@ -40,18 +40,11 @@ class Structure : public Composite {
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
-  auto lower_provider(
-      Llvm::Builder& body,
-      const Model::Pack& result,
-      const Model::Pack& arguments) const -> Bool override;
-
-  auto reserve(Llvm::Program& program) const -> Bool override;
-
-  auto complete(Llvm::Program& program) const -> Bool override;
-
-  auto lower(Llvm::Program& program) const -> Bool override;
-
   auto persist(Archive::Writer& writer) const -> Bool override;
+
+  constexpr auto has_initialization_provider() const -> Bool {
+    return provides_initialization;
+  }
 
  protected:
   Structure(
@@ -65,11 +58,6 @@ class Structure : public Composite {
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Language::Definition& definition,
       Ttx::Lexical::Token kind_token) -> Bool;
-
-  auto reserve_carrier(Llvm::Program& program) const
-      -> Perimortem::Core::Option<Bool> override;
-
-  auto complete_carrier(Llvm::Program& program) const -> Bool override;
 
   constexpr auto owns_initialization() const -> Bool {
     return provides_initialization;

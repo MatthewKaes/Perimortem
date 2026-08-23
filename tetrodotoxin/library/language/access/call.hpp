@@ -59,7 +59,6 @@ class Call : public Expression {
   auto get_layout() const -> const Ttx::Concept::Layout& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
-  auto lower(Llvm::Builder& body) const -> Bool override;
 
   auto get_callable() const -> Perimortem::Core::Option<const Model::Callable&>;
 
@@ -80,7 +79,7 @@ class Call : public Expression {
     return name_token;
   }
 
- private:
+ public:
   // Each fitted input keeps the parameter and the slice of produced values that
   // reached it. Lowering can reuse that decision instead of repeating argument
   // matching.
@@ -112,6 +111,9 @@ class Call : public Expression {
     Count size;
   };
 
+  constexpr auto get_fitted_inputs() const { return fitted_inputs.get_view(); }
+
+ private:
   constexpr Call(
       Perimortem::Memory::Allocator::Arena& domain,
       Expression& receiver,

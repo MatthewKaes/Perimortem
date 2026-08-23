@@ -5,7 +5,6 @@
 
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
@@ -253,6 +252,7 @@ auto Language::Access::Swizzle::link(
             "Select exact names admitted by the receiver Type Layout."_view);
         return False;
       }
+
       candidates.insert(Reference<const Abstract>(*candidate));
     }
   }
@@ -275,6 +275,7 @@ auto Language::Access::Swizzle::link(
         changed = !expression || &expression->get_result() != &candidate;
       }
     }
+
     if (changed) {
       cursor.create_expression_error(
           get_anchor(),
@@ -374,25 +375,4 @@ auto Language::Access::Swizzle::finalize(Cursor& cursor) -> void {
   // describe selected members without creating another evaluation inventory.
   receiver.finalize(cursor);
   Expression::finalize(cursor);
-}
-
-auto Language::Access::Swizzle::lower(Llvm::Builder& body) const -> Bool {
-  auto folded = lower_folded(body);
-  if (folded) {
-    return *folded;
-  }
-
-  Bool receiver_lowered = receiver.lower(body);
-  if (!receiver_lowered) {
-    return False;
-  }
-
-  for (Reference<const Abstract> projection : projections.get_view()) {
-    auto pack = projection.get().select<Language::Model::Pack>();
-    if (!pack || !pack->lower(body)) {
-      return False;
-    }
-  }
-
-  return body.compose(*this);
 }

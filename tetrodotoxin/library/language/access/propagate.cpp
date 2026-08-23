@@ -5,7 +5,6 @@
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/flow/scope.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -135,25 +134,6 @@ auto Language::Access::Propagate::finalize(Cursor& cursor) -> void {
   receiver.finalize(cursor);
   escape.get().finalize(cursor);
   Expression::finalize(cursor);
-}
-
-auto Language::Access::Propagate::lower(Llvm::Builder& body) const -> Bool {
-  auto folded = lower_folded(body);
-  if (folded) {
-    return *folded;
-  }
-
-  if (!receiver_type || !continuation_type) {
-    return False;
-  }
-
-  Bool receiver_lowered = receiver.lower(body);
-  if (!receiver_lowered) {
-    return False;
-  }
-
-  return receiver_type->get().lower_propagation(
-      body, *this, receiver, escape.get());
 }
 
 auto Language::Access::Propagate::evaluate()

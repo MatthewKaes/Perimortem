@@ -13,11 +13,11 @@
 namespace Perimortem::Graphics::Render {
 
 // A borrowed description of one graphics pipeline. Program groups the shader
-// modules with their host-input and resource layouts, but owns none of the
+// modules with their host input and resource layouts, but owns none of the
 // referenced arrays or names. Those sources must remain alive only while a
 // backend reads the description to construct its independently owned program.
 //
-// Per-draw values such as vertex counts and host-input bytes intentionally do
+// Per draw values such as vertex counts and host input bytes intentionally do
 // not live here. Keeping those transactions separate prevents a reusable
 // pipeline description from accumulating mutable submission state.
 struct Program {

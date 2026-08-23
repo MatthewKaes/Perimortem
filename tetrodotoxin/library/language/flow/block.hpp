@@ -19,8 +19,8 @@
 namespace Tetrodotoxin::Library::Language::Flow {
 
 // Block is one authored Function body or nested lexical scope. It retains
-// identity-free Statement memberships in source order while every entry keeps
-// its exact graph object and source-backed Documentation. Its lexical parent,
+// Statement memberships carry no identity while every entry keeps its exact
+// graph object and Documentation backed by source. Its lexical parent,
 // owning Function, and host Type remain independent facts.
 // `{` admits an empty or multi Statement body, while `:` admits exactly one
 // Statement without constructing a different semantic owner.
@@ -47,8 +47,6 @@ class Block : public Scope {
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
-
-  auto lower(Llvm::Builder& body) const -> Bool;
 
   auto reaches_next_statement() const -> Bool;
 

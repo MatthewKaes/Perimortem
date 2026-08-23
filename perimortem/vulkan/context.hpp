@@ -41,7 +41,7 @@ class Context {
   auto find_memory_type(U32 type_filter, VkMemoryPropertyFlags properties) const
       -> U32;
 
-  // One-shot transfer commands are scoped by the caller: begin records a
+  // One shot transfer commands are scoped by the caller: begin records a
   // transient command buffer, submit ends it and blocks until the GPU is done.
   auto begin_immediate_commands() const -> VkCommandBuffer;
   auto submit_immediate_commands(VkCommandBuffer command_buffer) const -> void;

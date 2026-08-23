@@ -8,12 +8,12 @@
 
 namespace Perimortem::Core::View {
 
-// A raw read-only view of continuous bytes with no endianness.
+// A raw read only view of continuous bytes with no endianness.
 //
 // Byte views are typically used as strings but this is only valid when the
 // encoding is ASCII. The main purpose of a byte view is to guarantee the data
 // lie on 1 byte boundries (for instance ASCII is 7 bit aligned at the byte).
-// Any optimized vectorization opperations will break UTF-8 strings unless you
+// Any optimized vectorization opperations will break UTF 8 strings unless you
 // know exactly what you are doing (scanning for an exact byte).
 //
 // Since the structure of the data is undefined, Bytes data does not

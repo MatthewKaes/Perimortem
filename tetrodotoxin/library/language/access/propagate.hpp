@@ -36,8 +36,6 @@ class Propagate : public Expression {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  auto lower(Llvm::Builder& body) const -> Bool override;
-
   constexpr auto get_receiver() const -> const Expression& { return receiver; }
 
   constexpr auto get_escape() const -> const Model::Pack& {

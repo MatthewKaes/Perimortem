@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/constants/result.hpp"
 
-#include "tetrodotoxin/library/llvm/builder.hpp"
-
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library::Language;
@@ -111,9 +109,4 @@ auto Constants::Result::equals(const Constant& rhs) const -> Bool {
                  have_equal_values(payload.get(), selected->payload.get())
              ? True
              : False;
-}
-
-auto Constants::Result::lower(Llvm::Builder& body) const -> Bool {
-  Bool lowered = prepare_carrier(body) && payload.get().lower(body);
-  return lowered && body.result(get_type(), *this, payload.get());
 }

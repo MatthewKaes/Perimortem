@@ -1,13 +1,14 @@
 # Render
 
-Render is Tetrodotoxin's language for describing the shared interface between a
-program and its GPU stages. A Render source names the values, resources, and
-stages that make up a rendering format. A Shader then provides one implementation
-of that format.
+CPU code, GPU code, and a renderer all need to agree about the data that crosses
+their boundary. Render gives that agreement an authored language. A Render
+source names the values, resources, and Stages that make up a format, and a
+Shader supplies an implementation of that contract.
 
-The contract is checked before Tetrodotoxin chooses a GPU representation. This
-lets CPU code, Shader code, and different graphics backends agree on the same
-meaning without treating one backend's reflection data as the source of truth.
+Tetrodotoxin checks the agreement before choosing a GPU representation. CPU
+code, Shader code, and different graphics backends can therefore share one
+meaning without treating reflection data from a particular backend as the
+source of truth.
 
 Canonical grammar reference: [Render.g4](grammar/Render.g4).
 
@@ -20,24 +21,24 @@ dialect : Render;
 
 A Render contract can declare:
 
-- ordinary values
-- constant and push data
-- resources and their binding Attributes
-- required Shader Stages
-- parameter and result Layouts for each Stage
-- built-in values, locations, sets, slots, and access capabilities
+* ordinary values
+* constant and push data
+* resources and their binding Attributes
+* required Shader Stages
+* parameter and result Layouts for each Stage
+* built in values, locations, sets, slots, and access capabilities
 
 Each declaration stays independently inspectable. For example, a resource
 binding that needs both a set and a slot uses two Attributes instead of hiding
-them inside one backend-specific record.
+them inside one backend specific record.
 
 Render defines these Attribute keys:
 
-- `@set(number)`, `@slot(number)`, and `@location(number)` carry unsigned
+* `@set(number)`, `@slot(number)`, and `@location(number)` carry unsigned
   indices.
-- `@builtin("name")`, `@address_space("name")`, and
+* `@builtin("name")`, `@address_space("name")`, and
   `@capability("name")` carry names interpreted by Render.
-- `@read` and `@write` state independent resource capabilities.
+* `@read` and `@write` state independent resource capabilities.
 
 Each Attribute has at most one scalar value. Duplicate keys on one declaration
 are invalid. Shader uses the same keys when it implements the corresponding
@@ -46,15 +47,15 @@ share TTX Attribute storage.
 
 Placement is part of each Attribute's meaning:
 
-- `@set` and `@slot` apply only to a resource. When either is present, the
+* `@set` and `@slot` apply only to a resource. When either is present, the
   resource supplies both parts of its logical binding.
-- `@location` and `@builtin` apply only to a named Stage parameter or result
+* `@location` and `@builtin` apply only to a named Stage parameter or result
   entry. One entry cannot declare both.
-- `@address_space` applies to a resource or push value whose storage domain is
+* `@address_space` applies to a resource or push value whose storage domain is
   part of the Render contract.
-- `@capability` applies to a Stage or to the enclosing Render Structure when
+* `@capability` applies to a Stage or to the enclosing Render Structure when
   the requirement covers all of its nested Stages.
-- `@read` and `@write` apply only to resources. They are independent, so a
+* `@read` and `@write` apply only to resources. They are independent, so a
   contract can require either direction or both.
 
 Render rejects an Attribute on the wrong kind of declaration, a value of the
@@ -81,9 +82,9 @@ requirements.
 
 Fields, Types, and Stage Callables use their corresponding access domains:
 
-- named values are selected with `.`
-- nested Types are selected with `::`
-- Stage Callables are selected and invoked with `->` where the consuming
+* named values are selected with `.`
+* nested Types are selected with `::`
+* Stage Callables are selected and invoked with `->` where the consuming
   language permits invocation.
 
 ## Shader relationship
@@ -94,13 +95,13 @@ contains one Render layer built by the Render language already installed in the
 Workspace. That layer holds the GPU Types, resources, Layouts, expressions, and
 stage bodies used by the Shader.
 
-Tools can inspect either a top-level Render source or the Render layer inside a
+Tools can inspect either a top level Render source or the Render layer inside a
 Shader. Both use the same installed Render language, so generic Types and other
 shared identities remain consistent. There is no copied Shader model or second
 Render language hidden inside Shader.
 
 Render does not know about Shader or Vulkan. Shader builds on Render, and a
-graphics backend later turns the completed facts into target-specific bindings
+graphics backend later turns the completed facts into target specific bindings
 and resources.
 
 Runtime graphics submission is a separate consumer of completed render facts.
@@ -116,5 +117,5 @@ source or live Workspace facts.
 
 When Render belongs to a Shader, it uses the same Complete or Interface profile
 as its parent. Render does not store chosen GPU storage classes, target bindings,
-SPIR-V words, live backend handles, or source-level debugging data in either
+SPIR-V words, live backend handles, or source level debugging data in either
 profile.

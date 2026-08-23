@@ -71,7 +71,6 @@
         "build",
         "//validation:unit_tests",
         "--config=debug",
-        "--jobs=2",
         "--experimental_total_worker_memory_limit_mb=4096"
       ],
       "group": "build",
@@ -91,7 +90,6 @@
         "build",
         "//apps/ttx/echo:echo",
         "--config=debug",
-        "--jobs=2",
         "--experimental_total_worker_memory_limit_mb=4096"
       ],
       "group": "build",

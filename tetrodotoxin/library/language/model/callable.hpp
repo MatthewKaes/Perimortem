@@ -6,7 +6,6 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/model/callable.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model {
@@ -19,8 +18,8 @@ class Callable : public Ttx::Model::Callable {
 
   // A selected Self Callable may impose receiver authority beyond exact Type
   // binding. Ordinary invocations accept the resolved receiver unchanged.
-  // Borrowing built-ins use this boundary to require writable storage without
-  // teaching Call about a concrete declaration or built-in kind.
+  // Borrowing intrinsic Callables use this boundary to require writable
+  // storage without teaching Call about a concrete declaration category.
   virtual auto accepts_receiver(
       const Ttx::Concept::Abstract&,
       const Ttx::Concept::Abstract&) const -> Bool {
@@ -45,20 +44,7 @@ class Callable : public Ttx::Model::Callable {
 
   virtual auto link_restored_declaration_signature() -> Bool { return True; }
 
-  virtual auto reserve_declaration(Llvm::Program& program) const -> Bool;
-
-  virtual auto complete_declaration(Llvm::Program& program) const -> Bool;
-
-  virtual auto lower_declaration(Llvm::Program&) const -> Bool { return True; }
-
   virtual auto persist(Archive::Writer& writer) const -> Bool;
-
-  virtual auto lower_call(
-      Llvm::Builder& body,
-      const Ttx::Model::Pack& result,
-      Perimortem::Core::View::Vector<LLVMValueRef> inputs,
-      Perimortem::Core::Option<const Ttx::Model::Pack&> receiver_source) const
-      -> Bool;
 
   // Generated semantic operations may expose an immutable result without
   // changing ordinary invocation. Absence keeps the Call dynamic.

@@ -16,8 +16,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // its complete folded payload Pack without copying any producer identity.
 class Option : public Constant {
  public:
-  auto lower(Llvm::Builder& body) const -> Bool override;
-
   auto persist(Archive::Writer& writer) const -> Bool override;
 
   TTX_CONTRACT(Option, Constant);

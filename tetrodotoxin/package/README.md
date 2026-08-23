@@ -1,19 +1,19 @@
 # Package
 
-Package gives Tetrodotoxin sources stable names, pinned dependencies, confined
-resources, and durable build products. It fills a role similar to a package
-manifest and compiled module cache, but it never derives identity from a folder
-layout.
+Paths are useful for finding source, but they are a fragile way to name part of
+a program. Package gives Tetrodotoxin sources stable semantic names, pinned
+dependencies, confined resources, and durable products that survive a folder
+being reorganized.
 
-Authors declare source routes and dependency versions explicitly. A source can
-then move to another file without changing the name used by the rest of the
-program. The same Package can also be restored from an Archive when the original
-source is not available.
+Authors choose source routes and dependency versions explicitly. The rest of
+the program can keep referring to `Utilities` even if `utilities.ttx` moves, and
+the same Package can later be restored from an Archive when its original source
+is unavailable.
 
-Package support is part of the Tetrodotoxin toolchain. A Workspace interpreting
-one standalone source does not need to install or use the Package Dialect. A
-package compilation, resource request, or Archive restoration installs Package
-with the languages used by that operation.
+Package is available when a project needs composition and durability, while a
+single standalone source can remain pleasantly small. Package compilation,
+resource access, and Archive restoration install it alongside the languages
+used by that operation.
 
 Canonical grammar reference: [Package.g4](grammar/Package.g4).
 
@@ -47,9 +47,9 @@ so each authored route must be unique.
 resolve LocalName : External.Package.Identity = "Major.Minor";
 ```
 
-- `LocalName` is the Alias used inside this Package and follows Type spelling.
-- `External.Package.Identity` is the durable Package coordinate.
-- `Major.Minor` is the pinned version.
+* `LocalName` is the Alias used inside this Package and follows Type spelling.
+* `External.Package.Identity` is the durable Package coordinate.
+* `Major.Minor` is the pinned version.
 
 Dots inside the external Package identity are manifest coordinate syntax, not
 Library Address access. Package selection uses the complete identity and pinned
@@ -83,7 +83,7 @@ through the Package context to the retained source binding. The quoted path
 only locates bytes. A filename, directory name, or manifest order never creates
 a semantic name implicitly.
 
-Source routes use Type-style segments joined by `::`. Library Type positions
+Source routes use Type style segments joined by `::`. Library Type positions
 and `using` declarations follow the route and then check that it names the kind
 of object they require.
 
@@ -91,24 +91,24 @@ Paths are normalized relative to the opened Package root. Empty, rooted,
 escaping, or invalid paths are rejected. Two authored paths that normalize to
 the same route identify the same input and therefore cannot declare two Sources.
 
-## Multi-source completion
+## Multiple source completion
 
 The Package Monograph is a description table. It retains the authored
 Dependency and Source values and maps their local names to borrowed completed
-Monographs; it owns none of those Monographs and contains no import state or
-completed-root cache.
+Monographs. It owns none of those Monographs and contains no import state or
+completed root cache.
 
 Workspace reads exactly that root manifest's fixed Source table. Each entry gets
-one source transaction Arena and one optional parse-valid Monograph. A member
+one source transaction Arena and one optional parse valid Monograph. A member
 cannot add another Package import. After all entries parse, Workspace links
 every member before finalizing any member. Success transfers every completed
-owner into Workspace lifetime and publishes only the Package root; failure
+owner into Workspace lifetime and publishes only the Package root. Failure
 releases every candidate Arena.
 
 ## Package context
 
 The Package Monograph exposes dependencies and Sources through TTX Aliases. A
-Source Alias borrows the Workspace-owned Monograph produced by that source's
+Source Alias borrows the Workspace owned Monograph produced by that source's
 language. A dependency Alias borrows an exact Package identity and version that
 was already completed in the Workspace. Authored import never recursively
 restores or imports a missing dependency.
@@ -135,8 +135,8 @@ $[resources/icon.png]
 $[resources/table.bin]:[0, 64]
 ```
 
-`$[...]` is one Package-reserved atomic contextual instruction. Package parses
-the path inside the brackets; it is not a qualified semantic name and does not
+`$[...]` is one Package reserved atomic contextual instruction. Package parses
+the path inside the brackets. It is not a qualified semantic name and does not
 permit other `resolve_context` implementations to consume punctuation or
 multiple name segments.
 
@@ -176,20 +176,20 @@ It contains:
 
 1. Package identity and version
 2. ordered dependency requests
-3. the selected Archive profile
-4. ordered member names, Dialect names, and language-owned member data
+3. The selected Archive profile
+4. ordered member names, Dialect names, and language owned member data
 5. ordered native artifact identifiers
 6. exported semantic routes with artifact and symbol locators
 7. target ABI fingerprints and selected native imports for those artifacts
 
-Package arranges these records but does not interpret language-owned member
+Package arranges these records but does not interpret language owned member
 data.
 
 Package admits two profiles:
 
-- `Complete` stores the public and private query contracts selected by every
+* `Complete` stores the public and private query contracts selected by every
   member Dialect.
-- `Interface` stores public Types, Layouts, Fields, Callable signatures,
+* `Interface` stores public Types, Layouts, Fields, Callable signatures,
   constants, ABI requests, relationships, and compiled artifact locations. It
   leaves private observations out.
 
@@ -241,15 +241,15 @@ the installed language dependencies separately and retains every reconstructed
 Monograph handle.
 
 Each Dialect receives its opaque member payload and the same Package context
-directly in one Workspace-owned reconstruction Arena; there is no separate
+directly in one Workspace owned reconstruction Arena. There is no separate
 Restoration transaction wrapper. It returns one optional Monograph reference
 from that Arena. If a child layer fails, its outer member fails as well.
 Workspace links every member before finalizing any member and publishes nothing
 unless the complete restoration succeeds. Package records only borrowed member
 mappings. A later operation therefore retries from clean state.
 
-Archive validation and other source-free system or toolchain failures use
-Perimortem Diagnostics. They do not create a textual Cursor or a Package-local
+Archive validation and other source free system or toolchain failures use
+Perimortem Diagnostics. They do not create a textual Cursor or a Package local
 diagnostic collection without authored text.
 
 Restoration creates new objects. They must expose the same names, Types,

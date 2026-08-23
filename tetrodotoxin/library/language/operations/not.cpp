@@ -7,7 +7,6 @@
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -40,22 +39,6 @@ static auto make_result(
 TTX_UNARY_PARSE(Not);
 
 TTX_UNARY_OP(Not);
-
-auto Language::Operations::Not::lower(Llvm::Builder& body) const -> Bool {
-  auto folded = lower_folded(body);
-  if (folded) {
-    return *folded;
-  }
-
-  const Expression& operand = get_inputs().get_data()[0].get();
-
-  Bool lowered = lower_inputs(body);
-  if (!lowered) {
-    return False;
-  }
-
-  return body.logical_not(*this, operand);
-}
 
 auto Language::Operations::Not::select_type(const Ttx::Concept::Abstract&) const
     -> Core::Option<const Language::Model::Type&> {

@@ -7,7 +7,6 @@
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
@@ -112,21 +111,6 @@ auto Language::Operations::AddAssignment::link(
 auto Language::Operations::AddAssignment::finalize(Cursor& cursor) -> void {
   target.finalize(cursor);
   right.finalize(cursor);
-}
-
-auto Language::Operations::AddAssignment::lower(Llvm::Builder& body) const
-    -> Bool {
-  Bool target_lowered = target.lower_write_target(body);
-  if (!target_lowered) {
-    return False;
-  }
-
-  Bool right_lowered = right.lower(body);
-  if (!right_lowered) {
-    return False;
-  }
-
-  return body.write(Llvm::Builder::Write::Add, *this, target, right);
 }
 
 auto Language::Operations::AddAssignment::get_value_type(Count) const

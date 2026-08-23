@@ -13,7 +13,7 @@
 namespace Perimortem::Vulkan {
 
 // Owns a Vulkan graphics pipeline built from Render::Program metadata and the
-// native layout data needed to record commands against it. Per-draw values are
+// native layout data needed to record commands against it. Per draw values are
 // supplied to the command methods and are never retained by the program.
 class ShaderProgram {
  public:

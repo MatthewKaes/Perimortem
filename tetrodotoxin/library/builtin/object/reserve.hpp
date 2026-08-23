@@ -44,13 +44,6 @@ class Reserve : public Language::Model::Callable {
       const Ttx::Concept::Abstract& receiver,
       const Ttx::Concept::Abstract& host) const -> Bool override;
 
-  auto lower_call(
-      Llvm::Builder& body,
-      const Ttx::Model::Pack& result,
-      Perimortem::Core::View::Vector<LLVMValueRef> inputs,
-      Perimortem::Core::Option<const Ttx::Model::Pack&> receiver_source) const
-      -> Bool override;
-
  private:
   Reserve(
       Language::Parameter& self,
@@ -62,7 +55,6 @@ class Reserve : public Language::Model::Callable {
           parameter_entries;
   Ttx::Model::Layouts::Named parameters;
   Ttx::Model::Layouts::Ranged results;
-  const Language::Model::Type& result_type;
   static constexpr Ttx::Model::Documentations::Comment documentation{
     "Reserves at least count initialized elements and returns writable access."_view,
   };

@@ -10,7 +10,8 @@
 
 namespace Perimortem::Core::Access {
 
-// A read-write view of continuous data with possible endianness and structure.
+// A read and write view of continuous data with possible endianness and
+// structure.
 //
 // Vector data can be converted to Bytes data in order to interperet it
 // at a byte level, however this is only valid in memory. To write and read

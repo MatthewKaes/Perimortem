@@ -12,12 +12,12 @@
 
 #include "perimortem/system/file.hpp"
 
+#include "backend/llvm/compiler.hpp"
 #include "tetrodotoxin/app/language/monograph.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "tetrodotoxin/library/llvm/compiler.hpp"
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
@@ -26,6 +26,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::System;
 using namespace Tetrodotoxin;
+using namespace Tetrodotoxin::Backend;
 using namespace Ttx::Lexical;
 using namespace Validation;
 
@@ -206,29 +207,27 @@ PERIMORTEM_UNIT_TEST(AppDialect, echo_selects_exact_program_entry) {
   ASSERT(consumer && consumer->is<Library::Language::Monograph>());
   static constexpr View::Bytes construction_symbol =
       "TTX_FUNC_Perimortem_2eMemory__Dynamic__Bytes__construct_static"_view;
-  Library::Llvm::Unit::Binding construction_binding(
+  Llvm::Abi::Unit::Binding construction_binding(
       *restored_bytes_type, construction_symbol);
-  Static::Vector<Library::Llvm::Unit::Binding, 1> bindings = {{
+  Static::Vector<Llvm::Abi::Unit::Binding, 1> bindings = {{
     construction_binding,
   }};
-  Library::Llvm::Unit consumer_unit(
+  Llvm::Abi::Unit consumer_unit(
       "Consumer"_view, "Main"_view, "x86_64-sysv-linux"_view,
       bindings.get_view());
-  Library::Llvm::Request consumer_request(
+  Llvm::Request consumer_request(
       static_cast<const Library::Language::Monograph&>(*consumer),
       consumer_errors, "consumer.ttx"_view, consumer_source,
-      Library::Llvm::Target::X86_64SysV, Library::Llvm::Debug::Level::None,
+      Llvm::Target::X86_64SysV, Llvm::Representation::Debug::Level::None,
       consumer_unit);
   Perimortem::Memory::Allocator::Arena consumer_products;
-  Library::Llvm::Compiler consumer_compiler;
+  Llvm::Compiler consumer_compiler;
   auto compiled_consumer =
       consumer_compiler.compile(consumer_products, consumer_request);
-  Option<Library::Llvm::Products> selected_consumer;
+  Option<Llvm::Products> selected_consumer;
   compiled_consumer.visit(
-      [&](const Library::Llvm::Products& products) {
-        selected_consumer = products;
-      },
-      [](const Library::Llvm::Failure&) {});
+      [&](const Llvm::Products& products) { selected_consumer = products; },
+      [](const Llvm::Failure&) {});
   ASSERT(selected_consumer);
   EXPECT(
       Perimortem::Core::Algorithm::search(

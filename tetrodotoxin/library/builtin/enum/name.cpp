@@ -7,7 +7,6 @@
 
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/enumeration.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -20,28 +19,6 @@ auto Builtin::Enum::Name::create(
       Language::Parameter::create_synthetic(domain, "self"_view, enumeration);
   return domain.construct_from<Name>(
       [&]() -> Name { return Name(self, enumeration, result); });
-}
-
-auto Builtin::Enum::Name::lower_call(
-    Llvm::Builder& body,
-    const Ttx::Model::Pack& result,
-    Core::View::Vector<LLVMValueRef> inputs,
-    Core::Option<const Ttx::Model::Pack&>) const -> Bool {
-  BAIL_IF(inputs.get_size() != 1);
-
-  Memory::Dynamic::Vector<U64> values;
-  Memory::Dynamic::Vector<Core::View::Bytes> names;
-  values.resize(enumeration.get_cases().get_size());
-  names.resize(enumeration.get_cases().get_size());
-  for (Count index = 0; index < enumeration.get_cases().get_size(); index++) {
-    auto value = enumeration.get_case_value(index);
-    BAIL_IF(!value);
-    values[index] = *value;
-    names[index] = enumeration.get_case_name(index);
-  }
-
-  return body.enumeration_name(
-      result, result_type, inputs[0], values.get_view(), names.get_view());
 }
 
 auto Builtin::Enum::Name::fold_call(

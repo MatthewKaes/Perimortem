@@ -1,14 +1,14 @@
 # Foreign
 
-Foreign is an embedded FFI declaration block, similar to an `extern` block in a
-systems language. It adds external variables and functions to the semantic
-context of a parent Dialect that supports CPU execution.
+Authored code often needs to meet a native library that already exists. Foreign
+gives that boundary a visible home beside the code that uses it. Its blocks feel
+similar to `extern` declarations in a systems language and can describe
+external variables and Functions for a CPU capable parent language.
 
-Use Foreign when Library or another CPU capable parent Dialect needs a
-statically declared external ABI surface. The surrounding source owns the
-resulting semantic facts. Provider selection and native linking happen later,
-which keeps one declaration meaningful across targets without turning Foreign
-into another top level source Dialect or Monograph.
+The surrounding source owns those declarations as part of its meaning.
+Provider selection and native linking happen later, so one Foreign declaration
+can remain useful across targets without becoming a separate top level source
+language.
 
 A Library Source owns exactly one Foreign context. It parses the possible block
 Comment once and passes that Documentation to the context. Repeated blocks with
@@ -84,7 +84,7 @@ native Terminal products. They satisfy the declared Foreign identities after
 semantic analysis. They do not define source legality.
 
 Library compilation publishes each unresolved State or Function as one Linker
-Import. The build request supplies target-specific logical Providers, and
+Import. The build request supplies target specific logical Providers, and
 Package compilation requires exactly one provider for every Import before it
 publishes native artifacts or Archives. The resulting ABI Manifest and Package
 artifact record retain the same selected provider without adding it to Foreign

@@ -6,7 +6,6 @@
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/flag.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -19,19 +18,6 @@ auto Builtin::View::IsEmpty::create(
       Language::Parameter::create_synthetic(domain, "self"_view, receiver);
   return domain.construct_from<IsEmpty>(
       [&]() -> IsEmpty { return IsEmpty(self, result); });
-}
-
-auto Builtin::View::IsEmpty::lower_call(
-    Llvm::Builder& body,
-    const Ttx::Model::Pack& result,
-    Core::View::Vector<LLVMValueRef> inputs,
-    Core::Option<const Ttx::Model::Pack&>) const -> Bool {
-  auto parameter = get_parameters().get_abstract(0);
-  auto receiver = parameter ? parameter->select<Ttx::Model::Addressable>()
-                            : Core::Option<const Ttx::Model::Addressable&>();
-  return receiver && inputs.get_size() == 1 &&
-         body.contiguous_is_empty(
-             result, result_type, receiver->get_type(), inputs.get_data()[0]);
 }
 
 auto Builtin::View::IsEmpty::fold_call(

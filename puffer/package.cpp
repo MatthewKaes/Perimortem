@@ -15,6 +15,10 @@
 #include "perimortem/system/version.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
+#include "backend/llvm/abi/header.hpp"
+#include "backend/llvm/abi/symbol.hpp"
+#include "backend/llvm/compiler.hpp"
+#include "backend/llvm/representation/program.hpp"
 #include "tetrodotoxin/app/dialect.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/language/dialect.hpp"
@@ -25,10 +29,6 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
-#include "tetrodotoxin/library/llvm/compiler.hpp"
-#include "tetrodotoxin/library/llvm/header.hpp"
-#include "tetrodotoxin/library/llvm/program.hpp"
-#include "tetrodotoxin/library/llvm/symbol.hpp"
 #include "tetrodotoxin/linker/manifest.hpp"
 #include "tetrodotoxin/linker/provider.hpp"
 #include "tetrodotoxin/package/archive/reader.hpp"
@@ -40,6 +40,7 @@
 
 using namespace Perimortem;
 using namespace Tetrodotoxin;
+using namespace Tetrodotoxin::Backend;
 
 static auto value(const System::Args::Values& arguments, Core::View::Bytes name)
     -> Core::View::Bytes {
@@ -59,15 +60,15 @@ static auto values(
 }
 
 static auto parse_debug(Core::View::Bytes text)
-    -> Core::Option<Library::Llvm::Debug::Level> {
+    -> Core::Option<Llvm::Representation::Debug::Level> {
   if (text == "none"_view) {
-    return Library::Llvm::Debug::Level::None;
+    return Llvm::Representation::Debug::Level::None;
   }
   if (text == "line"_view) {
-    return Library::Llvm::Debug::Level::Line;
+    return Llvm::Representation::Debug::Level::Line;
   }
   if (text == "full"_view) {
-    return Library::Llvm::Debug::Level::Full;
+    return Llvm::Representation::Debug::Level::Full;
   }
   return {};
 }
@@ -209,7 +210,7 @@ static auto select_library(
 
 static auto retain_type_binding(
     Memory::Allocator::Arena& arena,
-    Memory::Managed::Vector<Library::Llvm::Unit::TypeBinding>& bindings,
+    Memory::Managed::Vector<Llvm::Abi::Unit::TypeBinding>& bindings,
     Core::View::Bytes package,
     Core::View::Bytes member,
     Core::View::Bytes route,
@@ -220,7 +221,7 @@ static auto retain_type_binding(
     return True;
   }
 
-  for (const Library::Llvm::Unit::TypeBinding& binding : bindings.get_view()) {
+  for (const Llvm::Abi::Unit::TypeBinding& binding : bindings.get_view()) {
     if (&binding.get_semantic() == &*type) {
       return True;
     }
@@ -231,7 +232,7 @@ static auto retain_type_binding(
 
   Core::View::Bytes retained_route = arena.proxy(route);
   bindings.insert(
-      Library::Llvm::Unit::TypeBinding(*type, package, member, retained_route));
+      Llvm::Abi::Unit::TypeBinding(*type, package, member, retained_route));
   auto composite = type->select<Library::Language::Types::Composite>();
   if (!composite) {
     return True;
@@ -253,7 +254,7 @@ static auto retain_type_binding(
 
 static auto retain_library_types(
     Memory::Allocator::Arena& arena,
-    Memory::Managed::Vector<Library::Llvm::Unit::TypeBinding>& bindings,
+    Memory::Managed::Vector<Llvm::Abi::Unit::TypeBinding>& bindings,
     Core::View::Bytes package,
     Core::View::Bytes member,
     const Library::Language::Monograph& library) -> Bool {
@@ -536,8 +537,7 @@ auto Puffer::Package::run() const -> S32 {
     return 1;
   }
 
-  Memory::Managed::Vector<Library::Llvm::Unit::TypeBinding> type_bindings(
-      arena);
+  Memory::Managed::Vector<Llvm::Abi::Unit::TypeBinding> type_bindings(arena);
   Memory::Managed::Vector<Core::View::Bytes> dependency_headers(arena);
   for (const Tetrodotoxin::Package::Archive::Archive& dependency :
        dependency_archives.get_view()) {
@@ -592,7 +592,7 @@ auto Puffer::Package::run() const -> S32 {
     }
   }
 
-  Memory::Managed::Vector<Library::Llvm::Unit::Binding> external(arena);
+  Memory::Managed::Vector<Llvm::Abi::Unit::Binding> external(arena);
   for (const Tetrodotoxin::Package::Archive::Archive& dependency :
        dependency_archives.get_view()) {
     auto dependency_root =
@@ -614,8 +614,7 @@ auto Puffer::Package::run() const -> S32 {
         return 1;
       }
       external.insert(
-          Library::Llvm::Unit::Binding(
-              *semantic, exported.get_symbol_locator()));
+          Llvm::Abi::Unit::Binding(*semantic, exported.get_symbol_locator()));
     }
   }
 
@@ -678,37 +677,33 @@ auto Puffer::Package::run() const -> S32 {
     if (!source) {
       return 1;
     }
-    Library::Llvm::Unit unit(
+    Llvm::Abi::Unit unit(
         identity, member_name, artifact, external.get_view(),
         type_bindings.get_view(), dependency_headers.get_view());
-    Library::Llvm::Products products = [&]() {
+    Llvm::Products products = [&]() {
       auto library = member->select<Library::Language::Monograph>();
       if (library) {
-        Library::Llvm::Request request(
-            *library, errors, source_path, *source,
-            Library::Llvm::Target::X86_64SysV, *debug, unit);
-        Library::Llvm::Compiler compiler;
+        Llvm::Request request(
+            *library, errors, source_path, *source, Llvm::Target::X86_64SysV,
+            *debug, unit);
+        Llvm::Compiler compiler;
         return compiler.compile(arena, request)
             .visit(
-                [](const Library::Llvm::Products& compiled) {
-                  return compiled;
-                },
-                [](const Library::Llvm::Failure&) {
-                  return Library::Llvm::Products({}, {}, {});
+                [](const Llvm::Products& compiled) { return compiled; },
+                [](const Llvm::Failure&) {
+                  return Llvm::Products({}, {}, {});
                 });
       }
 
-      Library::Llvm::Program empty(
-          arena, errors, source_path, *source,
-          Library::Llvm::Target::X86_64SysV, *debug, unit.bind(*member));
+      Llvm::Representation::Program empty(
+          arena, errors, source_path, *source, Llvm::Target::X86_64SysV, *debug,
+          unit.bind(*member));
       if (!empty.initialize()) {
-        return Library::Llvm::Products({}, {}, {});
+        return Llvm::Products({}, {}, {});
       }
       return empty.compile().visit(
-          [](const Library::Llvm::Products& compiled) { return compiled; },
-          [](const Library::Llvm::Failure&) {
-            return Library::Llvm::Products({}, {}, {});
-          });
+          [](const Llvm::Products& compiled) { return compiled; },
+          [](const Llvm::Failure&) { return Llvm::Products({}, {}, {}); });
     }();
     if (products.get_object().is_empty() || products.get_llvm_ir().is_empty() ||
         !publish(ir_path, products.get_llvm_ir()) ||
@@ -765,7 +760,7 @@ auto Puffer::Package::run() const -> S32 {
       }
     }
 
-    for (const Library::Llvm::Publication& publication :
+    for (const Llvm::Abi::Publication& publication :
          products.get_publications()) {
       auto route = create_route(arena, member_name, publication.get_semantic());
       if (!route) {
@@ -807,7 +802,7 @@ auto Puffer::Package::run() const -> S32 {
 
   Linker::Fingerprint abi_fingerprint =
       Linker::Fingerprint::create(abi_description.get_view());
-  auto identified_header = Library::Llvm::Header::identify(
+  auto identified_header = Llvm::Abi::Header::identify(
       arena, combined_header.get_view(), identity, abi_fingerprint);
   if (!identified_header) {
     return 1;

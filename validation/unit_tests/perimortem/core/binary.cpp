@@ -217,7 +217,8 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, little_endian_signed) {
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryWriter, little_endian_reals) {
-  // R32(3.0f) = 0x40400000; R64(1.5) = 0x3FF8000000000000.
+  // R32 value 3 uses bits 0x40400000 and R64 value 1.5 uses bits
+  // 0x3FF8000000000000.
   using Writer = Writer::Binary<Data::ByteOrder::Little>;
   Static::Bytes<12> buffer;
   Writer writer(buffer);
@@ -265,7 +266,8 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, big_endian_signed) {
 }
 
 PERIMORTEM_UNIT_TEST(CoreBinaryWriter, big_endian_reals) {
-  // R32(3.0f) = 0x40400000; R64(1.5) = 0x3FF8000000000000.
+  // R32 value 3 uses bits 0x40400000 and R64 value 1.5 uses bits
+  // 0x3FF8000000000000.
   using Writer = Writer::Binary<Data::ByteOrder::Big>;
   Static::Bytes<12> buffer;
   Writer writer(buffer);
@@ -343,8 +345,10 @@ PERIMORTEM_UNIT_TEST(CoreBinaryWriter, multiple_writers) {
   };
 
   writers[0] << U16(0xAAAA);
-  writers[1] << U16(0xBBBB);  // overwrites writers[0] at position 0
-  writers[0] << U16(0xCCCC);  // writers[0] is now at position 2
+  // Both writers begin at zero, so the second writer replaces the first value.
+  writers[1] << U16(0xBBBB);
+  // The first writer retains its own cursor and continues at position two.
+  writers[0] << U16(0xCCCC);
 
   EXPECT(writers[0].is_valid());
   EXPECT(writers[1].is_valid());

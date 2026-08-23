@@ -13,7 +13,6 @@
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -553,85 +552,6 @@ auto Language::Access::Slice::finalize(Cursor& cursor) -> void {
     count->get().finalize(cursor);
   }
   Expression::finalize(cursor);
-}
-
-auto Language::Access::Slice::lower(Llvm::Builder& body) const -> Bool {
-  auto folded = lower_folded(body);
-  if (folded) {
-    return *folded;
-  }
-
-  if (!element_type) {
-    return False;
-  }
-
-  Bool receiver_lowered = receiver.lower(body);
-  if (!receiver_lowered) {
-    return False;
-  }
-
-  Bool index_lowered = first.lower(body);
-  if (!index_lowered) {
-    return False;
-  }
-
-  if (!count) {
-    auto selected_fallback = get_fallback();
-    if (!selected_fallback) {
-      return False;
-    }
-
-    auto state = body.begin_slice(element_type->get(), receiver, first);
-    if (!state) {
-      return False;
-    }
-
-    Bool fallback_lowered = selected_fallback->lower(body);
-    if (!fallback_lowered) {
-      return False;
-    }
-
-    return body.end_slice(
-        *state, element_type->get(), *this, *selected_fallback);
-  }
-
-  if (!range_count) {
-    return False;
-  }
-
-  auto range = body.begin_slice_range(element_type->get(), receiver, first);
-  if (!range) {
-    return False;
-  }
-
-  Memory::Managed::Vector<LLVMValueRef> values(body.get_program().get_arena());
-  for (Count offset = 0; offset < *range_count; offset++) {
-    auto selected_fallback =
-        element_type->get().create_default(body.get_program().get_arena());
-    if (!selected_fallback) {
-      return False;
-    }
-
-    auto state = body.begin_slice_slot(*range, offset);
-    if (!state) {
-      return False;
-    }
-
-    Bool fallback_lowered = selected_fallback->lower(body);
-    if (!fallback_lowered) {
-      return False;
-    }
-
-    auto selected =
-        body.end_slice_slot(*state, element_type->get(), *selected_fallback);
-    if (!selected) {
-      return False;
-    }
-
-    values.insert(*selected);
-  }
-
-  return body.end_slice_range(*this, values.get_view());
 }
 
 auto Language::Access::Slice::evaluate()

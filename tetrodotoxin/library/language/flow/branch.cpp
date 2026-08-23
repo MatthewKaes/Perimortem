@@ -6,7 +6,6 @@
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -169,62 +168,6 @@ auto Language::Flow::Branch::finalize(Cursor& cursor) -> void {
       [&](Reference<Block>& selected) { selected.get().finalize(cursor); });
   alternate.visit(
       []() {}, [&](Statement& selected) { selected.finalize(cursor); });
-}
-
-auto Language::Flow::Branch::lower(Llvm::Builder& target) const -> Bool {
-  if (kind == Kind::While) {
-    Bool began = target.begin_while(*this);
-    if (!began) {
-      return False;
-    }
-
-    Bool condition_lowered = condition.get().lower(target);
-    if (!condition_lowered) {
-      return False;
-    }
-
-    Bool selected = target.select_while(*this, condition.get());
-    if (!selected) {
-      return False;
-    }
-
-    Bool body_lowered = body->get().lower(target);
-    if (!body_lowered) {
-      return False;
-    }
-
-    return target.end_while(*this);
-  }
-
-  Bool condition_lowered = condition.get().lower(target);
-  if (!condition_lowered) {
-    return False;
-  }
-
-  auto branch = target.begin_branch(condition.get());
-  if (!branch) {
-    return False;
-  }
-
-  Bool body_lowered = body->get().lower(target);
-  if (!body_lowered) {
-    return False;
-  }
-
-  auto alternate_statement = get_alternate();
-  if (alternate_statement) {
-    Bool alternate_began = target.begin_alternate(*branch);
-    if (!alternate_began) {
-      return False;
-    }
-
-    Bool alternate_lowered = alternate_statement->lower(target);
-    if (!alternate_lowered) {
-      return False;
-    }
-  }
-
-  return target.end_branch(*branch);
 }
 
 auto Language::Flow::Branch::reaches_next_statement() const -> Bool {

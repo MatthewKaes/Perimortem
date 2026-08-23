@@ -1,15 +1,17 @@
 # Standard Tetrodotoxin Packages
 
-The standard Tetrodotoxin packages provide reusable Memory, Math, System, and
-Graphics features. They are ordinary Packages rather than hidden compiler
-built-ins. A source declares them as dependencies, and an Archive can provide
-the same public behavior when source is unavailable.
+These Packages give a Tetrodotoxin program the everyday building blocks it
+needs to own data, perform math, talk to its host, and submit graphics. They make
+Perimortem runtime services feel like ordinary authored dependencies rather
+than secret compiler features.
 
-An application can use these packages for Perimortem's runtime services, while
-another host can provide different Packages for the same roles. The compiler
-does not create an implicit `Memory`, `System`, `Math`, or `Graphics` namespace.
+A source chooses the Packages it wants, names them in its manifest, and can use
+the same public identities whether they came from source or a durable Archive.
+Another host is free to provide different Packages for the same roles. That
+keeps the platform useful beyond one runtime without making `Memory`, `Math`,
+`System`, or `Graphics` appear by magic.
 
-Similar shapes do not erase meaning. A four-component math vector, a color
+Similar shapes do not erase meaning. A four component math vector, a color
 tone, and a Render Stage value may have matching Layouts while remaining
 different Types.
 
@@ -27,7 +29,7 @@ resolve Memory : Perimortem.Memory = "1.0";
 using Memory;
 ```
 
-The Memory source authors the two-word byte carrier as one
+The Memory source authors the two word byte carrier as one
 `Object[U8]` plus its logical size. Ordinary recursive Structure
 ownership retains and releases that Object without native lifecycle Attributes.
 Consumers therefore share one Type identity rather than materializing matching
@@ -37,7 +39,7 @@ Bytes transformations use a referenced Self receiver. `copy(view)` creates an
 owned value. `append(byte, count)`, receiver `concat`, `resize`, `shrink`,
 `clear`, and `reserve` mutate that receiver and return `self`, so calls may be
 chained without copying the Bytes value. Parameter defaults are not yet part of
-the Function signature model, so callers pass `1` for a single-byte append:
+the Function signature model, so callers pass `1` for a single byte append:
 
 ```ttx
 line -> concat(suffix) -> append(byte, 1);
@@ -46,23 +48,23 @@ buffer -> clear();
 
 `self` is passed by reference, and the scalar result spelling `-> self` returns
 that same reference. Reaching the end of such a Function returns `self`
-implicitly; an explicit `return self;` remains available for early exit. Before
+implicitly. An explicit `return self;` remains available for early exit. Before
 a buffer write, Bytes reserves the required size. Growth already supplies a
-private Object buffer; otherwise `is_shared()` causes an explicit `clone()`
+private Object buffer. Otherwise `is_shared()` causes an explicit `clone()`
 before writable access. Object itself remains an ordinary shared buffer rather
-than owning copy-on-write policy.
+than owning copy on write policy.
 
 Static and Self `concat` share one spelling because receiver role is part of
 the Callable signature. Static `concat(left, right)` creates an owned value,
-while receiver `concat(view)` extends a value. `clear` preserves capacity;
-ordinary default construction creates the empty zero-capacity reset value.
+while receiver `concat(view)` extends a value. `clear` preserves capacity.
+ordinary default construction creates the empty zero capacity reset value.
 `get_size`, `get_capacity`, `get_view`, `slice`, and `is_empty` inspect the
 result without changing it.
 
 The package deliberately exposes no writable Access to the backing capacity:
 that would bypass the logical size owned by Bytes. Safe element reads remain
 available through `get_view():[index]`. It also has no forgetful resize that
-would expose invalid elements and no host-specific hash operation without a
+would expose invalid elements and no host specific hash operation without a
 Library hash contract.
 
 ## Perimortem.Math
@@ -79,7 +81,7 @@ Stage is meant to exchange that value.
 
 ## Perimortem.System
 
-`Perimortem.System` publishes CPU-facing Library Types and Callables backed by
+`Perimortem.System` publishes CPU facing Library Types and Callables backed by
 explicit Foreign declarations. Package native locators connect those declared
 symbols to the Perimortem System runtime. Neither Library nor Workspace knows a
 special System namespace. System depends on `Perimortem.Memory`, so its Terminal
@@ -126,7 +128,7 @@ language contract.
 
 ### Process arguments
 
-`System -> get_arguments()` returns one read-only `System::Arguments` Object
+`System -> get_arguments()` returns one read only `System::Arguments` Object
 established before the Program entry Callable runs. Its `count` excludes the
 platform executable name. `arguments -> at(.index = n)` returns the exact byte
 View for an index below that count and the empty View at or above it.
@@ -142,7 +144,7 @@ treating a platform address as a language value.
 
 ### Input snapshots
 
-`System -> get_input()` returns one read-only `System::Input` snapshot. The
+`System -> get_input()` returns one read only `System::Input` snapshot. The
 production window loop and deterministic application driver both supply the
 same value shape. The snapshot exposes exact `current`, `pressed`, and
 `released` queries over stable `System::Key` identities.
@@ -153,7 +155,7 @@ System policy. Scene observes the completed snapshot and does not receive a
 platform event stream in its update Signature.
 
 The native boundary turns platform events into one completed key snapshot.
-Platform event objects and window-system addresses do not become part of
+Platform event objects and window system addresses do not become part of
 `System::Input` or its archived representation.
 
 ## Perimortem.Graphics
@@ -209,7 +211,7 @@ A Complete Archive rebuilds both public and private language objects. An
 Interface Archive rebuilds the public contracts and compiled artifact locations
 needed by other Packages without including executable bodies. Neither profile
 stores LLVM IR, runtime handles, current input, decoded images, live Objects, or
-source-level debugging data.
+source level debugging data.
 
 See [Package](../../tetrodotoxin/package/README.md) for dependency and Archive
 selection, [Library](../../tetrodotoxin/library/README.md) for the concrete CPU

@@ -43,8 +43,6 @@ class RangeLoop : public Ttx::Concept::Abstract {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void;
 
-  auto lower(Llvm::Builder& body) const -> Bool;
-
   TTX_NAME("For"_view);
   TTX_EMPTY_DOCUMENTATION();
 
@@ -52,6 +50,16 @@ class RangeLoop : public Ttx::Concept::Abstract {
       -> const Ttx::Concept::Abstract& override;
 
   constexpr auto get_input() const -> const Model::Pack& { return input.get(); }
+
+  constexpr auto get_input_type() const
+      -> Perimortem::Core::Option<const Model::Type&> {
+    return input_type.visit(
+        []() -> Perimortem::Core::Option<const Model::Type&> { return {}; },
+        [](const Ttx::Concept::Reference<const Model::Type>& selected)
+            -> Perimortem::Core::Option<const Model::Type&> {
+          return selected.get();
+        });
+  }
 
   constexpr auto get_bindings() const -> const Ttx::Concept::Layout& {
     return *binding_layout;

@@ -9,9 +9,9 @@ namespace Ttx::Model::Documentations {
 
 // Comment exposes one stable line of documentation. It is useful for concepts
 // whose explanation is known by the implementation rather than collected from
-// source. The binary-wide empty Comment is the canonical documentation dead
+// source. The binary wide empty Comment is the canonical documentation dead
 // end, matching Invalid's canonical access pattern without introducing another
-// namespace-level sentinel.
+// namespace level sentinel.
 class Comment : public Concept::Documentation {
  public:
   static auto get_empty() -> const Comment&;

@@ -9,7 +9,6 @@
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -263,39 +262,4 @@ auto Language::Access::Index::accepts_write(
     BAIL_IF(!source.fits_entry(element.get_layout(), index, 0));
   }
   return True;
-}
-
-auto Language::Access::Index::lower_write_target(Llvm::Builder& body) const
-    -> Bool {
-  auto element = get_element_type().resolve().select<Ttx::Model::Type>();
-  if (!element) {
-    return False;
-  }
-
-  Bool receiver_lowered = receiver.lower(body);
-  if (!receiver_lowered) {
-    return False;
-  }
-
-  Bool index_lowered = first.lower(body);
-  if (!index_lowered) {
-    return False;
-  }
-
-  auto selected_count = get_count();
-  if (!selected_count) {
-    return body.select_index(*element, *this, receiver, first);
-  }
-
-  Bool count_lowered = selected_count->lower(body);
-  if (!count_lowered) {
-    return False;
-  }
-
-  if (!range_count) {
-    return False;
-  }
-
-  return body.select_range(
-      *element, *this, receiver, first, *selected_count, *range_count);
 }

@@ -5,7 +5,6 @@
 
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/model/parser/pack.hpp"
-#include "tetrodotoxin/library/llvm/builder.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -168,38 +167,6 @@ auto Language::Expressions::Initializer::evaluate()
       });
 }
 
-auto Language::Expressions::Initializer::lower(Llvm::Builder& body) const
-    -> Bool {
-  auto folded = lower_folded(body);
-  if (folded) {
-    return *folded;
-  }
-
-  auto values = get_completed_values();
-  auto type = get_type().resolve().select<Language::Model::Type>();
-
-  if (provider) {
-    return type && arguments.lower(body) &&
-           type->lower_provider(body, *this, arguments);
-  }
-
-  if (!values || !type) {
-    return False;
-  }
-
-  Bool lowered = values->lower(body);
-  if (!lowered) {
-    return False;
-  }
-
-  auto completed_type = values->get_type().resolve().select<Ttx::Model::Type>();
-  if (completed_type && &*completed_type == &*type) {
-    return body.alias(*this, *values);
-  }
-
-  return body.construct(*this, *type, *values);
-}
-
 auto Language::Expressions::Initializer::link(
     Ttx::Lexical::Cursor& cursor,
     const Abstract& lexical_context,
@@ -270,7 +237,7 @@ auto Language::Expressions::Initializer::link(
     if (aggregate && !aggregate->get_anchor()) {
       auto aggregate_values = aggregate->get_completed_values();
       if (aggregate_values) {
-        // A local aggregate exposes the Type-owned completed Field values.
+        // A local aggregate exposes the completed Field values owned by Type.
         // A restored aggregate instead remains the real provider Initializer
         // so lowering can invoke its provider without inventing those Fields.
         completed =

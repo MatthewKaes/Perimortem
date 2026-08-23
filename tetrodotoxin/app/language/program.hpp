@@ -5,7 +5,6 @@
 
 #include "perimortem/core/option.hpp"
 
-#include "tetrodotoxin/library/llvm/program.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -34,10 +33,6 @@ class Program : public Ttx::Concept::Abstract {
   auto link(Ttx::Lexical::Cursor& cursor, Ttx::Concept::Abstract& context)
       -> Bool;
   auto link_restored(Ttx::Concept::Abstract& context) -> Bool;
-
-  auto lower(
-      Tetrodotoxin::Library::Llvm::Program& target,
-      Perimortem::Core::View::Bytes entry_symbol) const -> Bool;
 
   TTX_NAME("Program"_view);
   TTX_DOCUMENTATION(documentation);

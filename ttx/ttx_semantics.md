@@ -150,7 +150,7 @@ name. These Abstract hooks let an arbitrary graph context route a concrete
 language question without acquiring that language's Type system. TTX assigns
 them no receiver role, visibility rule, or forwarding policy. A concrete
 language may refine its Type and Addressable contracts to interpret the query.
-A Type-qualified context route still splits into names and uses
+A Type qualified context route still splits into names and uses
 `resolve_context(name)` on each selected identity. TTX defines no separate Type
 lookup or Static and Self distinction. Every query returns the original
 selected identity or Invalid and never searches another query domain as a
@@ -186,7 +186,7 @@ concrete owners rather than Invalid identities.
 Alias retains a local name, local Documentation, and one borrowed target. The
 immediate target is opaque: consumers cannot inspect or bypass an Alias edge.
 `resolve()` is the sole traversal operation. It follows only Alias edges and
-returns the first non-Alias target identity without invoking that target's own
+returns the first non Alias target identity without invoking that target's own
 `resolve()` operation. Every other operation, including
 `resolve_context(name)`, returns Invalid. A consumer that needs context first
 resolves the Alias, proves the returned owner, and invokes that owner's
@@ -216,7 +216,7 @@ constructs, lowers, or stores the value.
 Every completed concrete Type admitted to ordinary value flow has one total
 semantic default. The concrete language owns the
 default value and the operation that materializes it. TTX does not infer that
-value from an all-zero target representation, add a default query to Type, or
+value from an all zero target representation, add a default query to Type, or
 require different Types with equivalent defaults to share identity. A semantic
 Type selected for contextual traversal remains outside value flow unless a
 concrete language operation produces an instance of it.
@@ -225,17 +225,17 @@ An empty Layout has no value to default. An empty View is different because it
 is one value of the exact View Type and still contributes that Type to its
 Pack's Layout.
 
-The identity-free terminal `Value` Layout has one entry containing its exact
+The identity free terminal `Value` Layout has one entry containing its exact
 atomic Type. Atomic identity therefore participates in ordinary Layout fitting
 instead of being inferred from an otherwise empty shape. Scalar families,
 logical and numeric refinements, bit width, abstract machine storage, and
 alignment belong to the concrete language that constructs those Types. They
-are not additional host-neutral TTX categories.
+are not additional host neutral TTX categories.
 
 ## Addressable
 
 Addressable is an Abstract that names typed data. It reaches one exact Type
-whose Layout contains at least one value. A zero-value Type remains a valid
+whose Layout contains at least one value. A zero value Type remains a valid
 semantic domain, but there is no value whose stable address an Addressable
 could name.
 
@@ -262,11 +262,11 @@ therefore retain, link, inspect, fit, or lower a value flow without first
 materializing an aggregate Type.
 
 A Pack may supply zero, one, or several values. It may expose positional, named,
-ranged, or composed output shape. One ordinary value-producing expression is
-already a one-value Pack. Grouping that expression does not create a second
+ranged, or composed output shape. One ordinary value producing expression is
+already a one value Pack. Grouping that expression does not create a second
 semantic identity. An empty Pack exposes an empty Layout. A concrete language's
 empty result and an explicit empty grouping agree through that Layout without
-requiring a Type identity. A multi-value Pack remains value flow until a
+requiring a Type identity. A multiple value Pack remains value flow until a
 receiving contract fits it and an owning language deliberately materializes a
 Type.
 
@@ -281,7 +281,7 @@ different operator keeps promised shape distinct from supplied value flow.
 A graph owner may reserve a stable Pack before its output is complete. Its
 Layout query remains safe during that interval and may expose an empty shape,
 but the Pack resolves to Invalid. Only a Pack that resolves to itself supplies
-an empty Layout as completed zero-value flow. Once Pack resolution succeeds,
+an empty Layout as completed zero value flow. Once Pack resolution succeeds,
 its output Layout is stable and never replaced.
 
 ## Callable
@@ -368,13 +368,26 @@ carried across a Terminal boundary.
 
 Concrete languages may define expressions, constants, generic formulas,
 mutation capabilities, receiver roles, executable bodies, and concrete scalar
-Types. Their value-producing expressions participate as Packs and retain exact
+Types. Their value producing expressions participate as Packs and retain exact
 TTX Type, Layout, Addressable, and Callable edges.
 
 Targets may derive sizes, offsets, pointer forms, address spaces, registers,
 ABI carriers, and executable addresses. Runtimes may add managed storage,
 frames, collectors, and scheduling state. These are consumers of the semantic
 graph rather than additional TTX categories.
+
+The completed Workspace is the handoff from raising to Terminal production. A
+target producer begins lowering, walks the concrete graphs it supports, and owns
+every representation fact it derives. Other producers may project, serialize,
+or compose completed facts for their own consumers. No Dialect calls into a
+producer, and no product fact becomes a semantic edge.
+
+Dialects and Terminal producers are complementary composition points for the
+complete toolchain. Installed Dialects determine which meanings a Workspace can
+construct. Selected Terminal producers determine which independent products can
+be derived after completion. This parallel role does not give them one shared
+interface or lifetime. Dialects participate in the semantic graph, while
+Terminal producers consume it from outside.
 
 A consumer crosses the Terminal boundary when it emits an output whose
 consumption is independent of the live semantic graph and its identities.
@@ -392,6 +405,10 @@ A target Terminal such as LLVM IR or an object module does not become a
 semantic source of truth. Target Types, offsets, registers, address spaces,
 calling convention records, and pointer representations remain derived facts
 owned by that compilation. They are not copied back into the graph.
+
+Terminal is relative to the live Workspace. An LLVM module or emitted MLIR
+module may be Terminal for Tetrodotoxin while remaining an intermediate input
+to another tool's progressive lowering pipeline.
 
 A semantic Terminal may support reconstruction without source. Its reader first
 validates the complete bounded format. A graph owner then creates new stable
@@ -426,11 +443,11 @@ offsets, or treat a backend Type as the original semantic Type.
 5. Semantic query failure returns Invalid rather than a null edge.
 6. Later construction never changes an identity already returned successfully.
 7. Alias preserves local identity while redirecting represented identity.
-8. TTX Type and Addressable impose no Static or Self receiver-routing policy.
+8. TTX Type and Addressable impose no Static or Self receiver routing policy.
 9. An atomic Type exposes itself as one terminal `Value` Layout entry.
    Every Type admitted to value flow has a nonempty Layout, Addressable reaches
    one such Type, and Callable supplies complete parameter and result Layouts.
-10. Pack preserves produced value-flow identity and exposes one complete output
+10. Pack preserves produced value flow identity and exposes one complete output
     Layout without acquiring Type identity.
 11. Type, Pack, Addressable, Callable, and Layout remain independent contracts.
     TTX defines no universal member model over them.
@@ -438,7 +455,7 @@ offsets, or treat a backend Type as the original semantic Type.
     value identity or copied semantic or physical
     records.
 13. Every completed concrete Type admitted to ordinary value flow has one
-    language-owned semantic default. TTX neither derives it from target bits
+    language owned semantic default. TTX neither derives it from target bits
     nor makes it a shared identity or Type query.
 14. Concrete language, package, target, runtime, and diagnostic policy remain
     outside TTX.

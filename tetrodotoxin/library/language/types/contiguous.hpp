@@ -24,12 +24,6 @@ class Contiguous : public Model::Type {
 
   auto accepts_iteration(const Ttx::Concept::Layout& bindings) const
       -> Bool override;
-
-  auto begin_iteration(
-      Llvm::Builder& body,
-      const Ttx::Concept::Abstract& owner,
-      const Ttx::Concept::Layout& bindings,
-      const Ttx::Model::Pack& input) const -> Bool override;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Types
