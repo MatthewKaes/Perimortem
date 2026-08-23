@@ -4,7 +4,6 @@
 #include "tetrodotoxin/library/language/flow/return.hpp"
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
-#include "tetrodotoxin/library/language/model/parser/pack.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -12,33 +11,12 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Flow::Return::interpret(Cursor& cursor, const Abstract& context)
-    -> Core::Option<Return&> {
-  Memory::Allocator::Arena& domain = cursor.get_arena();
-  Token operation = cursor.require(
-      Code::Type::Return,
-      "Library return statements require the `return` keyword."_view);
-  BAIL_IF(!operation);
-
-  Model::Pack* pack = nullptr;
-  if (!cursor.matches(Code::Type::EndStatement)) {
-    auto parsed = Model::Parser::Pack::parse(context, cursor);
-    BAIL_IF(!parsed);
-    pack = &*parsed;
-  } else {
-    pack = &Model::Pack::create_empty(domain);
-  }
-
-  Token terminator = cursor.require(
-      Code::Type::EndStatement,
-      "Library return statements require one terminating `;`."_view);
-  BAIL_IF(!terminator);
-
-  Return& result = domain.construct_from<Return>([&]() -> Return {
-    return Return(
-        Anchor::create(operation, Span(operation, terminator)), *pack);
-  });
-  return result;
+auto Language::Flow::Return::create_authored(
+    Memory::Allocator::Arena& domain,
+    Anchor anchor,
+    Model::Pack& pack) -> Return& {
+  return domain.construct_from<Return>(
+      [&]() -> Return { return Return(anchor, pack); });
 }
 
 auto Language::Flow::Return::link(

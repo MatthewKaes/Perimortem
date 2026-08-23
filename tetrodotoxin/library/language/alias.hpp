@@ -34,10 +34,10 @@ class Alias : public Ttx::Model::Alias {
  public:
   TTX_CONTRACT(Alias, Ttx::Model::Alias);
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition)
-      -> Perimortem::Core::Option<Alias&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition,
+      TypeReference target_reference) -> Alias&;
 
   static auto restore(
       Archive::Reader& reader,

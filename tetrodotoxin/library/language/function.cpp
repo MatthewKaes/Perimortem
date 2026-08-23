@@ -44,66 +44,21 @@ auto Language::Function::restore(
       [&]() -> Function { return Function(definition, *signature); });
 }
 
-static auto validate_authored_function(
-    Cursor& cursor,
-    const Tetrodotoxin::Language::Definition& definition) -> Bool {
-  if (definition.get_name_token().get_code() != Code::Type::Addressable) {
-    cursor.create_token_error(
-        definition.get_name_token(),
-        "Library Functions require an authored addressable name."_view);
-    return False;
-  }
-
-  if (definition.get_visibility() == Visibility::Exposed) {
-    cursor.create_token_error(
-        definition.get_visibility_token(),
-        "Library Functions accept only `public` or `private` visibility."_view);
-    return False;
-  }
-
-  if (!definition.get_modifiers().is_empty()) {
-    cursor.create_token_error(
-        definition.get_modifiers().get_data()[0],
-        "Library Functions do not accept evaluation modifiers."_view);
-    return False;
-  }
-
-  // Attributes remain ordered source facts until an actual consumer asks for
-  // one of their keys. Function therefore validates only its own grammar and
-  // cannot constrain compiler, target, or embedding language extensions.
-  return True;
+auto Language::Function::create_authored(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition,
+    Signature& signature) -> Function& {
+  return domain.construct_from<Function>(
+      [&]() -> Function { return Function(definition, signature); });
 }
 
-auto Language::Function::interpret(
-    Cursor& cursor,
-    Tetrodotoxin::Language::Definition& definition) -> Option<Function&> {
-  Allocator::Arena& domain = cursor.get_arena();
-  BAIL_IF(!validate_authored_function(cursor, definition));
-  // Definition host is the Function's exact Type context and access authority.
-  // No concrete member inventory participates in Function semantics.
-  BAIL_IF(!definition.get_host().is<Language::Model::Type>());
+auto Language::Function::complete_body(Flow::Block& selected) -> Bool {
+  if (body) {
+    return &*body == &selected;
+  }
 
-  BAIL_IF(!cursor.require(
-      Code::Type::Func,
-      "Library Function definitions require the `func` qualifier."_view));
-  BAIL_IF(!cursor.require(
-      Code::Type::Assign,
-      "Library Function qualifiers require `=` before their signature."_view));
-
-  auto parsed_signature = Signature::interpret(cursor, definition.get_host());
-  BAIL_IF(!parsed_signature);
-
-  Function& function = domain.construct_from<Function>(
-      [&]() -> Function { return Function(definition, *parsed_signature); });
-  auto parsed_body =
-      Flow::Block::interpret(cursor, function, function, function.get_host());
-  BAIL_IF(!parsed_body);
-  BAIL_IF(!function.definition.complete(
-      definition.get_qualifier(),
-      parsed_body->get_anchor().get_span().get_end()));
-
-  function.body = *parsed_body;
-  return function;
+  body = selected;
+  return True;
 }
 
 Language::Function::Function(

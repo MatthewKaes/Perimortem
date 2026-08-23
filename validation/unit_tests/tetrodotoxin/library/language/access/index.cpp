@@ -2,6 +2,7 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/access/index.hpp"
+#include "tetrodotoxin/library/interpreter/access/index.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -10,7 +11,7 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/interpreter/expression.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
@@ -95,7 +96,7 @@ static auto parse_index(
   Tokenizer tokenizer(domain, source, "index.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
-  auto parsed = Library::Language::Parser::Expression::parse(context, cursor);
+  auto parsed = Library::Interpreter::Expression::parse(context, cursor);
   auto index = parsed.visit(
       []() -> Option<Library::Language::Access::Index&> { return {}; },
       [](Library::Language::Model::Pack& selected) {
@@ -116,7 +117,7 @@ static auto parse_pack(
   Tokenizer tokenizer(domain, source, "index-value.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
-  auto parsed = Library::Language::Parser::Expression::parse(context, cursor);
+  auto parsed = Library::Interpreter::Expression::parse(context, cursor);
   BAIL_IF(!parsed || !cursor.matches(Code::Type::Terminal));
   return *parsed;
 }
@@ -133,7 +134,7 @@ static auto rejects_committed_index_suffix(
   Cursor receiver_cursor(
       receiver_tokenizer, receiver_errors, receiver_associations);
   auto receiver_pack =
-      Library::Language::Parser::Expression::parse(context, receiver_cursor);
+      Library::Interpreter::Expression::parse(context, receiver_cursor);
   auto receiver = receiver_pack.visit(
       []() -> Option<Library::Language::Expression&> { return {}; },
       [](Library::Language::Model::Pack& selected) {
@@ -149,7 +150,8 @@ static auto rejects_committed_index_suffix(
   Cursor cursor(tokenizer, errors, associations);
   Token opening = cursor.current();
   auto parsed =
-      Library::Language::Access::Index::parse(context, cursor, *receiver);
+      Library::Interpreter::Access::Index::parse(
+          context, cursor, *receiver);
   Token ending = cursor.current();
   return !parsed && !errors.is_empty() &&
          ending.get_offset() > opening.get_offset();

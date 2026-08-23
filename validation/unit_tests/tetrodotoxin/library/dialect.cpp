@@ -266,9 +266,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, root_vocabulary) {
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
   auto& first = Language::Monograph::create_authored(
-      cursor, documentation, source_anchor, dialect, context);
+      cursor.get_arena(), documentation, source_anchor, dialect, context);
   auto& second = Language::Monograph::create_authored(
-      cursor, documentation, source_anchor, dialect, context);
+      cursor.get_arena(), documentation, source_anchor, dialect, context);
 
   EXPECT(&first.get_documentation() == &documentation);
   EXPECT(&first.get_source().get_documentation() == &documentation);

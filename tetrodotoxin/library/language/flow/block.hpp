@@ -30,14 +30,18 @@ class Block : public Scope {
  public:
   TTX_CONTRACT(Block, Scope);
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Abstract& lexical_context,
       Model::Callable& function,
       const Model::Type& access_scope,
       Perimortem::Core::Option<
           Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-          enclosing_loop = {}) -> Perimortem::Core::Option<Block&>;
+          enclosing_loop = {}) -> Block&;
+
+  auto retain_authored_statement(Statement statement) -> void;
+
+  auto complete_authored(Ttx::Lexical::Anchor selected) -> void;
 
   Block(const Block&) = delete;
   Block(Block&&) = delete;

@@ -29,6 +29,29 @@ class Match : public Ttx::Concept::Abstract {
     Value,
   };
 
+  // Pattern lends the one branch local payload together with the exact context
+  // that exposes it. The pair belongs to Match construction and never becomes
+  // a general scope or declaration model.
+  class Pattern {
+   public:
+    constexpr Pattern(
+        Ttx::Concept::Abstract& context,
+        Model::Addressable& payload)
+        : context(context), payload(payload) {}
+
+    constexpr auto get_context() const -> Ttx::Concept::Abstract& {
+      return context.get();
+    }
+
+    constexpr auto get_payload() const -> Model::Addressable& {
+      return payload.get();
+    }
+
+   private:
+    Ttx::Concept::Reference<Ttx::Concept::Abstract> context;
+    Ttx::Concept::Reference<Model::Addressable> payload;
+  };
+
  private:
   struct Case {
     CaseKind kind;
@@ -43,11 +66,30 @@ class Match : public Ttx::Concept::Abstract {
  public:
   TTX_CONTRACT(Match, Ttx::Concept::Abstract);
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      Block& lexical_context,
-      Model::Callable& function,
-      const Model::Type& access_scope) -> Perimortem::Core::Option<Match&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Expression& input,
+      Ttx::Lexical::Anchor anchor) -> Match&;
+
+  static auto create_pattern(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Concept::Abstract& parent,
+      Perimortem::Core::View::Bytes name) -> Pattern;
+
+  auto retain_value_case(
+      Expression& expression,
+      Block& body,
+      Model::Addressable& payload,
+      Ttx::Lexical::Anchor anchor) -> void;
+
+  auto retain_constant_case(
+      Expression& expression,
+      Block& body,
+      Ttx::Lexical::Anchor anchor) -> void;
+
+  auto complete_default(Block& body) -> Bool;
+
+  auto complete_anchor(Ttx::Lexical::Anchor selected) -> void;
 
   Match(const Match&) = delete;
   Match(Match&&) = delete;

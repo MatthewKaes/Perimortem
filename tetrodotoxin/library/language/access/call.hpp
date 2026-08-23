@@ -25,10 +25,13 @@ class Call : public Expression {
  public:
   TTX_CONTRACT(Call, Expression);
 
-  static auto parse(
-      const Ttx::Concept::Abstract& context,
-      Ttx::Lexical::Cursor& cursor,
-      Expression& receiver) -> Perimortem::Core::Option<Expression&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Expression& receiver,
+      Ttx::Lexical::Token name_token,
+      Perimortem::Core::View::Bytes name,
+      Language::Model::Pack& arguments,
+      Ttx::Lexical::Anchor anchor) -> Call&;
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& arena,

@@ -6,6 +6,7 @@
 #include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/archive/writer.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/interpreter/source/library.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -19,8 +20,9 @@ auto Library::Dialect::interpret(
     const Anchor& source_anchor,
     Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
   auto& monograph = Language::Monograph::create_authored(
-      cursor, documentation, source_anchor, *this, context);
-  BAIL_IF(!monograph.parse(cursor));
+      cursor.get_arena(), documentation, source_anchor, *this, context);
+  BAIL_IF(!Interpreter::Source::Library::parse(
+      monograph.get_source(), cursor));
   return monograph;
 }
 

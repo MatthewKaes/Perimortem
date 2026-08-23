@@ -11,7 +11,6 @@
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -38,7 +37,6 @@ static auto select_result_type(
   return left_resolved;
 }
 
-TTX_BINARY_PARSE(Divide, DivOp);
 
 TTX_BINARY_OP(Divide);
 

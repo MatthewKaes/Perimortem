@@ -139,49 +139,16 @@ static auto create_layout(
   return domain.construct<Layout>(receiver, selections);
 }
 
-auto Language::Access::Swizzle::parse(
-    const Abstract&,
-    Cursor& cursor,
+auto Language::Access::Swizzle::create_authored(
+    Memory::Allocator::Arena& domain,
     Language::Model::Pack& receiver,
-    Span receiver_span) -> Core::Option<Expression&> {
-  Memory::Allocator::Arena& domain = cursor.get_arena();
-  Token opening = cursor.consume();
-  Memory::Managed::Vector<Token> tokens(domain);
-  Memory::Managed::Vector<Core::View::Bytes> names(domain);
-
-  // The source Arena retains the bytes with this semantic graph, so
-  // each delayed lookup can keep the exact authored spelling as a borrowed
-  // view.
-  while (!cursor.matches(Code::Type::BracketEnd)) {
-    Token name = cursor.require(
-        Code::Type::Addressable,
-        "Swizzle requires an addressable name or one closing bracket."_view);
-    BAIL_IF(!name);
-
-    tokens.insert(name);
-    names.insert(name.caculate_text(cursor.get_source_text()));
-    if (!cursor.matches(Code::Type::PackingOp)) {
-      break;
-    }
-
-    cursor.consume();
-    if (cursor.matches(Code::Type::BracketEnd)) {
-      break;
-    }
-  }
-
-  Token closing = cursor.require(
-      Code::Type::BracketEnd,
-      "Swizzle requires one closing bracket after its selected names."_view);
-  BAIL_IF(!closing);
-
-  Anchor anchor = Anchor::create(opening, receiver_span, Span(closing));
-  Swizzle& swizzle = Expression::create_authored<Swizzle>(
+    Core::View::Vector<Token> name_tokens,
+    Core::View::Vector<Core::View::Bytes> names,
+    Anchor anchor) -> Swizzle& {
+  return Expression::create_authored<Swizzle>(
       domain, anchor, [&](auto source) -> Swizzle {
-        return Swizzle(
-            domain, receiver, tokens.get_view(), names.get_view(), source);
+        return Swizzle(domain, receiver, name_tokens, names, source);
       });
-  return swizzle;
 }
 
 auto Language::Access::Swizzle::link(

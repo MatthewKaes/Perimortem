@@ -3,7 +3,6 @@
 
 #include "tetrodotoxin/library/language/operations/assignment.hpp"
 
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
@@ -13,42 +12,14 @@ using namespace Tetrodotoxin::Library;
 
 static constexpr Ttx::Model::Layouts::Fluid assignment_layout;
 
-auto Language::Operations::Assignment::parse(
-    const Abstract& context,
-    Cursor& cursor,
-    Model::Pack& left,
-    Span left_span) -> Option<Expression&> {
-  auto target = left.select<Expression>();
-  if (!target) {
-    cursor.create_expression_error(
-        left_span, "Library assignment requires one Expression target."_view,
-        "Assign through one writable expression rather than composed Pack "
-        "flow."_view);
-    return {};
-  }
-
-  Token operation = cursor.require(
-      Code::Type::Assign,
-      "Library Assignment requires the unambiguous `=` operator."_view);
-  BAIL_IF(!operation);
-  Token right_start = cursor.current();
-  Count error_count = cursor.get_error_count();
-  auto right = Parser::Expression::parse_write_operand(context, cursor);
-  if (!right) {
-    if (cursor.get_error_count() == error_count) {
-      cursor.create_expression_error(
-          Anchor::create(Span(operation)),
-          "Library assignment requires one right operand."_view,
-          "Write one complete value flow after `=`."_view);
-    }
-    return {};
-  }
-
-  Anchor anchor =
-      Anchor::create(operation, left_span, Span(right_start, cursor.peek(-1)));
+auto Language::Operations::Assignment::create_authored(
+    Perimortem::Memory::Allocator::Arena& domain,
+    Expression& target,
+    Model::Pack& source,
+    Anchor anchor) -> Assignment& {
   return Expression::create_authored<Assignment>(
-      cursor.get_arena(), anchor, [&](auto authored) -> Assignment {
-        return Assignment(*target, *right, authored);
+      domain, anchor, [&](auto authored) -> Assignment {
+        return Assignment(target, source, authored);
       });
 }
 

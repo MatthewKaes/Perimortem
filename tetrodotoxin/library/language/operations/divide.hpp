@@ -18,12 +18,6 @@ class Divide : public Operation {
  public:
   BINARY_OP_CONTRACT(Divide);
 
-  static auto parse(
-      const Ttx::Concept::Abstract& context,
-      Ttx::Lexical::Cursor& cursor,
-      Model::Pack& left,
-      Ttx::Lexical::Span left_span) -> Perimortem::Core::Option<Expression&>;
-
  protected:
   auto evaluate_constants(Perimortem::Memory::Allocator::Arena& domain)
       -> Perimortem::Utility::Result<

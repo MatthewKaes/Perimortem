@@ -98,39 +98,11 @@ Types::Object::Object(
     Bool provides_initialization)
     : Structure(domain, definition, provides_initialization) {}
 
-auto Types::Object::interpret(
-    Cursor& cursor,
-    Tetrodotoxin::Language::Definition& definition) -> Option<Object&> {
-  Allocator::Arena& domain = cursor.get_arena();
-  if (definition.get_name_token().get_code() != Code::Type::Type) {
-    cursor.create_token_error(
-        definition.get_name_token(),
-        "Library Object definitions require a Type shaped name."_view);
-    return {};
-  }
-  if (definition.get_visibility() ==
-      Tetrodotoxin::Language::Visibility::Exposed) {
-    cursor.create_token_error(
-        definition.get_visibility_token(),
-        "Library Objects accept only `public` or `private` visibility."_view);
-    return {};
-  }
-  if (!definition.get_modifiers().is_empty()) {
-    cursor.create_token_error(
-        definition.get_modifiers().get_data()[0],
-        "Library Objects do not accept evaluation modifiers."_view);
-    return {};
-  }
-
-  Token kind_token = cursor.require(
-      Code::Type::Object,
-      "Library Object definitions require the `object` qualifier."_view);
-  BAIL_IF(!kind_token);
-
-  Object& object = domain.construct_from<Object>(
+auto Types::Object::create_authored(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition) -> Object& {
+  return domain.construct_from<Object>(
       [&]() -> Object { return Object(domain, definition); });
-  BAIL_IF(!object.interpret_body(cursor, definition, kind_token));
-  return object;
 }
 
 auto Types::Object::create_default(Allocator::Arena& arena) const

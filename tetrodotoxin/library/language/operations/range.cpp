@@ -6,7 +6,6 @@
 #include "tetrodotoxin/library/language/generics/range.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -14,47 +13,6 @@ using namespace Tetrodotoxin::Library;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
-
-auto Language::Operations::Range::parse(
-    const Abstract& context,
-    Cursor& cursor,
-    Model::Pack& left,
-    Span left_span) -> Core::Option<Expression&> {
-  Token opening = cursor.consume();
-  Token right_start = cursor.current();
-  auto right = Language::Parser::Expression::parse_operand(
-      context, cursor, Code::Type::RangeOp);
-  Span span(opening, cursor.peek(-1));
-  if (!right) {
-    cursor.create_expression_error(
-        span, "Range has a malformed right endpoint."_view,
-        "Use one complete integer Expression after `...`."_view);
-    return {};
-  }
-  if (cursor.matches(Code::Type::RangeOp)) {
-    cursor.create_expression_error(
-        Span(opening, cursor.current()),
-        "Range accepts exactly two endpoints."_view,
-        "Finish one Range before starting another Expression."_view);
-    return {};
-  }
-
-  auto left_expression = left.select<Expression>();
-  auto right_expression = right->select<Expression>();
-  Span right_span(right_start, cursor.peek(-1));
-  if (!left_expression || !right_expression) {
-    cursor.create_expression_error(
-        Anchor::create(opening, left_span, right_span),
-        "Library Range requires one Expression from each endpoint Pack."_view,
-        "Use one unlabelled integer value for each Range endpoint."_view);
-    return {};
-  }
-
-  Anchor anchor = Anchor::create(opening, left_span, right_span);
-  Range& range = create_authored(
-      cursor.get_arena(), *left_expression, *right_expression, anchor);
-  return range;
-}
 
 TTX_BINARY_OP(Range);
 

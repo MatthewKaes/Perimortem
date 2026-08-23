@@ -13,27 +13,15 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Access::Propagate::parse(
-    const Abstract&,
-    Cursor& cursor,
-    Expression& receiver) -> Core::Option<Expression&> {
-  Memory::Allocator::Arena& domain = cursor.get_arena();
-  Token operation = cursor.require(
-      Code::Type::QuestionOp, "Library propagation requires postfix `?`."_view);
-  BAIL_IF(!operation);
-
-  auto receiver_anchor = receiver.get_anchor();
-  BAIL_IF(!receiver_anchor);
-  Anchor anchor =
-      Anchor::create(operation, receiver_anchor->get_span(), Span(operation));
-  // Every propagation begins with an empty escape Pack. A receiver with a typed
-  // error replaces it during linking before Function result negotiation.
+auto Language::Access::Propagate::create_authored(
+    Memory::Allocator::Arena& domain,
+    Expression& receiver,
+    Anchor anchor) -> Propagate& {
   Model::Pack& empty_escape = Model::Pack::create_empty(domain);
-  Propagate& propagate = Expression::create_authored<Propagate>(
+  return Expression::create_authored<Propagate>(
       domain, anchor, [&](Core::Option<Anchor> source) -> Propagate {
         return Propagate(receiver, empty_escape, source);
       });
-  return propagate;
 }
 
 auto Language::Access::Propagate::link(

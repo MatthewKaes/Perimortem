@@ -10,24 +10,13 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Signature::interpret(Cursor& cursor, const Abstract& host)
-    -> Option<Signature&> {
-  Allocator::Arena& domain = cursor.get_arena();
-
-  auto parameters = Language::Model::Layout::interpret_parameters(cursor, host);
-  BAIL_IF(!parameters);
-
-  BAIL_IF(!cursor.require(
-      Code::Type::CallOp,
-      "Library Function parameters require `->` before the result "
-      "Layout."_view));
-
-  auto results = Language::Model::Layout::interpret(cursor, host);
-  BAIL_IF(!results);
-
-  Signature& signature = domain.construct_from<Signature>(
-      [&]() -> Signature { return Signature(host, *parameters, *results); });
-  return signature;
+auto Language::Signature::create_authored(
+    Allocator::Arena& domain,
+    const Abstract& host,
+    Model::Layout& parameters,
+    Model::Layout& results) -> Signature& {
+  return domain.construct_from<Signature>(
+      [&]() -> Signature { return Signature(host, parameters, results); });
 }
 
 auto Language::Signature::persist(Archive::Writer& writer) const -> Bool {

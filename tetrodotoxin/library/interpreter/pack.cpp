@@ -1,11 +1,11 @@
 // Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "tetrodotoxin/library/language/model/parser/pack.hpp"
+#include "tetrodotoxin/library/interpreter/pack.hpp"
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/interpreter/expression.hpp"
 #include "ttx/concept/reference.hpp"
 
 using namespace Perimortem;
@@ -13,7 +13,7 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Model::Parser::Pack::parse(
+auto Interpreter::Pack::parse(
     const Abstract& context,
     Cursor& cursor,
     Bool force_parentheses) -> Core::Option<Language::Model::Pack&> {
@@ -23,7 +23,7 @@ auto Language::Model::Parser::Pack::parse(
   // forced path below only while parsing that parenthesized primary, which
   // breaks the mutual grammar recursion at one explicit delimiter boundary.
   if (!force_parentheses) {
-    return Language::Parser::Expression::parse(context, cursor);
+    return Interpreter::Expression::parse(context, cursor);
   }
 
   if (!cursor.matches(Code::Type::PackingStart)) {
@@ -81,7 +81,7 @@ auto Language::Model::Parser::Pack::parse(
     // grammar may itself start with another parenthesized Pack, so nested
     // groups retain fluid flow while postfix access still binds to the whole
     // inner Pack before this separator is considered.
-    auto entry = Language::Parser::Expression::parse(context, cursor);
+    auto entry = Interpreter::Expression::parse(context, cursor);
     BAIL_IF(!entry);
     entries.insert(*entry);
 

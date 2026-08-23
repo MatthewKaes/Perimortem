@@ -1,39 +1,22 @@
 // Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/interpreter/expression.hpp"
 
-#include "tetrodotoxin/library/language/access/address.hpp"
-#include "tetrodotoxin/library/language/access/call.hpp"
-#include "tetrodotoxin/library/language/access/index.hpp"
+#include "tetrodotoxin/library/interpreter/access/address.hpp"
+#include "tetrodotoxin/library/interpreter/access/postfix.hpp"
+#include "tetrodotoxin/library/interpreter/access/call.hpp"
+#include "tetrodotoxin/library/interpreter/access/index.hpp"
 #include "tetrodotoxin/library/language/access/propagate.hpp"
-#include "tetrodotoxin/library/language/access/slice.hpp"
-#include "tetrodotoxin/library/language/access/swizzle.hpp"
+#include "tetrodotoxin/library/interpreter/access/slice.hpp"
+#include "tetrodotoxin/library/interpreter/access/swizzle.hpp"
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/access/unwrap.hpp"
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
-#include "tetrodotoxin/library/language/expressions/initializer.hpp"
-#include "tetrodotoxin/library/language/model/parser/pack.hpp"
-#include "tetrodotoxin/library/language/operations/add.hpp"
-#include "tetrodotoxin/library/language/operations/add_assignment.hpp"
-#include "tetrodotoxin/library/language/operations/and.hpp"
-#include "tetrodotoxin/library/language/operations/assignment.hpp"
-#include "tetrodotoxin/library/language/operations/divide.hpp"
-#include "tetrodotoxin/library/language/operations/equal.hpp"
-#include "tetrodotoxin/library/language/operations/greater.hpp"
-#include "tetrodotoxin/library/language/operations/greater_equal.hpp"
-#include "tetrodotoxin/library/language/operations/less.hpp"
-#include "tetrodotoxin/library/language/operations/less_equal.hpp"
-#include "tetrodotoxin/library/language/operations/modulo.hpp"
-#include "tetrodotoxin/library/language/operations/multiply.hpp"
-#include "tetrodotoxin/library/language/operations/negate.hpp"
-#include "tetrodotoxin/library/language/operations/not.hpp"
-#include "tetrodotoxin/library/language/operations/not_equal.hpp"
-#include "tetrodotoxin/library/language/operations/or.hpp"
-#include "tetrodotoxin/library/language/operations/range.hpp"
-#include "tetrodotoxin/library/language/operations/subtract.hpp"
-#include "tetrodotoxin/library/language/operations/subtract_assignment.hpp"
-#include "tetrodotoxin/library/language/parser/literal.hpp"
+#include "tetrodotoxin/library/interpreter/expressions/initializer.hpp"
+#include "tetrodotoxin/library/interpreter/operation.hpp"
+#include "tetrodotoxin/library/interpreter/pack.hpp"
+#include "tetrodotoxin/library/interpreter/literal.hpp"
 #include "ttx/concept/reference.hpp"
 
 using namespace Perimortem::Core;
@@ -79,19 +62,25 @@ static auto parse_postfix(
     -> Option<Library::Language::Expression&> {
   switch (code) {
   case Code::Type::AddressOp:
-    return Library::Language::Access::Address::parse(context, cursor, receiver);
+    return Library::Interpreter::Access::Address::parse(
+        context, cursor, receiver);
   case Code::Type::CallOp:
-    return Library::Language::Access::Call::parse(context, cursor, receiver);
+    return Library::Interpreter::Access::Call::parse(
+        context, cursor, receiver);
   case Code::Type::BracketStart:
-    return Library::Language::Access::Index::parse(context, cursor, receiver);
+    return Library::Interpreter::Access::Index::parse(
+        context, cursor, receiver);
   case Code::Type::TypeAccessOp:
-    return Library::Language::Access::Type::parse(context, cursor, receiver);
+    return Library::Interpreter::Access::Postfix::parse_type(
+        context, cursor, receiver);
   case Code::Type::ValueAccessOp:
-    return Library::Language::Access::Slice::parse(context, cursor, receiver);
+    return Library::Interpreter::Access::Slice::parse(
+        context, cursor, receiver);
   case Code::Type::NotOp:
-    return Library::Language::Access::Unwrap::parse(context, cursor, receiver);
+    return Library::Interpreter::Access::Postfix::parse_unwrap(
+        context, cursor, receiver);
   case Code::Type::QuestionOp:
-    return Library::Language::Access::Propagate::parse(
+    return Library::Interpreter::Access::Postfix::parse_propagate(
         context, cursor, receiver);
   default:
     return {};
@@ -130,78 +119,16 @@ static auto get_precedence(Code::Type code) -> Count {
   }
 }
 
-static auto parse_binary(
-    Code::Type code,
-    const Abstract& context,
-    Cursor& cursor,
-    Library::Language::Model::Pack& left,
-    Span left_span) -> Option<Library::Language::Expression&> {
-  switch (code) {
-  case Code::Type::DivOp:
-    return Library::Language::Operations::Divide::parse(
-        context, cursor, left, left_span);
-  case Code::Type::ModOp:
-    return Library::Language::Operations::Modulo::parse(
-        context, cursor, left, left_span);
-  case Code::Type::MulOp:
-    return Library::Language::Operations::Multiply::parse(
-        context, cursor, left, left_span);
-  case Code::Type::AddOp:
-    return Library::Language::Operations::Add::parse(
-        context, cursor, left, left_span);
-  case Code::Type::SubOp:
-    return Library::Language::Operations::Subtract::parse(
-        context, cursor, left, left_span);
-  case Code::Type::LessOp:
-    return Library::Language::Operations::Less::parse(
-        context, cursor, left, left_span);
-  case Code::Type::GreaterOp:
-    return Library::Language::Operations::Greater::parse(
-        context, cursor, left, left_span);
-  case Code::Type::GreaterEqOp:
-    return Library::Language::Operations::GreaterEqual::parse(
-        context, cursor, left, left_span);
-  case Code::Type::LessEqOp:
-    return Library::Language::Operations::LessEqual::parse(
-        context, cursor, left, left_span);
-  case Code::Type::CmpOp:
-    return Library::Language::Operations::Equal::parse(
-        context, cursor, left, left_span);
-  case Code::Type::NotEqOp:
-    return Library::Language::Operations::NotEqual::parse(
-        context, cursor, left, left_span);
-  case Code::Type::And:
-    return Library::Language::Operations::And::parse(
-        context, cursor, left, left_span);
-  case Code::Type::Or:
-    return Library::Language::Operations::Or::parse(
-        context, cursor, left, left_span);
-  case Code::Type::RangeOp:
-    return Library::Language::Operations::Range::parse(
-        context, cursor, left, left_span);
-  case Code::Type::Assign:
-    return Library::Language::Operations::Assignment::parse(
-        context, cursor, left, left_span);
-  case Code::Type::AddAssign:
-    return Library::Language::Operations::AddAssignment::parse(
-        context, cursor, left, left_span);
-  case Code::Type::SubAssign:
-    return Library::Language::Operations::SubtractAssignment::parse(
-        context, cursor, left, left_span);
-  default:
-    return {};
-  }
-}
-
 static auto parse_primary(const Abstract& context, Cursor& cursor)
     -> Option<Library::Language::Model::Pack&> {
   if (cursor.matches(Code::Type::PackingStart)) {
-    return Library::Language::Model::Parser::Pack::parse(context, cursor, True);
+    return Library::Interpreter::Pack::parse(context, cursor, True);
   }
 
-  if (Library::Language::Expressions::Initializer::is_next(cursor)) {
+  if (Library::Interpreter::Expressions::Initializer::is_next(cursor)) {
     auto initializer =
-        Library::Language::Expressions::Initializer::parse(context, cursor);
+        Library::Interpreter::Expressions::Initializer::parse(
+            context, cursor);
     BAIL_IF(!initializer);
     return static_cast<Library::Language::Model::Pack&>(*initializer);
   }
@@ -215,7 +142,8 @@ static auto parse_primary(const Abstract& context, Cursor& cursor)
   }
 
   if (cursor.matches(Code::Type::NotOp)) {
-    auto operation = Library::Language::Operations::Not::parse(context, cursor);
+    auto operation = Library::Interpreter::Operation::parse_prefix(
+        Code::Type::NotOp, context, cursor);
     BAIL_IF(!operation);
     return static_cast<Library::Language::Model::Pack&>(*operation);
   }
@@ -226,13 +154,14 @@ static auto parse_primary(const Abstract& context, Cursor& cursor)
     switch (cursor.peek(1).get_code().get_type()) {
     case Code::Type::Numeric:
     case Code::Type::Float: {
-      auto literal = Library::Language::Parser::Literal::parse(context, cursor);
+      auto literal = Library::Interpreter::Literal::parse(context, cursor);
       BAIL_IF(!literal);
       return *literal;
     }
     default:
       auto operation =
-          Library::Language::Operations::Negate::parse(context, cursor);
+          Library::Interpreter::Operation::parse_prefix(
+              Code::Type::SubOp, context, cursor);
       BAIL_IF(!operation);
       return static_cast<Library::Language::Model::Pack&>(*operation);
     }
@@ -247,7 +176,7 @@ static auto parse_primary(const Abstract& context, Cursor& cursor)
   case Code::Type::Hex:
   case Code::Type::Float:
   case Code::Type::Embedded: {
-    auto literal = Library::Language::Parser::Literal::parse(context, cursor);
+    auto literal = Library::Interpreter::Literal::parse(context, cursor);
     BAIL_IF(!literal);
     return *literal;
   }
@@ -273,7 +202,7 @@ static auto parse_expression(
   // below then resolves that finished chain as its left Expression.
   while (True) {
     if (cursor.matches(Code::Type::SwizzleOp)) {
-      auto selected = Library::Language::Access::Swizzle::parse(
+      auto selected = Library::Interpreter::Access::Swizzle::parse(
           context, cursor, parsed.get(), parsed_span);
       BAIL_IF(!selected);
 
@@ -313,8 +242,8 @@ static auto parse_expression(
       return parsed.get();
     }
 
-    auto selected =
-        parse_binary(binary, context, cursor, parsed.get(), parsed_span);
+    auto selected = Library::Interpreter::Operation::parse_binary(
+        binary, context, cursor, parsed.get(), parsed_span);
     BAIL_IF(!selected);
 
     parsed = Reference<Library::Language::Model::Pack>(*selected);
@@ -323,7 +252,7 @@ static auto parse_expression(
   }
 }
 
-auto Library::Language::Parser::Expression::parse(
+auto Library::Interpreter::Expression::parse(
     const Abstract& context,
     Cursor& cursor) -> Option<Language::Model::Pack&> {
   Count error_count = cursor.get_error_count();
@@ -339,7 +268,7 @@ auto Library::Language::Parser::Expression::parse(
   return *parsed;
 }
 
-auto Library::Language::Parser::Expression::parse_operand(
+auto Library::Interpreter::Expression::parse_operand(
     const Abstract& context,
     Cursor& cursor,
     Code::Type operation) -> Option<Language::Model::Pack&> {
@@ -349,13 +278,13 @@ auto Library::Language::Parser::Expression::parse_operand(
   return parse_expression(context, cursor, precedence + 1);
 }
 
-auto Library::Language::Parser::Expression::parse_write_operand(
+auto Library::Interpreter::Expression::parse_write_operand(
     const Abstract& context,
     Cursor& cursor) -> Option<Language::Model::Pack&> {
   return parse_expression(context, cursor, get_precedence(Code::Type::Assign));
 }
 
-auto Library::Language::Parser::Expression::parse_prefix_operand(
+auto Library::Interpreter::Expression::parse_prefix_operand(
     const Abstract& context,
     Cursor& cursor) -> Option<Language::Model::Pack&> {
   return parse_expression(context, cursor, prefix_precedence);

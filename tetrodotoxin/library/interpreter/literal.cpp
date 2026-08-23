@@ -1,7 +1,7 @@
 // Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "tetrodotoxin/library/language/parser/literal.hpp"
+#include "tetrodotoxin/library/interpreter/literal.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/reader/textual.hpp"
@@ -350,9 +350,9 @@ static auto parse_real(
       domain, *type, value, anchor);
 }
 
-auto Library::Language::Parser::Literal::parse(
+auto Library::Interpreter::Literal::parse(
     const Abstract& context,
-    Cursor& cursor) -> Option<Constant&> {
+    Cursor& cursor) -> Option<Library::Language::Constant&> {
   Allocator::Arena& domain = cursor.get_arena();
   const Abstract& source_context = context;
 

@@ -12,7 +12,7 @@
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Library::Language::Parser {
+namespace Tetrodotoxin::Library::Interpreter {
 
 // Expression consumes one complete Library value flow operand. Parentheses may
 // therefore produce an empty Pack, a named Pack, or a Pack with several values
@@ -52,7 +52,7 @@ class Expression {
       -> Perimortem::Core::Option<Language::Model::Pack&>;
 };
 
-}  // namespace Tetrodotoxin::Library::Language::Parser
+}  // namespace Tetrodotoxin::Library::Interpreter
 
 // Scalar Operations accept Pack operands at their grammar boundary, then
 // retain the exact Expression identities proved here. A parenthesized single
@@ -70,7 +70,7 @@ class Expression {
     Ttx::Lexical::Token right_start = cursor.current();                     \
     Count error_count = cursor.get_error_count();                           \
     auto right =                                                            \
-        Tetrodotoxin::Library::Language::Parser::Expression::parse_operand( \
+        Tetrodotoxin::Library::Interpreter::Expression::parse_operand( \
             context, cursor, Ttx::Lexical::Code::Type::token_type);         \
     if (!right) {                                                           \
       if (cursor.get_error_count() == error_count) {                        \
@@ -109,7 +109,7 @@ class Expression {
     Ttx::Lexical::Token opening = cursor.consume();                        \
     Ttx::Lexical::Token operand_start = cursor.current();                  \
     Count error_count = cursor.get_error_count();                          \
-    auto operand = Tetrodotoxin::Library::Language::Parser::Expression::   \
+    auto operand = Tetrodotoxin::Library::Interpreter::Expression::   \
         parse_prefix_operand(context, cursor);                             \
     if (!operand) {                                                        \
       if (cursor.get_error_count() == error_count) {                       \

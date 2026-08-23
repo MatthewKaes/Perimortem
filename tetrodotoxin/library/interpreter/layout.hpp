@@ -8,9 +8,11 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/library/language/model/layout.hpp"
+#include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Library::Language::Model::Parser {
+namespace Tetrodotoxin::Library::Interpreter {
 
 // Layout is the reusable lexical entry point for Library descriptor Layouts.
 // It owns optional brackets, separators, a trailing comma, explicit names, and
@@ -19,6 +21,11 @@ namespace Tetrodotoxin::Library::Language::Model::Parser {
 class Layout {
  public:
   Layout() = delete;
+
+  static auto parse_model(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& host,
+      Bool parameters) -> Perimortem::Core::Option<Language::Model::Layout&>;
 
   // Parses either one bare descriptor or one complete bracketed Layout. An
   // explicit name is consumed before the callback, leaving the Cursor on the
@@ -124,4 +131,4 @@ class Layout {
       -> Bool;
 };
 
-}  // namespace Tetrodotoxin::Library::Language::Model::Parser
+}  // namespace Tetrodotoxin::Library::Interpreter

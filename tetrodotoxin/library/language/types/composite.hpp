@@ -39,10 +39,6 @@ class Composite : public Model::Type {
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition);
 
-  auto interpret_definition(
-      Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition) -> Bool;
-
   auto can_accept_definition() const -> Bool;
 
   auto can_bind_definition(
@@ -82,6 +78,15 @@ class Composite : public Model::Type {
   Composite(Composite&&) = delete;
   auto operator=(const Composite&) -> Composite& = delete;
   auto operator=(Composite&&) -> Composite& = delete;
+
+  // Interpretation selects the declaration category from authored grammar.
+  // Composite applies its one registration and collision policy to that real
+  // identity without learning how the declaration was parsed.
+  auto retain_authored_definition(
+      Ttx::Concept::Abstract& binding,
+      Tetrodotoxin::Language::Definition& definition,
+      Category category,
+      Ttx::Lexical::Cursor& cursor) -> Bool;
 
   constexpr auto get_definition() const
       -> const Tetrodotoxin::Language::Definition& {

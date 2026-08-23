@@ -9,6 +9,7 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/interpreter/source/library.hpp"
 #include "tetrodotoxin/scene/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -51,7 +52,9 @@ class RejectingLibraryDialect : public Library::Dialect {
     Ttx::Lexical::Associations associations(tokenizer.get_arena());
     Cursor cursor(tokenizer, parser_errors, associations);
     auto& monograph = static_cast<Library::Language::Monograph&>(*interpreted);
-    if (!monograph.parse(cursor) || !cursor.matches(Code::Type::Terminal) ||
+    if (!Library::Interpreter::Source::Library::parse(
+            monograph.get_source(), cursor) ||
+        !cursor.matches(Code::Type::Terminal) ||
         !parser_errors.is_empty()) {
       source_cursor.create_error(
           "The test Library child could not be prepared."_view);

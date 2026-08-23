@@ -2,6 +2,7 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/operations/modulo.hpp"
+#include "tetrodotoxin/library/interpreter/operation.hpp"
 
 #include "validation/unit_test.hpp"
 #include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
@@ -28,6 +29,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
+using namespace Tetrodotoxin::Library;
 using namespace Tetrodotoxin::Library::Language;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
@@ -395,7 +397,7 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, atomic_provenance) {
       success_left_trigger, Span(success_left_trigger, success_left_end));
   auto& success_left = Constants::Signed::create_authored(
       domain, parser_type, -7, success_left_anchor);
-  auto parsed = Operations::Modulo::parse(
+  auto parsed = Interpreter::Operation::parse_binary(Code::Type::ModOp,
       source, success_cursor, success_left,
       Span(success_left_trigger, success_left_end));
   Errors failure_errors;
@@ -408,7 +410,7 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, atomic_provenance) {
       failure_left_trigger, Span(failure_left_trigger, failure_left_end));
   auto& failure_left = Constants::Signed::create_authored(
       domain, parser_type, -7, failure_left_anchor);
-  auto rejected = Operations::Modulo::parse(
+  auto rejected = Interpreter::Operation::parse_binary(Code::Type::ModOp,
       source, failure_cursor, failure_left,
       Span(failure_left_trigger, failure_left_end));
 

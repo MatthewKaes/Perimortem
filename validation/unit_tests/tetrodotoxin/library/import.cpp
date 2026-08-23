@@ -2,6 +2,7 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/import.hpp"
+#include "tetrodotoxin/library/interpreter/source/import.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -122,7 +123,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, statement_grammar) {
     Ttx::Lexical::Associations associations(tokenizer.get_arena());
     Cursor cursor(tokenizer, errors, associations);
     auto import =
-        Library::Language::Import::parse(cursor, Documentation::get_empty());
+        Library::Interpreter::Source::Import::parse(
+            cursor, Documentation::get_empty());
     EXPECT(import && cursor.matches(Code::Type::Terminal));
     EXPECT(errors.is_empty());
   }
@@ -145,7 +147,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, statement_grammar) {
     Ttx::Lexical::Associations associations(tokenizer.get_arena());
     Cursor cursor(tokenizer, errors, associations);
     EXPECT_NOT(
-        Library::Language::Import::parse(cursor, Documentation::get_empty()));
+        Library::Interpreter::Source::Import::parse(
+            cursor, Documentation::get_empty()));
     EXPECT_NOT(errors.is_empty());
   }
 }

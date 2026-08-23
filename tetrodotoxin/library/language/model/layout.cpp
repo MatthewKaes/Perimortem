@@ -5,7 +5,6 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
-#include "tetrodotoxin/library/language/model/parser/layout.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/parameter.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -69,88 +68,13 @@ static auto get_slot_name(const Ttx::Concept::Layout& layout, Count index)
       });
 }
 
-auto Language::Model::Layout::interpret_parameters(
-    Cursor& cursor,
-    const Abstract& host) -> Option<Layout&> {
-  return interpret(cursor, host, True);
-}
-
-auto Language::Model::Layout::interpret(Cursor& cursor, const Abstract& host)
-    -> Option<Layout&> {
-  return interpret(cursor, host, False);
-}
-
-auto Language::Model::Layout::interpret(
-    Cursor& cursor,
-    const Abstract& host,
-    Bool parameters) -> Option<Layout&> {
-  // Parser::Layout owns the bracket and separator grammar. This owner retains
-  // delayed Type routes so declaration order does not become a parse rule.
-  Allocator::Arena& domain = cursor.get_arena();
-  Token opening = cursor.current();
-  Managed::Vector<Slot> slots(domain);
-  auto closing = Parser::Layout::parse(
-      cursor,
-      [&](Cursor& entry, Count index, Option<Token> name_token) -> Bool {
-        if (entry.matches(Code::Type::Self)) {
-          Bool bracketed =
-              name_token && name_token->get_code() == Code::Type::Self;
-          Bool scalar_result = !parameters && !name_token;
-          if (index != 0 || (!bracketed && !scalar_result)) {
-            entry.create_token_error(
-                "Library `self` must be the first Function Layout entry."_view);
-            return False;
-          }
-
-          Token self = entry.consume();
-          slots.insert(Slot({}, Anchor::create(Span(self)), "self"_view));
-          return True;
-        }
-
-        if (!entry.matches(Code::Type::Type)) {
-          entry.create_token_error(
-              "Library Layout entries require one Type reference."_view);
-          return False;
-        }
-
-        Token slot_opening = name_token ? entry.peek(-3) : entry.current();
-        auto type = TypeReference::parse(host, entry);
-        BAIL_IF(!type);
-
-        View::Bytes name;
-        Anchor slot_anchor = type->get_anchor();
-        if (name_token) {
-          name = name_token->caculate_text(entry.get_source_text());
-          slot_anchor = Anchor::create(
-              *name_token,
-              Span(slot_opening, type->get_anchor().get_span().get_end()));
-        }
-
-        slots.insert(Slot(*type, slot_anchor, name));
-        return True;
-      });
-  BAIL_IF(!closing);
-
-  if (parameters && !slots.is_empty() && slots.at(0).name.is_empty()) {
-    cursor.create_expression_error(
-        slots.at(0).anchor,
-        "Library Function parameters require one Named Layout."_view,
-        "Use `[]` for no parameters or name every entry as `.name : Type`."_view);
-    return {};
-  }
-  if (!parameters && !slots.is_empty() && !slots.at(0).type_reference &&
-      slots.get_size() != 1) {
-    cursor.create_expression_error(
-        slots.at(0).anchor,
-        "Library `[self]` must be the complete Function result Layout."_view,
-        "Return only the receiver reference or use authored result Types."_view);
-    return {};
-  }
-
-  Anchor anchor = Anchor::create(opening, Span(opening, *closing));
-  Layout& layout = domain.construct_from<Layout>(
+auto Language::Model::Layout::create_authored(
+    Allocator::Arena& domain,
+    Managed::Vector<Slot> slots,
+    Anchor anchor,
+    Bool parameters) -> Layout& {
+  return domain.construct_from<Layout>(
       [&]() -> Layout { return Layout(domain, slots, anchor, parameters); });
-  return layout;
 }
 
 auto Language::Model::Layout::persist(Archive::Writer& writer) const -> Bool {

@@ -26,10 +26,10 @@ class Return : public Ttx::Concept::Abstract {
  public:
   TTX_CONTRACT(Return, Ttx::Concept::Abstract);
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& context)
-      -> Perimortem::Core::Option<Return&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Ttx::Lexical::Anchor anchor,
+      Model::Pack& pack) -> Return&;
 
   Return(const Return&) = delete;
   Return(Return&&) = delete;

@@ -4,7 +4,6 @@
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
-#include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -12,74 +11,16 @@ using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Expressions::Initializer::is_next(
-    const Ttx::Lexical::Cursor& cursor) -> Bool {
-  return cursor.matches(Ttx::Lexical::Code::Type::New);
-}
-
-auto Language::Expressions::Initializer::parse(
-    const Abstract& context,
-    Ttx::Lexical::Cursor& cursor) -> Core::Option<Initializer&> {
-  Memory::Allocator::Arena& domain = cursor.get_arena();
-  BAIL_IF(!is_next(cursor));
-
-  Ttx::Lexical::Token opening = cursor.consume();
-  BAIL_IF(!cursor.require(
-      Ttx::Lexical::Code::Type::BracketStart,
-      "Library `new` requires `[` before its Object Type."_view));
-  auto target_reference = TypeReference::parse(context, cursor);
-  BAIL_IF(!target_reference);
-  Ttx::Lexical::Token type_closing = cursor.require(
-      Ttx::Lexical::Code::Type::BracketEnd,
-      "Library `new` requires `]` after its Object Type."_view);
-  BAIL_IF(!type_closing);
-
-  Core::Option<Language::Model::Pack&> arguments;
-  Ttx::Lexical::Token closing = type_closing;
-  if (cursor.matches(Ttx::Lexical::Code::Type::PackingStart)) {
-    Ttx::Lexical::Token argument_opening = cursor.current();
-    Ttx::Lexical::Token argument_closing = cursor.peek(1);
-    // Empty argument syntax is known before semantic binding. Looking at the
-    // parsed Layout here would observe expressions before they link and would
-    // force Type selection to manufacture value output merely for this check.
-    if (argument_closing.get_code().get_type() ==
-        Ttx::Lexical::Code::Type::PackingEnd) {
-      cursor.create_expression_error(
-          Ttx::Lexical::Span(argument_opening, argument_closing),
-          "Object initializer arguments cannot be empty."_view,
-          "Omit the argument list when every state Field should use its "
-          "default."_view);
-      return {};
-    }
-    // Supplied values belong only to Object and its grammar is named. Rejecting
-    // positional syntax here avoids retaining a second shape fact through link.
-    if (argument_closing.get_code().get_type() !=
-        Ttx::Lexical::Code::Type::AddressOp) {
-      cursor.create_token_error(
-          argument_closing,
-          "Object initializer inputs must name state Fields."_view,
-          "Use `.field = value` for every supplied value."_view);
-      return {};
-    }
-    auto parsed = Language::Model::Parser::Pack::parse(context, cursor, True);
-    BAIL_IF(!parsed);
-    arguments = *parsed;
-    closing = cursor.peek(-1);
-  } else {
-    // The omitted form owns an independent empty Pack. Sharing one static
-    // empty Layout would also share its staged link and finalization lifetime
-    // across otherwise unrelated initializer transactions.
-    arguments = Language::Model::Pack::create_empty(domain);
-  }
-
-  Ttx::Lexical::Anchor anchor = Ttx::Lexical::Anchor::create(
-      opening, Ttx::Lexical::Span(opening, closing));
-  Initializer& initializer = Expression::create_authored<Initializer>(
+auto Language::Expressions::Initializer::create_authored(
+    Memory::Allocator::Arena& domain,
+    TypeReference target_reference,
+    Model::Pack& arguments,
+    Ttx::Lexical::Anchor anchor) -> Initializer& {
+  return Expression::create_authored<Initializer>(
       domain, anchor,
       [&](Core::Option<Ttx::Lexical::Anchor> source) -> Initializer {
-        return Initializer(*target_reference, *arguments, source);
+        return Initializer(target_reference, arguments, source);
       });
-  return initializer;
 }
 
 auto Language::Expressions::Initializer::create_synthetic(

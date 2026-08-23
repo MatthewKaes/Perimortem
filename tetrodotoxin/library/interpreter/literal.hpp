@@ -11,7 +11,7 @@
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Library::Language::Parser {
+namespace Tetrodotoxin::Library::Interpreter {
 
 // Literal consumes one complete scalar or byte operand and constructs its real
 // Constant in the graph Arena. Library's binary wide scalar addresses supply
@@ -26,7 +26,8 @@ class Literal {
 
   static auto parse(
       const Ttx::Concept::Abstract& context,
-      Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Constant&>;
+      Ttx::Lexical::Cursor& cursor)
+      -> Perimortem::Core::Option<Language::Constant&>;
 };
 
-}  // namespace Tetrodotoxin::Library::Language::Parser
+}  // namespace Tetrodotoxin::Library::Interpreter

@@ -30,11 +30,17 @@ class Branch : public Ttx::Concept::Abstract {
 
   TTX_CONTRACT(Branch, Ttx::Concept::Abstract);
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      Block& lexical_context,
-      Model::Callable& function,
-      const Model::Type& access_scope) -> Perimortem::Core::Option<Branch&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Kind kind,
+      Model::Pack& condition,
+      Ttx::Lexical::Anchor anchor) -> Branch&;
+
+  auto complete_body(Block& selected) -> Bool;
+
+  auto complete_alternate(Statement selected) -> Bool;
+
+  auto complete_anchor(Ttx::Lexical::Anchor selected) -> void;
 
   Branch(const Branch&) = delete;
   Branch(Branch&&) = delete;

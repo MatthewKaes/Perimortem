@@ -25,12 +25,6 @@ class Import {
         type_reference(type_reference),
         span(span) {}
 
-  // Consumes one complete using statement and retains its route and extent.
-  static auto parse(
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Documentation& documentation)
-      -> Perimortem::Core::Option<Import>;
-
   static auto restore(
       Archive::Reader& reader,
       Perimortem::Memory::Allocator::Arena& arena,

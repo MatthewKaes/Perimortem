@@ -29,8 +29,15 @@ class Local : public Model::Addressable {
  public:
   TTX_CONTRACT(Local, Model::Addressable);
 
-  static auto interpret(Ttx::Lexical::Cursor& cursor, Block& host)
-      -> Perimortem::Core::Option<Local&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Block& host,
+      Ttx::Lexical::Token name_token,
+      Perimortem::Core::View::Bytes name,
+      Writability writability,
+      Perimortem::Core::Option<TypeReference> type_reference,
+      Perimortem::Core::Option<Model::Pack&> initializer,
+      Ttx::Lexical::Anchor anchor) -> Local&;
 
   Local(const Local&) = delete;
   Local(Local&&) = delete;

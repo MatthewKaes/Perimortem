@@ -5,7 +5,6 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
-#include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -18,12 +17,6 @@ using namespace Tetrodotoxin::Library::Language;
 
 using Tetrodotoxin::Language::Visibility;
 using Type = Model::Type;
-
-static auto is_foreign_keyword(const Cursor& cursor) -> Bool {
-  return cursor.matches(Code::Type::Addressable) &&
-         cursor.current().caculate_text(cursor.get_source_text()) ==
-             "foreign"_view;
-}
 
 auto Types::Source::create_synthetic(
     Allocator::Arena& domain,
@@ -40,39 +33,11 @@ auto Types::Source::create_synthetic(
       [&]() -> Source { return Source(domain, definition); });
 }
 
-auto Types::Source::parse_definition(
-    Cursor& cursor,
-    const Documentation& documentation) -> Bool {
-  auto definition =
-      Tetrodotoxin::Language::Definition::parse(cursor, documentation, *this);
-  BAIL_IF(!definition || !interpret_definition(cursor, *definition));
-  return True;
-}
-
-auto Types::Source::parse(Cursor& cursor) -> Bool {
-  while (!cursor.matches(Code::Type::Terminal)) {
-    // Every root form begins with the same optional Documentation. Source
-    // parses it once and passes that exact object to the selected owner so
-    // Import, Foreign, and Definition never speculate over the prefix
-    // independently.
-    const Documentation& documentation =
-        Tetrodotoxin::Language::Parser::Comment::parse(cursor);
-
-    if (cursor.matches(Code::Type::Using)) {
-      auto import = Import::parse(cursor, documentation);
-      BAIL_IF(!import || imports_linked);
-      import_routes.insert(*import);
-      continue;
-    }
-
-    if (is_foreign_keyword(cursor)) {
-      BAIL_IF(!foreign.parse(cursor, documentation));
-      continue;
-    }
-
-    BAIL_IF(!parse_definition(cursor, documentation));
+auto Types::Source::retain_authored_import(Import import) -> Bool {
+  if (imports_linked) {
+    return False;
   }
-
+  import_routes.insert(import);
   return True;
 }
 

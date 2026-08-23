@@ -17,7 +17,7 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   TTX_CONTRACT(Monograph, Tetrodotoxin::Language::Monograph);
 
   static auto create_authored(
-      Ttx::Lexical::Cursor& cursor,
+      Perimortem::Memory::Allocator::Arena& arena,
       const Ttx::Concept::Documentation& documentation,
       const Ttx::Lexical::Anchor& source_anchor,
       const Ttx::Concept::Abstract& language,
@@ -29,8 +29,6 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Tetrodotoxin::Language::Persistence::Profile profile,
       const Ttx::Concept::Abstract& language,
       Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
-
-  auto parse(Ttx::Lexical::Cursor& cursor) -> Bool;
 
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool override;
 

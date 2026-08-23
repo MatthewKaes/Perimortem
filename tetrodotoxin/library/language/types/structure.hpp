@@ -17,10 +17,9 @@ class Structure : public Composite {
  public:
   TTX_CONTRACT(Structure, Composite);
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition)
-      -> Perimortem::Core::Option<Structure&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition) -> Structure&;
 
   static auto restore(
       Archive::Reader& reader,
@@ -46,6 +45,11 @@ class Structure : public Composite {
     return provides_initialization;
   }
 
+  // The closing brace fixes member identity and source order even though
+  // individual Type edges settle later. Interpretation calls this once after
+  // the complete authored body has been retained.
+  auto complete_authored_body() -> void;
+
  protected:
   Structure(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -53,11 +57,6 @@ class Structure : public Composite {
       Bool provides_initialization = True)
       : Composite(domain, definition),
         provides_initialization(provides_initialization) {}
-
-  auto interpret_body(
-      Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition,
-      Ttx::Lexical::Token kind_token) -> Bool;
 
   constexpr auto owns_initialization() const -> Bool {
     return provides_initialization;

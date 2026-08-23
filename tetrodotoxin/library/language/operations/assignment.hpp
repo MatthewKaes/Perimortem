@@ -19,11 +19,11 @@ class Assignment : public Expression {
  public:
   TTX_CONTRACT(Assignment, Expression);
 
-  static auto parse(
-      const Ttx::Concept::Abstract& context,
-      Ttx::Lexical::Cursor& cursor,
-      Model::Pack& left,
-      Ttx::Lexical::Span left_span) -> Perimortem::Core::Option<Expression&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Expression& target,
+      Model::Pack& source,
+      Ttx::Lexical::Anchor anchor) -> Assignment&;
 
   auto link(
       Ttx::Lexical::Cursor& cursor,

@@ -2,6 +2,7 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/type_reference.hpp"
+#include "tetrodotoxin/library/interpreter/type_reference.hpp"
 
 #include "validation/unit_test.hpp"
 #include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
@@ -111,7 +112,7 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, segment_queries) {
   Tokenizer tokenizer(arena, "First::Second"_view, "route.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
-  auto reference = Language::TypeReference::parse_route(cursor);
+  auto reference = Interpreter::TypeReference::parse_route(cursor);
   ASSERT(reference);
 
   RouteType terminal;

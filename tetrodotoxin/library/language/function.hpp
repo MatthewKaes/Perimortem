@@ -29,10 +29,15 @@ class Function : public Model::Callable {
  public:
   TTX_CONTRACT(Function, Model::Callable);
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition)
-      -> Perimortem::Core::Option<Function&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition,
+      Signature& signature) -> Function&;
+
+  // Function identity is required while its Block is interpreted because the
+  // body uses that exact Callable for result and receiver context. Completion
+  // binds the one resulting Block without retaining parser state.
+  auto complete_body(Flow::Block& selected) -> Bool;
 
   static auto restore(
       Archive::Reader& reader,

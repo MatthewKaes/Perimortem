@@ -20,10 +20,9 @@ class Object : public Structure {
  public:
   TTX_CONTRACT(Object, Structure);
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition)
-      -> Perimortem::Core::Option<Object&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition) -> Object&;
 
   static auto restore(
       Archive::Reader& reader,

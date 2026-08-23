@@ -6,7 +6,6 @@
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -39,7 +38,6 @@ static auto make_result(
   return Language::Constants::False::create_synthetic(domain, type);
 }
 
-TTX_BINARY_PARSE(And, And);
 
 TTX_BINARY_OP(And);
 

@@ -21,14 +21,6 @@ class Slice : public Expression {
  public:
   TTX_CONTRACT(Slice, Expression);
 
-  // Consumes one complete value postfix for the supplied receiver. Recursive
-  // operands use the Expression dispatcher while Slice owns the postfix
-  // grammar recovery and construction of one authored Expression.
-  static auto parse(
-      const Ttx::Concept::Abstract& context,
-      Ttx::Lexical::Cursor& cursor,
-      Expression& receiver) -> Perimortem::Core::Option<Expression&>;
-
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
       Expression& receiver,

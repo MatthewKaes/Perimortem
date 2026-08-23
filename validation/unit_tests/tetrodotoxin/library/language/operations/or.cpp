@@ -2,6 +2,7 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/operations/or.hpp"
+#include "tetrodotoxin/library/interpreter/operation.hpp"
 
 #include "validation/unit_test.hpp"
 #include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
@@ -12,7 +13,7 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/interpreter/expression.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/s8.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -22,6 +23,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
+using namespace Tetrodotoxin::Library;
 using namespace Tetrodotoxin::Library::Language;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
@@ -283,7 +285,7 @@ PERIMORTEM_UNIT_TEST(LibraryOr, authored_parsing) {
       Anchor::create(success_left_token, Span(success_left_token));
   auto& success_left = Constants::False::create_authored(
       domain, resolve_library_flag(source), success_left_anchor);
-  auto parsed = Operations::Or::parse(
+  auto parsed = Interpreter::Operation::parse_binary(Code::Type::Or,
       source, success_cursor, success_left, Span(success_left_token));
 
   ASSERT(parsed && parsed->is<Operations::Or>());
@@ -302,7 +304,7 @@ PERIMORTEM_UNIT_TEST(LibraryOr, authored_parsing) {
       Anchor::create(failure_left_token, Span(failure_left_token));
   auto& failure_left = Constants::False::create_authored(
       domain, resolve_library_flag(source), failure_left_anchor);
-  auto rejected = Operations::Or::parse(
+  auto rejected = Interpreter::Operation::parse_binary(Code::Type::Or,
       source, failure_cursor, failure_left, Span(failure_left_token));
 
   EXPECT_NOT(rejected);
@@ -314,7 +316,7 @@ PERIMORTEM_UNIT_TEST(LibraryOr, authored_parsing) {
   Ttx::Lexical::Associations mismatch_associations(mismatch_tokens.get_arena());
   Cursor mismatch_cursor(
       mismatch_tokens, mismatch_errors, mismatch_associations);
-  auto mismatch = Parser::Expression::parse(source, mismatch_cursor);
+  auto mismatch = Interpreter::Expression::parse(source, mismatch_cursor);
 
   ASSERT(mismatch && mismatch->is<Operations::Or>());
   EXPECT(mismatch_errors.is_empty());

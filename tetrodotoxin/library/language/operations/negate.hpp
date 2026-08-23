@@ -17,10 +17,6 @@ class Negate : public Operation {
  public:
   TTX_CONTRACT(Negate, Operation);
 
-  static auto parse(
-      const Ttx::Concept::Abstract& context,
-      Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Expression&>;
-
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
       Expression& operand,

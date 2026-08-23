@@ -8,7 +8,6 @@
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/model/types/value.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -74,7 +73,6 @@ static auto accepts_constant(
          type->accepts(constant);
 }
 
-TTX_BINARY_PARSE(NotEqual, NotEqOp);
 
 TTX_BINARY_OP(NotEqual);
 

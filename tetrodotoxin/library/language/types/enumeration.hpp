@@ -23,8 +23,11 @@ namespace Tetrodotoxin::Library::Language::Types {
 // values. It keeps source facts private until one exact integer storage Type
 // and every Alias backed Constant are complete.
 class Enumeration : public Model::Type {
- private:
-  struct SourceCase {
+ public:
+  // Case retains exactly the authored spelling and Documentation needed to
+  // create the immutable value after storage linking. It is source model data
+  // rather than an intermediate parser record.
+  struct Case {
     Perimortem::Core::View::Bytes name;
     Perimortem::Core::View::Bytes value;
     const Ttx::Concept::Documentation& documentation;
@@ -33,6 +36,7 @@ class Enumeration : public Model::Type {
     Ttx::Lexical::Anchor value_anchor;
   };
 
+ private:
   Enumeration(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition,
@@ -41,10 +45,11 @@ class Enumeration : public Model::Type {
  public:
   TTX_CONTRACT(Enumeration, Model::Type);
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition)
-      -> Perimortem::Core::Option<Enumeration&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition,
+      TypeReference storage_reference,
+      Perimortem::Core::View::Vector<Case> cases) -> Enumeration&;
 
   static auto restore(
       Archive::Reader& reader,
@@ -132,7 +137,7 @@ class Enumeration : public Model::Type {
   Tetrodotoxin::Language::Definition& definition;
   Perimortem::Memory::Allocator::Arena& domain;
   TypeReference storage_reference;
-  Perimortem::Memory::Managed::Vector<SourceCase> source_cases;
+  Perimortem::Memory::Managed::Vector<Case> source_cases;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       storage_type;
   Perimortem::Memory::Managed::Vector<

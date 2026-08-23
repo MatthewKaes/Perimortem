@@ -6,7 +6,6 @@
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
@@ -16,51 +15,14 @@ using namespace Tetrodotoxin::Library;
 
 static constexpr Ttx::Model::Layouts::Fluid assignment_layout;
 
-auto Language::Operations::SubtractAssignment::parse(
-    const Abstract& context,
-    Cursor& cursor,
-    Model::Pack& left,
-    Span left_span) -> Option<Expression&> {
-  auto target = left.select<Expression>();
-  if (!target) {
-    cursor.create_expression_error(
-        left_span,
-        "Library subtraction assignment requires one Expression target."_view,
-        "Apply `-=` through one writable scalar expression."_view);
-    return {};
-  }
-
-  Token operation = cursor.require(
-      Code::Type::SubAssign,
-      "Library SubtractAssignment requires the unambiguous `-=` operator."_view);
-  BAIL_IF(!operation);
-  Token right_start = cursor.current();
-  Count error_count = cursor.get_error_count();
-  auto parsed_right = Parser::Expression::parse_write_operand(context, cursor);
-  if (!parsed_right) {
-    if (cursor.get_error_count() == error_count) {
-      cursor.create_expression_error(
-          Anchor::create(Span(operation)),
-          "Library subtraction assignment requires one right operand."_view,
-          "Write one scalar value after `-=`."_view);
-    }
-    return {};
-  }
-
-  auto right = parsed_right->select<Expression>();
-  Anchor anchor =
-      Anchor::create(operation, left_span, Span(right_start, cursor.peek(-1)));
-  if (!right) {
-    cursor.create_expression_error(
-        anchor,
-        "Library subtraction assignment requires one Expression value."_view,
-        "Use one unlabelled scalar operand for `-=`."_view);
-    return {};
-  }
-
+auto Language::Operations::SubtractAssignment::create_authored(
+    Perimortem::Memory::Allocator::Arena& domain,
+    Expression& target,
+    Expression& right,
+    Anchor anchor) -> SubtractAssignment& {
   return Expression::create_authored<SubtractAssignment>(
-      cursor.get_arena(), anchor, [&](auto authored) -> SubtractAssignment {
-        return SubtractAssignment(*target, *right, authored);
+      domain, anchor, [&](auto authored) -> SubtractAssignment {
+        return SubtractAssignment(target, right, authored);
       });
 }
 

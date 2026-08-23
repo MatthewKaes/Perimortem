@@ -12,32 +12,15 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Access::Address::parse(
-    const Abstract&,
-    Cursor& cursor,
-    Expression& receiver) -> Core::Option<Expression&> {
-  Memory::Allocator::Arena& domain = cursor.get_arena();
-  Token operation = cursor.consume();
-  Token addressable = cursor.require(
-      Code::Type::Addressable,
-      "Address requires one addressable name after `.`."_view);
-  BAIL_IF(!addressable);
-
-  const auto& receiver_anchor = receiver.get_anchor();
-  if (!receiver_anchor) {
-    cursor.create_expression_error(
-        Anchor::create(addressable, Span(operation, addressable)),
-        "Address requires an authored receiver Anchor."_view);
-    return {};
-  }
-
-  // The source transaction Arena retains this spelling for delayed lookup.
-  Core::View::Bytes name = addressable.caculate_text(cursor.get_source_text());
-  Anchor anchor = Anchor::create(
-      addressable, receiver_anchor->get_span(), Span(addressable));
+auto Language::Access::Address::create_authored(
+    Memory::Allocator::Arena& domain,
+    Expression& receiver,
+    Token name_token,
+    Core::View::Bytes name,
+    Anchor anchor) -> Address& {
   return Expression::create_authored<Address>(
       domain, anchor, [&](auto source) -> Address {
-        return Address(receiver, addressable, name, {}, source);
+        return Address(receiver, name_token, name, {}, source);
       });
 }
 

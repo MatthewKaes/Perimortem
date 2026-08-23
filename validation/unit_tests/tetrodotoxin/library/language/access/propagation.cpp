@@ -26,7 +26,7 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/interpreter/expression.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
@@ -89,7 +89,7 @@ static auto parse_expression(
     Allocator::Arena& domain,
     const Abstract& context,
     Cursor& cursor) -> Option<Language::Model::Pack&> {
-  auto parsed = Language::Parser::Expression::parse(context, cursor);
+  auto parsed = Interpreter::Expression::parse(context, cursor);
   if (!parsed || !cursor.matches(Code::Type::Terminal)) {
     return {};
   }

@@ -14,12 +14,10 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/generic.hpp"
-#include "tetrodotoxin/library/language/model/parser/layout.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "tetrodotoxin/library/language/parser/literal.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/alias.hpp"
@@ -146,114 +144,6 @@ static auto read_argument(
   }
 
   return {};
-}
-
-auto Language::TypeReference::parse(const Abstract& context, Cursor& cursor)
-    -> Core::Option<TypeReference> {
-  // Dispatch has already chosen this Type route. Reporting malformed arguments
-  // here points the author back to that declaration instead of asking the
-  // parser to reinterpret the same spelling.
-  auto& domain = cursor.get_arena();
-  auto route = parse_route(cursor);
-  BAIL_IF(!route);
-
-  if (!cursor.matches(Code::Type::BracketStart)) {
-    return *route;
-  }
-
-  Memory::Managed::Vector<Argument> arguments(domain);
-  auto closing = Model::Parser::Layout::parse_entries(
-      cursor, Code::Type::BracketStart, Code::Type::BracketEnd,
-      [&](Cursor& entry, Count) -> Bool {
-        if (entry.matches(Code::Type::Type)) {
-          auto nested = parse(context, entry);
-          BAIL_IF(!nested);
-
-          // A nested route shares the Arena of the authored argument shape. The
-          // Layout parser handles its punctuation, while TypeReference keeps
-          // the source edge needed when recursive linking reaches it.
-          const TypeReference& retained =
-              domain.construct<TypeReference>(*nested);
-          arguments.insert(Argument(retained));
-          return True;
-        }
-
-        switch (entry.current().get_code().get_type()) {
-        case Code::Type::Numeric:
-        case Code::Type::Hex:
-        case Code::Type::Float:
-        case Code::Type::String:
-        case Code::Type::Bytes:
-        case Code::Type::Embedded:
-        case Code::Type::True:
-        case Code::Type::False:
-          break;
-        default:
-          entry.create_token_error(
-              "Library Generic Layout entries require a Type reference or "
-              "literal."_view);
-          return False;
-        }
-
-        // Literal already owns its grammar and diagnostics. TypeReference only
-        // needs to remember that this argument is a stable semantic identity
-        // rather than another route waiting for context.
-        auto literal = Parser::Literal::parse(context, entry);
-        BAIL_IF(!literal);
-        arguments.insert(Argument(*literal));
-        return True;
-      });
-  BAIL_IF(!closing);
-
-  TypeReference completed(
-      route->route,
-      Anchor::create(
-          route->get_anchor().get_token(),
-          Span(route->get_anchor().get_token(), *closing)),
-      route->terminal, arguments.get_view());
-  return completed;
-}
-
-auto Language::TypeReference::parse_route(Cursor& cursor)
-    -> Core::Option<TypeReference> {
-  Token first = cursor.require(
-      Code::Type::Type, "Library Type reference requires one Type name."_view);
-  BAIL_IF(!first);
-
-  Token last = first;
-  while (cursor.matches(Code::Type::TypeAccessOp)) {
-    Token separator = cursor.current();
-    Count previous_end = Count(last.get_offset()) + Count(last.get_size());
-    if (separator.get_offset() != previous_end) {
-      cursor.create_expression_error(
-          Span(first, separator),
-          "Library Type references cannot contain whitespace around `::`."_view);
-      return {};
-    }
-
-    cursor.consume();
-    Token segment = cursor.require(
-        Code::Type::Type,
-        "Library Type reference requires a Type after `::`."_view);
-    BAIL_IF(!segment);
-
-    Count separator_end =
-        Count(separator.get_offset()) + Count(separator.get_size());
-    if (segment.get_offset() != separator_end) {
-      cursor.create_expression_error(
-          Span(first, segment),
-          "Library Type references cannot contain whitespace around `::`."_view);
-      return {};
-    }
-
-    last = segment;
-  }
-
-  Count start = first.get_offset();
-  Count end = Count(last.get_offset()) + Count(last.get_size());
-  return TypeReference(
-      cursor.get_source_text().slice(start, end - start),
-      Anchor::create(first, Span(first, last)), last);
 }
 
 auto Language::TypeReference::get_size() const -> Count {

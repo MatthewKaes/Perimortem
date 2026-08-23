@@ -6,7 +6,6 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
-#include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -34,6 +33,20 @@ auto Language::Access::Call::create_synthetic(
   return Expression::create_synthetic<Call>(arena, [&](auto source) -> Call {
     return Call(arena, receiver, {}, name, arguments, source);
   });
+}
+
+auto Language::Access::Call::create_authored(
+    Memory::Allocator::Arena& domain,
+    Expression& receiver,
+    Token name_token,
+    Core::View::Bytes name,
+    Language::Model::Pack& arguments,
+    Anchor anchor) -> Call& {
+  return Expression::create_authored<Call>(
+      domain, anchor, [&](Core::Option<Anchor> source) -> Call {
+        return Call(
+            domain, receiver, name_token, name, arguments, source);
+      });
 }
 
 static auto select_result_type(const Abstract& result)
@@ -213,47 +226,6 @@ static auto create_inputs(
   };
 
   return domain.construct<Inputs>(receiver, arguments);
-}
-
-auto Language::Access::Call::parse(
-    const Abstract& context,
-    Cursor& cursor,
-    Expression& receiver) -> Core::Option<Expression&> {
-  Memory::Allocator::Arena& domain = cursor.get_arena();
-  Token operation = cursor.require(
-      Code::Type::CallOp,
-      "Library invocation requires `->` before its Callable name."_view);
-  BAIL_IF(!operation);
-
-  Token name_token = cursor.require(
-      Code::Type::Addressable,
-      "Library invocation requires one Callable name after `->`."_view);
-  BAIL_IF(!name_token);
-
-  Token arguments_opening = cursor.current();
-  auto arguments = Language::Model::Parser::Pack::parse(context, cursor, True);
-  BAIL_IF(!arguments);
-  Token closing = cursor.peek(-1);
-
-  auto receiver_anchor = receiver.get_anchor();
-  if (!receiver_anchor) {
-    cursor.create_expression_error(
-        Anchor::create(name_token, Span(operation, closing)),
-        "Library invocation requires an authored receiver Anchor."_view);
-    return {};
-  }
-
-  // The Token and its spelling share the source transaction lifetime. Delayed
-  // lookup can borrow those authored bytes until linking selects the Callable.
-  Core::View::Bytes name = name_token.caculate_text(cursor.get_source_text());
-  Anchor anchor = Anchor::create(
-      name_token, receiver_anchor->get_span(),
-      Span(arguments_opening, closing));
-  Call& call = Expression::create_authored<Call>(
-      domain, anchor, [&](Core::Option<Anchor> source) -> Call {
-        return Call(domain, receiver, name_token, name, *arguments, source);
-      });
-  return call;
 }
 
 auto Language::Access::Call::link(

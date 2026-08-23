@@ -2,6 +2,7 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/operations/equal.hpp"
+#include "tetrodotoxin/library/interpreter/operation.hpp"
 
 #include "validation/unit_test.hpp"
 #include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
@@ -29,6 +30,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
+using namespace Tetrodotoxin::Library;
 using namespace Tetrodotoxin::Library::Language;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
@@ -409,7 +411,7 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, atomic_provenance) {
       Anchor::create(success_left_token, Span(success_left_token));
   auto& success_left = Constants::Unsigned::create_authored(
       domain, parser_type, 2, success_left_anchor);
-  auto parsed = Operations::Equal::parse(
+  auto parsed = Interpreter::Operation::parse_binary(Code::Type::CmpOp,
       source, success_cursor, success_left, Span(success_left_token));
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "2 == true"_view, "equal.ttx"_view);
@@ -420,7 +422,7 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, atomic_provenance) {
       Anchor::create(failure_left_token, Span(failure_left_token));
   auto& failure_left = Constants::Unsigned::create_authored(
       domain, parser_type, 2, failure_left_anchor);
-  auto rejected = Operations::Equal::parse(
+  auto rejected = Interpreter::Operation::parse_binary(Code::Type::CmpOp,
       source, failure_cursor, failure_left, Span(failure_left_token));
 
   ASSERT(parsed);

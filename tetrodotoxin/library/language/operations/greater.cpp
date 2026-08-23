@@ -11,7 +11,6 @@
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -49,7 +48,6 @@ static auto make_result(
   return Language::Constants::False::create_synthetic(domain, type);
 }
 
-TTX_BINARY_PARSE(Greater, GreaterOp);
 
 TTX_BINARY_OP(Greater);
 

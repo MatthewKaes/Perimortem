@@ -25,11 +25,11 @@ class Initializer : public Expression {
  public:
   TTX_CONTRACT(Initializer, Expression);
 
-  static auto is_next(const Ttx::Lexical::Cursor& cursor) -> Bool;
-
-  static auto parse(
-      const Ttx::Concept::Abstract& context,
-      Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<Initializer&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      TypeReference target_reference,
+      Model::Pack& arguments,
+      Ttx::Lexical::Anchor anchor) -> Initializer&;
 
   // Synthetic aggregate defaults retain their exact target Type and one real
   // child Pack per completed element or state Field.

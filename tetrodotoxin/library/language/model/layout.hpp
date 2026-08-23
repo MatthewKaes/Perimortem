@@ -32,16 +32,49 @@ namespace Tetrodotoxin::Library::Language::Model {
 // empty value flow.
 class Layout final : public Ttx::Concept::Layout {
  public:
-  // Function parameters require an empty or Named Layout and alone admit a
-  // leading reserved `self` entry. Results and other descriptor consumers use
-  // the general positional or Named form.
-  static auto interpret_parameters(
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Layout&>;
+  // Slot is the retained source description for one Layout entry. Its Type
+  // route and Anchor are model facts while interpretation alone decides how
+  // punctuation produces this value.
+  class Slot {
+   public:
+    constexpr Slot(
+        Perimortem::Core::Option<TypeReference> type_reference,
+        Ttx::Lexical::Anchor anchor,
+        Perimortem::Core::View::Bytes name)
+        : type_reference(type_reference), anchor(anchor), name(name) {}
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Layout&>;
+    constexpr auto get_type_anchor() const -> Ttx::Lexical::Anchor {
+      return type_reference.visit(
+          [&]() { return anchor; },
+          [](const TypeReference& reference) {
+            return reference.get_anchor();
+          });
+    }
+
+    constexpr auto has_type_reference() const -> Bool {
+      return Bool(type_reference);
+    }
+
+    constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
+      return name;
+    }
+
+   private:
+    friend class Layout;
+
+    Perimortem::Core::Option<TypeReference> type_reference;
+    Ttx::Lexical::Anchor anchor;
+    Perimortem::Core::View::Bytes name;
+    Perimortem::Core::Option<
+        Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
+        edge;
+  };
+
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Perimortem::Memory::Managed::Vector<Slot> slots,
+      Ttx::Lexical::Anchor anchor,
+      Bool parameters) -> Layout&;
 
   static auto restore(
       Archive::Reader& reader,
@@ -121,41 +154,12 @@ class Layout final : public Ttx::Concept::Layout {
           Ttx::Concept::Layout::Errors> override;
 
  private:
-  class Slot {
-   public:
-    constexpr Slot(
-        Perimortem::Core::Option<TypeReference> type_reference,
-        Ttx::Lexical::Anchor anchor,
-        Perimortem::Core::View::Bytes name)
-        : type_reference(type_reference), anchor(anchor), name(name) {}
-
-    constexpr auto get_type_anchor() const -> Ttx::Lexical::Anchor {
-      return type_reference.visit(
-          [&]() { return anchor; },
-          [](const TypeReference& reference) {
-            return reference.get_anchor();
-          });
-    }
-
-    Perimortem::Core::Option<TypeReference> type_reference;
-    Ttx::Lexical::Anchor anchor;
-    Perimortem::Core::View::Bytes name;
-    Perimortem::Core::Option<
-        Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-        edge;
-  };
-
   Layout(
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Memory::Managed::Vector<Slot> slots,
       Ttx::Lexical::Anchor anchor,
       Bool parameters)
       : domain(domain), slots(slots), anchor(anchor), parameters(parameters) {}
-
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& host,
-      Bool parameters) -> Perimortem::Core::Option<Layout&>;
 
   auto link(
       Ttx::Lexical::Cursor& cursor,

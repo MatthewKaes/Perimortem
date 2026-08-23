@@ -25,13 +25,26 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // selected input Type owns which Layouts it can produce during iteration.
 class RangeLoop : public Ttx::Concept::Abstract {
  public:
+  // AuthoredBinding is the retained source description for one loop entry.
+  // Linking replaces each delayed Type route with a real Parameter while this
+  // evidence remains available for diagnostics and reflection.
+  struct AuthoredBinding {
+    Ttx::Lexical::Token name_token;
+    Perimortem::Core::View::Bytes name;
+    TypeReference type_reference;
+  };
+
   TTX_CONTRACT(RangeLoop, Ttx::Concept::Abstract);
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
       Block& lexical_context,
-      Model::Callable& function,
-      const Model::Type& access_scope) -> Perimortem::Core::Option<RangeLoop&>;
+      Perimortem::Core::View::Vector<AuthoredBinding> bindings,
+      Model::Pack& input,
+      Ttx::Lexical::Anchor anchor) -> RangeLoop&;
+
+  auto complete_body(Block& selected, Ttx::Lexical::Anchor selected_anchor)
+      -> Bool;
 
   RangeLoop(const RangeLoop&) = delete;
   RangeLoop(RangeLoop&&) = delete;
@@ -70,12 +83,6 @@ class RangeLoop : public Ttx::Concept::Abstract {
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
 
  private:
-  struct AuthoredBinding {
-    Ttx::Lexical::Token name_token;
-    Perimortem::Core::View::Bytes name;
-    TypeReference type_reference;
-  };
-
   RangeLoop(
       Perimortem::Memory::Allocator::Arena& domain,
       Block& lexical_context,

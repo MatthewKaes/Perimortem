@@ -20,10 +20,11 @@ namespace Tetrodotoxin::Library::Language {
 // names, Type routes, or resolved Layouts into another representation.
 class Signature {
  public:
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& host)
-      -> Perimortem::Core::Option<Signature&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Concept::Abstract& host,
+      Model::Layout& parameters,
+      Model::Layout& results) -> Signature&;
 
   static auto restore(
       Archive::Reader& reader,

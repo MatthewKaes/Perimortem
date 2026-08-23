@@ -43,10 +43,16 @@ class Field : public Model::Addressable {
  public:
   TTX_CONTRACT(Field, Model::Addressable);
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition)
-      -> Perimortem::Core::Option<Field&>;
+  // Interpretation supplies the declaration facts it could establish from
+  // the authored form. Keeping construction independent from Cursor lets the
+  // same Field model participate in another Dialect without borrowing its
+  // grammar machinery.
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition,
+      Writability writability,
+      Perimortem::Core::Option<TypeReference> type_reference,
+      Perimortem::Core::Option<Model::Pack&> initializer) -> Field&;
 
   static auto restore(
       Archive::Reader& reader,

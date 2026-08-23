@@ -4,6 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
@@ -42,11 +43,11 @@ class Foreign final : public Ttx::Concept::Abstract {
    public:
     TTX_CONTRACT(State, Model::Addressable);
 
-    static auto interpret(
-        Foreign& host,
-        Ttx::Lexical::Cursor& cursor,
-        const Ttx::Concept::Documentation& documentation,
-        Perimortem::Core::View::Bytes abi) -> Perimortem::Core::Option<State&>;
+    static auto create_authored(
+        Perimortem::Memory::Allocator::Arena& domain,
+        Tetrodotoxin::Language::Definition& definition,
+        TypeReference type_reference,
+        Perimortem::Core::View::Bytes abi) -> State&;
 
     static auto restore(
         Archive::Reader& reader,
@@ -120,12 +121,11 @@ class Foreign final : public Ttx::Concept::Abstract {
    public:
     TTX_CONTRACT(Function, Model::Callable);
 
-    static auto interpret(
-        Foreign& host,
-        Ttx::Lexical::Cursor& cursor,
-        const Ttx::Concept::Documentation& documentation,
-        Perimortem::Core::View::Bytes abi)
-        -> Perimortem::Core::Option<Function&>;
+    static auto create_authored(
+        Perimortem::Memory::Allocator::Arena& domain,
+        Tetrodotoxin::Language::Definition& definition,
+        Signature& signature,
+        Perimortem::Core::View::Bytes abi) -> Function&;
 
     static auto restore(
         Archive::Reader& reader,
@@ -215,9 +215,18 @@ class Foreign final : public Ttx::Concept::Abstract {
   TTX_NAME("foreign"_view);
   TTX_DOCUMENTATION(*documentation);
 
-  auto parse(
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Documentation& block_documentation) -> Bool;
+  // A closing Foreign block contributes one atomic set of declarations. The
+  // parser validates repetition and ABI agreement before this model operation
+  // changes the retained context.
+  auto retain_authored_block(
+      const Ttx::Concept::Documentation& block_documentation,
+      Perimortem::Core::View::Bytes selected_abi,
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<State>> states,
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Function>>
+          functions,
+      Perimortem::Core::View::Vector<
+          Ttx::Concept::Reference<Ttx::Concept::Abstract>> declarations)
+      -> Bool;
 
   auto link_types(Ttx::Lexical::Cursor& cursor) -> Bool;
   auto link_callables(Ttx::Lexical::Cursor& cursor) -> Bool;

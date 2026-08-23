@@ -23,10 +23,12 @@ class Type : public Expression {
  public:
   TTX_CONTRACT(Type, Expression);
 
-  static auto parse(
-      const Ttx::Concept::Abstract& context,
-      Ttx::Lexical::Cursor& cursor,
-      Expression& receiver) -> Perimortem::Core::Option<Expression&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Expression& receiver,
+      Ttx::Lexical::Token token,
+      Perimortem::Core::View::Bytes name,
+      Ttx::Lexical::Anchor anchor) -> Type&;
 
   auto link(
       Ttx::Lexical::Cursor& cursor,

@@ -3,10 +3,8 @@
 
 #include "tetrodotoxin/library/language/flow/match.hpp"
 
-#include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -72,136 +70,62 @@ class PatternContext final : public Abstract {
   Payload& payload;
 };
 
-auto Language::Flow::Match::interpret(
-    Cursor& cursor,
-    Block& lexical_context,
-    Language::Model::Callable& function,
-    const Language::Model::Type& access_scope) -> Option<Match&> {
-  Allocator::Arena& domain = cursor.get_arena();
-  Token opening = cursor.require(
-      Code::Type::Match,
-      "Library match statements require the `match` keyword."_view);
-  BAIL_IF(!opening);
-  Token input_opening = cursor.current();
-  auto input_pack = Parser::Expression::parse(lexical_context, cursor);
-  BAIL_IF(!input_pack);
-  auto input = input_pack->select<Expression>();
-  if (!input) {
-    cursor.create_expression_error(
-        Span(input_opening, cursor.peek(-1)),
-        "Library match input must be one scalar Expression."_view,
-        "Use one unlabelled value instead of empty, named, or composed Pack "
-        "flow."_view);
-    return {};
-  }
+auto Language::Flow::Match::create_authored(
+    Allocator::Arena& domain,
+    Expression& input,
+    Anchor anchor) -> Match& {
+  return domain.construct_from<Match>(
+      [&]() -> Match { return Match(domain, input, anchor); });
+}
 
-  Token scope_opening = cursor.require(
-      Code::Type::ScopeStart,
-      "Library match cases require a body beginning with `{`."_view);
-  BAIL_IF(!scope_opening);
+auto Language::Flow::Match::create_pattern(
+    Allocator::Arena& domain,
+    const Abstract& parent,
+    View::Bytes name) -> Pattern {
+  auto& payload = domain.construct<Payload>(name);
+  auto& context = domain.construct<PatternContext>(parent, payload);
+  return Pattern(context, payload);
+}
 
-  Match& result = domain.construct_from<Match>([&]() -> Match {
-    return Match(
-        domain, *input, Anchor::create(opening, Span(opening, scope_opening)));
+auto Language::Flow::Match::retain_value_case(
+    Expression& expression,
+    Block& body,
+    Model::Addressable& payload,
+    Anchor anchor) -> void {
+  cases.insert({
+    .kind = CaseKind::Value,
+    .expression = Reference<Expression>(expression),
+    .body = Reference<Block>(body),
+    .payload = Reference<Model::Addressable>(payload),
+    .anchor = anchor,
+    .constant = {},
   });
-  Option<Reference<const Abstract>> enclosing_loop;
-  auto inherited = lexical_context.get_enclosing_loop();
-  if (inherited) {
-    enclosing_loop = Reference<const Abstract>(*inherited);
+}
+
+auto Language::Flow::Match::retain_constant_case(
+    Expression& expression,
+    Block& body,
+    Anchor anchor) -> void {
+  cases.insert({
+    .kind = CaseKind::Constant,
+    .expression = Reference<Expression>(expression),
+    .body = Reference<Block>(body),
+    .payload = {},
+    .anchor = anchor,
+    .constant = {},
+  });
+}
+
+auto Language::Flow::Match::complete_default(Block& body) -> Bool {
+  if (default_body) {
+    return False;
   }
+  default_body = Reference<Block>(body);
+  return True;
+}
 
-  Tetrodotoxin::Language::Parser::Comment::parse(cursor);
-  while (!cursor.matches(Code::Type::ScopeEnd)) {
-    Token case_token = cursor.require(
-        Code::Type::Case,
-        "Library match bodies contain only authored `case` forms."_view);
-    BAIL_IF(!case_token);
-
-    if (cursor.matches(Code::Type::Discard)) {
-      if (result.default_body) {
-        cursor.create_token_error(
-            "A Library match may contain at most one `_` case."_view);
-        return {};
-      }
-      cursor.consume();
-
-      auto body = Block::interpret(
-          cursor, lexical_context, function, access_scope, enclosing_loop);
-      BAIL_IF(!body);
-      result.default_body = Reference<Block>(*body);
-
-      Tetrodotoxin::Language::Parser::Comment::parse(cursor);
-      if (!cursor.matches(Code::Type::ScopeEnd)) {
-        cursor.create_token_error(
-            "The `_` Library match case must be final."_view);
-        return {};
-      }
-      continue;
-    }
-
-    if (cursor.matches(Code::Type::Addressable) &&
-        (cursor.peek(1).get_code().get_type() == Code::Type::Define ||
-         cursor.peek(1).get_code().get_type() == Code::Type::ScopeStart)) {
-      // The payload context borrows its parent and exposes one private binding
-      // only after Option linking proves this case is elimination. Until then
-      // the same token remains a normal Identifier Constant candidate.
-      Token value_token = cursor.consume();
-      View::Bytes value_name =
-          value_token.caculate_text(cursor.get_source_text());
-      auto& binding = domain.construct<Payload>(value_name);
-      auto& context =
-          domain.construct<PatternContext>(lexical_context, binding);
-      auto& expression = Expressions::Identifier::create_authored(
-          cursor, value_token, Anchor::create(Span(value_token)));
-
-      auto body = Block::interpret(
-          cursor, context, function, access_scope, enclosing_loop);
-      BAIL_IF(!body);
-      result.cases.insert(
-          Case{
-            .kind = Match::CaseKind::Value,
-            .expression = Reference<Expression>(expression),
-            .body = Reference<Block>(*body),
-            .payload = Reference<Language::Model::Addressable>(binding),
-            .anchor = Anchor::create(Span(value_token)),
-            .constant = {},
-          });
-      Tetrodotoxin::Language::Parser::Comment::parse(cursor);
-      continue;
-    }
-
-    Token expression_opening = cursor.current();
-    auto case_pack = Parser::Expression::parse(lexical_context, cursor);
-    BAIL_IF(!case_pack);
-    auto expression = case_pack->select<Expression>();
-    if (!expression) {
-      cursor.create_expression_error(
-          Span(expression_opening, cursor.peek(-1)),
-          "Library match case must be one scalar Expression."_view,
-          "Use one unlabelled value that can fold to a Constant."_view);
-      return {};
-    }
-
-    auto body = Block::interpret(
-        cursor, lexical_context, function, access_scope, enclosing_loop);
-    BAIL_IF(!body);
-    result.cases.insert(
-        Case{
-          .kind = Match::CaseKind::Constant,
-          .expression = Reference<Expression>(*expression),
-          .body = Reference<Block>(*body),
-          .payload = {},
-          .anchor = expression->get_anchor().visit(
-              [&]() { return Anchor::create(Span(expression_opening)); },
-              [](Anchor selected) { return selected; }),
-          .constant = {},
-        });
-    Tetrodotoxin::Language::Parser::Comment::parse(cursor);
-  }
-
-  Token closing = cursor.consume();
-  result.anchor = Anchor::create(opening, Span(opening, closing));
-  return result;
+auto Language::Flow::Match::complete_anchor(Anchor selected) -> void {
+  anchor = selected;
 }
 
 auto Language::Flow::Match::link(

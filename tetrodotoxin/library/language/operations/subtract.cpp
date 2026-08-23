@@ -11,7 +11,6 @@
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -62,7 +61,6 @@ static auto unsigned_difference(
   return Core::Math::is_representable(result, type.get_size());
 }
 
-TTX_BINARY_PARSE(Subtract, SubOp);
 
 TTX_BINARY_OP(Subtract);
 

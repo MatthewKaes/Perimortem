@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/language/foreign.hpp"
+
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -45,91 +46,13 @@ auto Language::Foreign::State::restore(
       [&]() -> State { return State(definition, *type, arena.proxy(*abi)); });
 }
 
-static auto parse_visibility(
-    Cursor& cursor,
-    Token& token,
-    Visibility& visibility) -> Bool {
-  token = cursor.current();
-  switch (token.get_code().get_type()) {
-  case Code::Type::Public:
-    cursor.consume();
-    visibility = Visibility::Public;
-    return True;
-  case Code::Type::Private:
-    cursor.consume();
-    visibility = Visibility::Private;
-    return True;
-  case Code::Type::Expose:
-    cursor.consume();
-    visibility = Visibility::Exposed;
-    return True;
-  default:
-    cursor.create_token_error(
-        "Foreign State requires `public` or `expose` visibility."_view);
-    return False;
-  }
-}
-
-auto Language::Foreign::State::interpret(
-    Foreign& host,
-    Cursor& cursor,
-    const Documentation& documentation,
-    View::Bytes abi) -> Option<State&> {
-  Allocator::Arena& domain = cursor.get_arena();
-  Token opening = cursor.current();
-  Token visibility_token;
-  Visibility visibility = Visibility::Private;
-  BAIL_IF(!parse_visibility(cursor, visibility_token, visibility));
-
-  // Foreign has no private member authority. Visibility therefore describes
-  // the parent Library's exact read and write access instead of publication
-  // through another enclosing semantic object.
-  if (visibility == Visibility::Private) {
-    cursor.create_token_error(
-        visibility_token,
-        "Private Foreign State is unreachable from its parent Library."_view,
-        "Use `public state` for reads and writes or `expose state` for reads."_view);
-    return {};
-  }
-
-  // External storage cannot stand in for a declaration owned compile time
-  // value. Keeping this rejection here leaves a future loader contract with
-  // one clear owner rather than weakening Constant semantics.
-  Token policy = cursor.current();
-  if (policy.get_code() == Code::Type::Const) {
-    cursor.create_token_error(
-        policy,
-        "Foreign const declarations require a loader or embedding contract."_view,
-        "Use State for external storage until a compile time value owner is "
-        "available."_view);
-    return {};
-  }
-  Token qualifier = cursor.require(
-      Code::Type::State,
-      "Foreign data declarations require the `state` policy."_view);
-  BAIL_IF(!qualifier);
-
-  Token name_token = cursor.require(
-      Code::Type::Addressable,
-      "Foreign State requires one addressable symbol name."_view);
-  BAIL_IF(!name_token);
-  BAIL_IF(!cursor.require(
-      Code::Type::Define, "Foreign State requires `:` before its Type."_view));
-
-  auto type_reference = TypeReference::parse(host, cursor);
-  BAIL_IF(!type_reference);
-  Token terminator = cursor.require(
-      Code::Type::EndStatement,
-      "Foreign State requires one terminating `;`."_view);
-  BAIL_IF(!terminator);
-
-  auto& definition = Tetrodotoxin::Language::Definition::create_authored(
-      cursor, documentation, host, {}, {}, visibility, visibility_token,
-      name_token.caculate_text(cursor.get_source_text()), name_token, qualifier,
-      Anchor::create(name_token, Span(opening, terminator)));
-  State& state = domain.construct_from<State>(
-      [&]() -> State { return State(definition, *type_reference, abi); });
-  return state;
+auto Language::Foreign::State::create_authored(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition,
+    TypeReference type_reference,
+    View::Bytes abi) -> State& {
+  return domain.construct_from<State>(
+      [&]() -> State { return State(definition, type_reference, abi); });
 }
 
 auto Language::Foreign::State::link(Cursor& cursor) -> Bool {

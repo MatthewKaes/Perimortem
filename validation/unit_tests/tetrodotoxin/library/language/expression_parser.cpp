@@ -31,7 +31,7 @@
 #include "tetrodotoxin/library/language/operations/or.hpp"
 #include "tetrodotoxin/library/language/operations/range.hpp"
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
+#include "tetrodotoxin/library/interpreter/expression.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -119,7 +119,7 @@ static auto parse_one(
   Tokenizer tokenizer(domain, source, "expression-parser.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
-  auto parsed = Library::Language::Parser::Expression::parse(context, cursor);
+  auto parsed = Library::Interpreter::Expression::parse(context, cursor);
   if (parsed && !cursor.matches(Code::Type::Terminal)) {
     return {};
   }
@@ -158,7 +158,7 @@ static auto rejects_grammar(
   Tokenizer tokenizer(domain, source, "rejected-expression.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
-  auto parsed = Library::Language::Parser::Expression::parse(context, cursor);
+  auto parsed = Library::Interpreter::Expression::parse(context, cursor);
   return !parsed && !errors.is_empty();
 }
 

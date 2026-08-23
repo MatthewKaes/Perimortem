@@ -10,31 +10,16 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Access::Type::parse(
-    const Abstract&,
-    Cursor& cursor,
-    Expression& receiver) -> Core::Option<Expression&> {
-  Memory::Allocator::Arena& domain = cursor.get_arena();
-  Token operation = cursor.consume();
-  Token type = cursor.require(
-      Code::Type::Type, "Type access requires one Type name after `::`."_view);
-  BAIL_IF(!type);
-
-  auto receiver_anchor = receiver.get_anchor();
-  if (!receiver_anchor) {
-    cursor.create_expression_error(
-        Anchor::create(type, Span(operation, type)),
-        "Type access requires an authored receiver Anchor."_view);
-    return {};
-  }
-
-  Core::View::Bytes name = type.caculate_text(cursor.get_source_text());
-  Anchor anchor = Anchor::create(type, receiver_anchor->get_span(), Span(type));
-  Type& access = Expression::create_authored<Type>(
+auto Language::Access::Type::create_authored(
+    Memory::Allocator::Arena& domain,
+    Expression& receiver,
+    Token token,
+    Core::View::Bytes name,
+    Anchor anchor) -> Type& {
+  return Expression::create_authored<Type>(
       domain, anchor, [&](Core::Option<Anchor> source) -> Type {
-        return Type(receiver, type, name, source);
+        return Type(receiver, token, name, source);
       });
-  return access;
 }
 
 auto Language::Access::Type::link(

@@ -10,7 +10,6 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "tetrodotoxin/library/language/parser/member.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
@@ -72,28 +71,6 @@ static auto declaration_offset(const Option<const selected_type&>& selected)
 
   auto anchor = selected->get_declaration_anchor();
   return anchor ? Count(anchor->get_span().get_offset()) : Count(-1);
-}
-
-static auto select_definition_category(
-    Token qualifier,
-    Types::Composite::Category& category) -> Bool {
-  switch (qualifier.get_code().get_type()) {
-  case Code::Type::Type:
-  case Code::Type::Assign:
-    category = Types::Composite::Category::Addressable;
-    return True;
-  case Code::Type::Func:
-    category = Types::Composite::Category::Callable;
-    return True;
-  case Code::Type::Alias:
-  case Code::Type::Enum:
-  case Code::Type::Struct:
-  case Code::Type::Object:
-    category = Types::Composite::Category::Type;
-    return True;
-  default:
-    return False;
-  }
 }
 
 template <typename bindings_type>
@@ -158,21 +135,12 @@ auto Types::Composite::has_private_access_to(const Type& owner) const -> Bool {
   return enclosing && enclosing->has_private_access_to(owner);
 }
 
-auto Types::Composite::interpret_definition(
-    Cursor& cursor,
-    Tetrodotoxin::Language::Definition& definition) -> Bool {
-  Category category = Category::Addressable;
-  if (!select_definition_category(definition.get_qualifier(), category)) {
-    cursor.create_token_error(
-        definition.get_qualifier(),
-        "Library members require a Type, `alias`, `enum`, `struct`, "
-        "`object`, `func`, or inferred initializer qualifier."_view);
-    return False;
-  }
-
-  auto member = Parser::Member::parse(cursor, definition);
-  BAIL_IF(!member);
-  if (!retain_binding(*member, definition, category, cursor)) {
+auto Types::Composite::retain_authored_definition(
+    Abstract& binding,
+    Tetrodotoxin::Language::Definition& definition,
+    Category category,
+    Cursor& cursor) -> Bool {
+  if (!retain_binding(binding, definition, category, cursor)) {
     cursor.create_expression_error(
         definition.get_name_anchor(),
         "Library member collides with an occupied Composite category."_view);

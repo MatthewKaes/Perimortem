@@ -9,7 +9,6 @@
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -59,7 +58,6 @@ static auto signed_inverse(
   return Core::Math::is_representable(result, type.get_size());
 }
 
-TTX_UNARY_PARSE(Negate);
 
 TTX_UNARY_OP(Negate);
 

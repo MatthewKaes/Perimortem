@@ -7,7 +7,6 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -16,16 +15,6 @@ using namespace Tetrodotoxin::Library;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
-
-static auto parse_index(const Abstract& context, Cursor& cursor)
-    -> Core::Option<Language::Expression&> {
-  auto pack = Language::Parser::Expression::parse(context, cursor);
-  return pack.visit(
-      []() -> Core::Option<Language::Expression&> { return {}; },
-      [](Language::Model::Pack& selected) {
-        return selected.select<Language::Expression>();
-      });
-}
 
 static auto select_access(const Abstract& output)
     -> Core::Option<const Language::Types::Access&> {
@@ -73,69 +62,27 @@ static auto get_range_count(Language::Expression& expression)
       });
 }
 
-auto Language::Access::Index::parse(
-    const Abstract& context,
-    Cursor& cursor,
-    Expression& receiver) -> Core::Option<Expression&> {
-  Memory::Allocator::Arena& domain = cursor.get_arena();
-  Token opening = cursor.require(
-      Code::Type::BracketStart,
-      "Index reference access requires an opening `[`."_view);
-  BAIL_IF(!opening);
+auto Language::Access::Index::create_authored(
+    Memory::Allocator::Arena& domain,
+    Expression& receiver,
+    Expression& index,
+    Anchor anchor) -> Index& {
+  return Expression::create_authored<Index>(
+      domain, anchor, [&](auto authored) -> Index {
+        return Index(receiver, index, authored);
+      });
+}
 
-  auto selected = parse_index(context, cursor);
-  if (!selected) {
-    cursor.create_expression_error(
-        Span(opening, cursor.current()),
-        "Index access requires one complete first Expression."_view,
-        "Use `[index]` or `[start, count]` with integer Expressions."_view);
-    return {};
-  }
-
-  Core::Option<Expression&> count;
-  if (cursor.matches(Code::Type::PackingOp)) {
-    cursor.consume();
-    count = parse_index(context, cursor);
-    if (!count) {
-      cursor.create_expression_error(
-          Span(opening, cursor.current()),
-          "Ranged Index access requires one complete count Expression."_view,
-          "Use `[start, count]` with an integer count."_view);
-      return {};
-    }
-  }
-
-  if (!cursor.matches(Code::Type::BracketEnd)) {
-    cursor.create_expression_error(
-        Span(opening, cursor.current()),
-        "Index access requires one closing `]`."_view,
-        "Use `[index]` or `[start, count]` with complete delimiters."_view);
-    return {};
-  }
-
-  Token closing = cursor.consume();
-  const auto& receiver_anchor = receiver.get_anchor();
-  const auto& index_anchor = selected->get_anchor();
-  if (!receiver_anchor || !index_anchor || (count && !count->get_anchor())) {
-    cursor.create_expression_error(
-        Span(opening, closing),
-        "Index access requires authored receiver and operand Anchors."_view);
-    return {};
-  }
-
-  Anchor anchor =
-      Anchor::create(opening, receiver_anchor->get_span(), Span(closing));
-  Index& result =
-      count ? Expression::create_authored<Index>(
-                  domain, anchor,
-                  [&](auto authored) -> Index {
-                    return Index(receiver, *selected, *count, authored);
-                  })
-            : Expression::create_authored<Index>(
-                  domain, anchor, [&](auto authored) -> Index {
-                    return Index(receiver, *selected, authored);
-                  });
-  return result;
+auto Language::Access::Index::create_authored(
+    Memory::Allocator::Arena& domain,
+    Expression& receiver,
+    Expression& start,
+    Expression& count,
+    Anchor anchor) -> Index& {
+  return Expression::create_authored<Index>(
+      domain, anchor, [&](auto authored) -> Index {
+        return Index(receiver, start, count, authored);
+      });
 }
 
 auto Language::Access::Index::link_target(

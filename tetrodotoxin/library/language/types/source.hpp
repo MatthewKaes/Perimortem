@@ -48,7 +48,7 @@ class Source : public Composite {
   auto operator=(const Source&) -> Source& = delete;
   auto operator=(Source&&) -> Source& = delete;
 
-  auto parse(Ttx::Lexical::Cursor& cursor) -> Bool;
+  auto retain_authored_import(Import import) -> Bool;
 
   auto link(
       Ttx::Lexical::Cursor& cursor,
@@ -104,11 +104,7 @@ class Source : public Composite {
 
   constexpr auto get_imports() const { return import_routes.get_view(); }
 
- protected:
  private:
-  auto parse_definition(
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Documentation& documentation) -> Bool;
   auto retain_import(const Ttx::Concept::Abstract& context) -> Bool;
   auto link_imports(
       Ttx::Lexical::Cursor& cursor,

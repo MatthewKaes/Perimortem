@@ -33,24 +33,14 @@ static auto select_option_constant(Language::Model::Pack& source)
       });
 }
 
-auto Language::Access::Unwrap::parse(
-    const Abstract&,
-    Cursor& cursor,
-    Expression& receiver) -> Core::Option<Expression&> {
-  Memory::Allocator::Arena& domain = cursor.get_arena();
-  Token operation = cursor.require(
-      Code::Type::NotOp, "Library Option unwrap requires postfix `!`."_view);
-  BAIL_IF(!operation);
-
-  auto receiver_anchor = receiver.get_anchor();
-  BAIL_IF(!receiver_anchor);
-  Anchor anchor =
-      Anchor::create(operation, receiver_anchor->get_span(), Span(operation));
-  Unwrap& unwrap = Expression::create_authored<Unwrap>(
+auto Language::Access::Unwrap::create_authored(
+    Memory::Allocator::Arena& domain,
+    Expression& receiver,
+    Anchor anchor) -> Unwrap& {
+  return Expression::create_authored<Unwrap>(
       domain, anchor, [&](Core::Option<Anchor> source) -> Unwrap {
         return Unwrap(receiver, source);
       });
-  return unwrap;
 }
 
 auto Language::Access::Unwrap::link(

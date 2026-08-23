@@ -78,12 +78,11 @@ Library::Language::Monograph::Monograph(
 }
 
 auto Library::Language::Monograph::create_authored(
-    Cursor& cursor,
+    Allocator::Arena& arena,
     const Documentation& documentation,
     const Anchor& source_anchor,
     const Abstract& language,
     Abstract& context) -> Monograph& {
-  Allocator::Arena& arena = cursor.get_arena();
   return arena.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(arena, documentation, source_anchor, language, context);
   });
@@ -111,10 +110,6 @@ auto Library::Language::Monograph::restore(
   BAIL_IF(
       !monograph.source.restore(contents, profile) || !contents.is_complete());
   return monograph;
-}
-
-auto Library::Language::Monograph::parse(Cursor& cursor) -> Bool {
-  return source.parse(cursor);
 }
 
 auto Library::Language::Monograph::link(Cursor& cursor) -> Bool {

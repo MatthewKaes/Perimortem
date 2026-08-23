@@ -28,7 +28,7 @@ inline auto create_library_monograph(
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
   return Tetrodotoxin::Library::Language::Monograph::create_authored(
-      cursor, Ttx::Concept::Documentation::get_empty(),
+      cursor.get_arena(), Ttx::Concept::Documentation::get_empty(),
       Ttx::Lexical::Anchor::create(Ttx::Lexical::Span()), dialect, dialect);
 }
 

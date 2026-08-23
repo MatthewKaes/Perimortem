@@ -24,10 +24,18 @@ class Index : public Expression {
  public:
   TTX_CONTRACT(Index, Expression);
 
-  static auto parse(
-      const Ttx::Concept::Abstract& context,
-      Ttx::Lexical::Cursor& cursor,
-      Expression& receiver) -> Perimortem::Core::Option<Expression&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Expression& receiver,
+      Expression& index,
+      Ttx::Lexical::Anchor anchor) -> Index&;
+
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Expression& receiver,
+      Expression& start,
+      Expression& count,
+      Ttx::Lexical::Anchor anchor) -> Index&;
 
   auto link(
       Ttx::Lexical::Cursor& cursor,

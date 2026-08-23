@@ -11,7 +11,7 @@
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/cursor.hpp"
 
-namespace Tetrodotoxin::Library::Language::Model::Parser {
+namespace Tetrodotoxin::Library::Interpreter {
 
 // Pack is the stateless lexical entry point for Library value flow. It owns
 // parentheses, separators, source order, explicit slot names, and their shared
@@ -29,4 +29,4 @@ class Pack {
       -> Perimortem::Core::Option<Language::Model::Pack&>;
 };
 
-}  // namespace Tetrodotoxin::Library::Language::Model::Parser
+}  // namespace Tetrodotoxin::Library::Interpreter

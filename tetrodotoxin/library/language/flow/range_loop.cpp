@@ -4,8 +4,6 @@
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "tetrodotoxin/library/language/model/parser/layout.hpp"
-#include "tetrodotoxin/library/language/parser/expression.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -36,76 +34,27 @@ Language::Flow::RangeLoop::RangeLoop(
   }
 }
 
-auto Language::Flow::RangeLoop::interpret(
-    Cursor& cursor,
+auto Language::Flow::RangeLoop::create_authored(
+    Allocator::Arena& domain,
     Block& lexical_context,
-    Language::Model::Callable& function,
-    const Language::Model::Type& access_scope) -> Option<RangeLoop&> {
-  Allocator::Arena& domain = cursor.get_arena();
-  Token opening = cursor.require(
-      Code::Type::For, "Library for loops require the `for` keyword."_view);
-  BAIL_IF(!opening);
-
-  if (!cursor.matches(Code::Type::BracketStart)) {
-    cursor.create_token_error(
-        "Library for loop bindings require one bracketed named Layout."_view);
-    return {};
-  }
-
-  Managed::Vector<AuthoredBinding> bindings(domain);
-  auto binding_end = Model::Parser::Layout::parse(
-      cursor, [&](Cursor& entry, Count, Option<Token> selected_name) -> Bool {
-        if (!selected_name ||
-            selected_name->get_code() != Code::Type::Addressable) {
-          entry.create_token_error(
-              "A Library for loop binding requires `.name : Type`."_view);
-          return False;
-        }
-
-        View::Bytes name =
-            selected_name->caculate_text(cursor.get_source_text());
-        if (bindings.get_view().contains([&](const AuthoredBinding& existing) {
-              return existing.name == name;
-            })) {
-          entry.create_token_error(
-              *selected_name,
-              "A Library for loop binding name must be unique."_view);
-          return False;
-        }
-
-        auto selected_type = TypeReference::parse(lexical_context, entry);
-        BAIL_IF(!selected_type);
-        bindings.insert({*selected_name, name, *selected_type});
-        return True;
-      });
-  BAIL_IF(!binding_end);
-  if (bindings.is_empty()) {
-    cursor.create_expression_error(
-        Span(opening, *binding_end),
-        "A Library for loop requires at least one named binding."_view,
-        "Use `[.name : Type]` before the `in` keyword."_view);
-    return {};
-  }
-
-  BAIL_IF(!cursor.require(
-      Code::Type::In,
-      "Library for loop bindings require the `in` keyword."_view));
-
-  auto input = Parser::Expression::parse(lexical_context, cursor);
-  BAIL_IF(!input);
-
-  RangeLoop& loop = domain.construct_from<RangeLoop>([&]() -> RangeLoop {
+    View::Vector<AuthoredBinding> bindings,
+    Language::Model::Pack& input,
+    Anchor anchor) -> RangeLoop& {
+  return domain.construct_from<RangeLoop>([&]() -> RangeLoop {
     return RangeLoop(
-        domain, lexical_context, bindings.get_view(), *input,
-        Anchor::create(opening, Span(opening, cursor.peek(-1))));
+        domain, lexical_context, bindings, input, anchor);
   });
+}
 
-  auto body = Block::interpret(
-      cursor, loop, function, access_scope, Reference<const Abstract>(loop));
-  BAIL_IF(!body);
-  loop.body = Reference<Block>(*body);
-  loop.anchor = Anchor::create(opening, Span(opening, cursor.peek(-1)));
-  return loop;
+auto Language::Flow::RangeLoop::complete_body(
+    Block& selected,
+    Anchor selected_anchor) -> Bool {
+  if (body) {
+    return &body->get() == &selected;
+  }
+  body = Reference<Block>(selected);
+  anchor = selected_anchor;
+  return True;
 }
 
 auto Language::Flow::RangeLoop::link(

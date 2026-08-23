@@ -1,0 +1,55 @@
+// Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+
+#pragma once
+
+#include "perimortem/core/option.hpp"
+
+#include "perimortem/memory/allocator/arena.hpp"
+
+#include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/reference.hpp"
+#include "ttx/lexical/cursor.hpp"
+
+namespace Tetrodotoxin::Library::Interpreter {
+
+// Member selects the concrete parser named by one Definition qualifier. It
+// retains no state and returns the real semantic object constructed by that
+// owner. The receiving Composite alone decides whether to retain it.
+class Member {
+ public:
+  // Result carries the exact declaration identity together with the category
+  // selected by its qualifier. It exists only for this parser call and never
+  // becomes a second declaration record in the retained graph.
+  class Result {
+   public:
+    constexpr Result(
+        Ttx::Concept::Abstract& semantic,
+        Language::Types::Composite::Category category)
+        : semantic(semantic), category(category) {}
+
+    constexpr auto get_semantic() const -> Ttx::Concept::Abstract& {
+      return semantic.get();
+    }
+
+    constexpr auto get_category() const
+        -> Language::Types::Composite::Category {
+      return category;
+    }
+
+   private:
+    Ttx::Concept::Reference<Ttx::Concept::Abstract> semantic;
+    Language::Types::Composite::Category category;
+  };
+
+  Member() = delete;
+
+  static auto parse(
+      Ttx::Lexical::Cursor& cursor,
+      Tetrodotoxin::Language::Definition& definition)
+      -> Perimortem::Core::Option<Result>;
+};
+
+}  // namespace Tetrodotoxin::Library::Interpreter

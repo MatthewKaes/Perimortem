@@ -27,9 +27,11 @@ class LoopControl : public Ttx::Concept::Abstract {
 
   TTX_CONTRACT(LoopControl, Ttx::Concept::Abstract);
 
-  static auto interpret(
-      Ttx::Lexical::Cursor& cursor,
-      const Block& lexical_context) -> Perimortem::Core::Option<LoopControl&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Kind kind,
+      const Ttx::Concept::Abstract& target,
+      Ttx::Lexical::Anchor anchor) -> LoopControl&;
 
   LoopControl(const LoopControl&) = delete;
   LoopControl(LoopControl&&) = delete;

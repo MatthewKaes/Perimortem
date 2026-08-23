@@ -60,15 +60,14 @@ class TypeReference {
   using Resolution =
       Perimortem::Utility::Result<const Ttx::Concept::Abstract&, Failure>;
 
-  static auto parse(
-      const Ttx::Concept::Abstract& context,
-      Ttx::Lexical::Cursor& cursor) -> Perimortem::Core::Option<TypeReference>;
-
-  // Some grammars need only a qualified route and have nowhere to place Generic
-  // arguments. This parser shares route handling while leaving those arguments
-  // to the complete TypeReference grammar.
-  static auto parse_route(Ttx::Lexical::Cursor& cursor)
-      -> Perimortem::Core::Option<TypeReference>;
+  static constexpr auto create_authored(
+      Perimortem::Core::View::Bytes route,
+      Ttx::Lexical::Anchor anchor,
+      Ttx::Lexical::Token terminal,
+      Perimortem::Core::Option<Perimortem::Core::View::Vector<Argument>>
+          arguments = {}) -> TypeReference {
+    return TypeReference(route, anchor, terminal, arguments);
+  }
 
   static auto restore(
       Archive::Reader& reader,

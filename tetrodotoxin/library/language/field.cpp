@@ -9,8 +9,6 @@
 
 #include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/language/diagnostics.hpp"
-#include "tetrodotoxin/library/language/expressions/initializer.hpp"
-#include "tetrodotoxin/library/language/model/parser/pack.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -46,6 +44,18 @@ auto Language::Field::persist_slot(Archive::Writer& writer, Count ordinal) const
   writer.write(U8(type_reference ? 1 : 0));
   BAIL_IF(type_reference && !type_reference->persist(writer));
   return writer.finish(record);
+}
+
+auto Language::Field::create_authored(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition,
+    Writability writability,
+    Option<TypeReference> type_reference,
+    Option<Model::Pack&> initializer) -> Field& {
+  return domain.construct_from<Field>([&]() -> Field {
+    return Field(
+        domain, definition, writability, type_reference, initializer);
+  });
 }
 
 auto Language::Field::restore(
@@ -127,110 +137,6 @@ auto Language::Field::restore_slot(
         arena, definition, Writability::Internal, type_reference,
         Option<Model::Pack&>());
   });
-}
-
-static auto parse_writability(
-    const Tetrodotoxin::Language::Definition& definition,
-    Cursor& cursor) -> Option<Language::Writability> {
-  auto modifiers = definition.get_modifiers();
-  if (modifiers.get_size() > 1) {
-    cursor.create_token_error(
-        modifiers.get_data()[1],
-        "Library Fields accept at most one evaluation modifier."_view);
-    return {};
-  }
-
-  Language::Writability writability = Language::Writability::Full;
-  if (!modifiers.is_empty()) {
-    switch (modifiers.get_data()[0].get_code().get_type()) {
-    case Code::Type::State:
-      writability = Language::Writability::Internal;
-      break;
-    case Code::Type::Const:
-      writability = Language::Writability::Constant;
-      break;
-    default:
-      cursor.create_token_error(
-          modifiers.get_data()[0],
-          "Library Fields accept only `state` or `const` evaluation."_view);
-      return {};
-    }
-  }
-
-  Tetrodotoxin::Language::Visibility visibility = definition.get_visibility();
-  if (visibility == Tetrodotoxin::Language::Visibility::Exposed &&
-      writability != Language::Writability::Internal) {
-    cursor.create_token_error(
-        definition.get_visibility_token(),
-        "Library `expose` Fields require the `state` evaluation policy."_view);
-    return {};
-  }
-  return writability;
-}
-
-auto Language::Field::interpret(
-    Cursor& cursor,
-    Tetrodotoxin::Language::Definition& definition) -> Option<Field&> {
-  Allocator::Arena& domain = cursor.get_arena();
-  // Definition proves the exact Library Type that supplies declaration
-  // context and access authority. Field does not require one concrete host.
-  BAIL_IF(!definition.get_host().is<Language::Model::Type>());
-  auto writability = parse_writability(definition, cursor);
-  BAIL_IF(!writability);
-
-  if (definition.get_name_token().get_code() != Code::Type::Addressable) {
-    cursor.create_token_error(
-        definition.get_name_token(),
-        "Library Fields require an addressable name."_view);
-    return {};
-  }
-
-  Option<TypeReference> type;
-  Option<Model::Pack&> initializer;
-  if (cursor.matches(Code::Type::Assign)) {
-    cursor.consume();
-    if (Expressions::Initializer::is_next(cursor)) {
-      auto object_initializer =
-          Expressions::Initializer::parse(definition.get_host(), cursor);
-      BAIL_IF(!object_initializer);
-      initializer = *object_initializer;
-    } else {
-      initializer = Model::Parser::Pack::parse(definition.get_host(), cursor);
-    }
-    BAIL_IF(!initializer);
-  } else {
-    auto authored_type = TypeReference::parse(definition.get_host(), cursor);
-    BAIL_IF(!authored_type);
-    type = *authored_type;
-
-    if (cursor.matches(Code::Type::Assign)) {
-      cursor.consume();
-      if (Expressions::Initializer::is_next(cursor)) {
-        auto object_initializer =
-            Expressions::Initializer::parse(definition.get_host(), cursor);
-        BAIL_IF(!object_initializer);
-        initializer = *object_initializer;
-      } else {
-        initializer = Model::Parser::Pack::parse(definition.get_host(), cursor);
-      }
-      BAIL_IF(!initializer);
-    } else if (*writability == Writability::Constant) {
-      cursor.create_token_error(
-          "Library const Fields require an initializer."_view);
-      return {};
-    }
-  }
-
-  Token terminator = cursor.require(
-      Code::Type::EndStatement,
-      "Library Fields require one terminating `;`."_view);
-  BAIL_IF(!terminator);
-
-  BAIL_IF(!definition.complete(definition.get_name_token(), terminator));
-  Field& field = domain.construct_from<Field>([&]() -> Field {
-    return Field(domain, definition, *writability, type, initializer);
-  });
-  return field;
 }
 
 auto Language::Field::link_declaration_type(Cursor& cursor) -> Bool {

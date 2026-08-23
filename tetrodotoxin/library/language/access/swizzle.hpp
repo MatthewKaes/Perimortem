@@ -29,12 +29,12 @@ class Swizzle : public Expression {
  public:
   TTX_CONTRACT(Swizzle, Expression);
 
-  static auto parse(
-      const Ttx::Concept::Abstract& context,
-      Ttx::Lexical::Cursor& cursor,
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& domain,
       Language::Model::Pack& receiver,
-      Ttx::Lexical::Span receiver_span)
-      -> Perimortem::Core::Option<Expression&>;
+      Perimortem::Core::View::Vector<Ttx::Lexical::Token> name_tokens,
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names,
+      Ttx::Lexical::Anchor anchor) -> Swizzle&;
 
   auto link(
       Ttx::Lexical::Cursor& cursor,

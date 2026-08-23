@@ -2,6 +2,7 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/operations/divide.hpp"
+#include "tetrodotoxin/library/interpreter/operation.hpp"
 
 #include "validation/unit_test.hpp"
 #include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
@@ -30,6 +31,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Utility;
+using namespace Tetrodotoxin::Library;
 using namespace Tetrodotoxin::Library::Language;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
@@ -469,7 +471,7 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
       Anchor::create(success_left_token, Span(success_left_token));
   auto& success_left = Constants::Unsigned::create_authored(
       domain, parser_type, 24, success_left_anchor);
-  auto parsed = Operations::Divide::parse(
+  auto parsed = Interpreter::Operation::parse_binary(Code::Type::DivOp,
       source, success_cursor, success_left, Span(success_left_token));
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "24 / true"_view, "divide.ttx"_view);
@@ -480,7 +482,7 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
       Anchor::create(failure_left_token, Span(failure_left_token));
   auto& failure_left = Constants::Unsigned::create_authored(
       domain, parser_type, 24, failure_left_anchor);
-  auto rejected = Operations::Divide::parse(
+  auto rejected = Interpreter::Operation::parse_binary(Code::Type::DivOp,
       source, failure_cursor, failure_left, Span(failure_left_token));
 
   ASSERT(parsed);

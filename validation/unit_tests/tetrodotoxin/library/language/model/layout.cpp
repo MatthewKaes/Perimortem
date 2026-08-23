@@ -11,6 +11,7 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/interpreter/layout.hpp"
 #include "tetrodotoxin/library/language/parameter.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -48,10 +49,8 @@ static auto parse_layout(
   Tokenizer tokenizer(arena, text, "authored-layout.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
-  auto layout =
-      parameters
-          ? Language::Model::Layout::interpret_parameters(cursor, context)
-          : Language::Model::Layout::interpret(cursor, context);
+  auto layout = Interpreter::Layout::parse_model(
+      cursor, context, parameters);
   BAIL_IF(!layout || !cursor.matches(Code::Type::Terminal));
   return *layout;
 }
