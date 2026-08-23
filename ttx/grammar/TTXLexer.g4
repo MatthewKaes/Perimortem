@@ -1,4 +1,4 @@
-// Tetrodotoxin
+// # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Canonical token reference for the Tetrodotoxin G4 language descriptions.

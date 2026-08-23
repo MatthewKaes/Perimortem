@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tetrodotoxin
+# Tetrodotoxin
 Copyright (c) 2023-present Matt Kaes and contributors
 
 Local LSP server test harness.
@@ -1178,6 +1178,24 @@ def run_test():
         notification_probe_resp is not None
         and "result" in notification_probe_resp,
         "$ notification keeps server responsive")
+
+    print("\n--- Formatting: Markdown heading boundary ---")
+    heading_source = (
+        "// # Tetrodotoxin\n"
+        "// Copyright (c) 2023-present Matt Kaes and contributors\n"
+        "//\n"
+        "// Describes one source while leaving its legal notice untouched.\n"
+        "//\n"
+        "dialect : Library;\n"
+        "public value : U64;\n")
+    heading_header = (
+        "// # Tetrodotoxin\n"
+        "// Copyright (c) 2023-present Matt Kaes and contributors\n"
+        "//\n")
+    heading_formatted = send_format(conn, heading_source, "heading.ttx")
+    check(heading_formatted is not None and
+          heading_formatted.startswith(heading_header),
+          "formatting preserves the canonical Markdown header")
 
     print("\n--- Round-trip: apps/ttx/scene_lifetime/scenes/splash.ttx ---")
     splash_path = os.path.join(

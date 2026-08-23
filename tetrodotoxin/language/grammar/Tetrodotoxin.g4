@@ -1,4 +1,4 @@
-// Tetrodotoxin
+// # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Parser fragments shared by concrete Tetrodotoxin dialects. Semantic result

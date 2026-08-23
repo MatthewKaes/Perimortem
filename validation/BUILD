@@ -1,3 +1,6 @@
+# # Tetrodotoxin
+# Copyright (c) 2023-present Matt Kaes and contributors
+
 """
 Validation - Unit tests and benchmarks for the Perimortem engine.
 

@@ -1,3 +1,6 @@
+# # Tetrodotoxin
+# Copyright (c) 2023-present Matt Kaes and contributors
+
 """Terminal producers for completed Tetrodotoxin graphs."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")

@@ -1,4 +1,4 @@
-// Tetrodotoxin
+// # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/dialect.hpp"
@@ -746,7 +746,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   ASSERT(interpreted && interpreted->is<Language::Monograph>());
   auto& monograph = static_cast<Language::Monograph&>(*interpreted);
   EXPECT_TEXT(
-      monograph.get_documentation().get_line(0),
+      monograph.get_documentation().get_line(3),
       "Library source acceptance."_view);
 
   EXPECT(&workspace.resolve_context("SourceAcceptance"_view) == &monograph);
@@ -761,7 +761,11 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   EXPECT_TEXT(source_anchor.get_token().caculate_text(*source), "dialect"_view);
   EXPECT_TEXT(
       source_anchor.get_span().caculate_text(*source),
-      "// Library source acceptance.\ndialect : Library;"_view);
+      "// # Tetrodotoxin\n"
+      "// Copyright (c) 2023-present Matt Kaes and contributors\n"
+      "//\n"
+      "// Library source acceptance.\n"
+      "dialect : Library;"_view);
   const Abstract& count_identity =
       source_type.resolve_context("CountAlias"_view);
   const Abstract& mode_identity = source_type.resolve_context("Mode"_view);

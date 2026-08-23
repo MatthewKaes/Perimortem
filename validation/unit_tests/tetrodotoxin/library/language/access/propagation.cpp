@@ -1,4 +1,4 @@
-// Tetrodotoxin
+// # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "validation/unit_test.hpp"
@@ -467,7 +467,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_fixture) {
   ASSERT(interpreted && interpreted->is<Language::Monograph>());
   auto& monograph = static_cast<Language::Monograph&>(*interpreted);
   EXPECT_TEXT(
-      monograph.get_documentation().get_line(0),
+      monograph.get_documentation().get_line(3),
       "Library propagation and sum Type acceptance."_view);
 
   EXPECT(

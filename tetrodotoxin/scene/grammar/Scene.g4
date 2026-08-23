@@ -1,4 +1,4 @@
-// Tetrodotoxin
+// # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Canonical Scene source shape. Scene reuses Library declaration shapes but

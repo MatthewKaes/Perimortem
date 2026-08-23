@@ -1,3 +1,6 @@
+// # Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+//
 #include <stddef.h>
 
 #include "SystemAbi/c_abi.h"

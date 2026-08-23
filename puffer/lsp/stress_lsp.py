@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tetrodotoxin
+# Tetrodotoxin
 Copyright (c) 2023-present Matt Kaes and contributors
 
 Bounded Puffer LSP stress harness.

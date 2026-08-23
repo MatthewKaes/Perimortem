@@ -1,3 +1,6 @@
+# # Tetrodotoxin
+# Copyright (c) 2023-present Matt Kaes and contributors
+
 """Canonical Echo TTX application sources."""
 
 load("//toolchain:tetrodotoxin.bzl", "ttx_application", "ttx_package")

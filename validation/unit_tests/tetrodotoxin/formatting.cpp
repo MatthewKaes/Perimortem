@@ -1,4 +1,4 @@
-// Tetrodotoxin
+// # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "validation/unit_test.hpp"
@@ -48,4 +48,32 @@ PERIMORTEM_UNIT_TEST(FormattingTerminal, documentation_reflow) {
           "short authored lines.\n"
           "//\n"
           "// A second paragraph remains separate."_view) != Count(-1));
+}
+
+PERIMORTEM_UNIT_TEST(FormattingTerminal, markdown_heading_boundary) {
+  static constexpr View::Bytes source =
+      "// # Tetrodotoxin\n"
+      "// Copyright (c) 2023-present Matt Kaes and contributors\n"
+      "//\n"
+      "// Describes one source while leaving its legal notice untouched.\n"
+      "//\n"
+      "dialect : Library;\n"
+      "public value : U64;\n"_view;
+  auto toolchain = create_library_toolchain();
+  Environment::Workspace workspace(*toolchain);
+  Errors errors;
+  auto monograph = workspace.interpret_source(
+      errors, "MarkdownHeadingFormatting"_view, "heading.ttx"_view, source);
+  ASSERT(monograph);
+  ASSERT(errors.is_empty());
+
+  Allocator::Arena arena;
+  Tokenizer tokenizer(arena, source, "heading.ttx"_view);
+  Dynamic::Bytes formatted =
+      Formatting::Terminal::format(*monograph, tokenizer);
+  static constexpr View::Bytes header =
+      "// # Tetrodotoxin\n"
+      "// Copyright (c) 2023-present Matt Kaes and contributors\n"
+      "//\n"_view;
+  EXPECT(formatted.get_view().slice(0, header.get_size()) == header);
 }

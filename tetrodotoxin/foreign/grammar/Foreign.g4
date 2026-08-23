@@ -1,4 +1,4 @@
-// Tetrodotoxin
+// # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Foreign is an embedded grammar fragment, not an installed source Dialect.

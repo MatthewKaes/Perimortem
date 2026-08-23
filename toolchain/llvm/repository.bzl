@@ -1,3 +1,6 @@
+# # Tetrodotoxin
+# Copyright (c) 2023-present Matt Kaes and contributors
+
 "Repository rule for the immutable LLVM backend development SDK."
 
 _LLVM_VERSION = "22.1.8"

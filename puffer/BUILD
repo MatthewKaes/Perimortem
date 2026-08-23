@@ -1,3 +1,6 @@
+# # Tetrodotoxin
+# Copyright (c) 2023-present Matt Kaes and contributors
+
 """Puffer - Tetrodotoxin language-server host."""
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
