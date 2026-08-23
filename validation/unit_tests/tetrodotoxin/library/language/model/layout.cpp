@@ -56,7 +56,7 @@ static auto parse_layout(
   return *layout;
 }
 
-PERIMORTEM_UNIT_TEST(LibraryModelLayout, owns_parameter_entries) {
+PERIMORTEM_UNIT_TEST(LibraryModelLayout, parameter_entries) {
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -97,7 +97,7 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, owns_parameter_entries) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_layout_is_explicit_flow) {
+PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_flow) {
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -120,7 +120,7 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_layout_is_explicit_flow) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_type_entries_are_rejected) {
+PERIMORTEM_UNIT_TEST(LibraryModelLayout, rejects_empty_types) {
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -143,7 +143,7 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_type_entries_are_rejected) {
   EXPECT_NOT(parse_errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting_preserves_real_edges) {
+PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting) {
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
   Errors errors;

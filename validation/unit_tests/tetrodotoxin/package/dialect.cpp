@@ -342,7 +342,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, prior_diagnostics) {
   EXPECT_EQ(errors.get_size(), 1);
 }
 
-PERIMORTEM_UNIT_TEST(PackageDialect, value_local_provenance) {
+PERIMORTEM_UNIT_TEST(PackageDialect, local_provenance) {
   Span core_span(
       Token(0, 1, 1, 7, Code::Type::Resolve),
       Token(40, 1, 41, 1, Code::Type::EndStatement));
@@ -584,7 +584,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, collision_atomicity) {
       "Package requires at least one complete Source statement."_view));
 }
 
-PERIMORTEM_UNIT_TEST(PackageDialect, frozen_negative_fixtures) {
+PERIMORTEM_UNIT_TEST(PackageDialect, frozen_rejections) {
   static constexpr RejectedFile rejected[] = {
     {
       "validation/data/ttx/package/float_version.ttx"_view,

@@ -207,7 +207,7 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, type_selection) {
   EXPECT(invalid.get_type().resolve().is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryMultiply, checked_integer_widths) {
+PERIMORTEM_UNIT_TEST(LibraryMultiply, integer_widths) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -323,7 +323,7 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, ieee_real_domains) {
   EXPECT(unordered_number && __builtin_isnan(*unordered_number));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryMultiply, recursive_exact_is_idempotent) {
+PERIMORTEM_UNIT_TEST(LibraryMultiply, stable_folding) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);

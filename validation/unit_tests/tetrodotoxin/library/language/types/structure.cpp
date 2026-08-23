@@ -236,7 +236,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(StructureTests, contextual_type_routes_keep_locality) {
+PERIMORTEM_UNIT_TEST(StructureTests, contextual_routes) {
   static constexpr View::Bytes source =
       "// Context route test.\n"
       "dialect : Library;\n"
@@ -281,22 +281,18 @@ PERIMORTEM_UNIT_TEST(StructureTests, contextual_type_routes_keep_locality) {
   EXPECT(&redirected.get_type() == &visible.resolve());
   EXPECT(&qualified.get_type() == &leaf);
   EXPECT(errors.is_empty());
-}
 
-PERIMORTEM_UNIT_TEST(
-    StructureTests,
-    qualified_routes_do_not_carry_private_authority) {
-  static constexpr View::Bytes source =
+  static constexpr View::Bytes rejected =
       "// Qualified private route test.\n"
       "dialect : Library;\n"
       "public Outer : struct {\n"
       "  private Hidden : struct { private state value : Bool; }\n"
       "  private state invalid : Outer::Hidden;\n"
       "}"_view;
-  EXPECT(rejects_link(source));
+  EXPECT(rejects_link(rejected));
 }
 
-PERIMORTEM_UNIT_TEST(StructureTests, independent_access_axes) {
+PERIMORTEM_UNIT_TEST(StructureTests, access_axes) {
   static constexpr View::Bytes source =
       "// Structure access test.\n"
       "dialect : Library;\n"
@@ -402,7 +398,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, declaration_reorder) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(StructureTests, category_names_coexist) {
+PERIMORTEM_UNIT_TEST(StructureTests, category_names) {
   static constexpr Static::Vector<View::Bytes, 3> accepted = {{
     "// Structure test.\n"
     "dialect : Library;\n"
@@ -430,22 +426,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, category_names_coexist) {
   EXPECT(rejects_interpretation(duplicate_fields));
 }
 
-PERIMORTEM_UNIT_TEST(StructureTests, fields_require_address_access) {
-  static constexpr Static::Vector<View::Bytes, 2> sources = {{
-    "// Structure test.\n"
-    "dialect : Library;\n"
-    "public Packet : struct { public state value : Bool; public read : func = [] -> Bool { return value; } }"_view,
-    "// Structure test.\n"
-    "dialect : Library;\n"
-    "public Packet : struct { public state value : Bool; public read : func = [self] -> Bool { return value; } }"_view,
-  }};
-
-  for (Count i = 0; i < sources.get_size(); i++) {
-    EXPECT(rejects_link(sources[i]));
-  }
-}
-
-PERIMORTEM_UNIT_TEST(StructureTests, explicit_self_field_access) {
+PERIMORTEM_UNIT_TEST(StructureTests, field_access) {
   static constexpr View::Bytes source =
       "// Structure test.\n"
       "dialect : Library;\n"
@@ -487,6 +468,14 @@ PERIMORTEM_UNIT_TEST(StructureTests, explicit_self_field_access) {
   ASSERT(layout_field);
   EXPECT(&*layout_field == &field_identity);
   EXPECT(errors.is_empty());
+
+  static constexpr Static::Vector<View::Bytes, 2> rejected = {{
+    "// Missing receiver.\ndialect : Library;\npublic Packet : struct { public state value : Bool; public read : func = [] -> Bool { return value; } }"_view,
+    "// Implicit receiver.\ndialect : Library;\npublic Packet : struct { public state value : Bool; public read : func = [self] -> Bool { return value; } }"_view,
+  }};
+  for (Count index = 0; index < rejected.get_size(); index++) {
+    EXPECT(rejects_link(rejected[index]));
+  }
 }
 
 PERIMORTEM_UNIT_TEST(StructureTests, malformed_grammar) {
@@ -507,7 +496,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, malformed_grammar) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(StructureTests, missing_type_rejected) {
+PERIMORTEM_UNIT_TEST(StructureTests, missing_type) {
   static constexpr View::Bytes source =
       "// Structure test.\n"
       "dialect : Library;\n"
@@ -515,7 +504,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, missing_type_rejected) {
   EXPECT(rejects_link(source));
 }
 
-PERIMORTEM_UNIT_TEST(StructureTests, empty_types_are_static_only) {
+PERIMORTEM_UNIT_TEST(StructureTests, static_empty_types) {
   static constexpr Static::Vector<View::Bytes, 5> rejected = {{
     "// Empty Option element.\ndialect : Library; private Empty : struct {} private invalid : Option[Empty];"_view,
     "// Zero Fixed extent.\ndialect : Library; private invalid : Fixed[Bool, 0];"_view,
@@ -580,17 +569,12 @@ PERIMORTEM_UNIT_TEST(StructureTests, empty_types_are_static_only) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(StructureTests, public_field_exposure_rejected) {
-  static constexpr View::Bytes source =
-      "// Structure test.\n"
-      "dialect : Library;\n"
-      "private Hidden : struct { private state value : Bool; }\n"
-      "public Packet : struct { public state hidden : Hidden; }"_view;
-  EXPECT(rejects_finalize(source));
-}
-
-PERIMORTEM_UNIT_TEST(StructureTests, public_callable_exposure_rejected) {
-  static constexpr Static::Vector<View::Bytes, 3> sources = {{
+PERIMORTEM_UNIT_TEST(StructureTests, public_exposure) {
+  static constexpr Static::Vector<View::Bytes, 4> sources = {{
+    "// Structure test.\n"
+    "dialect : Library;\n"
+    "private Hidden : struct { private state value : Bool; }\n"
+    "public Packet : struct { public state hidden : Hidden; }"_view,
     "// Structure test.\n"
     "dialect : Library;\n"
     "private Hidden : struct { private state value : Bool; }\n"
@@ -613,7 +597,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, public_callable_exposure_rejected) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(StructureTests, private_exposure_retained_locally) {
+PERIMORTEM_UNIT_TEST(StructureTests, private_surface) {
   static constexpr View::Bytes source =
       "// Structure test.\n"
       "dialect : Library;\n"
@@ -723,7 +707,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
+PERIMORTEM_UNIT_TEST(StructureTests, inferred_fields) {
   static constexpr View::Bytes source =
       "// Field inference test.\n"
       "dialect : Library;\n"
@@ -813,7 +797,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_source_and_nested_fields) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(StructureTests, inference_failure_rolls_back) {
+PERIMORTEM_UNIT_TEST(StructureTests, inference_rollback) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Field inference test.\ndialect : Library; private value := missing;"_view,
     "// Field inference test.\ndialect : Library; private value := true + false;"_view,
@@ -853,7 +837,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inference_failure_rolls_back) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(StructureTests, inferred_public_type_reachability) {
+PERIMORTEM_UNIT_TEST(StructureTests, public_inference) {
   static constexpr View::Bytes source =
       "// Field inference test.\n"
       "dialect : Library;\n"
@@ -887,7 +871,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_public_type_reachability) {
       errors, "Externally readable Field publishes an unreachable Type."_view));
 }
 
-PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch_rejected) {
+PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Structure initializer test.\ndialect : Library; public Packet : struct { private value : U8 = false; }"_view,
     "// Structure initializer test.\ndialect : Library; public Packet : struct { private value : U8 = 256; }"_view,

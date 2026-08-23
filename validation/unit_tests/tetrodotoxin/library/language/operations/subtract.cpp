@@ -115,7 +115,7 @@ static auto get_real(const Expression& expression) -> Option<R64> {
       [](const Abstract&) -> Option<R64> { return {}; });
 }
 
-PERIMORTEM_UNIT_TEST(LibrarySubtract, type_selection_and_partial) {
+PERIMORTEM_UNIT_TEST(LibrarySubtract, type_selection) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -182,7 +182,7 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, type_selection_and_partial) {
   EXPECT(invalid.get_type().resolve().is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(LibrarySubtract, checked_integer_widths) {
+PERIMORTEM_UNIT_TEST(LibrarySubtract, integer_widths) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -311,7 +311,7 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, ieee_real_domains) {
   EXPECT(unordered_number && __builtin_isnan(*unordered_number));
 }
 
-PERIMORTEM_UNIT_TEST(LibrarySubtract, recursive_exact_is_idempotent) {
+PERIMORTEM_UNIT_TEST(LibrarySubtract, stable_folding) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);

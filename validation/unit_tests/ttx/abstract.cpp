@@ -31,7 +31,7 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, invalid_absorbs) {
   EXPECT(invalid.get_documentation().is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(TtxAbstract, visits_declared_contracts) {
+PERIMORTEM_UNIT_TEST(TtxAbstract, contract_visit) {
   const Invalid& invalid = Invalid::get_invalid();
   Alias alias("Failure"_view, invalid);
   const Abstract& selected = alias;
@@ -47,7 +47,7 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, visits_declared_contracts) {
   EXPECT(rejected);
 }
 
-PERIMORTEM_UNIT_TEST(TtxAbstract, preserves_reference_cv) {
+PERIMORTEM_UNIT_TEST(TtxAbstract, reference_cv) {
   const Invalid& invalid = Invalid::get_invalid();
   Alias alias("Failure"_view, invalid);
   Reference<Alias> mutable_reference(alias);
@@ -76,7 +76,7 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, preserves_reference_cv) {
       [](const Abstract&) { return False; }));
 }
 
-PERIMORTEM_UNIT_TEST(TtxAbstract, alias_resolves_and_binds_once) {
+PERIMORTEM_UNIT_TEST(TtxAbstract, alias_binding) {
   /// A leaf that resolves elsewhere proves Alias returns the first non Alias
   /// identity without observing the terminal owner's completion contract.
   class Value : public Abstract {

@@ -621,7 +621,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
           Diagnostics::Log::Level::Info));
 }
 
-PERIMORTEM_UNIT_TEST(PackageRepository, caller_arena_and_retained_cache) {
+PERIMORTEM_UNIT_TEST(PackageRepository, retained_cache) {
   TemporaryRepositoryFiles files;
   ASSERT(files);
   Bool archive_written = files.write("cache.ttxa"_view, literal_archive());
@@ -696,7 +696,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, caller_arena_and_retained_cache) {
       removal_archive->get_artifacts().get_data()[0].get_id(), "cpu"_view);
 }
 
-PERIMORTEM_UNIT_TEST(PackageRepository, semantic_cache_without_native_inputs) {
+PERIMORTEM_UNIT_TEST(PackageRepository, semantic_cache) {
   TemporaryRepositoryFiles files;
   ASSERT(files);
   Bool archive_written = files.write("mapping.ttxa"_view, literal_archive());
@@ -739,7 +739,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, semantic_cache_without_native_inputs) {
   EXPECT(first_archive == retained);
 }
 
-PERIMORTEM_UNIT_TEST(PackageRepository, abi_manifest_agreement) {
+PERIMORTEM_UNIT_TEST(PackageRepository, abi_agreement) {
   TemporaryRepositoryFiles files;
   ASSERT(files);
   ASSERT(files.write("mapping.ttxa"_view, literal_archive()));
@@ -786,7 +786,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, abi_manifest_agreement) {
   EXPECT_TEXT(*selected, "missing/cpu.a"_view);
 }
 
-PERIMORTEM_UNIT_TEST(PackageRepository, exact_artifact_inventory) {
+PERIMORTEM_UNIT_TEST(PackageRepository, artifact_inventory) {
   TemporaryRepositoryFiles files;
   ASSERT(files);
   Bool archive_written = files.write("mapping.ttxa"_view, literal_archive());
@@ -824,7 +824,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, exact_artifact_inventory) {
       "archive_location="_view));
 }
 
-PERIMORTEM_UNIT_TEST(PackageRepository, declared_publication_paths) {
+PERIMORTEM_UNIT_TEST(PackageRepository, publication_paths) {
   static constexpr View::Bytes output_root =
       "r00_repository_publication_side_effect_probe_7349"_view;
   EXPECT_NOT(File::exists(output_root));
@@ -909,7 +909,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, declared_publication_paths) {
   EXPECT_NOT(File::exists(output_root));
 }
 
-PERIMORTEM_UNIT_TEST(PackageRepository, invalid_publication_routes) {
+PERIMORTEM_UNIT_TEST(PackageRepository, invalid_routes) {
   Static::Bytes<3> embedded_nul = {{'a', '\0', 'b'}};
   Static::Bytes<Path::max_size + 1> oversized;
   for (Count i = 0; i < oversized.get_size(); i++) {
@@ -937,7 +937,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, invalid_publication_routes) {
       oversized, "reason=the output route exceeds the Path capacity."_view));
 }
 
-PERIMORTEM_UNIT_TEST(PackageRepository, duplicate_keys_and_collisions) {
+PERIMORTEM_UNIT_TEST(PackageRepository, key_collisions) {
   Static::Vector<Package::Repository::Output, 2> duplicate_archives = {{
     Package::Repository::Output(
         "Pkg.Core"_view, Version(1, 2), "archive"_view, "first.ttxa"_view),
@@ -1036,7 +1036,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, duplicate_keys_and_collisions) {
           Diagnostics::Log::Level::Info));
 }
 
-PERIMORTEM_UNIT_TEST(PackageRepository, rejected_transaction_recovery) {
+PERIMORTEM_UNIT_TEST(PackageRepository, recovery) {
   Package::Repository::Input first(
       "Pkg.Core"_view, Version(1, 2), "missing/first.ttxa"_view,
       View::Vector<Package::Repository::Artifact>());

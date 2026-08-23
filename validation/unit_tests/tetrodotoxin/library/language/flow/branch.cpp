@@ -72,7 +72,7 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
              &Invalid::get_invalid();
 }
 
-PERIMORTEM_UNIT_TEST(BranchTests, retained_blocks_and_condition_pack) {
+PERIMORTEM_UNIT_TEST(BranchTests, branch_shape) {
   static constexpr View::Bytes source =
       "// Branch graph.\n"
       "dialect : Library;\n"
@@ -143,7 +143,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, retained_blocks_and_condition_pack) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(BranchTests, terminal_if_covers_function_result) {
+PERIMORTEM_UNIT_TEST(BranchTests, terminal_if) {
   static constexpr View::Bytes source =
       "// Terminal branch.\n"
       "dialect : Library;\n"
@@ -166,7 +166,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, terminal_if_covers_function_result) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(BranchTests, else_if_retains_the_selected_statement) {
+PERIMORTEM_UNIT_TEST(BranchTests, else_if) {
   static constexpr View::Bytes source =
       "// Else if statement.\n"
       "dialect : Library;\n"
@@ -195,7 +195,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, else_if_retains_the_selected_statement) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(BranchTests, while_body_targets_its_branch) {
+PERIMORTEM_UNIT_TEST(BranchTests, while_branch) {
   static constexpr View::Bytes source =
       "// While control.\n"
       "dialect : Library;\n"
@@ -222,7 +222,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, while_body_targets_its_branch) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(BranchTests, incomplete_result_paths_are_rejected) {
+PERIMORTEM_UNIT_TEST(BranchTests, incomplete_paths) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
     "// Missing alternate.\ndialect : Library; private invalid : func = [.flag : Bool] -> U64 { if flag { return 1; } }"_view,
     "// Falling alternate.\ndialect : Library; private invalid : func = [.flag : Bool] -> U64 { if flag { return 1; } else {} }"_view,
@@ -234,7 +234,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, incomplete_result_paths_are_rejected) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(BranchTests, first_condition_value_must_be_flag) {
+PERIMORTEM_UNIT_TEST(BranchTests, flag_condition) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Empty condition.\ndialect : Library; private invalid : func = [] -> [] { if () {} return; }"_view,
     "// Numeric condition.\ndialect : Library; private invalid : func = [] -> [] { if 1 {} return; }"_view,
@@ -247,7 +247,7 @@ PERIMORTEM_UNIT_TEST(BranchTests, first_condition_value_must_be_flag) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(BranchTests, malformed_branch_is_rejected) {
+PERIMORTEM_UNIT_TEST(BranchTests, malformed_branch) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Missing body.\ndialect : Library; private invalid : func = [] -> [] { if true return; }"_view,
     "// Missing alternate body.\ndialect : Library; private invalid : func = [] -> [] { if true {} else return; }"_view,

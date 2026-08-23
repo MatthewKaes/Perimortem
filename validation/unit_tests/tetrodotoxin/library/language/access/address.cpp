@@ -38,8 +38,8 @@ static auto interpret(
   return static_cast<Library::Language::Monograph&>(*interpreted);
 }
 
-PERIMORTEM_UNIT_TEST(AddressTests, descendant_private_authority) {
-  static constexpr View::Bytes source =
+PERIMORTEM_UNIT_TEST(AddressTests, private_access) {
+  static constexpr View::Bytes accepted =
       "// Descendant private Address access.\n"
       "dialect : Library;\n"
       "public Outer : struct {\n"
@@ -53,13 +53,11 @@ PERIMORTEM_UNIT_TEST(AddressTests, descendant_private_authority) {
   auto workspace_toolchain = create_library_toolchain();
   Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
-  auto monograph = interpret(workspace, errors, source);
+  auto monograph = interpret(workspace, errors, accepted);
   ASSERT(monograph);
   EXPECT(errors.is_empty());
-}
 
-PERIMORTEM_UNIT_TEST(AddressTests, sibling_private_denied) {
-  static constexpr View::Bytes source =
+  static constexpr View::Bytes rejected =
       "// Sibling private Address access.\n"
       "dialect : Library;\n"
       "public Outer : struct {\n"
@@ -70,15 +68,16 @@ PERIMORTEM_UNIT_TEST(AddressTests, sibling_private_denied) {
       "    }\n"
       "  }\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
-  Environment::Workspace workspace(*workspace_toolchain);
-  Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  EXPECT_NOT(monograph);
-  EXPECT_NOT(errors.is_empty());
+  auto rejected_toolchain = create_library_toolchain();
+  Environment::Workspace rejected_workspace(*rejected_toolchain);
+  Errors rejected_errors;
+  auto rejected_monograph =
+      interpret(rejected_workspace, rejected_errors, rejected);
+  EXPECT_NOT(rejected_monograph);
+  EXPECT_NOT(rejected_errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage_categories) {
+PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage) {
   static constexpr View::Bytes accepted =
       "// Address receiver categories.\n"
       "dialect : Library;\n"

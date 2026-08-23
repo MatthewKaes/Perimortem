@@ -107,7 +107,7 @@ static auto is_four_zero_values(
   return True;
 }
 
-PERIMORTEM_UNIT_TEST(InitializerTests, non_object_omission_uses_type_default) {
+PERIMORTEM_UNIT_TEST(InitializerTests, value_defaults) {
   static constexpr View::Bytes source =
       "// Non Object default construction.\n"
       "dialect : Library;\n"
@@ -151,23 +151,12 @@ PERIMORTEM_UNIT_TEST(InitializerTests, non_object_omission_uses_type_default) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(InitializerTests, non_object_supplied_values_rejected) {
-  static constexpr View::Bytes source =
-      "// Non Object supplied construction.\n"
-      "dialect : Library;\n"
-      "public invalid : U32 = "
-      "new[U32](.value = 1);"_view;
-  EXPECT(rejects_interpretation(
-      source,
-      "Selected Type does not accept supplied initializer values."_view));
-}
-
-PERIMORTEM_UNIT_TEST(InitializerTests, object_omission_and_supplied_arguments) {
+PERIMORTEM_UNIT_TEST(InitializerTests, object_arguments) {
   static constexpr View::Bytes source =
       "// Initializer test.\n"
       "dialect : Library;\n"
       "public Defaults : object { public cache : Bool; public state enabled : "
-      "Bool = false; }\n"
+      "Bool = false; public state count : U64; }\n"
       "public Required : object {\n"
       "  public state first : U64;\n"
       "  private state hidden : Bool = false;\n"
@@ -207,7 +196,14 @@ PERIMORTEM_UNIT_TEST(InitializerTests, object_omission_and_supplied_arguments) {
 
   ASSERT(empty.get_completed_values());
   ASSERT(configured.get_completed_values());
-  EXPECT_EQ(empty.get_completed_values()->get_layout().get_size(), Count(1));
+  const Layout& empty_values = empty.get_completed_values()->get_layout();
+  ASSERT_EQ(empty_values.get_size(), Count(2));
+  auto empty_count = empty_values.get_abstract(1);
+  ASSERT(empty_count && empty_count->is<Language::Constants::Unsigned>());
+  EXPECT_EQ(
+      static_cast<const Language::Constants::Unsigned&>(*empty_count)
+          .get_value(),
+      U64(0));
   const Layout& configured_values =
       configured.get_completed_values()->get_layout();
   ASSERT_EQ(configured_values.get_size(), Count(3));
@@ -228,17 +224,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, object_omission_and_supplied_arguments) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(InitializerTests, positional_object_arguments_rejected) {
-  static constexpr View::Bytes source =
-      "// Positional Object initializer test.\n"
-      "dialect : Library;\n"
-      "public Session : object { public state value : U64; }\n"
-      "public invalid : Session = new[Session](5);"_view;
-  EXPECT(rejects_interpretation(
-      source, "Object initializer inputs must name state Fields."_view));
-}
-
-PERIMORTEM_UNIT_TEST(InitializerTests, descendant_private_field) {
+PERIMORTEM_UNIT_TEST(InitializerTests, private_arguments) {
   static constexpr View::Bytes source =
       "// Descendant Object initialization.\n"
       "dialect : Library;\n"
@@ -253,10 +239,23 @@ PERIMORTEM_UNIT_TEST(InitializerTests, descendant_private_field) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
+
+  const auto& owner = static_cast<const Language::Types::Object&>(
+      monograph->get_source().resolve_context("Owner"_view));
+  const auto& builder = static_cast<const Language::Types::Structure&>(
+      owner.resolve_context("Builder"_view));
+  auto fields = builder.get_addressables();
+  ASSERT(fields != fields.end());
+  const auto& value = static_cast<const Language::Field&>((*fields).get());
+  auto initializer = value.get_initializer();
+  ASSERT(initializer && initializer->is<Language::Expressions::Initializer>());
+  const auto& created =
+      static_cast<const Language::Expressions::Initializer&>(*initializer);
+  EXPECT(&created.get_type() == &owner);
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(InitializerTests, inferred_carries_object_type) {
+PERIMORTEM_UNIT_TEST(InitializerTests, inferred_object) {
   static constexpr View::Bytes source =
       "// Inferred initializer test.\n"
       "dialect : Library;\n"
@@ -278,91 +277,37 @@ PERIMORTEM_UNIT_TEST(InitializerTests, inferred_carries_object_type) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(InitializerTests, wrong_type_rejected) {
-  static constexpr View::Bytes source =
-      "// Wrong initializer Type test.\n"
-      "dialect : Library;\n"
-      "public Session : object { public state value : Bool; }\n"
-      "public invalid : Bool = new[Session];"_view;
-  EXPECT(rejects_link_without_publication(source));
-}
+PERIMORTEM_UNIT_TEST(InitializerTests, argument_rejections) {
+  struct Rejection {
+    View::Bytes source;
+    View::Bytes diagnostic;
+  };
+  static constexpr Rejection rejections[] = {
+    {
+      "// Non Object arguments.\ndialect : Library;\npublic invalid : U32 = new[U32](.value = 1);"_view,
+      "Selected Type does not accept supplied initializer values."_view,
+    },
+    {
+      "// Positional Object argument.\ndialect : Library;\npublic Session : object { public state value : U64; }\npublic invalid : Session = new[Session](5);"_view,
+      "Object initializer inputs must name state Fields."_view,
+    },
+    {
+      "// Duplicate Object argument.\ndialect : Library;\npublic Session : object { public state value : U64; }\npublic invalid : Session = new[Session](.value = 1, .value = 2);"_view,
+      "Duplicate name in one Library Pack."_view,
+    },
+    {
+      "// Mixed Object arguments.\ndialect : Library;\npublic Session : object { public state value : U64; }\npublic invalid : Session = new[Session](1, .value = 2);"_view,
+      "Object initializer inputs must name state Fields."_view,
+    },
+    {
+      "// Empty Object arguments.\ndialect : Library;\npublic Session : object { public state value : U64; }\npublic invalid : Session = new[Session]();"_view,
+      "Object initializer arguments cannot be empty."_view,
+    },
+  };
 
-PERIMORTEM_UNIT_TEST(InitializerTests, unknown_name_rejected) {
-  static constexpr View::Bytes source =
-      "// Unknown initializer input test.\n"
-      "dialect : Library;\n"
-      "public Session : object { public state value : U64; }\n"
-      "public invalid : Session = new[Session](.missing = 1);"_view;
-  EXPECT(rejects_link_without_publication(source));
-}
-
-PERIMORTEM_UNIT_TEST(InitializerTests, private_name_rejected) {
-  static constexpr View::Bytes source =
-      "// Private initializer input test.\n"
-      "dialect : Library;\n"
-      "public Session : object { private state hidden : Bool = false; }\n"
-      "public invalid : Session = new[Session](.hidden = true);"_view;
-  EXPECT(rejects_link_without_publication(source));
-}
-
-PERIMORTEM_UNIT_TEST(InitializerTests, duplicate_name_rejected) {
-  static constexpr View::Bytes source =
-      "// Duplicate initializer input test.\n"
-      "dialect : Library;\n"
-      "public Session : object { public state value : U64; }\n"
-      "public invalid : Session = "
-      "new[Session](.value = 1, .value = 2);"_view;
-  EXPECT(rejects_interpretation(
-      source, "Duplicate name in one Library Pack."_view));
-}
-
-PERIMORTEM_UNIT_TEST(InitializerTests, mixed_pack_rejected_as_positional) {
-  static constexpr View::Bytes source =
-      "// Mixed initializer Layout test.\n"
-      "dialect : Library;\n"
-      "public Session : object { public state value : U64; }\n"
-      "public invalid : Session = new[Session](1, .value = 2);"_view;
-  EXPECT(rejects_interpretation(
-      source, "Object initializer inputs must name state Fields."_view));
-}
-
-PERIMORTEM_UNIT_TEST(InitializerTests, omission_uses_type_default) {
-  static constexpr View::Bytes source =
-      "// Omitted initializer input test.\n"
-      "dialect : Library;\n"
-      "public Session : object { public state value : U64; }\n"
-      "public created : Session = new[Session];"_view;
-  auto workspace_toolchain = create_library_toolchain();
-  Workspace workspace(*workspace_toolchain);
-  Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-
-  const auto& created = static_cast<const Language::Field&>(
-      monograph->get_source().resolve_context("created"_view));
-  auto value = created.get_initializer();
-  ASSERT(value && value->is<Language::Expressions::Initializer>());
-  const auto& initializer =
-      static_cast<const Language::Expressions::Initializer&>(*value);
-  ASSERT(initializer.get_completed_values());
-  auto field_value =
-      initializer.get_completed_values()->get_layout().get_abstract(0);
-  ASSERT(field_value && field_value->is<Language::Constants::Unsigned>());
-  EXPECT_EQ(
-      static_cast<const Language::Constants::Unsigned&>(*field_value)
-          .get_value(),
-      U64(0));
-  EXPECT(errors.is_empty());
-}
-
-PERIMORTEM_UNIT_TEST(InitializerTests, empty_argument_pack_rejected) {
-  static constexpr View::Bytes source =
-      "// Empty initializer argument test.\n"
-      "dialect : Library;\n"
-      "public Session : object { public state value : U64; }\n"
-      "public invalid : Session = new[Session]();"_view;
-  EXPECT(rejects_interpretation(
-      source, "Object initializer arguments cannot be empty."_view));
+  for (const Rejection& rejection : rejections) {
+    EXPECT(rejects_interpretation(rejection.source, rejection.diagnostic));
+  }
 }
 
 PERIMORTEM_UNIT_TEST(InitializerTests, nested_defaults) {
@@ -400,27 +345,21 @@ PERIMORTEM_UNIT_TEST(InitializerTests, nested_defaults) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(InitializerTests, input_type_rejected) {
-  static constexpr View::Bytes source =
-      "// Initializer input Type test.\n"
-      "dialect : Library;\n"
-      "public Session : object { public state value : U64; }\n"
-      "public invalid : Session = new[Session](.value = false);"_view;
-  EXPECT(rejects_link_without_publication(source));
+PERIMORTEM_UNIT_TEST(InitializerTests, field_rejections) {
+  static constexpr View::Bytes sources[] = {
+    "// Wrong result Type.\ndialect : Library;\npublic Session : object { public state value : Bool; }\npublic invalid : Bool = new[Session];"_view,
+    "// Unknown input.\ndialect : Library;\npublic Session : object { public state value : U64; }\npublic invalid : Session = new[Session](.missing = 1);"_view,
+    "// Private input.\ndialect : Library;\npublic Session : object { private state hidden : Bool = false; }\npublic invalid : Session = new[Session](.hidden = true);"_view,
+    "// Input Type mismatch.\ndialect : Library;\npublic Session : object { public state value : U64; }\npublic invalid : Session = new[Session](.value = false);"_view,
+    "// Const input.\ndialect : Library;\npublic Session : object { public const value : U64 = 1; }\npublic invalid : Session = new[Session](.value = 2);"_view,
+  };
+
+  for (View::Bytes source : sources) {
+    EXPECT(rejects_link_without_publication(source));
+  }
 }
 
-PERIMORTEM_UNIT_TEST(InitializerTests, const_field_override_rejected) {
-  static constexpr View::Bytes source =
-      "// Const initializer ownership test.\n"
-      "dialect : Library;\n"
-      "public Session : object {\n"
-      "  public const value : U64 = 1;\n"
-      "}\n"
-      "public invalid : Session = new[Session](.value = 2);"_view;
-  EXPECT(rejects_link_without_publication(source));
-}
-
-PERIMORTEM_UNIT_TEST(InitializerTests, mandatory_cycle_rejected) {
+PERIMORTEM_UNIT_TEST(InitializerTests, object_cycles) {
   static constexpr View::Bytes static_override =
       "// Static initializer ownership test.\n"
       "dialect : Library;\n"

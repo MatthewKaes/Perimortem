@@ -105,9 +105,7 @@ static auto select_structure(
   return static_cast<const Language::Types::Structure&>(selected);
 }
 
-PERIMORTEM_UNIT_TEST(
-    LibraryTypeReference,
-    each_segment_queries_the_selected_abstract) {
+PERIMORTEM_UNIT_TEST(LibraryTypeReference, segment_queries) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "First::Second"_view, "route.ttx"_view);
@@ -127,9 +125,7 @@ PERIMORTEM_UNIT_TEST(
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(
-    LibraryTypeReference,
-    authored_generic_types_keep_exact_recursive_identity) {
+PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_identity) {
   static constexpr View::Bytes source =
       "// Generic TypeReference test.\n"
       "dialect : Library;\n"
@@ -216,9 +212,7 @@ PERIMORTEM_UNIT_TEST(
       &workspace.resolve_context("GenericTypeReference"_view) == &*monograph);
 }
 
-PERIMORTEM_UNIT_TEST(
-    LibraryTypeReference,
-    generic_arguments_complete_local_and_qualified_aliases) {
+PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_aliases) {
   static constexpr View::Bytes source =
       "// Generic Alias TypeReference test.\n"
       "dialect : Library;\n"
@@ -262,9 +256,7 @@ PERIMORTEM_UNIT_TEST(
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(
-    LibraryTypeReference,
-    recursive_generic_alias_cycle_publishes_no_materialization) {
+PERIMORTEM_UNIT_TEST(LibraryTypeReference, alias_cycle) {
   static constexpr View::Bytes source =
       "// Recursive Generic Alias rejection.\n"
       "dialect : Library;\n"
@@ -285,9 +277,7 @@ PERIMORTEM_UNIT_TEST(
       Count(-1));
 }
 
-PERIMORTEM_UNIT_TEST(
-    LibraryTypeReference,
-    authored_generic_failures_report_once) {
+PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_errors) {
   struct Rejection {
     View::Bytes semantic_name;
     View::Bytes source;

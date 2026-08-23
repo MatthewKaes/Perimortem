@@ -80,7 +80,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, runtime_integration) {
   EXPECT_EQ(run_runtime_integration(), 0);
 }
 
-PERIMORTEM_UNIT_TEST(LlvmTests, standalone_runtime_integration) {
+PERIMORTEM_UNIT_TEST(LlvmTests, standalone_runtime) {
   Process::Request request = {
     .executable = ".bin/bin/validation/runtime_link_integration"_view,
   };
@@ -94,7 +94,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, standalone_runtime_integration) {
   EXPECT(observation.runner_error.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LlvmTests, system_abi_integration) {
+PERIMORTEM_UNIT_TEST(LlvmTests, system_abi) {
   Process::Request request = {
     .executable = ".bin/bin/validation/system_abi_integration"_view,
     .standard_input = "Hello System\n"_view,
@@ -110,7 +110,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, system_abi_integration) {
   EXPECT(observation.runner_error.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LlvmTests, package_native_integration) {
+PERIMORTEM_UNIT_TEST(LlvmTests, native_package) {
   Process::Request request = {
     .executable = ".bin/bin/validation/package_native_integration"_view,
   };
@@ -124,7 +124,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, package_native_integration) {
   EXPECT(observation.runner_error.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LlvmTests, echo_package_integration) {
+PERIMORTEM_UNIT_TEST(LlvmTests, echo_package) {
   Process::Request request = {
     .executable = ".bin/bin/apps/ttx/echo/echo"_view,
     .standard_input = "hello\n\nquit\n"_view,
@@ -158,7 +158,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, echo_package_integration) {
   EXPECT(observation.runner_error.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
+PERIMORTEM_UNIT_TEST(LlvmTests, debug_products) {
   auto source = File::read("validation/data/ttx/llvm/runtime.ttx"_view);
   ASSERT(source);
   Allocator::Arena first_domain;
@@ -340,7 +340,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, deterministic_debug_products) {
   EXPECT(first_products->get_object() != relocated_products->get_object());
 }
 
-PERIMORTEM_UNIT_TEST(LlvmTests, scoped_static_debug_metadata) {
+PERIMORTEM_UNIT_TEST(LlvmTests, static_debug_scope) {
   static constexpr View::Bytes source =
       "// Scoped Static debug acceptance.\n"
       "dialect : Library;\n"
@@ -384,7 +384,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, scoped_static_debug_metadata) {
       Count(-1));
 }
 
-PERIMORTEM_UNIT_TEST(LlvmTests, backend_rejections_report_source) {
+PERIMORTEM_UNIT_TEST(LlvmTests, source_diagnostics) {
   struct Rejection {
     View::Bytes source;
     View::Bytes message;

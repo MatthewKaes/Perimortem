@@ -38,23 +38,7 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
   return static_cast<Language::Monograph&>(*interpreted);
 }
 
-static auto rejects_interpretation(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
-  Workspace workspace(*workspace_toolchain);
-  Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  return !monograph && !errors.is_empty();
-}
-
-static auto rejects_link(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
-  Workspace workspace(*workspace_toolchain);
-  Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  return !monograph && !errors.is_empty();
-}
-
-static auto rejects_finalize(View::Bytes source) -> Bool {
+static auto rejects_source(View::Bytes source) -> Bool {
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -130,7 +114,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, field_writability) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ObjectTests, exact_collision_domain) {
+PERIMORTEM_UNIT_TEST(ObjectTests, collision_domain) {
   static constexpr Static::Vector<View::Bytes, 2> accepted = {{
     "// Object test.\ndialect : Library; public Session : object { public value : func = [] -> [] {} private state value : Bool = false; }"_view,
     "// Object test.\ndialect : Library; public Session : object { private state value : Bool = false; public value : func = [] -> [] {} }"_view,
@@ -154,7 +138,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, exact_collision_domain) {
   }};
 
   for (Count i = 0; i < rejected.get_size(); i++) {
-    EXPECT(rejects_interpretation(rejected[i]));
+    EXPECT(rejects_source(rejected[i]));
   }
 }
 
@@ -170,11 +154,11 @@ PERIMORTEM_UNIT_TEST(ObjectTests, malformed_grammar) {
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
-    EXPECT(rejects_interpretation(sources[i]));
+    EXPECT(rejects_source(sources[i]));
   }
 }
 
-PERIMORTEM_UNIT_TEST(ObjectTests, private_exposure_rejected) {
+PERIMORTEM_UNIT_TEST(ObjectTests, private_exposure) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Object test.\ndialect : Library; private Hidden : object { private state value : Bool = false; } public reveal : func = [.hidden : Hidden] -> [] {}"_view,
     "// Object test.\ndialect : Library; private Hidden : object { private state value : Bool = false; } public Holder : struct { public state hidden : Hidden; }"_view,
@@ -183,11 +167,11 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_exposure_rejected) {
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
-    EXPECT(rejects_finalize(sources[i]));
+    EXPECT(rejects_source(sources[i]));
   }
 }
 
-PERIMORTEM_UNIT_TEST(ObjectTests, private_surface_retained_locally) {
+PERIMORTEM_UNIT_TEST(ObjectTests, private_surface) {
   static constexpr View::Bytes source =
       "// Object test.\n"
       "dialect : Library;\n"
@@ -235,45 +219,27 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface_retained_locally) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ObjectTests, inherited_initializer_mismatch) {
-  static constexpr View::Bytes source =
-      "// Object initializer test.\n"
-      "dialect : Library;\n"
-      "public Session : object { private state value : U8 = false; }"_view;
-  auto workspace_toolchain = create_library_toolchain();
-  Workspace workspace(*workspace_toolchain);
-  Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  EXPECT_NOT(monograph);
-  EXPECT(
-      &workspace.resolve_context("ObjectTest"_view) == &Invalid::get_invalid());
-  EXPECT_NOT(errors.is_empty());
+PERIMORTEM_UNIT_TEST(ObjectTests, member_rejections) {
+  static constexpr Static::Vector<View::Bytes, 3> sources = {{
+    "// Bad initializer.\ndialect : Library;\npublic Session : object { private state value : U8 = false; }"_view,
+    "// Unresolved initializer.\ndialect : Library;\npublic Session : object { expose state value : Bool = missing; }"_view,
+    "// Missing Type.\ndialect : Library;\npublic Session : object { private state value : Missing = false; }"_view,
+  }};
+
+  for (Count index = 0; index < sources.get_size(); index++) {
+    auto workspace_toolchain = create_library_toolchain();
+    Workspace workspace(*workspace_toolchain);
+    Errors errors;
+    auto monograph = interpret(workspace, errors, sources[index]);
+    EXPECT_NOT(monograph);
+    EXPECT(
+        &workspace.resolve_context("ObjectTest"_view) ==
+        &Invalid::get_invalid());
+    EXPECT_NOT(errors.is_empty());
+  }
 }
 
-PERIMORTEM_UNIT_TEST(ObjectTests, link_failure_keeps_publication_empty) {
-  static constexpr View::Bytes source =
-      "// Object test.\n"
-      "dialect : Library;\n"
-      "public Session : object { expose state value : Bool = missing; }"_view;
-  auto workspace_toolchain = create_library_toolchain();
-  Workspace workspace(*workspace_toolchain);
-  Errors errors;
-  auto monograph = interpret(workspace, errors, source);
-  EXPECT_NOT(monograph);
-  EXPECT(
-      &workspace.resolve_context("ObjectTest"_view) == &Invalid::get_invalid());
-  EXPECT_NOT(errors.is_empty());
-}
-
-PERIMORTEM_UNIT_TEST(ObjectTests, missing_type_rejected) {
-  static constexpr View::Bytes source =
-      "// Object test.\n"
-      "dialect : Library;\n"
-      "public Session : object { private state value : Missing = false; }"_view;
-  EXPECT(rejects_link(source));
-}
-
-PERIMORTEM_UNIT_TEST(ObjectTests, inferred_object_identity) {
+PERIMORTEM_UNIT_TEST(ObjectTests, inferred_identity) {
   static constexpr View::Bytes source =
       "// Object inference test.\n"
       "dialect : Library;\n"

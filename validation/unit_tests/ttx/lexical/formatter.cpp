@@ -16,7 +16,7 @@ static Harness TtxFormatter = {
   .name = "TTX::Formatter"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, canonical_declaration_order) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, declaration_order) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -76,7 +76,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, canonical_declaration_order) {
       "}\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, inferred_declaration_stays_compact) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, inferred_declaration) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -101,7 +101,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, inferred_declaration_stays_compact) {
       "}\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, composite_declaration_order) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, composite_order) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -145,7 +145,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, composite_declaration_order) {
       "}\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, alphabetical_declaration_blocks) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, alphabetical_blocks) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -188,7 +188,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, alphabetical_declaration_blocks) {
       "private Zebra : struct {}\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, documentation_starts_paragraph) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, documentation_break) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -219,7 +219,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, documentation_starts_paragraph) {
       "}\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, canonical_hexadecimal_literals) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, hexadecimal_literals) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -241,7 +241,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, canonical_hexadecimal_literals) {
       "private const small  := 0x0A;\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, bounded_alignment_islands) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, alignment_islands) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -297,7 +297,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, canonical_pack_width) {
       ");\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, empty_result_fallthrough) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, empty_fallthrough) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -332,7 +332,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, empty_result_fallthrough) {
       "public repeated : func = [] -> [] : return;\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, executable_paragraph_state) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, executable_spacing) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -359,7 +359,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, executable_paragraph_state) {
       "}\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, compressed_block_paragraph_state) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, compressed_spacing) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -392,7 +392,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, compressed_block_paragraph_state) {
       "}\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, compact_single_statement_blocks) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, compact_blocks) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -423,7 +423,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, compact_single_statement_blocks) {
       "}\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, dialect_callable_preserves_body_order) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, callable_body_order) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -448,7 +448,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, dialect_callable_preserves_body_order) {
       "}\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, malformed_source_is_stable) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, stable_malformed) {
   Allocator::Arena first_arena;
   Tokenizer first(
       first_arena,
@@ -470,7 +470,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, malformed_source_is_stable) {
       "public state value : U8 = ^\n"_view);
 }
 
-PERIMORTEM_UNIT_TEST(TtxFormatter, wraps_long_postfix_expression) {
+PERIMORTEM_UNIT_TEST(TtxFormatter, postfix_wrapping) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,

@@ -20,9 +20,7 @@ static Harness TtxLexicalAssociations = {
   .name = "TTX::Lexical::Associations"_view,
 };
 
-PERIMORTEM_UNIT_TEST(
-    TtxLexicalAssociations,
-    selects_the_most_precise_semantic_identity) {
+PERIMORTEM_UNIT_TEST(TtxLexicalAssociations, precise_selection) {
   Allocator::Arena arena;
   Lexical::Tokenizer tokenizer(
       arena, "outer inner end"_view, "association.ttx"_view);

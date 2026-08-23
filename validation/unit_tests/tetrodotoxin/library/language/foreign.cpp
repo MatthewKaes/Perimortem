@@ -57,7 +57,7 @@ static auto rejects(View::Bytes source, View::Bytes expected) -> Bool {
          Algorithm::search(rendered, expected) != Count(-1);
 }
 
-PERIMORTEM_UNIT_TEST(ForeignTests, source_identity_and_lifecycle) {
+PERIMORTEM_UNIT_TEST(ForeignTests, source_lifecycle) {
   static constexpr View::Bytes source =
       "// Foreign source identity.\n"
       "dialect : Library;\n"
@@ -163,7 +163,7 @@ PERIMORTEM_UNIT_TEST(ForeignTests, source_identity_and_lifecycle) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ForeignTests, access_invocation_and_category_separation) {
+PERIMORTEM_UNIT_TEST(ForeignTests, foreign_categories) {
   static constexpr View::Bytes source =
       "// Foreign access integration.\n"
       "dialect : Library;\n"
@@ -201,7 +201,7 @@ PERIMORTEM_UNIT_TEST(ForeignTests, access_invocation_and_category_separation) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ForeignTests, authored_rejections_are_atomic) {
+PERIMORTEM_UNIT_TEST(ForeignTests, authored_rejections) {
   struct Rejection {
     View::Bytes source;
     View::Bytes message;
@@ -240,7 +240,7 @@ PERIMORTEM_UNIT_TEST(ForeignTests, authored_rejections_are_atomic) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(ForeignTests, link_rejections_keep_source_unpublished) {
+PERIMORTEM_UNIT_TEST(ForeignTests, link_rejections) {
   struct Rejection {
     View::Bytes source;
     View::Bytes message;

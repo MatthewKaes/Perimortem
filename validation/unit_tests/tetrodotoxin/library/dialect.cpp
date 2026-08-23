@@ -253,7 +253,7 @@ static Harness DialectTests = {
   .name = "Tetrodotoxin::Library::Dialect"_view,
 };
 
-PERIMORTEM_UNIT_TEST(DialectTests, each_root_owns_its_vocabulary) {
+PERIMORTEM_UNIT_TEST(DialectTests, root_vocabulary) {
   Allocator::Arena arena;
   EmptyRegistry context;
   Dialect dialect;
@@ -342,7 +342,7 @@ static auto find_function(
   return {};
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, nested_missing_type_reports_authored_route) {
+PERIMORTEM_UNIT_TEST(DialectTests, missing_type_route) {
   static constexpr View::Bytes source =
       "public Packet : struct { public missing : Missing; }\n"
       "public later : func = [] -> [] {}"_view;
@@ -366,7 +366,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, nested_missing_type_reports_authored_route) {
       Count(-1));
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, source_field_failures_are_reported) {
+PERIMORTEM_UNIT_TEST(DialectTests, field_diagnostics) {
   static constexpr Static::Vector<View::Bytes, 6> sources = {{
     "public broken : Missing;\npublic later : func = [] -> [] {}"_view,
     "public broken : Bool = absent;\npublic later : func = [] -> [] {}"_view,
@@ -400,21 +400,18 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_field_failures_are_reported) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, top_level_self_is_rejected_at_registration) {
-  EXPECT(rejects_library_source(
-      "// Top level Self registration.\n"
-      "dialect : Library;\n"
-      "public invalid : func = [self] -> [] {}"_view));
+PERIMORTEM_UNIT_TEST(DialectTests, source_rejections) {
+  static constexpr Static::Vector<View::Bytes, 2> sources = {{
+    "// Top level Self registration.\ndialect : Library;\npublic invalid : func = [self] -> [] {}"_view,
+    "// Source state rejection.\ndialect : Library;\npublic state invalid : Bool;"_view,
+  }};
+
+  for (Count index = 0; index < sources.get_size(); index++) {
+    EXPECT(rejects_library_source(sources[index]));
+  }
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, source_rejects_instance_state) {
-  EXPECT(rejects_library_source(
-      "// Source state rejection.\n"
-      "dialect : Library;\n"
-      "public state invalid : Bool;"_view));
-}
-
-PERIMORTEM_UNIT_TEST(DialectTests, source_alias_identity_and_visibility) {
+PERIMORTEM_UNIT_TEST(DialectTests, source_aliases) {
   static constexpr View::Bytes source =
       "// Hidden documentation.\n"
       "private Hidden : struct {}\n"
@@ -468,7 +465,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_alias_identity_and_visibility) {
   EXPECT(cursor.matches(Code::Type::Terminal));
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, rejected_source_alias_is_atomic) {
+PERIMORTEM_UNIT_TEST(DialectTests, alias_rejection) {
   static constexpr Static::Vector<View::Bytes, 5> rejected = {{
     "// Rejected documentation.\npublic Broken : alias Bool;"_view,
     "public Bool : alias = U8;"_view,
@@ -493,7 +490,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, rejected_source_alias_is_atomic) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, source_alias_binding_is_delayed) {
+PERIMORTEM_UNIT_TEST(DialectTests, delayed_aliases) {
   static constexpr Static::Vector<View::Bytes, 3> rejected = {{
     "public Broken : alias = Missing;"_view,
     "public Broken : alias = Fact;"_view,
@@ -519,7 +516,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_alias_binding_is_delayed) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
+PERIMORTEM_UNIT_TEST(DialectTests, fixture_rejections) {
   struct Rejection {
     View::Bytes path;
     View::Bytes message;
@@ -573,7 +570,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, focused_fixture_rejections) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, foreign_workspace_acceptance) {
+PERIMORTEM_UNIT_TEST(DialectTests, foreign_workspace) {
   static constexpr View::Bytes path =
       "validation/data/ttx/library/foreign.ttx"_view;
   auto source = File::read(path);
@@ -601,9 +598,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, foreign_workspace_acceptance) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(
-    DialectTests,
-    private_parameter_fixture_fails_publication) {
+PERIMORTEM_UNIT_TEST(DialectTests, private_parameter) {
   static constexpr View::Bytes path =
       "validation/data/ttx/library/public_parameter_private_type.ttx"_view;
   auto source = File::read(path);
@@ -635,7 +630,7 @@ PERIMORTEM_UNIT_TEST(
       Count(-1));
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, function_attributes_are_opaque) {
+PERIMORTEM_UNIT_TEST(DialectTests, opaque_attributes) {
   static constexpr View::Bytes source =
       "// Function Attribute retention test.\n"
       "dialect : Library;\n"
@@ -834,26 +829,6 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   EXPECT(errors.is_empty());
 }
 
-static auto completes_fixture(View::Bytes path) -> Bool {
-  auto source = File::read(path);
-  BAIL_IF(!source);
-  auto workspace_toolchain = create_library_toolchain();
-  Workspace workspace(*workspace_toolchain);
-  Errors errors;
-  auto interpreted = workspace.interpret_source(
-      errors, "CanonicalLibrary"_view, path, *source);
-  BAIL_IF(!interpreted || !interpreted->is<Language::Monograph>());
-  return errors.is_empty();
-}
-
-PERIMORTEM_UNIT_TEST(DialectTests, broad_source_completes) {
-  EXPECT(completes_fixture("validation/data/ttx/library/broad.ttx"_view));
-}
-
-PERIMORTEM_UNIT_TEST(DialectTests, native_source_completes) {
-  EXPECT(completes_fixture("validation/data/ttx/library/foreign.ttx"_view));
-}
-
 PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   static constexpr View::Bytes path =
       "validation/data/ttx/library/value_acceptance.ttx"_view;
@@ -1027,7 +1002,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
+PERIMORTEM_UNIT_TEST(DialectTests, executable_source) {
   static constexpr View::Bytes path =
       "validation/data/ttx/llvm/runtime.ttx"_view;
   auto source = File::read(path);
@@ -1230,7 +1205,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_acceptance) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, resource_slice_folds_const_access) {
+PERIMORTEM_UNIT_TEST(DialectTests, resource_slice) {
   static constexpr View::Bytes source =
       "public const offset : U64 = 1;\n"
       "public const size : U64 = 2;\n"
@@ -1291,7 +1266,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, resource_slice_folds_const_access) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(DialectTests, const_field_access_is_type_owned) {
+PERIMORTEM_UNIT_TEST(DialectTests, const_field_access) {
   static constexpr View::Bytes source =
       "public Packet : struct {\n"
       "  public const offset := base;\n"

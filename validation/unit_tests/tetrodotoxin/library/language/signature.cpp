@@ -53,7 +53,7 @@ static auto find_function(
   return {};
 }
 
-PERIMORTEM_UNIT_TEST(SignatureTests, named_parameters_and_direct_results) {
+PERIMORTEM_UNIT_TEST(SignatureTests, signature_shape) {
   static constexpr View::Bytes source =
       "// Signature identity test.\n"
       "dialect : Library;\n"
@@ -92,7 +92,7 @@ PERIMORTEM_UNIT_TEST(SignatureTests, named_parameters_and_direct_results) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(SignatureTests, self_result_retains_parameter_reference) {
+PERIMORTEM_UNIT_TEST(SignatureTests, self_reference) {
   static constexpr View::Bytes source =
       "// Self reference result.\n"
       "dialect : Library;\n"
@@ -125,7 +125,7 @@ PERIMORTEM_UNIT_TEST(SignatureTests, self_result_retains_parameter_reference) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(SignatureTests, descriptor_shape_is_strict) {
+PERIMORTEM_UNIT_TEST(SignatureTests, strict_descriptor) {
   static constexpr Static::Vector<View::Bytes, 7> rejected = {{
     "// Bare parameter.\ndialect : Library; private invalid : func = Bool -> [] {}"_view,
     "// Positional parameter.\ndialect : Library; private invalid : func = [Bool] -> [] {}"_view,

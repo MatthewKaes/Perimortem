@@ -188,7 +188,7 @@ static auto matches_anchor(
       });
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, original_operation_and_link) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, original_operation) {
   static constexpr View::Bytes source = "2 * 3"_view;
   Allocator::Arena domain;
   ExpressionParserObservations observations;
@@ -213,7 +213,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, original_operation_and_link) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, type_mismatch_waits_for_link) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, delayed_type_check) {
   Allocator::Arena domain;
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
@@ -236,9 +236,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, type_mismatch_waits_for_link) {
       Count(-1));
 }
 
-PERIMORTEM_UNIT_TEST(
-    ExpressionParserTests,
-    value_access_legality_waits_for_link) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, delayed_access_check) {
   Allocator::Arena domain;
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
@@ -303,7 +301,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, prefix_spans) {
   EXPECT(not_errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, operation_anchors) {
   Allocator::Arena domain;
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
@@ -360,7 +358,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, authored_operation_anchors) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, range_requires_one_complete_rhs) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, complete_range_rhs) {
   Allocator::Arena domain;
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
@@ -373,7 +371,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, range_requires_one_complete_rhs) {
   EXPECT(rejects_grammar(domain, *monograph, "1...2...3"_view));
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, nested_precedence_evaluates) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, nested_precedence) {
   static constexpr View::Bytes source = "2 * 3 - 4 == 2"_view;
   Allocator::Arena domain;
   ExpressionParserObservations observations;
@@ -396,7 +394,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, nested_precedence_evaluates) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, ordered_chain_links_after_grammar) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, ordered_chain) {
   Allocator::Arena domain;
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
@@ -415,7 +413,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, ordered_chain_links_after_grammar) {
   EXPECT_NOT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, embedded_source_stays_slice) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, embedded_slice) {
   Allocator::Arena domain;
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
@@ -433,7 +431,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, embedded_source_stays_slice) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, address_chain_and_anchor) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, address_chain) {
   static constexpr View::Bytes source = "receiver.member.tail"_view;
   Allocator::Arena domain;
   ExpressionParserObservations observations;
@@ -460,9 +458,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, address_chain_and_anchor) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(
-    ExpressionParserTests,
-    parenthesized_pack_preserves_real_value_flow) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, parenthesized_pack) {
   Allocator::Arena domain;
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
@@ -523,9 +519,7 @@ PERIMORTEM_UNIT_TEST(
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(
-    ExpressionParserTests,
-    scalar_operations_accept_only_expression_packs) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, expression_packs) {
   static constexpr View::Bytes source = "(2) * (3)"_view;
   Allocator::Arena domain;
   ExpressionParserObservations observations;
@@ -549,7 +543,7 @@ PERIMORTEM_UNIT_TEST(
   EXPECT(rejects_grammar(domain, *monograph, "(1, 2):[0]"_view));
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, malformed_grammar_reports) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, grammar_errors) {
   Allocator::Arena domain;
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);
@@ -584,7 +578,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, malformed_grammar_reports) {
           "requires one operand"_view) != Count(-1));
 }
 
-PERIMORTEM_UNIT_TEST(ExpressionParserTests, bitwise_symbols_are_not_logical) {
+PERIMORTEM_UNIT_TEST(ExpressionParserTests, rejects_bitwise) {
   Allocator::Arena domain;
   ExpressionParserObservations observations;
   ExpressionParserContext context(domain, observations);

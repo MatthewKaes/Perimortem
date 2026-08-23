@@ -78,7 +78,7 @@ static auto rejects_link_without_publication(View::Bytes source) -> Bool {
          &Invalid::get_invalid();
 }
 
-PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
+PERIMORTEM_UNIT_TEST(LocalTests, local_completion) {
   static constexpr View::Bytes source =
       "// Local outcomes.\n"
       "dialect : Library;\n"
@@ -179,7 +179,7 @@ PERIMORTEM_UNIT_TEST(LocalTests, source_order_and_type_completion) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LocalTests, const_fixed_retains_folded_values) {
+PERIMORTEM_UNIT_TEST(LocalTests, folded_const) {
   static constexpr View::Bytes source =
       "// Const Fixed Local.\n"
       "dialect : Library;\n"
@@ -225,7 +225,7 @@ PERIMORTEM_UNIT_TEST(LocalTests, const_fixed_retains_folded_values) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LocalTests, inference_requires_one_scalar_value) {
+PERIMORTEM_UNIT_TEST(LocalTests, scalar_inference) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Empty inferred Pack.\ndialect : Library; private invalid : func = [] -> [] { const value := (); }"_view,
     "// Multi-value inferred Pack.\ndialect : Library; private invalid : func = [] -> [] { const value := (true, false); }"_view,
@@ -236,7 +236,7 @@ PERIMORTEM_UNIT_TEST(LocalTests, inference_requires_one_scalar_value) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(LocalTests, malformed_declarations_are_atomic) {
+PERIMORTEM_UNIT_TEST(LocalTests, malformed_locals) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
     "// Duplicate Local.\ndialect : Library; private invalid : func = [] -> [] { state value : Bool; const value := true; }"_view,
     "// Inferred construction.\ndialect : Library; private invalid : func = [] -> [] { state value := new; }"_view,
@@ -248,7 +248,7 @@ PERIMORTEM_UNIT_TEST(LocalTests, malformed_declarations_are_atomic) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(LocalTests, reachable_names_cannot_be_shadowed) {
+PERIMORTEM_UNIT_TEST(LocalTests, shadow_rejection) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Function parameter.\ndialect : Library; private invalid : func = [.value : Bool] -> [] { state value : Bool; return; }"_view,
     "// Enclosing Block.\ndialect : Library; private invalid : func = [] -> [] { state value : Bool; while false { state value : Bool; } return; }"_view,
@@ -259,7 +259,7 @@ PERIMORTEM_UNIT_TEST(LocalTests, reachable_names_cannot_be_shadowed) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(LocalTests, shadow_note_names_original_declaration) {
+PERIMORTEM_UNIT_TEST(LocalTests, shadow_diagnostic) {
   static constexpr View::Bytes source =
       "// Shadow diagnostic.\n"
       "dialect : Library;\n"
@@ -284,7 +284,7 @@ PERIMORTEM_UNIT_TEST(LocalTests, shadow_note_names_original_declaration) {
       Count(-1));
 }
 
-PERIMORTEM_UNIT_TEST(LocalTests, invalid_type_flow_is_not_published) {
+PERIMORTEM_UNIT_TEST(LocalTests, type_rejection) {
   static constexpr Static::Vector<View::Bytes, 5> sources = {{
     "// Forward Local.\ndialect : Library; private invalid : func = [] -> Bool { const first := later; const later : Bool = true; return first; }"_view,
     "// Mismatched Local.\ndialect : Library; private invalid : func = [] -> [] { state value : Bool = 1; }"_view,
@@ -298,9 +298,7 @@ PERIMORTEM_UNIT_TEST(LocalTests, invalid_type_flow_is_not_published) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(
-    LocalTests,
-    explicit_type_survives_initializer_diagnostics) {
+PERIMORTEM_UNIT_TEST(LocalTests, explicit_type_errors) {
   static constexpr View::Bytes source =
       "// Typed Local diagnostic recovery.\n"
       "dialect : Library;\n"

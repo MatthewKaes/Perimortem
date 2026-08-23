@@ -92,7 +92,7 @@ static auto import_types(
   return static_cast<Monograph&>(*imported);
 }
 
-PERIMORTEM_UNIT_TEST(LibraryDefaults, scalar_payloads_and_identity) {
+PERIMORTEM_UNIT_TEST(LibraryDefaults, scalar_defaults) {
   Allocator::Arena domain;
   auto workspace_toolchain = create_library_toolchain();
   Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
@@ -151,7 +151,7 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, scalar_payloads_and_identity) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(LibraryDefaults, contiguous_and_optional_values) {
+PERIMORTEM_UNIT_TEST(LibraryDefaults, carrier_defaults) {
   Allocator::Arena domain;
   auto workspace_toolchain = create_library_toolchain();
   Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
@@ -209,7 +209,7 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, contiguous_and_optional_values) {
   EXPECT_NOT(option_value.get_payload());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryDefaults, aggregate_order_and_fresh_identity) {
+PERIMORTEM_UNIT_TEST(LibraryDefaults, aggregate_defaults) {
   Allocator::Arena domain;
   auto workspace_toolchain = create_library_toolchain();
   Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
@@ -267,7 +267,7 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, aggregate_order_and_fresh_identity) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryDefaults, fixed_default_and_empty_rejection) {
+PERIMORTEM_UNIT_TEST(LibraryDefaults, fixed_defaults) {
   Allocator::Arena domain;
   auto workspace_toolchain = create_library_toolchain();
   Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
@@ -299,7 +299,7 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, fixed_default_and_empty_rejection) {
   EXPECT_NOT(empty_default);
 }
 
-PERIMORTEM_UNIT_TEST(LibraryDefaults, enumeration_range_and_optional_default) {
+PERIMORTEM_UNIT_TEST(LibraryDefaults, domain_defaults) {
   Allocator::Arena domain;
   auto workspace_toolchain = create_library_toolchain();
   Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
@@ -343,7 +343,7 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, enumeration_range_and_optional_default) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryDefaults, unsupported_domains_are_absent) {
+PERIMORTEM_UNIT_TEST(LibraryDefaults, absent_defaults) {
   Allocator::Arena domain;
   auto workspace_toolchain = create_library_toolchain();
   Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);

@@ -15,7 +15,7 @@ static Harness LibraryArchive = {
   .name = "Tetrodotoxin::Library::Archive"_view,
 };
 
-PERIMORTEM_UNIT_TEST(LibraryArchive, frozen_format_one_tags) {
+PERIMORTEM_UNIT_TEST(LibraryArchive, frozen_format) {
   static constexpr Static::Vector<Library::Archive::Tag, 27> tags = {{
     Library::Archive::Tag::Source,
     Library::Archive::Tag::Import,
@@ -53,10 +53,8 @@ PERIMORTEM_UNIT_TEST(LibraryArchive, frozen_format_one_tags) {
   for (Count index = 0; index < tags.get_size(); index++) {
     EXPECT_EQ(U16(tags[index]), golden[index]);
   }
-}
 
-PERIMORTEM_UNIT_TEST(LibraryArchive, frozen_format_one_framing) {
-  static constexpr Static::Vector<U8, 16> golden = {{
+  static constexpr Static::Vector<U8, 16> framing = {{
     0x54,
     0x54,
     0x58,
@@ -79,5 +77,5 @@ PERIMORTEM_UNIT_TEST(LibraryArchive, frozen_format_one_framing) {
   auto record = writer.begin(Library::Archive::Tag::Source, True);
   ASSERT(writer.finish(record));
   auto bytes = writer.take();
-  EXPECT_HEX(bytes.get_view(), golden.get_view().get_bytes());
+  EXPECT_HEX(bytes.get_view(), framing.get_view().get_bytes());
 }

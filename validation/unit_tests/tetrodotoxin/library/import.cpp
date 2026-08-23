@@ -109,7 +109,7 @@ static Harness LibraryImports = {
   .name = "Tetrodotoxin::Library::Language::Import"_view,
 };
 
-PERIMORTEM_UNIT_TEST(LibraryImports, exact_statement_grammar) {
+PERIMORTEM_UNIT_TEST(LibraryImports, statement_grammar) {
   static constexpr Static::Vector<View::Bytes, 2> accepted = {{
     "using Core;"_view,
     "using Runtime::Core::Api;"_view,
@@ -150,7 +150,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, exact_statement_grammar) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(LibraryImports, selected_context_is_the_fallback) {
+PERIMORTEM_UNIT_TEST(LibraryImports, selected_fallback) {
   static constexpr View::Bytes provider_source =
       "// Provider.\n"
       "public Provided : struct { public state ready : Bool; }\n"
@@ -195,7 +195,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, selected_context_is_the_fallback) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryImports, fallback_contexts_compose) {
+PERIMORTEM_UNIT_TEST(LibraryImports, fallback_composition) {
   static constexpr View::Bytes upstream_source =
       "// Upstream.\n"
       "public Upstream : struct { public state ready : Bool; }"_view;
@@ -241,7 +241,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, fallback_contexts_compose) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryImports, local_name_collision_is_rejected) {
+PERIMORTEM_UNIT_TEST(LibraryImports, local_collision) {
   static constexpr View::Bytes provider_source =
       "// Provider.\n"
       "public Shared : struct { public state ready : Bool; }"_view;
@@ -269,9 +269,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, local_name_collision_is_rejected) {
       diagnostic_contains(errors, "conflicts with this source context"_view));
 }
 
-PERIMORTEM_UNIT_TEST(
-    LibraryImports,
-    invalid_and_duplicate_routes_are_reported) {
+PERIMORTEM_UNIT_TEST(LibraryImports, route_diagnostics) {
   static constexpr View::Bytes provider_source =
       "// Provider.\n"
       "public Provided : struct { public state ready : Bool; }"_view;
@@ -304,7 +302,7 @@ PERIMORTEM_UNIT_TEST(
   }
 }
 
-PERIMORTEM_UNIT_TEST(LibraryImports, ambiguous_fallback_query_is_invalid) {
+PERIMORTEM_UNIT_TEST(LibraryImports, ambiguous_fallback) {
   static constexpr View::Bytes provider_source =
       "// Provider.\n"
       "public Shared : struct { public state ready : Bool; }"_view;

@@ -72,7 +72,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
   return !monograph && !errors.is_empty();
 }
 
-PERIMORTEM_UNIT_TEST(LoopControlTests, nearest_loop_identity) {
+PERIMORTEM_UNIT_TEST(LoopControlTests, nearest_loop) {
   static constexpr View::Bytes source =
       "// Loop control graph.\n"
       "dialect : Library;\n"
@@ -151,7 +151,7 @@ PERIMORTEM_UNIT_TEST(LoopControlTests, nearest_loop_identity) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LoopControlTests, outside_loop_is_rejected) {
+PERIMORTEM_UNIT_TEST(LoopControlTests, outside_loop) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
     "// Bare break.\ndialect : Library; private invalid : func = [] -> [] { break; }"_view,
     "// Bare continue.\ndialect : Library; private invalid : func = [] -> [] { continue; }"_view,
@@ -174,7 +174,7 @@ PERIMORTEM_UNIT_TEST(LoopControlTests, must_end_its_block) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(LoopControlTests, loop_does_not_cover_result) {
+PERIMORTEM_UNIT_TEST(LoopControlTests, uncovered_result) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// While may break.\ndialect : Library; private invalid : func = [] -> U64 { while true { break; } }"_view,
     "// Range may continue zero times.\ndialect : Library; private invalid : func = [] -> U64 { for [.entry : U64] in 0...0 { continue; } }"_view,

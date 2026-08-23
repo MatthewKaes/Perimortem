@@ -194,7 +194,7 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, exact_type_and_edges) {
   EXPECT(invalid_operation.get_type().resolve().is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryAnd, truth_table_and_repetition) {
+PERIMORTEM_UNIT_TEST(LibraryAnd, truth_table) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -269,7 +269,7 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, ordered_reachability) {
   EXPECT(dynamic_failure.get_evaluations() == 1);
 }
 
-PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parse_and_atomic_failure) {
+PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parsing) {
   static constexpr View::Bytes success_source = "true and false"_view;
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;

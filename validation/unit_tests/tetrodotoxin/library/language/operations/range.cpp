@@ -52,7 +52,7 @@ static auto fold_is_dynamic(Operations::Range& range) -> Bool {
       [](const Expression::Error&) { return False; });
 }
 
-PERIMORTEM_UNIT_TEST(LibraryRange, exact_materialization) {
+PERIMORTEM_UNIT_TEST(LibraryRange, materialization) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);

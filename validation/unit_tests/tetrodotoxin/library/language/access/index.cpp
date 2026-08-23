@@ -155,7 +155,7 @@ static auto rejects_committed_index_suffix(
          ending.get_offset() > opening.get_offset();
 }
 
-PERIMORTEM_UNIT_TEST(LibraryIndex, scalar_write_target_rejects_value_read) {
+PERIMORTEM_UNIT_TEST(LibraryIndex, write_only_scalar) {
   Allocator::Arena domain;
   Library::Language::Types::U8 element;
   Library::Language::Types::Access access("Access[U8]"_view, element);
@@ -217,7 +217,7 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, scalar_write_target_rejects_value_read) {
   EXPECT(signed_errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryIndex, ranged_write_is_complete_pack_atomic) {
+PERIMORTEM_UNIT_TEST(LibraryIndex, atomic_range_write) {
   Allocator::Arena domain;
   Library::Language::Types::U8 element;
   Library::Language::Types::Access access("Access[U8]"_view, element);
@@ -258,7 +258,7 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, ranged_write_is_complete_pack_atomic) {
   EXPECT_NOT(short_errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryIndex, invalid_domains_are_rejected) {
+PERIMORTEM_UNIT_TEST(LibraryIndex, invalid_domains) {
   Allocator::Arena domain;
   Library::Language::Types::U8 element;
   Library::Language::Types::Access access("Access[U8]"_view, element);
@@ -297,7 +297,7 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, invalid_domains_are_rejected) {
   EXPECT_NOT(index_parse_errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryIndex, malformed_postfix_is_committed) {
+PERIMORTEM_UNIT_TEST(LibraryIndex, committed_postfix) {
   Allocator::Arena domain;
   Library::Language::Types::U8 element;
   Library::Language::Types::Access access("Access[U8]"_view, element);

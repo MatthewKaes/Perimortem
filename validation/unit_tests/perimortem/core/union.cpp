@@ -87,7 +87,7 @@ class ReferencedValue {
   U64 values[8];
 };
 
-PERIMORTEM_UNIT_TEST(CoreUnion, reference_alternative) {
+PERIMORTEM_UNIT_TEST(CoreUnion, reference_case) {
   ReferencedValue first(42);
   ReferencedValue equal_value(42);
   Static::Union<ReferencedValue&, U64, Bool> original(first);

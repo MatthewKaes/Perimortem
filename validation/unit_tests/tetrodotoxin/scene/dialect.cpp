@@ -62,7 +62,7 @@ class RejectingLibraryDialect : public Library::Dialect {
   }
 };
 
-PERIMORTEM_UNIT_TEST(SceneDialect, empty_source_owns_exact_layers) {
+PERIMORTEM_UNIT_TEST(SceneDialect, exact_layers) {
   static constexpr View::Bytes source = "//\ndialect : Scene;"_view;
   Environment::Toolchain toolchain;
   auto library = toolchain.install<Library::Dialect>("Library"_view);
@@ -104,7 +104,7 @@ PERIMORTEM_UNIT_TEST(SceneDialect, empty_source_owns_exact_layers) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(SceneDialect, child_failure_rejects_outer_once) {
+PERIMORTEM_UNIT_TEST(SceneDialect, child_rejection) {
   static constexpr View::Bytes scene_source = "//\ndialect : Scene;"_view;
   Environment::Toolchain toolchain;
   auto library = toolchain.install<RejectingLibraryDialect>("Library"_view);
@@ -120,7 +120,7 @@ PERIMORTEM_UNIT_TEST(SceneDialect, child_failure_rejects_outer_once) {
   EXPECT_EQ(errors.get_size(), Count(1));
 }
 
-PERIMORTEM_UNIT_TEST(SceneDialect, declarations_wait_for_their_owner) {
+PERIMORTEM_UNIT_TEST(SceneDialect, delayed_declarations) {
   static constexpr View::Bytes source =
       "//\n"
       "dialect : Scene;\n"

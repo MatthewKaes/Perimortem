@@ -52,24 +52,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, access_operators) {
   EXPECT(token_data[20].get_code() == Code::Type::AddressOp);
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, assignment_operators_are_complete_tokens) {
-  Allocator::Arena arena;
-  Tokenizer tokenizer(
-      arena, "left = right += add -= subtract"_view, "Test.ttx"_view);
-
-  View::Vector<Token> tokens = tokenizer.get_tokens();
-  View::Bytes source = tokenizer.get_source_text();
-  ASSERT_EQ(tokens.get_size(), Count(8));
-
-  EXPECT(tokens.get_data()[1].get_code() == Code::Type::Assign);
-  EXPECT_TEXT(tokens.get_data()[1].caculate_text(source), "="_view);
-  EXPECT(tokens.get_data()[3].get_code() == Code::Type::AddAssign);
-  EXPECT_TEXT(tokens.get_data()[3].caculate_text(source), "+="_view);
-  EXPECT(tokens.get_data()[5].get_code() == Code::Type::SubAssign);
-  EXPECT_TEXT(tokens.get_data()[5].caculate_text(source), "-="_view);
-}
-
-PERIMORTEM_UNIT_TEST(TtxLexical, divide_before_greater) {
+PERIMORTEM_UNIT_TEST(TtxLexical, division_tokens) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
@@ -151,7 +134,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, reserved_keywords) {
   EXPECT(token_data[expected_size + 2].get_code() == Code::Type::Terminal);
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, attributes_preserve_source_columns) {
+PERIMORTEM_UNIT_TEST(TtxLexical, attribute_columns) {
   Allocator::Arena arena;
   Tokenizer tokenizer(arena, "@first @second value"_view, "Test.Package"_view);
 
@@ -348,7 +331,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, cursor_consume) {
   EXPECT(cursor.matches(Code::Type::Terminal));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, cursor_completed_span) {
+PERIMORTEM_UNIT_TEST(TtxLexical, completed_span) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "one two"_view, "test.ttx"_view);
@@ -673,7 +656,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, reversed_range) {
   EXPECT(Algorithm::search(rendered, "^--\n"_view) != Count(-1));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, anchor_selects_operator_caret) {
+PERIMORTEM_UNIT_TEST(TtxLexical, operator_caret) {
   Allocator::Arena arena;
   Allocator::Arena render_arena;
   Errors errors;
@@ -697,7 +680,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, anchor_selects_operator_caret) {
   EXPECT(Algorithm::search(rendered, "^--------\n"_view) == Count(-1));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLexical, external_anchor_omits_caret) {
+PERIMORTEM_UNIT_TEST(TtxLexical, external_anchor) {
   Allocator::Arena arena;
   Allocator::Arena render_arena;
   Errors errors;

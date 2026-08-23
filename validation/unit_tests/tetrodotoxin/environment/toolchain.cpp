@@ -100,7 +100,7 @@ static Harness EnvironmentToolchain = {
   .name = "Tetrodotoxin::Environment::Toolchain"_view,
 };
 
-PERIMORTEM_UNIT_TEST(EnvironmentToolchain, dependency_free_and_chain) {
+PERIMORTEM_UNIT_TEST(EnvironmentToolchain, installs_dialects) {
   Environment::Toolchain toolchain;
 
   auto independent = toolchain.install<IndependentDialect>("Independent"_view);
@@ -111,13 +111,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentToolchain, dependency_free_and_chain) {
 
   ASSERT(middle);
   EXPECT(&middle->get_lower() == &*lower);
-}
 
-PERIMORTEM_UNIT_TEST(EnvironmentToolchain, shared_diamond) {
-  Environment::Toolchain toolchain;
-
-  auto lower = toolchain.install<LowerDialect>("Lower"_view);
-  ASSERT(lower);
   auto left = toolchain.install<LeftDialect>("Left"_view, *lower);
   auto right = toolchain.install<RightDialect>("Right"_view, *lower);
   ASSERT(left);
@@ -129,9 +123,19 @@ PERIMORTEM_UNIT_TEST(EnvironmentToolchain, shared_diamond) {
   EXPECT(&top->get_right() == &*right);
   EXPECT(&top->get_left().get_lower() == &*lower);
   EXPECT(&top->get_right().get_lower() == &*lower);
+
+  auto root = toolchain.install<RootDialect>("Root"_view);
+  ASSERT(root);
+  auto child = toolchain.install<ChildDialect>("Child"_view, *root);
+  ASSERT(child);
+
+  EXPECT_NOT(toolchain.install<IndependentDialect>("Root"_view));
+  EXPECT(toolchain.install<RootDialect>("SecondRoot"_view));
+  EXPECT(toolchain.install<RootDialect>("ContextRoot"_view, *child));
+  EXPECT(&child->get_root() == &*root);
 }
 
-PERIMORTEM_UNIT_TEST(EnvironmentToolchain, rejects_unowned_dependencies) {
+PERIMORTEM_UNIT_TEST(EnvironmentToolchain, rejects_dependencies) {
   Environment::Toolchain local;
   Environment::Toolchain foreign;
   RootDialect missing("Missing"_view);
@@ -144,18 +148,4 @@ PERIMORTEM_UNIT_TEST(EnvironmentToolchain, rejects_unowned_dependencies) {
 
   EXPECT_NOT(missing_result);
   EXPECT_NOT(foreign_result);
-}
-
-PERIMORTEM_UNIT_TEST(EnvironmentToolchain, maps_names_to_instances) {
-  Environment::Toolchain toolchain;
-
-  auto root = toolchain.install<RootDialect>("Root"_view);
-  ASSERT(root);
-  auto child = toolchain.install<ChildDialect>("Child"_view, *root);
-  ASSERT(child);
-
-  EXPECT_NOT(toolchain.install<IndependentDialect>("Root"_view));
-  EXPECT(toolchain.install<RootDialect>("SecondRoot"_view));
-  EXPECT(toolchain.install<RootDialect>("ContextRoot"_view, *child));
-  EXPECT(&child->get_root() == &*root);
 }

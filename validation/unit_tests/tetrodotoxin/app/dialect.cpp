@@ -62,7 +62,7 @@ static auto decode_archive(
               -> Option<Package::Archive::Archive> { return {}; });
 }
 
-PERIMORTEM_UNIT_TEST(AppDialect, echo_selects_exact_program_entry) {
+PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
   Environment::Toolchain toolchain;
   ASSERT(install(toolchain));
   Environment::Workspace workspace(toolchain);
@@ -280,7 +280,7 @@ PERIMORTEM_UNIT_TEST(AppDialect, echo_selects_exact_program_entry) {
       restored_interface->finalize_restored());
 }
 
-PERIMORTEM_UNIT_TEST(AppDialect, rejects_unresolved_entry) {
+PERIMORTEM_UNIT_TEST(AppDialect, unresolved_entry) {
   static constexpr View::Bytes source =
       "// Broken App.\n"
       "dialect : App;\n"
@@ -297,7 +297,7 @@ PERIMORTEM_UNIT_TEST(AppDialect, rejects_unresolved_entry) {
   EXPECT_EQ(errors.get_size(), Count(1));
 }
 
-PERIMORTEM_UNIT_TEST(AppDialect, requires_exact_policy_declarations) {
+PERIMORTEM_UNIT_TEST(AppDialect, exact_policy) {
   static constexpr View::Bytes missing_runtime =
       "// App.\n"
       "dialect : App;\n"
@@ -329,7 +329,7 @@ PERIMORTEM_UNIT_TEST(AppDialect, requires_exact_policy_declarations) {
   EXPECT_NOT(duplicate_errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(AppDialect, rejects_nonstatic_or_nonempty_entries) {
+PERIMORTEM_UNIT_TEST(AppDialect, invalid_entries) {
   static constexpr View::Bytes app =
       "// App.\n"
       "dialect : App;\n"

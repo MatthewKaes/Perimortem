@@ -160,7 +160,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
   EXPECT(is_none(layout.get_abstract(2)));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, staged_type_identity) {
+PERIMORTEM_UNIT_TEST(TtxLayout, staged_identity) {
   StagedType first;
   StagedType second;
   LayoutField first_field("first"_view, first);
@@ -205,7 +205,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, named_fields) {
   EXPECT(is_none(layout.get_abstract(2)));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, ranged_materialization) {
+PERIMORTEM_UNIT_TEST(TtxLayout, ranged_layout) {
   LayoutType byte("U8"_view);
   ByteSequence bytes(byte, 16);
   Ranged same(byte, 16);
@@ -320,7 +320,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
       reports(fluid.get_fitted(target, 2), Layout::Errors::IndexOutOfBounds));
 }
 
-PERIMORTEM_UNIT_TEST(TtxLayout, addressable_alias_fitting) {
+PERIMORTEM_UNIT_TEST(TtxLayout, alias_fitting) {
   LayoutType real("R32"_view);
   LayoutField x("x"_view, real);
   Alias alias("x"_view, x);

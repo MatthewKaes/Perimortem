@@ -113,7 +113,7 @@ static auto get_real(const Expression& expression) -> Option<R64> {
       [](const Abstract&) -> Option<R64> { return {}; });
 }
 
-PERIMORTEM_UNIT_TEST(LibraryAdd, exact_type_selection_and_partial) {
+PERIMORTEM_UNIT_TEST(LibraryAdd, type_selection) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -147,7 +147,7 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, exact_type_selection_and_partial) {
   EXPECT_NOT(selected(unsigned_add.fold()));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryAdd, integer_width_and_host_overflow) {
+PERIMORTEM_UNIT_TEST(LibraryAdd, integer_overflow) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -190,7 +190,7 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, integer_width_and_host_overflow) {
       signed_underflow));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryAdd, integer_results_retain_type) {
+PERIMORTEM_UNIT_TEST(LibraryAdd, result_type) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -253,7 +253,7 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, ieee_real_domains) {
   EXPECT(unordered_value && __builtin_isnan(*unordered_value));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_fold_is_idempotent) {
+PERIMORTEM_UNIT_TEST(LibraryAdd, stable_folding) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -273,7 +273,7 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_fold_is_idempotent) {
   EXPECT(get_unsigned(*first) == Option<U64>(6));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_error_keeps_child_origin) {
+PERIMORTEM_UNIT_TEST(LibraryAdd, child_error_origin) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -288,7 +288,7 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, recursive_error_keeps_child_origin) {
       reports(root.fold(), Expression::Error::Type::ArithmeticOverflow, child));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryAdd, invalid_constant_keeps_operand_origin) {
+PERIMORTEM_UNIT_TEST(LibraryAdd, operand_error_origin) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -301,7 +301,7 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, invalid_constant_keeps_operand_origin) {
   EXPECT(reports(add.fold(), Expression::Error::Type::InvalidConstant, wrong));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryAdd, rejects_nonnumeric_and_mixed_domains) {
+PERIMORTEM_UNIT_TEST(LibraryAdd, invalid_domains) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);

@@ -106,7 +106,7 @@ static auto find_type_callable(
   return {};
 }
 
-PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
+PERIMORTEM_UNIT_TEST(CallTests, builtin_callables) {
   static constexpr View::Bytes source =
       "// Contiguous built-in identities.\n"
       "dialect : Library;\n"
@@ -239,7 +239,7 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_builtins_retain_real_callables) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(CallTests, contiguous_borrow_operations_link) {
+PERIMORTEM_UNIT_TEST(CallTests, borrow_operations) {
   static constexpr View::Bytes source =
       "// Contiguous borrowing operations.\n"
       "dialect : Library;\n"
@@ -302,7 +302,7 @@ PERIMORTEM_UNIT_TEST(CallTests, contiguous_borrow_operations_link) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(CallTests, fitted_bytes_borrow_folds) {
+PERIMORTEM_UNIT_TEST(CallTests, folded_bytes_borrow) {
   static constexpr View::Bytes source =
       "// Fitted bytes borrow.\n"
       "dialect : Library;\n"
@@ -349,7 +349,7 @@ PERIMORTEM_UNIT_TEST(CallTests, fitted_bytes_borrow_folds) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(CallTests, fixed_borrow_requires_writable_receiver) {
+PERIMORTEM_UNIT_TEST(CallTests, fixed_borrow_write) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Const local cannot grant Access.\ndialect : Library; private invalid : func = [] -> [] { const dense : Fixed[U64, 2] = (1, 2); state borrowed : Access[U64] = dense -> get_access(); return; }"_view,
     "// View remains read only.\ndialect : Library; private invalid : func = [] -> [] { state viewed : View[U64]; state borrowed : Access[U64] = viewed -> get_access(); return; }"_view,
@@ -389,7 +389,7 @@ static auto find_function(
   return {};
 }
 
-PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
+PERIMORTEM_UNIT_TEST(CallTests, call_selection) {
   static constexpr View::Bytes source =
       "// Call selection test.\n"
       "dialect : Library;\n"
@@ -478,7 +478,7 @@ PERIMORTEM_UNIT_TEST(CallTests, selection_fitting_and_signature_phase) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(CallTests, invalid_invocation_is_transactional) {
+PERIMORTEM_UNIT_TEST(CallTests, invalid_invocation) {
   static constexpr Static::Vector<View::Bytes, 2> invalid_calls = {{
     "// Call mismatch test.\ndialect : Library;\n"
     "public Target : struct {\n"
@@ -497,7 +497,7 @@ PERIMORTEM_UNIT_TEST(CallTests, invalid_invocation_is_transactional) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(CallTests, duplicate_role_is_rejected_at_registration) {
+PERIMORTEM_UNIT_TEST(CallTests, duplicate_role) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Static Callable registration collision.\n"
     "dialect : Library;\n"
@@ -522,7 +522,7 @@ PERIMORTEM_UNIT_TEST(CallTests, duplicate_role_is_rejected_at_registration) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(CallTests, argument_pack_requires_parentheses) {
+PERIMORTEM_UNIT_TEST(CallTests, argument_parentheses) {
   EXPECT(rejects_interpretation(
       "// Missing Call argument Pack.\n"
       "dialect : Library;\n"
@@ -532,7 +532,7 @@ PERIMORTEM_UNIT_TEST(CallTests, argument_pack_requires_parentheses) {
       "private invalid := Target -> use;"_view));
 }
 
-PERIMORTEM_UNIT_TEST(CallTests, definition_host_grants_private_authority) {
+PERIMORTEM_UNIT_TEST(CallTests, host_authority) {
   static constexpr View::Bytes accepted =
       "// Hosted private Call test.\n"
       "dialect : Library;\n"
@@ -578,7 +578,7 @@ PERIMORTEM_UNIT_TEST(CallTests, definition_host_grants_private_authority) {
       "private denied := VaultAlias -> secret();"_view));
 }
 
-PERIMORTEM_UNIT_TEST(CallTests, result_layout_and_addressable_access) {
+PERIMORTEM_UNIT_TEST(CallTests, call_result_access) {
   static constexpr View::Bytes source =
       "// Call result flow test.\n"
       "dialect : Library;\n"

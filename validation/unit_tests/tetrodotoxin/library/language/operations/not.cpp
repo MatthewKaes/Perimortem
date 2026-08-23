@@ -71,7 +71,7 @@ static auto selected(
       [](const Expression::Error&) -> Option<Expression&> { return {}; });
 }
 
-PERIMORTEM_UNIT_TEST(LibraryNot, type_selection_and_partial) {
+PERIMORTEM_UNIT_TEST(LibraryNot, type_selection) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -102,7 +102,7 @@ PERIMORTEM_UNIT_TEST(LibraryNot, type_selection_and_partial) {
   EXPECT(invalid_not.get_type().resolve().is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryNot, flag_protocol_reads_folded_pack) {
+PERIMORTEM_UNIT_TEST(LibraryNot, flag_protocol) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -173,7 +173,7 @@ PERIMORTEM_UNIT_TEST(LibraryNot, canonical_folding) {
   EXPECT(&false_result->get_type() == &resolve_library_flag(source));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryNot, recursive_and_repeated_folding) {
+PERIMORTEM_UNIT_TEST(LibraryNot, stable_folding) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);

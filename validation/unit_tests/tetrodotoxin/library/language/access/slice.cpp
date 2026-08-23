@@ -238,7 +238,7 @@ static auto supplies_self(const Slice& value, Count size) -> Bool {
   return True;
 }
 
-PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type_selection) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -338,7 +338,7 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, range_pack_shape) {
   EXPECT(empty.get_layout().is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_fold_and_range_provenance) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, folded_selection) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -434,7 +434,7 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, partial_folding) {
   EXPECT(size_partial.get_type().is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(LibrarySlice, operand_rejection_and_safe_bounds) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, safe_bounds) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -573,7 +573,7 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_defaults) {
   EXPECT(&real_value->get_type() == &real);
 }
 
-PERIMORTEM_UNIT_TEST(LibrarySlice, unsupported_default_and_payload) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, unsupported_defaults) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -608,7 +608,7 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, unsupported_default_and_payload) {
   EXPECT(&unsupported.get_type() == &unsupported_element);
 }
 
-PERIMORTEM_UNIT_TEST(LibrarySlice, child_failure_propagates) {
+PERIMORTEM_UNIT_TEST(LibrarySlice, child_failure) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);

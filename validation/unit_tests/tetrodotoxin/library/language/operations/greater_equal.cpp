@@ -152,7 +152,7 @@ static auto reports(
       });
 }
 
-PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, type_selection_and_partial) {
+PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, type_selection) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -338,7 +338,7 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, ieee_domains) {
   EXPECT(&narrow_result->get_type() == &resolve_library_flag(source));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, recursive_provenance_and_atomicity) {
+PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, atomic_provenance) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);

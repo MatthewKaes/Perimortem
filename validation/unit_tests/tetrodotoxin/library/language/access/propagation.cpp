@@ -143,7 +143,7 @@ static auto select_unsigned(const Language::Model::Pack& pack)
       });
 }
 
-PERIMORTEM_UNIT_TEST(PropagationAccessTests, receiving_type_owns_target_fit) {
+PERIMORTEM_UNIT_TEST(PropagationAccessTests, receiving_type_fit) {
   static constexpr View::Bytes source =
       "// Receiving Type policy.\n"
       "dialect : Library;\n"
@@ -189,7 +189,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, receiving_type_owns_target_fit) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(PropagationAccessTests, target_fit_and_unwrap) {
+PERIMORTEM_UNIT_TEST(PropagationAccessTests, target_unwrap) {
   static constexpr View::Bytes source =
       "// Option target fitting and unwrap.\n"
       "dialect : Library;\n"
@@ -258,7 +258,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, target_fit_and_unwrap) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_edges_and_folding) {
+PERIMORTEM_UNIT_TEST(PropagationAccessTests, edge_folding) {
   static constexpr View::Bytes source =
       "// Option propagation.\n"
       "dialect : Library;\n"
@@ -455,7 +455,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_edges_and_folding) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(PropagationAccessTests, production_propagation_fixture) {
+PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_fixture) {
   static constexpr View::Bytes path =
       "validation/data/ttx/library/propagation.ttx"_view;
   auto source = File::read(path);
@@ -723,7 +723,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, production_propagation_fixture) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_rejections_are_exact) {
+PERIMORTEM_UNIT_TEST(PropagationAccessTests, exact_rejections) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Propagation receiver mismatch.\ndialect : Library; private invalid : func = [.value : U64] -> [] { state selected := value?; return; }"_view,
     "// Propagation result mismatch.\ndialect : Library; private invalid : func = [.value : Option[U64]] -> U64 { return value?; }"_view,
@@ -742,9 +742,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_rejections_are_exact) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(
-    PropagationAccessTests,
-    result_alternatives_are_unambiguous) {
+PERIMORTEM_UNIT_TEST(PropagationAccessTests, result_alternatives) {
   static constexpr View::Bytes identical =
       "// Identical Result alternatives.\n"
       "dialect : Library;\n"
@@ -761,7 +759,7 @@ PERIMORTEM_UNIT_TEST(
       "Result alternatives must each produce one nonempty value Type."_view));
 }
 
-PERIMORTEM_UNIT_TEST(PropagationAccessTests, invalid_elimination_is_rejected) {
+PERIMORTEM_UNIT_TEST(PropagationAccessTests, invalid_elimination) {
   static constexpr Static::Vector<View::Bytes, 5> sources = {{
     "// Unwrap receiver mismatch.\ndialect : Library; private invalid : func = [.value : Bool] -> Bool { return value!; }"_view,
     "// Option slice.\ndialect : Library; private invalid : func = [.value : Option[U64]] -> U64 { return value:[0]; }"_view,

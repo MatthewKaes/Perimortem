@@ -437,7 +437,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, retry_after_failure) {
   EXPECT_TEXT(available->get_contents(), "available"_view);
 }
 
-PERIMORTEM_UNIT_TEST(PackageStorage, cache_growth_and_move) {
+PERIMORTEM_UNIT_TEST(PackageStorage, cache_growth) {
   TemporaryPackage temporary;
   ASSERT(temporary);
   ASSERT(temporary.write("stable.bin"_view, "stable"_view));
@@ -498,7 +498,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, opened_root_identity) {
   EXPECT_TEXT(identity->get_contents(), "original root"_view);
 }
 
-PERIMORTEM_UNIT_TEST(PackageStorage, snapshots_survive_storage_transactions) {
+PERIMORTEM_UNIT_TEST(PackageStorage, persistent_snapshots) {
   TemporaryPackage temporary;
   ASSERT(temporary);
   ASSERT(temporary.write("snapshot.bin"_view, "first"_view));

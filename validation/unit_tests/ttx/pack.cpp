@@ -77,7 +77,7 @@ static Harness TtxPack = {
   .name = "Ttx::Model::Pack"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxPack, identity_and_output_layout) {
+PERIMORTEM_UNIT_TEST(TtxPack, output_contract) {
   PackType left("Left"_view);
   PackType right("Right"_view);
   const Static::Vector<Reference<const Abstract>, 2> values = {{left, right}};
@@ -95,25 +95,25 @@ PERIMORTEM_UNIT_TEST(TtxPack, identity_and_output_layout) {
   EXPECT(&produced->producer == &pack);
   EXPECT_EQ(produced->local_index, Count(1));
   EXPECT_NOT(pack.get_produced(2));
-}
 
-PERIMORTEM_UNIT_TEST(TtxPack, completion_precedes_output_observation) {
   PackType value("Value"_view);
-  const Static::Vector<Reference<const Abstract>, 1> values = {{value}};
-  Fluid output(values);
-  FlowPack pack("Staged"_view, output, False);
+  const Static::Vector<Reference<const Abstract>, 1> staged_values = {{value}};
+  Fluid staged_output(staged_values);
+  FlowPack staged("Staged"_view, staged_output, False);
 
-  EXPECT(pack.resolve().is<Invalid>());
-  EXPECT_NOT(pack.get_produced(0));
+  EXPECT(staged.resolve().is<Invalid>());
+  EXPECT_NOT(staged.get_produced(0));
 
-  pack.complete_output();
+  staged.complete_output();
 
-  EXPECT(&pack.resolve() == &pack);
-  EXPECT(&pack.get_layout() == &output);
-  EXPECT(&pack.get_layout() == &pack.get_layout());
+  EXPECT(&staged.resolve() == &staged);
+  EXPECT(&staged.get_layout() == &staged_output);
+  auto staged_value = staged.get_produced(0);
+  ASSERT(staged_value);
+  EXPECT(&staged_value->producer == &staged);
 }
 
-PERIMORTEM_UNIT_TEST(TtxPack, empty_flow_fits_empty_layout) {
+PERIMORTEM_UNIT_TEST(TtxPack, empty_flow) {
   Fluid output;
   Fluid required;
   FlowPack pack("Empty"_view, output);

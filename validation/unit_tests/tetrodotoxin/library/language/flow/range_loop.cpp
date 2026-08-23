@@ -83,7 +83,7 @@ static auto get_binding(const Language::Flow::RangeLoop& loop, Count index)
                : Option<const Ttx::Model::Addressable&>();
 }
 
-PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
+PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_identity) {
   static constexpr View::Bytes source =
       "// Range loop graph.\n"
       "dialect : Library;\n"
@@ -150,7 +150,7 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_the_lexical_addressable) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_and_range_must_match) {
+PERIMORTEM_UNIT_TEST(RangeLoopTests, matching_range) {
   static constexpr Static::Vector<View::Bytes, 5> sources = {{
     "// Different integer Type.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : S64] in 0...3 {} return; }"_view,
     "// Not a Range.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : U64] in 3 {} return; }"_view,
@@ -164,7 +164,7 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_and_range_must_match) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(RangeLoopTests, view_and_access_are_iterable) {
+PERIMORTEM_UNIT_TEST(RangeLoopTests, iterable_ranges) {
   static constexpr View::Bytes source =
       "// Contiguous loop inputs.\n"
       "dialect : Library;\n"
@@ -202,7 +202,7 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, view_and_access_are_iterable) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_read_only_and_does_not_leak) {
+PERIMORTEM_UNIT_TEST(RangeLoopTests, scoped_read_only) {
   static constexpr Static::Vector<View::Bytes, 2> sources = {{
     "// Immutable binding.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : U64] in 0...3 { entry = 1; } return; }"_view,
     "// Leaked binding.\ndialect : Library; private invalid : func = [] -> [] { for [.entry : U64] in 0...3 {} state copy : U64 = entry; return; }"_view,
@@ -213,7 +213,7 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_is_read_only_and_does_not_leak) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(RangeLoopTests, loop_does_not_cover_function_result) {
+PERIMORTEM_UNIT_TEST(RangeLoopTests, uncovered_result) {
   static constexpr View::Bytes source =
       "// Range may be empty.\n"
       "dialect : Library;\n"
@@ -223,7 +223,7 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, loop_does_not_cover_function_result) {
   EXPECT(rejects_link(source));
 }
 
-PERIMORTEM_UNIT_TEST(RangeLoopTests, body_control_targets_exact_loop) {
+PERIMORTEM_UNIT_TEST(RangeLoopTests, loop_control) {
   static constexpr View::Bytes source =
       "// Range control.\n"
       "dialect : Library;\n"
@@ -248,7 +248,7 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, body_control_targets_exact_loop) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(RangeLoopTests, malformed_binding_is_rejected) {
+PERIMORTEM_UNIT_TEST(RangeLoopTests, malformed_binding) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Bare binding.\ndialect : Library; private invalid : func = [] -> [] { for .entry : U64 in 0...3 {} return; }"_view,
     "// Empty binding.\ndialect : Library; private invalid : func = [] -> [] { for [] in 0...3 {} return; }"_view,

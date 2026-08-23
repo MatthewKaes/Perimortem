@@ -128,7 +128,7 @@ PERIMORTEM_UNIT_TEST(LibraryRange, formula_legality) {
                  }));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryRange, materialization_identity) {
+PERIMORTEM_UNIT_TEST(LibraryRange, stable_identity) {
   Allocator::Arena domain;
   Dialect dialect;
   auto& root = create_library_monograph(domain, dialect);

@@ -77,7 +77,7 @@ static auto selected(
       [](const Expression::Error&) -> Option<Expression&> { return {}; });
 }
 
-PERIMORTEM_UNIT_TEST(LibraryLess, type_selection_and_partial) {
+PERIMORTEM_UNIT_TEST(LibraryLess, type_selection) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -212,7 +212,7 @@ PERIMORTEM_UNIT_TEST(LibraryLess, ieee_ordering) {
   EXPECT(unordered_result->is<Constants::False>());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryLess, recursive_exact_is_idempotent) {
+PERIMORTEM_UNIT_TEST(LibraryLess, stable_folding) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);

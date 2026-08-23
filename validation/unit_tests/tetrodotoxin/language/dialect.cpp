@@ -123,7 +123,7 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, exact_layer_identity) {
   EXPECT_NOT(rejected);
 }
 
-PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_context_is_the_parent_query) {
+PERIMORTEM_UNIT_TEST(LanguageDialect, parent_context) {
   Allocator::Arena arena;
   DefaultDialect installed("Installed"_view);
   Context context;

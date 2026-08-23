@@ -130,7 +130,7 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, address_identity) {
   EXPECT(address.fits(scalar));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryExpression, type_result_has_no_value_flow) {
+PERIMORTEM_UNIT_TEST(LibraryExpression, no_value_flow) {
   Types::Boolean selected;
   ExpressionTypeResult selection(selected);
   Ttx::Model::Layouts::Named empty;

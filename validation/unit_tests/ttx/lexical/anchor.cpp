@@ -12,57 +12,30 @@ static Harness TtxAnchor = {
   .name = "TTX::Lexical::Anchor"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxAnchor, defaults_to_span_start) {
+PERIMORTEM_UNIT_TEST(TtxAnchor, focus_contract) {
   Token first(0, 1, 1, 1, Code::Type::Numeric);
-  Token last(4, 1, 5, 1, Code::Type::Numeric);
-  Span span(first, last);
-  Anchor anchor = Anchor::create(span);
-
-  EXPECT(anchor.get_token().get_offset() == first.get_offset());
-  EXPECT(anchor.get_token().get_code() == first.get_code());
-  EXPECT(anchor.get_span().get_offset() == span.get_offset());
-  EXPECT(anchor.get_span().get_size() == span.get_size());
-}
-
-PERIMORTEM_UNIT_TEST(TtxAnchor, retains_independent_focus) {
-  Token first(0, 1, 1, 1, Code::Type::Numeric);
-  Token operation(2, 1, 3, 2, Code::Type::CmpOp);
-  Token last(7, 1, 8, 4, Code::Type::True);
-  Anchor anchor = Anchor::create(operation, Span(first, last));
-  Anchor composed = Anchor::create(operation, Span(first), Span(last));
-
-  EXPECT(anchor.get_token().get_offset() == operation.get_offset());
-  EXPECT(anchor.get_token().get_size() == operation.get_size());
-  EXPECT(anchor.get_span().get_offset() == first.get_offset());
-  EXPECT(anchor.get_span().get_size() == Count(11));
-  EXPECT(composed.get_span().get_offset() == anchor.get_span().get_offset());
-  EXPECT(composed.get_span().get_size() == anchor.get_span().get_size());
-}
-
-PERIMORTEM_UNIT_TEST(TtxAnchor, permits_empty_or_external_focus) {
-  Token first(4, 2, 3, 2, Code::Type::Numeric);
-  Token last(9, 2, 8, 1, Code::Type::Numeric);
-  Token external(40, 8, 2, 1, Code::Type::AddOp);
-  Span span(first, last);
-  Anchor empty = Anchor::create(Token(), span);
-  Anchor outside = Anchor::create(external, span);
-
-  EXPECT_NOT(empty.get_token());
-  EXPECT(empty.get_span());
-  EXPECT(outside.get_token().get_offset() == external.get_offset());
-  EXPECT(outside.get_span().get_offset() == span.get_offset());
-}
-
-PERIMORTEM_UNIT_TEST(TtxAnchor, composition_covers_both_spans) {
-  Token first(0, 1, 1, 1, Code::Type::Numeric);
+  Token operation(4, 1, 5, 1, Code::Type::CmpOp);
   Token middle(4, 1, 5, 1, Code::Type::Numeric);
   Token last(8, 1, 9, 1, Code::Type::Numeric);
   Span outer(first, last);
   Span inner(middle);
+  Anchor defaulted = Anchor::create(outer);
+  Anchor focused = Anchor::create(operation, outer);
+  Anchor empty = Anchor::create(Token(), outer);
+  Token external(40, 8, 2, 1, Code::Type::AddOp);
+  Anchor outside = Anchor::create(external, outer);
 
   Anchor reversed = Anchor::create(middle, Span(last), Span(first));
   Anchor nested = Anchor::create(middle, outer, inner);
 
+  EXPECT(defaulted.get_token() == first);
+  EXPECT(defaulted.get_span() == outer);
+  EXPECT(focused.get_token() == operation);
+  EXPECT(focused.get_span() == outer);
+  EXPECT_NOT(empty.get_token());
+  EXPECT(empty.get_span() == outer);
+  EXPECT(outside.get_token() == external);
+  EXPECT(outside.get_span() == outer);
   EXPECT(reversed.get_span().get_offset() == first.get_offset());
   EXPECT(reversed.get_span().get_size() == outer.get_size());
   EXPECT(nested.get_span().get_offset() == outer.get_offset());

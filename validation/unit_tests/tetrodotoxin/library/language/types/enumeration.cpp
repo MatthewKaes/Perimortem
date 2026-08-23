@@ -153,7 +153,7 @@ static Harness EnumerationTests = {
   .name = "Tetrodotoxin::Library::Language::Types::Enumeration"_view,
 };
 
-PERIMORTEM_UNIT_TEST(EnumerationTests, signed_values_and_equal_aliases) {
+PERIMORTEM_UNIT_TEST(EnumerationTests, signed_aliases) {
   static constexpr View::Bytes source =
       "// Enumeration test.\n"
       "dialect : Library;\n"
@@ -232,7 +232,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_values_and_equal_aliases) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(EnumerationTests, binary_wide_boundaries) {
+PERIMORTEM_UNIT_TEST(EnumerationTests, binary_boundaries) {
   static constexpr View::Bytes source =
       "// Enumeration test.\n"
       "dialect : Library;\n"
@@ -281,7 +281,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, binary_wide_boundaries) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(EnumerationTests, overflow_publishes_no_cases) {
+PERIMORTEM_UNIT_TEST(EnumerationTests, overflow_rejection) {
   static constexpr Static::Vector<View::Bytes, 7> sources = {{
     "// Enumeration test.\ndialect : Library;\n"
     "public Bad : enum[U8] { value = 256; }"_view,
@@ -304,7 +304,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, overflow_publishes_no_cases) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(EnumerationTests, invalid_storage_rejected) {
+PERIMORTEM_UNIT_TEST(EnumerationTests, invalid_storage) {
   static constexpr Static::Vector<View::Bytes, 5> sources = {{
     "// Enumeration test.\ndialect : Library;\n"
     "public Bad : enum[Bool] { value = 0; }"_view,
@@ -325,7 +325,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, invalid_storage_rejected) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(EnumerationTests, visibility_and_authored_order) {
+PERIMORTEM_UNIT_TEST(EnumerationTests, declaration_order) {
   static constexpr View::Bytes source =
       "// Enumeration test.\n"
       "dialect : Library;\n"
@@ -356,7 +356,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, visibility_and_authored_order) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(EnumerationTests, exact_root_collision_domain) {
+PERIMORTEM_UNIT_TEST(EnumerationTests, root_collisions) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Enumeration test.\ndialect : Library;\n"
     "public Mode : enum[U8] {}\n"
@@ -376,7 +376,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, exact_root_collision_domain) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(EnumerationTests, duplicate_name_rejected) {
+PERIMORTEM_UNIT_TEST(EnumerationTests, duplicate_names) {
   static constexpr View::Bytes source =
       "// Enumeration test.\n"
       "dialect : Library;\n"
@@ -384,7 +384,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, duplicate_name_rejected) {
   EXPECT(rejects_interpretation(source));
 }
 
-PERIMORTEM_UNIT_TEST(EnumerationTests, malformed_atomic_grammar) {
+PERIMORTEM_UNIT_TEST(EnumerationTests, malformed_grammar) {
   static constexpr Static::Vector<View::Bytes, 12> sources = {{
     "// Enumeration test.\ndialect : Library; public Mode enum[U8] {}"_view,
     "// Enumeration test.\ndialect : Library; public Mode : wrong[U8] {}"_view,

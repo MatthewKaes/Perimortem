@@ -66,9 +66,7 @@ static auto rejects_source(View::Bytes source) -> Bool {
              &Invalid::get_invalid();
 }
 
-PERIMORTEM_UNIT_TEST(
-    AssignmentTests,
-    operators_are_lowest_precedence_expressions) {
+PERIMORTEM_UNIT_TEST(AssignmentTests, lowest_precedence) {
   static constexpr View::Bytes source =
       "// Assignment graph.\n"
       "dialect : Library;\n"
@@ -166,7 +164,7 @@ PERIMORTEM_UNIT_TEST(
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(AssignmentTests, complete_pack_fits_target) {
+PERIMORTEM_UNIT_TEST(AssignmentTests, pack_fitting) {
   static constexpr View::Bytes source =
       "// Assignment Pack.\n"
       "dialect : Library;\n"
@@ -186,7 +184,7 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, complete_pack_fits_target) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(AssignmentTests, immutable_targets_are_rejected) {
+PERIMORTEM_UNIT_TEST(AssignmentTests, immutable_targets) {
   static constexpr View::Bytes writable =
       "// Public state write.\n"
       "dialect : Library;\n"
@@ -211,7 +209,7 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, immutable_targets_are_rejected) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(AssignmentTests, invalid_values_and_targets_are_rejected) {
+PERIMORTEM_UNIT_TEST(AssignmentTests, invalid_assignment) {
   static constexpr Static::Vector<View::Bytes, 7> sources = {{
     "// Plain mismatch.\ndialect : Library; private invalid : func = [] -> [] { state value : Bool = false; value = 1; return; }"_view,
     "// Compound mismatch.\ndialect : Library; private invalid : func = [] -> [] { state value : U64 = 0; value += -1; return; }"_view,

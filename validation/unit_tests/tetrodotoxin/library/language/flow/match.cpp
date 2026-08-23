@@ -76,7 +76,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
   return !monograph && !errors.is_empty();
 }
 
-PERIMORTEM_UNIT_TEST(MatchTests, ordered_cases_and_complete_flag_coverage) {
+PERIMORTEM_UNIT_TEST(MatchTests, flag_coverage) {
   static constexpr View::Bytes source =
       "// Complete match graph.\n"
       "dialect : Library;\n"
@@ -147,7 +147,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, ordered_cases_and_complete_flag_coverage) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(MatchTests, folded_case_and_final_default) {
+PERIMORTEM_UNIT_TEST(MatchTests, folded_default) {
   static constexpr View::Bytes source =
       "// Folded case.\n"
       "dialect : Library;\n"
@@ -185,7 +185,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, folded_case_and_final_default) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(MatchTests, case_blocks_inherit_the_nearest_loop) {
+PERIMORTEM_UNIT_TEST(MatchTests, nested_loop) {
   static constexpr View::Bytes source =
       "// Match loop control.\n"
       "dialect : Library;\n"
@@ -221,7 +221,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, case_blocks_inherit_the_nearest_loop) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(MatchTests, option_patterns_are_exact_and_branch_local) {
+PERIMORTEM_UNIT_TEST(MatchTests, option_patterns) {
   static constexpr View::Bytes source =
       "// Option match graph.\n"
       "dialect : Library;\n"
@@ -272,7 +272,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, option_patterns_are_exact_and_branch_local) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(MatchTests, constructor_patterns_are_rejected) {
+PERIMORTEM_UNIT_TEST(MatchTests, rejects_constructors) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
     "// Empty constructor.\ndialect : Library; private invalid : func = [.value : Option[U64]] -> [] { match value { case some() {} case _ {} } return; }"_view,
     "// Payload constructor.\ndialect : Library; private invalid : func = [.value : Option[U64]] -> [] { match value { case some(item) {} case _ {} } return; }"_view,
@@ -284,7 +284,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, constructor_patterns_are_rejected) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(MatchTests, invalid_option_case_sets_are_rejected) {
+PERIMORTEM_UNIT_TEST(MatchTests, invalid_option_cases) {
   static constexpr Static::Vector<View::Bytes, 6> sources = {{
     "// Missing absent case.\ndialect : Library; private invalid : func = [.value : Option[U64]] -> [] { match value { case item {} } return; }"_view,
     "// Missing value case.\ndialect : Library; private invalid : func = [.value : Option[U64]] -> [] { match value { case _ {} } return; }"_view,
@@ -299,7 +299,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, invalid_option_case_sets_are_rejected) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(MatchTests, pack_inputs_and_cases_are_rejected) {
+PERIMORTEM_UNIT_TEST(MatchTests, rejects_packs) {
   static constexpr Static::Vector<View::Bytes, 6> sources = {{
     "// Empty input.\ndialect : Library; private invalid : func = [] -> [] { match () {} return; }"_view,
     "// Named input.\ndialect : Library; private invalid : func = [] -> [] { match (.value = true) {} return; }"_view,
@@ -314,7 +314,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, pack_inputs_and_cases_are_rejected) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(MatchTests, malformed_default_is_rejected) {
+PERIMORTEM_UNIT_TEST(MatchTests, malformed_default) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Nonfinal default.\ndialect : Library; private invalid : func = [] -> [] { match true { case _ {} case true {} } return; }"_view,
     "// Duplicate default.\ndialect : Library; private invalid : func = [] -> [] { match true { case _ {} case _ {} } return; }"_view,
@@ -327,7 +327,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, malformed_default_is_rejected) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(MatchTests, invalid_case_sets_are_rejected) {
+PERIMORTEM_UNIT_TEST(MatchTests, invalid_cases) {
   static constexpr Static::Vector<View::Bytes, 5> sources = {{
     "// Duplicate Constant.\ndialect : Library; private invalid : func = [] -> [] { match 1 { case 1 {} case 0 + 1 {} } return; }"_view,
     "// Dynamic case.\ndialect : Library; private invalid : func = [.value : U64] -> [] { match value { case value {} case _ {} } return; }"_view,

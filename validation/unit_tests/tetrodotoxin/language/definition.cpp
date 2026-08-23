@@ -119,7 +119,7 @@ PERIMORTEM_UNIT_TEST(DefinitionTests, type_qualifier) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(DefinitionTests, malformed_prefix_fails) {
+PERIMORTEM_UNIT_TEST(DefinitionTests, malformed_prefix) {
   Allocator::Arena arena;
   DefinitionDialect dialect;
   DefinitionHost host(arena, dialect);

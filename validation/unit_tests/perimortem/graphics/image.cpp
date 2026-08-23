@@ -30,7 +30,7 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, zero_addressing_edge) {
   EXPECT_EQ(vertical_edge.alpha, U8(0));
 }
 
-PERIMORTEM_UNIT_TEST(GraphicsImage, clamp_addressing_edge) {
+PERIMORTEM_UNIT_TEST(GraphicsImage, clamp_edge) {
   Dynamic::Vector<Pixel> pixels;
   pixels.emplace(Pixel(0x11, 0x22, 0x33, 0x44));
   pixels.emplace(Pixel(0x55, 0x66, 0x77, 0x88));
@@ -44,7 +44,7 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, clamp_addressing_edge) {
   EXPECT_EQ(right.alpha, U8(0x88));
 }
 
-PERIMORTEM_UNIT_TEST(GraphicsImage, wrap_addressing_domain) {
+PERIMORTEM_UNIT_TEST(GraphicsImage, wrap_domain) {
   Dynamic::Vector<Pixel> pixels;
   pixels.emplace(Pixel(0x11, 0x22, 0x33, 0x44));
   pixels.emplace(Pixel(0x55, 0x66, 0x77, 0x88));

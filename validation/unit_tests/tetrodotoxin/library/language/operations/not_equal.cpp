@@ -151,7 +151,7 @@ static auto reports(
       });
 }
 
-PERIMORTEM_UNIT_TEST(LibraryNotEqual, type_selection_and_partial) {
+PERIMORTEM_UNIT_TEST(LibraryNotEqual, type_selection) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -232,7 +232,7 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, type_selection_and_partial) {
   EXPECT(byte_mismatch.get_type().resolve().is<Invalid>());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryNotEqual, complete_constant_domains) {
+PERIMORTEM_UNIT_TEST(LibraryNotEqual, constant_domains) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -325,7 +325,7 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, complete_constant_domains) {
   EXPECT(bytes_yes->is<Constants::True>());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryNotEqual, real_equivalence_inverse) {
+PERIMORTEM_UNIT_TEST(LibraryNotEqual, real_inverse) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -361,7 +361,7 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, real_equivalence_inverse) {
   EXPECT(zeros->is<Constants::False>());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryNotEqual, recursive_provenance_and_atomicity) {
+PERIMORTEM_UNIT_TEST(LibraryNotEqual, atomic_provenance) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);

@@ -166,7 +166,7 @@ static auto value_is(const Expression& expression, value_type expected)
   return value && *value == expected ? True : False;
 }
 
-PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection_and_partial) {
+PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);
@@ -353,7 +353,7 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, integer_remainders) {
       unsigned_width));
 }
 
-PERIMORTEM_UNIT_TEST(LibraryModulo, recursive_provenance_and_atomicity) {
+PERIMORTEM_UNIT_TEST(LibraryModulo, atomic_provenance) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
   auto& source = create_library_monograph(domain, producer);

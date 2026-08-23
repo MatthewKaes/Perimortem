@@ -80,7 +80,7 @@ static auto find_return(const Language::Function& function)
   return {};
 }
 
-PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
+PERIMORTEM_UNIT_TEST(ReturnTests, layout_fitting) {
   static constexpr View::Bytes source =
       "// Return Layout flow.\n"
       "dialect : Library;\n"
@@ -178,7 +178,7 @@ PERIMORTEM_UNIT_TEST(ReturnTests, complete_layout_fitting) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(ReturnTests, incompatible_flow_is_rejected) {
+PERIMORTEM_UNIT_TEST(ReturnTests, incompatible_flow) {
   static constexpr Static::Vector<View::Bytes, 7> sources = {{
     "// Missing return.\ndialect : Library; private invalid : func = [] -> Bool {}"_view,
     "// Bare nonempty return.\ndialect : Library; private invalid : func = [] -> Bool { return; }"_view,
@@ -193,7 +193,7 @@ PERIMORTEM_UNIT_TEST(ReturnTests, incompatible_flow_is_rejected) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(ReturnTests, unreachable_and_incomplete_syntax_roll_back) {
+PERIMORTEM_UNIT_TEST(ReturnTests, syntax_rollback) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
     "// Unreachable statement.\ndialect : Library; private invalid : func = [] -> [] { return; Invalid -> call(); }"_view,
     "// Missing return terminator.\ndialect : Library; private invalid : func = [] -> [] { return }"_view,

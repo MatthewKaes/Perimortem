@@ -115,7 +115,7 @@ static auto is_projection(
          &projection.get_result() == &field;
 }
 
-PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
+PERIMORTEM_UNIT_TEST(SwizzleTests, layout_precedence) {
   static constexpr View::Bytes source =
       "// Swizzle value flow.\n"
       "dialect : Library;\n"
@@ -209,7 +209,7 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, exact_layout_fitting_and_precedence) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(SwizzleTests, named_pack_reorders_real_producers) {
+PERIMORTEM_UNIT_TEST(SwizzleTests, named_reordering) {
   static constexpr View::Bytes source =
       "// Named Pack Swizzle.\n"
       "dialect : Library;\n"
@@ -262,9 +262,7 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, named_pack_reorders_real_producers) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(
-    SwizzleTests,
-    named_call_preserves_selected_descriptor_and_producer) {
+PERIMORTEM_UNIT_TEST(SwizzleTests, named_call_identity) {
   static constexpr View::Bytes source =
       "// Named Call result Swizzle.\n"
       "dialect : Library;\n"
@@ -354,7 +352,7 @@ PERIMORTEM_UNIT_TEST(
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(SwizzleTests, invalid_selections_are_rejected) {
+PERIMORTEM_UNIT_TEST(SwizzleTests, invalid_selections) {
   static constexpr Static::Vector<View::Bytes, 4> sources = {{
     "// Unknown Swizzle name.\ndialect : Library;\n"
     "public Packet : struct { public width : U64; }\n"
@@ -381,7 +379,7 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, invalid_selections_are_rejected) {
   }
 }
 
-PERIMORTEM_UNIT_TEST(SwizzleTests, malformed_selection_is_atomic) {
+PERIMORTEM_UNIT_TEST(SwizzleTests, malformed_selection) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
     "// Missing Swizzle close.\ndialect : Library;\n"
     "public Packet : struct { public width : U64; }\n"

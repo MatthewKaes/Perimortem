@@ -54,7 +54,7 @@ static auto find_function(
   return {};
 }
 
-PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
+PERIMORTEM_UNIT_TEST(BlockTests, scope_order) {
   static constexpr View::Bytes source =
       "// Block owner.\n"
       "dialect : Library;\n"
@@ -133,7 +133,7 @@ PERIMORTEM_UNIT_TEST(BlockTests, authored_scope_and_order) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(BlockTests, free_expressions_are_statements) {
+PERIMORTEM_UNIT_TEST(BlockTests, expressions) {
   static constexpr View::Bytes source =
       "// Free expressions.\n"
       "dialect : Library;\n"
@@ -163,7 +163,7 @@ PERIMORTEM_UNIT_TEST(BlockTests, free_expressions_are_statements) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(BlockTests, nested_block_and_documentation_are_retained) {
+PERIMORTEM_UNIT_TEST(BlockTests, nested_blocks) {
   static constexpr View::Bytes source =
       "// Nested Block.\n"
       "dialect : Library;\n"
@@ -206,7 +206,7 @@ PERIMORTEM_UNIT_TEST(BlockTests, nested_block_and_documentation_are_retained) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(BlockTests, failed_scope_is_not_published) {
+PERIMORTEM_UNIT_TEST(BlockTests, scope_rejection) {
   static constexpr View::Bytes source =
       "// Block rollback.\n"
       "dialect : Library;\n"

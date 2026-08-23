@@ -296,7 +296,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_two) {
   EXPECT(encoded_round_trip->get_view() == golden());
 }
 
-PERIMORTEM_UNIT_TEST(PackageArchive, authored_provenance_is_not_encoded) {
+PERIMORTEM_UNIT_TEST(PackageArchive, omits_provenance) {
   static constexpr View::Bytes source =
       "// Authored Package\n"
       "dialect : Package;\n"
@@ -393,7 +393,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, empty_inventories) {
   EXPECT(decoded_archive->get_members().get_data()[0].get_payload().is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(PackageArchive, equal_member_payloads) {
+PERIMORTEM_UNIT_TEST(PackageArchive, equal_payloads) {
   const U8 payload_bytes[] = {0x10, 0x20};
   View::Bytes payload(payload_bytes);
   Package::Archive::Member members[] = {
@@ -419,7 +419,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, equal_member_payloads) {
   EXPECT(retained.get_data()[1].get_payload() == payload);
 }
 
-PERIMORTEM_UNIT_TEST(PackageArchive, opaque_export_locators) {
+PERIMORTEM_UNIT_TEST(PackageArchive, opaque_locators) {
   Package::Archive::Member members[] = {
     Package::Archive::Member("Main"_view, "Lib"_view, View::Bytes()),
   };
@@ -519,7 +519,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, borrowed_input) {
   EXPECT(selected_archive(later) != nullptr);
 }
 
-PERIMORTEM_UNIT_TEST(PackageArchive, every_truncation_boundary) {
+PERIMORTEM_UNIT_TEST(PackageArchive, truncation_bounds) {
   for (Count size = 0; size < golden().get_size(); size++) {
     EXPECT(rejects(golden().slice(0, size)));
   }
@@ -688,7 +688,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, framing_boundaries) {
   EXPECT(rejects(no_members));
 }
 
-PERIMORTEM_UNIT_TEST(PackageArchive, malformed_names_and_locators) {
+PERIMORTEM_UNIT_TEST(PackageArchive, malformed_fields) {
   Dynamic::Bytes package_name(golden());
   package_name.get_access().get_data()[identity_field + 12] = 'p';
   EXPECT(rejects(package_name));
@@ -773,7 +773,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, malformed_names_and_locators) {
   EXPECT(rejects(empty_symbol));
 }
 
-PERIMORTEM_UNIT_TEST(PackageArchive, uniqueness_and_references) {
+PERIMORTEM_UNIT_TEST(PackageArchive, unique_references) {
   Dynamic::Bytes scope_collision(golden());
   auto scope_bytes = scope_collision.get_access();
   auto* scope_data = scope_bytes.get_data();
