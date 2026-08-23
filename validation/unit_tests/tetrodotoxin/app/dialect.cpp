@@ -373,3 +373,100 @@ PERIMORTEM_UNIT_TEST(AppDialect, invalid_entries) {
   EXPECT_NOT(interpret_app(result_workspace, result_errors, result_entry, app));
   EXPECT_NOT(result_errors.is_empty());
 }
+
+PERIMORTEM_UNIT_TEST(AppDialect, startup_profiles) {
+  static constexpr View::Bytes library_source =
+      "// Library.\n"
+      "dialect : Library;\n"
+      "public run : func = [] -> [] : return;"_view;
+  static constexpr View::Bytes headless_source =
+      "// Headless App.\n"
+      "dialect : App;\n"
+      "runtime = Headless;\n"
+      "lifecycle = Program { start Main -> run, }"_view;
+  Environment::Toolchain direct_toolchain;
+  ASSERT(direct_toolchain.install<Library::Dialect>("Library"_view));
+  ASSERT(direct_toolchain.install<App::Dialect>("App"_view));
+  Environment::Workspace direct_workspace(direct_toolchain);
+  Errors direct_errors;
+  auto headless = interpret_app(
+      direct_workspace, direct_errors, library_source, headless_source);
+  ASSERT(headless && headless->is<App::Language::Monograph>());
+  const auto& headless_policy =
+      static_cast<const App::Language::Monograph&>(*headless);
+  EXPECT(
+      headless_policy.get_runtime().get_profile() ==
+      App::Language::Runtime::Profile::Headless);
+  EXPECT_NOT(headless_policy.get_runtime().get_windowed());
+  EXPECT(direct_errors.is_empty());
+
+  Environment::Toolchain package_toolchain;
+  ASSERT(install(package_toolchain));
+  Environment::Workspace package_workspace(package_toolchain);
+  Errors package_errors;
+  auto imported = package_workspace.import_package(
+      package_errors, "validation/data/ttx/app_profiles"_view,
+      "ProfilePackage"_view, "package.ttx"_view, "Validation.AppProfiles"_view,
+      Version(1, 0));
+  ASSERT(imported && imported->is<Package::Language::Monograph>());
+  const auto& package =
+      static_cast<const Package::Language::Monograph&>(*imported);
+  const auto& app = package.resolve_context("Application"_view).resolve();
+  ASSERT(app.is<App::Language::Monograph>());
+  const auto& policy = static_cast<const App::Language::Monograph&>(app);
+  const auto& runtime = policy.get_runtime();
+  EXPECT(runtime.get_profile() == App::Language::Runtime::Profile::Windowed);
+  auto windowed = runtime.get_windowed();
+  ASSERT(windowed);
+  ASSERT(windowed->get_title());
+  EXPECT_TEXT(*windowed->get_title(), "Profile Test"_view);
+  ASSERT(windowed->get_icon_route());
+  EXPECT_TEXT(*windowed->get_icon_route(), "$[resources/icon.bin]"_view);
+  ASSERT(windowed->get_icon());
+  EXPECT_TEXT(windowed->get_icon()->get_value(), "icon\n"_view);
+  ASSERT(windowed->get_width());
+  ASSERT(windowed->get_height());
+  ASSERT(windowed->get_resizable());
+  EXPECT_EQ(*windowed->get_width(), U32(800));
+  EXPECT_EQ(*windowed->get_height(), U32(600));
+  EXPECT(*windowed->get_resizable());
+  EXPECT(package_errors.is_empty());
+
+  App::Dialect archive_dialect;
+  EXPECT_NOT(
+      archive_dialect.encode(policy, Language::Persistence::Profile::Complete));
+}
+
+PERIMORTEM_UNIT_TEST(AppDialect, startup_rejections) {
+  static constexpr View::Bytes library_source =
+      "// Library.\n"
+      "dialect : Library;\n"
+      "public run : func = [] -> [] : return;"_view;
+  static constexpr View::Bytes invalid_source =
+      "// Invalid App.\n"
+      "dialect : App;\n"
+      "runtime = Terminal { .width = 800, }\n"
+      "lifecycle = Program { start Main -> run, }"_view;
+  static constexpr View::Bytes unterminated_title =
+      "// Invalid App.\n"
+      "dialect : App;\n"
+      "runtime = Windowed { .title = \"unfinished\n"
+      "lifecycle = Program { start Main -> run, }"_view;
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<Library::Dialect>("Library"_view));
+  ASSERT(toolchain.install<App::Dialect>("App"_view));
+  Environment::Workspace workspace(toolchain);
+  Errors errors;
+
+  EXPECT_NOT(interpret_app(workspace, errors, library_source, invalid_source));
+  auto retained = workspace.get_monograph("app.ttx"_view);
+  ASSERT(retained && retained->is<App::Language::Monograph>());
+  EXPECT_NOT(errors.is_empty());
+
+  Environment::Workspace malformed_workspace(toolchain);
+  Errors malformed_errors;
+  EXPECT_NOT(interpret_app(
+      malformed_workspace, malformed_errors, library_source,
+      unterminated_title));
+  EXPECT_NOT(malformed_errors.is_empty());
+}

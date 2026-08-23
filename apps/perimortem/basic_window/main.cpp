@@ -14,6 +14,10 @@ auto main() -> int {
       window.get_logical_width() * window.get_scale(),
       window.get_logical_height() * window.get_scale());
   while (window.poll_events()) {
+    if (window.get_input().is_pressed(System::Input::Key::Escape)) {
+      break;
+    }
+
     const U32 width = window.get_logical_width() * window.get_scale();
     const U32 height = window.get_logical_height() * window.get_scale();
     if (window.get_needs_resize()) {

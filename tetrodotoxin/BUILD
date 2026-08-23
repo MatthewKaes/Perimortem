@@ -119,6 +119,23 @@ cc_library(
 )
 
 cc_library(
+    name = "render",
+    srcs = glob([
+        "render/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "render/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":language",
+        "//perimortem",
+        "//ttx:concept",
+        "//ttx:lexical",
+    ],
+)
+
+cc_library(
     name = "shader",
     srcs = glob([
         "shader/**/*.cpp",

@@ -5,6 +5,7 @@
 dialect : Package;
 
 resolve Memory : Perimortem.Memory = "1.0";
+resolve Math : Perimortem.Math = "1.0";
 resolve System : Perimortem.System = "1.0";
 source Helper from "helper.ttx";
 source Main from "main.ttx";

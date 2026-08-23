@@ -22,6 +22,17 @@ ttx_package(
     visibility = ["//visibility:public"],
 )
 
+ttx_package(
+    name = "perimortem_math",
+    package_name = "Perimortem.Math",
+    manifest = "Perimortem.Math/package.ttx",
+    version = [
+        1,
+        0,
+    ],
+    visibility = ["//visibility:public"],
+)
+
 ttx_native_provider(
     name = "perimortem_system_native",
     dep = "//perimortem:abi_system",

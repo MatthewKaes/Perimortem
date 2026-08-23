@@ -11,8 +11,6 @@ using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin;
 
-using LittleReader = Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>;
-
 auto App::Archive::Reader::read(
     Allocator::Arena& arena,
     View::Bytes payload,
@@ -20,7 +18,7 @@ auto App::Archive::Reader::read(
     const Abstract& dialect,
     const Documentation& documentation,
     Abstract& context) const -> Option<App::Language::Monograph&> {
-  LittleReader reader(payload);
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> reader(payload);
   View::Bytes magic = reader.read_bytes(4);
   U16 format = reader.read_u16();
   U8 encoded_profile = reader.read_u8();
@@ -30,7 +28,8 @@ auto App::Archive::Reader::read(
   U32 callable_size = reader.read_u32();
   View::Bytes callable = reader.read_bytes(callable_size);
   Bool valid = magic == "TTAP"_view && format == 1 &&
-               encoded_profile == U8(profile) && runtime == 1 &&
+               encoded_profile == U8(profile) &&
+               runtime == U8(App::Language::Runtime::Profile::Terminal) &&
                !route.is_empty() && !callable.is_empty() &&
                reader.get_location() == payload.get_size();
   if (!valid) {

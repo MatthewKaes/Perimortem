@@ -19,10 +19,13 @@ class Program : public Ttx::Concept::Abstract {
  public:
   TTX_CONTRACT(Program, Ttx::Concept::Abstract);
 
-  static auto parse(
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Documentation& documentation)
-      -> Perimortem::Core::Option<Program&>;
+  static auto create_authored(
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Ttx::Concept::Documentation& documentation,
+      Perimortem::Core::View::Bytes route,
+      Perimortem::Core::View::Bytes callable_name,
+      Ttx::Lexical::Anchor anchor,
+      Ttx::Lexical::Anchor selection_anchor) -> Program&;
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& arena,

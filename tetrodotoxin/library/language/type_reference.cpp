@@ -36,6 +36,28 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
       [](const Abstract& direct) -> const Abstract& { return direct; });
 }
 
+static auto select_terminal(
+    const Abstract& binding,
+    Core::View::Bytes name,
+    Bool expects_generic) -> const Abstract& {
+  const Abstract& resolved = resolve_alias(binding);
+  if (resolved.is<Invalid>() ||
+      (expects_generic && resolved.is<Language::Generic>()) ||
+      (!expects_generic && resolved.is<Language::Model::Type>())) {
+    return resolved;
+  }
+
+  // A Package Source keeps its real Monograph behind the authored Alias. When
+  // that source publishes a matching root Type or Generic, the declaration
+  // route can use it without changing the Package binding seen by other tools.
+  const Abstract& nested = resolve_alias(resolved.resolve_context(name));
+  if ((expects_generic && nested.is<Language::Generic>()) ||
+      (!expects_generic && nested.is<Language::Model::Type>())) {
+    return nested;
+  }
+  return resolved;
+}
+
 auto Language::TypeReference::get_size() const -> Count {
   if (route.is_empty()) {
     return 0;
@@ -100,23 +122,27 @@ static auto map_failure(
     Anchor anchor,
     const Language::Generic::Failure& failure)
     -> Language::TypeReference::Failure {
-  using GenericFailure = Language::Generic::Failure;
-  using ReferenceFailure = Language::TypeReference::Failure;
   switch (failure.get_type()) {
-  case GenericFailure::Type::Unavailable:
-    return ReferenceFailure(ReferenceFailure::Type::Unavailable, anchor);
-  case GenericFailure::Type::Arity:
-    return ReferenceFailure(ReferenceFailure::Type::Arity, anchor);
-  case GenericFailure::Type::Parameter:
-    return ReferenceFailure(
-        ReferenceFailure::Type::Parameter, anchor, failure.get_argument());
-  case GenericFailure::Type::Recursive:
-    return ReferenceFailure(ReferenceFailure::Type::Recursive, anchor);
-  case GenericFailure::Type::Formula:
-    return ReferenceFailure(ReferenceFailure::Type::Formula, anchor);
+  case Language::Generic::Failure::Type::Unavailable:
+    return Language::TypeReference::Failure(
+        Language::TypeReference::Failure::Type::Unavailable, anchor);
+  case Language::Generic::Failure::Type::Arity:
+    return Language::TypeReference::Failure(
+        Language::TypeReference::Failure::Type::Arity, anchor);
+  case Language::Generic::Failure::Type::Parameter:
+    return Language::TypeReference::Failure(
+        Language::TypeReference::Failure::Type::Parameter, anchor,
+        failure.get_argument());
+  case Language::Generic::Failure::Type::Recursive:
+    return Language::TypeReference::Failure(
+        Language::TypeReference::Failure::Type::Recursive, anchor);
+  case Language::Generic::Failure::Type::Formula:
+    return Language::TypeReference::Failure(
+        Language::TypeReference::Failure::Type::Formula, anchor);
   }
 
-  return ReferenceFailure(ReferenceFailure::Type::Formula, anchor);
+  return Language::TypeReference::Failure(
+      Language::TypeReference::Failure::Type::Formula, anchor);
 }
 
 auto Language::TypeReference::resolve_with_root(
@@ -152,7 +178,8 @@ auto Language::TypeReference::resolve_with_root(
   }
 
   if (!arguments) {
-    const Abstract& resolved = resolve_alias(*selected);
+    const Abstract& resolved =
+        select_terminal(*selected, get_name(get_size() - 1), False);
     if (resolved.is<Invalid>()) {
       return Failure(Failure::Type::Route, anchor, get_size() - 1);
     }
@@ -163,7 +190,8 @@ auto Language::TypeReference::resolve_with_root(
     return resolved;
   }
 
-  const Abstract& resolved = resolve_alias(*selected);
+  const Abstract& resolved =
+      select_terminal(*selected, get_name(get_size() - 1), True);
   if (resolved.is<Invalid>()) {
     return Failure(Failure::Type::Route, anchor, get_size() - 1);
   }

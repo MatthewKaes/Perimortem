@@ -56,6 +56,11 @@ Platform::Wayland::Window::Window(U32 width, U32 height, const char* title) {
     return;
   }
 
+  if (!input_collector.attach(surface)) {
+    close_requested = True;
+    return;
+  }
+
   wl_surface_commit(surface);
   wl_display_roundtrip(display);
 }
@@ -121,6 +126,7 @@ auto Platform::Wayland::Window::poll_events() -> Bool {
     return False;
   }
 
+  input_snapshot = input_collector.collect(input_mapping);
   return !close_requested;
 }
 
@@ -144,6 +150,19 @@ auto Platform::Wayland::Window::clear_resize() -> void {
   needs_resize = False;
 }
 
+auto Platform::Wayland::Window::get_input() const -> const System::Input& {
+  return input_snapshot;
+}
+
+auto Platform::Wayland::Window::get_input_mapping() -> System::Input::Mapping& {
+  return input_mapping;
+}
+
+auto Platform::Wayland::Window::get_input_mapping() const
+    -> const System::Input::Mapping& {
+  return input_mapping;
+}
+
 auto Platform::Wayland::Window::get_display() const -> wl_display* {
   return display;
 }
@@ -153,6 +172,7 @@ auto Platform::Wayland::Window::get_surface() const -> wl_surface* {
 }
 
 auto Platform::Wayland::Window::destroy() -> void {
+  input_collector.destroy();
   shell.destroy();
 
   if (surface) {
@@ -223,8 +243,9 @@ auto Platform::Wayland::Window::on_registry_global(
     wl_registry* registry,
     uint32_t name,
     const char* interface,
-    uint32_t) -> void {
+    uint32_t version) -> void {
   auto* window = static_cast<Platform::Wayland::Window*>(data);
+  window->input_collector.register_global(registry, name, interface, version);
   if (strcmp(interface, wl_compositor_interface.name) == 0) {
     window->compositor = static_cast<wl_compositor*>(
         wl_registry_bind(registry, name, &wl_compositor_interface, 6));
@@ -236,6 +257,9 @@ auto Platform::Wayland::Window::on_registry_global(
 }
 
 auto Platform::Wayland::Window::on_registry_global_remove(
-    void*,
+    void* data,
     wl_registry*,
-    uint32_t) -> void {}
+    uint32_t name) -> void {
+  static_cast<Platform::Wayland::Window*>(data)->input_collector.remove_global(
+      name);
+}

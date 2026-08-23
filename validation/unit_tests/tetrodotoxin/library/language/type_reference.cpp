@@ -2,7 +2,6 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "tetrodotoxin/library/interpreter/type_reference.hpp"
 
 #include "validation/unit_test.hpp"
 #include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
@@ -14,6 +13,7 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/interpreter/type_reference.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
@@ -21,6 +21,7 @@
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
+#include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -118,6 +119,29 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, segment_queries) {
   RouteType terminal;
   RouteContext first("First"_view, "Second"_view, terminal);
   RouteContext root("Root"_view, "First"_view, first);
+  Option<const Abstract&> selected;
+  reference->resolve(root).visit(
+      [&](const Abstract& resolved) { selected = resolved; },
+      [](const Language::TypeReference::Failure&) {});
+  EXPECT(selected && &*selected == &terminal);
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(LibraryTypeReference, package_source_terminal) {
+  Allocator::Arena arena;
+  Errors errors;
+  Tokenizer tokenizer(arena, "Math::U64"_view, "route.ttx"_view);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
+  auto reference = Interpreter::TypeReference::parse_route(cursor);
+  ASSERT(reference);
+
+  Language::Types::U64 terminal;
+  RouteContext source("Library"_view, "U64"_view, terminal);
+  Alias source_alias("U64"_view, source);
+  RouteContext package("Package"_view, "U64"_view, source_alias);
+  Alias package_alias("Math"_view, package);
+  RouteContext root("Root"_view, "Math"_view, package_alias);
   Option<const Abstract&> selected;
   reference->resolve(root).visit(
       [&](const Abstract& resolved) { selected = resolved; },

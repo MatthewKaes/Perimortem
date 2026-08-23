@@ -183,6 +183,7 @@ cc_binary(
     ) + [
         "data/ttx/package_resources/resources/empty.bin",
         "data/ttx/package_resources/resources/table.bin",
+        "data/ttx/app_profiles/resources/icon.bin",
         ":package_native_integration",
         ":runtime_link_integration",
         ":system_abi_integration",
@@ -190,6 +191,7 @@ cc_binary(
         "//apps/ttx/echo:package",
         "//apps/ttx/scene_lifetime:sources",
         "//packages/ttx:perimortem_memory",
+        "//packages/ttx:perimortem_math",
         "//packages/ttx:perimortem_system",
     ],
     includes = ["."],
@@ -211,6 +213,7 @@ cc_binary(
         "//backend:llvm",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
+        "//tetrodotoxin:render",
         "//tetrodotoxin:scene",
         "//tetrodotoxin:shader",
         "//ttx",

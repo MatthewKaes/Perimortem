@@ -5,6 +5,8 @@
 
 #include "tetrodotoxin/app/archive/reader.hpp"
 #include "tetrodotoxin/app/archive/writer.hpp"
+#include "tetrodotoxin/app/interpreter/program.hpp"
+#include "tetrodotoxin/app/interpreter/runtime.hpp"
 #include "tetrodotoxin/app/language/monograph.hpp"
 #include "tetrodotoxin/app/language/program.hpp"
 #include "tetrodotoxin/app/language/runtime.hpp"
@@ -39,8 +41,8 @@ auto App::Dialect::interpret(
         continue;
       }
 
-      auto parsed =
-          App::Language::Runtime::parse(cursor, declaration_documentation);
+      auto parsed = App::Interpreter::Runtime::parse(
+          cursor, declaration_documentation, context);
       if (!parsed) {
         cursor.recover_to_statement();
         failed = True;
@@ -62,7 +64,7 @@ auto App::Dialect::interpret(
       }
 
       auto parsed =
-          App::Language::Program::parse(cursor, declaration_documentation);
+          App::Interpreter::Program::parse(cursor, declaration_documentation);
       if (!parsed) {
         cursor.recover_to_statement();
         failed = True;
@@ -80,7 +82,7 @@ auto App::Dialect::interpret(
   }
 
   if (!runtime) {
-    cursor.create_error("App requires one Terminal runtime declaration."_view);
+    cursor.create_error("App requires one runtime declaration."_view);
     failed = True;
   }
   if (!program) {

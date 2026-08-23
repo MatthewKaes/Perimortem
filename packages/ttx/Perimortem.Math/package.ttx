@@ -1,0 +1,10 @@
+// # Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+//
+// Publishes the exact vector Types shared by Render, Shader, and Graphics.
+//
+dialect : Package;
+
+source Vec2D from "vec2d.ttx";
+source Vec3D from "vec3d.ttx";
+source Vec4D from "vec4d.ttx";

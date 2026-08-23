@@ -16,14 +16,9 @@ auto Scene::Dialect::interpret(
     const Documentation& documentation,
     const Anchor& source_anchor,
     Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
-  // This leaf admits only the empty canonical body. Scene declarations remain
-  // with their later semantic owners instead of entering a partial inventory.
-  if (!cursor.matches(Code::Type::Terminal)) {
-    cursor.create_token_error(
-        "Scene could not interpret this declaration."_view);
-    return {};
-  }
-
+  // Library owns the ordinary declarations and execution language used by a
+  // Scene. Asking the installed child Dialect to interpret the same Cursor
+  // keeps those objects in its real model while Scene adds only its extensions.
   auto child = library.interpret(cursor, documentation, source_anchor, context);
   if (!child) {
     return {};

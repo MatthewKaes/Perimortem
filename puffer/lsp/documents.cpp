@@ -19,6 +19,7 @@
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "tetrodotoxin/package/storage.hpp"
+#include "tetrodotoxin/render/dialect.hpp"
 #include "tetrodotoxin/scene/dialect.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/associations.hpp"
@@ -322,7 +323,8 @@ Lsp::Documents::Documents(View::Bytes selected_packages_root)
   auto package = toolchain.install<Package::Dialect>("Package"_view);
   auto library = toolchain.install<Library::Dialect>("Library"_view);
   auto app = toolchain.install<App::Dialect>("App"_view);
-  if (!package || !library || !app) {
+  auto render = toolchain.install<Render::Dialect>("Render"_view);
+  if (!package || !library || !app || !render) {
     return;
   }
 

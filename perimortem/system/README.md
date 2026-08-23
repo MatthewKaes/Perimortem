@@ -36,6 +36,26 @@ Application startup selects one backend. It may pass that backend's native
 surface to Vulkan, but Vulkan does not take ownership of the window or event
 loop. Graphics, Render, and Shader remain independent of the host platform.
 
+## Input snapshots
+
+System presents keyboard and pointer activity as one immutable snapshot for
+each completed event poll. The virtual key space covers ordinary keyboard
+controls, navigation, keypads, media controls, mouse buttons, and both detailed
+and aggregate modifiers. Keys describe physical controls rather than text, so
+keyboard layout and text composition can remain a separate host service.
+
+A Mapping translates one physical Key into one final virtual Key. Several
+physical controls may share a destination, a source may be disabled, and any
+source can return to its identity mapping. This keeps low level remapping
+predictable while application actions and chords remain with the domain that
+gives them meaning.
+
+Pointer position uses surface local coordinates. Motion and scrolling
+accumulate until the next snapshot, while mouse buttons use the same pressed,
+held, and released queries as keyboard controls. On Linux the Wayland seat
+collector feeds the public System Window and publishes the completed snapshot
+after each event poll.
+
 ## Runtime values
 
 System finishes collecting process arguments before the Program entry function

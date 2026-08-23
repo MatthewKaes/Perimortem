@@ -8,6 +8,8 @@
 
 #include "perimortem/core/perimortem.hpp"
 
+#include "perimortem/system/input.hpp"
+#include "perimortem/system/platform/wayland/input.hpp"
 #include "perimortem/system/platform/wayland/xdg_shell.hpp"
 
 namespace Perimortem::System::Platform::Wayland {
@@ -34,6 +36,12 @@ class Window {
   auto get_scale() const -> U32;
   auto get_needs_resize() const -> Bool;
   auto clear_resize() -> void;
+
+  // poll_events publishes exactly one immutable input snapshot. Applications
+  // can update the mapping between frames without exposing Wayland keycodes.
+  auto get_input() const -> const System::Input&;
+  auto get_input_mapping() -> System::Input::Mapping&;
+  auto get_input_mapping() const -> const System::Input::Mapping&;
 
   // Native presentation handles are exposed without assigning them graphics
   // meaning. The application selects a renderer and supplies these handles.
@@ -72,6 +80,9 @@ class Window {
   wl_compositor* compositor = nullptr;
   wl_surface* surface = nullptr;
   XdgShell shell;
+  Input input_collector;
+  System::Input::Mapping input_mapping;
+  System::Input input_snapshot;
   U32 logical_width = 0;
   U32 logical_height = 0;
   U32 initial_width = 0;

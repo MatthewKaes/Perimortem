@@ -214,7 +214,10 @@ cc_library(
     ]),
     includes = ["."],
     linkopts = ["-lwayland-client"],
-    deps = [":core"],
+    deps = [
+        ":core",
+        ":system",
+    ],
 )
 
 cc_library(
