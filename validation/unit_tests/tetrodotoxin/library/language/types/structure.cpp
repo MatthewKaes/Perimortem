@@ -427,6 +427,66 @@ PERIMORTEM_UNIT_TEST(StructureTests, category_names) {
   EXPECT(rejects_interpretation(duplicate_fields));
 }
 
+PERIMORTEM_UNIT_TEST(StructureTests, indexed_name_domains) {
+  static constexpr View::Bytes source =
+      "// Structure lookup test.\n"
+      "dialect : Library;\n"
+      "public Packet : struct {\n"
+      "  public state value : Bool;\n"
+      "  private state hidden : Bool;\n"
+      "  public value : func = [] -> [] {}\n"
+      "  public invoke : func = [] -> [] {}\n"
+      "  public invoke : func = [self] -> [] {}\n"
+      "  public Visible : struct {}\n"
+      "  private Hidden : struct {}\n"
+      "}"_view;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  const Abstract& packet_identity = monograph->resolve_context("Packet"_view);
+  ASSERT(packet_identity.is<Language::Types::Structure>());
+  const auto& packet =
+      static_cast<const Language::Types::Structure&>(packet_identity);
+  const Abstract& outside = monograph->resolve_context("U64"_view);
+
+  const Abstract& field = packet.resolve_type_access(
+      outside, "value"_view, Language::Model::Type::Access::Self);
+  const Abstract& static_value = packet.resolve_type_call(
+      outside, "value"_view, Language::Model::Type::Access::Static);
+  const Abstract& static_invoke = packet.resolve_type_call(
+      outside, "invoke"_view, Language::Model::Type::Access::Static);
+  const Abstract& self_invoke = packet.resolve_type_call(
+      outside, "invoke"_view, Language::Model::Type::Access::Self);
+  ASSERT(field.is<Language::Field>());
+  ASSERT(static_value.is<Language::Function>());
+  ASSERT(static_invoke.is<Language::Function>());
+  ASSERT(self_invoke.is<Language::Function>());
+  EXPECT(&static_invoke != &self_invoke);
+  EXPECT(packet.is_published(field));
+  EXPECT(packet.is_published(static_value));
+  EXPECT(packet.is_published(static_invoke));
+  EXPECT(packet.is_published(self_invoke));
+
+  EXPECT(packet.resolve_type_access(
+                   outside, "hidden"_view,
+                   Language::Model::Type::Access::Self)
+             .is<Invalid>());
+  const Abstract& hidden = packet.resolve_type_access(
+      packet, "hidden"_view, Language::Model::Type::Access::Self);
+  ASSERT(hidden.is<Language::Field>());
+  EXPECT_NOT(packet.is_published(hidden));
+
+  EXPECT(packet.resolve_context("Visible"_view)
+             .is<Language::Types::Structure>());
+  EXPECT(packet.resolve_context("Hidden"_view).is<Invalid>());
+  EXPECT(packet.resolve_lexical_context("Hidden"_view)
+             .is<Language::Types::Structure>());
+  EXPECT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(StructureTests, field_access) {
   static constexpr View::Bytes source =
       "// Structure test.\n"

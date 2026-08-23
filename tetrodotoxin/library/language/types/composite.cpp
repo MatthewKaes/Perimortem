@@ -27,6 +27,166 @@ using Tetrodotoxin::Language::Visibility;
 using Type = Model::Type;
 
 static constexpr Ttx::Model::Layouts::Named empty_layout;
+static constexpr U8 addressable_publication = 1 << 0;
+static constexpr U8 type_publication = 1 << 1;
+static constexpr U8 static_callable_publication = 1 << 2;
+static constexpr U8 self_callable_publication = 1 << 3;
+
+auto Types::Composite::NameIndex::Entry::select(
+    Category category,
+    Bool self) const -> Option<Abstract&> {
+  switch (category) {
+  case Category::Addressable:
+    return addressable;
+  case Category::Callable:
+    return self ? self_callable : static_callable;
+  case Category::Type:
+    return type;
+  }
+
+  return {};
+}
+
+auto Types::Composite::NameIndex::Entry::can_bind(
+    const Abstract& binding,
+    Category category,
+    Bool self) const -> Bool {
+  switch (category) {
+  case Category::Addressable:
+  case Category::Callable:
+  case Category::Type:
+    break;
+  default:
+    return False;
+  }
+
+  auto matches = [&](Option<Abstract&> candidate) {
+    return candidate && &*candidate == &binding;
+  };
+  BAIL_IF(
+      matches(addressable) || matches(type) || matches(static_callable) ||
+      matches(self_callable));
+  return !select(category, self);
+}
+
+auto Types::Composite::NameIndex::Entry::bind(
+    Abstract& binding,
+    Category category,
+    Bool self,
+    Bool published) -> Bool {
+  BAIL_IF(!can_bind(binding, category, self));
+
+  U8 flag = 0;
+  switch (category) {
+  case Category::Addressable:
+    addressable = Option<Abstract&>(binding);
+    flag = addressable_publication;
+    break;
+  case Category::Callable:
+    if (self) {
+      self_callable = Option<Abstract&>(binding);
+      flag = self_callable_publication;
+    } else {
+      static_callable = Option<Abstract&>(binding);
+      flag = static_callable_publication;
+    }
+    break;
+  case Category::Type:
+    type = Option<Abstract&>(binding);
+    flag = type_publication;
+    break;
+  default:
+    return False;
+  }
+
+  if (published) {
+    publication |= flag;
+  }
+  return True;
+}
+
+auto Types::Composite::NameIndex::Entry::is_published(
+    const Abstract& binding) const -> Bool {
+  auto matches = [&](Option<Abstract&> candidate, U8 flag) {
+    return candidate && &*candidate == &binding && (publication & flag) != 0;
+  };
+  return matches(addressable, addressable_publication) ||
+         matches(type, type_publication) ||
+         matches(static_callable, static_callable_publication) ||
+         matches(self_callable, self_callable_publication);
+}
+
+auto Types::Composite::NameIndex::can_bind(
+    const Abstract& binding,
+    Category category) const -> Bool {
+  View::Bytes name = binding.get_name();
+  BAIL_IF(name.is_empty());
+
+  Bool self = False;
+  switch (category) {
+  case Category::Addressable:
+  case Category::Type:
+    break;
+  case Category::Callable: {
+    auto callable = binding.select<Model::Callable>();
+    BAIL_IF(!callable);
+    self = callable->declares_self();
+    break;
+  }
+  default:
+    return False;
+  }
+
+  auto entry = entries.find(name);
+  return !entry || entry->value.can_bind(binding, category, self);
+}
+
+auto Types::Composite::NameIndex::bind(
+    Abstract& binding,
+    Category category,
+    Bool published) -> Bool {
+  BAIL_IF(!can_bind(binding, category));
+
+  Bool self = False;
+  if (category == Category::Callable) {
+    auto callable = binding.select<Model::Callable>();
+    BAIL_IF(!callable);
+    self = callable->declares_self();
+  }
+
+  auto selected = entries.find(binding.get_name());
+  if (selected) {
+    return selected->value.bind(binding, category, self, published);
+  }
+
+  auto created = entries.insert(binding.get_name(), Entry());
+  return created && created->value.bind(binding, category, self, published);
+}
+
+auto Types::Composite::NameIndex::resolve(
+    View::Bytes name,
+    Category category,
+    Visibility visibility,
+    Bool self) const -> const Abstract& {
+  auto entry = entries.find(name);
+  if (!entry) {
+    return Invalid::get_invalid();
+  }
+
+  auto selected = entry->value.select(category, self);
+  if (!selected ||
+      (visibility != Visibility::Private &&
+       !entry->value.is_published(*selected))) {
+    return Invalid::get_invalid();
+  }
+  return *selected;
+}
+
+auto Types::Composite::NameIndex::is_published(
+    const Abstract& binding) const -> Bool {
+  auto entry = entries.find(binding.get_name());
+  return entry && entry->value.is_published(binding);
+}
 
 template <typename selected_type, typename visitor_type>
 static auto visit_each(
@@ -73,51 +233,12 @@ static auto declaration_offset(const Option<const selected_type&>& selected)
   return anchor ? Count(anchor->get_span().get_offset()) : Count(-1);
 }
 
-template <typename bindings_type>
-static auto retains_binding(bindings_type bindings, const Abstract& candidate)
-    -> Bool {
-  for (const Reference<Abstract>& binding : bindings) {
-    if (&binding.get() == &candidate) {
-      return True;
-    }
-  }
-  return False;
-}
-
-static auto resolve_local_addressable(
-    const Types::Composite& composite,
-    const Abstract& host,
-    View::Bytes route,
-    Type::Access access) -> const Abstract& {
-  for (const Reference<Abstract>& binding :
-       composite.get_addressables(Visibility::Private)) {
-    if (binding.get().get_name() != route) {
-      continue;
-    }
-
-    const Abstract& resolved = binding.get().resolve();
-    auto addressable = resolved.select<Model::Addressable>();
-    if (!addressable || !addressable->supports_access(access)) {
-      return Invalid::get_invalid();
-    }
-
-    auto caller = host.select<Type>();
-    Bool published = retains_binding(
-        composite.get_addressables(Visibility::Public), binding.get());
-    if (published || (caller && caller->has_private_access_to(composite))) {
-      return binding.get();
-    }
-    return Invalid::get_invalid();
-  }
-
-  return Invalid::get_invalid();
-}
-
 Types::Composite::Composite(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition)
     : definition(definition),
       domain(domain),
+      names(domain),
       addressables(domain),
       published_addressables(domain),
       types(domain),
@@ -157,19 +278,6 @@ auto Types::Composite::retain_definition(
   return publish_binding(binding, category, published);
 }
 
-template <typename bindings_type>
-static auto find_binding(const bindings_type& bindings, View::Bytes name)
-    -> const Abstract& {
-  for (const auto& binding : bindings) {
-    const Abstract& candidate = binding.get();
-    if (candidate.get_name() == name) {
-      return candidate;
-    }
-  }
-
-  return Invalid::get_invalid();
-}
-
 auto Types::Composite::can_accept_definition() const -> Bool {
   return stage == Stage::Authored;
 }
@@ -177,33 +285,7 @@ auto Types::Composite::can_accept_definition() const -> Bool {
 auto Types::Composite::can_bind_definition(
     const Abstract& binding,
     Category category) const -> Bool {
-  View::Bytes candidate = binding.get_name();
-  auto retains_identity = [&](auto category) {
-    return category.contains([&](const Reference<Abstract>& existing) {
-      return &existing.get() == &binding;
-    });
-  };
-  if (candidate.is_empty() || retains_identity(addressables.get_view()) ||
-      retains_identity(get_callable_bindings()) ||
-      retains_identity(types.get_view())) {
-    return False;
-  }
-
-  auto contains_name = [&](auto bindings) {
-    return bindings.contains([&](const Reference<Abstract>& existing) {
-      return existing.get().get_name() == candidate;
-    });
-  };
-  switch (category) {
-  case Category::Addressable:
-    return !contains_name(addressables.get_view());
-  case Category::Type:
-    return !contains_name(types.get_view());
-  case Category::Callable:
-    return can_publish_callable(binding);
-  }
-
-  return False;
+  return names.can_bind(binding, category);
 }
 
 auto Types::Composite::retain_binding(
@@ -226,6 +308,7 @@ auto Types::Composite::publish_binding(
   // The parser or importing provider supplies the category before publication.
   // Alias resolution is deliberately absent here: delayed graph completion
   // cannot change which namespace owns the local name.
+  BAIL_IF(!names.bind(binding, category, published));
   switch (category) {
   case Category::Addressable:
     addressables.insert(binding);
@@ -257,10 +340,7 @@ auto Types::Composite::publish_binding(
 }
 
 auto Types::Composite::is_published(const Abstract& declaration) const -> Bool {
-  return retains_binding(published_addressables.get_view(), declaration) ||
-         retains_binding(published_types.get_view(), declaration) ||
-         retains_binding(
-             get_callable_bindings(Visibility::Public), declaration);
+  return names.is_published(declaration);
 }
 
 auto Types::Composite::link_aliases() -> Count {
@@ -635,21 +715,31 @@ auto Types::Composite::resolve() const -> const Abstract& {
   return *this;
 }
 
+auto Types::Composite::resolve_binding(
+    View::Bytes route,
+    Category category,
+    Visibility visibility,
+    Bool self) const -> const Abstract& {
+  return names.resolve(route, category, visibility, self);
+}
+
 auto Types::Composite::resolve_context(View::Bytes route) const
     -> const Abstract& {
-  const Abstract& type = find_binding(get_types(Visibility::Public), route);
+  const Abstract& type =
+      resolve_binding(route, Category::Type, Visibility::Public);
   return !type.is<Invalid>() ? type : get_host().resolve_context(route);
 }
 
 auto Types::Composite::resolve_lexical_context(View::Bytes route) const
     -> const Abstract& {
   const Abstract& addressable =
-      resolve_local_addressable(*this, *this, route, Type::Access::Static);
+      resolve_type_access(*this, route, Type::Access::Static);
   if (!addressable.is<Invalid>()) {
     return addressable;
   }
 
-  const Abstract& type = find_binding(get_types(Visibility::Private), route);
+  const Abstract& type =
+      resolve_binding(route, Category::Type, Visibility::Private);
   if (!type.is<Invalid>()) {
     return type;
   }
@@ -663,12 +753,53 @@ auto Types::Composite::resolve_type_access(
     const Abstract& host,
     View::Bytes route,
     Type::Access access) const -> const Abstract& {
-  return resolve_local_addressable(*this, host, route, access);
+  const Abstract& binding =
+      resolve_binding(route, Category::Addressable, Visibility::Private);
+  if (binding.is<Invalid>()) {
+    return binding;
+  }
+
+  const Abstract& resolved = binding.resolve();
+  auto addressable = resolved.select<Model::Addressable>();
+  if (!addressable || !addressable->supports_access(access)) {
+    return Invalid::get_invalid();
+  }
+
+  auto caller = host.select<Type>();
+  if (names.is_published(binding) ||
+      (caller && caller->has_private_access_to(*this))) {
+    return binding;
+  }
+  return Invalid::get_invalid();
+}
+
+auto Types::Composite::resolve_type_call(
+    const Abstract& host,
+    View::Bytes route,
+    Type::Access access) const -> const Abstract& {
+  Bool self = access == Type::Access::Self;
+  const Abstract& binding = resolve_binding(
+      route, Category::Callable, Visibility::Private, self);
+  if (binding.is<Invalid>()) {
+    return binding;
+  }
+
+  auto callable = binding.resolve().select<Model::Callable>();
+  if (!callable || callable->declares_self() != self) {
+    return Invalid::get_invalid();
+  }
+
+  auto caller = host.select<Type>();
+  if (names.is_published(binding) ||
+      (caller && caller->has_private_access_to(*this))) {
+    return binding;
+  }
+  return Invalid::get_invalid();
 }
 
 auto Types::Composite::is_externally_reachable(const Type& type) const -> Bool {
-  const Abstract& local =
-      find_binding(get_types(Visibility::Public), type.get_name());
+  const Abstract& local = resolve_binding(
+      type.get_name(), Category::Type, Visibility::Public);
   if (!local.is<Invalid>()) {
     return &local.resolve() == &type;
   }

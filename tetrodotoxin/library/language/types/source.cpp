@@ -377,7 +377,7 @@ auto Types::Source::resolve_type_call(
     const Abstract& host,
     View::Bytes route,
     Type::Access access) const -> const Abstract& {
-  const Abstract& local = Model::Type::resolve_type_call(host, route, access);
+  const Abstract& local = Composite::resolve_type_call(host, route, access);
   if (!local.is<Invalid>()) {
     return local;
   }
@@ -406,22 +406,21 @@ auto Types::Source::resolve_type_call(
 
 auto Types::Source::resolve_local(View::Bytes route, Visibility visibility)
     const -> const Abstract& {
-  for (const Reference<Abstract>& binding : get_addressables(visibility)) {
-    if (binding.get().get_name() == route) {
-      return binding.get();
-    }
+  const Abstract& addressable =
+      resolve_binding(route, Category::Addressable, visibility);
+  if (!addressable.is<Invalid>()) {
+    return addressable;
   }
 
-  for (const Reference<Abstract>& binding : get_types(visibility)) {
-    if (binding.get().get_name() == route) {
-      return binding.get();
-    }
+  const Abstract& type = resolve_binding(route, Category::Type, visibility);
+  if (!type.is<Invalid>()) {
+    return type;
   }
 
-  for (const Reference<Abstract>& binding : get_callables(visibility)) {
-    if (binding.get().get_name() == route) {
-      return binding.get();
-    }
+  const Abstract& callable =
+      resolve_binding(route, Category::Callable, visibility, False);
+  if (!callable.is<Invalid>()) {
+    return callable;
   }
 
   return Invalid::get_invalid();
