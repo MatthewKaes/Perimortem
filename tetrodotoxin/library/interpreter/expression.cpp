@@ -138,7 +138,7 @@ static auto parse_primary(const Abstract& context, Cursor& cursor)
       cursor.matches(Code::Type::Self) || cursor.matches(Code::Type::Source)) {
     Token token = cursor.consume();
     return Library::Language::Expressions::Identifier::create_authored(
-        cursor, token, Anchor::create(Span(token)));
+        cursor, context, token, Anchor::create(Span(token)));
   }
 
   if (cursor.matches(Code::Type::NotOp)) {

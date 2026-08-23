@@ -3,12 +3,40 @@
 
 #include "tetrodotoxin/library/language/access/type.hpp"
 
+#include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library;
+
+static auto resolve_receiver(const Language::Expression& receiver)
+    -> const Abstract& {
+  const Abstract& completed = receiver.get_result();
+  if (!completed.is<Invalid>()) {
+    return completed;
+  }
+
+  auto identifier = receiver.select<Language::Expressions::Identifier>();
+  if (identifier) {
+    return identifier->resolve_authored();
+  }
+
+  auto access = receiver.select<Language::Access::Type>();
+  return access ? access->resolve_authored() : Invalid::get_invalid();
+}
+
+static auto select_type_access(const Abstract& receiver, Core::View::Bytes name)
+    -> const Abstract& {
+  const Abstract& binding = receiver.resolve_context(name).resolve();
+  // Package Source Aliases retain their Monograph as promised. A source may
+  // publish one matching root Type under that authored route. Expression Type
+  // access selects that Type while declaration and using queries still observe
+  // the real Monograph binding.
+  const Abstract& nested = binding.resolve_context(name).resolve();
+  return nested.is<Language::Model::Type>() ? nested : binding;
+}
 
 auto Language::Access::Type::create_authored(
     Memory::Allocator::Arena& domain,
@@ -29,14 +57,7 @@ auto Language::Access::Type::link(
   BAIL_IF(!receiver.link(cursor, lexical_context, access_scope));
 
   const Abstract& receiver_result = receiver.get_result();
-  const Abstract& binding = receiver_result.resolve_context(name).resolve();
-  // Package Source Aliases retain their Monograph as promised. A source may
-  // publish one matching root Type under that authored route. Expression Type
-  // access selects that Type while declaration and using queries still observe
-  // the real Monograph binding.
-  const Abstract& nested = binding.resolve_context(name).resolve();
-  const Abstract& result =
-      nested.is<Language::Model::Type>() ? nested : binding;
+  const Abstract& result = select_type_access(receiver_result, name);
   if (result.is<Invalid>()) {
     cursor.create_expression_error(
         get_anchor(), "Type access did not select a semantic context."_view,
@@ -73,6 +94,17 @@ auto Language::Access::Type::get_result() const -> const Abstract& {
       [](const Reference<const Abstract>& selected) -> const Abstract& {
         return selected.get();
       });
+}
+
+auto Language::Access::Type::resolve_authored() const -> const Abstract& {
+  if (selected) {
+    return selected->get();
+  }
+
+  const Abstract& receiver_result = resolve_receiver(receiver);
+  return receiver_result.is<Invalid>()
+             ? static_cast<const Abstract&>(Invalid::get_invalid())
+             : select_type_access(receiver_result, name);
 }
 
 auto Language::Access::Type::finalize(Cursor& cursor) -> void {

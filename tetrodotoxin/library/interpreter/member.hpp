@@ -8,6 +8,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/library/interpreter/parsed.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/reference.hpp"
@@ -28,8 +29,8 @@ class Member {
     constexpr Result(
         Ttx::Concept::Abstract& semantic,
         Language::Types::Composite::Category category,
-        Bool accepted)
-        : semantic(semantic), category(category), accepted(accepted) {}
+        ParseState state)
+        : semantic(semantic), category(category), state(state) {}
 
     constexpr auto get_semantic() const -> Ttx::Concept::Abstract& {
       return semantic.get();
@@ -40,12 +41,18 @@ class Member {
       return category;
     }
 
-    constexpr auto is_accepted() const -> Bool { return accepted; }
+    constexpr auto is_accepted() const -> Bool {
+      return state == ParseState::Accepted;
+    }
+
+    constexpr auto needs_recovery() const -> Bool {
+      return state == ParseState::Incomplete;
+    }
 
    private:
     Ttx::Concept::Reference<Ttx::Concept::Abstract> semantic;
     Language::Types::Composite::Category category;
-    Bool accepted;
+    ParseState state;
   };
 
   Member() = delete;

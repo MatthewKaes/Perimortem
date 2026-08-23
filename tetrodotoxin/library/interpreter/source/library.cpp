@@ -47,7 +47,7 @@ auto Interpreter::Source::Library::parse(
     }
     source.retain_authored_definition(
         member->get_semantic(), *definition, member->get_category(), cursor);
-    if (!member->is_accepted()) {
+    if (member->needs_recovery()) {
       cursor.recover_to_statement();
     }
   }

@@ -616,6 +616,77 @@ def run_test():
           dependency_restored_markdown,
           "restoring a dependency overlay rebuilds its consumers")
 
+    context_main_source = main_source.replace(
+        "  System::Terminal -> write_line(Dynamic::Bytes -> "
+        "concat(line_prefix, view))?;\n",
+        "  state output := Dynamic::\n")
+    send_did_change(conn, main_uri, context_main_source, 2)
+    context_completion = send_completion(
+        conn, main_uri, context_main_source,
+        context_main_source.index("Dynamic::") + len("Dynamic::"), 66)
+    context_labels = {
+        item.get("label")
+        for item in (context_completion or {}).get("result", [])
+    }
+    check("Bytes" in context_labels,
+          "Library Monograph context offers its retained Types")
+
+    static_main_source = main_source.replace(
+        "  System::Terminal -> write_line(Dynamic::Bytes -> "
+        "concat(line_prefix, view))?;\n",
+        "  state output := Dynamic::Bytes -> \n")
+    send_did_change(conn, main_uri, static_main_source, 3)
+    static_completion = send_completion(
+        conn, main_uri, static_main_source,
+        static_main_source.index("Dynamic::Bytes -> ") +
+        len("Dynamic::Bytes -> "), 67)
+    static_labels = {
+        item.get("label")
+        for item in (static_completion or {}).get("result", [])
+    }
+    check("copy" in static_labels and "concat" in static_labels,
+          "Static Type completion survives preferred call spacing")
+
+    partial_main_source = main_source.replace(
+        "  System::Terminal -> write_line(Dynamic::Bytes -> "
+        "concat(line_prefix, view))?;\n",
+        "  while true {\n"
+        "    state output := Dynamic::Bytes -> copy(line_prefix);\n"
+        "    output->\n"
+        "  }\n")
+    partial_diagnostics = send_did_change(
+        conn, main_uri, partial_main_source, 4)
+    partial_messages = (partial_diagnostics or {}).get(
+        "params", {}).get("diagnostics", [])
+    partial_hover = send_hover(
+        conn, main_uri, partial_main_source, "output", 63,
+        partial_main_source.index("output->"))
+    partial_result = partial_hover.get("result") if partial_hover else None
+    partial_markdown = (
+        partial_result.get("contents", {}).get("value", "")
+        if partial_result else "")
+    inferred_completion = send_completion(
+        conn, main_uri, partial_main_source,
+        partial_main_source.index("output->") + len("output->"), 64)
+    partial_definition = send_definition(
+        conn, main_uri, partial_main_source, "output", 65,
+        partial_main_source.index("output->"))
+    inferred_labels = {
+        item.get("label")
+        for item in (inferred_completion or {}).get("result", [])
+    }
+    check(bool(partial_messages),
+          "unfinished inferred access remains diagnostic")
+    check("state output : Bytes" in partial_markdown,
+          "retained Package member preserves an inferred Local Type")
+    check("concat" in inferred_labels,
+          "inferred Local completion survives unfinished invocation")
+    check(matches_location(
+        partial_definition, main_uri, partial_main_source, "output",
+        partial_main_source.index("state output")),
+        "unfinished invocation preserves inferred Local definition")
+    send_did_change(conn, main_uri, main_source, 5)
+
     print("\n--- Semantic tokens: Library/default dialect ---")
     library_source = (
         "dialect : Library;\n"

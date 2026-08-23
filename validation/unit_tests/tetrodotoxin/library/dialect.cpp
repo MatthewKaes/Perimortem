@@ -571,7 +571,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, fixture_rejections) {
     },
     {
       "validation/data/ttx/library/duplicate_name.ttx"_view,
-      "Library member collides with an occupied Composite category."_view,
+      "Library Addressable name is already occupied in this Composite."_view,
       "public duplicate : U64 = 2;"_view,
     },
     {

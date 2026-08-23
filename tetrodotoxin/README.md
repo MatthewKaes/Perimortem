@@ -210,7 +210,8 @@ source bytes
 -> direct Cursor, Associations, Documentation, Anchor, and context inputs
 -> optional Monograph in the source Arena
 -> retain the Monograph, Tokens, Associations, and diagnostics when present
--> link and finalize meaning when interpretation added no source errors
+-> link as much retained meaning as the current source can establish
+-> finalize only a complete error free semantic island
 -> admit only the completed Monograph to Terminal production
 ```
 
@@ -220,8 +221,9 @@ and formatting can use every fact the Dialect established. An absent Monograph
 releases the local Arena because no semantic root exists to own it.
 
 A Package manifest supplies one fixed Source table. Workspace interprets those
-members together and retains each Monograph that could be created. Accepted
-members may link, but finalization begins only when the complete island links.
+members together and retains each Monograph that could be created. Each retained
+member may contribute the meaning it can establish for tooling, but finalization
+begins only when the complete island links without errors.
 LLVM, SPIR-V, Archives, and other Terminal products remain gated on the whole
 island completing.
 

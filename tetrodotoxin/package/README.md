@@ -101,9 +101,10 @@ completed root cache.
 Workspace reads exactly that root manifest's fixed Source table. Each entry gets
 one source transaction Arena and one optional Monograph. A member cannot add
 another Package import. Workspace retains each Monograph it can create, links
-members whose interpretation added no source errors against the fixed Package
-context, and finalizes none of them until the island links. Only the completed
-root can enter Terminal production.
+each retained member against the fixed Package context so tooling can use the
+meaning already established, and finalizes none of them until every member
+completes interpretation and linking without errors. Only the completed root
+can enter Terminal production.
 
 ## Package context
 

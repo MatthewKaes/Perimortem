@@ -76,8 +76,9 @@ Documentation, its Anchor, and the semantic context. The Dialect constructs one
 Monograph in the Cursor's Arena and returns an optional reference. Presence
 means the Dialect established a real semantic root, even if it also reported
 source errors. Absence means no Monograph could be established. Environment
-retains a returned Monograph for tooling and advances it only when the operation
-added no source errors.
+retains a returned Monograph for tooling and attempts to link every fact its
+current graph can answer. Existing errors still keep it from finalization and
+publication.
 
 An installed Dialect is itself an ordinary TTX Abstract context. Its exact live
 identity selects Monograph layers, its installed name answers source dispatch,
@@ -109,10 +110,10 @@ optional Monograph reference from that same Arena.
 Comments, Attributes, Tokens, and semantic objects may therefore retain direct
 source backed views without proxying them into another domain. Workspace keeps
 the Arena handle once the Dialect returns a Monograph. A result accompanied by
-source errors remains useful to editor queries, while linking and Terminal
-production continue to require their ordinary completion barriers. An embedded
-layer uses the same Cursor, Arena, and semantic context with its exact child
-language identity.
+source errors remains useful to editor queries, and linking may still establish
+independent or earlier semantic edges. Finalization and Terminal production
+continue to require the complete error free island. An embedded layer uses the
+same Cursor, Arena, and semantic context with its exact child language identity.
 
 Archive reconstruction does not introduce a parallel Restoration context. A
 persistent Dialect receives its destination Arena, opaque payload, and exact
@@ -247,10 +248,10 @@ One source participates in four stages:
 1. The selected Dialect constructs one optional Monograph in the source
    transaction Arena and writes any source reports through the Cursor.
 2. Workspace retains every Monograph and its lexical evidence.
-3. Linking resolves every route when interpretation added no source errors and
+3. Linking attempts every route the retained graph can currently answer and
    reports its own failures to the Cursor.
-4. Finalization performs language work that depends on a completely linked
-   island.
+4. Finalization performs language work only after interpretation and linking
+   complete without errors across the island.
 
 Workspace performs these stages in one direct source call. Retained incomplete
 meaning remains available to tooling, while only completed meaning can enter a

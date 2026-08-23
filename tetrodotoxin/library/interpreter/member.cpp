@@ -33,23 +33,21 @@ auto Interpreter::Member::parse(
     BAIL_IF(!field);
     return Result(
         field->get_semantic(),
-        Language::Types::Composite::Category::Addressable,
-        field->is_accepted());
+        Language::Types::Composite::Category::Addressable, field->get_state());
   }
   case Code::Type::Alias: {
     auto alias = Declarations::Alias::parse(cursor, definition);
     BAIL_IF(!alias);
     return Result(
         alias->get_semantic(), Language::Types::Composite::Category::Type,
-        alias->is_accepted());
+        alias->get_state());
   }
   case Code::Type::Func: {
     auto function = Declarations::Function::parse(cursor, definition);
     BAIL_IF(!function);
     return Result(
         function->get_semantic(),
-        Language::Types::Composite::Category::Callable,
-        function->is_accepted());
+        Language::Types::Composite::Category::Callable, function->get_state());
   }
   case Code::Type::Enum: {
     auto enumeration =
@@ -57,21 +55,21 @@ auto Interpreter::Member::parse(
     BAIL_IF(!enumeration);
     return Result(
         enumeration->get_semantic(), Language::Types::Composite::Category::Type,
-        enumeration->is_accepted());
+        enumeration->get_state());
   }
   case Code::Type::Struct: {
     auto structure = Interpreter::Types::Structure::parse(cursor, definition);
     BAIL_IF(!structure);
     return Result(
         structure->get_semantic(), Language::Types::Composite::Category::Type,
-        structure->is_accepted());
+        structure->get_state());
   }
   case Code::Type::Object: {
     auto object = Interpreter::Types::Object::parse(cursor, definition);
     BAIL_IF(!object);
     return Result(
         object->get_semantic(), Language::Types::Composite::Category::Type,
-        object->is_accepted());
+        object->get_state());
   }
   default:
     cursor.create_token_error(

@@ -26,7 +26,8 @@ an approximation based only on spelling.
   and folded constants, while unresolved declarations show the strongest known
   shape with `<unknown>` where an edge is still settling
 * Access completion follows `.`, `::`, and `->` through the receiver's real
-  Type, visibility, and Static or Self role
+  Context or Type, visibility, and Static or Self role. Call suggestions remain
+  available after the trailing space in the canonical ` -> ` spelling
 * Parameter hints name fitted positional arguments at their call sites
 * Go to definition follows authored identities across Package sources and
   dependencies

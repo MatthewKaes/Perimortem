@@ -183,3 +183,15 @@ auto Language::Flow::RangeLoop::resolve_context(View::Bytes route) const
 
   return lexical_context.resolve_context(route);
 }
+
+auto Language::Flow::RangeLoop::resolve_authored_context(
+    View::Bytes route,
+    Count offset) const -> const Abstract& {
+  for (const Reference<Parameter>& binding : bindings.get_view()) {
+    if (binding.get().get_name() == route) {
+      return binding.get();
+    }
+  }
+
+  return lexical_context.resolve_authored_context(route, offset);
+}

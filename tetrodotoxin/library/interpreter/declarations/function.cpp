@@ -66,12 +66,13 @@ auto Interpreter::Declarations::Function::parse(
   auto body = Interpreter::Execution::Block::parse(
       cursor, function, function, function.get_host());
   if (!body) {
-    return Parsed<Language::Function>(function, False);
+    return Parsed<Language::Function>(function, ParseState::Incomplete);
   }
   Bool accepted = definition.complete(
                       definition.get_qualifier(),
                       body->get_anchor().get_span().get_end()) &&
                   function.complete_body(*body) &&
                   cursor.get_error_count() == error_count;
-  return Parsed<Language::Function>(function, accepted);
+  return Parsed<Language::Function>(
+      function, accepted ? ParseState::Accepted : ParseState::Rejected);
 }

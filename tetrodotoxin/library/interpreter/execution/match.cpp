@@ -78,7 +78,8 @@ auto Interpreter::Execution::Match::parse(
           cursor.get_arena(), lexical_context,
           value_token.caculate_text(cursor.get_source_text()));
       auto& expression = Language::Expressions::Identifier::create_authored(
-          cursor, value_token, Anchor::create(Span(value_token)));
+          cursor, pattern.get_context(), value_token,
+          Anchor::create(Span(value_token)));
       auto body = Block::parse(
           cursor, pattern.get_context(), function, access_scope,
           enclosing_loop);

@@ -69,10 +69,10 @@ auto Interpreter::Declarations::Field::parse(
 
   Option<Language::TypeReference> type;
   Option<Language::Model::Pack&> initializer;
-  auto retain = [&](Bool accepted) -> Parsed<Language::Field> {
+  auto retain = [&](ParseState state) -> Parsed<Language::Field> {
     auto& field = Language::Field::create_authored(
         cursor.get_arena(), definition, *writability, type, initializer);
-    return Parsed<Language::Field>(field, accepted);
+    return Parsed<Language::Field>(field, state);
   };
 
   if (cursor.matches(Code::Type::Assign)) {
@@ -81,20 +81,20 @@ auto Interpreter::Declarations::Field::parse(
       auto object_initializer = Interpreter::Expressions::Initializer::parse(
           definition.get_host(), cursor);
       if (!object_initializer) {
-        return retain(False);
+        return retain(ParseState::Incomplete);
       }
       initializer = *object_initializer;
     } else {
       initializer = Interpreter::Pack::parse(definition.get_host(), cursor);
     }
     if (!initializer) {
-      return retain(False);
+      return retain(ParseState::Incomplete);
     }
   } else {
     auto authored_type =
         Interpreter::TypeReference::parse(definition.get_host(), cursor);
     if (!authored_type) {
-      return retain(False);
+      return retain(ParseState::Incomplete);
     }
     type = *authored_type;
 
@@ -104,28 +104,30 @@ auto Interpreter::Declarations::Field::parse(
         auto object_initializer = Interpreter::Expressions::Initializer::parse(
             definition.get_host(), cursor);
         if (!object_initializer) {
-          return retain(False);
+          return retain(ParseState::Incomplete);
         }
         initializer = *object_initializer;
       } else {
         initializer = Interpreter::Pack::parse(definition.get_host(), cursor);
       }
       if (!initializer) {
-        return retain(False);
+        return retain(ParseState::Incomplete);
       }
     } else if (*writability == Language::Writability::Constant) {
       cursor.create_token_error(
           "Library const Fields require an initializer."_view);
-      return retain(False);
+      return retain(ParseState::Incomplete);
     }
   }
 
   Token terminator = cursor.require(
       Code::Type::EndStatement,
       "Library Fields require one terminating `;`."_view);
-  if (!terminator ||
-      !definition.complete(definition.get_name_token(), terminator)) {
-    return retain(False);
+  if (!terminator) {
+    return retain(ParseState::Incomplete);
   }
-  return retain(True);
+  return retain(
+      definition.complete(definition.get_name_token(), terminator)
+          ? ParseState::Accepted
+          : ParseState::Rejected);
 }

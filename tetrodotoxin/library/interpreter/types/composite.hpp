@@ -4,6 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/library/interpreter/parsed.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -20,7 +21,7 @@ class Composite {
       Ttx::Lexical::Cursor& cursor,
       Language::Types::Structure& structure,
       Tetrodotoxin::Language::Definition& definition,
-      Ttx::Lexical::Token kind_token) -> Bool;
+      Ttx::Lexical::Token kind_token) -> ParseState;
 };
 
 }  // namespace Tetrodotoxin::Library::Interpreter::Types

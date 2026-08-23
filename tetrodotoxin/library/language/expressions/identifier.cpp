@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
+#include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/alias.hpp"
@@ -112,4 +113,19 @@ auto Language::Expressions::Identifier::get_result() const -> const Abstract& {
       [](const Reference<const Abstract>& selected) -> const Abstract& {
         return selected.get();
       });
+}
+
+auto Language::Expressions::Identifier::resolve_authored() const
+    -> const Abstract& {
+  if (result) {
+    return result->get();
+  }
+
+  const Abstract& context = lexical_context.get();
+  auto block = context.select<Language::Flow::Block>();
+  const Abstract& candidate =
+      block && token
+          ? block->resolve_authored_context(name, Count(token.get_offset()))
+          : context.resolve_context(name);
+  return resolve_alias(candidate);
 }

@@ -42,7 +42,7 @@ auto Interpreter::Types::Structure::parse(
   Language::Types::Structure& structure =
       Language::Types::Structure::create_authored(
           cursor.get_arena(), definition);
-  Bool accepted =
+  ParseState state =
       Composite::parse_body(cursor, structure, definition, kind_token);
-  return Parsed<Language::Types::Structure>(structure, accepted);
+  return Parsed<Language::Types::Structure>(structure, state);
 }

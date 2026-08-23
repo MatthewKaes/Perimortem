@@ -218,7 +218,7 @@ auto Interpreter::Execution::Block::parse(
     auto statement =
         parse_statement(cursor, block, function, access_scope, documentation);
     if (!statement) {
-      cursor.recover_to_statement();
+      cursor.recover_to_scoped_statement();
       if (single) {
         break;
       }

@@ -41,6 +41,12 @@ class Type : public Expression {
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_result() const -> const Ttx::Concept::Abstract& override;
+
+  // A following incomplete postfix may leave this access outside a retained
+  // Statement. The receiver still owns enough authored context to answer the
+  // strongest currently available selection without completing this node.
+  auto resolve_authored() const -> const Ttx::Concept::Abstract&;
+
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
   constexpr auto get_receiver() const -> const Expression& { return receiver; }

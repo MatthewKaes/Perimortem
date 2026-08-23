@@ -44,6 +44,7 @@ class WorkspaceMonograph final : public Language::Monograph {
         diagnostic_path(diagnostic_path) {}
 
   auto link(Cursor& cursor) -> Bool override {
+    linked = True;
     if (fact == "link_fail"_view) {
       cursor.create_expression_error(
           fact_span, "Workspace test link failure."_view);
@@ -75,10 +76,13 @@ class WorkspaceMonograph final : public Language::Monograph {
     return diagnostic_path;
   }
 
+  constexpr auto was_linked() const -> Bool { return linked; }
+
  private:
   View::Bytes fact;
   Span fact_span;
   View::Bytes diagnostic_path;
+  Bool linked = False;
 };
 
 class WorkspaceDialect : public Language::Dialect {
@@ -108,6 +112,11 @@ class WorkspaceDialect : public Language::Dialect {
       cursor.create_expression_error(
           Span(fact_token), "Workspace test interpretation failure."_view);
       return {};
+    }
+
+    if (fact == "partial"_view) {
+      cursor.create_expression_error(
+          Span(fact_token), "Workspace test retained interpretation."_view);
     }
 
     Allocator::Arena& arena = cursor.get_arena();
@@ -245,6 +254,25 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, retains_source) {
   Environment::Workspace unrelated(toolchain);
   EXPECT_NOT(unrelated.get_associations(*interpreted));
   EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, links_retained_source) {
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<WorkspaceDialect>("Trace"_view));
+  Environment::Workspace workspace(toolchain);
+  auto source = make_source("partial"_view);
+  Errors errors;
+
+  auto completed = workspace.interpret_source(
+      errors, "Partial"_view, "partial.ttx"_view, source);
+  EXPECT_NOT(completed);
+  EXPECT_NOT(errors.is_empty());
+
+  auto retained = workspace.get_monograph("partial.ttx"_view);
+  ASSERT(retained && retained->is<WorkspaceMonograph>());
+  const auto& partial = static_cast<const WorkspaceMonograph&>(*retained);
+  EXPECT(partial.was_linked());
+  EXPECT_NOT(workspace.get_completed_monograph("partial.ttx"_view));
 }
 
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, keeps_first_source) {

@@ -99,13 +99,13 @@ auto Interpreter::Types::Enumeration::parse(
 
   Memory::Managed::Vector<Language::Types::Enumeration::Case> cases(
       cursor.get_arena());
-  Bool accepted = True;
+  ParseState state = ParseState::Accepted;
   while (!cursor.matches(Code::Type::ScopeEnd)) {
     if (cursor.matches(Code::Type::Terminal)) {
       cursor.create_token_error(
           "Library Enumeration body reached the end of source before "
           "`}`."_view);
-      accepted = False;
+      state = ParseState::Rejected;
       break;
     }
 
@@ -113,8 +113,8 @@ auto Interpreter::Types::Enumeration::parse(
         Tetrodotoxin::Language::Parser::Comment::parse(cursor);
     auto parsed = parse_case(cursor, documentation);
     if (!parsed) {
-      accepted = False;
-      cursor.recover_to_statement();
+      state = ParseState::Rejected;
+      cursor.recover_to_scoped_statement();
       continue;
     }
     if (cases.get_view().contains([&](const auto& existing) {
@@ -123,7 +123,7 @@ auto Interpreter::Types::Enumeration::parse(
       cursor.create_expression_error(
           parsed->name_anchor,
           "Duplicate case name in one Library Enumeration."_view);
-      accepted = False;
+      state = ParseState::Rejected;
       continue;
     }
     cases.insert(*parsed);
@@ -131,9 +131,11 @@ auto Interpreter::Types::Enumeration::parse(
 
   if (cursor.matches(Code::Type::ScopeEnd)) {
     Token closing = cursor.consume();
-    accepted &= definition.complete(enumeration_token, closing);
+    if (!definition.complete(enumeration_token, closing)) {
+      state = ParseState::Rejected;
+    }
   }
   auto& enumeration = Language::Types::Enumeration::create_authored(
       cursor.get_arena(), definition, *storage, cases.get_view());
-  return Parsed<Language::Types::Enumeration>(enumeration, accepted);
+  return Parsed<Language::Types::Enumeration>(enumeration, state);
 }

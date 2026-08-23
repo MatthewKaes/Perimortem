@@ -39,6 +39,7 @@ auto Interpreter::Types::Object::parse(
   BAIL_IF(!kind_token);
   Language::Types::Object& object =
       Language::Types::Object::create_authored(cursor.get_arena(), definition);
-  Bool accepted = Composite::parse_body(cursor, object, definition, kind_token);
-  return Parsed<Language::Types::Object>(object, accepted);
+  ParseState state =
+      Composite::parse_body(cursor, object, definition, kind_token);
+  return Parsed<Language::Types::Object>(object, state);
 }

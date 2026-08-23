@@ -262,9 +262,17 @@ auto Types::Composite::retain_authored_definition(
     Category category,
     Cursor& cursor) -> Bool {
   if (!retain_binding(binding, definition, category, cursor)) {
-    cursor.create_expression_error(
-        definition.get_name_anchor(),
-        "Library member collides with an occupied Composite category."_view);
+    if (category == Category::Addressable) {
+      cursor.create_expression_error(
+          definition.get_name_anchor(),
+          "Library Addressable name is already occupied in this Composite."_view,
+          "Static and state Fields share one Addressable namespace. Choose a "
+          "unique name."_view);
+    } else {
+      cursor.create_expression_error(
+          definition.get_name_anchor(),
+          "Library member collides with an occupied Composite category."_view);
+    }
     return False;
   }
 

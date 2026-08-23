@@ -177,6 +177,25 @@ class Cursor {
     }
   }
 
+  // A parser already inside a braced body shares statement boundaries with
+  // its enclosing owner. Recovery consumes a semicolon but leaves the closing
+  // brace in place so that owner can finish the body exactly once.
+  constexpr auto recover_to_scoped_statement() -> void {
+    auto type = current().get_code();
+    while (!type.is_one_of({{
+      Code::Type::Terminal,
+      Code::Type::EndStatement,
+      Code::Type::ScopeEnd,
+    }})) {
+      consume();
+      type = current().get_code();
+    }
+
+    if (type == Code::Type::EndStatement) {
+      consume();
+    }
+  }
+
   constexpr auto caculate_text(Span span) const
       -> Perimortem::Core::View::Bytes {
     return span.caculate_text(get_source_text());

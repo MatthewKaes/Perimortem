@@ -121,80 +121,17 @@ static auto select_addressable_type(
                    : Option<const Language::Model::Type&>();
 }
 
-static auto find_local(
-    const Language::Flow::Block& block,
-    View::Bytes name,
-    Count offset,
-    const Abstract& type_context) -> Option<Receiver> {
-  for (const Language::Statement& statement : block.get_statements()) {
-    Span span = statement.get_anchor().get_span();
-    if (span && span.get_offset() >= offset) {
-      break;
-    }
-
-    auto local = statement.get_root().select<Language::Flow::Local>();
-    if (local && local->get_name() == name) {
-      auto type = select_addressable_type(*local, type_context);
-      return type ? Option<Receiver>(
-                        Receiver(*type, Language::Model::Type::Access::Self))
-                  : Option<Receiver>();
-    }
-
-    auto nested = statement.get_root().select<Language::Flow::Block>();
-    if (nested && contains(nested->get_anchor().get_span(), offset)) {
-      auto selected = find_local(*nested, name, offset, type_context);
-      if (selected) {
-        return selected;
-      }
-    }
-  }
-  return {};
-}
-
-static auto find_parameter(const Language::Function& function, View::Bytes name)
-    -> Option<Receiver> {
-  const Language::Model::Layout& parameters =
-      function.get_signature().get_parameters();
-  for (Count index = 0; index < parameters.get_size(); index++) {
-    if (parameters.get_declared_name(index) != name) {
-      continue;
-    }
-    if (name == "self"_view) {
-      return Receiver(function.get_host(), Language::Model::Type::Access::Self);
-    }
-    auto reference = parameters.get_type_reference(index);
-    auto type = reference
-                    ? resolve_type_reference(*reference, function.get_host())
-                    : Option<const Language::Model::Type&>();
-    return type ? Option<Receiver>(
-                      Receiver(*type, Language::Model::Type::Access::Self))
-                : Option<Receiver>();
-  }
-  return {};
-}
-
 static auto resolve_identifier(
     const Language::Expressions::Identifier& identifier,
     const Tetrodotoxin::Language::Monograph& monograph,
-    const Language::Function* function,
-    Count offset) -> Option<Receiver> {
+    const Language::Function* function) -> Option<Receiver> {
   View::Bytes name = identifier.get_name();
-  if (function) {
-    auto body = function->get_body();
-    auto local = body ? find_local(*body, name, offset, function->get_host())
-                      : Option<Receiver>();
-    if (local) {
-      return local;
-    }
-    auto parameter = find_parameter(*function, name);
-    if (parameter) {
-      return parameter;
-    }
+  const Abstract* selected = &identifier.resolve_authored();
+  if (selected->is<Invalid>()) {
+    selected = &monograph.resolve_context(name);
   }
-
-  const Abstract* selected = &monograph.resolve_context(name);
   auto library = monograph.select<Language::Monograph>();
-  if (library) {
+  if (library && selected->is<Invalid>()) {
     const Abstract& local = library->get_source().resolve_local(
         name, Tetrodotoxin::Language::Visibility::Private);
     if (!local.is<Invalid>()) {
@@ -220,6 +157,36 @@ static auto resolve_identifier(
              : Option<Receiver>();
 }
 
+static auto resolve_context_expression(
+    const Language::Expression& expression,
+    const Tetrodotoxin::Language::Monograph& monograph)
+    -> Option<const Abstract&> {
+  const Abstract& completed = expression.get_result();
+  if (!completed.is<Invalid>()) {
+    return completed.resolve();
+  }
+
+  auto identifier = expression.select<Language::Expressions::Identifier>();
+  if (identifier) {
+    const Abstract& authored = identifier->resolve_authored();
+    if (!authored.is<Invalid>()) {
+      return authored.resolve();
+    }
+    const Abstract& root = monograph.resolve_context(identifier->get_name());
+    return root.is<Invalid>() ? Option<const Abstract&>()
+                              : Option<const Abstract&>(root.resolve());
+  }
+
+  auto type_access = expression.select<Language::Access::Type>();
+  if (type_access) {
+    const Abstract& authored = type_access->resolve_authored();
+    if (!authored.is<Invalid>()) {
+      return authored.resolve();
+    }
+  }
+  return {};
+}
+
 static auto resolve_expression(
     const Language::Expression& expression,
     const Tetrodotoxin::Language::Monograph& monograph,
@@ -241,7 +208,7 @@ static auto resolve_expression(
 
   auto identifier = expression.select<Language::Expressions::Identifier>();
   if (identifier) {
-    return resolve_identifier(*identifier, monograph, function, offset);
+    return resolve_identifier(*identifier, monograph, function);
   }
 
   auto address = expression.select<Language::Access::Address>();
@@ -264,15 +231,9 @@ static auto resolve_expression(
 
   auto type_access = expression.select<Language::Access::Type>();
   if (type_access) {
-    auto receiver = resolve_expression(
-        type_access->get_receiver(), monograph, function, offset, host);
-    BAIL_IF(!receiver);
-    const Abstract& selected =
-        receiver->get_type().resolve_context(type_access->get_name());
-    auto selected_type = selected.select<Language::Model::Type>();
-    if (!selected_type) {
-      selected_type = selected.resolve().select<Language::Model::Type>();
-    }
+    auto selected = resolve_context_expression(*type_access, monograph);
+    BAIL_IF(!selected);
+    auto selected_type = selected->select<Language::Model::Type>();
     return selected_type
                ? Option<Receiver>(Receiver(
                      *selected_type, Language::Model::Type::Access::Static))
@@ -296,6 +257,38 @@ static auto completion_item(
       {"kind"_view, kind},
       {"documentation"_view, hover["contents"_view]},
     }}.construct(arena);
+}
+
+static auto complete_context_types(
+    Allocator::Arena& arena,
+    Managed::Vector<Json::Node>& items,
+    const Abstract& context,
+    auto candidates) -> void {
+  for (const Reference<Abstract>& candidate : candidates) {
+    const Abstract& selected =
+        context.resolve_context(candidate.get().get_name());
+    if (&selected == &candidate.get() ||
+        &selected.resolve() == &candidate.get()) {
+      items.insert(completion_item(arena, candidate.get(), S64(7)));
+    }
+  }
+}
+
+static auto complete_context(
+    Allocator::Arena& arena,
+    Managed::Vector<Json::Node>& items,
+    const Abstract& context) -> void {
+  auto composite = context.select<Language::Types::Composite>();
+  if (composite) {
+    complete_context_types(arena, items, context, composite->get_types());
+    return;
+  }
+
+  auto monograph = context.select<Language::Monograph>();
+  if (monograph) {
+    complete_context_types(
+        arena, items, context, monograph->get_source().get_types());
+  }
 }
 
 static auto retains(
@@ -450,6 +443,22 @@ auto Puffer::Lsp::completion(Documents& documents, const Rpc::Message& message)
       function ? static_cast<const Abstract&>(function->get_host())
                : static_cast<const Abstract&>(*monograph);
   auto expression = semantic->select<Language::Expression>();
+  if (operation.get_code() == Code::Type::TypeAccessOp) {
+    auto context = expression
+                       ? resolve_context_expression(*expression, *monograph)
+                       : Option<const Abstract&>();
+    if (!context) {
+      const Abstract& subject = semantic_subject(*semantic).resolve();
+      if (!subject.is<Invalid>()) {
+        context = subject;
+      }
+    }
+    if (context) {
+      complete_context(arena, items, *context);
+    }
+    return message.report_result(Json::Node(items.get_view()));
+  }
+
   auto receiver =
       expression
           ? resolve_expression(*expression, *monograph, function, *offset, host)

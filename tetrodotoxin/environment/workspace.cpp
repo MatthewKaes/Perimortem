@@ -124,16 +124,16 @@ auto Environment::Workspace::interpret_source(
     .completed = False,
   });
 
-  if (completed) {
-    source_error_count = errors.get_size();
-    if (!monograph.link(cursor)) {
-      if (errors.get_size() == source_error_count) {
-        cursor.create_error(
-            "Source linking failed without a more specific diagnostic."_view);
-      }
-      completed = False;
-    }
+  // Linking can still enrich a retained graph after interpretation reports an
+  // incomplete source form. The earlier report keeps publication closed while
+  // editor queries gain any Types and declaration edges that did settle.
+  source_error_count = errors.get_size();
+  Bool linked = monograph.link(cursor);
+  if (!linked && completed && errors.get_size() == source_error_count) {
+    cursor.create_error(
+        "Source linking failed without a more specific diagnostic."_view);
   }
+  completed &= linked;
 
   if (completed) {
     source_error_count = errors.get_size();
@@ -438,16 +438,14 @@ auto Environment::Workspace::import_package(
 
   // Every parsed identity enters the candidate set before any member resolves
   // context. Authored Source order therefore cannot decide which routes are
-  // visible.
+  // visible. Each retained candidate gets the same chance to settle useful
+  // graph edges, while any parse or link failure keeps the island unpublished.
   Bool linked = parsed;
   for (Count i = 0; i < candidates.get_size(); i++) {
-    if (!parse_validity[i]) {
-      continue;
-    }
-
     Count source_error_count = errors.get_size();
-    if (!candidates[i]->link(*cursors[i])) {
-      if (errors.get_size() == source_error_count) {
+    Bool candidate_linked = candidates[i]->link(*cursors[i]);
+    if (!candidate_linked) {
+      if (parse_validity[i] && errors.get_size() == source_error_count) {
         cursors[i]->create_error(
             "Package source linking failed without a more specific "
             "diagnostic."_view);

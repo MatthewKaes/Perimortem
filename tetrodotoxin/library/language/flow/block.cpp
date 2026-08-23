@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/flow/block.hpp"
 
+#include "tetrodotoxin/library/language/flow/range_loop.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -134,4 +135,34 @@ auto Language::Flow::Block::resolve_context(View::Bytes route) const
   }
 
   return lexical_context.resolve_context(route);
+}
+
+auto Language::Flow::Block::resolve_authored_context(
+    View::Bytes route,
+    Count offset) const -> const Abstract& {
+  auto ordered = statements.get_view();
+  for (Count index = ordered.get_size(); index > 0; index--) {
+    const Statement& statement = ordered.get_data()[index - 1];
+    Span span = statement.get_anchor().get_span();
+    if (span && span.get_offset() >= offset) {
+      continue;
+    }
+
+    auto name = statement.get_binding_name();
+    if (!name || *name != route) {
+      continue;
+    }
+
+    auto binding = statement.get_binding();
+    return binding ? *binding : statement.get_root();
+  }
+
+  auto parent = lexical_context.select<Block>();
+  if (parent) {
+    return parent->resolve_authored_context(route, offset);
+  }
+
+  auto loop = lexical_context.select<RangeLoop>();
+  return loop ? loop->resolve_authored_context(route, offset)
+              : lexical_context.resolve_context(route);
 }

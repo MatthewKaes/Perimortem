@@ -62,6 +62,10 @@ class RangeLoop : public Ttx::Concept::Abstract {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
+  auto resolve_authored_context(
+      Perimortem::Core::View::Bytes route,
+      Count offset) const -> const Ttx::Concept::Abstract&;
+
   constexpr auto get_input() const -> const Model::Pack& { return input.get(); }
 
   constexpr auto get_input_type() const

@@ -50,13 +50,17 @@ auto Interpreter::Declarations::Alias::parse(
         {}, definition.get_name_anchor(), Token());
     auto& alias = Language::Alias::create_authored(
         cursor.get_arena(), definition, missing);
-    return Parsed<Language::Alias>(alias, False);
+    return Parsed<Language::Alias>(alias, ParseState::Incomplete);
   }
   Token terminator = cursor.require(
       Code::Type::EndStatement,
       "Library Alias definitions require one terminating `;`."_view);
-  Bool accepted = terminator && definition.complete(alias_token, terminator);
+  ParseState state = ParseState::Incomplete;
+  if (terminator) {
+    state = definition.complete(alias_token, terminator) ? ParseState::Accepted
+                                                         : ParseState::Rejected;
+  }
   auto& alias = Language::Alias::create_authored(
       cursor.get_arena(), definition, *target_reference);
-  return Parsed<Language::Alias>(alias, accepted);
+  return Parsed<Language::Alias>(alias, state);
 }

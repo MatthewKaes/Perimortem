@@ -779,6 +779,18 @@ PERIMORTEM_UNIT_TEST(TtxLexical, recover_stmt) {
       cursor.current().caculate_text(cursor.get_source_text()), "next"_view);
 }
 
+PERIMORTEM_UNIT_TEST(TtxLexical, recover_scoped_stmt) {
+  Allocator::Arena arena;
+  Errors errors;
+  Tokenizer tokenizer(arena, "bad tokens } next"_view, "test.ttx"_view);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
+
+  cursor.recover_to_scoped_statement();
+
+  EXPECT(cursor.matches(Code::Type::ScopeEnd));
+}
+
 PERIMORTEM_UNIT_TEST(TtxLexical, token_projection) {
   Allocator::Arena arena;
   Tokenizer tokenizer(arena, "one two three"_view, "test.ttx"_view);

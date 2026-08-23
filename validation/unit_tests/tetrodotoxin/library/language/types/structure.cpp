@@ -425,6 +425,25 @@ PERIMORTEM_UNIT_TEST(StructureTests, category_names) {
       "dialect : Library;\n"
       "public Packet : struct { public value : Bool; private value : Bool; }"_view;
   EXPECT(rejects_interpretation(duplicate_fields));
+
+  static constexpr View::Bytes static_state_collision =
+      "// Structure test.\n"
+      "dialect : Library;\n"
+      "public Packet : struct {\n"
+      "  public state value : U8;\n"
+      "  public value : U8;\n"
+      "}\n"
+      "public run : func = [] -> [] {\n"
+      "  state later : U8;\n"
+      "}"_view;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
+  Errors errors;
+  EXPECT_NOT(interpret(workspace, errors, static_state_collision));
+  ASSERT_EQ(errors.get_size(), Count(1));
+  EXPECT(has_diagnostic(errors, "Addressable name is already occupied"_view));
+  EXPECT_NOT(has_diagnostic(
+      errors, "Definitions require one authored visibility"_view));
 }
 
 PERIMORTEM_UNIT_TEST(StructureTests, indexed_name_domains) {

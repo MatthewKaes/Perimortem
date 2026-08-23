@@ -197,9 +197,10 @@ Workspace retains one source record containing the Arena owner, outer
 Monograph, and immutable Associations index whenever interpretation establishes
 that root. Comments, Attributes, Tokens, semantic facts, and association edges
 can therefore borrow the retained source directly. Reports written to the
-Cursor during that operation decide whether linking may propagate those facts.
-Completion decides whether a Terminal may consume them. There is no second
-graph Arena or defensive source copy phase.
+Cursor during that operation keep the source from publishing, but Workspace
+still attempts linking so independent and earlier facts can settle for editor
+queries. Completion decides whether a Terminal may consume the result. There is
+no second graph Arena or defensive source copy phase.
 
 Installed Dialect dependencies form a strict directed acyclic graph. The host
 constructing a Toolchain injects each exact dependency instance. An outer
@@ -215,10 +216,11 @@ One direct source has four semantic stages:
 1. The selected Dialect constructs one optional Monograph in the source
    transaction Arena and writes any source reports through the Cursor.
 2. Workspace retains the Monograph and its lexical evidence when present.
-3. Linking resolves every contextual route when interpretation added no source
-   errors.
-4. Finalization performs language work that requires the complete linked
-   island.
+3. Linking attempts to resolve every contextual route the retained graph can
+   currently answer. Earlier declarations and independent branches can settle
+   even when another source form remains incomplete.
+4. Finalization runs only when interpretation and linking completed without
+   errors, and performs language work that requires the complete linked island.
 
 Workspace performs these stages synchronously with the one source Cursor. An
 incomplete Monograph remains queryable as the author's current source state,
@@ -229,8 +231,8 @@ consumer keeps pointers into an older source transaction.
 Package supplies a fixed Dependency and Source description table. Workspace
 owns the candidate Arena handles, operation Cursors, and durable Associations
 indexes. It retains every member Monograph it can create, links members whose
-interpretation added no source errors against the fixed Package context, and
-finalizes only after the whole island links.
+graphs can answer queries against the fixed Package context, and finalizes only
+after every member completes interpretation and linking without errors.
 Package stores only borrowed Alias mappings. A member never adds another
 import, and a dependency must already be completed in the same Workspace.
 

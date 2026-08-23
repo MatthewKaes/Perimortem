@@ -27,6 +27,19 @@ function semantic_highlighting_enabled(
     .get<boolean>(semantic_highlighting_setting, false);
 }
 
+function follows_call_operator(
+  document: vscode.TextDocument,
+  change: vscode.TextDocumentContentChangeEvent
+): boolean {
+  if (change.text !== " " || change.range.start.line >= document.lineCount) {
+    return false;
+  }
+
+  const line = document.lineAt(change.range.start.line).text;
+  const end = change.range.start.character + change.text.length;
+  return end <= line.length && line.slice(0, end).endsWith("-> ");
+}
+
 export function start_language_client(
   context: ExtensionContext,
   language_id: string
@@ -134,6 +147,29 @@ export function start_language_client(
           .executeCommand("editor.action.restartSemanticTokens")
           .then(undefined, () => undefined);
       }
+    })
+  );
+
+  context.subscriptions.push(
+    workspace.onDidChangeTextDocument((event) => {
+      const editor = window.activeTextEditor;
+      const change = event.contentChanges[event.contentChanges.length - 1];
+      if (
+        !editor ||
+        editor.document !== event.document ||
+        event.document.languageId !== language_id ||
+        !change ||
+        !follows_call_operator(event.document, change)
+      ) {
+        return;
+      }
+
+      // Typing the preferred trailing space closes the suggestions opened by
+      // `>`. Reopening them after document synchronization keeps ` -> ` useful
+      // without making every ordinary space a completion trigger.
+      setTimeout(() => {
+        void vscode.commands.executeCommand("editor.action.triggerSuggest");
+      }, 0);
     })
   );
 

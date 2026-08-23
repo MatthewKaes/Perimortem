@@ -24,13 +24,14 @@ class Identifier : public Expression {
 
   static auto create_authored(
       Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& lexical_context,
       Ttx::Lexical::Token token,
       Ttx::Lexical::Anchor anchor) -> Identifier& {
     Perimortem::Core::View::Bytes name =
         token.caculate_text(cursor.get_source_text());
     return Expression::create_authored<Identifier>(
         cursor.get_arena(), anchor, [&](auto authored) -> Identifier {
-          return Identifier(token, name, authored);
+          return Identifier(token, name, lexical_context, authored);
         });
   }
 
@@ -39,7 +40,8 @@ class Identifier : public Expression {
       Perimortem::Core::View::Bytes name) -> Identifier& {
     return Expression::create_synthetic<Identifier>(
         arena, [&](auto source) -> Identifier {
-          return Identifier({}, name, source);
+          return Identifier(
+              {}, name, Ttx::Concept::Invalid::get_invalid(), source);
         });
   }
 
@@ -62,17 +64,27 @@ class Identifier : public Expression {
 
   auto get_result() const -> const Ttx::Concept::Abstract& override;
 
+  // A malformed following operator may keep this Identifier outside a
+  // retained Statement. Its authored context can still answer the strongest
+  // source ordered binding without manufacturing a completed result edge.
+  auto resolve_authored() const -> const Ttx::Concept::Abstract&;
+
   constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
 
  private:
   constexpr Identifier(
       Ttx::Lexical::Token token,
       Perimortem::Core::View::Bytes name,
+      const Ttx::Concept::Abstract& lexical_context,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Expression(anchor), token(token), name(name) {}
+      : Expression(anchor),
+        token(token),
+        name(name),
+        lexical_context(lexical_context) {}
 
   Ttx::Lexical::Token token;
   Perimortem::Core::View::Bytes name;
+  Ttx::Concept::Reference<const Ttx::Concept::Abstract> lexical_context;
   Perimortem::Core::Option<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       result;

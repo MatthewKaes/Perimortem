@@ -60,6 +60,14 @@ class Block : public Scope {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
+  // An authored lookup uses the querying Token's position instead of the
+  // transient linking prefix. A retained query can therefore revisit the same
+  // lexical Block after linking advances without admitting a declaration that
+  // appears later in source.
+  auto resolve_authored_context(
+      Perimortem::Core::View::Bytes route,
+      Count offset) const -> const Ttx::Concept::Abstract&;
+
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
 
   constexpr auto get_statements() const

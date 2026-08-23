@@ -359,6 +359,28 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, executable_spacing) {
       "}\n"_view);
 }
 
+PERIMORTEM_UNIT_TEST(TtxFormatter, call_spacing) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(
+      arena,
+      "// Source.\n"
+      "dialect:Library; public run:func=[]->[]{"
+      "state output:=Dynamic::Bytes->copy(\"value\"->get_view());"
+      "output  ->  clear();}"_view,
+      "Test.ttx"_view);
+
+  Dynamic::Bytes formatted = Formatter(tokenizer).format();
+  EXPECT_TEXT(
+      formatted,
+      "// Source.\n"
+      "dialect : Library;\n"
+      "\n"
+      "public run : func = [] -> [] {\n"
+      "  state output := Dynamic::Bytes -> copy(\"value\" -> get_view());\n"
+      "  output -> clear();\n"
+      "}\n"_view);
+}
+
 PERIMORTEM_UNIT_TEST(TtxFormatter, compressed_spacing) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
