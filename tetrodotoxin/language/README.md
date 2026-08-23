@@ -73,10 +73,11 @@ dialect : Library;
 Environment consumes the envelope with one source transaction Cursor and calls
 the selected Dialect directly with that Cursor, the source backed
 Documentation, its Anchor, and the semantic context. The Dialect constructs one
-Monograph in the Cursor's Arena and returns it through an `Option`. Absence is
-the only parse failure result. There is no second success flag or transaction
-wrapper. Environment links and finalizes that Monograph before retaining its
-Arena and publishing it.
+Monograph in the Cursor's Arena and returns an optional reference. Presence
+means the Dialect established a real semantic root, even if it also reported
+source errors. Absence means no Monograph could be established. Environment
+retains a returned Monograph for tooling and advances it only when the operation
+added no source errors.
 
 An installed Dialect is itself an ordinary TTX Abstract context. Its exact live
 identity selects Monograph layers, its installed name answers source dispatch,
@@ -107,10 +108,11 @@ optional Monograph reference from that same Arena.
 
 Comments, Attributes, Tokens, and semantic objects may therefore retain direct
 source backed views without proxying them into another domain. Workspace keeps
-the Arena handle only after the Monograph completes. Dropping a failed handle
-releases the whole transaction. An embedded layer uses the same Cursor, Arena,
-and semantic context with its exact child language identity. It does not add a
-transaction wrapper or temporarily mutate shared Dialect state.
+the Arena handle once the Dialect returns a Monograph. A result accompanied by
+source errors remains useful to editor queries, while linking and Terminal
+production continue to require their ordinary completion barriers. An embedded
+layer uses the same Cursor, Arena, and semantic context with its exact child
+language identity.
 
 Archive reconstruction does not introduce a parallel Restoration context. A
 persistent Dialect receives its destination Arena, opaque payload, and exact
@@ -240,20 +242,20 @@ not invent an authored Token or a second Tetrodotoxin diagnostic model.
 
 ## Semantic lifecycle
 
-One source participates in three stages:
+One source participates in four stages:
 
-1. The selected Dialect constructs one optional parse valid Monograph in the
-   source transaction Arena.
-2. Linking resolves every route available to that source and reports failures
-   to its Cursor.
-3. Finalization performs language work that depends on linked declarations.
+1. The selected Dialect constructs one optional Monograph in the source
+   transaction Arena and writes any source reports through the Cursor.
+2. Workspace retains every Monograph and its lexical evidence.
+3. Linking resolves every route when interpretation added no source errors and
+   reports its own failures to the Cursor.
+4. Finalization performs language work that depends on a completely linked
+   island.
 
-Workspace performs all three stages in one direct source call and publishes
-only the completed Monograph. Package is the sole multiple source model: it may
-interpret all declared members first, then links every member before finalizing
-any of them, and publishes only its completed root. A concrete Monograph may
-organize its own internal dependencies while presenting the same link and
-finalize boundary to its transaction owner.
+Workspace performs these stages in one direct source call. Retained incomplete
+meaning remains available to tooling, while only completed meaning can enter a
+Terminal producer. Package is the sole multiple source model. It interprets all
+declared members first and finalizes none of them until the island links.
 
 ## Persistence
 

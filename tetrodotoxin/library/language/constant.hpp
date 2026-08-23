@@ -32,7 +32,6 @@ class Constant : public Expression {
 
   virtual constexpr auto get_type() const -> const Model::Type& override = 0;
   virtual constexpr auto equals(const Constant& rhs) const -> Bool = 0;
-  virtual auto persist(Archive::Writer&) const -> Bool { return False; }
 
   auto link_restored(
       const Ttx::Concept::Abstract&,

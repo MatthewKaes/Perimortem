@@ -13,8 +13,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // for another Signed width.
 class Signed : public Constant {
  public:
-  auto persist(Archive::Writer& writer) const -> Bool override;
-
   TTX_CONTRACT(Signed, Constant);
   using Value = S64;
 

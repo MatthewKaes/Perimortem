@@ -5,7 +5,6 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
-#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -18,33 +17,14 @@ using namespace Tetrodotoxin::Library;
 
 using Tetrodotoxin::Language::Visibility;
 
-auto Language::Function::persist(Archive::Writer& writer) const -> Bool {
-  auto record = writer.begin(Archive::Tag::Function);
-  Archive::Declaration declaration(definition);
-  return declaration.write(writer) && signature.persist(writer) &&
-         writer.finish(record);
-}
-
-auto Language::Function::restore(
-    Archive::Reader& reader,
-    Allocator::Arena& arena,
-    Abstract& host) -> Option<Function&> {
-  auto record = reader.read_record();
-  BAIL_IF(
-      !record || record->get_tag() != U16(Archive::Tag::Function) ||
-      record->is_optional());
-
-  Archive::Reader contents(record->get_payload());
-  auto declaration = Archive::Declaration::read(contents, arena);
-  auto signature = Signature::restore(contents, arena, host);
-  BAIL_IF(!declaration || !signature || !contents.is_complete());
-
-  auto& definition = declaration->create_definition(arena, host);
-  return arena.construct_from<Function>(
-      [&]() -> Function { return Function(definition, *signature); });
-}
-
 auto Language::Function::create_authored(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition,
+    Signature& signature) -> Function& {
+  return create(domain, definition, signature);
+}
+
+auto Language::Function::create(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition,
     Signature& signature) -> Function& {

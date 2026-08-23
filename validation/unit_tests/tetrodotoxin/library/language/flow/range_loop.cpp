@@ -72,8 +72,7 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty() &&
-         &workspace.resolve_context("RangeLoopTest"_view) ==
-             &Invalid::get_invalid();
+         retains_library_source(workspace, "RangeLoopTest"_view);
 }
 
 static auto get_binding(const Language::Flow::RangeLoop& loop, Count index)

@@ -68,8 +68,7 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty() &&
-         &workspace.resolve_context("BranchTest"_view) ==
-             &Invalid::get_invalid();
+         retains_library_source(workspace, "BranchTest"_view);
 }
 
 PERIMORTEM_UNIT_TEST(BranchTests, branch_shape) {

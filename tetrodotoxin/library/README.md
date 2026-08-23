@@ -15,6 +15,13 @@ Generic materialization. It shares exact identities, Layouts, Packs,
 Addressables, and Callables through TTX wherever another language or tool needs
 to participate.
 
+Three cooperating parts keep that meaning reusable. The Language model owns
+the graph people and tools query. The Interpreter reads Library source into
+that model. The Archive producer walks a completed Monograph and records the
+facts needed to reconstruct a fresh one later. Embedding Library in Scene or
+Shader therefore reuses its Types, Functions, and value flow without importing
+its source reader or choosing its persistent format.
+
 Canonical grammar reference: [Library.g4](grammar/Library.g4).
 
 ```ttx
@@ -1238,6 +1245,12 @@ lowering.
 
 Neither profile stores parser state, process addresses, compiler caches, LLVM
 IR, native bytes, live Object references, or source level debugging data.
+
+Archive is a Terminal producer rather than a capability injected into Library
+objects. Its writer walks completed semantic identities and owns Format 1 tag
+selection. Its reader validates bounded records, then calls the same
+Cursor independent Language factories available to any trusted producer. The
+Language model contains no Archive reader, writer, tag, or persistence callback.
 
 Restoring an Archive creates new Library objects and completes them through the
 same rules used for source. The result preserves all names, categories,

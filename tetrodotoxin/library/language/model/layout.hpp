@@ -76,13 +76,11 @@ class Layout final : public Ttx::Concept::Layout {
       Ttx::Lexical::Anchor anchor,
       Bool parameters) -> Layout&;
 
-  static auto restore(
-      Archive::Reader& reader,
-      Perimortem::Memory::Allocator::Arena& arena,
-      const Ttx::Concept::Abstract& context,
-      Bool parameters) -> Perimortem::Core::Option<Layout&>;
-
-  auto persist(Archive::Writer& writer) const -> Bool;
+  static auto create(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Perimortem::Memory::Managed::Vector<Slot> slots,
+      Ttx::Lexical::Anchor anchor,
+      Bool parameters) -> Layout&;
 
   auto link_restored(
       const Ttx::Concept::Abstract& host,
@@ -136,6 +134,8 @@ class Layout final : public Ttx::Concept::Layout {
 
   auto get_type_reference(Count index) const
       -> Perimortem::Core::Option<const TypeReference&>;
+
+  auto get_declared_name(Count index) const -> Perimortem::Core::View::Bytes;
 
   auto fits_entry(
       const Ttx::Concept::Layout& target,

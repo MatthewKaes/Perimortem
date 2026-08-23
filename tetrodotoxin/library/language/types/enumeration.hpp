@@ -51,10 +51,11 @@ class Enumeration : public Model::Type {
       TypeReference storage_reference,
       Perimortem::Core::View::Vector<Case> cases) -> Enumeration&;
 
-  static auto restore(
-      Archive::Reader& reader,
-      Perimortem::Memory::Allocator::Arena& arena,
-      Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Enumeration&>;
+  static auto create(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition,
+      TypeReference storage_reference,
+      Perimortem::Core::View::Vector<Case> cases) -> Enumeration&;
 
   Enumeration(const Enumeration&) = delete;
   Enumeration(Enumeration&&) = delete;
@@ -107,12 +108,14 @@ class Enumeration : public Model::Type {
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
-  auto persist(Archive::Writer& writer) const -> Bool override;
-
   auto accepts_iteration(const Ttx::Concept::Layout& bindings) const
       -> Bool override;
 
   auto get_storage_type() const -> Perimortem::Core::Option<const Model::Type&>;
+
+  constexpr auto get_storage_reference() const -> const TypeReference& {
+    return storage_reference;
+  }
 
   auto get_cases() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<const Ttx::Model::Alias>>;
@@ -124,6 +127,11 @@ class Enumeration : public Model::Type {
   auto get_case_value(Count index) const -> Perimortem::Core::Option<U64>;
 
   auto get_case_name(Count index) const -> Perimortem::Core::View::Bytes;
+
+  auto retain_restored_case(
+      Perimortem::Core::View::Bytes name,
+      U64 value,
+      const Ttx::Concept::Documentation& documentation) -> Bool;
 
   auto find_case_name(U64 value) const -> Perimortem::Core::View::Bytes;
 

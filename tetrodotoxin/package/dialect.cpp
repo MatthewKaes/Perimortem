@@ -24,7 +24,6 @@ auto Package::Dialect::interpret(
   // has no semantic owner for the source envelope Anchor.
   Managed::Vector<Language::Dependency> dependencies(transaction);
   Managed::Vector<Language::Source> sources(transaction);
-  Bool failed = False;
   Bool source_region = False;
 
   // Consume complete statements until Terminal. Each failed statement reaches
@@ -36,7 +35,6 @@ auto Package::Dialect::interpret(
     case Code::Type::Resolve: {
       auto dependency = Language::Dependency::parse(cursor);
       if (!dependency) {
-        failed = True;
         continue;
       }
 
@@ -44,7 +42,6 @@ auto Package::Dialect::interpret(
         cursor.create_token_error(
             statement,
             "Resolve statements must precede every Source statement."_view);
-        failed = True;
         continue;
       }
 
@@ -56,7 +53,6 @@ auto Package::Dialect::interpret(
         cursor.create_token_error(
             statement,
             "Duplicate Dependency local alias in this Package."_view);
-        failed = True;
       }
 
       dependencies.insert(*dependency);
@@ -67,7 +63,6 @@ auto Package::Dialect::interpret(
       source_region = True;
       auto source = Language::Source::parse(cursor);
       if (!source) {
-        failed = True;
         continue;
       }
 
@@ -82,7 +77,6 @@ auto Package::Dialect::interpret(
             source->get_span(),
             "Source semantic name collides with a Dependency local alias in "
             "this Package."_view);
-        failed = True;
       }
 
       if (sources.get_view().contains([&](const Language::Source& existing) {
@@ -90,7 +84,6 @@ auto Package::Dialect::interpret(
           })) {
         cursor.create_token_error(
             statement, "Duplicate Source semantic name in this Package."_view);
-        failed = True;
       }
 
       if (sources.get_view().contains([&](const Language::Source& existing) {
@@ -99,7 +92,6 @@ auto Package::Dialect::interpret(
         cursor.create_token_error(
             statement,
             "Duplicate normalized Source path in this Package."_view);
-        failed = True;
       }
 
       sources.insert(*source);
@@ -111,7 +103,6 @@ auto Package::Dialect::interpret(
           statement,
           "Package bodies contain only `resolve` and `source` statements."_view);
       cursor.recover_to_statement();
-      failed = True;
       break;
     }
   }
@@ -120,16 +111,15 @@ auto Package::Dialect::interpret(
   if (sources.is_empty()) {
     cursor.create_error(
         "Package requires at least one complete Source statement."_view);
-    failed = True;
-  }
-
-  // Publish no graph identity until the complete Package transaction is valid.
-  if (failed) {
     return {};
   }
+
+  // Valid entries still describe the Package the author is building. Keeping
+  // that Monograph lets editor tooling expose those routes while diagnostics
+  // identify the declarations that need another edit.
 
   auto monograph = Language::Monograph::create_authored(
       transaction, *this, documentation, context, dependencies, sources);
   BAIL_IF(!monograph);
-  return static_cast<Tetrodotoxin::Language::Monograph&>(*monograph);
+  return *monograph;
 }

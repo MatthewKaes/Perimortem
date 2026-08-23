@@ -46,8 +46,7 @@ static auto rejects(View::Bytes source, View::Bytes expected) -> Bool {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   if (monograph || errors.is_empty() ||
-      &workspace.resolve_context("ForeignTest"_view) !=
-          &Invalid::get_invalid()) {
+      !retains_library_source(workspace, "ForeignTest"_view)) {
     return False;
   }
 

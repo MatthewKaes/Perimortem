@@ -1,0 +1,59 @@
+// Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+
+#pragma once
+
+#include "perimortem/core/option.hpp"
+
+#include "perimortem/memory/allocator/arena.hpp"
+
+#include "tetrodotoxin/language/persistence/profile.hpp"
+#include "tetrodotoxin/library/archive/reader.hpp"
+#include "tetrodotoxin/library/archive/writer.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/enumeration.hpp"
+#include "tetrodotoxin/library/language/types/object.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
+#include "ttx/concept/abstract.hpp"
+
+namespace Tetrodotoxin::Library::Archive {
+
+auto write_declarations(
+    Writer& writer,
+    const Language::Types::Composite& composite,
+    Bool public_only) -> Bool;
+
+auto read_declarations(
+    Reader& reader,
+    Perimortem::Memory::Allocator::Arena& arena,
+    Language::Types::Composite& composite,
+    Tetrodotoxin::Language::Persistence::Profile profile) -> Bool;
+
+auto write(Writer& writer, const Language::Types::Structure& structure) -> Bool;
+
+auto read_structure(
+    Reader& reader,
+    Perimortem::Memory::Allocator::Arena& arena,
+    Ttx::Concept::Abstract& host,
+    Tetrodotoxin::Language::Persistence::Profile profile)
+    -> Perimortem::Core::Option<Language::Types::Structure&>;
+
+auto write(Writer& writer, const Language::Types::Object& object) -> Bool;
+
+auto read_object(
+    Reader& reader,
+    Perimortem::Memory::Allocator::Arena& arena,
+    Ttx::Concept::Abstract& host,
+    Tetrodotoxin::Language::Persistence::Profile profile)
+    -> Perimortem::Core::Option<Language::Types::Object&>;
+
+auto write(Writer& writer, const Language::Types::Enumeration& enumeration)
+    -> Bool;
+
+auto read_enumeration(
+    Reader& reader,
+    Perimortem::Memory::Allocator::Arena& arena,
+    Ttx::Concept::Abstract& host)
+    -> Perimortem::Core::Option<Language::Types::Enumeration&>;
+
+}  // namespace Tetrodotoxin::Library::Archive

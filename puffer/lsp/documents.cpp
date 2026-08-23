@@ -14,10 +14,16 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/expressions/identifier.hpp"
+#include "tetrodotoxin/library/language/flow/local.hpp"
+#include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "tetrodotoxin/package/storage.hpp"
 #include "tetrodotoxin/scene/dialect.hpp"
+#include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -28,6 +34,59 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Puffer;
 using namespace Tetrodotoxin;
+
+static constexpr auto contains(Ttx::Lexical::Span span, Count offset) -> Bool {
+  return span && offset >= span.get_offset() &&
+         offset <= span.get_offset() + span.get_size();
+}
+
+static auto find_function(
+    const Library::Language::Types::Composite& composite,
+    Count offset) -> Option<const Library::Language::Function&> {
+  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
+       composite.get_declarations()) {
+    auto function = declaration.get().select<Library::Language::Function>();
+    if (function) {
+      auto body = function->get_body();
+      if (body && contains(body->get_anchor().get_span(), offset)) {
+        return *function;
+      }
+    }
+    auto nested =
+        declaration.get().select<Library::Language::Types::Composite>();
+    if (nested) {
+      auto selected = find_function(*nested, offset);
+      if (selected) {
+        return selected;
+      }
+    }
+  }
+  return {};
+}
+
+static auto find_local(
+    const Library::Language::Flow::Block& block,
+    View::Bytes name,
+    Count offset) -> Option<const Library::Language::Flow::Local&> {
+  for (const Library::Language::Statement& statement : block.get_statements()) {
+    Ttx::Lexical::Span span = statement.get_anchor().get_span();
+    if (span && span.get_offset() >= offset) {
+      break;
+    }
+    auto local = statement.get_root().select<Library::Language::Flow::Local>();
+    if (local && local->get_name() == name) {
+      return *local;
+    }
+    auto nested = statement.get_root().select<Library::Language::Flow::Block>();
+    if (nested && contains(nested->get_anchor().get_span(), offset)) {
+      auto selected = find_local(*nested, name, offset);
+      if (selected) {
+        return selected;
+      }
+    }
+  }
+  return {};
+}
 
 static auto decode_hex(U8 value) -> Option<U8> {
   if (value >= '0' && value <= '9') {
@@ -567,8 +626,33 @@ auto Lsp::Documents::find_semantic(
   auto workspace = get_workspace(document);
   BAIL_IF(!workspace);
   auto associations = workspace->get_associations(source_name);
-  return associations ? associations->find_at(*offset)
-                      : Option<const Ttx::Concept::Abstract&>();
+  auto semantic = associations ? associations->find_at(*offset)
+                               : Option<const Ttx::Concept::Abstract&>();
+  BAIL_IF(!semantic);
+
+  auto identifier =
+      semantic->select<Library::Language::Expressions::Identifier>();
+  if (identifier && identifier->get_result().is<Ttx::Concept::Invalid>()) {
+    auto monograph = workspace->get_monograph(source_name);
+    if (monograph) {
+      auto library = monograph->select<Library::Language::Monograph>();
+      auto function = library ? find_function(library->get_source(), *offset)
+                              : Option<const Library::Language::Function&>();
+      auto body = function ? function->get_body()
+                           : Option<const Library::Language::Flow::Block&>();
+      auto local = body ? find_local(*body, identifier->get_name(), *offset)
+                        : Option<const Library::Language::Flow::Local&>();
+      if (local) {
+        return *local;
+      }
+      const Ttx::Concept::Abstract& candidate =
+          monograph->resolve_context(identifier->get_name());
+      if (!candidate.is<Ttx::Concept::Invalid>()) {
+        return candidate;
+      }
+    }
+  }
+  return semantic;
 }
 
 auto Lsp::Documents::set_position_encoding(PositionEncoding selected) -> void {
@@ -591,6 +675,34 @@ auto Lsp::Documents::get_associations(View::Bytes uri)
                                 ? document.uri.get_view()
                                 : document.logical_route.get_view();
   return workspace->get_associations(source_name);
+}
+
+auto Lsp::Documents::get_monograph(View::Bytes uri)
+    -> Option<const Tetrodotoxin::Language::Monograph&> {
+  Count slot = find(uri);
+  BAIL_IF(slot == Count(-1));
+
+  Document& document = records[slot];
+  auto workspace = get_workspace(document);
+  BAIL_IF(!workspace);
+  View::Bytes source_name = document.package_root.is_empty()
+                                ? document.uri.get_view()
+                                : document.logical_route.get_view();
+  return workspace->get_monograph(source_name);
+}
+
+auto Lsp::Documents::get_completed_monograph(View::Bytes uri)
+    -> Option<const Tetrodotoxin::Language::Monograph&> {
+  Count slot = find(uri);
+  BAIL_IF(slot == Count(-1));
+
+  Document& document = records[slot];
+  auto workspace = get_workspace(document);
+  BAIL_IF(!workspace);
+  View::Bytes source_name = document.package_root.is_empty()
+                                ? document.uri.get_view()
+                                : document.logical_route.get_view();
+  return workspace->get_completed_monograph(source_name);
 }
 
 auto Lsp::Documents::get_tokens(View::Bytes uri)

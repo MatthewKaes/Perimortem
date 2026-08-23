@@ -12,7 +12,7 @@ using namespace Tetrodotoxin::Library;
 auto Interpreter::Declarations::Alias::parse(
     Cursor& cursor,
     Tetrodotoxin::Language::Definition& definition)
-    -> Option<Language::Alias&> {
+    -> Option<Parsed<Language::Alias>> {
   if (definition.get_name_token().get_code() != Code::Type::Type) {
     cursor.create_token_error(
         definition.get_name_token(),
@@ -44,14 +44,19 @@ auto Interpreter::Declarations::Alias::parse(
       "Library Alias qualifiers require `=` before their Type route."_view));
 
   auto target_reference =
-      Interpreter::TypeReference::parse(
-          definition.get_host(), cursor);
-  BAIL_IF(!target_reference);
+      Interpreter::TypeReference::parse(definition.get_host(), cursor);
+  if (!target_reference) {
+    auto missing = Language::TypeReference::create(
+        {}, definition.get_name_anchor(), Token());
+    auto& alias = Language::Alias::create_authored(
+        cursor.get_arena(), definition, missing);
+    return Parsed<Language::Alias>(alias, False);
+  }
   Token terminator = cursor.require(
       Code::Type::EndStatement,
       "Library Alias definitions require one terminating `;`."_view);
-  BAIL_IF(!terminator);
-  BAIL_IF(!definition.complete(alias_token, terminator));
-  return Language::Alias::create_authored(
+  Bool accepted = terminator && definition.complete(alias_token, terminator);
+  auto& alias = Language::Alias::create_authored(
       cursor.get_arena(), definition, *target_reference);
+  return Parsed<Language::Alias>(alias, accepted);
 }

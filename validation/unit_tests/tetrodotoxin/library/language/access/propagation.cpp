@@ -13,6 +13,7 @@
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/interpreter/expression.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
 #include "tetrodotoxin/library/language/access/propagate.hpp"
 #include "tetrodotoxin/library/language/access/unwrap.hpp"
@@ -26,7 +27,6 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/interpreter/expression.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
@@ -103,8 +103,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   return !monograph && !errors.is_empty() &&
-         &workspace.resolve_context("OptionAccessTest"_view) ==
-             &Invalid::get_invalid();
+         retains_library_source(workspace, "OptionAccessTest"_view);
 }
 
 static auto rejects_link(View::Bytes source, View::Bytes diagnostic) -> Bool {
@@ -113,9 +112,7 @@ static auto rejects_link(View::Bytes source, View::Bytes diagnostic) -> Bool {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   BAIL_IF(monograph || errors.is_empty());
-  BAIL_IF(
-      &workspace.resolve_context("OptionAccessTest"_view) !=
-      &Invalid::get_invalid());
+  BAIL_IF(!retains_library_source(workspace, "OptionAccessTest"_view));
 
   Allocator::Arena render_arena;
   for (Count index = 0; index < errors.get_size(); index++) {

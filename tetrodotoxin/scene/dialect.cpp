@@ -32,6 +32,7 @@ auto Scene::Dialect::interpret(
   auto library_child = child->select<Library::Language::Monograph>();
   BAIL_IF(!library_child);
   Allocator::Arena& arena = cursor.get_arena();
-  return arena.construct<Scene::Language::Monograph>(
+  auto& monograph = arena.construct<Scene::Language::Monograph>(
       arena, documentation, *this, context, *library_child);
+  return monograph;
 }

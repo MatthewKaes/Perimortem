@@ -150,6 +150,13 @@ auto Types::Composite::retain_authored_definition(
   return True;
 }
 
+auto Types::Composite::retain_definition(
+    Abstract& binding,
+    Category category,
+    Bool published) -> Bool {
+  return publish_binding(binding, category, published);
+}
+
 template <typename bindings_type>
 static auto find_binding(const bindings_type& bindings, View::Bytes name)
     -> const Abstract& {
@@ -254,147 +261,6 @@ auto Types::Composite::is_published(const Abstract& declaration) const -> Bool {
          retains_binding(published_types.get_view(), declaration) ||
          retains_binding(
              get_callable_bindings(Visibility::Public), declaration);
-}
-
-auto Types::Composite::persist_declarations(
-    Archive::Writer& writer,
-    Bool public_only) const -> Bool {
-  Count hidden_slot = 0;
-  for (const Reference<Abstract>& retained : declarations.get_view()) {
-    const Abstract& declaration = retained.get();
-    if (public_only && !is_published(declaration)) {
-      auto field = declaration.select<Language::Field>();
-      if (field && field->contributes_to_instance_layout()) {
-        BAIL_IF(!field->persist_slot(writer, hidden_slot));
-        hidden_slot++;
-      }
-      continue;
-    }
-
-    auto alias = declaration.select<Language::Alias>();
-    if (alias) {
-      BAIL_IF(!alias->persist(writer));
-      continue;
-    }
-
-    auto addressable = declaration.select<Model::Addressable>();
-    if (addressable) {
-      BAIL_IF(!addressable->persist(writer));
-      continue;
-    }
-
-    auto callable = declaration.select<Model::Callable>();
-    if (callable) {
-      BAIL_IF(!callable->persist(writer));
-      continue;
-    }
-
-    auto type = declaration.select<Model::Type>();
-    BAIL_IF(!type || !type->persist(writer));
-  }
-  return True;
-}
-
-auto Types::Composite::restore_declarations(
-    Archive::Reader& reader,
-    Tetrodotoxin::Language::Persistence::Profile profile) -> Bool {
-  Count hidden_slot = 0;
-  while (!reader.is_complete()) {
-    Archive::Reader probe = reader;
-    auto record = probe.read_record();
-    BAIL_IF(!record);
-
-    if (record->is_optional()) {
-      BAIL_IF(!reader.read_record());
-      continue;
-    }
-
-    Option<Abstract&> restored;
-    Category category = Category::Addressable;
-    Archive::Tag tag = Archive::Tag(record->get_tag());
-    switch (tag) {
-    case Archive::Tag::Alias: {
-      auto selected = Language::Alias::restore(reader, domain, *this);
-      BAIL_IF(!selected);
-      restored = *selected;
-      category = Category::Type;
-      break;
-    }
-    case Archive::Tag::Field: {
-      auto selected = Language::Field::restore(reader, domain, *this);
-      BAIL_IF(!selected);
-      restored = *selected;
-      category = Category::Addressable;
-      break;
-    }
-    case Archive::Tag::FieldSlot: {
-      BAIL_IF(
-          profile != Tetrodotoxin::Language::Persistence::Profile::Interface);
-      auto selected =
-          Language::Field::restore_slot(reader, domain, *this, hidden_slot);
-      BAIL_IF(!selected);
-      restored = *selected;
-      category = Category::Addressable;
-      hidden_slot++;
-      break;
-    }
-    case Archive::Tag::Function: {
-      auto selected = Language::Function::restore(reader, domain, *this);
-      BAIL_IF(!selected);
-      restored = *selected;
-      category = Category::Callable;
-      break;
-    }
-    case Archive::Tag::Structure: {
-      auto selected = Structure::restore(reader, domain, *this, profile);
-      BAIL_IF(!selected);
-      restored = *selected;
-      category = Category::Type;
-      break;
-    }
-    case Archive::Tag::Object: {
-      auto selected = Object::restore(reader, domain, *this, profile);
-      BAIL_IF(!selected);
-      restored = *selected;
-      category = Category::Type;
-      break;
-    }
-    case Archive::Tag::Enumeration: {
-      auto selected = Enumeration::restore(reader, domain, *this);
-      BAIL_IF(!selected);
-      restored = *selected;
-      category = Category::Type;
-      break;
-    }
-    default:
-      return False;
-    }
-
-    BAIL_IF(!restored);
-    Bool published = restored->visit<Language::Alias>(
-        [](const Language::Alias& selected) {
-          return selected.get_definition().is_published();
-        },
-        [](const Abstract& selected) -> Bool {
-          auto addressable = selected.select<Model::Addressable>();
-          if (addressable) {
-            auto field = addressable->select<Language::Field>();
-            return field && field->get_definition().is_published();
-          }
-          auto callable = selected.select<Language::Function>();
-          if (callable) {
-            return callable->get_definition().is_published();
-          }
-          auto composite = selected.select<Composite>();
-          if (composite) {
-            return composite->get_definition().is_published();
-          }
-          auto enumeration = selected.select<Enumeration>();
-          return enumeration && enumeration->get_definition().is_published();
-        });
-    BAIL_IF(!publish_binding(*restored, category, published));
-  }
-  return True;
 }
 
 auto Types::Composite::link_aliases() -> Count {

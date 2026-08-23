@@ -43,8 +43,6 @@ class Result : public Constant {
 
   auto equals(const Constant& rhs) const -> Bool override;
 
-  auto persist(Archive::Writer& writer) const -> Bool override;
-
  private:
   constexpr Result(
       const Types::Result& type,

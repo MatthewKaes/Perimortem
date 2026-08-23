@@ -53,8 +53,8 @@ Environment::Workspace::Workspace(
     : toolchain(selected_toolchain),
       snapshots(selected_snapshots),
       arena(),
-      published_sources(),
-      source_monographs(arena),
+      retained_sources(),
+      retained_monographs(),
       packages(arena) {}
 
 Environment::Workspace::~Workspace() = default;
@@ -77,7 +77,7 @@ auto Environment::Workspace::interpret_source(
   Cursor& cursor =
       transaction->construct<Cursor>(tokenizer, errors, associations);
 
-  if (source_monographs.contains(semantic_name)) {
+  if (retained_monographs.contains(semantic_name)) {
     cursor.create_error(
         "This semantic source name is already published in the Workspace."_view,
         semantic_name);
@@ -85,59 +85,73 @@ auto Environment::Workspace::interpret_source(
   }
 
   Count source_error_count = errors.get_size();
-  auto monograph = Language::Dialect::interpret_source(
+  auto interpretation = Language::Dialect::interpret_source(
       toolchain.get_dialects(), cursor, *this);
-  if (!monograph) {
+  if (!interpretation) {
     if (errors.get_size() == source_error_count) {
       cursor.create_error(
           "Source interpretation failed without a more specific diagnostic."_view);
     }
     return {};
   }
+  Language::Monograph& monograph = *interpretation;
+  Bool completed = errors.get_size() == source_error_count;
 
-  if (monograph->is<Package::Language::Monograph>()) {
+  if (monograph.is<Package::Language::Monograph>()) {
     // A manifest needs the Package path because its member table forms one
     // completion barrier. Sending it through the direct path could expose an
     // Alias before the member that owns its target exists.
-    cursor.create_error(
-        "A Package manifest must be completed through Workspace Package "
-        "import."_view);
-    return {};
-  }
-
-  source_error_count = errors.get_size();
-  if (!monograph->link(cursor)) {
-    if (errors.get_size() == source_error_count) {
+    if (completed) {
       cursor.create_error(
-          "Source linking failed without a more specific diagnostic."_view);
+          "A Package manifest must be completed through Workspace Package "
+          "import."_view);
     }
     return {};
   }
 
-  source_error_count = errors.get_size();
-  if (!monograph->finalize(cursor)) {
-    if (errors.get_size() == source_error_count) {
-      cursor.create_error(
-          "Source finalization failed without a more specific diagnostic."_view);
-    }
-    return {};
-  }
-
-  // Publication comes after the source graph completes. That ordering keeps
-  // unfinished identities out of lookup and gives the retained Arena the same
-  // lifetime as the Monograph it supports.
-  published_sources.insert({
+  // The Monograph proves that the Dialect established a durable source owner.
+  // Retaining its transaction here preserves Tokens, Associations, and every
+  // partial identity while later barriers decide product eligibility.
+  Count retained_index = retained_sources.get_size();
+  retained_sources.insert({
     .package_root = {},
     .diagnostic_path = retained_path,
     .source_text = retained_contents,
     .transaction = transaction,
-    .monograph = *monograph,
+    .monograph = monograph,
     .tokens = tokenizer.get_tokens(),
     .associations = associations,
+    .completed = False,
   });
+
+  if (completed) {
+    source_error_count = errors.get_size();
+    if (!monograph.link(cursor)) {
+      if (errors.get_size() == source_error_count) {
+        cursor.create_error(
+            "Source linking failed without a more specific diagnostic."_view);
+      }
+      completed = False;
+    }
+  }
+
+  if (completed) {
+    source_error_count = errors.get_size();
+    if (!monograph.finalize(cursor)) {
+      if (errors.get_size() == source_error_count) {
+        cursor.create_error(
+            "Source finalization failed without a more specific diagnostic."_view);
+      }
+      completed = False;
+    }
+  }
+
   View::Bytes retained_name = arena.proxy(semantic_name);
-  source_monographs.launder(retained_name, *monograph);
-  return *monograph;
+  retained_monographs.insert(
+      retained_name, Ttx::Concept::Reference<Language::Monograph>(monograph));
+  retained_sources[retained_index].completed = completed;
+  return completed ? Option<Language::Monograph&>(monograph)
+                   : Option<Language::Monograph&>();
 }
 
 auto Environment::Workspace::import_package(
@@ -195,7 +209,7 @@ auto Environment::Workspace::import_package(
       root_transaction->construct<Associations>(*root_transaction);
   Cursor& root_cursor = root_transaction->construct<Cursor>(
       root_tokenizer, errors, root_associations);
-  if (source_monographs.contains(root_semantic_name)) {
+  if (retained_monographs.contains(root_semantic_name)) {
     root_cursor.create_error(
         "This Package semantic name is already published in the Workspace."_view,
         root_semantic_name);
@@ -228,9 +242,9 @@ auto Environment::Workspace::import_package(
   // Interpreting the manifest gives Workspace the complete Dependency and
   // Source table before it starts acquiring members.
   Count root_error_count = errors.get_size();
-  auto root_owner = Language::Dialect::interpret_source(
+  auto root_interpretation = Language::Dialect::interpret_source(
       toolchain.get_dialects(), root_cursor, *this);
-  if (!root_owner) {
+  if (!root_interpretation) {
     if (errors.get_size() == root_error_count) {
       root_cursor.create_error(
           "Package manifest interpretation failed without a more specific "
@@ -239,7 +253,8 @@ auto Environment::Workspace::import_package(
     return {};
   }
 
-  auto selected_root = root_owner->select<Package::Language::Monograph>();
+  auto selected_root =
+      root_interpretation->select<Package::Language::Monograph>();
   if (!selected_root) {
     root_cursor.create_error(
         "The root source of a Package import must use the installed Package "
@@ -248,18 +263,57 @@ auto Environment::Workspace::import_package(
   }
   Package::Language::Monograph& root = *selected_root;
 
+  Dynamic::Vector<Dynamic::Record<Allocator::Arena>> candidate_transactions(
+      root.get_sources().get_size() + 1);
+  Managed::Vector<Language::Monograph*> candidates(acquisition);
+  Managed::Vector<Cursor*> cursors(acquisition);
+  Managed::Vector<View::Bytes> diagnostic_paths(acquisition);
+  Managed::Vector<Bool> parse_validity(acquisition);
+  candidate_transactions.insert(root_transaction);
+  candidates.insert(&root);
+  cursors.insert(&root_cursor);
+  diagnostic_paths.insert(root_path);
+  parse_validity.insert(errors.get_size() == root_error_count);
+
+  Bool retained = False;
+  auto retain_candidates = [&](Bool completed) {
+    if (retained) {
+      return;
+    }
+
+    View::Bytes retained_package_root = arena.proxy(package_root);
+    for (Count index = 0; index < candidate_transactions.get_size(); index++) {
+      retained_sources.insert({
+        .package_root = retained_package_root,
+        .diagnostic_path = diagnostic_paths[index],
+        .source_text = cursors[index]->get_source_text(),
+        .transaction = candidate_transactions[index],
+        .monograph = *candidates[index],
+        .tokens = cursors[index]->get_tokens(),
+        .associations = cursors[index]->get_associations(),
+        .completed = completed,
+      });
+    }
+    retained_monographs.insert(
+        arena.proxy(root_semantic_name),
+        Ttx::Concept::Reference<Language::Monograph>(root));
+    retained = True;
+  };
+
   // Package resources borrow this import's confined Storage while sources are
   // parsed. Sealing it before linking leaves later semantic stages with only
   // the resources the Package already selected.
   if (!root.get_resources().connect(*storage)) {
     root_cursor.create_error(
         "The Package resource table rejected its one import storage."_view);
+    retain_candidates(False);
     return {};
   }
 
   // Dependencies arrive as completed Workspace facts. Matching their exact
   // identity and version keeps this import focused on the graph named by its
   // manifest.
+  Bool parsed = parse_validity[0];
   View::Vector<Package::Language::Dependency> dependencies =
       root.get_dependencies();
   for (Count dependency_index = 0; dependency_index < dependencies.get_size();
@@ -280,8 +334,8 @@ auto Environment::Workspace::import_package(
           dependency.get_span(),
           "Package dependency is not already imported in this Workspace."_view,
           dependency.get_package_name());
-      root.get_resources().seal();
-      return {};
+      parsed = False;
+      continue;
     }
 
     if (selected->version != dependency.get_version()) {
@@ -290,8 +344,8 @@ auto Environment::Workspace::import_package(
           "Package dependency requests a different version than the one "
           "already imported in this Workspace."_view,
           dependency.get_package_name());
-      root.get_resources().seal();
-      return {};
+      parsed = False;
+      continue;
     }
 
     if (!root.bind_dependency(dependency, *selected->monograph)) {
@@ -299,27 +353,12 @@ auto Environment::Workspace::import_package(
           dependency.get_span(),
           "Package dependency could not enter the Package mapping table."_view,
           dependency.get_local_name());
-      root.get_resources().seal();
-      return {};
+      parsed = False;
     }
   }
 
-  // Workspace keeps candidate Arenas local while Package records borrowed
-  // mappings into them. An early return then releases the complete candidate
-  // set before anything becomes visible.
-  Dynamic::Vector<Dynamic::Record<Allocator::Arena>> candidate_transactions(
-      root.get_sources().get_size() + 1);
-  Managed::Vector<Language::Monograph*> candidates(acquisition);
-  Managed::Vector<Cursor*> cursors(acquisition);
-  Managed::Vector<View::Bytes> diagnostic_paths(acquisition);
-  candidate_transactions.insert(root_transaction);
-  candidates.insert(&root);
-  cursors.insert(&root_cursor);
-  diagnostic_paths.insert(root_path);
-
   // Each declared Source gets its own owner and Cursor. Source values and
   // diagnostics can then retain the exact text and location of that member.
-  Bool parsed = True;
   for (const Package::Language::Source& source : root.get_sources()) {
     Option<Package::Content&> content =
         storage->read(source.get_source_path())
@@ -350,9 +389,9 @@ auto Environment::Workspace::import_package(
     Cursor& cursor =
         source_transaction->construct<Cursor>(tokenizer, errors, associations);
     Count source_error_count = errors.get_size();
-    auto member = Language::Dialect::interpret_source(
+    auto member_interpretation = Language::Dialect::interpret_source(
         toolchain.get_dialects(), cursor, root);
-    if (!member) {
+    if (!member_interpretation) {
       if (errors.get_size() == source_error_count) {
         cursor.create_error(
             "Package source interpretation failed without a more specific "
@@ -361,45 +400,51 @@ auto Environment::Workspace::import_package(
       parsed = False;
       continue;
     }
+    Language::Monograph& member = *member_interpretation;
+
+    candidate_transactions.insert(source_transaction);
+    candidates.insert(&member);
+    cursors.insert(&cursor);
+    diagnostic_paths.insert(source_path);
+    parse_validity.insert(errors.get_size() == source_error_count);
+    Count candidate_index = candidates.get_size() - 1;
 
     // The root manifest has already fixed the complete member table. Treating
     // one member as another Package would grow the table after its barrier and
     // leave the import order responsible for its shape.
-    if (member->is<Package::Language::Monograph>()) {
+    if (member.is<Package::Language::Monograph>()) {
       cursor.create_error(
           "A Package Source cannot create another Package import."_view);
+      parse_validity[candidate_index] = False;
       parsed = False;
       continue;
     }
 
-    if (!root.bind_member(source.get_local_route(), *member)) {
+    if (!root.bind_member(source.get_local_route(), member)) {
       root_cursor.create_expression_error(
           source.get_span(),
           "Package source could not enter the Package mapping table."_view,
           source.get_local_name());
+      parse_validity[candidate_index] = False;
       parsed = False;
       continue;
     }
-
-    candidate_transactions.insert(source_transaction);
-    candidates.insert(&*member);
-    cursors.insert(&cursor);
-    diagnostic_paths.insert(source_path);
+    parsed &= parse_validity[candidate_index];
   }
   // Source parsing is where Package Storage becomes authored language facts.
   // Linking receives the sealed context after that conversion, when the set of
   // semantic candidates is already fixed.
   root.get_resources().seal();
 
-  if (!parsed) {
-    return {};
-  }
-
   // Every parsed identity enters the candidate set before any member resolves
   // context. Authored Source order therefore cannot decide which routes are
   // visible.
-  Bool linked = True;
+  Bool linked = parsed;
   for (Count i = 0; i < candidates.get_size(); i++) {
+    if (!parse_validity[i]) {
+      continue;
+    }
+
     Count source_error_count = errors.get_size();
     if (!candidates[i]->link(*cursors[i])) {
       if (errors.get_size() == source_error_count) {
@@ -411,43 +456,26 @@ auto Environment::Workspace::import_package(
     }
   }
 
-  if (!linked) {
-    return {};
-  }
-
   // Finalization can consume linked declarations from any member. Waiting for
   // the whole graph to link gives each candidate the same completed context.
-  Bool finalized = True;
-  for (Count i = 0; i < candidates.get_size(); i++) {
-    Count source_error_count = errors.get_size();
-    if (!candidates[i]->finalize(*cursors[i])) {
-      if (errors.get_size() == source_error_count) {
-        cursors[i]->create_error(
-            "Package source finalization failed without a more specific "
-            "diagnostic."_view);
+  Bool finalized = linked;
+  if (linked) {
+    for (Count i = 0; i < candidates.get_size(); i++) {
+      Count source_error_count = errors.get_size();
+      if (!candidates[i]->finalize(*cursors[i])) {
+        if (errors.get_size() == source_error_count) {
+          cursors[i]->create_error(
+              "Package source finalization failed without a more specific "
+              "diagnostic."_view);
+        }
+        finalized = False;
       }
-      finalized = False;
     }
   }
 
+  retain_candidates(finalized);
   if (!finalized) {
     return {};
-  }
-
-  // Retaining every Arena commits the transaction. Package Aliases and their
-  // owners become durable together, while a failure before this point leaves
-  // the Workspace unchanged.
-  View::Bytes retained_package_root = arena.proxy(package_root);
-  for (Count i = 0; i < candidate_transactions.get_size(); i++) {
-    published_sources.insert({
-      .package_root = retained_package_root,
-      .diagnostic_path = diagnostic_paths[i],
-      .source_text = cursors[i]->get_source_text(),
-      .transaction = candidate_transactions[i],
-      .monograph = *candidates[i],
-      .tokens = cursors[i]->get_tokens(),
-      .associations = cursors[i]->get_associations(),
-    });
   }
 
   View::Bytes retained_identity = arena.proxy(root_package_identity);
@@ -456,8 +484,6 @@ auto Environment::Workspace::import_package(
     .version = root_package_version,
     .monograph = &root,
   });
-  View::Bytes retained_name = arena.proxy(root_semantic_name);
-  source_monographs.launder(retained_name, root);
   return root;
 }
 
@@ -465,7 +491,7 @@ auto Environment::Workspace::restore_package(
     const Package::Archive::Archive& archive,
     View::Bytes root_semantic_name) -> Option<Language::Monograph&> {
   if (root_semantic_name.is_empty() ||
-      source_monographs.contains(root_semantic_name)) {
+      retained_monographs.contains(root_semantic_name)) {
     Diagnostics::Log::error(
         "Package restoration requires one unpublished semantic name."_view);
     return {};
@@ -581,14 +607,15 @@ auto Environment::Workspace::restore_package(
     .monograph = &root,
   });
   View::Bytes retained_name = arena.proxy(root_semantic_name);
-  source_monographs.launder(retained_name, root);
+  retained_monographs.insert(
+      retained_name, Ttx::Concept::Reference<Language::Monograph>(root));
   return root;
 }
 
 auto Environment::Workspace::get_associations(View::Bytes diagnostic_path) const
     -> Option<const Associations&> {
-  for (Count i = 0; i < published_sources.get_size(); i++) {
-    const PublishedSource& source = published_sources[i];
+  for (Count i = 0; i < retained_sources.get_size(); i++) {
+    const RetainedSource& source = retained_sources[i];
     if (source.diagnostic_path == diagnostic_path) {
       return source.associations;
     }
@@ -597,9 +624,29 @@ auto Environment::Workspace::get_associations(View::Bytes diagnostic_path) const
   return {};
 }
 
+auto Environment::Workspace::get_monograph(View::Bytes diagnostic_path) const
+    -> Option<const Language::Monograph&> {
+  for (const RetainedSource& source : retained_sources.get_view()) {
+    if (source.diagnostic_path == diagnostic_path) {
+      return source.monograph;
+    }
+  }
+  return {};
+}
+
+auto Environment::Workspace::get_completed_monograph(
+    View::Bytes diagnostic_path) const -> Option<const Language::Monograph&> {
+  for (const RetainedSource& source : retained_sources.get_view()) {
+    if (source.diagnostic_path == diagnostic_path && source.completed) {
+      return source.monograph;
+    }
+  }
+  return {};
+}
+
 auto Environment::Workspace::get_tokens(View::Bytes diagnostic_path) const
     -> View::Vector<Token> {
-  for (const PublishedSource& source : published_sources.get_view()) {
+  for (const RetainedSource& source : retained_sources.get_view()) {
     if (source.diagnostic_path == diagnostic_path) {
       return source.tokens;
     }
@@ -609,8 +656,8 @@ auto Environment::Workspace::get_tokens(View::Bytes diagnostic_path) const
 
 auto Environment::Workspace::get_associations(
     const Language::Monograph& monograph) const -> Option<const Associations&> {
-  for (Count i = 0; i < published_sources.get_size(); i++) {
-    const PublishedSource& source = published_sources[i];
+  for (Count i = 0; i < retained_sources.get_size(); i++) {
+    const RetainedSource& source = retained_sources[i];
     if (&source.monograph == &monograph) {
       return source.associations;
     }
@@ -621,7 +668,7 @@ auto Environment::Workspace::get_associations(
 
 auto Environment::Workspace::find_authored_location(
     const Abstract& semantic) const -> Option<AuthoredLocation> {
-  for (const PublishedSource& source : published_sources.get_view()) {
+  for (const RetainedSource& source : retained_sources.get_view()) {
     auto anchor = source.associations.find(semantic);
     if (anchor) {
       return AuthoredLocation(
@@ -647,10 +694,10 @@ auto Environment::Workspace::resolve() const -> const Abstract& {
 
 auto Environment::Workspace::resolve_context(View::Bytes route) const
     -> const Abstract& {
-  return source_monographs.visit(
+  return retained_monographs.visit(
       route,
-      [](const Language::Monograph& selected) -> const Abstract& {
-        return selected;
+      [](const Reference<Language::Monograph>& selected) -> const Abstract& {
+        return selected.get();
       },
       []() -> const Abstract& { return Invalid::get_invalid(); });
 }

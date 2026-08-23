@@ -7,9 +7,9 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/parser/comment.hpp"
-#include "tetrodotoxin/library/language/foreign.hpp"
 #include "tetrodotoxin/library/interpreter/declarations/signature.hpp"
 #include "tetrodotoxin/library/interpreter/type_reference.hpp"
+#include "tetrodotoxin/library/language/foreign.hpp"
 #include "ttx/lexical/lexicon.hpp"
 
 using namespace Perimortem;
@@ -89,8 +89,7 @@ static auto parse_state(
   BAIL_IF(!name_token);
   BAIL_IF(!cursor.require(
       Code::Type::Define, "Foreign State requires `:` before its Type."_view));
-  auto type_reference =
-      Interpreter::TypeReference::parse(host, cursor);
+  auto type_reference = Interpreter::TypeReference::parse(host, cursor);
   BAIL_IF(!type_reference);
   Token terminator = cursor.require(
       Code::Type::EndStatement,
@@ -141,8 +140,7 @@ static auto parse_function(
       Code::Type::Addressable,
       "Foreign Function requires one addressable symbol name."_view);
   BAIL_IF(!name_token);
-  auto signature = Interpreter::Declarations::Signature::parse(
-      cursor, host);
+  auto signature = Interpreter::Declarations::Signature::parse(cursor, host);
   BAIL_IF(!signature);
   if (signature->declares_self()) {
     cursor.create_expression_error(
@@ -172,8 +170,7 @@ static auto parse_function(
       cursor.get_arena(), definition, *signature, abi);
 }
 
-auto Interpreter::Source::Foreign::is_next(const Cursor& cursor)
-    -> Bool {
+auto Interpreter::Source::Foreign::is_next(const Cursor& cursor) -> Bool {
   return cursor.matches(Code::Type::Addressable) &&
          cursor.current().caculate_text(cursor.get_source_text()) ==
              "foreign"_view;
@@ -195,8 +192,7 @@ auto Interpreter::Source::Foreign::parse(
       Code::Type::String,
       "Foreign blocks require one quoted ABI selector."_view);
   BAIL_IF(!abi_token);
-  Core::View::Bytes quoted =
-      abi_token.caculate_text(cursor.get_source_text());
+  Core::View::Bytes quoted = abi_token.caculate_text(cursor.get_source_text());
   if (!Lexicon::validate(Code::Type::String, quoted) || quoted.get_size() < 2) {
     cursor.create_token_error(
         abi_token, "Foreign ABI selector is not a closed String."_view);
@@ -261,8 +257,8 @@ auto Interpreter::Source::Foreign::parse(
           }
         }
       }
-      if (duplicate && !has_same_declaration(
-                           *duplicate, *state, cursor.get_source_text())) {
+      if (duplicate &&
+          !has_same_declaration(*duplicate, *state, cursor.get_source_text())) {
         cursor.create_expression_error(
             state->get_anchor(),
             "Repeated Foreign State changes its declaration."_view,
@@ -318,7 +314,7 @@ auto Interpreter::Source::Foreign::parse(
   BAIL_IF(!cursor.require(
       Code::Type::ScopeEnd,
       "Foreign blocks require `}` after their declarations."_view));
-  BAIL_IF(!host.retain_authored_block(
+  BAIL_IF(!host.retain_block(
       block_documentation, retained_abi, states.get_view(),
       functions.get_view(), declarations.get_view()));
   for (const auto& state : states.get_view()) {

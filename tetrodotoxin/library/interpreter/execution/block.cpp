@@ -5,10 +5,10 @@
 
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/library/interpreter/execution/branch.hpp"
-#include "tetrodotoxin/library/interpreter/execution/match.hpp"
-#include "tetrodotoxin/library/interpreter/execution/range_loop.hpp"
 #include "tetrodotoxin/library/interpreter/execution/local.hpp"
 #include "tetrodotoxin/library/interpreter/execution/loop_control.hpp"
+#include "tetrodotoxin/library/interpreter/execution/match.hpp"
+#include "tetrodotoxin/library/interpreter/execution/range_loop.hpp"
 #include "tetrodotoxin/library/interpreter/execution/return.hpp"
 #include "tetrodotoxin/library/interpreter/expression.hpp"
 
@@ -64,8 +64,7 @@ static auto parse_statement(
   }
   case Code::Type::Break:
   case Code::Type::Continue: {
-    auto control =
-        Interpreter::Execution::LoopControl::parse(cursor, block);
+    auto control = Interpreter::Execution::LoopControl::parse(cursor, block);
     BAIL_IF(!control);
     return Language::Statement::create(
         *control, documentation, control->get_anchor(),
@@ -193,9 +192,12 @@ auto Interpreter::Execution::Block::parse(
   while (single || !cursor.matches(Code::Type::ScopeEnd)) {
     if (cursor.matches(Code::Type::Terminal)) {
       cursor.create_token_error(
-          single ? "Single Statement Block requires one Statement after `:`."_view
-                 : "Library Block reached the end of source before `}`."_view);
-      return {};
+          single
+              ? "Single Statement Block requires one Statement after `:`."_view
+              : "Library Block reached the end of source before `}`."_view);
+      Token ending = cursor.peek(-1);
+      block.complete_authored(Anchor::create(opening, Span(opening, ending)));
+      return block;
     }
 
     Token statement_start = cursor.current();
@@ -210,19 +212,27 @@ auto Interpreter::Execution::Block::parse(
           documentation.is_empty()
               ? View::Bytes()
               : "Move this comment before the Statement it describes."_view);
-      return {};
+      break;
     }
 
     auto statement =
         parse_statement(cursor, block, function, access_scope, documentation);
-    BAIL_IF(!statement);
+    if (!statement) {
+      cursor.recover_to_statement();
+      if (single) {
+        break;
+      }
+      continue;
+    }
     block.retain_authored_statement(*statement);
     if (single) {
       break;
     }
   }
 
-  Token closing = single ? cursor.peek(-1) : cursor.consume();
+  Token closing = single || !cursor.matches(Code::Type::ScopeEnd)
+                      ? cursor.peek(-1)
+                      : cursor.consume();
   block.complete_authored(Anchor::create(opening, Span(opening, closing)));
   return block;
 }

@@ -33,48 +33,12 @@ auto Types::Source::create_synthetic(
       [&]() -> Source { return Source(domain, definition); });
 }
 
-auto Types::Source::retain_authored_import(Import import) -> Bool {
+auto Types::Source::retain_import_route(Import import) -> Bool {
   if (imports_linked) {
     return False;
   }
   import_routes.insert(import);
   return True;
-}
-
-auto Types::Source::persist(Archive::Writer& writer) const -> Bool {
-  auto record = writer.begin(Archive::Tag::Source);
-  BAIL_IF(
-      !writer.write(get_documentation()) || import_routes.get_size() > U32(-1));
-
-  writer.write(U32(import_routes.get_size()));
-  for (const Import& import : import_routes.get_view()) {
-    BAIL_IF(!import.persist(writer));
-  }
-
-  writer.write(U8(foreign.is_authored() ? 1 : 0));
-  BAIL_IF(foreign.is_authored() && !foreign.persist(writer));
-
-  Bool public_only = writer.get_profile() ==
-                     Tetrodotoxin::Language::Persistence::Profile::Interface;
-  BAIL_IF(!persist_declarations(writer, public_only));
-  return writer.finish(record);
-}
-
-auto Types::Source::restore(
-    Archive::Reader& contents,
-    Tetrodotoxin::Language::Persistence::Profile profile) -> Bool {
-  auto import_count = contents.read_u32();
-  BAIL_IF(!import_count);
-  for (Count index = 0; index < *import_count; index++) {
-    auto import = Import::restore(contents, get_domain(), get_host());
-    BAIL_IF(!import);
-    import_routes.insert(*import);
-  }
-
-  auto has_foreign = contents.read_u8();
-  BAIL_IF(!has_foreign || *has_foreign > 1);
-  BAIL_IF(*has_foreign == 1 && !foreign.restore(contents));
-  return restore_declarations(contents, profile);
 }
 
 auto Types::Source::link_types(Cursor& cursor) -> Bool {
@@ -128,7 +92,7 @@ auto Types::Source::link_restored(Abstract& interpretation_context) -> Bool {
           .visit(
               [&](const Abstract& resolved) { selected = resolved; },
               [](const TypeReference::Failure&) {});
-      if (!selected || !retain_import(selected->resolve())) {
+      if (!selected || !retain_import_context(selected->resolve())) {
         Diagnostics::Log::error(
             "Restored Library Import did not resolve in Package context."_view);
         return False;
@@ -188,7 +152,7 @@ auto Types::Source::can_bind_static(const Abstract& binding, Category category)
   return get_host().resolve_context(name).is<Invalid>();
 }
 
-auto Types::Source::retain_import(const Abstract& imported) -> Bool {
+auto Types::Source::retain_import_context(const Abstract& imported) -> Bool {
   const Abstract& context = imported.resolve();
   BAIL_IF(context.is<Invalid>() || &context == this);
 
@@ -261,7 +225,7 @@ auto Types::Source::link_imports(
       continue;
     }
 
-    if (!retain_import(selected->resolve())) {
+    if (!retain_import_context(selected->resolve())) {
       cursor.create_expression_error(
           Anchor::create(import.get_span()),
           "Library Import conflicts with this source context."_view,

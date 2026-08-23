@@ -28,8 +28,6 @@ class Object : public Constant {
     return has_same_type(rhs) && rhs.is<Object>();
   }
 
-  auto persist(Archive::Writer& writer) const -> Bool override;
-
  private:
   constexpr Object(
       const Model::Type& type,

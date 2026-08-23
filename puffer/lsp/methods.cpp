@@ -13,12 +13,14 @@
 #include "perimortem/serialization/json/blueprint.hpp"
 #include "perimortem/serialization/json/node.hpp"
 
+#include "puffer/lsp/completion.hpp"
 #include "puffer/lsp/documents.hpp"
 #include "puffer/lsp/hover.hpp"
 #include "puffer/lsp/inlay_hints.hpp"
 #include "puffer/lsp/rpc/executor.hpp"
 #include "puffer/lsp/semantic.hpp"
 #include "puffer/lsp/semantic_tokens.hpp"
+#include "tetrodotoxin/formatting/terminal.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
@@ -136,6 +138,15 @@ auto Puffer::Lsp::initialize(Documents& documents, const Rpc::Message& message)
              {"hoverProvider"_view, True},
              {"inlayHintProvider"_view, True},
              {"definitionProvider"_view, True},
+             {"completionProvider"_view,
+              {
+                {"triggerCharacters"_view,
+                 {
+                   "."_view,
+                   ":"_view,
+                   ">"_view,
+                 }},
+              }},
              {"documentFormattingProvider"_view, True},
              {"semanticTokensProvider"_view,
               {
@@ -155,7 +166,11 @@ auto Puffer::Lsp::document_formatting(
           arena);
   View::Bytes source = documents.get_text(uri);
   Ttx::Lexical::Tokenizer tokenizer(arena, source, uri);
-  Dynamic::Bytes formatted = Ttx::Lexical::Formatter(tokenizer).format();
+  auto completed = documents.get_completed_monograph(uri);
+  Dynamic::Bytes formatted =
+      completed
+          ? Tetrodotoxin::Formatting::Terminal::format(*completed, tokenizer)
+          : Ttx::Lexical::Formatter(tokenizer).format();
   View::Bytes formatted_text = arena.proxy(formatted.get_view());
   auto end =
       documents.get_position_encoding().locate(source, source.get_size());

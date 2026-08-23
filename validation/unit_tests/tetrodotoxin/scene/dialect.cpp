@@ -51,11 +51,11 @@ class RejectingLibraryDialect : public Library::Dialect {
         "scene-child.ttx"_view);
     Ttx::Lexical::Associations associations(tokenizer.get_arena());
     Cursor cursor(tokenizer, parser_errors, associations);
-    auto& monograph = static_cast<Library::Language::Monograph&>(*interpreted);
-    if (!Library::Interpreter::Source::Library::parse(
-            monograph.get_source(), cursor) ||
-        !cursor.matches(Code::Type::Terminal) ||
-        !parser_errors.is_empty()) {
+    auto& monograph =
+        static_cast<Library::Language::Monograph&>(*interpreted);
+    Library::Interpreter::Source::Library::parse(
+        monograph.get_source(), cursor);
+    if (!cursor.matches(Code::Type::Terminal) || !parser_errors.is_empty()) {
       source_cursor.create_error(
           "The test Library child could not be prepared."_view);
       return {};
@@ -119,7 +119,8 @@ PERIMORTEM_UNIT_TEST(SceneDialect, child_rejection) {
       errors, "Broken"_view, "broken-scene.ttx"_view, scene_source);
 
   EXPECT_NOT(interpreted);
-  EXPECT(&workspace.resolve_context("Broken"_view) == &Invalid::get_invalid());
+  EXPECT(workspace.resolve_context("Broken"_view)
+             .is<Scene::Language::Monograph>());
   EXPECT_EQ(errors.get_size(), Count(1));
 }
 

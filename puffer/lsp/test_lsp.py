@@ -27,6 +27,7 @@ BINARY = os.environ.get(
     "PUFFER_BINARY",
     os.path.join(REPO_ROOT, ".bin/bin/puffer/puffer"))
 POSITION_ENCODING = "utf-16" if "--utf16" in sys.argv else "utf-8"
+RESPONSE_BUFFERS = {}
 
 
 def lsp_frame(obj):
@@ -43,7 +44,8 @@ def read_lsp_response(conn, timeout=5.0):
     """Read one complete LSP response (header + body). Returns the parsed JSON
     body dict, or None on timeout."""
     conn.settimeout(timeout)
-    buf = b""
+    key = conn.fileno()
+    buf = RESPONSE_BUFFERS.pop(key, b"")
     try:
         while True:
             chunk = conn.recv(4096)
@@ -61,9 +63,22 @@ def read_lsp_response(conn, timeout=5.0):
                     if not chunk:
                         break
                     rest += chunk
+                RESPONSE_BUFFERS[key] = rest[content_length:]
                 return json.loads(rest[:content_length].decode())
     except socket.timeout:
         return None
+
+
+def read_request_response(conn, request_id, timeout=10.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        response = read_lsp_response(
+            conn, timeout=max(0.1, deadline - time.monotonic()))
+        if response is None:
+            return None
+        if response.get("id") == request_id:
+            return response
+    return None
 
 
 def send_format_edit(conn, source_text, name):
@@ -137,7 +152,20 @@ def send_hover(conn, uri, source_text, needle, request_id, start=0):
             "position": source_position(source_text, offset),
         },
     }))
-    return read_lsp_response(conn, timeout=10.0)
+    return read_request_response(conn, request_id)
+
+
+def send_completion(conn, uri, source_text, offset, request_id):
+    conn.sendall(lsp_frame({
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": "textDocument/completion",
+        "params": {
+            "textDocument": {"uri": uri},
+            "position": source_position(source_text, offset),
+        },
+    }))
+    return read_request_response(conn, request_id)
 
 
 def source_position(source_text, offset):
@@ -160,7 +188,7 @@ def send_definition(conn, uri, source_text, needle, request_id, start=0):
             "position": source_position(source_text, offset),
         },
     }))
-    return read_lsp_response(conn, timeout=10.0)
+    return read_request_response(conn, request_id)
 
 
 def matches_location(response, uri, source_text, needle, start=0):
@@ -182,7 +210,7 @@ def send_semantic_tokens(conn, uri, request_id):
         "method": "textDocument/semanticTokens/full",
         "params": {"textDocument": {"uri": uri}},
     }))
-    return read_lsp_response(conn, timeout=10.0)
+    return read_request_response(conn, request_id)
 
 
 def send_inlay_hints(conn, uri, source_text, request_id):
@@ -198,7 +226,7 @@ def send_inlay_hints(conn, uri, source_text, request_id):
             },
         },
     }))
-    return read_lsp_response(conn, timeout=10.0)
+    return read_request_response(conn, request_id)
 
 
 def semantic_token_texts(source_text, data):
@@ -338,6 +366,8 @@ def run_test():
               "server advertises semantic hover")
         check(bool(caps.get("inlayHintProvider")),
               "server advertises parameter inlay hints")
+        check(bool(caps.get("completionProvider")),
+              "server advertises access completion")
         check(bool(caps.get("definitionProvider")),
               "server advertises go to definition")
         check(bool(caps.get("documentFormattingProvider")),
@@ -352,6 +382,65 @@ def run_test():
         "params": {},
     }))
     time.sleep(0.1)
+
+    print("\n--- Access completion: progressive Library graph ---")
+    dot_source = (
+        "// Progressive address completion.\n"
+        "dialect : Library;\n"
+        "public Item : struct {\n"
+        "  public state count : U64;\n"
+        "}\n"
+        "public explore : func = [.value : Item] -> [] {\n"
+        "  value.")
+    dot_uri = "file:///completion-address.ttx"
+    send_did_open(conn, dot_uri, dot_source)
+    dot_completion = send_completion(
+        conn, dot_uri, dot_source, len(dot_source), 60)
+    dot_labels = {
+        item.get("label")
+        for item in (dot_completion or {}).get("result", [])
+    }
+    check("count" in dot_labels,
+          "address completion survives an unfinished access expression")
+
+    type_source = (
+        "// Progressive Type completion.\n"
+        "dialect : Library;\n"
+        "public Item : struct {\n"
+        "  public Nested : struct {}\n"
+        "}\n"
+        "public explore : func = [] -> [] {\n"
+        "  Item::")
+    type_uri = "file:///completion-type.ttx"
+    send_did_open(conn, type_uri, type_source)
+    type_completion = send_completion(
+        conn, type_uri, type_source, len(type_source), 61)
+    type_labels = {
+        item.get("label")
+        for item in (type_completion or {}).get("result", [])
+    }
+    check("Nested" in type_labels,
+          "Type completion uses the retained nested Type graph")
+
+    call_source = (
+        "// Progressive Callable completion.\n"
+        "dialect : Library;\n"
+        "public Item : struct {\n"
+        "  public size : func = [self] -> U64 : return 0;\n"
+        "}\n"
+        "public item : Item;\n"
+        "public explore : func = [] -> [] {\n"
+        "  item ->")
+    call_uri = "file:///completion-call.ttx"
+    send_did_open(conn, call_uri, call_source)
+    call_completion = send_completion(
+        conn, call_uri, call_source, len(call_source), 62)
+    call_labels = {
+        item.get("label")
+        for item in (call_completion or {}).get("result", [])
+    }
+    check("size" in call_labels,
+          "Callable completion preserves the Self receiver role")
 
     print("\n--- Package session: cross-source and System ABI ---")
     package_root = os.path.join(
@@ -485,9 +574,13 @@ def run_test():
     send_did_change(conn, helper_uri, renamed_helper, 2)
     invalidated_hover = send_hover(
         conn, main_uri, main_source, "line_prefix", 12, prefix_use)
-    check(invalidated_hover is not None and
-          invalidated_hover.get("result") is None,
-          "editing one member invalidates the complete Package graph")
+    invalidated_result = (
+        invalidated_hover.get("result") if invalidated_hover else None)
+    invalidated_markdown = (
+        invalidated_result.get("contents", {}).get("value", "")
+        if invalidated_result else "")
+    check("state line_prefix : <unknown>" in invalidated_markdown,
+          "editing one member exposes an unresolved progressive hover")
     send_did_change(conn, helper_uri, helper_source, 3)
     restored_hover = send_hover(
         conn, main_uri, main_source, "line_prefix", 13, prefix_use)
@@ -503,9 +596,13 @@ def run_test():
     send_did_change(conn, system_uri, renamed_system, 2)
     dependency_hover = send_hover(
         conn, main_uri, main_source, "line_prefix", 14, prefix_use)
-    check(dependency_hover is not None and
-          dependency_hover.get("result") is None,
-          "editing a dependency invalidates every consuming Package graph")
+    dependency_result = (
+        dependency_hover.get("result") if dependency_hover else None)
+    dependency_markdown = (
+        dependency_result.get("contents", {}).get("value", "")
+        if dependency_result else "")
+    check("state line_prefix : View[U8]" in dependency_markdown,
+          "editing a dependency retains progressive consumer hover")
     send_did_change(conn, system_uri, system_source, 3)
     dependency_restored_hover = send_hover(
         conn, main_uri, main_source, "line_prefix", 15, prefix_use)

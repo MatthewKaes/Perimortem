@@ -49,10 +49,11 @@ class Foreign final : public Ttx::Concept::Abstract {
         TypeReference type_reference,
         Perimortem::Core::View::Bytes abi) -> State&;
 
-    static auto restore(
-        Archive::Reader& reader,
-        Perimortem::Memory::Allocator::Arena& arena,
-        Foreign& host) -> Perimortem::Core::Option<State&>;
+    static auto create(
+        Perimortem::Memory::Allocator::Arena& domain,
+        Tetrodotoxin::Language::Definition& definition,
+        TypeReference type_reference,
+        Perimortem::Core::View::Bytes abi) -> State&;
 
     State(const State&) = delete;
     State(State&&) = delete;
@@ -62,8 +63,6 @@ class Foreign final : public Ttx::Concept::Abstract {
     auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
 
     auto link_restored_declaration_type() -> Bool override;
-
-    auto persist(Archive::Writer& writer) const -> Bool override;
 
     TTX_DOCUMENTATION(get_definition().get_documentation());
     TTX_NAME(definition.get_name());
@@ -127,10 +126,11 @@ class Foreign final : public Ttx::Concept::Abstract {
         Signature& signature,
         Perimortem::Core::View::Bytes abi) -> Function&;
 
-    static auto restore(
-        Archive::Reader& reader,
-        Perimortem::Memory::Allocator::Arena& arena,
-        Foreign& host) -> Perimortem::Core::Option<Function&>;
+    static auto create(
+        Perimortem::Memory::Allocator::Arena& domain,
+        Tetrodotoxin::Language::Definition& definition,
+        Signature& signature,
+        Perimortem::Core::View::Bytes abi) -> Function&;
 
     Function(const Function&) = delete;
     Function(Function&&) = delete;
@@ -140,8 +140,6 @@ class Foreign final : public Ttx::Concept::Abstract {
     auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
 
     auto link_restored_declaration_signature() -> Bool override;
-
-    auto persist(Archive::Writer& writer) const -> Bool override;
 
     TTX_DOCUMENTATION(get_definition().get_documentation());
     TTX_NAME(definition.get_name());
@@ -182,6 +180,10 @@ class Foreign final : public Ttx::Concept::Abstract {
       return get_definition().get_name();
     }
 
+    constexpr auto get_signature() const -> const Signature& {
+      return signature;
+    }
+
    private:
     constexpr Function(
         Tetrodotoxin::Language::Definition& definition,
@@ -199,13 +201,6 @@ class Foreign final : public Ttx::Concept::Abstract {
       Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Concept::Abstract& parent);
 
-  static auto restore(
-      Archive::Reader& reader,
-      Perimortem::Memory::Allocator::Arena& arena,
-      Ttx::Concept::Abstract& parent) -> Perimortem::Core::Option<Foreign&>;
-
-  auto restore(Archive::Reader& reader) -> Bool;
-
   Foreign(const Foreign&) = delete;
   Foreign(Foreign&&) = delete;
   auto operator=(const Foreign&) -> Foreign& = delete;
@@ -218,7 +213,7 @@ class Foreign final : public Ttx::Concept::Abstract {
   // A closing Foreign block contributes one atomic set of declarations. The
   // parser validates repetition and ABI agreement before this model operation
   // changes the retained context.
-  auto retain_authored_block(
+  auto retain_block(
       const Ttx::Concept::Documentation& block_documentation,
       Perimortem::Core::View::Bytes selected_abi,
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<State>> states,
@@ -235,8 +230,6 @@ class Foreign final : public Ttx::Concept::Abstract {
   auto link_restored() -> Bool;
 
   auto finalize_restored() -> Bool;
-
-  auto persist(Archive::Writer& writer) const -> Bool;
 
   constexpr auto is_authored() const -> Bool { return Bool(abi); }
 

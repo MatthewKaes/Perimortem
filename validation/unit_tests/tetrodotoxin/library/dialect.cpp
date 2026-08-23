@@ -238,10 +238,13 @@ static auto interpret_library_source(
     Abstract& context) -> Option<Language::Monograph&> {
   (void)domain;
   Anchor source_anchor = Anchor::create(Span());
-  auto monograph = dialect.interpret(
+  Count error_count = cursor.get_error_count();
+  auto interpretation = dialect.interpret(
       cursor, Documentation::get_empty(), source_anchor, context);
-  BAIL_IF(!monograph || !monograph->is<Language::Monograph>());
-  return static_cast<Language::Monograph&>(*monograph);
+  BAIL_IF(
+      !interpretation || cursor.get_error_count() != error_count ||
+      !interpretation->is<Language::Monograph>());
+  return static_cast<Language::Monograph&>(*interpretation);
 }
 
 static auto select_library_monograph(Option<Language::Monograph&>& owner)
@@ -269,6 +272,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, root_vocabulary) {
       cursor.get_arena(), documentation, source_anchor, dialect, context);
   auto& second = Language::Monograph::create_authored(
       cursor.get_arena(), documentation, source_anchor, dialect, context);
+
+  EXPECT_NOT(dialect.encode(
+      first, Tetrodotoxin::Language::Persistence::Profile::Complete));
 
   EXPECT(&first.get_documentation() == &documentation);
   EXPECT(&first.get_source().get_documentation() == &documentation);
@@ -311,6 +317,41 @@ PERIMORTEM_UNIT_TEST(DialectTests, root_vocabulary) {
   ASSERT(first_view && repeated_view && second_view);
   EXPECT(&*first_view == &*repeated_view);
   EXPECT(&*first_view != &*second_view);
+}
+
+PERIMORTEM_UNIT_TEST(DialectTests, progressive_source) {
+  static constexpr View::Bytes source =
+      "// Progressive Library source.\n"
+      "dialect : Library;\n"
+      "public ready : U64;\n"
+      "public pending : Missing::;\n"
+      "public later : U64;\n"_view;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
+  Errors errors;
+
+  auto completed = workspace.interpret_source(
+      errors, "Progressive"_view, "progressive.ttx"_view, source);
+  EXPECT_NOT(completed);
+  EXPECT_NOT(errors.is_empty());
+
+  auto monograph = workspace.resolve_context("Progressive"_view)
+                       .select<Language::Monograph>();
+  ASSERT(monograph);
+  const auto& root = monograph->get_source();
+  const Abstract& ready = root.resolve_local(
+      "ready"_view, Tetrodotoxin::Language::Visibility::Private);
+  const Abstract& pending = root.resolve_local(
+      "pending"_view, Tetrodotoxin::Language::Visibility::Private);
+  const Abstract& later = root.resolve_local(
+      "later"_view, Tetrodotoxin::Language::Visibility::Private);
+  EXPECT(ready.is<Language::Field>());
+  ASSERT(pending.is<Language::Field>());
+  EXPECT(later.is<Language::Field>());
+  const auto& pending_field = static_cast<const Language::Field&>(pending);
+  EXPECT_NOT(pending_field.get_type_reference());
+  EXPECT(pending_field.resolve().is<Invalid>());
+  EXPECT(workspace.get_associations("progressive.ttx"_view));
 }
 
 static auto find_field(
@@ -611,9 +652,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, private_parameter) {
   auto interpreted = workspace.interpret_source(
       errors, "PrivateParameter"_view, path, *source);
   EXPECT_NOT(interpreted);
-  EXPECT(
-      &workspace.resolve_context("PrivateParameter"_view) ==
-      &Invalid::get_invalid());
+  EXPECT(retains_library_source(workspace, "PrivateParameter"_view));
   ASSERT_EQ(errors.get_size(), Count(1));
   Allocator::Arena rendered;
   View::Bytes message = errors.render_message(rendered, 0);

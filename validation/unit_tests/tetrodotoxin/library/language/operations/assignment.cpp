@@ -62,8 +62,7 @@ static auto rejects_source(View::Bytes source) -> Bool {
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty() &&
-         &workspace.resolve_context("AssignmentTest"_view) ==
-             &Invalid::get_invalid();
+         retains_library_source(workspace, "AssignmentTest"_view);
 }
 
 PERIMORTEM_UNIT_TEST(AssignmentTests, lowest_precedence) {

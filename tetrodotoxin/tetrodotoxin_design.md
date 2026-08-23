@@ -63,7 +63,7 @@ They move complexity to the component that has enough information to own it.
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | Concrete semantic objects instead of one shared AST | A Dialect preserves the distinctions its language and tools actually use                  | Rich tooling must use that Dialect because the common TTX view is deliberately smaller                                                    |
 | Workspace local borrowed identity                   | Languages and consumers share one unambiguous object without copying or merging it        | References end with their Workspace and cannot become persistent handles                                                                  |
-| Atomic direct sources and Workspace owned Package barriers | Invalid sources never persist, while one fixed manifest table retains stable identity through completion | A Package member never starts another import, and dependencies must already be completed                                         |
+| Retained source transactions and Workspace owned Package barriers | Incomplete edits keep their strongest semantic and lexical evidence, while one fixed manifest table retains stable identity through completion | Only completed islands enter Terminal production, and a Package member never starts another import |
 | Packs distinct from Layouts                         | Empty, scalar, named, and multiple value flow can remain live without an anonymous Type    | Dialects must retain producer identity separately from the descriptor used for fitting                                                      |
 | Semantic Layout                                     | One language shape can feed CPU, GPU, interpreter, editor, and archive consumers          | Every backend must derive and validate its own physical layout                                                                            |
 | Typed Terminal products                             | Each output preserves the facts and validation contract its next consumer needs           | There is no generic product registry or common output object                                                                              |
@@ -190,17 +190,16 @@ bytes into it, and then constructs a Tokenizer, Associations index, and Cursor
 in that Arena. Environment passes the Cursor, source backed Documentation,
 source Anchor, and semantic context directly to the selected installed Dialect.
 The Dialect constructs one Monograph in the Cursor's Arena and returns it
-through an `Option`. Absence is the only parsing failure result. Success is
-never duplicated as transaction state or a second flag on the returned object.
+as an optional reference. Presence means the Dialect established a real
+semantic root. Absence means it could not establish one.
 
-Workspace retains one source record containing the Arena owner, completed outer
-Monograph, and immutable Associations index when the source succeeds. Comments,
-Attributes, Tokens, semantic facts, and association edges can therefore borrow
-the retained source directly. There is no second graph Arena or defensive
-source copy phase. The operation Cursor is not published. Failure releases the
-whole transaction. An embedded language receives the same Cursor, Arena, and
-semantic context with its exact installed identity. It does not create another
-generic transaction wrapper, diagnostic collection, or restoration context.
+Workspace retains one source record containing the Arena owner, outer
+Monograph, and immutable Associations index whenever interpretation establishes
+that root. Comments, Attributes, Tokens, semantic facts, and association edges
+can therefore borrow the retained source directly. Reports written to the
+Cursor during that operation decide whether linking may propagate those facts.
+Completion decides whether a Terminal may consume them. There is no second
+graph Arena or defensive source copy phase.
 
 Installed Dialect dependencies form a strict directed acyclic graph. The host
 constructing a Toolchain injects each exact dependency instance. An outer
@@ -211,24 +210,27 @@ path, and Bazel dependency direction must describe this same graph. A special
 build carveout needed only to break a Dialect cycle is evidence that a contract
 has been assigned to the wrong owner.
 
-One direct source has three semantic stages:
+One direct source has four semantic stages:
 
-1. The selected Dialect constructs one optional parse valid Monograph in the
-   source transaction Arena.
-2. Linking resolves every contextual route available to that source.
-3. Finalization performs language work that requires linked declarations.
+1. The selected Dialect constructs one optional Monograph in the source
+   transaction Arena and writes any source reports through the Cursor.
+2. Workspace retains the Monograph and its lexical evidence when present.
+3. Linking resolves every contextual route when interpretation added no source
+   errors.
+4. Finalization performs language work that requires the complete linked
+   island.
 
-Workspace performs all three stages synchronously with the one source Cursor.
-It retains the transaction Arena and publishes the Monograph only when linking
-and finalization both succeed. A failed source is destroyed locally and never
-becomes retained Workspace state. Previously published Monographs may be
-queried, but Workspace does not accumulate an unfinished source group for later
-validation.
+Workspace performs these stages synchronously with the one source Cursor. An
+incomplete Monograph remains queryable as the author's current source state,
+while a completed Monograph is the only state eligible for Terminal production.
+Replacing an editor document rebuilds its complete Workspace session, so no
+consumer keeps pointers into an older source transaction.
 
 Package supplies a fixed Dependency and Source description table. Workspace
 owns the candidate Arena handles, operation Cursors, and durable Associations
-indexes, links every parse valid member before finalizing any member, and
-publishes one completed Package root only after the whole operation succeeds.
+indexes. It retains every member Monograph it can create, links members whose
+interpretation added no source errors against the fixed Package context, and
+finalizes only after the whole island links.
 Package stores only borrowed Alias mappings. A member never adds another
 import, and a dependency must already be completed in the same Workspace.
 

@@ -21,12 +21,9 @@ class Structure : public Composite {
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition) -> Structure&;
 
-  static auto restore(
-      Archive::Reader& reader,
-      Perimortem::Memory::Allocator::Arena& arena,
-      Ttx::Concept::Abstract& host,
-      Tetrodotoxin::Language::Persistence::Profile profile)
-      -> Perimortem::Core::Option<Structure&>;
+  static auto create_restored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition) -> Structure&;
 
   Structure(const Structure&) = delete;
   Structure(Structure&&) = delete;
@@ -39,16 +36,14 @@ class Structure : public Composite {
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
-  auto persist(Archive::Writer& writer) const -> Bool override;
-
   constexpr auto has_initialization_provider() const -> Bool {
     return provides_initialization;
   }
 
   // The closing brace fixes member identity and source order even though
-  // individual Type edges settle later. Interpretation calls this once after
-  // the complete authored body has been retained.
-  auto complete_authored_body() -> void;
+  // individual Type edges settle later. Source interpretation calls this once
+  // after the complete authored body has been retained.
+  auto complete_body() -> void;
 
  protected:
   Structure(

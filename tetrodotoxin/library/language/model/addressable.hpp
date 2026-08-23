@@ -44,8 +44,6 @@ class Addressable : public Ttx::Model::Addressable {
 
   virtual auto link_restored_declaration_initializer() -> Bool { return True; }
 
-  virtual auto persist(Archive::Writer& writer) const -> Bool;
-
   virtual constexpr auto get_declaration_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
     return {};

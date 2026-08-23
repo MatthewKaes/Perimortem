@@ -6,6 +6,8 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/reader/binary.hpp"
 
+#include "tetrodotoxin/library/archive/source.hpp"
+#include "ttx/lexical/anchor.hpp"
 #include "ttx/model/documentations/block.hpp"
 
 using namespace Perimortem::Core;
@@ -17,7 +19,7 @@ using BinaryReader = Reader::Binary<Data::ByteOrder::Little>;
 
 auto Library::Archive::Reader::open(
     View::Bytes payload,
-    Language::Persistence::Profile profile) -> Option<Reader> {
+    Tetrodotoxin::Language::Persistence::Profile profile) -> Option<Reader> {
   BAIL_IF(payload.get_size() < 8);
 
   BinaryReader reader(payload.slice(0, 8));
@@ -30,6 +32,32 @@ auto Library::Archive::Reader::open(
       flags != 0);
 
   return Reader(payload.slice(8));
+}
+
+auto Library::Archive::Reader::read(
+    Allocator::Arena& arena,
+    View::Bytes payload,
+    Tetrodotoxin::Language::Persistence::Profile profile,
+    const Abstract& language,
+    Abstract& context) -> Option<Library::Language::Monograph&> {
+  auto opened = open(payload, profile);
+  BAIL_IF(!opened);
+
+  auto record = opened->read_record();
+  BAIL_IF(
+      !record || record->get_tag() != U16(Tag::Source) ||
+      record->is_optional() || !opened->is_complete());
+
+  Reader contents(record->get_payload());
+  auto documentation = contents.read_documentation(arena);
+  BAIL_IF(!documentation);
+  auto& monograph = Library::Language::Monograph::create(
+      arena, *documentation, Ttx::Lexical::Anchor::create(Ttx::Lexical::Span()),
+      language, context);
+  BAIL_IF(
+      !read_source(contents, arena, monograph.get_source(), profile) ||
+      !contents.is_complete());
+  return monograph;
 }
 
 auto Library::Archive::Reader::take(Count size) -> Option<View::Bytes> {

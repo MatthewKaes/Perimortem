@@ -24,12 +24,9 @@ class Object : public Structure {
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition) -> Object&;
 
-  static auto restore(
-      Archive::Reader& reader,
-      Perimortem::Memory::Allocator::Arena& arena,
-      Ttx::Concept::Abstract& host,
-      Tetrodotoxin::Language::Persistence::Profile profile)
-      -> Perimortem::Core::Option<Object&>;
+  static auto create_restored(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition) -> Object&;
 
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
@@ -46,8 +43,6 @@ class Object : public Structure {
       Model::Pack& arguments,
       Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope)
       const -> Perimortem::Core::Option<Model::Pack&> override;
-
-  auto persist(Archive::Writer& writer) const -> Bool override;
 
  protected:
 };

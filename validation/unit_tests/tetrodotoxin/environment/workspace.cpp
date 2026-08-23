@@ -211,8 +211,9 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, publishes_sources) {
         errors, semantic_name, "rejected.ttx"_view, source);
     EXPECT_NOT(rejected);
     EXPECT_NOT(errors.is_empty());
-    EXPECT(
-        &workspace.resolve_context(semantic_name) == &Invalid::get_invalid());
+    Bool retained =
+        workspace.resolve_context(semantic_name).is<WorkspaceMonograph>();
+    EXPECT_EQ(retained, Bool(index != 0));
   }
 }
 

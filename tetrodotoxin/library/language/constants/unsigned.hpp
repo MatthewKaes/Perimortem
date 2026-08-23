@@ -13,8 +13,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // to prove whether a narrower Unsigned target can represent it.
 class Unsigned : public Constant {
  public:
-  auto persist(Archive::Writer& writer) const -> Bool override;
-
   TTX_CONTRACT(Unsigned, Constant);
   using Value = U64;
 

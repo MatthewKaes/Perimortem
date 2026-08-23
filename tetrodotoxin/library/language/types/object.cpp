@@ -5,7 +5,6 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
@@ -18,39 +17,6 @@ using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
-
-auto Types::Object::persist(Archive::Writer& writer) const -> Bool {
-  auto record = writer.begin(Archive::Tag::Object);
-  Archive::Declaration declaration(get_definition());
-  Bool public_only = writer.get_profile() ==
-                     Tetrodotoxin::Language::Persistence::Profile::Interface;
-  BAIL_IF(
-      !declaration.write(writer) ||
-      !persist_declarations(writer, public_only) || !writer.finish(record));
-  return True;
-}
-
-auto Types::Object::restore(
-    Archive::Reader& reader,
-    Allocator::Arena& arena,
-    Abstract& host,
-    Tetrodotoxin::Language::Persistence::Profile profile) -> Option<Object&> {
-  auto record = reader.read_record();
-  BAIL_IF(
-      !record || record->get_tag() != U16(Archive::Tag::Object) ||
-      record->is_optional());
-
-  Archive::Reader contents(record->get_payload());
-  auto declaration = Archive::Declaration::read(contents, arena);
-  BAIL_IF(!declaration);
-
-  auto& definition = declaration->create_definition(arena, host);
-  Object& object = arena.construct_from<Object>(
-      [&]() -> Object { return Object(arena, definition, False); });
-  BAIL_IF(!object.restore_declarations(contents, profile));
-  object.complete_field_layout();
-  return object;
-}
 
 static auto select_accessible_field(
     const Abstract& candidate,
@@ -103,6 +69,13 @@ auto Types::Object::create_authored(
     Tetrodotoxin::Language::Definition& definition) -> Object& {
   return domain.construct_from<Object>(
       [&]() -> Object { return Object(domain, definition); });
+}
+
+auto Types::Object::create_restored(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition) -> Object& {
+  return domain.construct_from<Object>(
+      [&]() -> Object { return Object(domain, definition, False); });
 }
 
 auto Types::Object::create_default(Allocator::Arena& arena) const

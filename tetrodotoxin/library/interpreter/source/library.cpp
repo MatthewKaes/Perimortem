@@ -15,44 +15,40 @@ using namespace Tetrodotoxin::Library;
 
 auto Interpreter::Source::Library::parse(
     Language::Types::Source& source,
-    Cursor& cursor) -> Bool {
-  Bool valid = True;
+    Cursor& cursor) -> void {
   while (!cursor.matches(Code::Type::Terminal)) {
     const Documentation& documentation =
         Tetrodotoxin::Language::Parser::Comment::parse(cursor);
 
     if (cursor.matches(Code::Type::Using)) {
       auto import = Import::parse(cursor, documentation);
-      if (!import || !source.retain_authored_import(*import)) {
-        valid = False;
+      if (import) {
+        source.retain_import_route(*import);
       }
       continue;
     }
 
     if (Foreign::is_next(cursor)) {
-      valid &= Foreign::parse(source.get_foreign(), cursor, documentation);
+      Foreign::parse(source.get_foreign(), cursor, documentation);
       continue;
     }
 
     auto definition = Tetrodotoxin::Language::Definition::parse(
         cursor, documentation, source);
     if (!definition) {
-      valid = False;
       cursor.recover_to_statement();
       continue;
     }
 
     auto member = Interpreter::Member::parse(cursor, *definition);
     if (!member) {
-      valid = False;
       cursor.recover_to_statement();
       continue;
     }
-    if (!source.retain_authored_definition(
-            member->get_semantic(), *definition, member->get_category(),
-            cursor)) {
-      valid = False;
+    source.retain_authored_definition(
+        member->get_semantic(), *definition, member->get_category(), cursor);
+    if (!member->is_accepted()) {
+      cursor.recover_to_statement();
     }
   }
-  return valid;
 }

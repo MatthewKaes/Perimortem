@@ -12,7 +12,7 @@ using namespace Tetrodotoxin::Library;
 auto Interpreter::Types::Structure::parse(
     Cursor& cursor,
     Tetrodotoxin::Language::Definition& definition)
-    -> Option<Language::Types::Structure&> {
+    -> Option<Parsed<Language::Types::Structure>> {
   if (definition.get_name_token().get_code() != Code::Type::Type) {
     cursor.create_token_error(
         definition.get_name_token(),
@@ -42,6 +42,7 @@ auto Interpreter::Types::Structure::parse(
   Language::Types::Structure& structure =
       Language::Types::Structure::create_authored(
           cursor.get_arena(), definition);
-  BAIL_IF(!Composite::parse_body(cursor, structure, definition, kind_token));
-  return structure;
+  Bool accepted =
+      Composite::parse_body(cursor, structure, definition, kind_token);
+  return Parsed<Language::Types::Structure>(structure, accepted);
 }

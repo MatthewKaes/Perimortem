@@ -17,7 +17,7 @@ class Library {
 
   static auto parse(
       Language::Types::Source& source,
-      Ttx::Lexical::Cursor& cursor) -> Bool;
+      Ttx::Lexical::Cursor& cursor) -> void;
 };
 
 }  // namespace Tetrodotoxin::Library::Interpreter::Source

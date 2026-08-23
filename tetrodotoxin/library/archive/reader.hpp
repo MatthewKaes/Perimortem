@@ -10,13 +10,15 @@
 
 #include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/library/archive/tag.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
+#include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
 
 namespace Tetrodotoxin::Library::Archive {
 
-// Reader is a bounded cursor over one Library payload or record. Its nested
-// Record exposes only the frozen wire tag, optionality, and exact payload.
-// Semantic reconstruction remains with the owner selected by that tag.
+// Reader validates one Library payload and reconstructs fresh semantic
+// identities in the supplied Arena. Nested readers keep every Format 1 record
+// bounded so malformed content cannot consume a neighboring record.
 class Reader {
  public:
   class Record {
@@ -46,6 +48,14 @@ class Reader {
       Tetrodotoxin::Language::Persistence::Profile profile)
       -> Perimortem::Core::Option<Reader>;
 
+  static auto read(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Core::View::Bytes payload,
+      Tetrodotoxin::Language::Persistence::Profile profile,
+      const Ttx::Concept::Abstract& language,
+      Ttx::Concept::Abstract& context)
+      -> Perimortem::Core::Option<Language::Monograph&>;
+
   constexpr Reader(Perimortem::Core::View::Bytes payload) : payload(payload) {}
 
   auto read_record() -> Perimortem::Core::Option<Record>;
@@ -69,6 +79,10 @@ class Reader {
 
   constexpr auto is_complete() const -> Bool {
     return location == payload.get_size();
+  }
+
+  constexpr auto get_remaining_size() const -> Count {
+    return payload.get_size() - location;
   }
 
  private:

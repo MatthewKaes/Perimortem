@@ -53,7 +53,7 @@ static auto parse_writability(
 auto Interpreter::Declarations::Field::parse(
     Cursor& cursor,
     Tetrodotoxin::Language::Definition& definition)
-    -> Option<Language::Field&> {
+    -> Option<Parsed<Language::Field>> {
   if (!definition.get_host().is<Language::Model::Type>()) {
     return {};
   }
@@ -69,51 +69,63 @@ auto Interpreter::Declarations::Field::parse(
 
   Option<Language::TypeReference> type;
   Option<Language::Model::Pack&> initializer;
+  auto retain = [&](Bool accepted) -> Parsed<Language::Field> {
+    auto& field = Language::Field::create_authored(
+        cursor.get_arena(), definition, *writability, type, initializer);
+    return Parsed<Language::Field>(field, accepted);
+  };
+
   if (cursor.matches(Code::Type::Assign)) {
     cursor.consume();
     if (Interpreter::Expressions::Initializer::is_next(cursor)) {
-      auto object_initializer =
-          Interpreter::Expressions::Initializer::parse(
-              definition.get_host(), cursor);
-      BAIL_IF(!object_initializer);
+      auto object_initializer = Interpreter::Expressions::Initializer::parse(
+          definition.get_host(), cursor);
+      if (!object_initializer) {
+        return retain(False);
+      }
       initializer = *object_initializer;
     } else {
-      initializer = Interpreter::Pack::parse(
-          definition.get_host(), cursor);
+      initializer = Interpreter::Pack::parse(definition.get_host(), cursor);
     }
-    BAIL_IF(!initializer);
+    if (!initializer) {
+      return retain(False);
+    }
   } else {
     auto authored_type =
-        Interpreter::TypeReference::parse(
-            definition.get_host(), cursor);
-    BAIL_IF(!authored_type);
+        Interpreter::TypeReference::parse(definition.get_host(), cursor);
+    if (!authored_type) {
+      return retain(False);
+    }
     type = *authored_type;
 
     if (cursor.matches(Code::Type::Assign)) {
       cursor.consume();
       if (Interpreter::Expressions::Initializer::is_next(cursor)) {
-        auto object_initializer =
-            Interpreter::Expressions::Initializer::parse(
-                definition.get_host(), cursor);
-        BAIL_IF(!object_initializer);
+        auto object_initializer = Interpreter::Expressions::Initializer::parse(
+            definition.get_host(), cursor);
+        if (!object_initializer) {
+          return retain(False);
+        }
         initializer = *object_initializer;
       } else {
-        initializer = Interpreter::Pack::parse(
-            definition.get_host(), cursor);
+        initializer = Interpreter::Pack::parse(definition.get_host(), cursor);
       }
-      BAIL_IF(!initializer);
+      if (!initializer) {
+        return retain(False);
+      }
     } else if (*writability == Language::Writability::Constant) {
       cursor.create_token_error(
           "Library const Fields require an initializer."_view);
-      return {};
+      return retain(False);
     }
   }
 
   Token terminator = cursor.require(
       Code::Type::EndStatement,
       "Library Fields require one terminating `;`."_view);
-  BAIL_IF(!terminator);
-  BAIL_IF(!definition.complete(definition.get_name_token(), terminator));
-  return Language::Field::create_authored(
-      cursor.get_arena(), definition, *writability, type, initializer);
+  if (!terminator ||
+      !definition.complete(definition.get_name_token(), terminator)) {
+    return retain(False);
+  }
+  return retain(True);
 }

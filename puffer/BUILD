@@ -25,6 +25,7 @@ cc_library(
         "//perimortem",
         "//tetrodotoxin:app",
         "//tetrodotoxin:environment",
+        "//tetrodotoxin:formatting",
         "//tetrodotoxin:library",
         "//tetrodotoxin:package",
         "//tetrodotoxin:scene",

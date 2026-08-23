@@ -3,15 +3,15 @@
 
 #include "tetrodotoxin/library/interpreter/member.hpp"
 
-#include "tetrodotoxin/library/language/alias.hpp"
-#include "tetrodotoxin/library/language/field.hpp"
-#include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/interpreter/declarations/alias.hpp"
 #include "tetrodotoxin/library/interpreter/declarations/field.hpp"
 #include "tetrodotoxin/library/interpreter/declarations/function.hpp"
-#include "tetrodotoxin/library/interpreter/types/structure.hpp"
-#include "tetrodotoxin/library/interpreter/types/object.hpp"
 #include "tetrodotoxin/library/interpreter/types/enumeration.hpp"
+#include "tetrodotoxin/library/interpreter/types/object.hpp"
+#include "tetrodotoxin/library/interpreter/types/structure.hpp"
+#include "tetrodotoxin/library/language/alias.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
@@ -31,32 +31,47 @@ auto Interpreter::Member::parse(
   case Code::Type::Assign: {
     auto field = Declarations::Field::parse(cursor, definition);
     BAIL_IF(!field);
-    return Result(*field, Language::Types::Composite::Category::Addressable);
+    return Result(
+        field->get_semantic(),
+        Language::Types::Composite::Category::Addressable,
+        field->is_accepted());
   }
   case Code::Type::Alias: {
     auto alias = Declarations::Alias::parse(cursor, definition);
     BAIL_IF(!alias);
-    return Result(*alias, Language::Types::Composite::Category::Type);
+    return Result(
+        alias->get_semantic(), Language::Types::Composite::Category::Type,
+        alias->is_accepted());
   }
   case Code::Type::Func: {
     auto function = Declarations::Function::parse(cursor, definition);
     BAIL_IF(!function);
-    return Result(*function, Language::Types::Composite::Category::Callable);
+    return Result(
+        function->get_semantic(),
+        Language::Types::Composite::Category::Callable,
+        function->is_accepted());
   }
   case Code::Type::Enum: {
-    auto enumeration = Interpreter::Types::Enumeration::parse(cursor, definition);
+    auto enumeration =
+        Interpreter::Types::Enumeration::parse(cursor, definition);
     BAIL_IF(!enumeration);
-    return Result(*enumeration, Language::Types::Composite::Category::Type);
+    return Result(
+        enumeration->get_semantic(), Language::Types::Composite::Category::Type,
+        enumeration->is_accepted());
   }
   case Code::Type::Struct: {
     auto structure = Interpreter::Types::Structure::parse(cursor, definition);
     BAIL_IF(!structure);
-    return Result(*structure, Language::Types::Composite::Category::Type);
+    return Result(
+        structure->get_semantic(), Language::Types::Composite::Category::Type,
+        structure->is_accepted());
   }
   case Code::Type::Object: {
     auto object = Interpreter::Types::Object::parse(cursor, definition);
     BAIL_IF(!object);
-    return Result(*object, Language::Types::Composite::Category::Type);
+    return Result(
+        object->get_semantic(), Language::Types::Composite::Category::Type,
+        object->is_accepted());
   }
   default:
     cursor.create_token_error(

@@ -74,8 +74,7 @@ static auto rejects_link_without_publication(View::Bytes source) -> Bool {
     return False;
   }
 
-  return &workspace.resolve_context("LocalTest"_view) ==
-         &Invalid::get_invalid();
+  return retains_library_source(workspace, "LocalTest"_view);
 }
 
 PERIMORTEM_UNIT_TEST(LocalTests, local_completion) {
@@ -318,8 +317,7 @@ PERIMORTEM_UNIT_TEST(LocalTests, explicit_type_errors) {
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   EXPECT_NOT(interpret(workspace, errors, source));
-  EXPECT(
-      &workspace.resolve_context("LocalTest"_view) == &Invalid::get_invalid());
+  EXPECT(retains_library_source(workspace, "LocalTest"_view));
   ASSERT_EQ(errors.get_size(), Count(1));
 
   Perimortem::Memory::Allocator::Arena rendered;

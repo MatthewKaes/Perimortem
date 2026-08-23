@@ -62,6 +62,10 @@ class Documents {
       -> Perimortem::Core::Option<const Ttx::Concept::Abstract&>;
   auto get_associations(Perimortem::Core::View::Bytes uri)
       -> Perimortem::Core::Option<const Ttx::Lexical::Associations&>;
+  auto get_monograph(Perimortem::Core::View::Bytes uri)
+      -> Perimortem::Core::Option<const Tetrodotoxin::Language::Monograph&>;
+  auto get_completed_monograph(Perimortem::Core::View::Bytes uri)
+      -> Perimortem::Core::Option<const Tetrodotoxin::Language::Monograph&>;
   auto get_tokens(Perimortem::Core::View::Bytes uri)
       -> Perimortem::Core::View::Vector<Ttx::Lexical::Token>;
   auto find_definition(

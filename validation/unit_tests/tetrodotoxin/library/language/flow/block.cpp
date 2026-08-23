@@ -221,6 +221,5 @@ PERIMORTEM_UNIT_TEST(BlockTests, scope_rejection) {
   Errors errors;
   EXPECT_NOT(interpret(workspace, errors, source));
   EXPECT_NOT(errors.is_empty());
-  EXPECT(
-      &workspace.resolve_context("BlockTest"_view) == &Invalid::get_invalid());
+  EXPECT(retains_library_source(workspace, "BlockTest"_view));
 }

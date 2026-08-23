@@ -111,10 +111,10 @@ static auto create_monograph(
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
   Anchor source_anchor = Anchor::create(Span());
-  auto monograph = dialect.interpret(
+  auto interpretation = dialect.interpret(
       cursor, Documentation::get_empty(), source_anchor, context);
-  BAIL_IF(!monograph || !errors.is_empty());
-  return monograph->select<Library::Language::Monograph>();
+  BAIL_IF(!interpretation || !errors.is_empty());
+  return interpretation->select<Library::Language::Monograph>();
 }
 
 static auto matches_token(const Cursor& cursor, Token expected) -> Bool {

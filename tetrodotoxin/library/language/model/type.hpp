@@ -12,7 +12,6 @@
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/language/visibility.hpp"
-#include "tetrodotoxin/library/archive/writer.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
@@ -72,8 +71,6 @@ class Type : public Ttx::Model::Type {
   // A value edge requires only the physical carrier closure. Declaration
   // inventories remain owned by the Type's module traversal and are not
   // imported merely because a Callable transports this Type.
-
-  virtual auto persist(Archive::Writer& writer) const -> Bool;
 
   // Iteration is selected by the exact input Type. The loop supplies its real
   // binding Layout and input Pack, while each iterable Type owns admission and

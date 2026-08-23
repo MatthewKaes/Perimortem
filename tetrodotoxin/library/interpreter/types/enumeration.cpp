@@ -60,7 +60,7 @@ static auto parse_case(Cursor& cursor, const Documentation& documentation)
 auto Interpreter::Types::Enumeration::parse(
     Cursor& cursor,
     Tetrodotoxin::Language::Definition& definition)
-    -> Core::Option<Language::Types::Enumeration&> {
+    -> Core::Option<Parsed<Language::Types::Enumeration>> {
   if (definition.get_name_token().get_code() != Code::Type::Type) {
     cursor.create_token_error(
         definition.get_name_token(),
@@ -99,31 +99,41 @@ auto Interpreter::Types::Enumeration::parse(
 
   Memory::Managed::Vector<Language::Types::Enumeration::Case> cases(
       cursor.get_arena());
+  Bool accepted = True;
   while (!cursor.matches(Code::Type::ScopeEnd)) {
     if (cursor.matches(Code::Type::Terminal)) {
       cursor.create_token_error(
           "Library Enumeration body reached the end of source before "
           "`}`."_view);
-      return {};
+      accepted = False;
+      break;
     }
 
     const Documentation& documentation =
         Tetrodotoxin::Language::Parser::Comment::parse(cursor);
     auto parsed = parse_case(cursor, documentation);
-    BAIL_IF(!parsed);
+    if (!parsed) {
+      accepted = False;
+      cursor.recover_to_statement();
+      continue;
+    }
     if (cases.get_view().contains([&](const auto& existing) {
           return existing.name == parsed->name;
         })) {
       cursor.create_expression_error(
           parsed->name_anchor,
           "Duplicate case name in one Library Enumeration."_view);
-      return {};
+      accepted = False;
+      continue;
     }
     cases.insert(*parsed);
   }
 
-  Token closing = cursor.consume();
-  BAIL_IF(!definition.complete(enumeration_token, closing));
-  return Language::Types::Enumeration::create_authored(
+  if (cursor.matches(Code::Type::ScopeEnd)) {
+    Token closing = cursor.consume();
+    accepted &= definition.complete(enumeration_token, closing);
+  }
+  auto& enumeration = Language::Types::Enumeration::create_authored(
       cursor.get_arena(), definition, *storage, cases.get_view());
+  return Parsed<Language::Types::Enumeration>(enumeration, accepted);
 }

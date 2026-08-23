@@ -57,6 +57,22 @@ cc_library(
 )
 
 cc_library(
+    name = "formatting",
+    srcs = glob([
+        "formatting/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "formatting/**/*.hpp",
+    ]),
+    includes = ["."],
+    deps = [
+        ":language",
+        "//perimortem",
+        "//ttx:lexical",
+    ],
+)
+
+cc_library(
     name = "app",
     srcs = glob([
         "app/**/*.cpp",
@@ -76,25 +92,9 @@ cc_library(
     ],
 )
 
-cc_library(
+alias(
     name = "library",
-    srcs = glob([
-        "library/**/*.cpp",
-    ]),
-    hdrs = glob(
-        [
-            "library/**/*.hpp",
-        ],
-    ),
-    includes = ["."],
-    deps = [
-        ":language",
-        ":linker",
-        "//perimortem",
-        "//ttx:concept",
-        "//ttx:lexical",
-        "//ttx:model",
-    ],
+    actual = "//tetrodotoxin/library",
 )
 
 cc_library(

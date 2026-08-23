@@ -33,14 +33,16 @@ inline auto interpret_package(
       Ttx::Concept::Reference<Tetrodotoxin::Language::Dialect>, 1>
       installed = {{dialect}};
 
+  Count error_count = errors.get_size();
   auto interpreted = Tetrodotoxin::Language::Dialect::interpret_source(
       installed.get_view(), cursor, dialect);
-  if (!interpreted ||
+  if (!interpreted || errors.get_size() != error_count ||
       !interpreted->is<Tetrodotoxin::Package::Language::Monograph>()) {
     return {};
   }
 
-  return static_cast<Tetrodotoxin::Package::Language::Monograph&>(*interpreted);
+  return static_cast<Tetrodotoxin::Package::Language::Monograph&>(
+      *interpreted);
 }
 
 }  // namespace Validation

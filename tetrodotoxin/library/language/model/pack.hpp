@@ -8,8 +8,6 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "tetrodotoxin/library/archive/reader.hpp"
-#include "tetrodotoxin/library/archive/writer.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -99,19 +97,6 @@ class Pack : public Ttx::Model::Pack {
   static auto create_empty(
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor = {}) -> Pack&;
-
-  // Persisted Package constants retain their completed value flow rather than
-  // the Expression graph that produced it. Composite constant flow is
-  // flattened to its exact ordered outputs before crossing the Terminal
-  // boundary.
-  static auto persist_folded(Archive::Writer& writer, const Pack& value)
-      -> Bool;
-
-  static auto restore_folded(
-      Archive::Reader& reader,
-      Perimortem::Memory::Allocator::Arena& arena,
-      const Ttx::Concept::Abstract& lexical_context)
-      -> Perimortem::Core::Option<Pack&>;
 
   // A concrete producer may compose already retained child Packs when its
   // semantic result is genuinely grouped flow. Positional composition flattens

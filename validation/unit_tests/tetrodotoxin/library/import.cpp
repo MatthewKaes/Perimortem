@@ -2,7 +2,6 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/import.hpp"
-#include "tetrodotoxin/library/interpreter/source/import.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -13,6 +12,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/interpreter/source/import.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
@@ -49,12 +49,14 @@ static auto interpret_library(
   Tokenizer tokenizer(arena, source, "library-import.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
-  auto monograph = dialect.interpret(
+  Count error_count = errors.get_size();
+  auto interpretation = dialect.interpret(
       cursor, Documentation::get_empty(), Anchor::create(Span()), context);
   BAIL_IF(
-      !monograph || !monograph->is<Library::Language::Monograph>() ||
+      !interpretation || errors.get_size() != error_count ||
+      !interpretation->is<Library::Language::Monograph>() ||
       !cursor.matches(Code::Type::Terminal));
-  return static_cast<Library::Language::Monograph&>(*monograph);
+  return static_cast<Library::Language::Monograph&>(*interpretation);
 }
 
 static auto complete_library(
@@ -122,9 +124,8 @@ PERIMORTEM_UNIT_TEST(LibraryImports, statement_grammar) {
     Tokenizer tokenizer(arena, source, "import.ttx"_view);
     Ttx::Lexical::Associations associations(tokenizer.get_arena());
     Cursor cursor(tokenizer, errors, associations);
-    auto import =
-        Library::Interpreter::Source::Import::parse(
-            cursor, Documentation::get_empty());
+    auto import = Library::Interpreter::Source::Import::parse(
+        cursor, Documentation::get_empty());
     EXPECT(import && cursor.matches(Code::Type::Terminal));
     EXPECT(errors.is_empty());
   }

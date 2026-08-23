@@ -6,6 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/library/interpreter/parsed.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -20,7 +21,7 @@ class Structure {
   static auto parse(
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Language::Definition& definition)
-      -> Perimortem::Core::Option<Language::Types::Structure&>;
+      -> Perimortem::Core::Option<Parsed<Language::Types::Structure>>;
 };
 
 }  // namespace Tetrodotoxin::Library::Interpreter::Types

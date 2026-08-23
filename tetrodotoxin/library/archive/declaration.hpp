@@ -14,6 +14,9 @@
 #include "tetrodotoxin/language/visibility.hpp"
 #include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/archive/writer.hpp"
+#include "tetrodotoxin/library/language/alias.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/function.hpp"
 #include "ttx/concept/documentation.hpp"
 
 namespace Tetrodotoxin::Library::Archive {
@@ -65,5 +68,38 @@ class Declaration {
   Perimortem::Core::View::Bytes name;
   Tetrodotoxin::Language::Visibility visibility;
 };
+
+auto write(Writer& writer, const Language::Alias& alias) -> Bool;
+
+auto read_alias(
+    Reader& reader,
+    Perimortem::Memory::Allocator::Arena& arena,
+    Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Language::Alias&>;
+
+auto write(Writer& writer, const Language::Field& field) -> Bool;
+
+auto write_field_slot(
+    Writer& writer,
+    const Language::Field& field,
+    Count ordinal) -> Bool;
+
+auto read_field(
+    Reader& reader,
+    Perimortem::Memory::Allocator::Arena& arena,
+    Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Language::Field&>;
+
+auto read_field_slot(
+    Reader& reader,
+    Perimortem::Memory::Allocator::Arena& arena,
+    Ttx::Concept::Abstract& host,
+    Count ordinal) -> Perimortem::Core::Option<Language::Field&>;
+
+auto write(Writer& writer, const Language::Function& function) -> Bool;
+
+auto read_function(
+    Reader& reader,
+    Perimortem::Memory::Allocator::Arena& arena,
+    Ttx::Concept::Abstract& host)
+    -> Perimortem::Core::Option<Language::Function&>;
 
 }  // namespace Tetrodotoxin::Library::Archive

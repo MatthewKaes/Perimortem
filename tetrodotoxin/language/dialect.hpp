@@ -50,7 +50,8 @@ class Dialect : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<Dialect>>
           installed,
       Ttx::Lexical::Cursor& cursor,
-      Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
+      Ttx::Concept::Abstract& context)
+      -> Perimortem::Core::Option<Monograph&>;
 
   // A persistent Dialect chooses the durable facts that can rebuild its own
   // Monograph. An engaged empty value is a valid empty payload, while absence

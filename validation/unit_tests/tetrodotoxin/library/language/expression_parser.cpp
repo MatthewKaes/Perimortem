@@ -9,6 +9,7 @@
 
 #include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/interpreter/expression.hpp"
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/slice.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
@@ -31,7 +32,6 @@
 #include "tetrodotoxin/library/language/operations/or.hpp"
 #include "tetrodotoxin/library/language/operations/range.hpp"
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
-#include "tetrodotoxin/library/interpreter/expression.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -96,14 +96,15 @@ static auto create_monograph(
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
   Anchor source_anchor = Anchor::create(Span());
-  auto monograph = dialect.interpret(
+  auto interpretation = dialect.interpret(
       cursor, Documentation::get_empty(), source_anchor, context);
-  if (!monograph || !monograph->is<Library::Language::Monograph>() ||
+  if (!interpretation ||
+      !interpretation->is<Library::Language::Monograph>() ||
       !errors.is_empty()) {
     return {};
   }
 
-  return static_cast<Library::Language::Monograph&>(*monograph);
+  return static_cast<Library::Language::Monograph&>(*interpretation);
 }
 
 static auto select_monograph(Option<Library::Language::Monograph&>& owner)

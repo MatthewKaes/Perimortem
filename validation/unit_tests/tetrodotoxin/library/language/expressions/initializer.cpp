@@ -72,8 +72,7 @@ static auto rejects_link_without_publication(View::Bytes source) -> Bool {
     return False;
   }
 
-  return &workspace.resolve_context("InitializerTest"_view) ==
-         &Invalid::get_invalid();
+  return retains_library_source(workspace, "InitializerTest"_view);
 }
 
 static Harness InitializerTests = {

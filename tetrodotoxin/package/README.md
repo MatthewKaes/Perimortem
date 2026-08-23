@@ -99,11 +99,11 @@ Monographs. It owns none of those Monographs and contains no import state or
 completed root cache.
 
 Workspace reads exactly that root manifest's fixed Source table. Each entry gets
-one source transaction Arena and one optional parse valid Monograph. A member
-cannot add another Package import. After all entries parse, Workspace links
-every member before finalizing any member. Success transfers every completed
-owner into Workspace lifetime and publishes only the Package root. Failure
-releases every candidate Arena.
+one source transaction Arena and one optional Monograph. A member cannot add
+another Package import. Workspace retains each Monograph it can create, links
+members whose interpretation added no source errors against the fixed Package
+context, and finalizes none of them until the island links. Only the completed
+root can enter Terminal production.
 
 ## Package context
 

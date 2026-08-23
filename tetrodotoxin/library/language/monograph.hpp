@@ -23,12 +23,12 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       const Ttx::Concept::Abstract& language,
       Ttx::Concept::Abstract& context) -> Monograph&;
 
-  static auto restore(
-      Archive::Reader& reader,
+  static auto create(
       Perimortem::Memory::Allocator::Arena& arena,
-      Tetrodotoxin::Language::Persistence::Profile profile,
+      const Ttx::Concept::Documentation& documentation,
+      const Ttx::Lexical::Anchor& source_anchor,
       const Ttx::Concept::Abstract& language,
-      Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
+      Ttx::Concept::Abstract& context) -> Monograph&;
 
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
@@ -37,8 +37,6 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto link_restored() -> Bool override;
 
   auto finalize_restored() -> Bool override;
-
-  auto persist(Archive::Writer& writer) const -> Bool;
 
   auto get_name() const -> Perimortem::Core::View::Bytes override;
 

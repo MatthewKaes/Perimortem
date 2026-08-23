@@ -3,7 +3,6 @@
 
 #include "tetrodotoxin/library/language/foreign.hpp"
 
-#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/documentations/merged.hpp"
@@ -22,7 +21,7 @@ Library::Language::Foreign::Foreign(Allocator::Arena& domain, Abstract& parent)
       functions(domain),
       declarations(domain) {}
 
-auto Library::Language::Foreign::retain_authored_block(
+auto Library::Language::Foreign::retain_block(
     const Documentation& block_documentation,
     View::Bytes selected_abi,
     View::Vector<Reference<State>> selected_states,
@@ -46,75 +45,6 @@ auto Library::Language::Foreign::retain_authored_block(
   for (const Reference<Abstract>& declaration : selected_declarations) {
     declarations.insert(declaration);
   }
-  return True;
-}
-
-auto Library::Language::Foreign::persist(Archive::Writer& writer) const
-    -> Bool {
-  auto record = writer.begin(Archive::Tag::Foreign);
-  BAIL_IF(
-      !writer.write(get_documentation()) || !abi || !writer.write(*abi) ||
-      declarations.get_size() > U32(-1));
-
-  writer.write(U32(declarations.get_size()));
-  for (const Reference<Abstract>& declaration : declarations.get_view()) {
-    auto state = declaration.get().select<State>();
-    if (state) {
-      BAIL_IF(!state->persist(writer));
-      continue;
-    }
-
-    auto function = declaration.get().select<Function>();
-    BAIL_IF(!function || !function->persist(writer));
-  }
-  return writer.finish(record);
-}
-
-auto Library::Language::Foreign::restore(
-    Archive::Reader& reader,
-    Allocator::Arena& arena,
-    Abstract& parent) -> Option<Foreign&> {
-  Foreign& foreign = arena.construct<Foreign>(arena, parent);
-  BAIL_IF(!foreign.restore(reader));
-  return foreign;
-}
-
-auto Library::Language::Foreign::restore(Archive::Reader& reader) -> Bool {
-  auto record = reader.read_record();
-  BAIL_IF(
-      !record || record->get_tag() != U16(Archive::Tag::Foreign) ||
-      record->is_optional());
-
-  Archive::Reader contents(record->get_payload());
-  auto restored_documentation = contents.read_documentation(domain);
-  auto restored_abi = contents.read_bytes();
-  auto count = contents.read_u32();
-  BAIL_IF(
-      !restored_documentation || !restored_abi || restored_abi->is_empty() ||
-      !count);
-
-  documentation = &*restored_documentation;
-  abi = domain.proxy(*restored_abi);
-  for (Count index = 0; index < *count; index++) {
-    Archive::Reader probe = contents;
-    auto declaration = probe.read_record();
-    BAIL_IF(!declaration || declaration->is_optional());
-    Archive::Tag tag = Archive::Tag(declaration->get_tag());
-    if (tag == Archive::Tag::ForeignState) {
-      auto state = State::restore(contents, domain, *this);
-      BAIL_IF(!state);
-      states.insert(*state);
-      declarations.insert(*state);
-    } else if (tag == Archive::Tag::ForeignFunction) {
-      auto function = Function::restore(contents, domain, *this);
-      BAIL_IF(!function);
-      functions.insert(*function);
-      declarations.insert(*function);
-    } else {
-      return False;
-    }
-  }
-  BAIL_IF(!contents.is_complete());
   return True;
 }
 

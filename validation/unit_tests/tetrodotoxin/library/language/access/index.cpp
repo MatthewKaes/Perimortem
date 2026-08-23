@@ -2,16 +2,16 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/access/index.hpp"
-#include "tetrodotoxin/library/interpreter/access/index.hpp"
 
 #include "validation/unit_test.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/interpreter/access/index.hpp"
+#include "tetrodotoxin/library/interpreter/expression.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/interpreter/expression.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
@@ -78,14 +78,15 @@ static auto create_monograph(
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
   Anchor source_anchor = Anchor::create(Span());
-  auto monograph = dialect.interpret(
+  auto interpretation = dialect.interpret(
       cursor, Documentation::get_empty(), source_anchor, context);
-  if (!monograph || !monograph->is<Library::Language::Monograph>() ||
+  if (!interpretation ||
+      !interpretation->is<Library::Language::Monograph>() ||
       !errors.is_empty()) {
     return {};
   }
 
-  return static_cast<Library::Language::Monograph&>(*monograph);
+  return static_cast<Library::Language::Monograph&>(*interpretation);
 }
 
 static auto parse_index(
@@ -150,8 +151,7 @@ static auto rejects_committed_index_suffix(
   Cursor cursor(tokenizer, errors, associations);
   Token opening = cursor.current();
   auto parsed =
-      Library::Interpreter::Access::Index::parse(
-          context, cursor, *receiver);
+      Library::Interpreter::Access::Index::parse(context, cursor, *receiver);
   Token ending = cursor.current();
   return !parsed && !errors.is_empty() &&
          ending.get_offset() > opening.get_offset();

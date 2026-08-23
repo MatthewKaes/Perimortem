@@ -5,8 +5,8 @@
 
 #include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/archive/writer.hpp"
-#include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/interpreter/source/library.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -21,8 +21,7 @@ auto Library::Dialect::interpret(
     Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
   auto& monograph = Language::Monograph::create_authored(
       cursor.get_arena(), documentation, source_anchor, *this, context);
-  BAIL_IF(!Interpreter::Source::Library::parse(
-      monograph.get_source(), cursor));
+  Interpreter::Source::Library::parse(monograph.get_source(), cursor);
   return monograph;
 }
 
@@ -33,9 +32,7 @@ auto Library::Dialect::encode(
   auto library = monograph.select<Language::Monograph>();
   BAIL_IF(!library);
 
-  Archive::Writer writer(profile);
-  BAIL_IF(!library->persist(writer));
-  return writer.take();
+  return Archive::Writer::write(*library, profile);
 }
 
 auto Library::Dialect::restore(
@@ -44,11 +41,8 @@ auto Library::Dialect::restore(
     Tetrodotoxin::Language::Persistence::Profile profile,
     const Documentation&,
     Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
-  auto reader = Archive::Reader::open(payload, profile);
-  BAIL_IF(!reader);
-
   auto restored =
-      Language::Monograph::restore(*reader, arena, profile, *this, context);
+      Archive::Reader::read(arena, payload, profile, *this, context);
   return restored ? Option<Tetrodotoxin::Language::Monograph&>(*restored)
                   : Option<Tetrodotoxin::Language::Monograph&>();
 }

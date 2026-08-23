@@ -34,13 +34,15 @@ auto semantic_tokens(Documents& documents, const Rpc::Message& message)
 auto inlay_hints(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
 auto hover(Documents& documents, const Rpc::Message& message) -> Rpc::Response;
+auto completion(Documents& documents, const Rpc::Message& message)
+    -> Rpc::Response;
 auto definition(Documents& documents, const Rpc::Message& message)
     -> Rpc::Response;
 
 using Method =
     Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Rpc::DispatchFunc>;
 
-inline constexpr Perimortem::Core::Static::Vector<Method, 10> method_table = {{
+inline constexpr Perimortem::Core::Static::Vector<Method, 11> method_table = {{
   Method{"initialize"_view, initialize},
   {"textDocument/formatting"_view, document_formatting},
   {"textDocument/didOpen"_view, did_open},
@@ -50,6 +52,7 @@ inline constexpr Perimortem::Core::Static::Vector<Method, 10> method_table = {{
   {"textDocument/semanticTokens/full"_view, semantic_tokens},
   {"textDocument/inlayHint"_view, inlay_hints},
   {"textDocument/hover"_view, hover},
+  {"textDocument/completion"_view, completion},
   {"textDocument/definition"_view, definition},
 }};
 

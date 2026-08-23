@@ -9,13 +9,14 @@
 
 #include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/library/archive/tag.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/documentation.hpp"
 
 namespace Tetrodotoxin::Library::Archive {
 
-// Writer owns one append only Library payload. Semantic owners open and close
-// their own bounded records while Writer supplies only physical framing and
-// scalar encoding. It never selects a Library declaration or Expression kind.
+// Writer turns one completed Library Monograph into a deterministic payload.
+// The public operation walks semantic identities while the record operations
+// below keep Format 1 framing and scalar encoding in one place.
 class Writer {
  public:
   class Record {
@@ -31,6 +32,11 @@ class Writer {
   };
 
   Writer(Tetrodotoxin::Language::Persistence::Profile profile);
+
+  static auto write(
+      const Language::Monograph& monograph,
+      Tetrodotoxin::Language::Persistence::Profile profile)
+      -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
   auto begin(Tag tag, Bool optional = False) -> Record;
 

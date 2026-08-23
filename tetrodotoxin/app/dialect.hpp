@@ -21,7 +21,8 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
       const Ttx::Concept::Documentation& documentation,
       const Ttx::Lexical::Anchor& source_anchor,
       Ttx::Concept::Abstract& context)
-      -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
+      -> Perimortem::Core::Option<
+          Tetrodotoxin::Language::Monograph&> override;
 
   auto encode(
       const Ttx::Concept::Abstract& monograph,

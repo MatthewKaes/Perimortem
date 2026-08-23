@@ -208,24 +208,22 @@ source bytes
 -> TTX Tokens
 -> selected Dialect
 -> direct Cursor, Associations, Documentation, Anchor, and context inputs
--> optional parse valid Monograph in the source Arena
--> link with the source Cursor
--> finalize with the source Cursor
--> retain the Arena and its Monograph to Associations association
--> publish the completed Monograph
--> compilation, tooling, or durable output
+-> optional Monograph in the source Arena
+-> retain the Monograph, Tokens, Associations, and diagnostics when present
+-> link and finalize meaning when interpretation added no source errors
+-> admit only the completed Monograph to Terminal production
 ```
 
-Failure at any stage releases the local Arena, and Workspace never accumulates
-an invalid source for later validation. A Package manifest supplies one fixed
-Source table. Workspace interprets all of those members, links every member
-before finalizing any member, and publishes only the completed Package root.
-Workspace retains each successful Monograph's source transaction Arena
-containing the authored bytes, source backed values, Tokens, semantic graph,
-and immutable Associations index. The operation Cursor completes before
-publication and is not exposed as completed source state. Tools ask Workspace
-for the exact completed Associations index. A compiler receives the exact
-source facts and caller owned textual error sink required by its transaction.
+A Dialect can return a Monograph even when the current edit produced errors.
+Workspace keeps that source Arena so hover, navigation, completion, diagnostics,
+and formatting can use every fact the Dialect established. An absent Monograph
+releases the local Arena because no semantic root exists to own it.
+
+A Package manifest supplies one fixed Source table. Workspace interprets those
+members together and retains each Monograph that could be created. Accepted
+members may link, but finalization begins only when the complete island links.
+LLVM, SPIR-V, Archives, and other Terminal products remain gated on the whole
+island completing.
 
 Once the Workspace is complete, tools and backends can use the same facts
 without translating the program into another language's model. The LLVM

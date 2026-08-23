@@ -8,7 +8,6 @@
 #include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "ttx/concept/reference.hpp"
@@ -18,40 +17,6 @@ using namespace Perimortem::Memory;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
 
-auto Types::Structure::persist(Archive::Writer& writer) const -> Bool {
-  auto record = writer.begin(Archive::Tag::Structure);
-  Archive::Declaration declaration(get_definition());
-  Bool public_only = writer.get_profile() ==
-                     Tetrodotoxin::Language::Persistence::Profile::Interface;
-  BAIL_IF(
-      !declaration.write(writer) ||
-      !persist_declarations(writer, public_only) || !writer.finish(record));
-  return True;
-}
-
-auto Types::Structure::restore(
-    Archive::Reader& reader,
-    Allocator::Arena& arena,
-    Abstract& host,
-    Tetrodotoxin::Language::Persistence::Profile profile)
-    -> Option<Structure&> {
-  auto record = reader.read_record();
-  BAIL_IF(
-      !record || record->get_tag() != U16(Archive::Tag::Structure) ||
-      record->is_optional());
-
-  Archive::Reader contents(record->get_payload());
-  auto declaration = Archive::Declaration::read(contents, arena);
-  BAIL_IF(!declaration);
-
-  auto& definition = declaration->create_definition(arena, host);
-  Structure& structure = arena.construct_from<Structure>(
-      [&]() -> Structure { return Structure(arena, definition, False); });
-  BAIL_IF(!structure.restore_declarations(contents, profile));
-  structure.complete_field_layout();
-  return structure;
-}
-
 auto Types::Structure::create_authored(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition) -> Structure& {
@@ -59,7 +24,14 @@ auto Types::Structure::create_authored(
       [&]() -> Structure { return Structure(domain, definition); });
 }
 
-auto Types::Structure::complete_authored_body() -> void {
+auto Types::Structure::create_restored(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition) -> Structure& {
+  return domain.construct_from<Structure>(
+      [&]() -> Structure { return Structure(domain, definition, False); });
+}
+
+auto Types::Structure::complete_body() -> void {
   complete_field_layout();
 }
 

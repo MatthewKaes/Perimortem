@@ -7,9 +7,9 @@
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/dynamic/map.hpp"
 #include "perimortem/memory/dynamic/record.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
-#include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/system/version.hpp"
@@ -24,9 +24,9 @@
 
 namespace Tetrodotoxin::Environment {
 
-// A Workspace gathers every Monograph that can refer to one another. Direct
-// sources and Package members become visible together only after the complete
-// island has finished, which keeps authored lookup independent of load order.
+// A Workspace gathers every Monograph that can refer to one another. It keeps
+// incomplete source transactions available to tooling while completed islands
+// remain the only inputs admitted to Terminal production.
 class Workspace : public Ttx::Concept::Abstract {
  public:
   class AuthoredLocation {
@@ -70,9 +70,9 @@ class Workspace : public Ttx::Concept::Abstract {
           {});
   ~Workspace() override;
 
-  // A direct source joins the Workspace after parsing, linking, and
-  // finalization agree on the same graph. Keeping publication last means a
-  // failed edit leaves no partial name to discover.
+  // A direct source retains its transaction once its Dialect creates a
+  // Monograph. The optional result still reports full semantic completion, so
+  // build callers and editor callers can share one operation safely.
   auto interpret_source(
       Ttx::Lexical::Errors& errors,
       Perimortem::Core::View::Bytes semantic_name,
@@ -100,16 +100,22 @@ class Workspace : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes root_semantic_name)
       -> Perimortem::Core::Option<Language::Monograph&>;
 
-  // Each completed Monograph keeps the authored index created in its source
-  // transaction. Tooling can borrow those identities while Workspace keeps
-  // their Arena alive.
+  // Each retained Monograph keeps the authored index created in its source
+  // transaction. Tooling can borrow the strongest identities interpretation
+  // established even when later completion reports an error.
   auto get_associations(const Language::Monograph& monograph) const
       -> Perimortem::Core::Option<const Ttx::Lexical::Associations&>;
 
   auto get_associations(Perimortem::Core::View::Bytes diagnostic_path) const
       -> Perimortem::Core::Option<const Ttx::Lexical::Associations&>;
 
-  // Keeping the original Token stream beside a completed source lets tooling
+  auto get_monograph(Perimortem::Core::View::Bytes diagnostic_path) const
+      -> Perimortem::Core::Option<const Language::Monograph&>;
+
+  auto get_completed_monograph(Perimortem::Core::View::Bytes diagnostic_path)
+      const -> Perimortem::Core::Option<const Language::Monograph&>;
+
+  // Keeping the original Token stream beside a retained source lets tooling
   // borrow the same lexical facts that built its semantic graph. That shared
   // view saves another tokenization pass and keeps source coordinates aligned.
   auto get_tokens(Perimortem::Core::View::Bytes diagnostic_path) const
@@ -131,10 +137,10 @@ class Workspace : public Ttx::Concept::Abstract {
     Package::Language::Monograph* monograph;
   };
 
-  // One published source keeps its text, Tokens, authored index, semantic root,
-  // and Arena together. That shared lifetime keeps every borrowed view valid
-  // for as long as Workspace exposes the Monograph.
-  struct PublishedSource {
+  // One retained source keeps its text, Tokens, authored index, semantic root,
+  // and Arena together. Completion decides product eligibility without
+  // discarding the evidence an editor can still use.
+  struct RetainedSource {
     Perimortem::Core::View::Bytes package_root;
     Perimortem::Core::View::Bytes diagnostic_path;
     Perimortem::Core::View::Bytes source_text;
@@ -143,6 +149,7 @@ class Workspace : public Ttx::Concept::Abstract {
     Language::Monograph& monograph;
     Perimortem::Core::View::Vector<Ttx::Lexical::Token> tokens;
     const Ttx::Lexical::Associations& associations;
+    Bool completed;
   };
 
   // Workspace borrows one Toolchain for its full lifetime. Monographs can then
@@ -153,13 +160,14 @@ class Workspace : public Ttx::Concept::Abstract {
       Perimortem::Memory::Dynamic::Record<Package::Snapshots>>
       snapshots;
   Perimortem::Memory::Allocator::Arena arena;
-  Perimortem::Memory::Dynamic::Vector<PublishedSource> published_sources;
+  Perimortem::Memory::Dynamic::Vector<RetainedSource> retained_sources;
   Perimortem::Memory::Dynamic::Vector<
       Perimortem::Memory::Dynamic::Record<Perimortem::Memory::Allocator::Arena>>
       restored_transactions;
-  Perimortem::Memory::Managed::
-      Map<Perimortem::Core::View::Bytes, Language::Monograph&>
-          source_monographs;
+  Perimortem::Memory::Dynamic::Map<
+      Perimortem::Core::View::Bytes,
+      Ttx::Concept::Reference<Language::Monograph>>
+      retained_monographs;
   Perimortem::Memory::Managed::Vector<ImportedPackage> packages;
 };
 

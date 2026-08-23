@@ -181,7 +181,33 @@ static auto append_type(
     const Abstract& semantic) -> void {
   auto type = semantic.select<Model::Type>();
   if (!type) {
-    auto addressable = semantic.select<Model::Addressable>();
+    auto field = semantic.select<Field>();
+    if (field) {
+      if (field->is_linked()) {
+        type = field->get_type();
+      } else {
+        auto reference = field->get_type_reference();
+        output << (reference ? reference->get_route() : "<unknown>"_view);
+        return;
+      }
+    }
+  }
+  if (!type) {
+    auto local = semantic.select<Flow::Local>();
+    if (local) {
+      auto linked = local->get_linked_type();
+      if (linked) {
+        type = *linked;
+      } else {
+        auto reference = local->get_type_reference();
+        output << (reference ? reference->get_route() : "<unknown>"_view);
+        return;
+      }
+    }
+  }
+  if (!type) {
+    const Abstract& resolved = semantic.resolve();
+    auto addressable = resolved.select<Model::Addressable>();
     if (addressable) {
       type = addressable->get_type();
     }
@@ -190,7 +216,7 @@ static auto append_type(
     const Abstract& resolved = semantic.resolve();
     type = resolved.select<Model::Type>();
   }
-  output << (type ? type->get_name() : "<invalid>"_view);
+  output << (type ? type->get_name() : "<unknown>"_view);
 }
 
 static auto append_signature_layout(
@@ -217,7 +243,7 @@ static auto append_signature_layout(
     }
     auto entry = layout.get_abstract(index);
     if (!entry) {
-      output << "<invalid>"_view;
+      output << "<unknown>"_view;
       continue;
     }
 
@@ -265,14 +291,16 @@ static auto append_declaration(
   auto field = subject.select<Field>();
   if (field) {
     output << writability_name(field->get_writability()) << " "_view
-           << field->get_name() << " : "_view << field->get_type().get_name();
+           << field->get_name() << " : "_view;
+    append_type(output, *field);
     return True;
   }
 
   auto local = subject.select<Flow::Local>();
   if (local) {
     output << writability_name(local->get_writability()) << " "_view
-           << local->get_name() << " : "_view << local->get_type().get_name();
+           << local->get_name() << " : "_view;
+    append_type(output, *local);
     return True;
   }
 
@@ -303,8 +331,8 @@ static auto append_declaration(
 
   auto addressable = subject.select<Model::Addressable>();
   if (addressable) {
-    output << subject.get_name() << " : "_view
-           << addressable->get_type().get_name();
+    output << subject.get_name() << " : "_view;
+    append_type(output, subject);
     return True;
   }
 

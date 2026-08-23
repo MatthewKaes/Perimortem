@@ -142,8 +142,6 @@ PERIMORTEM_UNIT_TEST(SignatureTests, strict_descriptor) {
     Ttx::Lexical::Errors errors;
     EXPECT_NOT(interpret(workspace, errors, rejected[i]));
     EXPECT_NOT(errors.is_empty());
-    EXPECT(
-        &workspace.resolve_context("SignatureTest"_view) ==
-        &Invalid::get_invalid());
+    EXPECT(retains_library_source(workspace, "SignatureTest"_view));
   }
 }

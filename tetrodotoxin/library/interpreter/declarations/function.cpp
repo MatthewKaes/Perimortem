@@ -3,8 +3,8 @@
 
 #include "tetrodotoxin/library/interpreter/declarations/function.hpp"
 
-#include "tetrodotoxin/library/interpreter/execution/block.hpp"
 #include "tetrodotoxin/library/interpreter/declarations/signature.hpp"
+#include "tetrodotoxin/library/interpreter/execution/block.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Lexical;
@@ -44,7 +44,7 @@ static auto validate_function(
 auto Interpreter::Declarations::Function::parse(
     Cursor& cursor,
     Tetrodotoxin::Language::Definition& definition)
-    -> Option<Language::Function&> {
+    -> Option<Parsed<Language::Function>> {
   if (!validate_function(cursor, definition) ||
       !definition.get_host().is<Language::Model::Type>()) {
     return {};
@@ -62,11 +62,16 @@ auto Interpreter::Declarations::Function::parse(
   BAIL_IF(!signature);
   Language::Function& function = Language::Function::create_authored(
       cursor.get_arena(), definition, *signature);
+  Count error_count = cursor.get_error_count();
   auto body = Interpreter::Execution::Block::parse(
       cursor, function, function, function.get_host());
-  BAIL_IF(!body);
-  BAIL_IF(!definition.complete(
-      definition.get_qualifier(), body->get_anchor().get_span().get_end()));
-  BAIL_IF(!function.complete_body(*body));
-  return function;
+  if (!body) {
+    return Parsed<Language::Function>(function, False);
+  }
+  Bool accepted = definition.complete(
+                      definition.get_qualifier(),
+                      body->get_anchor().get_span().get_end()) &&
+                  function.complete_body(*body) &&
+                  cursor.get_error_count() == error_count;
+  return Parsed<Language::Function>(function, accepted);
 }

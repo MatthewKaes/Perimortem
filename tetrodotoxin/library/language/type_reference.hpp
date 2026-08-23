@@ -10,8 +10,6 @@
 
 #include "perimortem/utility/result.hpp"
 
-#include "tetrodotoxin/library/archive/reader.hpp"
-#include "tetrodotoxin/library/archive/writer.hpp"
 #include "tetrodotoxin/library/language/generic.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -69,13 +67,14 @@ class TypeReference {
     return TypeReference(route, anchor, terminal, arguments);
   }
 
-  static auto restore(
-      Archive::Reader& reader,
-      Perimortem::Memory::Allocator::Arena& arena,
-      const Ttx::Concept::Abstract& context)
-      -> Perimortem::Core::Option<TypeReference>;
-
-  auto persist(Archive::Writer& writer) const -> Bool;
+  static constexpr auto create(
+      Perimortem::Core::View::Bytes route,
+      Ttx::Lexical::Anchor anchor,
+      Ttx::Lexical::Token terminal,
+      Perimortem::Core::Option<Perimortem::Core::View::Vector<Argument>>
+          arguments = {}) -> TypeReference {
+    return TypeReference(route, anchor, terminal, arguments);
+  }
 
   auto get_size() const -> Count;
 
@@ -83,6 +82,10 @@ class TypeReference {
 
   constexpr auto get_root() const -> Perimortem::Core::View::Bytes {
     return get_name(0);
+  }
+
+  constexpr auto get_route() const -> Perimortem::Core::View::Bytes {
+    return route;
   }
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }

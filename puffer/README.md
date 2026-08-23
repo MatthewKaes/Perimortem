@@ -47,23 +47,27 @@ Puffer's process model and user interface are optional. Another application can
 reuse source interpretation, Package resolution, compilation, linking, and
 Archive support without adopting either one.
 
-Puffer can canonically format any TTX token stream without requiring semantic
-completion:
+Puffer can recover the layout of an unfinished TTX token stream without
+requiring semantic completion:
 
 ```text
 puffer -format source.ttx another.ttx
 ```
 
-Formatting rewrites each source transactionally. It preserves unknown and
-incomplete tokens, applies the same declaration and whitespace rules to every
-equivalent token stream, and supplies placeholder source documentation when the
-leading document is absent. Comment markers, hexadecimal widths, byte groups,
-and single Statement Blocks receive one prescribed spelling. Packs and Layouts
-stay on one line through the 100 column limit, then place one top level entry on
-each line with a trailing comma. Adjacent declarations and plain assignments
-align their `:` and `=` columns only when the required padding is at most eight
-columns and the aligned prefix remains short. Documentation, Attributes, and
-Blocks end an alignment island.
+Formatting rewrites each source transactionally. The recovery path preserves
+unknown and incomplete tokens and supplies placeholder source documentation
+when the leading document is absent. Once a Monograph completes, the language
+server hands the document to the formatting Terminal. That path applies the
+canonical declaration and whitespace rules and can reflow ordinary comment
+paragraphs. A bare `//` remains an intentional paragraph boundary.
+
+Comment markers, hexadecimal widths, byte groups, and single Statement Blocks
+receive one prescribed spelling. Packs and Layouts stay on one line through the
+100 column limit, then place one top level entry on each line with a trailing
+comma. Adjacent declarations and plain assignments align their `:` and `=`
+columns only when the required padding is at most eight columns and the aligned
+prefix remains short. Documentation, Attributes, and Blocks end an alignment
+island.
 
 Within one scope paragraph, formatting accepts Definitions, ordinary
 Statements, any number of compressed `:` Blocks, then at most one braced Block.

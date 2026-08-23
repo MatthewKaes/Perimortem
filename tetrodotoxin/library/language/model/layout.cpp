@@ -73,62 +73,16 @@ auto Language::Model::Layout::create_authored(
     Managed::Vector<Slot> slots,
     Anchor anchor,
     Bool parameters) -> Layout& {
+  return create(domain, slots, anchor, parameters);
+}
+
+auto Language::Model::Layout::create(
+    Allocator::Arena& domain,
+    Managed::Vector<Slot> slots,
+    Anchor anchor,
+    Bool parameters) -> Layout& {
   return domain.construct_from<Layout>(
       [&]() -> Layout { return Layout(domain, slots, anchor, parameters); });
-}
-
-auto Language::Model::Layout::persist(Archive::Writer& writer) const -> Bool {
-  auto record = writer.begin(Archive::Tag::Layout);
-  BAIL_IF(get_size() > U32(-1));
-
-  writer.write(U32(get_size()));
-  for (Count index = 0; index < get_size(); index++) {
-    BAIL_IF(!writer.write(slots.at(index).name));
-
-    auto reference = get_type_reference(index);
-    writer.write(U8(reference ? 1 : 0));
-    BAIL_IF(reference && !reference->persist(writer));
-  }
-  return writer.finish(record);
-}
-
-auto Language::Model::Layout::restore(
-    Archive::Reader& reader,
-    Allocator::Arena& arena,
-    const Abstract& context,
-    Bool parameters) -> Option<Layout&> {
-  auto record = reader.read_record();
-  BAIL_IF(
-      !record || record->get_tag() != U16(Archive::Tag::Layout) ||
-      record->is_optional());
-
-  Archive::Reader contents(record->get_payload());
-  auto count = contents.read_u32();
-  BAIL_IF(!count || Count(*count) > record->get_payload().get_size());
-
-  Managed::Vector<Slot> slots(arena);
-  for (Count index = 0; index < *count; index++) {
-    auto name = contents.read_bytes();
-    auto has_reference = contents.read_u8();
-    BAIL_IF(!name || !has_reference || *has_reference > 1);
-
-    Option<TypeReference> reference;
-    if (*has_reference == 1) {
-      // TypeReference restoration does not resolve its route. The Layout's
-      // source free link barrier receives the real host after every member has
-      // reserved its declaration identities.
-      auto restored = TypeReference::restore(contents, arena, context);
-      BAIL_IF(!restored);
-      reference = *restored;
-    }
-
-    slots.insert(Slot(reference, Anchor::create(Span()), arena.proxy(*name)));
-  }
-  BAIL_IF(!contents.is_complete());
-
-  return arena.construct_from<Layout>([&]() -> Layout {
-    return Layout(arena, slots, Anchor::create(Span()), parameters);
-  });
 }
 
 auto Language::Model::Layout::link_restored(
@@ -458,6 +412,11 @@ auto Language::Model::Layout::get_type_reference(Count index) const
   auto slot = get_slot(index);
   BAIL_IF(!slot || !slot->type_reference);
   return *slot->type_reference;
+}
+
+auto Language::Model::Layout::get_declared_name(Count index) const
+    -> View::Bytes {
+  return index < slots.get_size() ? slots.at(index).name : View::Bytes();
 }
 
 auto Language::Model::Layout::fits_value(

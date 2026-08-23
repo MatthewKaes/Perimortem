@@ -3,11 +3,6 @@
 
 #include "tetrodotoxin/library/language/field.hpp"
 
-#include "perimortem/memory/managed/bytes.hpp"
-
-#include "perimortem/serialization/stream/textual.hpp"
-
-#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -19,123 +14,23 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Field::persist(Archive::Writer& writer) const -> Bool {
-  auto record = writer.begin(Archive::Tag::Field);
-  Archive::Declaration declaration(definition);
-  BAIL_IF(!declaration.write(writer));
-
-  writer.write(U8(writability));
-  writer.write(U8(type_reference ? 1 : 0));
-  BAIL_IF(type_reference && !type_reference->persist(writer));
-
-  Bool include_constant = writability == Writability::Constant;
-  auto folded = include_constant ? get_constant() : Option<Model::Pack&>();
-  writer.write(U8(include_constant ? 1 : 0));
-  BAIL_IF(
-      include_constant &&
-      (!folded || !Model::Pack::persist_folded(writer, *folded)));
-  return writer.finish(record);
-}
-
-auto Language::Field::persist_slot(Archive::Writer& writer, Count ordinal) const
-    -> Bool {
-  auto record = writer.begin(Archive::Tag::FieldSlot);
-  writer.write(U64(ordinal));
-  writer.write(U8(type_reference ? 1 : 0));
-  BAIL_IF(type_reference && !type_reference->persist(writer));
-  return writer.finish(record);
-}
-
 auto Language::Field::create_authored(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition,
     Writability writability,
     Option<TypeReference> type_reference,
     Option<Model::Pack&> initializer) -> Field& {
+  return create(domain, definition, writability, type_reference, initializer);
+}
+
+auto Language::Field::create(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition,
+    Writability writability,
+    Option<TypeReference> type_reference,
+    Option<Model::Pack&> initializer) -> Field& {
   return domain.construct_from<Field>([&]() -> Field {
-    return Field(
-        domain, definition, writability, type_reference, initializer);
-  });
-}
-
-auto Language::Field::restore(
-    Archive::Reader& reader,
-    Allocator::Arena& arena,
-    Abstract& host) -> Option<Field&> {
-  auto record = reader.read_record();
-  BAIL_IF(
-      !record || record->get_tag() != U16(Archive::Tag::Field) ||
-      record->is_optional());
-
-  Archive::Reader contents(record->get_payload());
-  auto declaration = Archive::Declaration::read(contents, arena);
-  auto encoded_writability = contents.read_u8();
-  auto has_type = contents.read_u8();
-  BAIL_IF(
-      !declaration || !encoded_writability ||
-      *encoded_writability > U8(Writability::Constant) || !has_type ||
-      *has_type > 1);
-
-  Option<TypeReference> type_reference;
-  if (*has_type == 1) {
-    auto restored = TypeReference::restore(contents, arena, host);
-    BAIL_IF(!restored);
-    type_reference = *restored;
-  }
-
-  auto has_initializer = contents.read_u8();
-  BAIL_IF(!has_initializer || *has_initializer > 1);
-  Option<Model::Pack&> initializer;
-  if (*has_initializer == 1) {
-    initializer = Model::Pack::restore_folded(contents, arena, host);
-    BAIL_IF(!initializer);
-  }
-  BAIL_IF(!contents.is_complete());
-
-  auto& definition = declaration->create_definition(arena, host);
-  return arena.construct_from<Field>([&]() -> Field {
-    return Field(
-        arena, definition, Writability(*encoded_writability), type_reference,
-        initializer);
-  });
-}
-
-auto Language::Field::restore_slot(
-    Archive::Reader& reader,
-    Allocator::Arena& arena,
-    Abstract& host,
-    Count ordinal) -> Option<Field&> {
-  auto record = reader.read_record();
-  BAIL_IF(
-      !record || record->get_tag() != U16(Archive::Tag::FieldSlot) ||
-      record->is_optional());
-
-  Archive::Reader contents(record->get_payload());
-  auto encoded_ordinal = contents.read_u64();
-  auto has_type = contents.read_u8();
-  BAIL_IF(
-      !encoded_ordinal || *encoded_ordinal != ordinal || !has_type ||
-      *has_type > 1);
-
-  Option<TypeReference> type_reference;
-  if (*has_type == 1) {
-    auto restored = TypeReference::restore(contents, arena, host);
-    BAIL_IF(!restored);
-    type_reference = *restored;
-  }
-
-  BAIL_IF(!contents.is_complete());
-
-  Managed::Bytes name(arena, "$slot"_view);
-  Perimortem::Serialization::Stream::Textual<Managed::Bytes> stream(name);
-  stream << ordinal;
-  auto& definition = Tetrodotoxin::Language::Definition::create_synthetic(
-      arena, Documentation::get_empty(), host, name.get_view(),
-      Tetrodotoxin::Language::Visibility::Private, Anchor::create(Span()));
-  return arena.construct_from<Field>([&]() -> Field {
-    return Field(
-        arena, definition, Writability::Internal, type_reference,
-        Option<Model::Pack&>());
+    return Field(domain, definition, writability, type_reference, initializer);
   });
 }
 

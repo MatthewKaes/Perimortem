@@ -75,9 +75,10 @@ Direct import supplies three independent facts:
 Environment reads the common envelope, selects the installed Dialect, and
 copies the path and source bytes into one source transaction Arena. It
 constructs the Tokenizer, Associations index, and operation local Cursor there.
-The selected Dialect receives that Cursor and returns an `Option` containing
-the one parse valid Monograph it constructed in the Cursor's Arena. Absence is
-the only parse failure result. The path describes origin. It does not create
+The selected Dialect receives that Cursor and returns an optional Monograph
+reference. A returned Monograph is the strongest semantic root the operation
+could establish. Reports added to the Cursor's Errors decide whether that root
+can advance into linking. The path describes origin. It does not create
 semantic identity.
 
 The envelope begins with required source Documentation. An explicit empty
@@ -86,16 +87,14 @@ source backed Documentation, its Anchor, the Cursor, and semantic context
 directly to the selected Dialect. Source backed Comments and Attributes remain
 valid because the Monograph and source bytes occupy the same Arena.
 
-Workspace immediately links and finalizes the returned Monograph with the same
-Cursor. It retains one source record containing the transaction Arena, exact
-outer Monograph, and immutable Associations index, then publishes the authored
-semantic name only when both stages succeed. The spent Cursor is not exposed as
-completed source state. Parse, link, or finalization
-failure drops that Arena wholesale and leaves no invalid source in Workspace
-state. Passing one direct source is therefore one complete transaction, not an
-addition to a source group that Workspace validates later. A Package manifest
-is not a direct source. It must enter through Package import so its fixed Source
-table can complete atomically.
+Workspace retains one source record containing the transaction Arena, exact
+outer Monograph, Tokens, diagnostics, and immutable Associations index whenever
+interpretation establishes that Monograph. Meaning links and finalizes with the
+same Cursor when interpretation added no source errors. An incomplete result
+stays available to editor queries but cannot enter a backend, Archive writer,
+or another immutable Terminal product. A Package manifest is not a direct
+source. It enters through Package import so its fixed Source table can complete
+as one island.
 
 ## Package import
 
@@ -139,21 +138,21 @@ I/O rather than introducing an incremental semantic graph.
 
 ## Linking and publication
 
-A direct source completes before `interpret_source` returns:
+A direct source retains its strongest result before `interpret_source` returns:
 
 ```text
-parse to one optional Monograph in the source Arena
--> link that Monograph
--> finalize that Monograph
--> retain its Arena and publish it
+interpret to one optional Monograph in the source Arena
+-> retain its lexical and semantic evidence
+-> link meaning when interpretation added no source errors
+-> finalize a completely linked island
 ```
 
 Workspace owns the one staged multiple source operation and the local candidate
-Arena handles. It parses exactly the manifest entries, links every member before
-finalizing any member, then retains all completed handles and publishes only the
-Package root. Failure releases every candidate Arena and leaves Workspace state
-unchanged. The Package Monograph itself owns only Dependency and Source values
-plus borrowed Alias mappings.
+Arena handles. It parses exactly the manifest entries and retains every member
+Monograph it can create. Accepted members may link against the fixed Package
+context. Finalization waits until the whole island links, and only that completed
+island can enter Terminal production. The Package Monograph itself owns only
+Dependency and Source values plus borrowed Alias mappings.
 
 Dependencies do not recursively start imports. An authored Package binds only
 an exact identity and version already completed in the same Workspace. Archive

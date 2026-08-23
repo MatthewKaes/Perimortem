@@ -1,9 +1,7 @@
 // Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/language/foreign.hpp"
-
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -15,38 +13,15 @@ using namespace Tetrodotoxin::Library;
 
 using Tetrodotoxin::Language::Visibility;
 
-auto Language::Foreign::State::persist(Archive::Writer& writer) const -> Bool {
-  auto record = writer.begin(Archive::Tag::ForeignState);
-  Archive::Declaration declaration(definition);
-  BAIL_IF(
-      !declaration.write(writer) || !writer.write(abi) ||
-      !type_reference.persist(writer) || !writer.finish(record));
-  return True;
-}
-
-auto Language::Foreign::State::restore(
-    Archive::Reader& reader,
-    Allocator::Arena& arena,
-    Foreign& host) -> Option<State&> {
-  auto record = reader.read_record();
-  BAIL_IF(
-      !record || record->get_tag() != U16(Archive::Tag::ForeignState) ||
-      record->is_optional());
-
-  Archive::Reader contents(record->get_payload());
-  auto declaration = Archive::Declaration::read(contents, arena);
-  auto abi = contents.read_bytes();
-  auto type = TypeReference::restore(contents, arena, host);
-  BAIL_IF(
-      !declaration || !abi || abi->is_empty() || !type ||
-      !contents.is_complete());
-
-  auto& definition = declaration->create_definition(arena, host);
-  return arena.construct_from<State>(
-      [&]() -> State { return State(definition, *type, arena.proxy(*abi)); });
-}
-
 auto Language::Foreign::State::create_authored(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition,
+    TypeReference type_reference,
+    View::Bytes abi) -> State& {
+  return create(domain, definition, type_reference, abi);
+}
+
+auto Language::Foreign::State::create(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition,
     TypeReference type_reference,

@@ -6,6 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/library/interpreter/parsed.hpp"
 #include "tetrodotoxin/library/language/alias.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -21,7 +22,7 @@ class Alias {
   static auto parse(
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Language::Definition& definition)
-      -> Perimortem::Core::Option<Language::Alias&>;
+      -> Perimortem::Core::Option<Parsed<Language::Alias>>;
 };
 
 }  // namespace Tetrodotoxin::Library::Interpreter::Declarations

@@ -64,8 +64,7 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty() &&
-         &workspace.resolve_context("MatchTest"_view) ==
-             &Invalid::get_invalid();
+         retains_library_source(workspace, "MatchTest"_view);
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {

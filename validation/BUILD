@@ -202,6 +202,7 @@ cc_binary(
         "//tetrodotoxin:app",
         "//tetrodotoxin:diagnostics",
         "//tetrodotoxin:environment",
+        "//tetrodotoxin:formatting",
         "//tetrodotoxin:language",
         "//tetrodotoxin:library",
         "//backend:llvm",

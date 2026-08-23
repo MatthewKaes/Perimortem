@@ -232,9 +232,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, member_rejections) {
     Errors errors;
     auto monograph = interpret(workspace, errors, sources[index]);
     EXPECT_NOT(monograph);
-    EXPECT(
-        &workspace.resolve_context("ObjectTest"_view) ==
-        &Invalid::get_invalid());
+    EXPECT(retains_library_source(workspace, "ObjectTest"_view));
     EXPECT_NOT(errors.is_empty());
   }
 }

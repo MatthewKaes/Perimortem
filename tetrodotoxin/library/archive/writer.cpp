@@ -8,6 +8,8 @@
 
 #include "perimortem/serialization/stream/binary.hpp"
 
+#include "tetrodotoxin/library/archive/source.hpp"
+
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
@@ -16,13 +18,24 @@ using namespace Tetrodotoxin;
 using Appender = Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>;
 using Patcher = Perimortem::Core::Writer::Binary<Data::ByteOrder::Little>;
 
-Library::Archive::Writer::Writer(Language::Persistence::Profile profile)
+Library::Archive::Writer::Writer(
+    Tetrodotoxin::Language::Persistence::Profile profile)
     : profile(profile) {
   Appender appender(bytes);
   appender << "TTXL"_view;
   appender << U16(1);
   appender << U8(profile);
   appender << U8(0);
+}
+
+auto Library::Archive::Writer::write(
+    const Library::Language::Monograph& monograph,
+    Tetrodotoxin::Language::Persistence::Profile profile)
+    -> Option<Dynamic::Bytes> {
+  BAIL_IF(!monograph.get_source().is_finalized());
+  Writer writer(profile);
+  BAIL_IF(!Archive::write(writer, monograph.get_source()));
+  return writer.take();
 }
 
 auto Library::Archive::Writer::begin(Tag tag, Bool optional) -> Record {

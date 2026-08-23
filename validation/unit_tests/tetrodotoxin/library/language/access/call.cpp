@@ -75,7 +75,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
     return False;
   }
 
-  return &workspace.resolve_context("CallTest"_view) == &Invalid::get_invalid();
+  return retains_library_source(workspace, "CallTest"_view);
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
@@ -87,7 +87,7 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
     return False;
   }
 
-  return &workspace.resolve_context("CallTest"_view) == &Invalid::get_invalid();
+  return retains_library_source(workspace, "CallTest"_view);
 }
 
 static auto find_type_callable(
@@ -687,8 +687,6 @@ PERIMORTEM_UNIT_TEST(CallTests, call_result_access) {
   auto invalid_monograph =
       interpret(invalid_workspace, invalid_errors, invalid_source);
   EXPECT_NOT(invalid_monograph);
-  EXPECT(
-      &invalid_workspace.resolve_context("CallTest"_view) ==
-      &Invalid::get_invalid());
+  EXPECT(retains_library_source(invalid_workspace, "CallTest"_view));
   EXPECT(!invalid_errors.is_empty());
 }

@@ -6,6 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/library/interpreter/parsed.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -21,7 +22,7 @@ class Field {
   static auto parse(
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Language::Definition& definition)
-      -> Perimortem::Core::Option<Language::Field&>;
+      -> Perimortem::Core::Option<Parsed<Language::Field>>;
 };
 
 }  // namespace Tetrodotoxin::Library::Interpreter::Declarations

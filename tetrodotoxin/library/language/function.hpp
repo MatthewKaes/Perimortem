@@ -34,15 +34,15 @@ class Function : public Model::Callable {
       Tetrodotoxin::Language::Definition& definition,
       Signature& signature) -> Function&;
 
+  static auto create(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition,
+      Signature& signature) -> Function&;
+
   // Function identity is required while its Block is interpreted because the
   // body uses that exact Callable for result and receiver context. Completion
   // binds the one resulting Block without retaining parser state.
   auto complete_body(Flow::Block& selected) -> Bool;
-
-  static auto restore(
-      Archive::Reader& reader,
-      Perimortem::Memory::Allocator::Arena& arena,
-      Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Function&>;
 
   Function(const Function&) = delete;
   Function(Function&&) = delete;
@@ -57,8 +57,6 @@ class Function : public Model::Callable {
   auto link_restored_declaration_signature() -> Bool override;
 
   auto finalize_declaration(Ttx::Lexical::Cursor& cursor) -> Bool override;
-
-  auto persist(Archive::Writer& writer) const -> Bool override;
 
   TTX_DOCUMENTATION(get_definition().get_documentation());
   TTX_NAME(definition.get_name());
@@ -93,6 +91,8 @@ class Function : public Model::Callable {
   constexpr auto get_host() const -> const Model::Type& {
     return static_cast<const Model::Type&>(get_definition().get_host());
   }
+
+  constexpr auto get_signature() const -> const Signature& { return signature; }
 
   // Before Signature linking publishes the receiver Addressable, registration
   // still needs the authored receiver role. This query derives it from the

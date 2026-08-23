@@ -93,7 +93,7 @@ auto App::Dialect::interpret(
 
   App::Language::Monograph& monograph = App::Language::Monograph::create(
       cursor.get_arena(), *this, documentation, context, *runtime, *program);
-  return static_cast<Tetrodotoxin::Language::Monograph&>(monograph);
+  return monograph;
 }
 
 auto App::Dialect::encode(

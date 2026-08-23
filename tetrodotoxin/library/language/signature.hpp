@@ -26,13 +26,11 @@ class Signature {
       Model::Layout& parameters,
       Model::Layout& results) -> Signature&;
 
-  static auto restore(
-      Archive::Reader& reader,
-      Perimortem::Memory::Allocator::Arena& arena,
-      const Ttx::Concept::Abstract& host)
-      -> Perimortem::Core::Option<Signature&>;
-
-  auto persist(Archive::Writer& writer) const -> Bool;
+  static auto create(
+      Perimortem::Memory::Allocator::Arena& domain,
+      const Ttx::Concept::Abstract& host,
+      Model::Layout& parameters,
+      Model::Layout& results) -> Signature&;
 
   auto link_restored() -> Bool;
 

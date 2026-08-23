@@ -83,33 +83,18 @@ auto Library::Language::Monograph::create_authored(
     const Anchor& source_anchor,
     const Abstract& language,
     Abstract& context) -> Monograph& {
+  return create(arena, documentation, source_anchor, language, context);
+}
+
+auto Library::Language::Monograph::create(
+    Allocator::Arena& arena,
+    const Documentation& documentation,
+    const Anchor& source_anchor,
+    const Abstract& language,
+    Abstract& context) -> Monograph& {
   return arena.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(arena, documentation, source_anchor, language, context);
   });
-}
-
-auto Library::Language::Monograph::restore(
-    Archive::Reader& reader,
-    Allocator::Arena& arena,
-    Tetrodotoxin::Language::Persistence::Profile profile,
-    const Abstract& language,
-    Abstract& context) -> Option<Monograph&> {
-  auto record = reader.read_record();
-  BAIL_IF(
-      !record || record->get_tag() != U16(Archive::Tag::Source) ||
-      record->is_optional() || !reader.is_complete());
-
-  Archive::Reader contents(record->get_payload());
-  auto documentation = contents.read_documentation(arena);
-  BAIL_IF(!documentation);
-
-  Monograph& monograph = arena.construct_from<Monograph>([&]() -> Monograph {
-    return Monograph(
-        arena, *documentation, Anchor::create(Span()), language, context);
-  });
-  BAIL_IF(
-      !monograph.source.restore(contents, profile) || !contents.is_complete());
-  return monograph;
 }
 
 auto Library::Language::Monograph::link(Cursor& cursor) -> Bool {
@@ -138,11 +123,6 @@ auto Library::Language::Monograph::link_restored() -> Bool {
 
 auto Library::Language::Monograph::finalize_restored() -> Bool {
   return source.finalize_restored();
-}
-
-auto Library::Language::Monograph::persist(Archive::Writer& writer) const
-    -> Bool {
-  return source.persist(writer);
 }
 
 auto Library::Language::Monograph::get_name() const -> View::Bytes {

@@ -27,8 +27,9 @@ class Member {
    public:
     constexpr Result(
         Ttx::Concept::Abstract& semantic,
-        Language::Types::Composite::Category category)
-        : semantic(semantic), category(category) {}
+        Language::Types::Composite::Category category,
+        Bool accepted)
+        : semantic(semantic), category(category), accepted(accepted) {}
 
     constexpr auto get_semantic() const -> Ttx::Concept::Abstract& {
       return semantic.get();
@@ -39,9 +40,12 @@ class Member {
       return category;
     }
 
+    constexpr auto is_accepted() const -> Bool { return accepted; }
+
    private:
     Ttx::Concept::Reference<Ttx::Concept::Abstract> semantic;
     Language::Types::Composite::Category category;
+    Bool accepted;
   };
 
   Member() = delete;

@@ -9,7 +9,6 @@
 
 #include "perimortem/memory/dynamic/vector.hpp"
 
-#include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/builtin/enum/name.hpp"
 #include "tetrodotoxin/library/builtin/enum/size.hpp"
 #include "tetrodotoxin/library/language/constants/enumeration.hpp"
@@ -26,84 +25,6 @@ using namespace Perimortem::Utility;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
-
-auto Types::Enumeration::persist(Archive::Writer& writer) const -> Bool {
-  auto record = writer.begin(Archive::Tag::Enumeration);
-  Archive::Declaration declaration(definition);
-  BAIL_IF(
-      !declaration.write(writer) || !storage_reference.persist(writer) ||
-      cases.get_size() > U32(-1));
-
-  writer.write(U32(cases.get_size()));
-  for (Count index = 0; index < cases.get_size(); index++) {
-    auto case_record = writer.begin(Archive::Tag::EnumerationCase);
-    const Ttx::Model::Alias& selected =
-        cases.get_view().get_data()[index].get();
-    auto value = get_case_value(index);
-    BAIL_IF(
-        !writer.write(selected.get_documentation()) ||
-        !writer.write(selected.get_name()) || !value);
-    writer.write(*value);
-    BAIL_IF(!writer.finish(case_record));
-  }
-  return writer.finish(record);
-}
-
-auto Types::Enumeration::restore(
-    Archive::Reader& reader,
-    Allocator::Arena& arena,
-    Abstract& host) -> Option<Enumeration&> {
-  auto record = reader.read_record();
-  BAIL_IF(
-      !record || record->get_tag() != U16(Archive::Tag::Enumeration) ||
-      record->is_optional());
-
-  Archive::Reader contents(record->get_payload());
-  auto declaration = Archive::Declaration::read(contents, arena);
-  auto storage = TypeReference::restore(contents, arena, host);
-  auto count = contents.read_u32();
-  BAIL_IF(!declaration || !storage || !count);
-
-  auto& definition = declaration->create_definition(arena, host);
-  Enumeration& enumeration =
-      arena.construct_from<Enumeration>([&]() -> Enumeration {
-        return Enumeration(arena, definition, *storage);
-      });
-  enumeration.source_cases.reset(*count);
-  enumeration.cases.reset(*count);
-  for (Count index = 0; index < *count; index++) {
-    auto case_record = contents.read_record();
-    BAIL_IF(
-        !case_record ||
-        case_record->get_tag() != U16(Archive::Tag::EnumerationCase) ||
-        case_record->is_optional());
-    Archive::Reader case_contents(case_record->get_payload());
-    auto documentation = case_contents.read_documentation(arena);
-    auto name = case_contents.read_bytes();
-    auto value = case_contents.read_u64();
-    BAIL_IF(
-        !documentation || !name || name->is_empty() || !value ||
-        !case_contents.is_complete());
-
-    Core::View::Bytes retained_name = arena.proxy(*name);
-    enumeration.source_cases.insert(
-        Case{
-          .name = retained_name,
-          .value = {},
-          .documentation = *documentation,
-          .anchor = Anchor::create(Span()),
-          .name_anchor = Anchor::create(Span()),
-          .value_anchor = Anchor::create(Span()),
-        });
-    const Abstract& constant =
-        Constants::Enumeration::create_synthetic(arena, enumeration, *value);
-    const Ttx::Model::Alias& alias = arena.construct<Ttx::Model::Alias>(
-        retained_name, constant, *documentation);
-    enumeration.cases.insert(alias);
-  }
-  BAIL_IF(!contents.is_complete());
-  return enumeration;
-}
 
 static auto select_intrinsic_type(
     const Types::Enumeration& enumeration,
@@ -208,6 +129,14 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::create_authored(
     Tetrodotoxin::Language::Definition& definition,
     TypeReference storage_reference,
     Core::View::Vector<Case> cases) -> Enumeration& {
+  return create(domain, definition, storage_reference, cases);
+}
+
+auto Tetrodotoxin::Library::Language::Types::Enumeration::create(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition,
+    TypeReference storage_reference,
+    Core::View::Vector<Case> cases) -> Enumeration& {
   Enumeration& enumeration =
       domain.construct_from<Enumeration>([&]() -> Enumeration {
         return Enumeration(domain, definition, storage_reference);
@@ -217,6 +146,31 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::create_authored(
     enumeration.source_cases.insert(source_case);
   }
   return enumeration;
+}
+
+auto Tetrodotoxin::Library::Language::Types::Enumeration::retain_restored_case(
+    Core::View::Bytes name,
+    U64 value,
+    const Documentation& documentation) -> Bool {
+  BAIL_IF(stage != Stage::Authored || name.is_empty());
+  for (const Case& retained : source_cases.get_view()) {
+    BAIL_IF(retained.name == name);
+  }
+
+  source_cases.insert(
+      Case{
+        .name = name,
+        .value = {},
+        .documentation = documentation,
+        .anchor = Anchor::create(Span()),
+        .name_anchor = Anchor::create(Span()),
+        .value_anchor = Anchor::create(Span()),
+      });
+  const Abstract& constant =
+      Constants::Enumeration::create_synthetic(domain, *this, value);
+  cases.insert(
+      domain.construct<Ttx::Model::Alias>(name, constant, documentation));
+  return True;
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::link_types(

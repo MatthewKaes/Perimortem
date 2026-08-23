@@ -62,9 +62,8 @@ auto Package::Snapshots::create(
   BAIL_IF(!key);
 
   View::Bytes retained_key = arena.proxy(*key);
-  Entry& entry = arena.construct<Entry>();
-  entries.launder(retained_key, entry);
-  return entry;
+  auto entry = entries.insert(retained_key, Entry());
+  return entry ? Option<Entry&>(entry->value) : Option<Entry&>();
 }
 
 auto Package::Snapshots::read(

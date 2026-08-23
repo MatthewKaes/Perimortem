@@ -6,6 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/library/interpreter/parsed.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -21,7 +22,7 @@ class Enumeration {
   static auto parse(
       Ttx::Lexical::Cursor& cursor,
       Tetrodotoxin::Language::Definition& definition)
-      -> Perimortem::Core::Option<Language::Types::Enumeration&>;
+      -> Perimortem::Core::Option<Parsed<Language::Types::Enumeration>>;
 };
 
 }  // namespace Tetrodotoxin::Library::Interpreter::Types

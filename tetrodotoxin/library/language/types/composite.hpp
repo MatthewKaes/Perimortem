@@ -63,9 +63,6 @@ class Composite : public Model::Type {
     return domain;
   }
 
-  auto persist_declarations(Archive::Writer& writer, Bool public_only) const
-      -> Bool;
-
   // Source owns the closure barrier. These tree operations settle forward
   // Alias routes without making an Alias discover or complete its siblings.
   auto link_aliases() -> Count override;
@@ -79,14 +76,21 @@ class Composite : public Model::Type {
   auto operator=(const Composite&) -> Composite& = delete;
   auto operator=(Composite&&) -> Composite& = delete;
 
-  // Interpretation selects the declaration category from authored grammar.
-  // Composite applies its one registration and collision policy to that real
-  // identity without learning how the declaration was parsed.
+  // Source interpretation selects the declaration category from authored
+  // grammar. Composite applies its one registration and collision policy to
+  // that real identity without learning how the declaration was parsed.
   auto retain_authored_definition(
       Ttx::Concept::Abstract& binding,
       Tetrodotoxin::Language::Definition& definition,
       Category category,
       Ttx::Lexical::Cursor& cursor) -> Bool;
+
+  // A producer that has already validated category and visibility can retain
+  // the same semantic identity without borrowing source interpretation.
+  auto retain_definition(
+      Ttx::Concept::Abstract& binding,
+      Category category,
+      Bool published) -> Bool;
 
   constexpr auto get_definition() const
       -> const Tetrodotoxin::Language::Definition& {
@@ -187,10 +191,6 @@ class Composite : public Model::Type {
   }
 
   auto is_published(const Ttx::Concept::Abstract& declaration) const -> Bool;
-
-  auto restore_declarations(
-      Archive::Reader& reader,
-      Tetrodotoxin::Language::Persistence::Profile profile) -> Bool;
 
   constexpr auto is_linked() const -> Bool {
     return stage >= Stage::FieldsLinked;

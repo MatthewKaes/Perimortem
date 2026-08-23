@@ -23,7 +23,10 @@ Workspace. That connection makes the help specific to the program rather than
 an approximation based only on spelling.
 
 * Hover shows complete Callable signatures, declaration Types, documentation,
-  and folded constants
+  and folded constants, while unresolved declarations show the strongest known
+  shape with `<unknown>` where an edge is still settling
+* Access completion follows `.`, `::`, and `->` through the receiver's real
+  Type, visibility, and Static or Self role
 * Parameter hints name fitted positional arguments at their call sites
 * Go to definition follows authored identities across Package sources and
   dependencies
@@ -43,9 +46,10 @@ Documentation, Attributes, and alignment islands. Incomplete source remains
 editable, so formatting can help recover a file without discarding the text the
 author is still repairing.
 
-Open documents are interpreted as complete editor overlays. A change to one
-Package member rebuilds the shared Package view, which keeps navigation and
-hover consistent with the unsaved project rather than the older files on disk.
+Open documents are interpreted as editor overlays. A change to one Package
+member rebuilds the shared Package view. Complete islands remain eligible for
+build products, while incomplete edits retain their Tokens, diagnostics, and
+strongest semantic identities for hover, navigation, and completion.
 
 ## Debug native Tetrodotoxin programs
 

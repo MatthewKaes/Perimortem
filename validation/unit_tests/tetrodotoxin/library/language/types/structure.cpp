@@ -97,14 +97,15 @@ static auto parse_authored(
 
   Anchor source_anchor = Anchor::create(
       dialect_declaration, Span(source_opening, cursor.peek(-1)));
-  auto monograph =
+  auto interpretation =
       dialect.interpret(cursor, documentation, source_anchor, context);
-  if (!monograph || !cursor.matches(Code::Type::Terminal) ||
-      !monograph->is<Language::Monograph>() || !errors.is_empty()) {
+  if (!interpretation || !cursor.matches(Code::Type::Terminal) ||
+      !interpretation->is<Language::Monograph>() ||
+      !errors.is_empty()) {
     return {};
   }
 
-  return static_cast<Language::Monograph&>(*monograph);
+  return static_cast<Language::Monograph&>(*interpretation);
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {

@@ -43,9 +43,9 @@ class Field : public Model::Addressable {
  public:
   TTX_CONTRACT(Field, Model::Addressable);
 
-  // Interpretation supplies the declaration facts it could establish from
-  // the authored form. Keeping construction independent from Cursor lets the
-  // same Field model participate in another Dialect without borrowing its
+  // Source interpretation supplies the declaration facts it could establish
+  // from the authored form. Keeping construction independent from Cursor lets
+  // the same Field model participate in another Dialect without borrowing its
   // grammar machinery.
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -54,16 +54,12 @@ class Field : public Model::Addressable {
       Perimortem::Core::Option<TypeReference> type_reference,
       Perimortem::Core::Option<Model::Pack&> initializer) -> Field&;
 
-  static auto restore(
-      Archive::Reader& reader,
-      Perimortem::Memory::Allocator::Arena& arena,
-      Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Field&>;
-
-  static auto restore_slot(
-      Archive::Reader& reader,
-      Perimortem::Memory::Allocator::Arena& arena,
-      Ttx::Concept::Abstract& host,
-      Count ordinal) -> Perimortem::Core::Option<Field&>;
+  static auto create(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition,
+      Writability writability,
+      Perimortem::Core::Option<TypeReference> type_reference,
+      Perimortem::Core::Option<Model::Pack&> initializer) -> Field&;
 
   auto link_declaration_type(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
@@ -91,10 +87,6 @@ class Field : public Model::Addressable {
   // its output Layout. Field remains the declaration owner. No Expression
   // side inventory is required merely to cache constant producers.
   auto finalize_declaration(Ttx::Lexical::Cursor& cursor) -> Bool override;
-
-  auto persist(Archive::Writer& writer) const -> Bool override;
-
-  auto persist_slot(Archive::Writer& writer, Count ordinal) const -> Bool;
 
   constexpr auto contributes_to_instance_layout() const -> Bool override {
     return writability == Writability::Internal;

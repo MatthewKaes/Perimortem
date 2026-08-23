@@ -15,8 +15,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // equivalence relation suitable for Generic materialization keys.
 class Real : public Constant {
  public:
-  auto persist(Archive::Writer& writer) const -> Bool override;
-
   TTX_CONTRACT(Real, Constant);
   using Value = R64;
 

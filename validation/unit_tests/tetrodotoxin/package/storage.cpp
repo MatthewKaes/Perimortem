@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 #include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
@@ -553,6 +554,20 @@ PERIMORTEM_UNIT_TEST(PackageStorage, persistent_snapshots) {
     ASSERT(content != nullptr);
     EXPECT_TEXT(content->get_contents(), "second"_view);
   }
+}
+
+PERIMORTEM_UNIT_TEST(PackageStorage, releases_snapshot_values) {
+  Count memory_before = Bibliotheca::allocated_memory();
+  {
+    Dynamic::Bytes contents;
+    contents.append('A', 1 << 16);
+    Dynamic::Record<Package::Snapshots> snapshots;
+    ASSERT(snapshots->overlay(
+        "/tmp/tetrodotoxin-snapshot-lifetime"_view, "source.ttx"_view,
+        contents));
+  }
+
+  EXPECT_EQ(Bibliotheca::allocated_memory(), memory_before);
 }
 
 PERIMORTEM_UNIT_TEST(PackageStorage, route_rejections) {

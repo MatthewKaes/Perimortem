@@ -79,6 +79,16 @@ class Local : public Model::Addressable {
         });
   }
 
+  auto get_type_reference() const
+      -> Perimortem::Core::Option<const TypeReference&> {
+    return type_reference.visit(
+        []() -> Perimortem::Core::Option<const TypeReference&> { return {}; },
+        [](const TypeReference& selected)
+            -> Perimortem::Core::Option<const TypeReference&> {
+          return selected;
+        });
+  }
+
   constexpr auto get_writability() const -> Writability { return writability; }
 
   constexpr auto permits_write_from(const Model::Type&) const -> Bool override {

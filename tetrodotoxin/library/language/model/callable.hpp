@@ -44,8 +44,6 @@ class Callable : public Ttx::Model::Callable {
 
   virtual auto link_restored_declaration_signature() -> Bool { return True; }
 
-  virtual auto persist(Archive::Writer& writer) const -> Bool;
-
   // Generated semantic operations may expose an immutable result without
   // changing ordinary invocation. Absence keeps the Call dynamic.
   virtual auto fold_call(

@@ -25,12 +25,6 @@ class Import {
         type_reference(type_reference),
         span(span) {}
 
-  static auto restore(
-      Archive::Reader& reader,
-      Perimortem::Memory::Allocator::Arena& arena,
-      const Ttx::Concept::Abstract& context)
-      -> Perimortem::Core::Option<Import>;
-
   constexpr auto get_documentation() const
       -> const Ttx::Concept::Documentation& {
     return documentation;
@@ -45,8 +39,6 @@ class Import {
   }
 
   constexpr auto get_span() const -> Ttx::Lexical::Span { return span; }
-
-  auto persist(Archive::Writer& writer) const -> Bool;
 
  private:
   const Ttx::Concept::Documentation& documentation;
