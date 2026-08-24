@@ -65,14 +65,14 @@ They move complexity to the component that has enough information to own it.
 | Workspace local borrowed identity                   | Languages and consumers share one unambiguous object without copying or merging it        | References end with their Workspace and cannot become persistent handles                                                                  |
 | Retained source transactions and Workspace owned Package barriers | Incomplete edits keep their strongest semantic and lexical evidence, while one fixed manifest table retains stable identity through completion | Only completed islands enter Terminal production, and a Package member never starts another import |
 | Packs distinct from Layouts                         | Empty, scalar, named, and multiple value flow can remain live without an anonymous Type    | Dialects must retain producer identity separately from the descriptor used for fitting                                                      |
-| Semantic Layout                                     | One language shape can feed CPU, GPU, interpreter, editor, and archive consumers          | Every backend must derive and validate its own physical layout                                                                            |
+| Semantic Layout                                     | One language shape can feed CPU, GPU, interpreter, editor, and archive consumers          | Every Terminal must derive and validate its own physical layout                                                                            |
 | Typed Terminal products                             | Each output preserves the facts and validation contract its next consumer needs           | There is no generic product registry or common output object                                                                              |
 | Dialect owned Archive payloads                      | Source independent restoration can reconstruct equivalent observable language meaning     | A persistent Dialect must maintain and validate its reconstruction schema, while a Dialect used only from source needs no Archive payload |
 
 The architecture earns its complexity when several domains would otherwise
 maintain shadow graphs or repeatedly import semantic facts between models. A
 single language compiler with one AST, one typed intermediate representation,
-and one backend may not need these boundaries.
+and one Terminal may not need these boundaries.
 
 ## Direct semantic construction
 
@@ -313,7 +313,7 @@ Selecting a const Field through its Type, an Addressable, or Source returns the
 same foldable identity. Named flow selects the real producer at its slot without
 inventing an aggregate Type. Callable access chooses Static when the evaluated
 receiver result is an exact Type and Self when the receiver is a typed value. A
-backend may materialize or eliminate a physical address without changing the
+Terminal may materialize or eliminate a physical address without changing the
 Addressable identity. A Function host grants access authority while an explicit
 receiver supplies the Addressable or Source used for state selection.
 
@@ -356,13 +356,13 @@ registers, and relocations only after the semantic graph is complete. Library
 lowering is a forward operation on each real graph owner. One compiler Program
 transaction retains the target configuration graph and target facts keyed by
 the original Abstract identities. It never copies Library Types, Expressions,
-Statements, or control owners into a backend model. Shader lowering follows the
+Statements, or control owners into a Terminal model. Shader lowering follows the
 same rule over its exact Render child and Shader owned bridge facts. Linker owns
 object modules, symbols, relocations, target encoding, and final native products.
 
 This separation lets several targets consume the same language meaning. It also
 means Tetrodotoxin cannot answer target layout questions by consulting the
-semantic Layout alone. Each backend must perform and verify that mapping.
+semantic Layout alone. Each Terminal must perform and verify that mapping.
 
 Runtime policy follows the same boundary. Library defines Object identity,
 aliasing, and automatic reference counted lifetime. Perimortem realizes that
@@ -380,7 +380,7 @@ Linker depends on those declared target and host facts, never on LLVM as a
 semantic authority.
 
 The GPU path is parallel. Shader and Render complete target neutral GPU facts,
-the SPIR-V backend emits their GPU Terminal, and Vulkan consumes that artifact
+the SPIR-V Terminal emits their GPU module, and Vulkan consumes that artifact
 together with Graphics batches and one selected host surface. Vulkan owns
 realized descriptors, offsets, commands, handles, and synchronization. Those
 facts never flow downward into Shader, Render, or Library.

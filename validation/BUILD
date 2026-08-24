@@ -155,6 +155,15 @@ cc_binary(
     deps = [":runtime_llvm"],
 )
 
+# This process sees only the generated facade and its TTX implementation. It
+# keeps the portable seed out of both compilation and linking so every familiar
+# C++ operation proves the independent ABI product.
+cc_binary(
+    name = "cpp_api_integration",
+    srcs = ["data/ttx/cpp_api_harness.cpp"],
+    deps = ["//packages/ttx:perimortem_memory_cpp"],
+)
+
 # Validation executes children directly so Bazel launcher output stays outside
 # captured streams. Unit suite process cases prove this observer itself. They
 # are not evidence for a generated TTX Terminal.
@@ -185,6 +194,7 @@ cc_binary(
         "data/ttx/package_resources/resources/table.bin",
         "data/ttx/app_profiles/resources/icon.bin",
         ":package_native_integration",
+        ":cpp_api_integration",
         ":runtime_link_integration",
         ":system_abi_integration",
         "//apps/ttx/echo",
@@ -210,7 +220,7 @@ cc_binary(
         "//tetrodotoxin:formatting",
         "//tetrodotoxin:language",
         "//tetrodotoxin:library",
-        "//backend:llvm",
+        "//tetrodotoxin/terminal:llvm",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
         "//tetrodotoxin:render",

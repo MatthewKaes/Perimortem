@@ -7,7 +7,7 @@ behavior hosted by Apps or Scenes come together.
 You can write scalar expressions, Functions, Structs, shared Objects,
 Enumerations, and Generic containers without leaving the semantic world used by
 the rest of the platform. A Package refers to the real Library Type, the editor
-navigates to it, and the LLVM backend compiles it. There is no translated
+navigates to it, and the LLVM Terminal compiles it. There is no translated
 Library shaped IR between those experiences.
 
 Library keeps its own rules for values, access, receivers, construction, and
@@ -1189,22 +1189,32 @@ never discovers, links, finalizes, or owns a provider closure.
 
 ## Attributes and native publication
 
-Semantic publication and native publication answer different questions. A
-public Callable can be selected by another Monograph without promising an
-unmangled platform symbol. Definition keeps every authored Attribute as ordered
-source data and assigns no Attribute a Library wide meaning. A native compiler
-may consume Function publication requests such as:
+Public Library declarations already say which parts of a completed graph may
+be used by another source. A native Terminal can follow those same semantic
+routes to create its host interface. When a Function and each Type that hosts
+it are public or exposed, the ABI Terminal publishes it automatically. Ordinary
+TTX code therefore needs no ABI Attribute and no authored native symbol.
+
+The generated C++ API keeps the Package, Type, and Function names that were
+authored in TTX. Its implementation crosses a generated C boundary privately,
+which gives C and C++ consumers one carrier agreement without making encoded C
+symbols part of the friendly interface.
+
+Definition still keeps every authored Attribute as ordered source data and
+assigns no Attribute a Library wide meaning. An embedding boundary can consume
+an Attribute when it genuinely needs to meet an existing platform contract.
+For example, a legacy C host may require one exact symbol:
 
 ```ttx
-@abi("C")
+@abi("C") @symbol("library_native")
 public library_native : func = [] -> U64 {
   return 42;
 }
 ```
 
-The compiler may generate a native name for that interface. An embedding
-boundary that must match an existing platform spelling may additionally request
-the exact override `@symbol("library_native")`.
+That override adapts the generated Terminal to a name owned outside the Package.
+It is not required for publication and should not be repeated for ordinary TTX
+APIs.
 
 The consumer decides whether `abi`, `symbol`, `retain`, or `release` is relevant,
 which values and repetitions it supports, and whether the selected declaration
@@ -1213,26 +1223,21 @@ preconfirm those choices because another compiler or an embedding Dialect may
 assign the same authored facts different policy. Unknown keys remain available
 to future consumers without changing the declaration.
 
-When a Library CPU compiler chooses to honor a C ABI request, it checks that
-every parameter and result Type has a valid C representation for the selected
-target and rejects any unsupported local request at that consumption boundary.
-Ordinary TTX calls require no ABI Attribute. Their target calling convention is
-compiler policy rather than authored Library semantics. A C request may select
-different aggregate carriers from an internal TTX call. Linker checks that the
-resulting exported symbol names are unique before it emits native bytes. Function
-decides neither target representation nor complete program symbol policy.
+The native ABI Terminal checks that every published parameter and result Type
+has a valid representation for the selected target. Internal TTX calls may use
+a different aggregate convention from the generated host boundary. Linker
+checks the completed symbol set before it emits native bytes. Function decides
+neither target representation nor complete program symbol policy.
 
-A public Callable without `@abi` is still available to language lookup. The
-compiler gives it a stable internal symbol when native code needs one. Private
-Callables never enter the exported symbol list.
-[Linker](../linker/README.md) owns the resulting Symbol records and native
+Private Callables stay internal unless an embedding contract explicitly names
+one. [Linker](../linker/README.md) owns the resulting Symbol records and native
 bytes.
 
 ## Persistence
 
 Library can be stored in a Package Archive and reconstructed without its source
 file. A Complete payload keeps its public and private Types, Fields, Function
-signatures, folded constants, Foreign declarations, ABI requests, and native
+signatures, folded constants, Foreign declarations, Attributes, and native
 artifact locations. An Interface payload keeps the public closure of those
 facts. Neither retains Function bodies, expressions, control flow, or access
 operations.
@@ -1264,27 +1269,29 @@ Interface profile as its parent.
 Library ends with completed meaning. It exposes its real Sources, Types,
 Callables, Blocks, Expressions, Packs, and retained semantic edges without
 knowing which product will consume them. There is no compiler transaction,
-lowering callback, native handle, or backend capability in the Dialect.
+lowering callback, native handle, or Terminal capability in the Dialect.
 
-A backend begins from that completed graph. It walks the concrete Library
+A Terminal begins from that completed graph. It walks the concrete Library
 owners it supports and derives physical facts for one configured target. Those
 facts may use original Abstract identities as request local keys, but they never
 become another semantic model and never flow back into Library.
 
-The LLVM backend currently produces CPU objects and reviewable LLVM IR from a
+The LLVM Terminal currently produces CPU objects and reviewable LLVM IR from a
 top level Library or a Library child selected by another Dialect. Shader can
-host the same Library execution graph while a SPIR-V backend interprets it for
+host the same Library execution graph while a SPIR-V Terminal interprets it for
 GPU execution alongside Shader and Render meaning. Reusing the graph keeps one
 Library language instead of asking each host Dialect to reinvent functions,
 blocks, expressions, or value flow.
 
-The selected backend owns instruction choice, data layout, calling convention,
-debug representation, and native publication. Puffer supplies that target
-configuration and coordinates the resulting Terminal products. Library keeps
-evaluation order, control flow, fitting, and graph identity as semantic facts.
+The ABI Terminal owns the shared C representation, exported symbols, and native
+publication surface. LLVM consumes that agreement while owning instruction
+choice, target data layout, calling convention realization, and debug
+representation. Puffer supplies the target configuration and coordinates those
+sibling products. Library keeps evaluation order, control flow, fitting, and
+graph identity as semantic facts.
 
 The CPU target chooses the instruction set, data layout, and calling convention.
-x86-64 System V and x86-64 Win64 are separate targets. The LLVM backend produces
+x86-64 System V and x86-64 Win64 are separate targets. The LLVM Terminal produces
 an object module for Linker without owning Package locations, operating system
 startup, or linking rules.
 

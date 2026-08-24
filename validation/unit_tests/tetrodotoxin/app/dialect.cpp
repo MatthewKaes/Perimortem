@@ -12,7 +12,6 @@
 
 #include "perimortem/system/file.hpp"
 
-#include "backend/llvm/compiler.hpp"
 #include "tetrodotoxin/app/language/monograph.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -21,12 +20,14 @@
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/terminal/abi/compiler.hpp"
+#include "tetrodotoxin/terminal/llvm/compiler.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::System;
 using namespace Tetrodotoxin;
-using namespace Tetrodotoxin::Backend;
+using namespace Tetrodotoxin::Terminal;
 using namespace Ttx::Lexical;
 using namespace Validation;
 
@@ -207,20 +208,26 @@ PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
   ASSERT(consumer && consumer->is<Library::Language::Monograph>());
   static constexpr View::Bytes construction_symbol =
       "TTX_FUNC_Perimortem_2eMemory__Dynamic__Bytes__construct_static"_view;
-  Llvm::Abi::Unit::Binding construction_binding(
+  Terminal::Abi::Unit::Binding construction_binding(
       *restored_bytes_type, construction_symbol);
-  Static::Vector<Llvm::Abi::Unit::Binding, 1> bindings = {{
+  Static::Vector<Terminal::Abi::Unit::Binding, 1> bindings = {{
     construction_binding,
   }};
-  Llvm::Abi::Unit consumer_unit(
+  Terminal::Abi::Unit consumer_unit(
       "Consumer"_view, "Main"_view, "x86_64-sysv-linux"_view,
       bindings.get_view());
-  Llvm::Request consumer_request(
-      static_cast<const Library::Language::Monograph&>(*consumer),
-      consumer_errors, "consumer.ttx"_view, consumer_source,
-      Llvm::Target::X86_64SysV, Llvm::Representation::Debug::Level::None,
-      consumer_unit);
   Perimortem::Memory::Allocator::Arena consumer_products;
+  const auto& consumer_library =
+      static_cast<const Library::Language::Monograph&>(*consumer);
+  Terminal::Abi::Compiler interface_compiler;
+  auto native_interface = interface_compiler.compile(
+      consumer_products, consumer_library, consumer_unit, consumer_errors,
+      "consumer.ttx"_view, consumer_source);
+  ASSERT(native_interface);
+  Llvm::Request consumer_request(
+      consumer_library, consumer_errors, "consumer.ttx"_view, consumer_source,
+      Llvm::Target::X86_64SysV, Llvm::Module::Debug::Level::None, consumer_unit,
+      *native_interface);
   Llvm::Compiler consumer_compiler;
   auto compiled_consumer =
       consumer_compiler.compile(consumer_products, consumer_request);

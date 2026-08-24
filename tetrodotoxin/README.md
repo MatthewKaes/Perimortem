@@ -25,7 +25,7 @@ rest of the platform. It still owns every rule that makes its domain distinct.
 
 A Package member, Library Type, App lifecycle, Scene signal, and Shader Stage
 can therefore meet as parts of one program without becoming variants of a
-generic declaration record. Editors and backends see their shared meaning, and
+generic declaration record. Editors and Terminals see their shared meaning, and
 domain aware tools can still ask richer questions of the original language
 object.
 
@@ -227,12 +227,13 @@ begins only when the complete island links without errors.
 LLVM, SPIR-V, Archives, and other Terminal products remain gated on the whole
 island completing.
 
-Once the Workspace is complete, tools and backends can use the same facts
-without translating the program into another language's model. The LLVM
-backend walks Library layers to produce CPU code. A SPIR-V backend will walk
-Shader, Render, and their real Library child to produce GPU modules. Linker
-combines native objects into ELF or PE programs. These finished outputs no
-longer need the Workspace.
+Once the Workspace is complete, tools and
+[Terminal producers](terminal/README.md) can use the same facts without
+translating the program into another language's model. The ABI Terminal defines
+the common native C representation, LLVM walks Library layers to produce CPU
+code, and a SPIR-V Terminal will walk Shader, Render, and their real Library
+child to produce GPU modules. Linker combines native objects into ELF or PE
+programs. These finished outputs no longer need the Workspace.
 
 ## Leaving the graph
 
@@ -241,7 +242,7 @@ product. LLVM owns its object modules, SPIR-V owns GPU modules, Linker owns
 executables, and Package owns the semantic Archive.
 
 Puffer is the user facing compiler driver and LSP application shell. It
-coordinates each requested product and presents the result while backends,
+coordinates each requested product and presents the result while Terminals,
 Linker, and Package retain ownership of their formats and Dialects retain their
 meaning.
 

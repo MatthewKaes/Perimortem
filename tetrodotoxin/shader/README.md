@@ -109,7 +109,7 @@ allowed by the selected Render contract.
 
 ## SPIR-V and Vulkan
 
-The SPIR-V backend chooses the GPU representation, storage classes, bindings,
+The SPIR-V Terminal chooses the GPU representation, storage classes, bindings,
 and instructions. It can emit validated SPIR-V from a completed Shader without
 reading the source again. The generated SPIR-V is an output of compilation, not
 an input to the language model.

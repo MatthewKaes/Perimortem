@@ -115,11 +115,14 @@ cc_library(
 
 cc_library(
     name = "memory",
-    srcs = glob([
-        "memory/allocator/*.cpp",
-        "memory/dynamic/*.cpp",
-        "memory/managed/*.cpp",
-    ]),
+    srcs = glob(
+        [
+            "memory/allocator/*.cpp",
+            "memory/dynamic/*.cpp",
+            "memory/managed/*.cpp",
+        ],
+        allow_empty = True,
+    ),
     hdrs = glob([
         "memory/allocator/*.hpp",
         "memory/dynamic/*.hpp",

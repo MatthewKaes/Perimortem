@@ -92,7 +92,7 @@ outer Monograph, Tokens, diagnostics, and immutable Associations index whenever
 interpretation establishes that Monograph. Workspace uses the same Cursor to
 link every fact the current graph can support. Finalization begins only when
 interpretation and linking complete without errors. An incomplete result stays
-available to editor queries but cannot enter a backend, Archive writer, or
+available to editor queries but cannot enter a Terminal, Archive writer, or
 another immutable Terminal product. A Package manifest is not a direct source.
 It enters through Package import so its fixed Source table can complete as one
 island.

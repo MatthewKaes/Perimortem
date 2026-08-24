@@ -2,7 +2,7 @@
 
 > **The common layer should be meaning, not representation.**
 
-When a Package names a Library Type, an editor follows that name, and a backend
+When a Package names a Library Type, an editor follows that name, and a Terminal
 compiles its values, all three should be talking about the same thing. TTX gives
 them the vocabulary to do that without asking Library to surrender its own
 language model.

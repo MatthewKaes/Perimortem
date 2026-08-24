@@ -1,18 +1,18 @@
 # Contained LLVM SDK
 
-The LLVM backend needs headers and a runtime that agree exactly. Depending on
+The LLVM Terminal needs headers and a runtime that agree exactly. Depending on
 whatever LLVM happens to be installed on a development machine would make that
 agreement difficult to reproduce, so Tetrodotoxin keeps one reviewed SDK pair
 behind this small Bazel facade.
 
 `MODULE.bazel` creates a pinned external repository from matching Arch Linux
 `llvm` and `llvm-libs` packages. `//toolchain/llvm:sdk` is the only local target
-that exposes them, and only `//backend:llvm` can consume it. Library and the
-other semantic systems therefore build without inheriting LLVM headers, flags,
-or link dependencies.
+that exposes them, and only `//tetrodotoxin/terminal:llvm` can consume it.
+Library and the other semantic systems therefore build without inheriting LLVM
+headers, flags, or link dependencies.
 
 This facade is intentionally narrower than a registered C or C++ toolchain. It
-supplies the API and `libLLVM.so.22.1` needed by the in process backend without
+supplies the API and `libLLVM.so.22.1` needed by the in process Terminal without
 changing ordinary compile actions elsewhere in the repository.
 
 The repository rule checks the immutable archive hashes, both package names and
@@ -35,9 +35,9 @@ An update keeps the development headers and runtime together:
    metadata in `repository.bzl`.
 3. Update the expected header version, runtime soname, repository name, and
    `MODULE.bazel` facade as one reviewed change.
-4. Build `//toolchain/llvm:sdk` and `//backend:llvm`, then rerun the object, C
-   ABI, DWARF, reproducibility, and containment evidence.
+4. Build `//toolchain/llvm:sdk` and `//tetrodotoxin/terminal:llvm`, then rerun
+   the object, C ABI, DWARF, reproducibility, and containment evidence.
 
-The backend also compares the loaded runtime version with its compile time
+The Terminal also compares the loaded runtime version with its compile time
 headers for every request. That final check keeps a replaced shared object from
 quietly changing the toolchain beneath an otherwise reproducible build.

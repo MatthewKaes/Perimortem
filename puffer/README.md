@@ -8,7 +8,7 @@ and Archive therefore begin from the same view of the program.
 Behind that experience, Puffer assembles the requested languages and opens a
 Workspace for them. It coordinates the journey without taking ownership away
 from the parts that understand it best. Package still owns reproducible
-composition, each Dialect still owns its language, and each backend or Linker
+composition, each Dialect still owns its language, and each Terminal or Linker
 still owns the product it creates.
 
 Build systems can use the command interface and editors can use the language
@@ -95,7 +95,9 @@ there are errors, Puffer shows them and does not produce partial output.
 
 When the Workspace is ready, Puffer coordinates the requested products:
 
-* The LLVM backend compiles completed Library meaning into CPU code.
+* The ABI Terminal publishes the shared C representation and language headers.
+* The LLVM Terminal consumes that agreement and compiles Library meaning into
+  CPU code.
 * Shader produces SPIR-V for the GPU.
 * Package produces a Complete or Interface Archive.
 * The build toolchain combines native member products into libraries and
@@ -111,13 +113,13 @@ The shortest way to try native Library code is to compile one standalone source.
 This path skips Package restoration and keeps the request focused on the source
 in front of you. Puffer selects the command, presents diagnostics, and publishes
 the requested files together. The
-[LLVM backend](../backend/llvm/README.md) performs lowering and returns only
+[LLVM Terminal](../tetrodotoxin/terminal/llvm/README.md) performs lowering and returns only
 completed products. Generated Objects use the linked Perimortem reference
 counted runtime surface.
 
 ```text
 puffer -library \
-  -backend=llvm \
+  -terminal=llvm \
   -target=x86_64-sysv \
   -debug=none \
   -name=Example \
@@ -130,18 +132,18 @@ puffer -library \
 `-debug` accepts `none`, `line`, or `full`. All three modes preserve runtime
 behavior. The latter two emit DWARF 5 source correlation from the request's
 source path and Anchors, while `none` emits no debug sections. A failed
-source, backend, or staging request publishes none of the requested final files.
+source, Terminal, or staging request publishes none of the requested final files.
 Full debug identifies its physical scalar, pointer, array, and structure
 carriers as C11 so stock LLDB can reconstruct them. That compatibility profile
 does not assign C syntax or semantics to the authored TTX source.
 
-The generated C header is the matching declaration surface for Functions that
-explicitly request an external C interface with `@abi("C")`. Independently
-compiled consumers provide the ABI proof. TTX calls need no ABI Attribute. The
-header publishes readable generated TTX names unless an optional `@symbol`
-requests one exact external spelling. C aggregate and multiple result carriers
-follow the 64 bit x86 System V classification used by the emitted interface. Internal
-TTX calls may use direct aggregate carriers instead. Option carriers store
+The generated C header is the exact declaration surface for every fully public
+Function. Independently compiled consumers provide the ABI proof. The ABI
+Terminal derives generated names from semantic routes, while an optional legacy
+symbol override can meet one existing platform spelling. C aggregate and
+multiple result carriers follow the 64 bit x86 System V classification used by
+the emitted interface. Internal TTX calls may use direct aggregate carriers
+instead. Option carriers store
 their payload and selected state inline with the same value semantics as
 `Perimortem::Core::Option`. They add no allocation, shared identity, or retain
 and release interface. Object carriers are opaque one word handles. Parameters
@@ -153,8 +155,9 @@ the generic Perimortem retain and release entries for a host that keeps a result
 A Package request imports every dependency through its Interface Archive,
 imports the root source Package once, and compiles each declared member into an
 independent native object. It emits the root Complete and Interface Archives,
-one combined C and C++ declaration header, one native ABI Manifest, and the
-member products declared by the build action. The build supplies manifest
+one raw C header, one native ABI Manifest, and the member products declared by
+the build action. A Package that publishes a C++ API also emits the configured
+canonical header and its forwarding implementation. The build supplies manifest
 rooted `.ttx` candidates, while the Package Source table remains the sole
 authority for their semantic member names and paths. Package coordinates those
 products without lowering a copied

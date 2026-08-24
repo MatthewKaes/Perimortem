@@ -431,7 +431,7 @@ a source or live Workspace operation.
 
 Structural coincidence is never enough for reconstruction. A reader cannot
 infer Type identity from matching Layouts, recover owner relations from target
-offsets, or treat a backend Type as the original semantic Type.
+offsets, or treat a Terminal Type as the original semantic Type.
 
 ## Semantic invariants
 

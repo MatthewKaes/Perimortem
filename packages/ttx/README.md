@@ -35,11 +35,18 @@ ownership retains and releases that Object without native lifecycle Attributes.
 Consumers therefore share one Type identity rather than materializing matching
 but unrelated byte carriers in every source root.
 
+Native C++ consumers include `perimortem/memory/dynamic/bytes.hpp` and use the
+same `Perimortem::Memory::Dynamic::Bytes` route. That class is generated from
+this TTX declaration, and its compiled implementation crosses the raw C ABI on
+the consumer's behalf.
+
 Bytes transformations use a referenced Self receiver. `copy(view)` creates an
-owned value. `append(byte, count)`, receiver `concat`, `resize`, `shrink`,
-`clear`, and `reserve` mutate that receiver and return `self`, so calls may be
-chained without copying the Bytes value. Parameter defaults are not yet part of
-the Function signature model, so callers pass `1` for a single byte append:
+owned value, while `with_capacity(count)` prepares an empty value for later
+writes. `append(byte, count)`, receiver `concat`, `resize`,
+`forgetful_resize`, `shrink`, `clear`, `proxy`, `set`, `convert`, `reset`, and
+`reserve` mutate that receiver and return `self`, so calls may be chained
+without copying the Bytes value. Parameter defaults are not yet part of the
+Function signature model, so TTX callers pass `1` for a single byte append:
 
 ```ttx
 line -> concat(suffix) -> append(byte, 1);
@@ -51,21 +58,23 @@ that same reference. Reaching the end of such a Function returns `self`
 implicitly. An explicit `return self;` remains available for early exit. Before
 a buffer write, Bytes reserves the required size. Growth already supplies a
 private Object buffer. Otherwise `is_shared()` causes an explicit `clone()`
-before writable access. Object itself remains an ordinary shared buffer rather
-than owning copy on write policy.
+before writable access. `detach()` makes that step explicit for the native C++
+facade. Object itself remains an ordinary shared buffer rather than owning copy
+on write policy.
 
 Static and Self `concat` share one spelling because receiver role is part of
 the Callable signature. Static `concat(left, right)` creates an owned value,
-while receiver `concat(view)` extends a value. `clear` preserves capacity.
-ordinary default construction creates the empty zero capacity reset value.
-`get_size`, `get_capacity`, `get_view`, `slice`, and `is_empty` inspect the
-result without changing it.
+while receiver `concat(view)` extends a value. `clear` preserves capacity, and
+`reset` returns to the empty zero capacity value. `get_size`, `get_capacity`,
+`get_view`, `at`, `slice`, and `is_empty` inspect the result without changing
+it.
 
-The package deliberately exposes no writable Access to the backing capacity:
-that would bypass the logical size owned by Bytes. Safe element reads remain
-available through `get_view():[index]`. It also has no forgetful resize that
-would expose invalid elements and no host specific hash operation without a
-Library hash contract.
+The generated C++ facade follows the familiar Perimortem value API. Static one
+input factories provide converting constructors and assignments. `get_view`
+provides read only conversion, while `detach` and the logical size provide a
+copy on write `Core::Access::Bytes`. C++ also derives indexing, equality,
+hashing, single byte append, and `ensure_capacity` from those same public facts
+without adding another TTX Callable inventory.
 
 ## Perimortem.Math
 

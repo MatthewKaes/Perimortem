@@ -19,7 +19,7 @@ models. No common syntax tree has to stand in for the real program.
 Dialects are the input side of Toolchain composition. They determine which
 meanings a Workspace can construct. Terminal producers form the complementary
 output side after completion, which lets a new Dialect participate in several
-products without carrying backend policy in its language model.
+products without carrying Terminal policy in its language model.
 
 ## When to implement a Dialect
 

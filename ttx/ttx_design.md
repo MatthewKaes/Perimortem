@@ -11,7 +11,7 @@ source rules. TTX owns the contracts that another domain can use without first
 translating those facts into a second model.
 
 That division gives a host one live multi domain semantic IR without making one
-frontend or backend representation the language of every subsystem. The shared
+frontend or Terminal representation the language of every subsystem. The shared
 part is the TTX contracts rather than a common node schema. This also places
 responsibility on each concrete owner. TTX cannot provide generic declaration
 visitors, C language behavior, target layout, optimization, or durable storage
@@ -241,7 +241,7 @@ An immutable compiler, writer, or Terminal emitter begins after its owning
 completion barrier. A tool that intentionally observes partial state must treat
 the graph as changing.
 
-Parser rejection, failed Layout fitting, archive corruption, and backend
+Parser rejection, failed Layout fitting, archive corruption, and Terminal
 failure remain results of their owning operations. They do not create substitute
 semantic identities.
 
@@ -286,7 +286,7 @@ defaults, or storage facts into a generic member record. A decorator or
 composition delegates entry fitting to the source Layout that owns each edge.
 
 Keeping Layout semantic lets the same graph feed a CPU compiler, GPU compiler,
-interpreter, editor, and archive writer without letting the first backend fix
+interpreter, editor, and archive writer without letting the first Terminal fix
 the physical meaning for every later consumer.
 
 TTX therefore cannot answer target object layout, field offset, register,
@@ -405,7 +405,7 @@ completion barriers. Each language must define its semantics. A persistent
 language must also define and validate its reconstruction facts. Languages
 used only from source need no reconstruction contract. Each target must derive
 physical representation. Generic AST traversal, operation rewriting, and
-backend services come from other layers rather than TTX.
+Terminal services come from other layers rather than TTX.
 
 A smaller source model may be enough when one language owns the whole program
 and one consumer owns every output. TTX earns its place when independent owners

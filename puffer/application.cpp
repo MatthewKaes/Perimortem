@@ -12,7 +12,6 @@
 
 #include "perimortem/system/file.hpp"
 
-#include "backend/llvm/representation/program.hpp"
 #include "tetrodotoxin/app/dialect.hpp"
 #include "tetrodotoxin/app/language/monograph.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
@@ -21,11 +20,13 @@
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/terminal/abi/products.hpp"
+#include "tetrodotoxin/terminal/llvm/module/program.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin;
-using namespace Tetrodotoxin::Backend;
+using namespace Tetrodotoxin::Terminal;
 
 static auto value(const System::Args::Values& arguments, Core::View::Bytes name)
     -> Core::View::Bytes {
@@ -211,9 +212,11 @@ auto Puffer::Application::run() const -> S32 {
   }
 
   Ttx::Lexical::Errors errors;
-  Llvm::Representation::Program target(
+  Tetrodotoxin::Terminal::Abi::Products native_interface({}, {}, {}, {}, {});
+  Llvm::Module::Program target(
       arena, errors, "<app-entry>"_view, {}, Llvm::Target::X86_64SysV,
-      Llvm::Representation::Debug::Level::None, Llvm::Abi::Unit());
+      Llvm::Module::Debug::Level::None, Tetrodotoxin::Terminal::Abi::Unit(),
+      native_interface);
   if (!target.initialize() || !target.create_process_entry(*entry_symbol)) {
     return 1;
   }

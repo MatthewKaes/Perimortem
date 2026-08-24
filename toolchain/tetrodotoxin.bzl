@@ -11,6 +11,7 @@ Usage in a BUILD file:
 
     load(
         "//toolchain:tetrodotoxin.bzl",
+        "ttx_cpp_api",
         "ttx_library",
         "ttx_native_provider",
         "ttx_package",
@@ -24,11 +25,17 @@ Usage in a BUILD file:
 
     ttx_package(
         name = "my_package",
+        cpp_header = "example/my_package.hpp",
         manifest = "package.ttx",
         package_name = "Example.MyPackage",
         version = [1, 0],
         deps = [":my_dependency"],
         native_deps = [":host_services"],
+    )
+
+    ttx_cpp_api(
+        name = "my_package_cpp",
+        package = ":my_package",
     )
 
     ttx_native_provider(
@@ -38,15 +45,19 @@ Usage in a BUILD file:
         functions = ["example_host_read"],
     )
 
-A generated header is automatically available to dependents. The authored
-unit name owns the module directory, so its logical include is independent of
-the Bazel package or repository that built it:
+A generated C header is automatically available to semantic Package
+dependents. A Package can also emit a C++ surface that follows its authored
+routes, while `ttx_cpp_api` publishes that optional facade to native consumers.
+The Package identity and version own the module directory, so its logical
+includes are independent of the Bazel package or repository that built it:
 
     #include "Example.MyLib/c_abi.h"
+    #include "Example.MyPackage/1.0/api.hpp"
 
-Standalone Library actions use `//puffer:puffer` and the in process LLVM
-backend. Puffer emits one object and C header. Bazel's selected C++ toolchain
-owns archive creation and publishes the resulting CcInfo.
+Standalone Library actions use `//puffer:puffer`, the native ABI Terminal, and
+the in process LLVM Terminal. ABI emits the C interface, LLVM emits the object,
+and Bazel's selected C++ toolchain owns archive creation and publishes the
+resulting CcInfo.
 
 Package dependency semantics travel through Interface Archives. Complete
 Archives preserve the root Package, while LLVM IR and native objects remain
@@ -75,6 +86,9 @@ TtxPackageInfo = provider(
         "abi_manifest": "Native ABI Manifest for the selected artifact.",
         "transitive_abi_manifests": "Dependency-first native ABI Manifest depset.",
         "artifact_id": "Exact native artifact identifier.",
+        "cpp_compilation_context": "Generated C++ facade headers when requested.",
+        "cpp_objects": "Generated C++ facade implementation objects.",
+        "cpp_pic_objects": "Generated position independent C++ facade objects.",
     },
 )
 
@@ -148,7 +162,7 @@ def _ttx_library_impl(ctx):
     source = ctx.files.srcs[0]
     arguments = ctx.actions.args()
     arguments.add("-library")
-    arguments.add("-backend=llvm")
+    arguments.add("-terminal=llvm")
     arguments.add("-target=x86_64-sysv")
     arguments.add("-debug=%s" % ctx.attr.debug)
     arguments.add("-name=%s" % unit_name)
@@ -239,6 +253,19 @@ def _ttx_package_impl(ctx):
     interface_archive = ctx.actions.declare_file(artifact_root + "interface.txa")
     abi_manifest = ctx.actions.declare_file(artifact_root + "abi.manifest")
     header = ctx.actions.declare_file(artifact_root + "c_abi.h")
+    cpp_header = None
+    cpp_source = None
+    if ctx.attr.cpp_header:
+        if len(ctx.files.sources) != 1:
+            fail("The generated C++ Package API currently requires one source")
+        if (
+            ctx.attr.cpp_header.startswith("/") or
+            ".." in ctx.attr.cpp_header.split("/") or
+            not ctx.attr.cpp_header.endswith(".hpp")
+        ):
+            fail("cpp_header must be one repository relative .hpp include path")
+        cpp_header = ctx.actions.declare_file(ctx.attr.cpp_header)
+        cpp_source = ctx.actions.declare_file(ctx.attr.cpp_header[:-4] + ".cpp")
     arguments = ctx.actions.args()
     arguments.add("-package")
     arguments.add(ctx.file.manifest, format = "-manifest=%s")
@@ -249,6 +276,11 @@ def _ttx_package_impl(ctx):
     arguments.add(complete_archive, format = "-complete=%s")
     arguments.add(interface_archive, format = "-interface=%s")
     arguments.add(header, format = "-header=%s")
+    if ctx.attr.cpp_header:
+        arguments.add(cpp_header, format = "-cpp-header=%s")
+        arguments.add(cpp_source, format = "-cpp-source=%s")
+        arguments.add("-cpp-include=%s" % ctx.attr.cpp_header)
+        arguments.add("-c-include=%sc_abi.h" % artifact_root)
     arguments.add(abi_manifest, format = "-abi-manifest=%s")
 
     dependency_interfaces = depset(
@@ -291,6 +323,8 @@ def _ttx_package_impl(ctx):
     llvm_ir = []
     object_files = []
     outputs = [complete_archive, interface_archive, abi_manifest, header]
+    if ctx.attr.cpp_header:
+        outputs.extend([cpp_header, cpp_source])
     for index, source in enumerate(ctx.files.sources):
         source_name = source.basename[:-4]
         unit_name = "unit_%d_%s" % (index, source_name)
@@ -326,10 +360,38 @@ def _ttx_package_impl(ctx):
         requested_features = ctx.features,
         unsupported_features = ctx.disabled_features,
     )
-    compilation_outputs = cc_common.create_compilation_outputs(
+    semantic_compilation_outputs = cc_common.create_compilation_outputs(
         objects = depset(object_files),
         pic_objects = depset(object_files),
     )
+    include_root = ctx.bin_dir.path
+    if ctx.label.package:
+        include_root += "/" + ctx.label.package
+    api_compilation_context = None
+    api_compilation_outputs = None
+    if ctx.attr.cpp_header:
+        api_compilation_context, api_compilation_outputs = cc_common.compile(
+            actions = ctx.actions,
+            name = ctx.label.name + "_api",
+            cc_toolchain = cc_toolchain,
+            feature_configuration = feature_configuration,
+            srcs = [cpp_source],
+            public_hdrs = [cpp_header],
+            private_hdrs = [header],
+            includes = [include_root],
+            compilation_contexts = [
+                ctx.attr._runtime[CcInfo].compilation_context,
+            ],
+        )
+    compilation_outputs = semantic_compilation_outputs
+    if api_compilation_outputs:
+        # Compiling the generated facade proves that its C++ and C carriers
+        # agree. Its object remains separate from semantic Package linking so a
+        # native consumer can select that language surface explicitly.
+        outputs.extend(api_compilation_outputs.objects)
+        for pic_object in api_compilation_outputs.pic_objects:
+            if pic_object not in outputs:
+                outputs.append(pic_object)
     linking_context, linking_outputs = (
         cc_common.create_linking_context_from_compilation_outputs(
             actions = ctx.actions,
@@ -341,15 +403,12 @@ def _ttx_package_impl(ctx):
         )
     )
 
-    include_root = ctx.bin_dir.path
-    if ctx.label.package:
-        include_root += "/" + ctx.label.package
-    compilation_context = cc_common.create_compilation_context(
+    package_compilation_context = cc_common.create_compilation_context(
         headers = depset([header]),
         system_includes = depset([include_root]),
     )
     generated_cc_info = CcInfo(
-        compilation_context = compilation_context,
+        compilation_context = package_compilation_context,
         linking_context = linking_context,
     )
     dependency_cc_infos = [dep[CcInfo] for dep in ctx.attr.deps]
@@ -383,6 +442,9 @@ def _ttx_package_impl(ctx):
             abi_manifest = abi_manifest,
             transitive_abi_manifests = package_abi_manifests,
             artifact_id = artifact_id,
+            cpp_compilation_context = api_compilation_context,
+            cpp_objects = api_compilation_outputs.objects if api_compilation_outputs else [],
+            cpp_pic_objects = api_compilation_outputs.pic_objects if api_compilation_outputs else [],
         ),
         DefaultInfo(files = depset(outputs)),
     ]
@@ -475,6 +537,9 @@ _ttx_package = rule(
             values = ["none", "line", "full"],
             doc = "LLVM debug information mode for every member object.",
         ),
+        cpp_header = attr.string(
+            doc = "Repository relative include path for the generated C++ API.",
+        ),
         _compiler = attr.label(
             default = "//puffer:puffer",
             executable = True,
@@ -493,6 +558,64 @@ _ttx_package = rule(
         "Compiles one authored TTX Package into Complete and Interface " +
         "Archives plus separate native member objects."
     ),
+)
+
+def _ttx_cpp_api_impl(ctx):
+    package = ctx.attr.package[TtxPackageInfo]
+    if package.cpp_compilation_context == None or not package.cpp_objects:
+        fail("ttx_cpp_api requires a Package that emits one C++ facade")
+
+    cc_toolchain = find_cc_toolchain(ctx)
+    feature_configuration = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = cc_toolchain,
+        requested_features = ctx.features,
+        unsupported_features = ctx.disabled_features,
+    )
+    compilation_outputs = cc_common.create_compilation_outputs(
+        objects = depset(package.cpp_objects),
+        pic_objects = depset(package.cpp_pic_objects),
+    )
+    linking_context, linking_outputs = (
+        cc_common.create_linking_context_from_compilation_outputs(
+            actions = ctx.actions,
+            name = ctx.label.name,
+            compilation_outputs = compilation_outputs,
+            cc_toolchain = cc_toolchain,
+            feature_configuration = feature_configuration,
+            disallow_dynamic_library = True,
+        )
+    )
+    facade = CcInfo(
+        compilation_context = package.cpp_compilation_context,
+        linking_context = linking_context,
+    )
+    outputs = package.cpp_objects + package.cpp_pic_objects
+    library = linking_outputs.library_to_link
+    if library.static_library:
+        outputs.append(library.static_library)
+    if library.pic_static_library and library.pic_static_library != library.static_library:
+        outputs.append(library.pic_static_library)
+    return [
+        cc_common.merge_cc_infos(
+            direct_cc_infos = [facade],
+            cc_infos = [ctx.attr.package[CcInfo]],
+        ),
+        DefaultInfo(files = depset(outputs)),
+    ]
+
+_ttx_cpp_api = rule(
+    implementation = _ttx_cpp_api_impl,
+    attrs = dict(
+        CC_TOOLCHAIN_ATTRS,
+        package = attr.label(
+            mandatory = True,
+            providers = [TtxPackageInfo, CcInfo],
+        ),
+    ),
+    toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
+    fragments = ["cpp"],
+    doc = "Publishes the generated C++ facade for one TTX Package.",
 )
 
 def ttx_native_provider(name, **kwargs):
@@ -536,6 +659,14 @@ def ttx_package(name, manifest, version, **kwargs):
         manifest = manifest,
         sources = sources,
         version = version,
+        **kwargs
+    )
+
+def ttx_cpp_api(name, package, **kwargs):
+    """Publishes one Package C++ facade without coupling it to semantic use."""
+    _ttx_cpp_api(
+        name = name,
+        package = package,
         **kwargs
     )
 

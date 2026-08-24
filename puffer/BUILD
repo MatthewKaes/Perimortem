@@ -50,7 +50,7 @@ cc_binary(
     ],
     deps = [
         ":lsp",
-        "//backend:llvm",
+        "//tetrodotoxin/terminal:llvm",
         "//perimortem",
         "//tetrodotoxin:environment",
         "//tetrodotoxin:app",

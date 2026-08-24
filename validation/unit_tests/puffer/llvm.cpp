@@ -11,22 +11,24 @@
 
 #include "perimortem/system/file.hpp"
 
-#include "backend/llvm/compiler.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/terminal/abi/c/header.hpp"
+#include "tetrodotoxin/terminal/abi/compiler.hpp"
+#include "tetrodotoxin/terminal/llvm/compiler.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Tetrodotoxin;
-using namespace Tetrodotoxin::Backend;
+using namespace Tetrodotoxin::Terminal;
 using namespace Ttx::Lexical;
 using namespace Validation;
 
 static Harness LlvmTests = {
-  .name = "Tetrodotoxin::Backend::Llvm"_view,
+  .name = "Tetrodotoxin::Terminal::Llvm"_view,
 };
 
 extern "C" auto run_foreign_integration() -> int;
@@ -37,7 +39,8 @@ static auto compile_source(
     Errors& errors,
     View::Bytes path,
     View::Bytes source,
-    Llvm::Representation::Debug::Level debug)
+    Llvm::Module::Debug::Level debug,
+    View::Bytes* header = nullptr)
     -> Perimortem::Utility::Result<Llvm::Products, Llvm::Failure> {
   Environment::Toolchain toolchain;
   auto dialect = toolchain.install<Library::Dialect>("Library"_view);
@@ -52,12 +55,34 @@ static auto compile_source(
     return Llvm::Failure::SourceRejected;
   }
 
+  const auto& monograph =
+      static_cast<const Library::Language::Monograph&>(*interpreted);
+  Terminal::Abi::Unit unit("LlvmTest"_view);
+  Terminal::Abi::Compiler interface_compiler;
+  auto native_interface = interface_compiler.compile(
+      products, monograph, unit, errors, path, source);
+  if (!native_interface) {
+    return Llvm::Failure::SourceRejected;
+  }
+
   Llvm::Request request(
-      static_cast<const Library::Language::Monograph&>(*interpreted), errors,
-      path, source, Llvm::Target::X86_64SysV, debug,
-      Llvm::Abi::Unit("LlvmTest"_view));
+      monograph, errors, path, source, Llvm::Target::X86_64SysV, debug, unit,
+      *native_interface);
   Llvm::Compiler compiler;
-  return compiler.compile(products, request);
+  auto result = compiler.compile(products, request);
+  if (header) {
+    result.visit(
+        [&](const Llvm::Products& compiled) {
+          auto identified = Terminal::Abi::C::Header::identify(
+              products, native_interface->get_c_header(), unit.get_package(),
+              compiled.get_abi_fingerprint());
+          if (identified) {
+            *header = identified->get_view();
+          }
+        },
+        [](Llvm::Failure) {});
+  }
+  return result;
 }
 
 static auto contains_error(const Errors& errors, View::Bytes expected) -> Bool {
@@ -170,9 +195,11 @@ PERIMORTEM_UNIT_TEST(LlvmTests, debug_products) {
   Option<Llvm::Products> first_products;
   Option<Llvm::Products> second_products;
   Option<Llvm::Products> relocated_products;
+  View::Bytes first_header;
+  View::Bytes second_header;
   compile_source(
       first_domain, first_errors, "validation/data/ttx/llvm/runtime.ttx"_view,
-      *source, Llvm::Representation::Debug::Level::Full)
+      *source, Llvm::Module::Debug::Level::Full, &first_header)
       .visit(
           [&](const Llvm::Products& products) {
             first_products = Option<Llvm::Products>(products);
@@ -180,7 +207,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, debug_products) {
           [&](Llvm::Failure) {});
   compile_source(
       second_domain, second_errors, "validation/data/ttx/llvm/runtime.ttx"_view,
-      *source, Llvm::Representation::Debug::Level::Full)
+      *source, Llvm::Module::Debug::Level::Full, &second_header)
       .visit(
           [&](const Llvm::Products& products) {
             second_products = Option<Llvm::Products>(products);
@@ -189,7 +216,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, debug_products) {
   compile_source(
       relocated_domain, relocated_errors,
       "validation/data/ttx/llvm/relocated_runtime.ttx"_view, *source,
-      Llvm::Representation::Debug::Level::Full)
+      Llvm::Module::Debug::Level::Full)
       .visit(
           [&](const Llvm::Products& products) {
             relocated_products = Option<Llvm::Products>(products);
@@ -202,7 +229,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, debug_products) {
   EXPECT(relocated_errors.is_empty());
   EXPECT(first_products->get_llvm_ir() == second_products->get_llvm_ir());
   EXPECT(first_products->get_object() == second_products->get_object());
-  EXPECT(first_products->get_header() == second_products->get_header());
+  EXPECT(first_header == second_header);
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),
@@ -308,28 +335,26 @@ PERIMORTEM_UNIT_TEST(LlvmTests, debug_products) {
           "define void @llvm_large(ptr noalias sret(%ttx.struct.Large)"_view) !=
       Count(-1));
   EXPECT(
-      Algorithm::search(
-          first_products->get_header(), "TTX_FUNC_small_static"_view) !=
+      Algorithm::search(first_header, "TTX_FUNC_small_static"_view) !=
       Count(-1));
   EXPECT(
       Algorithm::search(
-          first_products->get_header(),
+          first_header,
           "typedef struct ttx_llvmtest_Option_5bU64_5d {\n"
           "  uint64_t value;\n"
           "  bool set;\n"_view) != Count(-1));
   EXPECT(
       Algorithm::search(
-          first_products->get_header(),
+          first_header,
           "typedef struct ttx_llvmtest_View_5bU64_5d {\n"
           "  const uint64_t *data;\n"_view) != Count(-1));
   EXPECT(
-      Algorithm::search(
-          first_products->get_header(),
-          "uint64_t llvm_bytes_api(void);"_view) != Count(-1));
+      Algorithm::search(first_header, "uint64_t llvm_bytes_api(void);"_view) !=
+      Count(-1));
   EXPECT(
       Algorithm::search(
-          first_products->get_header(),
-          "#define TTX_ABI_FINGERPRINT_llvmtest \""_view) != Count(-1));
+          first_header, "#define TTX_ABI_FINGERPRINT_llvmtest \""_view) !=
+      Count(-1));
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),
@@ -352,7 +377,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, static_debug_scope) {
   Option<Llvm::Products> products;
   compile_source(
       domain, errors, "scoped_static.ttx"_view, source,
-      Llvm::Representation::Debug::Level::Full)
+      Llvm::Module::Debug::Level::Full)
       .visit(
           [&](const Llvm::Products& selected) {
             products = Option<Llvm::Products>(selected);
@@ -428,7 +453,7 @@ PERIMORTEM_UNIT_TEST(LlvmTests, source_diagnostics) {
     Bool rejected = False;
     compile_source(
         products, errors, "backend_rejection.ttx"_view, rejection.source,
-        Llvm::Representation::Debug::Level::None)
+        Llvm::Module::Debug::Level::None)
         .visit(
             [&](const Llvm::Products&) {},
             [&](Llvm::Failure failure) {

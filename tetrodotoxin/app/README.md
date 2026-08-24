@@ -6,7 +6,7 @@ choices a small language of their own instead of scattering them across an
 entry Function, build manifest, and host specific startup code.
 
 An App can point directly to the Library Functions or Scenes that participate
-in that policy. The CPU backend compiles their Library meaning and the platform
+in that policy. The CPU Terminal compiles their Library meaning and the platform
 toolchain links the native products. App keeps the human decision visible while
 leaving machine instructions and linking to the systems that own them.
 
@@ -151,9 +151,9 @@ Building an App selects both a CPU target and a platform host. The CPU target
 defines how functions and values are represented. The Linux or Windows host
 provides process startup, loading, terminals, windows, and events.
 
-The LLVM backend compiles completed Library meaning. The selected platform toolchain links the
-member objects, runtime libraries, and generated App entry without making LLVM
-or native linking part of App behavior.
+The LLVM Terminal compiles completed Library meaning. The selected platform
+toolchain links the member objects, runtime libraries, and generated App entry
+without making LLVM or native linking part of App behavior.
 
 See [Scene](../scene/README.md) for Scene roles,
 [Library](../library/README.md) for Callable and named Layout semantics, and the

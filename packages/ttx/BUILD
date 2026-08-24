@@ -5,6 +5,7 @@
 
 load(
     "//toolchain:tetrodotoxin.bzl",
+    "ttx_cpp_api",
     "ttx_native_provider",
     "ttx_package",
 )
@@ -13,12 +14,19 @@ package(default_visibility = ["//visibility:private"])
 
 ttx_package(
     name = "perimortem_memory",
+    cpp_header = "perimortem/memory/dynamic/bytes.hpp",
     package_name = "Perimortem.Memory",
     manifest = "Perimortem.Memory/package.ttx",
     version = [
         1,
         0,
     ],
+    visibility = ["//visibility:public"],
+)
+
+ttx_cpp_api(
+    name = "perimortem_memory_cpp",
+    package = ":perimortem_memory",
     visibility = ["//visibility:public"],
 )
 

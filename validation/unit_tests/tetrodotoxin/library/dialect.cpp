@@ -13,7 +13,6 @@
 
 #include "perimortem/system/file.hpp"
 
-#include "backend/llvm/compiler.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/library/language/access/address.hpp"
@@ -49,6 +48,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
+#include "tetrodotoxin/terminal/llvm/compiler.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"

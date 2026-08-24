@@ -1,7 +1,7 @@
 # # Tetrodotoxin
 # Copyright (c) 2023-present Matt Kaes and contributors
 
-"Repository rule for the immutable LLVM backend development SDK."
+"Repository rule for the immutable LLVM Terminal development SDK."
 
 _LLVM_VERSION = "22.1.8"
 _ARCH_PACKAGE_VERSION = "22.1.8-2"

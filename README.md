@@ -63,7 +63,7 @@ already understand.
 Tetrodotoxin is intended to make creating that language the beginning of the
 work rather than the beginning of a new toolchain. Its source can join existing
 Packages, refer to Types and Callables from another Dialect, appear naturally in
-the editor, and contribute meaning to more than one backend. A specialized
+the editor, and contribute meaning to more than one Terminal. A specialized
 language can become a first class part of the product instead of a configuration
 file interpreted at its edge.
 
@@ -83,7 +83,7 @@ a shadow model.
 
 This is what Tetrodotoxin means by **raising**. Languages bring shared meaning
 into one linked Workspace while keeping their richer domain model. Once that
-meaning is complete, independent backends can derive the representations they
+meaning is complete, independent Terminals can derive the representations they
 need. LLVM IR, SPIR-V modules, Package Archives, editor data, and executables are
 products of the graph rather than replacements for it.
 

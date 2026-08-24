@@ -17,20 +17,22 @@
 #include "perimortem/system/file.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "backend/llvm/compiler.hpp"
-#include "backend/llvm/products.hpp"
 #include "puffer/application.hpp"
 #include "puffer/lsp/methods.hpp"
 #include "puffer/package.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/terminal/abi/c/header.hpp"
+#include "tetrodotoxin/terminal/abi/compiler.hpp"
+#include "tetrodotoxin/terminal/llvm/compiler.hpp"
+#include "tetrodotoxin/terminal/llvm/products.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/formatter.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem;
-using namespace Tetrodotoxin::Backend;
+using namespace Tetrodotoxin::Terminal;
 
 static auto create_config(Memory::Allocator::Arena& arena)
     -> Memory::Managed::Map<Core::View::Bytes, Core::View::Bytes> {
@@ -62,13 +64,20 @@ static auto create_config(Memory::Allocator::Arena& arena)
   variables.insert("app-member"_view, "Select the Package App member."_view);
   variables.insert(
       "version"_view, "Set the Package `<major>.<minor>` version."_view);
-  variables.insert("backend"_view, "Select the Library backend."_view);
+  variables.insert("terminal"_view, "Select the Library Terminal."_view);
   variables.insert("target"_view, "Select the native target."_view);
   variables.insert("debug"_view, "Select none, line, or full debug data."_view);
   variables.insert("name"_view, "Set the source semantic name."_view);
   variables.insert("ir"_view, "Write the emitted LLVM IR."_view);
   variables.insert("object"_view, "Write the emitted ELF object."_view);
   variables.insert("header"_view, "Write the generated C header."_view);
+  variables.insert(
+      "cpp-header"_view, "Write the generated C++ Package header."_view);
+  variables.insert(
+      "cpp-source"_view, "Write the generated C++ Package source."_view);
+  variables.insert(
+      "cpp-include"_view, "Set the generated C++ include path."_view);
+  variables.insert("c-include"_view, "Set the generated C include path."_view);
   variables.insert(""_view, "Read one positional Library source."_view);
   return variables;
 }
@@ -175,6 +184,7 @@ static auto run_format(const System::Args::Values& args) -> S32 {
 // writes completed first.
 static auto publish(
     const Llvm::Products& products,
+    Core::View::Bytes header,
     Core::View::Bytes ir_path,
     Core::View::Bytes object_path,
     Core::View::Bytes header_path) -> Bool {
@@ -184,7 +194,7 @@ static auto publish(
   Core::View::Bytes header_stage = create_stage_path(arena, header_path);
   Bool written = System::File::write(products.get_llvm_ir(), ir_stage) &&
                  System::File::write(products.get_object(), object_stage) &&
-                 System::File::write(products.get_header(), header_stage);
+                 System::File::write(header, header_stage);
   if (!written) {
     System::File::remove(ir_stage);
     System::File::remove(object_stage);
@@ -211,7 +221,7 @@ static auto run_library(const System::Args::Values& args) -> S32 {
 
   constexpr Core::Static::Vector<Core::View::Bytes, 8> required = {{
     ""_view,
-    "backend"_view,
+    "terminal"_view,
     "target"_view,
     "debug"_view,
     "name"_view,
@@ -222,7 +232,7 @@ static auto run_library(const System::Args::Values& args) -> S32 {
   for (Core::View::Bytes name : required.get_view()) {
     if (!has_one(args, name)) {
       write_error(
-          "puffer: Library mode requires one source, name, backend, target, "
+          "puffer: Library mode requires one source, name, Terminal, target, "
           "debug mode, IR path, object path, and header path"_view);
       return 2;
     }
@@ -230,20 +240,20 @@ static auto run_library(const System::Args::Values& args) -> S32 {
 
   if (!has_one(args, "library"_view) ||
       value(args, "library"_view) != "true"_view ||
-      value(args, "backend"_view) != "llvm"_view ||
+      value(args, "terminal"_view) != "llvm"_view ||
       value(args, "target"_view) != "x86_64-sysv"_view) {
-    write_error("puffer: use -library -backend=llvm -target=x86_64-sysv"_view);
+    write_error("puffer: use -library -terminal=llvm -target=x86_64-sysv"_view);
     return 2;
   }
 
   Core::View::Bytes debug_name = value(args, "debug"_view);
-  Llvm::Representation::Debug::Level debug;
+  Llvm::Module::Debug::Level debug;
   if (debug_name == "none"_view) {
-    debug = Llvm::Representation::Debug::Level::None;
+    debug = Llvm::Module::Debug::Level::None;
   } else if (debug_name == "line"_view) {
-    debug = Llvm::Representation::Debug::Level::Line;
+    debug = Llvm::Module::Debug::Level::Line;
   } else if (debug_name == "full"_view) {
-    debug = Llvm::Representation::Debug::Level::Full;
+    debug = Llvm::Module::Debug::Level::Full;
   } else {
     write_error("puffer: -debug must be none, line, or full"_view);
     return 2;
@@ -288,15 +298,30 @@ static auto run_library(const System::Args::Values& args) -> S32 {
   }
 
   Memory::Allocator::Arena product_arena;
+  Tetrodotoxin::Terminal::Abi::Unit unit(value(args, "name"_view));
+  Tetrodotoxin::Terminal::Abi::Compiler interface_compiler;
+  auto native_interface = interface_compiler.compile(
+      product_arena, *monograph, unit, errors, source_path, *source);
+  if (!native_interface) {
+    render_errors(errors);
+    return 1;
+  }
   Llvm::Request request(
       *monograph, errors, source_path, *source, Llvm::Target::X86_64SysV, debug,
-      Llvm::Abi::Unit(value(args, "name"_view)));
+      unit, *native_interface);
   Llvm::Compiler compiler;
   Utility::Result<Llvm::Products, Llvm::Failure> result =
       compiler.compile(product_arena, request);
   return result.visit(
       [&](const Llvm::Products& products) -> S32 {
-        return publish(products, ir_path, object_path, header_path) ? 0 : 1;
+        auto identified = Tetrodotoxin::Terminal::Abi::C::Header::identify(
+            product_arena, native_interface->get_c_header(), unit.get_package(),
+            products.get_abi_fingerprint());
+        return identified && publish(
+                                 products, identified->get_view(), ir_path,
+                                 object_path, header_path)
+                   ? 0
+                   : 1;
       },
       [&](const Llvm::Failure& failure) -> S32 {
         if (failure == Llvm::Failure::SourceRejected) {

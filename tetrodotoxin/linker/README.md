@@ -48,7 +48,15 @@ without making Foreign declarations conditional. A platform package may still
 declare distinct low level imports when the native APIs genuinely have
 different signatures.
 
-## Generated C interfaces
+## Generated native interfaces
+
+Public TTX declarations become host interfaces without repeating ABI metadata
+in source. C++ consumers receive the authored Package, Type, and Callable
+routes. The generated C++ implementation then forwards through the exact C
+carrier surface used by the object module, keeping target spellings and layout
+details out of normal application code.
+
+The raw C header remains available for C consumers and platform integration.
 
 Generated aggregate names begin with lowercase `ttx_`, followed by a lowercase
 Package coordinate and the semantic member and Type route. For example:
@@ -68,7 +76,7 @@ definition safely.
 
 Linker consumes ELF and COFF object and archive inputs, resolves their declared
 symbols and imports, performs archive extraction, applies relocations, and emits
-ELF or PE products for the selected host. LLVM and future CPU backends can both
+ELF or PE products for the selected host. LLVM and future CPU Terminals can both
 act as object producers. Linker works from their source independent object
-contracts rather than depending on a particular backend or a copied Library
+contracts rather than depending on a particular Terminal or a copied Library
 graph.

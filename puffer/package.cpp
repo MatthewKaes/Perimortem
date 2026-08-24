@@ -15,10 +15,6 @@
 #include "perimortem/system/version.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "backend/llvm/abi/header.hpp"
-#include "backend/llvm/abi/symbol.hpp"
-#include "backend/llvm/compiler.hpp"
-#include "backend/llvm/representation/program.hpp"
 #include "tetrodotoxin/app/dialect.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/language/dialect.hpp"
@@ -35,12 +31,17 @@
 #include "tetrodotoxin/package/archive/writer.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/terminal/abi/c/header.hpp"
+#include "tetrodotoxin/terminal/abi/compiler.hpp"
+#include "tetrodotoxin/terminal/abi/products.hpp"
+#include "tetrodotoxin/terminal/llvm/compiler.hpp"
+#include "tetrodotoxin/terminal/llvm/module/program.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin;
-using namespace Tetrodotoxin::Backend;
+using namespace Tetrodotoxin::Terminal;
 
 static auto value(const System::Args::Values& arguments, Core::View::Bytes name)
     -> Core::View::Bytes {
@@ -60,15 +61,15 @@ static auto values(
 }
 
 static auto parse_debug(Core::View::Bytes text)
-    -> Core::Option<Llvm::Representation::Debug::Level> {
+    -> Core::Option<Llvm::Module::Debug::Level> {
   if (text == "none"_view) {
-    return Llvm::Representation::Debug::Level::None;
+    return Llvm::Module::Debug::Level::None;
   }
   if (text == "line"_view) {
-    return Llvm::Representation::Debug::Level::Line;
+    return Llvm::Module::Debug::Level::Line;
   }
   if (text == "full"_view) {
-    return Llvm::Representation::Debug::Level::Full;
+    return Llvm::Module::Debug::Level::Full;
   }
   return {};
 }
@@ -210,7 +211,8 @@ static auto select_library(
 
 static auto retain_type_binding(
     Memory::Allocator::Arena& arena,
-    Memory::Managed::Vector<Llvm::Abi::Unit::TypeBinding>& bindings,
+    Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Unit::TypeBinding>&
+        bindings,
     Core::View::Bytes package,
     Core::View::Bytes member,
     Core::View::Bytes route,
@@ -221,7 +223,8 @@ static auto retain_type_binding(
     return True;
   }
 
-  for (const Llvm::Abi::Unit::TypeBinding& binding : bindings.get_view()) {
+  for (const Tetrodotoxin::Terminal::Abi::Unit::TypeBinding& binding :
+       bindings.get_view()) {
     if (&binding.get_semantic() == &*type) {
       return True;
     }
@@ -232,7 +235,8 @@ static auto retain_type_binding(
 
   Core::View::Bytes retained_route = arena.proxy(route);
   bindings.insert(
-      Llvm::Abi::Unit::TypeBinding(*type, package, member, retained_route));
+      Tetrodotoxin::Terminal::Abi::Unit::TypeBinding(
+          *type, package, member, retained_route));
   auto composite = type->select<Library::Language::Types::Composite>();
   if (!composite) {
     return True;
@@ -254,7 +258,8 @@ static auto retain_type_binding(
 
 static auto retain_library_types(
     Memory::Allocator::Arena& arena,
-    Memory::Managed::Vector<Llvm::Abi::Unit::TypeBinding>& bindings,
+    Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Unit::TypeBinding>&
+        bindings,
     Core::View::Bytes package,
     Core::View::Bytes member,
     const Library::Language::Monograph& library) -> Bool {
@@ -407,6 +412,10 @@ auto Puffer::Package::run() const -> S32 {
   Core::View::Bytes complete_path = value(arguments, "complete"_view);
   Core::View::Bytes interface_path = value(arguments, "interface"_view);
   Core::View::Bytes header_path = value(arguments, "header"_view);
+  Core::View::Bytes cpp_header_path = value(arguments, "cpp-header"_view);
+  Core::View::Bytes cpp_source_path = value(arguments, "cpp-source"_view);
+  Core::View::Bytes cpp_include = value(arguments, "cpp-include"_view);
+  Core::View::Bytes c_include = value(arguments, "c-include"_view);
   Core::View::Bytes abi_manifest_path = value(arguments, "abi-manifest"_view);
   System::Version version =
       System::Version::parse(value(arguments, "version"_view));
@@ -418,6 +427,13 @@ auto Puffer::Package::run() const -> S32 {
       artifact != "x86_64-sysv-linux"_view) {
     Core::Diagnostics::Log::error(
         "Puffer Package mode received an incomplete request."_view);
+    return 2;
+  }
+  Bool cpp_api = !cpp_header_path.is_empty() || !cpp_source_path.is_empty();
+  if (cpp_header_path.is_empty() != cpp_source_path.is_empty() ||
+      cpp_api != (!cpp_include.is_empty() && !c_include.is_empty())) {
+    Core::Diagnostics::Log::error(
+        "Puffer Package needs both generated C++ product paths."_view);
     return 2;
   }
 
@@ -537,7 +553,8 @@ auto Puffer::Package::run() const -> S32 {
     return 1;
   }
 
-  Memory::Managed::Vector<Llvm::Abi::Unit::TypeBinding> type_bindings(arena);
+  Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Unit::TypeBinding>
+      type_bindings(arena);
   Memory::Managed::Vector<Core::View::Bytes> dependency_headers(arena);
   for (const Tetrodotoxin::Package::Archive::Archive& dependency :
        dependency_archives.get_view()) {
@@ -592,7 +609,8 @@ auto Puffer::Package::run() const -> S32 {
     }
   }
 
-  Memory::Managed::Vector<Llvm::Abi::Unit::Binding> external(arena);
+  Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Unit::Binding> external(
+      arena);
   for (const Tetrodotoxin::Package::Archive::Archive& dependency :
        dependency_archives.get_view()) {
     auto dependency_root =
@@ -614,7 +632,8 @@ auto Puffer::Package::run() const -> S32 {
         return 1;
       }
       external.insert(
-          Llvm::Abi::Unit::Binding(*semantic, exported.get_symbol_locator()));
+          Tetrodotoxin::Terminal::Abi::Unit::Binding(
+              *semantic, exported.get_symbol_locator()));
     }
   }
 
@@ -638,6 +657,14 @@ auto Puffer::Package::run() const -> S32 {
   if (units.get_size() != root->get_sources().get_size()) {
     return 2;
   }
+  if (cpp_api && units.get_size() != 1) {
+    Core::Diagnostics::Log::error(
+        "Generated C++ Package publication currently needs one source member."_view);
+    return 2;
+  }
+
+  Core::View::Bytes cpp_header;
+  Core::View::Bytes cpp_source;
 
   for (const Tetrodotoxin::Package::Language::Source& declared :
        root->get_sources()) {
@@ -677,15 +704,23 @@ auto Puffer::Package::run() const -> S32 {
     if (!source) {
       return 1;
     }
-    Llvm::Abi::Unit unit(
+    Tetrodotoxin::Terminal::Abi::Unit unit(
         identity, member_name, artifact, external.get_view(),
-        type_bindings.get_view(), dependency_headers.get_view());
+        type_bindings.get_view(), dependency_headers.get_view(), {}, c_include,
+        cpp_include);
+    Core::Option<Tetrodotoxin::Terminal::Abi::Products> native_interface;
     Llvm::Products products = [&]() {
       auto library = member->select<Library::Language::Monograph>();
       if (library) {
+        Tetrodotoxin::Terminal::Abi::Compiler interface_compiler;
+        native_interface = interface_compiler.compile(
+            arena, *library, unit, errors, source_path, *source);
+        if (!native_interface) {
+          return Llvm::Products({}, {}, {});
+        }
         Llvm::Request request(
             *library, errors, source_path, *source, Llvm::Target::X86_64SysV,
-            *debug, unit);
+            *debug, unit, *native_interface);
         Llvm::Compiler compiler;
         return compiler.compile(arena, request)
             .visit(
@@ -695,9 +730,11 @@ auto Puffer::Package::run() const -> S32 {
                 });
       }
 
-      Llvm::Representation::Program empty(
+      Tetrodotoxin::Terminal::Abi::Products native_interface(
+          {}, {}, {}, {}, {});
+      Llvm::Module::Program empty(
           arena, errors, source_path, *source, Llvm::Target::X86_64SysV, *debug,
-          unit.bind(*member));
+          unit.bind(*member), native_interface);
       if (!empty.initialize()) {
         return Llvm::Products({}, {}, {});
       }
@@ -713,7 +750,23 @@ auto Puffer::Package::run() const -> S32 {
           "Puffer Package could not emit one member product."_view);
       return 1;
     }
-    combined_header.concat(products.get_header());
+    if (native_interface) {
+      combined_header.concat(native_interface->get_c_header());
+    }
+    if (cpp_api && !native_interface) {
+      Core::Diagnostics::Log::error(
+          "The generated C++ interface requires a Library member."_view);
+      return 1;
+    }
+    if (cpp_api) {
+      cpp_header = native_interface->get_cpp_header();
+      cpp_source = native_interface->get_cpp_source();
+      if (cpp_header.is_empty() || cpp_source.is_empty()) {
+        Core::Diagnostics::Log::error(
+            "Puffer Package could not emit its generated C++ interface."_view);
+        return 1;
+      }
+    }
     abi_description.concat(products.get_abi_fingerprint().render(arena));
 
     for (const Linker::Import& import : products.get_imports()) {
@@ -760,49 +813,52 @@ auto Puffer::Package::run() const -> S32 {
       }
     }
 
-    for (const Llvm::Abi::Publication& publication :
-         products.get_publications()) {
-      auto route = create_route(arena, member_name, publication.get_semantic());
-      if (!route) {
-        Core::Diagnostics::Log::error(
-            "Puffer Package could not create one export route."_view);
-        return 1;
-      }
-      Bool duplicate = False;
-      for (const Tetrodotoxin::Package::Archive::Export& existing :
-           exports.get_view()) {
-        Bool same_route = existing.get_semantic_route() == *route;
-        Bool same_symbol =
-            existing.get_symbol_locator() == publication.get_symbol();
-        if (same_route && same_symbol) {
-          duplicate = True;
-          break;
-        }
-        if (same_route || same_symbol) {
-          Core::Diagnostics::Log::Message<512> message(
-              Core::Diagnostics::Log::Level::Error,
-              Core::Diagnostics::Source());
-          message << "Puffer Package export `"_view << *route
-                  << "` with symbol `"_view << publication.get_symbol()
-                  << "` from member `"_view << member_name
-                  << "` collides with `"_view << existing.get_semantic_route()
-                  << "` and `"_view << existing.get_symbol_locator()
-                  << "`."_view;
+    if (native_interface) {
+      for (const Tetrodotoxin::Terminal::Abi::Publication& publication :
+           native_interface->get_publications()) {
+        auto route =
+            create_route(arena, member_name, publication.get_semantic());
+        if (!route) {
+          Core::Diagnostics::Log::error(
+              "Puffer Package could not create one export route."_view);
           return 1;
         }
+        Bool duplicate = False;
+        for (const Tetrodotoxin::Package::Archive::Export& existing :
+             exports.get_view()) {
+          Bool same_route = existing.get_semantic_route() == *route;
+          Bool same_symbol =
+              existing.get_symbol_locator() == publication.get_symbol();
+          if (same_route && same_symbol) {
+            duplicate = True;
+            break;
+          }
+          if (same_route || same_symbol) {
+            Core::Diagnostics::Log::Message<512> message(
+                Core::Diagnostics::Log::Level::Error,
+                Core::Diagnostics::Source());
+            message << "Puffer Package export `"_view << *route
+                    << "` with symbol `"_view << publication.get_symbol()
+                    << "` from member `"_view << member_name
+                    << "` collides with `"_view << existing.get_semantic_route()
+                    << "` and `"_view << existing.get_symbol_locator()
+                    << "`."_view;
+            return 1;
+          }
+        }
+        if (duplicate) {
+          continue;
+        }
+        exports.insert(
+            Tetrodotoxin::Package::Archive::Export(
+                *route, artifact, publication.get_symbol()));
       }
-      if (duplicate) {
-        continue;
-      }
-      exports.insert(
-          Tetrodotoxin::Package::Archive::Export(
-              *route, artifact, publication.get_symbol()));
     }
   }
 
   Linker::Fingerprint abi_fingerprint =
       Linker::Fingerprint::create(abi_description.get_view());
-  auto identified_header = Llvm::Abi::Header::identify(
+  auto identified_header = Tetrodotoxin::Terminal::Abi::C::Header::identify(
       arena, combined_header.get_view(), identity, abi_fingerprint);
   if (!identified_header) {
     return 1;
@@ -828,6 +884,8 @@ auto Puffer::Package::run() const -> S32 {
   if (!complete || !interface || !publish(complete_path, *complete) ||
       !publish(interface_path, *interface) ||
       !publish(header_path, identified_header->get_view()) ||
+      (cpp_api && (!publish(cpp_header_path, cpp_header) ||
+                   !publish(cpp_source_path, cpp_source))) ||
       !publish(abi_manifest_path, *manifest_bytes)) {
     Core::Diagnostics::Log::error(
         "Puffer Package could not publish its completed products."_view);
