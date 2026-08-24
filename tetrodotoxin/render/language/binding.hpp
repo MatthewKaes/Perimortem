@@ -39,8 +39,15 @@ class Binding : public Ttx::Model::Addressable {
       Perimortem::Core::View::Bytes name,
       const Ttx::Model::Type& type) -> Binding&;
 
+  static auto create_restored_slot(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Perimortem::Core::View::Bytes name,
+      Tetrodotoxin::Language::TypeReference type) -> Binding&;
+
   auto link(Ttx::Lexical::Cursor& cursor, const Ttx::Concept::Abstract& context)
       -> Bool;
+
+  auto link_restored(const Ttx::Concept::Abstract& context) -> Bool;
 
   TTX_NAME(name);
   TTX_INVALID_CONTEXT;
@@ -52,6 +59,18 @@ class Binding : public Ttx::Model::Addressable {
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
   constexpr auto get_kind() const -> Kind { return kind; }
+
+  constexpr auto get_type_reference() const -> Perimortem::Core::Option<
+      const Tetrodotoxin::Language::TypeReference&> {
+    return type_reference.visit(
+        []() -> Perimortem::Core::Option<
+                 const Tetrodotoxin::Language::TypeReference&> { return {}; },
+        [](const Tetrodotoxin::Language::TypeReference& selected)
+            -> Perimortem::Core::Option<
+                const Tetrodotoxin::Language::TypeReference&> {
+          return selected;
+        });
+  }
 
   constexpr auto get_definition() const
       -> Perimortem::Core::Option<const Tetrodotoxin::Language::Definition&> {

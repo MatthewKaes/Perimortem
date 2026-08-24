@@ -387,8 +387,9 @@ Linker depends on those declared target and host facts, never on LLVM as a
 semantic authority.
 
 The GPU path is parallel. Shader and Render complete target neutral GPU facts,
-the SPIR-V Terminal emits their GPU module, and Vulkan consumes that artifact
-together with Graphics batches and one selected host surface. Vulkan owns
+the SPIR-V Terminal emits their GPU module, and Linker carries that module as
+read only data in the Package's native product. Vulkan consumes the linked
+artifact together with Graphics batches and one selected host surface. Vulkan owns
 realized descriptors, offsets, commands, handles, and synchronization. Those
 facts never flow downward into Shader, Render, or Library.
 
@@ -480,9 +481,10 @@ A Linker object module is a native Terminal product owned by Linker. The
 [Linker guide](linker/README.md) describes object input, archive resolution,
 dynamic dependencies, and executable production. LLVM IR is a target Terminal
 product limited to the compilation request that emits it. SPIR-V words are a
-Shader Terminal product. Each product preserves the target facts its next
-consumer needs, which makes it useful precisely because it can leave unrelated
-language meaning behind.
+Shader Terminal product. Linker may consume those words immediately to embed a
+GPU module in the native Package product. Each product preserves the target
+facts its next consumer needs, which makes it useful precisely because it can
+leave unrelated language meaning behind.
 
 Terminal is relative to the Workspace boundary. LLVM IR or an emitted MLIR
 module can be a completed Tetrodotoxin product while remaining an intermediate

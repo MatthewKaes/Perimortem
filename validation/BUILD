@@ -24,7 +24,11 @@ Run the full benchmark suite:
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("//toolchain:tetrodotoxin.bzl", "ttx_library", "ttx_package")
+load(
+    "//toolchain:tetrodotoxin.bzl",
+    "ttx_native_provider",
+    "ttx_package",
+)
 
 package(default_visibility = ["//visibility:public"])
 
@@ -36,10 +40,68 @@ cc_library(
     includes = ["."],
 )
 
-ttx_library(
+cc_library(
+    name = "runtime_native",
+    srcs = ["data/ttx/llvm/runtime_provider.c"],
+)
+
+ttx_native_provider(
+    name = "runtime_native_provider",
+    dep = ":runtime_native",
+    functions = [
+        "llvm_dense_access",
+        "llvm_dense_view",
+        "llvm_object_identity",
+        "ttx_system_print",
+    ],
+    provider_name = "Validation.Runtime.Host",
+)
+
+ttx_package(
+    name = "runtime_llvm",
+    package_name = "Validation.Runtime",
+    debug = "full",
+    manifest = "data/ttx/products/runtime/package.ttx",
+    native_deps = [":runtime_native_provider"],
+    version = [
+        1,
+        0,
+    ],
+)
+
+ttx_native_provider(
+    name = "runtime_export_provider",
+    dep = ":runtime_llvm",
+    functions = ["llvm_large_sum"],
+    provider_name = "Validation.Runtime",
+)
+
+cc_library(
+    name = "foreign_native",
+    srcs = ["data/ttx/llvm/foreign_provider.c"],
+)
+
+ttx_native_provider(
+    name = "foreign_native_provider",
+    dep = ":foreign_native",
+    functions = ["library_foreign_add"],
+    provider_name = "Validation.Foreign.Host",
+    readonly_states = ["library_foreign_bias"],
+    writable_states = ["library_foreign_state"],
+)
+
+ttx_package(
     name = "foreign_llvm",
-    srcs = ["data/ttx/library/foreign.ttx"],
-    library_name = "Foreign",
+    package_name = "Validation.Foreign",
+    manifest = "data/ttx/products/foreign/package.ttx",
+    native_deps = [
+        ":foreign_native_provider",
+        ":runtime_export_provider",
+    ],
+    version = [
+        1,
+        0,
+    ],
 )
 
 cc_library(
@@ -54,17 +116,25 @@ cc_library(
     deps = [":foreign_llvm"],
 )
 
-ttx_library(
-    name = "runtime_llvm",
-    srcs = ["data/ttx/llvm/runtime.ttx"],
-    debug = "full",
-    library_name = "Runtime",
+ttx_native_provider(
+    name = "system_abi_provider",
+    dep = "//perimortem:abi",
+    functions = [
+        "perimortem_system_terminal_read_line",
+        "perimortem_system_terminal_write_line",
+    ],
+    provider_name = "Perimortem.System",
 )
 
-ttx_library(
+ttx_package(
     name = "system_abi_llvm",
-    srcs = ["data/ttx/llvm/system_abi.ttx"],
-    library_name = "SystemAbi",
+    package_name = "Validation.SystemAbi",
+    manifest = "data/ttx/products/system_abi/package.ttx",
+    native_deps = [":system_abi_provider"],
+    version = [
+        1,
+        0,
+    ],
 )
 
 cc_binary(
@@ -115,6 +185,17 @@ ttx_package(
     deps = [":package_native_provider"],
 )
 
+ttx_package(
+    name = "shader_artifact_package",
+    package_name = "Validation.Shader",
+    manifest = "data/ttx/shader_artifact/package.ttx",
+    version = [
+        1,
+        0,
+    ],
+    deps = ["//packages/ttx:perimortem_math"],
+)
+
 cc_binary(
     name = "package_native_integration",
     srcs = ["data/ttx/package_native/harness.c"],
@@ -139,9 +220,8 @@ cc_library(
     deps = [":runtime_llvm"],
 )
 
-# This standalone integration proves that ttx_library propagates every runtime
-# object needed by managed generated values. It intentionally has no direct
-# Perimortem dependency, and unit_tests executes it to observe process cleanup.
+# This process links only the Package product. The Package carries its selected
+# host provider and managed runtime dependencies into the final application.
 cc_binary(
     name = "runtime_link_integration",
     srcs = ["data/ttx/llvm/runtime_harness.c"],
@@ -190,18 +270,18 @@ cc_binary(
         ["data/**/*.ttx"],
         exclude = ["data/ttx/shader_artifact/**"],
     ) + [
+        "data/ttx/app_profiles/resources/icon.bin",
         "data/ttx/package_resources/resources/empty.bin",
         "data/ttx/package_resources/resources/table.bin",
-        "data/ttx/app_profiles/resources/icon.bin",
-        ":package_native_integration",
         ":cpp_api_integration",
+        ":package_native_integration",
         ":runtime_link_integration",
         ":system_abi_integration",
         "//apps/ttx/echo",
         "//apps/ttx/echo:package",
         "//apps/ttx/scene_lifetime:sources",
-        "//packages/ttx:perimortem_memory",
         "//packages/ttx:perimortem_math",
+        "//packages/ttx:perimortem_memory",
         "//packages/ttx:perimortem_system",
     ],
     includes = ["."],
@@ -210,6 +290,7 @@ cc_binary(
         ":package_header_integration",
         ":process_fixture",
         ":runtime_integration",
+        ":shader_artifact_package",
         ":test_headers",
         "//packages/ttx:perimortem_system",
         "//perimortem",
@@ -218,15 +299,15 @@ cc_binary(
         "//tetrodotoxin:diagnostics",
         "//tetrodotoxin:environment",
         "//tetrodotoxin:formatting",
-        "//tetrodotoxin/language",
         "//tetrodotoxin:library",
-        "//tetrodotoxin/terminal:llvm",
-        "//tetrodotoxin/terminal:spirv",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
-        "//tetrodotoxin/render",
         "//tetrodotoxin:scene",
+        "//tetrodotoxin/language",
+        "//tetrodotoxin/render",
         "//tetrodotoxin/shader",
+        "//tetrodotoxin/terminal:llvm",
+        "//tetrodotoxin/terminal:spirv",
         "//ttx",
     ],
 )

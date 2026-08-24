@@ -232,8 +232,9 @@ Once the Workspace is complete, tools and
 translating the program into another language's model. The ABI Terminal defines
 the common native C representation, LLVM walks Library layers to produce CPU
 code, and a SPIR-V Terminal will walk Shader, Render, and their real Library
-child to produce GPU modules. Linker combines native objects into ELF or PE
-programs. These finished outputs no longer need the Workspace.
+child to produce GPU modules. Package production asks Linker to carry those
+modules as read only native data, then Linker combines the resulting objects
+into ELF or PE programs. These finished outputs no longer need the Workspace.
 
 ## Leaving the graph
 

@@ -132,8 +132,9 @@ It does not redefine Render grammar or Shader identity.
 ## Persistence
 
 Render can be stored in a Package Archive and reconstructed without its source
-file. A Complete payload keeps its public and private render contracts, while
-an Contract payload keeps the public Attributes, Layouts, and artifact
-locations needed by other code. Shader Bridges and bodies remain with Shader.
-Render does not store chosen GPU storage classes, target bindings, SPIR-V words,
-live backend handles, or source level debugging data in either profile.
+file. A Complete payload keeps its public and private contracts, while a
+Contract payload keeps the public Attributes and Layouts another Package can
+negotiate against. The Package envelope pairs those semantics with any compiled
+artifact locations. Shader Bridges and bodies remain with Shader. Render does
+not store chosen GPU storage classes, target bindings, SPIR-V words, live
+backend handles, or source level debugging data in either profile.

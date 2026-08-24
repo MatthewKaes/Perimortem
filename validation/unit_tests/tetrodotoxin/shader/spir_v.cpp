@@ -3,11 +3,18 @@
 
 #include "tetrodotoxin/terminal/spirv/assembler/spir_v.hpp"
 
+#include "validation/process/child.hpp"
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/bytes.hpp"
+#include "perimortem/core/static/vector.hpp"
 
+#include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
+
+#include "perimortem/system/file.hpp"
+
+#include "tetrodotoxin/package/archive/reader.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -17,6 +24,11 @@ using namespace Validation;
 static Harness TtxSpirV = {
   .name = "TTX::SPIR-V"_view,
 };
+
+extern "C" {
+extern const U8 TTX_DATA_Validation_2eShader__Shader__TestShader[];
+extern const U8 TTX_DATA_Validation_2eShader__Shader__TestShader_end[];
+}
 
 PERIMORTEM_UNIT_TEST(TtxSpirV, word_emitter) {
   Dynamic::Bytes words;
@@ -40,4 +52,57 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, word_emitter) {
 
   EXPECT_HEX(words, expected);
   EXPECT(Assembler::SpirV::is_valid_module(words));
+}
+
+PERIMORTEM_UNIT_TEST(TtxSpirV, independent_validator) {
+  constexpr auto path = ".bin/bin/validation/embedded_shader.spv"_view;
+  View::Bytes module(
+      TTX_DATA_Validation_2eShader__Shader__TestShader,
+      Count(
+          TTX_DATA_Validation_2eShader__Shader__TestShader_end -
+          TTX_DATA_Validation_2eShader__Shader__TestShader));
+  ASSERT(Perimortem::System::File::write(module, path));
+  static constexpr Static::Vector<View::Bytes, 3> arguments = {{
+    "--target-env"_view,
+    "vulkan1.0"_view,
+    path,
+  }};
+  Process::Request request = {
+    .executable = "/usr/bin/spirv-val"_view,
+    .arguments = arguments,
+  };
+  Process::Observation observation = Process::run(request);
+  EXPECT(observation.launched);
+  EXPECT_NOT(observation.timed_out);
+  EXPECT_EQ(observation.exit_status, 0);
+  EXPECT(observation.standard_output.is_empty());
+  EXPECT(observation.standard_error.is_empty());
+  EXPECT(observation.runner_error.is_empty());
+  EXPECT(Perimortem::System::File::remove(path));
+}
+
+PERIMORTEM_UNIT_TEST(TtxSpirV, package_locator) {
+  auto bytes = Perimortem::System::File::read(
+      ".bin/bin/validation/Validation.Shader/1.0/complete.txa"_view);
+  ASSERT(bytes);
+  Allocator::Arena arena;
+  auto decoded =
+      Tetrodotoxin::Package::Archive::Reader::read(arena, bytes->get_view());
+  Option<Tetrodotoxin::Package::Archive::Archive> archive;
+  decoded.visit(
+      [&](const Tetrodotoxin::Package::Archive::Archive& selected) {
+        archive = selected;
+      },
+      [](const Tetrodotoxin::Package::Archive::Reader::Error&) {});
+  ASSERT(archive);
+
+  Bool found = False;
+  for (const Tetrodotoxin::Package::Archive::Export& exported :
+       archive->get_exports()) {
+    found |= exported.get_semantic_route() == "Shader::TestShader"_view &&
+             exported.get_artifact_id() == "x86_64-sysv-linux"_view &&
+             exported.get_symbol_locator() ==
+                 "TTX_DATA_Validation_2eShader__Shader__TestShader"_view;
+  }
+  EXPECT(found);
 }

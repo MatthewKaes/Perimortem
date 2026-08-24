@@ -8,9 +8,9 @@
 namespace Puffer {
 
 // Package owns one command line Package compilation transaction. It restores
-// dependency Interfaces, imports the root source Package once, compiles each
-// declared member independently, and publishes the two semantic Archives only
-// after every member product succeeds.
+// dependency Contracts, imports the root source Package once, and keeps that
+// Workspace alive while the selected Terminals produce every member artifact.
+// The semantic Archives become visible only after the complete product agrees.
 class Package {
  public:
   constexpr Package(const Perimortem::System::Args::Values& arguments)

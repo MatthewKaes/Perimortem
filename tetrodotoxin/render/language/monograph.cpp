@@ -106,6 +106,37 @@ auto Language::Monograph::finalize(Cursor&) -> Bool {
   return finalized;
 }
 
+auto Language::Monograph::link_restored() -> Bool {
+  if (linked) {
+    return True;
+  }
+
+  for (const Reference<Abstract>& entry : types.get_view()) {
+    Abstract& declaration = entry.get();
+    auto alias = declaration.select<Alias>();
+    auto structure = declaration.select<Structure>();
+    BAIL_IF(
+        (!alias && !structure) || (alias && !alias->link_restored(*this)) ||
+        (structure && !structure->link_restored()));
+  }
+  for (const Reference<Abstract>& entry : addressables.get_view()) {
+    auto binding = entry.get().select<Binding>();
+    BAIL_IF(!binding || !binding->link_restored(*this));
+  }
+  for (const Reference<Abstract>& entry : callables.get_view()) {
+    auto stage = entry.get().select<Stage>();
+    BAIL_IF(!stage || !stage->link_restored());
+  }
+
+  linked = True;
+  return True;
+}
+
+auto Language::Monograph::finalize_restored() -> Bool {
+  finalized = linked;
+  return finalized;
+}
+
 auto Language::Monograph::resolve_context(View::Bytes name) const
     -> const Abstract& {
   const Abstract& local = resolve_named(published_types, name);

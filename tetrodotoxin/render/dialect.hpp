@@ -23,6 +23,19 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
       const Ttx::Lexical::Anchor& source_anchor,
       Ttx::Concept::Abstract& context)
       -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
+
+  auto encode(
+      const Ttx::Concept::Abstract& monograph,
+      Tetrodotoxin::Language::Persistence::Profile profile) const
+      -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes> override;
+
+  auto restore(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Core::View::Bytes payload,
+      Tetrodotoxin::Language::Persistence::Profile profile,
+      const Ttx::Concept::Documentation& documentation,
+      Ttx::Concept::Abstract& context)
+      -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
 };
 
 }  // namespace Tetrodotoxin::Render

@@ -14,6 +14,7 @@ cc_library(
     deps = [
         "//perimortem",
         "//tetrodotoxin/language",
+        "//tetrodotoxin/render/archive",
         "//tetrodotoxin/render/interpreter",
         "//tetrodotoxin/render/language",
         "//ttx:concept",

@@ -34,6 +34,20 @@ auto Language::Stage::link(Cursor& cursor) -> Bool {
   return valid;
 }
 
+auto Language::Stage::link_restored() -> Bool {
+  if (linked) {
+    return True;
+  }
+
+  BAIL_IF(
+      !Attributes::accepts(
+          definition.get_attributes(), Attributes::Placement::Stage) ||
+      !parameters.link_restored(definition.get_host()) ||
+      !results.link_restored(definition.get_host()));
+  linked = True;
+  return True;
+}
+
 auto Language::Stage::resolve() const -> const Abstract& {
   return linked ? static_cast<const Abstract&>(*this)
                 : static_cast<const Abstract&>(Invalid::get_invalid());

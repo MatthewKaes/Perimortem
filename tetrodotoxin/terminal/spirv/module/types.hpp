@@ -1,0 +1,83 @@
+// # Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+
+#pragma once
+
+#include "perimortem/core/option.hpp"
+
+#include "perimortem/memory/dynamic/vector.hpp"
+
+#include "tetrodotoxin/library/language/model/type.hpp"
+#include "tetrodotoxin/terminal/spirv/assembler/spir_v.hpp"
+#include "tetrodotoxin/terminal/spirv/module/ids.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/reference.hpp"
+
+namespace Tetrodotoxin::Terminal::Spirv::Module {
+
+// Types derives one request local SPIR V type table from exact Library Types.
+// Entries retain semantic identities only as keys while every emitted id and
+// storage class remains physical module state.
+class Types {
+ public:
+  explicit Types(Ids& ids);
+
+  auto collect(const Tetrodotoxin::Library::Language::Model::Type& type)
+      -> Bool;
+  auto collect_pointer(
+      const Tetrodotoxin::Library::Language::Model::Type& type,
+      Assembler::SpirV::StorageClass storage) -> Bool;
+  auto emit(Assembler::SpirV& assembler) const -> Bool;
+
+  auto get_id(const Tetrodotoxin::Library::Language::Model::Type& type) const
+      -> Perimortem::Core::Option<U32>;
+  auto get_pointer_id(
+      const Tetrodotoxin::Library::Language::Model::Type& type,
+      Assembler::SpirV::StorageClass storage) const
+      -> Perimortem::Core::Option<U32>;
+
+  constexpr auto get_void_id() const -> U32 { return void_id; }
+  constexpr auto get_function_id() const -> U32 { return function_id; }
+
+  static auto select(const Ttx::Concept::Abstract& semantic)
+      -> Perimortem::Core::Option<
+          const Tetrodotoxin::Library::Language::Model::Type&>;
+
+ private:
+  class Entry {
+   public:
+    constexpr Entry(
+        const Tetrodotoxin::Library::Language::Model::Type& type,
+        U32 id)
+        : type(type), id(id) {}
+
+    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
+        type;
+    U32 id;
+  };
+
+  class Pointer {
+   public:
+    constexpr Pointer(
+        const Tetrodotoxin::Library::Language::Model::Type& type,
+        Assembler::SpirV::StorageClass storage,
+        U32 id)
+        : type(type), storage(storage), id(id) {}
+
+    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
+        type;
+    Assembler::SpirV::StorageClass storage;
+    U32 id;
+  };
+
+  Ids& ids;
+  U32 void_id;
+  U32 function_id;
+  Perimortem::Memory::Dynamic::Vector<
+      const Tetrodotoxin::Library::Language::Model::Type*>
+      visiting;
+  Perimortem::Memory::Dynamic::Vector<Entry> entries;
+  Perimortem::Memory::Dynamic::Vector<Pointer> pointers;
+};
+
+}  // namespace Tetrodotoxin::Terminal::Spirv::Module

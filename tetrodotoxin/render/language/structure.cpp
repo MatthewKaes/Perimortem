@@ -105,6 +105,32 @@ auto Language::Structure::link(Cursor& cursor) -> Bool {
   return valid;
 }
 
+auto Language::Structure::link_restored() -> Bool {
+  if (linked) {
+    return True;
+  }
+
+  for (const Reference<Abstract>& entry : types.get_view()) {
+    Abstract& declaration = entry.get();
+    auto alias = declaration.select<Alias>();
+    auto structure = declaration.select<Structure>();
+    BAIL_IF(
+        (!alias && !structure) || (alias && !alias->link_restored(*this)) ||
+        (structure && !structure->link_restored()));
+  }
+  for (const Reference<Abstract>& entry : addressables.get_view()) {
+    auto binding = entry.get().select<Binding>();
+    BAIL_IF(!binding || !binding->link_restored(*this));
+  }
+  for (const Reference<Abstract>& entry : callables.get_view()) {
+    auto stage = entry.get().select<Stage>();
+    BAIL_IF(!stage || !stage->link_restored());
+  }
+
+  linked = True;
+  return True;
+}
+
 auto Language::Structure::resolve() const -> const Abstract& {
   return linked ? static_cast<const Abstract&>(*this)
                 : static_cast<const Abstract&>(Invalid::get_invalid());

@@ -16,6 +16,7 @@ cc_library(
         "//tetrodotoxin/language",
         "//tetrodotoxin/library",
         "//tetrodotoxin/render",
+        "//tetrodotoxin/shader/archive",
         "//tetrodotoxin/shader/interpreter",
         "//tetrodotoxin/shader/language",
         "//ttx:concept",

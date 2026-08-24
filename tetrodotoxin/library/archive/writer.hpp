@@ -7,9 +7,12 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
+#include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/library/archive/tag.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/type_reference.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/documentation.hpp"
 
 namespace Tetrodotoxin::Library::Archive {
@@ -38,6 +41,22 @@ class Writer {
       Tetrodotoxin::Language::Persistence::Profile profile)
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
+  // An embedding Dialect may own a concrete Library Composite subtype while
+  // Library still owns its member meaning. This payload keeps those members in
+  // the Library schema and lets the outer owner reconstruct the exact subtype
+  // before asking Library to restore its contents.
+  static auto encode_declarations(
+      const Language::Types::Composite& composite,
+      Tetrodotoxin::Language::Persistence::Profile profile)
+      -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
+
+  // Shader Bridges can retain recursive Library Type routes without learning
+  // the record schema that represents their Generic arguments and literals.
+  static auto encode_type_reference(
+      const Language::TypeReference& reference,
+      Tetrodotoxin::Language::Persistence::Profile profile)
+      -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
+
   auto begin(Tag tag, Bool optional = False) -> Record;
 
   auto finish(Record record) -> Bool;
@@ -57,6 +76,8 @@ class Writer {
   auto write(Perimortem::Core::View::Bytes value) -> Bool;
 
   auto write(const Ttx::Concept::Documentation& documentation) -> Bool;
+
+  auto write(const Tetrodotoxin::Language::Attribute& attribute) -> Bool;
 
   constexpr auto get_profile() const
       -> Tetrodotoxin::Language::Persistence::Profile {

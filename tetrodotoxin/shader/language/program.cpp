@@ -45,3 +45,17 @@ auto Shader::Language::Program::validate_contract(Cursor& cursor) -> Bool {
       Reference<const Render::Language::Structure>(*render_contract);
   return True;
 }
+
+auto Shader::Language::Program::validate_contract_restored() -> Bool {
+  auto selected = contract.resolve_restored(context);
+  auto render_contract = selected
+                             ? selected->select<Render::Language::Structure>()
+                             : Option<const Render::Language::Structure&>();
+  BAIL_IF(!render_contract);
+
+  Contract negotiator;
+  BAIL_IF(!negotiator.validate_restored(*render_contract, *this));
+  contract_type =
+      Reference<const Render::Language::Structure>(*render_contract);
+  return True;
+}

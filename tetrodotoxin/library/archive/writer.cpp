@@ -8,6 +8,8 @@
 
 #include "perimortem/serialization/stream/binary.hpp"
 
+#include "tetrodotoxin/library/archive/composite.hpp"
+#include "tetrodotoxin/library/archive/reference.hpp"
 #include "tetrodotoxin/library/archive/source.hpp"
 
 using namespace Perimortem::Core;
@@ -17,6 +19,15 @@ using namespace Tetrodotoxin;
 
 using Appender = Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>;
 using Patcher = Perimortem::Core::Writer::Binary<Data::ByteOrder::Little>;
+
+enum class LibraryWriterAttributeValue : U8 {
+  Empty,
+  Bytes,
+  Unsigned,
+  Signed,
+  Real,
+  Flag,
+};
 
 Library::Archive::Writer::Writer(
     Tetrodotoxin::Language::Persistence::Profile profile)
@@ -35,6 +46,28 @@ auto Library::Archive::Writer::write(
   BAIL_IF(!monograph.get_source().is_finalized());
   Writer writer(profile);
   BAIL_IF(!Archive::write(writer, monograph.get_source()));
+  return writer.take();
+}
+
+auto Library::Archive::Writer::encode_declarations(
+    const Library::Language::Types::Composite& composite,
+    Tetrodotoxin::Language::Persistence::Profile profile)
+    -> Option<Dynamic::Bytes> {
+  BAIL_IF(!composite.is_finalized());
+
+  Writer writer(profile);
+  Bool public_only =
+      profile == Tetrodotoxin::Language::Persistence::Profile::Contract;
+  BAIL_IF(!Archive::write_declarations(writer, composite, public_only));
+  return writer.take();
+}
+
+auto Library::Archive::Writer::encode_type_reference(
+    const Library::Language::TypeReference& reference,
+    Tetrodotoxin::Language::Persistence::Profile profile)
+    -> Option<Dynamic::Bytes> {
+  Writer writer(profile);
+  BAIL_IF(!Archive::write(writer, reference));
   return writer.take();
 }
 
@@ -101,6 +134,40 @@ auto Library::Archive::Writer::write(const Ttx::Concept::Documentation& value)
     BAIL_IF(!write(value.get_line(index)));
   }
   return True;
+}
+
+auto Library::Archive::Writer::write(
+    const Tetrodotoxin::Language::Attribute& attribute) -> Bool {
+  BAIL_IF(!write(attribute.get_key()));
+  return attribute.get_value().visit(
+      [&]() -> Bool {
+        write(U8(LibraryWriterAttributeValue::Empty));
+        return True;
+      },
+      [&](View::Bytes selected) -> Bool {
+        write(U8(LibraryWriterAttributeValue::Bytes));
+        return write(selected);
+      },
+      [&](U64 selected) -> Bool {
+        write(U8(LibraryWriterAttributeValue::Unsigned));
+        write(selected);
+        return True;
+      },
+      [&](S64 selected) -> Bool {
+        write(U8(LibraryWriterAttributeValue::Signed));
+        write(selected);
+        return True;
+      },
+      [&](R64 selected) -> Bool {
+        write(U8(LibraryWriterAttributeValue::Real));
+        write(selected);
+        return True;
+      },
+      [&](Bool selected) -> Bool {
+        write(U8(LibraryWriterAttributeValue::Flag));
+        write(U8(selected ? 1 : 0));
+        return True;
+      });
 }
 
 auto Library::Archive::Writer::take() -> Dynamic::Bytes {

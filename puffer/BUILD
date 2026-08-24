@@ -17,12 +17,18 @@ cc_library(
 
 cc_library(
     name = "lsp",
-    srcs = glob([
-        "lsp/**/*.cpp",
-    ], exclude = ["lsp/position_encoding.cpp"]),
-    hdrs = glob([
-        "lsp/**/*.hpp",
-    ], exclude = ["lsp/position_encoding.hpp"]),
+    srcs = glob(
+        [
+            "lsp/**/*.cpp",
+        ],
+        exclude = ["lsp/position_encoding.cpp"],
+    ),
+    hdrs = glob(
+        [
+            "lsp/**/*.hpp",
+        ],
+        exclude = ["lsp/position_encoding.hpp"],
+    ),
     deps = [
         ":position_encoding",
         "//perimortem",
@@ -31,8 +37,9 @@ cc_library(
         "//tetrodotoxin:formatting",
         "//tetrodotoxin:library",
         "//tetrodotoxin:package",
-        "//tetrodotoxin/render",
         "//tetrodotoxin:scene",
+        "//tetrodotoxin/render",
+        "//tetrodotoxin/shader",
         "//ttx",
     ],
 )
@@ -50,12 +57,16 @@ cc_binary(
     ],
     deps = [
         ":lsp",
-        "//tetrodotoxin/terminal:llvm",
         "//perimortem",
-        "//tetrodotoxin:environment",
         "//tetrodotoxin:app",
+        "//tetrodotoxin:environment",
         "//tetrodotoxin:library",
+        "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
+        "//tetrodotoxin/render",
+        "//tetrodotoxin/shader",
+        "//tetrodotoxin/terminal:llvm",
+        "//tetrodotoxin/terminal:spirv",
         "//ttx",
     ],
 )

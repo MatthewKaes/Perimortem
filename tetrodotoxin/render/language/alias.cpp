@@ -20,3 +20,8 @@ auto Language::Alias::link(Cursor& cursor, const Abstract& context) -> Bool {
   auto selected = target.resolve(cursor, context);
   return selected && bind_target(*selected);
 }
+
+auto Language::Alias::link_restored(const Abstract& context) -> Bool {
+  auto selected = target.resolve_restored(context);
+  return selected && bind_target(*selected);
+}

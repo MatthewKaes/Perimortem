@@ -25,17 +25,22 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
+#include "tetrodotoxin/linker/elf/object.hpp"
 #include "tetrodotoxin/linker/manifest.hpp"
 #include "tetrodotoxin/linker/provider.hpp"
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/archive/writer.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/render/dialect.hpp"
+#include "tetrodotoxin/shader/dialect.hpp"
+#include "tetrodotoxin/shader/language/monograph.hpp"
 #include "tetrodotoxin/terminal/abi/c/header.hpp"
 #include "tetrodotoxin/terminal/abi/compiler.hpp"
 #include "tetrodotoxin/terminal/abi/products.hpp"
+#include "tetrodotoxin/terminal/abi/symbol.hpp"
 #include "tetrodotoxin/terminal/llvm/compiler.hpp"
-#include "tetrodotoxin/terminal/llvm/module/program.hpp"
+#include "tetrodotoxin/terminal/spirv/compiler.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 
@@ -289,7 +294,6 @@ struct RouteTerminal {
 
 struct UnitSpecification {
   Core::View::Bytes source;
-  Core::View::Bytes ir;
   Core::View::Bytes object;
 };
 
@@ -404,6 +408,33 @@ static auto report_errors(const Ttx::Lexical::Errors& errors) -> void {
   }
 }
 
+static auto retain_export(
+    Memory::Managed::Vector<Tetrodotoxin::Package::Archive::Export>& exports,
+    Core::View::Bytes route,
+    Core::View::Bytes artifact,
+    Core::View::Bytes symbol) -> Bool {
+  for (const Tetrodotoxin::Package::Archive::Export& existing :
+       exports.get_view()) {
+    Bool same_route = existing.get_semantic_route() == route;
+    Bool same_symbol = existing.get_symbol_locator() == symbol;
+    if (same_route && same_symbol) {
+      return True;
+    }
+    if (same_route || same_symbol) {
+      Core::Diagnostics::Log::Message<512> message(
+          Core::Diagnostics::Log::Level::Error, Core::Diagnostics::Source());
+      message << "Puffer Package export `"_view << route
+              << "` with symbol `"_view << symbol << "` collides with `"_view
+              << existing.get_semantic_route() << "` and `"_view
+              << existing.get_symbol_locator() << "`."_view;
+      return False;
+    }
+  }
+  exports.insert(
+      Tetrodotoxin::Package::Archive::Export(route, artifact, symbol));
+  return True;
+}
+
 auto Puffer::Package::run() const -> S32 {
   Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::plain_sink);
 
@@ -421,10 +452,12 @@ auto Puffer::Package::run() const -> S32 {
       System::Version::parse(value(arguments, "version"_view));
   auto debug = parse_debug(value(arguments, "debug"_view));
   Core::View::Bytes artifact = value(arguments, "artifact"_view);
+  Core::View::Bytes spirv_target = value(arguments, "spirv-target"_view);
   if (manifest.is_empty() || identity.is_empty() || complete_path.is_empty() ||
       contract_path.is_empty() || header_path.is_empty() ||
       abi_manifest_path.is_empty() || version.is_null() || !debug ||
-      artifact != "x86_64-sysv-linux"_view) {
+      artifact != "x86_64-sysv-linux"_view ||
+      spirv_target != "vulkan1.0"_view) {
     Core::Diagnostics::Log::error(
         "Puffer Package mode received an incomplete request."_view);
     return 2;
@@ -438,6 +471,9 @@ auto Puffer::Package::run() const -> S32 {
   }
 
   Memory::Allocator::Arena arena;
+  Memory::Managed::Bytes native_target(arena, artifact);
+  native_target.concat("+"_view);
+  native_target.concat(spirv_target);
   Memory::Dynamic::Vector<Linker::Provider> providers;
   for (Core::View::Bytes specification :
        values(arguments, "native-provider"_view)) {
@@ -453,10 +489,13 @@ auto Puffer::Package::run() const -> S32 {
             split(specification, '|', 0), split(specification, '|', 1), *kind,
             "C"_view, split(specification, '|', 3)));
   }
+
   Environment::Toolchain toolchain;
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
+  auto render = toolchain.install<Render::Dialect>("Render"_view);
   if (!toolchain.install<Tetrodotoxin::Package::Dialect>("Package"_view) ||
-      !toolchain.install<Library::Dialect>("Library"_view) ||
-      !toolchain.install<App::Dialect>("App"_view)) {
+      !library || !render || !toolchain.install<App::Dialect>("App"_view) ||
+      !toolchain.install<Shader::Dialect>("Shader"_view, *library, *render)) {
     return 1;
   }
   Environment::Workspace workspace(toolchain);
@@ -516,13 +555,16 @@ auto Puffer::Package::run() const -> S32 {
       return 1;
     }
   }
+
   for (const Tetrodotoxin::Package::Archive::Archive& archive :
        dependency_archives.get_view()) {
     Count matches = 0;
     for (const Linker::Manifest& manifest : dependency_manifests.get_view()) {
-      matches +=
-          manifest.get_artifact() == artifact && archive.matches(manifest) ? 1
-                                                                           : 0;
+      matches += manifest.get_artifact() == artifact &&
+                         manifest.get_target() == native_target.get_view() &&
+                         archive.matches(manifest)
+                     ? 1
+                     : 0;
     }
     if (matches != 1) {
       Core::Diagnostics::Log::error(
@@ -640,18 +682,17 @@ auto Puffer::Package::run() const -> S32 {
   Memory::Managed::Vector<Tetrodotoxin::Package::Archive::Export> exports(
       arena);
   Memory::Managed::Vector<Linker::Import> selected_imports(arena);
-  Memory::Managed::Bytes abi_description(arena, artifact);
+  Memory::Managed::Bytes abi_description(arena, native_target.get_view());
   Memory::Dynamic::Bytes combined_header;
   Memory::Dynamic::Vector<UnitSpecification> units;
   for (Core::View::Bytes specification : values(arguments, "unit"_view)) {
-    if (split_count(specification, '|') != 3) {
+    if (split_count(specification, '|') != 2) {
       return 2;
     }
     units.insert(
         UnitSpecification{
           .source = split(specification, '|', 0),
-          .ir = split(specification, '|', 1),
-          .object = split(specification, '|', 2),
+          .object = split(specification, '|', 1),
         });
   }
   if (units.get_size() != root->get_sources().get_size()) {
@@ -690,7 +731,6 @@ auto Puffer::Package::run() const -> S32 {
 
     Core::View::Bytes member_name = declared.get_local_name();
     Core::View::Bytes source_path = unit_specification->source;
-    Core::View::Bytes ir_path = unit_specification->ir;
     Core::View::Bytes object_path = unit_specification->object;
     auto selected = resolve_context_route(*root, member_name);
     auto member =
@@ -709,42 +749,80 @@ auto Puffer::Package::run() const -> S32 {
         type_bindings.get_view(), dependency_headers.get_view(), {}, c_include,
         cpp_include);
     Core::Option<Tetrodotoxin::Terminal::Abi::Products> native_interface;
-    Llvm::Products products = [&]() {
-      auto library = member->select<Library::Language::Monograph>();
-      if (library) {
-        Tetrodotoxin::Terminal::Abi::Compiler interface_compiler;
-        native_interface = interface_compiler.compile(
-            arena, *library, unit, errors, source_path, *source);
-        if (!native_interface) {
-          return Llvm::Products({}, {}, {});
-        }
+    Core::Option<Llvm::Products> cpu_products;
+    Memory::Dynamic::Bytes member_object;
+    auto library = member->select<Library::Language::Monograph>();
+    auto shader = member->select<Shader::Language::Monograph>();
+    if (library) {
+      Tetrodotoxin::Terminal::Abi::Compiler interface_compiler;
+      native_interface = interface_compiler.compile(
+          arena, *library, unit, errors, source_path, *source);
+      if (native_interface) {
         Llvm::Request request(
             *library, errors, source_path, *source, Llvm::Target::X86_64SysV,
             *debug, unit, *native_interface);
         Llvm::Compiler compiler;
-        return compiler.compile(arena, request)
+        compiler.compile(arena, request)
             .visit(
-                [](const Llvm::Products& compiled) { return compiled; },
-                [](const Llvm::Failure&) {
-                  return Llvm::Products({}, {}, {});
-                });
+                [&](const Llvm::Products& compiled) {
+                  cpu_products = compiled;
+                },
+                [](const Llvm::Failure&) {});
       }
+      if (cpu_products) {
+        member_object = cpu_products->get_object();
+      }
+    } else {
+      Linker::Elf::Object object;
+      Bool shader_complete = True;
+      if (shader) {
+        Spirv::Compiler compiler;
+        for (const Ttx::Concept::Reference<Shader::Language::Program>&
+                 retained : shader->get_programs()) {
+          const Shader::Language::Program& program = retained.get();
+          Spirv::Request request(
+              *shader, program, errors, source_path, *source,
+              Spirv::Target::Vulkan1_0);
+          Core::Option<Spirv::Products> module;
+          compiler.compile(arena, request)
+              .visit(
+                  [&](const Spirv::Products& compiled) { module = compiled; },
+                  [](Spirv::Failure) {});
+          if (!module) {
+            shader_complete = False;
+            break;
+          }
 
-      Tetrodotoxin::Terminal::Abi::Products native_interface(
-          {}, {}, {}, {}, {});
-      Llvm::Module::Program empty(
-          arena, errors, source_path, *source, Llvm::Target::X86_64SysV, *debug,
-          unit.bind(*member), native_interface);
-      if (!empty.initialize()) {
-        return Llvm::Products({}, {}, {});
+          Tetrodotoxin::Terminal::Abi::Symbol symbol(
+              arena, program,
+              Tetrodotoxin::Terminal::Abi::Symbol::Kind::ReadOnly, unit);
+          Memory::Managed::Bytes end_symbol(arena, symbol.get_view());
+          end_symbol.concat("_end"_view);
+          if (!object.add_read_only(
+                  symbol.get_view(), end_symbol.get_view(),
+                  module->get_module())) {
+            shader_complete = False;
+            break;
+          }
+
+          Memory::Managed::Bytes route(arena, member_name);
+          route.concat("::"_view);
+          route.concat(program.get_name());
+          if (!retain_export(
+                  exports, route.get_view(), artifact, symbol.get_view())) {
+            return 1;
+          }
+          abi_description.concat(spirv_target);
+          abi_description.concat(symbol.get_view());
+        }
       }
-      return empty.compile().visit(
-          [](const Llvm::Products& compiled) { return compiled; },
-          [](const Llvm::Failure&) { return Llvm::Products({}, {}, {}); });
-    }();
-    if (products.get_object().is_empty() || products.get_llvm_ir().is_empty() ||
-        !publish(ir_path, products.get_llvm_ir()) ||
-        !publish(object_path, products.get_object())) {
+      auto emitted = shader_complete ? object.build()
+                                     : Core::Option<Memory::Dynamic::Bytes>();
+      if (emitted) {
+        member_object = static_cast<Memory::Dynamic::Bytes&&>(*emitted);
+      }
+    }
+    if (member_object.is_empty() || !publish(object_path, member_object)) {
       report_errors(errors);
       Core::Diagnostics::Log::error(
           "Puffer Package could not emit one member product."_view);
@@ -767,9 +845,13 @@ auto Puffer::Package::run() const -> S32 {
         return 1;
       }
     }
-    abi_description.concat(products.get_abi_fingerprint().render(arena));
+    if (cpu_products) {
+      abi_description.concat(cpu_products->get_abi_fingerprint().render(arena));
+    }
 
-    for (const Linker::Import& import : products.get_imports()) {
+    for (const Linker::Import& import :
+         cpu_products ? cpu_products->get_imports()
+                      : Core::View::Vector<Linker::Import>()) {
       Core::Option<Linker::Import> selected_import;
       Core::Option<Linker::Provider::Error> selection_error;
       Linker::Provider::select(providers.get_view(), artifact, import)
@@ -823,35 +905,10 @@ auto Puffer::Package::run() const -> S32 {
               "Puffer Package could not create one export route."_view);
           return 1;
         }
-        Bool duplicate = False;
-        for (const Tetrodotoxin::Package::Archive::Export& existing :
-             exports.get_view()) {
-          Bool same_route = existing.get_semantic_route() == *route;
-          Bool same_symbol =
-              existing.get_symbol_locator() == publication.get_symbol();
-          if (same_route && same_symbol) {
-            duplicate = True;
-            break;
-          }
-          if (same_route || same_symbol) {
-            Core::Diagnostics::Log::Message<512> message(
-                Core::Diagnostics::Log::Level::Error,
-                Core::Diagnostics::Source());
-            message << "Puffer Package export `"_view << *route
-                    << "` with symbol `"_view << publication.get_symbol()
-                    << "` from member `"_view << member_name
-                    << "` collides with `"_view << existing.get_semantic_route()
-                    << "` and `"_view << existing.get_symbol_locator()
-                    << "`."_view;
-            return 1;
-          }
+        if (!retain_export(
+                exports, *route, artifact, publication.get_symbol())) {
+          return 1;
         }
-        if (duplicate) {
-          continue;
-        }
-        exports.insert(
-            Tetrodotoxin::Package::Archive::Export(
-                *route, artifact, publication.get_symbol()));
       }
     }
   }
@@ -864,7 +921,7 @@ auto Puffer::Package::run() const -> S32 {
     return 1;
   }
   Linker::Manifest native_manifest(
-      identity, version, artifact, artifact, abi_fingerprint,
+      identity, version, artifact, native_target.get_view(), abi_fingerprint,
       selected_imports.get_view());
   auto manifest_bytes = Linker::Manifest::write(native_manifest);
   if (!manifest_bytes) {
@@ -873,7 +930,8 @@ auto Puffer::Package::run() const -> S32 {
 
   Tetrodotoxin::Package::Archive::Artifact artifacts[] = {
     Tetrodotoxin::Package::Archive::Artifact(
-        artifact, artifact, abi_fingerprint, selected_imports.get_view()),
+        artifact, native_target.get_view(), abi_fingerprint,
+        selected_imports.get_view()),
   };
   auto complete = Tetrodotoxin::Package::Archive::Writer::write(
       *root, identity, version, Language::Persistence::Profile::Complete,

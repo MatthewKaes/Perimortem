@@ -810,16 +810,24 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::identify(
     Core::View::Bytes owner,
     Tetrodotoxin::Linker::Fingerprint fingerprint)
     -> Core::Option<Tetrodotoxin::Terminal::Abi::C::Header> {
-  if (owner.is_empty() || source.get_size() < header_opening.get_size() ||
-      source.slice(0, header_opening.get_size()) != header_opening) {
+  if (owner.is_empty() ||
+      (!source.is_empty() &&
+       (source.get_size() < header_opening.get_size() ||
+        source.slice(0, header_opening.get_size()) != header_opening))) {
     return {};
   }
 
+  // A Package containing only semantic or GPU members still owns one native
+  // artifact agreement. Its minimal C header publishes that fingerprint while
+  // an ordinary Library header contributes the declarations after the shared
+  // preamble.
   Memory::Managed::Bytes buffer(arena);
   HeaderStream output(buffer);
   output << header_opening << "#define TTX_ABI_FINGERPRINT_"_view;
   write_package_name(output, owner);
-  output << " \""_view << fingerprint.render(arena) << "\"\n\n"_view
-         << source.slice(header_opening.get_size());
+  output << " \""_view << fingerprint.render(arena) << "\"\n\n"_view;
+  if (!source.is_empty()) {
+    output << source.slice(header_opening.get_size());
+  }
   return Tetrodotoxin::Terminal::Abi::C::Header(buffer.get_view());
 }

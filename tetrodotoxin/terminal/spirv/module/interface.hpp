@@ -1,0 +1,101 @@
+// # Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+
+#pragma once
+
+#include "perimortem/core/view/vector.hpp"
+
+#include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/vector.hpp"
+
+#include "tetrodotoxin/language/attribute.hpp"
+#include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/shader/language/program.hpp"
+#include "tetrodotoxin/terminal/spirv/assembler/spir_v.hpp"
+#include "tetrodotoxin/terminal/spirv/module/ids.hpp"
+#include "tetrodotoxin/terminal/spirv/module/types.hpp"
+#include "ttx/concept/reference.hpp"
+
+namespace Tetrodotoxin::Terminal::Spirv::Module {
+
+// Interface derives entry point variables and decorations from one Shader
+// Program and its completed Render agreement. The records are request local
+// target facts rather than another interface graph.
+class Interface {
+ public:
+  class Variable {
+   public:
+    constexpr Variable(
+        const Ttx::Concept::Abstract& semantic,
+        const Tetrodotoxin::Library::Language::Model::Type& type,
+        Perimortem::Core::View::Bytes name,
+        Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>
+            attributes,
+        Assembler::SpirV::StorageClass storage,
+        U32 id)
+        : semantic(semantic),
+          type(type),
+          name(name),
+          attributes(attributes),
+          storage(storage),
+          id(id) {}
+
+    Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic;
+    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
+        type;
+    Perimortem::Core::View::Bytes name;
+    Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>
+        attributes;
+    Assembler::SpirV::StorageClass storage;
+    U32 id;
+  };
+
+  class Stage {
+   public:
+    Stage(
+        Perimortem::Memory::Allocator::Arena& arena,
+        const Tetrodotoxin::Library::Language::Function& function,
+        Assembler::SpirV::ExecutionModel model,
+        U32 id)
+        : function(function),
+          model(model),
+          id(id),
+          inputs(arena),
+          outputs(arena) {}
+
+    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Function>
+        function;
+    Assembler::SpirV::ExecutionModel model;
+    U32 id;
+    Perimortem::Memory::Managed::Vector<Variable> inputs;
+    Perimortem::Memory::Managed::Vector<Variable> outputs;
+  };
+
+  Interface(Perimortem::Memory::Allocator::Arena& arena, Ids& ids, Types& types)
+      : arena(arena), ids(ids), types(types), stages(arena) {}
+
+  auto prepare(const Tetrodotoxin::Shader::Language::Program& program) -> Bool;
+  auto emit_entry_points(Assembler::SpirV& assembler) const -> void;
+  auto emit_debug(Assembler::SpirV& assembler) const -> void;
+  auto emit_annotations(Assembler::SpirV& assembler) const -> Bool;
+  auto emit_globals(Assembler::SpirV& assembler) const -> Bool;
+
+  constexpr auto get_stages() const -> Perimortem::Core::View::Vector<Stage*> {
+    return stages;
+  }
+
+ private:
+  auto prepare_variables(
+      Stage& stage,
+      const Tetrodotoxin::Library::Language::Model::Layout& layout,
+      Assembler::SpirV::StorageClass storage) -> Bool;
+  static auto decorate(Assembler::SpirV& assembler, const Variable& variable)
+      -> Bool;
+
+  Perimortem::Memory::Allocator::Arena& arena;
+  Ids& ids;
+  Types& types;
+  Perimortem::Memory::Managed::Vector<Stage*> stages;
+};
+
+}  // namespace Tetrodotoxin::Terminal::Spirv::Module

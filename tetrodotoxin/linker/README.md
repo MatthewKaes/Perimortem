@@ -20,10 +20,10 @@ The Manifest records:
 * one ABI fingerprint
 * every selected native import and its logical provider
 
-The fingerprint covers the target data layout, generated C carrier surface,
-published native signatures, calling conventions, and unresolved imported
-signatures. It detects stale or mismatched build products. It is not a security
-or content integrity digest.
+The fingerprint covers the selected CPU and GPU target profile, generated C
+carrier surface, published native signatures and data locators, calling
+conventions, and unresolved imported signatures. It detects stale or mismatched
+build products. It is not a security or content integrity digest.
 
 Package Archives retain the same artifact agreement. Repository and
 source free application selection compare the Archive and Manifest before a
@@ -74,9 +74,13 @@ definition safely.
 
 ## Native production
 
-Linker consumes ELF and COFF object and archive inputs, resolves their declared
-symbols and imports, performs archive extraction, applies relocations, and emits
-ELF or PE products for the selected host. LLVM and future CPU Terminals can both
-act as object producers. Linker works from their source independent object
-contracts rather than depending on a particular Terminal or a copied Library
-graph.
+Linker gives every native byte range a normal object format home. CPU Terminals
+can supply complete ELF or COFF objects, while products such as SPIR V modules
+arrive as named read only data that Linker places in an object section. Either
+route leaves the next build step with ordinary symbols and files rather than a
+special deployment protocol.
+
+Final composition resolves declared symbols and imports, performs archive
+extraction, applies relocations, and emits ELF or PE products for the selected
+host. Linker works from source independent object contracts rather than
+depending on a particular Terminal or a copied language graph.

@@ -33,6 +33,14 @@ class Attributes {
           attributes,
       Placement placement) -> Bool;
 
+  // Archive reconstruction has no source Cursor. This pure query applies the
+  // same key, value, repetition, and pairing policy so malformed payload facts
+  // cannot enter a restored graph.
+  static auto accepts(
+      Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>
+          attributes,
+      Placement placement) -> Bool;
+
   // Interface negotiation can test the same policy without manufacturing a
   // diagnostic context. The owner that presents a failed relationship reports
   // that complete relationship at its own boundary.

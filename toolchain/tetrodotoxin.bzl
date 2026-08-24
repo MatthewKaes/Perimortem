@@ -4,23 +4,16 @@
 """
 Starlark rules for the Tetrodotoxin (TTX) language.
 
-The TTX compiler emits semantic Package Archives and native objects consumed
-by the regular `cc_toolchain`.
+The TTX compiler emits semantic Package Archives and native Package products
+consumed by the regular `cc_toolchain`.
 
 Usage in a BUILD file:
 
     load(
         "//toolchain:tetrodotoxin.bzl",
         "ttx_cpp_api",
-        "ttx_library",
         "ttx_native_provider",
         "ttx_package",
-    )
-
-    ttx_library(
-        name = "my_lib",
-        library_name = "Example.MyLib",
-        srcs = ["library.ttx"],
     )
 
     ttx_package(
@@ -51,19 +44,16 @@ routes, while `ttx_cpp_api` publishes that optional facade to native consumers.
 The Package identity and version own the module directory, so its logical
 includes are independent of the Bazel package or repository that built it:
 
-    #include "Example.MyLib/c_abi.h"
+    #include "Example.MyPackage/1.0/c_abi.h"
     #include "Example.MyPackage/1.0/api.hpp"
 
-Standalone Library actions use `//puffer:puffer`, the native ABI Terminal, and
-the in process LLVM Terminal. ABI emits the C interface, LLVM emits the object,
-and Bazel's selected C++ toolchain owns archive creation and publishes the
-resulting CcInfo.
-
 Package dependency semantics travel through Contract Archives. Complete
-Archives preserve the root Package, while LLVM IR and native objects remain
-separate target products. The Package manifest owns its semantic Source table;
-the public macro discovers candidate `.ttx` files beneath that manifest and
-never repeats member names in BUILD syntax.
+Archives preserve the root Package, while native objects remain separate target
+products. Shader Programs become SPIR V modules inside the Package native
+product without storing target words in the semantic payload.
+The Package manifest owns its semantic Source table. The public macro discovers
+candidate `.ttx` files beneath that manifest and never repeats member names in
+BUILD syntax.
 """
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
@@ -148,87 +138,6 @@ _ttx_native_provider = rule(
     doc = "Selects one native CcInfo provider for a fixed target import set.",
 )
 
-def _ttx_library_impl(ctx):
-    if len(ctx.files.srcs) != 1:
-        fail("ttx_library requires exactly one direct Library source")
-    if ctx.attr.deps:
-        fail("standalone LLVM ttx_library does not consume Package dependencies")
-
-    unit_name = ctx.attr.library_name
-    artifact_root = unit_name + "/"
-    llvm_ir = ctx.actions.declare_file(artifact_root + "library.ll")
-    object_file = ctx.actions.declare_file(artifact_root + "x86_64.o")
-    header = ctx.actions.declare_file(artifact_root + "c_abi.h")
-    source = ctx.files.srcs[0]
-    arguments = ctx.actions.args()
-    arguments.add("-library")
-    arguments.add("-terminal=llvm")
-    arguments.add("-target=x86_64-sysv")
-    arguments.add("-debug=%s" % ctx.attr.debug)
-    arguments.add("-name=%s" % unit_name)
-    arguments.add(source)
-    arguments.add(llvm_ir, format = "-ir=%s")
-    arguments.add(object_file, format = "-object=%s")
-    arguments.add(header, format = "-header=%s")
-
-    ctx.actions.run(
-        inputs = [source],
-        outputs = [llvm_ir, object_file, header],
-        executable = ctx.executable._compiler,
-        arguments = [arguments],
-        mnemonic = "TtxLlvmCompile",
-        progress_message = "Compiling TTX Library %s" % ctx.label,
-    )
-
-    cc_toolchain = find_cc_toolchain(ctx)
-    feature_configuration = cc_common.configure_features(
-        ctx = ctx,
-        cc_toolchain = cc_toolchain,
-        requested_features = ctx.features,
-        unsupported_features = ctx.disabled_features,
-    )
-    compilation_outputs = cc_common.create_compilation_outputs(
-        objects = depset([object_file]),
-        pic_objects = depset([object_file]),
-    )
-    linking_context, linking_outputs = (
-        cc_common.create_linking_context_from_compilation_outputs(
-            actions = ctx.actions,
-            name = ctx.label.name,
-            compilation_outputs = compilation_outputs,
-            cc_toolchain = cc_toolchain,
-            feature_configuration = feature_configuration,
-            disallow_dynamic_library = True,
-        )
-    )
-
-    include_root = ctx.bin_dir.path
-    if ctx.label.package:
-        include_root += "/" + ctx.label.package
-    compilation_context = cc_common.create_compilation_context(
-        headers = depset([header]),
-        system_includes = depset([include_root]),
-    )
-    output_files = [llvm_ir, object_file, header]
-    library = linking_outputs.library_to_link
-    if library.static_library:
-        output_files.append(library.static_library)
-    if library.pic_static_library and library.pic_static_library != library.static_library:
-        output_files.append(library.pic_static_library)
-
-    generated_cc_info = CcInfo(
-        compilation_context = compilation_context,
-        linking_context = linking_context,
-    )
-
-    return [
-        cc_common.merge_cc_infos(
-            direct_cc_infos = [generated_cc_info],
-            cc_infos = [ctx.attr._runtime[CcInfo]],
-        ),
-        DefaultInfo(files = depset(output_files)),
-    ]
-
 def _ttx_package_impl(ctx):
     if len(ctx.attr.version) != 2:
         fail("ttx_package version must contain [major, minor]")
@@ -272,6 +181,7 @@ def _ttx_package_impl(ctx):
     arguments.add("-name=%s" % ctx.attr.package_name)
     arguments.add("-version=%d.%d" % (major, minor))
     arguments.add("-artifact=%s" % artifact_id)
+    arguments.add("-spirv-target=%s" % ctx.attr.spirv_target)
     arguments.add("-debug=%s" % ctx.attr.debug)
     arguments.add(complete_archive, format = "-complete=%s")
     arguments.add(contract_archive, format = "-contract=%s")
@@ -320,7 +230,6 @@ def _ttx_package_impl(ctx):
             arguments.add("-native-provider=%s" % binding)
         native_cc_infos.append(provider[CcInfo])
 
-    llvm_ir = []
     object_files = []
     outputs = [complete_archive, contract_archive, abi_manifest, header]
     if ctx.attr.cpp_header:
@@ -328,18 +237,16 @@ def _ttx_package_impl(ctx):
     for index, source in enumerate(ctx.files.sources):
         source_name = source.basename[:-4]
         unit_name = "unit_%d_%s" % (index, source_name)
-        ir = ctx.actions.declare_file(artifact_root + unit_name + ".ll")
         object_file = ctx.actions.declare_file(
             artifact_root + unit_name + ".o",
         )
         arguments.add_joined(
-            [source.path, ir.path, object_file.path],
+            [source.path, object_file.path],
             join_with = "|",
             format_joined = "-unit=%s",
         )
-        llvm_ir.append(ir)
         object_files.append(object_file)
-        outputs.extend([ir, object_file])
+        outputs.append(object_file)
 
     ctx.actions.run(
         inputs = depset(
@@ -384,14 +291,6 @@ def _ttx_package_impl(ctx):
             ],
         )
     compilation_outputs = semantic_compilation_outputs
-    if api_compilation_outputs:
-        # Compiling the generated facade proves that its C++ and C carriers
-        # agree. Its object remains separate from semantic Package linking so a
-        # native consumer can select that language surface explicitly.
-        outputs.extend(api_compilation_outputs.objects)
-        for pic_object in api_compilation_outputs.pic_objects:
-            if pic_object not in outputs:
-                outputs.append(pic_object)
     linking_context, linking_outputs = (
         cc_common.create_linking_context_from_compilation_outputs(
             actions = ctx.actions,
@@ -422,11 +321,19 @@ def _ttx_package_impl(ctx):
         transitive = [dependency_abi_manifests],
         order = "postorder",
     )
+    published_outputs = [
+        complete_archive,
+        contract_archive,
+        abi_manifest,
+        header,
+    ]
+    if ctx.attr.cpp_header:
+        published_outputs.extend([cpp_header, cpp_source])
     library = linking_outputs.library_to_link
     if library.static_library:
-        outputs.append(library.static_library)
+        published_outputs.append(library.static_library)
     if library.pic_static_library and library.pic_static_library != library.static_library:
-        outputs.append(library.pic_static_library)
+        published_outputs.append(library.pic_static_library)
 
     return [
         cc_common.merge_cc_infos(
@@ -446,55 +353,8 @@ def _ttx_package_impl(ctx):
             cpp_objects = api_compilation_outputs.objects if api_compilation_outputs else [],
             cpp_pic_objects = api_compilation_outputs.pic_objects if api_compilation_outputs else [],
         ),
-        DefaultInfo(files = depset(outputs)),
+        DefaultInfo(files = depset(published_outputs)),
     ]
-
-_ttx_library = rule(
-    implementation = _ttx_library_impl,
-    attrs = dict(
-        CC_TOOLCHAIN_ATTRS,
-        srcs = attr.label_list(
-            allow_files = [".ttx"],
-            doc = "TTX source files compiled into the library.",
-        ),
-        deps = attr.label_list(
-            providers = [TtxPackageInfo],
-            doc = (
-                "TTX package dependencies whose Contract Archives must be " +
-                "visible during loading."
-            ),
-        ),
-        library_name = attr.string(
-            mandatory = True,
-            doc = (
-                "Stable semantic name and generated artifact directory for " +
-                "this standalone TTX Library."
-            ),
-        ),
-        debug = attr.string(
-            default = "none",
-            values = ["none", "line", "full"],
-            doc = "LLVM debug information mode.",
-        ),
-        _compiler = attr.label(
-            default = "//puffer:puffer",
-            executable = True,
-            cfg = "exec",
-            doc = "The Tetrodotoxin compiler binary.",
-        ),
-        _runtime = attr.label(
-            default = "//perimortem:abi_core",
-            providers = [CcInfo],
-            doc = "Perimortem ABI linked by generated native values.",
-        ),
-    ),
-    toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
-    fragments = ["cpp"],
-    doc = (
-        "Compiles TTX source files into an x86-64 ELF static library usable " +
-        "by cc_binary."
-    ),
-)
 
 _ttx_package = rule(
     implementation = _ttx_package_impl,
@@ -536,6 +396,11 @@ _ttx_package = rule(
             default = "none",
             values = ["none", "line", "full"],
             doc = "LLVM debug information mode for every member object.",
+        ),
+        spirv_target = attr.string(
+            default = "vulkan1.0",
+            values = ["vulkan1.0"],
+            doc = "SPIR V validation environment for Shader member products.",
         ),
         cpp_header = attr.string(
             doc = "Repository relative include path for the generated C++ API.",
@@ -621,18 +486,6 @@ _ttx_cpp_api = rule(
 def ttx_native_provider(name, **kwargs):
     """Publishes one target selected native provider and its symbol inventory."""
     _ttx_native_provider(
-        name = name,
-        **kwargs
-    )
-
-def ttx_library(name, **kwargs):
-    """Builds one standalone Library with mode-matched debug information."""
-    if "debug" not in kwargs:
-        kwargs["debug"] = select({
-            "//toolchain:debug_mode": "full",
-            "//conditions:default": "none",
-        })
-    _ttx_library(
         name = name,
         **kwargs
     )

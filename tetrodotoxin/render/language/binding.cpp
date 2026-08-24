@@ -30,12 +30,34 @@ auto Language::Binding::create_slot(
   });
 }
 
+auto Language::Binding::create_restored_slot(
+    Perimortem::Memory::Allocator::Arena& domain,
+    View::Bytes name,
+    Tetrodotoxin::Language::TypeReference type) -> Binding& {
+  return domain.construct_from<Binding>([&]() {
+    return Binding(
+        name, {}, Kind::Value, type,
+        Option<Reference<const Ttx::Model::Type>>());
+  });
+}
+
 auto Language::Binding::link(Cursor& cursor, const Abstract& context) -> Bool {
   if (type) {
     return True;
   }
   BAIL_IF(!type_reference);
   auto selected = type_reference->resolve(cursor, context);
+  BAIL_IF(!selected || selected->get_layout().is_empty());
+  type = Reference<const Ttx::Model::Type>(*selected);
+  return True;
+}
+
+auto Language::Binding::link_restored(const Abstract& context) -> Bool {
+  if (type) {
+    return True;
+  }
+  BAIL_IF(!type_reference);
+  auto selected = type_reference->resolve_restored(context);
   BAIL_IF(!selected || selected->get_layout().is_empty());
   type = Reference<const Ttx::Model::Type>(*selected);
   return True;

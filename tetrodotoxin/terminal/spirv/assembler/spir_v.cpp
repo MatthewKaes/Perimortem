@@ -31,6 +31,16 @@ auto Assembler::SpirV::begin_module(U32 bound, Version version, U32 generator)
   word(0);
 }
 
+auto Assembler::SpirV::patch_bound(U32 bound) -> Bool {
+  BAIL_IF(words.get_size() < 20 || bound == 0);
+  auto access = words.get_access();
+  access.get_data()[12] = U8(bound & 0xFF);
+  access.get_data()[13] = U8((bound >> 8) & 0xFF);
+  access.get_data()[14] = U8((bound >> 16) & 0xFF);
+  access.get_data()[15] = U8((bound >> 24) & 0xFF);
+  return True;
+}
+
 auto Assembler::SpirV::word(U32 value) -> void {
   // SPIR V binary modules are little endian 32 bit words. Keeping this
   // primitive explicit makes every higher level helper a direct spelling of the
@@ -280,6 +290,15 @@ auto Assembler::SpirV::constant(U32 result_type_id, U32 result_id, U32 value)
   word(value);
 }
 
+auto Assembler::SpirV::constant_flag(
+    U32 result_type_id,
+    U32 result_id,
+    Bool value) -> void {
+  instruction(value ? Op::ConstantTrue : Op::ConstantFalse, 3);
+  word(result_type_id);
+  word(result_id);
+}
+
 auto Assembler::SpirV::constant_composite(
     U32 result_type_id,
     U32 result_id,
@@ -431,6 +450,18 @@ auto Assembler::SpirV::fmul(
     U32 left_id,
     U32 right_id) -> void {
   instruction(Op::FMul, 5);
+  word(result_type_id);
+  word(result_id);
+  word(left_id);
+  word(right_id);
+}
+
+auto Assembler::SpirV::fdiv(
+    U32 result_type_id,
+    U32 result_id,
+    U32 left_id,
+    U32 right_id) -> void {
+  instruction(Op::FDiv, 5);
   word(result_type_id);
   word(result_id);
   word(left_id);

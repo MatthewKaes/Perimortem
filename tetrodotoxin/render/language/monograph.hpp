@@ -40,6 +40,10 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
+  auto link_restored() -> Bool override;
+
+  auto finalize_restored() -> Bool override;
+
   auto resolve_context(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
 
@@ -61,6 +65,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   constexpr auto get_callables() const { return callables.get_view(); }
 
   constexpr auto get_types() const { return types.get_view(); }
+
+  constexpr auto is_finalized() const -> Bool { return finalized; }
 
   TTX_NAME("Render"_view);
 

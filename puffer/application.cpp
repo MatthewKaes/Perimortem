@@ -20,6 +20,8 @@
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/render/dialect.hpp"
+#include "tetrodotoxin/shader/dialect.hpp"
 #include "tetrodotoxin/terminal/abi/products.hpp"
 #include "tetrodotoxin/terminal/llvm/module/program.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -80,9 +82,11 @@ auto Puffer::Application::run() const -> S32 {
 
   Memory::Allocator::Arena arena;
   Environment::Toolchain toolchain;
-  if (!toolchain.install<Package::Dialect>("Package"_view) ||
-      !toolchain.install<Library::Dialect>("Library"_view) ||
-      !toolchain.install<App::Dialect>("App"_view)) {
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
+  auto render = toolchain.install<Render::Dialect>("Render"_view);
+  if (!toolchain.install<Package::Dialect>("Package"_view) || !library ||
+      !render || !toolchain.install<App::Dialect>("App"_view) ||
+      !toolchain.install<Shader::Dialect>("Shader"_view, *library, *render)) {
     return 1;
   }
   Environment::Workspace workspace(toolchain);

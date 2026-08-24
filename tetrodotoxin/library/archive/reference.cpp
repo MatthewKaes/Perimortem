@@ -182,6 +182,14 @@ auto Archive::write(Writer& writer, const Language::Model::Layout& layout)
   for (Count index = 0; index < layout.get_size(); index++) {
     BAIL_IF(!writer.write(layout.get_declared_name(index)));
 
+    auto attributes = layout.get_slot_attributes(index);
+    BAIL_IF(attributes.get_size() > U32(-1));
+    writer.write(U32(attributes.get_size()));
+    for (Count attribute_index = 0; attribute_index < attributes.get_size();
+         attribute_index++) {
+      BAIL_IF(!writer.write(attributes.get_data()[attribute_index]));
+    }
+
     auto reference = layout.get_type_reference(index);
     writer.write(U8(reference ? 1 : 0));
     BAIL_IF(reference && !Archive::write(writer, *reference));
@@ -206,8 +214,18 @@ auto Archive::read_layout(
   Memory::Managed::Vector<Language::Model::Layout::Slot> slots(arena);
   for (Count index = 0; index < *count; index++) {
     auto name = contents.read_bytes();
+    auto attribute_count = contents.read_u32();
+    BAIL_IF(!name || !attribute_count);
+    Memory::Managed::Vector<Tetrodotoxin::Language::Attribute> attributes(
+        arena);
+    for (Count attribute_index = 0; attribute_index < *attribute_count;
+         attribute_index++) {
+      auto attribute = contents.read_attribute(arena);
+      BAIL_IF(!attribute);
+      attributes.insert(*attribute);
+    }
     auto has_reference = contents.read_u8();
-    BAIL_IF(!name || !has_reference || *has_reference > 1);
+    BAIL_IF(!has_reference || *has_reference > 1);
 
     Core::Option<Language::TypeReference> reference;
     if (*has_reference == 1) {
@@ -218,7 +236,8 @@ auto Archive::read_layout(
 
     slots.insert(
         Language::Model::Layout::Slot(
-            reference, Anchor::create(Span()), arena.proxy(*name)));
+            reference, Anchor::create(Span()), arena.proxy(*name),
+            attributes.get_view()));
   }
   BAIL_IF(!contents.is_complete());
   return Language::Model::Layout::create(

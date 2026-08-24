@@ -30,6 +30,12 @@ class TypeReference {
       const Ttx::Concept::Abstract& context) const
       -> Perimortem::Core::Option<const Ttx::Model::Type&>;
 
+  // Archive restoration follows the same semantic route after every owner has
+  // reconstructed its identities. It has no authored Cursor to report through,
+  // so absence lets the persistent Dialect reject the complete transaction.
+  auto resolve_restored(const Ttx::Concept::Abstract& context) const
+      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
+
   constexpr auto get_route() const -> Perimortem::Core::View::Bytes {
     return route;
   }

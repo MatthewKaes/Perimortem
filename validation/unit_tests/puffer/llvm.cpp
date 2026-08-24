@@ -184,7 +184,8 @@ PERIMORTEM_UNIT_TEST(LlvmTests, echo_package) {
 }
 
 PERIMORTEM_UNIT_TEST(LlvmTests, debug_products) {
-  auto source = File::read("validation/data/ttx/llvm/runtime.ttx"_view);
+  auto source =
+      File::read("validation/data/ttx/products/runtime/runtime.ttx"_view);
   ASSERT(source);
   Allocator::Arena first_domain;
   Allocator::Arena second_domain;
@@ -198,7 +199,8 @@ PERIMORTEM_UNIT_TEST(LlvmTests, debug_products) {
   View::Bytes first_header;
   View::Bytes second_header;
   compile_source(
-      first_domain, first_errors, "validation/data/ttx/llvm/runtime.ttx"_view,
+      first_domain, first_errors,
+      "validation/data/ttx/products/runtime/runtime.ttx"_view,
       *source, Llvm::Module::Debug::Level::Full, &first_header)
       .visit(
           [&](const Llvm::Products& products) {
@@ -206,7 +208,8 @@ PERIMORTEM_UNIT_TEST(LlvmTests, debug_products) {
           },
           [&](Llvm::Failure) {});
   compile_source(
-      second_domain, second_errors, "validation/data/ttx/llvm/runtime.ttx"_view,
+      second_domain, second_errors,
+      "validation/data/ttx/products/runtime/runtime.ttx"_view,
       *source, Llvm::Module::Debug::Level::Full, &second_header)
       .visit(
           [&](const Llvm::Products& products) {
@@ -233,7 +236,8 @@ PERIMORTEM_UNIT_TEST(LlvmTests, debug_products) {
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),
-          "validation/data/ttx/llvm/runtime.ttx"_view) != Count(-1));
+          "validation/data/ttx/products/runtime/runtime.ttx"_view) !=
+      Count(-1));
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),

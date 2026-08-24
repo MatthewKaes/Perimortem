@@ -34,6 +34,9 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
+  auto link_restored() -> Bool override;
+  auto finalize_restored() -> Bool override;
+
   auto get_layer(const Ttx::Concept::Abstract& requested) const
       -> Perimortem::Core::Option<
           const Tetrodotoxin::Language::Monograph&> override;
@@ -62,6 +65,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
     return library;
   }
 
+  constexpr auto is_finalized() const -> Bool { return finalized; }
+
  private:
   Monograph(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -82,6 +87,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Program>>
       programs;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Bridge>> bridges;
+  Bool linked = False;
+  Bool finalized = False;
 };
 
 }  // namespace Tetrodotoxin::Shader::Language

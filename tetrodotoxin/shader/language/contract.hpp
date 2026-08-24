@@ -22,6 +22,13 @@ class Contract : public Ttx::Concept::Interface {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& requirement,
       const Ttx::Concept::Abstract& candidate) const -> Bool;
+
+  // Source free validation has no Cursor for authored presentation. It applies
+  // the same relation and publishes the exact lost contract fact through the
+  // process diagnostic boundary owned by Archive restoration.
+  auto validate_restored(
+      const Ttx::Concept::Abstract& requirement,
+      const Ttx::Concept::Abstract& candidate) const -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Shader::Language

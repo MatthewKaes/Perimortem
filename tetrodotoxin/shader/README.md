@@ -147,7 +147,9 @@ allowed by the selected Render contract.
 The SPIR-V Terminal chooses the GPU representation, storage classes, bindings,
 and instructions. It can emit validated SPIR-V from a completed Shader without
 reading the source again. The generated SPIR-V is an output of compilation, not
-an input to the language model.
+an input to the language model. During Package production Linker embeds each
+completed module as named read only native data, so an application does not
+need a loose shader file beside its executable.
 
 Shader keeps graphics API independent marshaling and synchronization
 requirements. Vulkan later consumes the generated SPIR-V, Graphics batches,
@@ -160,10 +162,11 @@ leaking into Library, Render, or Shader's shared bridge.
 
 Shader can be stored in a Package Archive and reconstructed without its source
 file. A Complete payload keeps its public and private Shader relationships and
-the complete contract of its Library child. A Contract payload keeps the public
-Library and GPU contracts, neighboring relationship routes, and compiled
-artifact locations. The neighboring Render payload remains with its real
-Package member. Executable bodies remain source or live Workspace facts.
+the complete query contract of its Library child. A Contract payload keeps the
+public Library and GPU contracts plus neighboring relationship routes. The
+neighboring Render payload remains with its real Package member, and the
+Package product connects these reconstructed facts with compiled artifact
+locations. Executable bodies remain source or live Workspace facts.
 
 Neither profile stores live backend handles, commands, device resources,
 generated SPIR-V, or source level debugging data.

@@ -16,102 +16,6 @@ using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin;
 
-enum class AttributeValue : U8 {
-  Empty,
-  Bytes,
-  Unsigned,
-  Signed,
-  Real,
-  Flag,
-};
-
-static auto write_attribute(
-    Library::Archive::Writer& writer,
-    const Tetrodotoxin::Language::Attribute& attribute) -> Bool {
-  BAIL_IF(!writer.write(attribute.get_key()));
-
-  const auto& value = attribute.get_value();
-  return value.visit(
-      [&]() -> Bool {
-        writer.write(U8(AttributeValue::Empty));
-        return True;
-      },
-      [&](View::Bytes selected) -> Bool {
-        writer.write(U8(AttributeValue::Bytes));
-        return writer.write(selected);
-      },
-      [&](U64 selected) -> Bool {
-        writer.write(U8(AttributeValue::Unsigned));
-        writer.write(selected);
-        return True;
-      },
-      [&](S64 selected) -> Bool {
-        writer.write(U8(AttributeValue::Signed));
-        writer.write(selected);
-        return True;
-      },
-      [&](R64 selected) -> Bool {
-        writer.write(U8(AttributeValue::Real));
-        writer.write(selected);
-        return True;
-      },
-      [&](Bool selected) -> Bool {
-        writer.write(U8(AttributeValue::Flag));
-        writer.write(U8(selected ? 1 : 0));
-        return True;
-      });
-}
-
-static auto read_attribute(
-    Library::Archive::Reader& reader,
-    Allocator::Arena& arena) -> Option<Tetrodotoxin::Language::Attribute> {
-  auto key = reader.read_bytes();
-  auto kind = reader.read_u8();
-  BAIL_IF(!key || key->is_empty() || !kind);
-
-  Tetrodotoxin::Language::Attribute::Value value;
-  switch (AttributeValue(*kind)) {
-  case AttributeValue::Empty:
-    break;
-  case AttributeValue::Bytes: {
-    auto selected = reader.read_bytes();
-    BAIL_IF(!selected);
-    value = Tetrodotoxin::Language::Attribute::Value(arena.proxy(*selected));
-    break;
-  }
-  case AttributeValue::Unsigned: {
-    auto selected = reader.read_u64();
-    BAIL_IF(!selected);
-    value = Tetrodotoxin::Language::Attribute::Value(*selected);
-    break;
-  }
-  case AttributeValue::Signed: {
-    auto selected = reader.read_s64();
-    BAIL_IF(!selected);
-    value = Tetrodotoxin::Language::Attribute::Value(*selected);
-    break;
-  }
-  case AttributeValue::Real: {
-    auto selected = reader.read_r64();
-    BAIL_IF(!selected);
-    value = Tetrodotoxin::Language::Attribute::Value(*selected);
-    break;
-  }
-  case AttributeValue::Flag: {
-    auto selected = reader.read_u8();
-    BAIL_IF(!selected || *selected > 1);
-    value =
-        Tetrodotoxin::Language::Attribute::Value(*selected == 1 ? True : False);
-    break;
-  }
-  default:
-    return {};
-  }
-
-  return Tetrodotoxin::Language::Attribute::create_synthetic(
-      arena.proxy(*key), value);
-}
-
 auto Library::Archive::Declaration::read(
     Reader& reader,
     Allocator::Arena& arena) -> Option<Declaration> {
@@ -126,7 +30,7 @@ auto Library::Archive::Declaration::read(
 
   Managed::Vector<Tetrodotoxin::Language::Attribute> attributes(arena);
   for (Count index = 0; index < *attribute_count; index++) {
-    auto attribute = read_attribute(reader, arena);
+    auto attribute = reader.read_attribute(arena);
     BAIL_IF(!attribute);
     attributes.insert(*attribute);
   }
@@ -143,7 +47,7 @@ auto Library::Archive::Declaration::write(Writer& writer) const -> Bool {
   BAIL_IF(!writer.write(name));
   writer.write(U32(attributes.get_size()));
   for (const Tetrodotoxin::Language::Attribute& attribute : attributes) {
-    BAIL_IF(!write_attribute(writer, attribute));
+    BAIL_IF(!writer.write(attribute));
   }
   return True;
 }

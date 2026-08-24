@@ -23,6 +23,7 @@ class Symbol {
     FunctionSelf,
     Construction,
     Address,
+    ReadOnly,
   };
 
   Symbol(

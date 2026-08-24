@@ -36,6 +36,13 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
 
   auto validate_contract(Ttx::Lexical::Cursor& cursor) -> Bool;
 
+  auto validate_contract_restored() -> Bool;
+
+  constexpr auto get_contract_reference() const
+      -> const Tetrodotoxin::Language::TypeReference& {
+    return contract;
+  }
+
   constexpr auto get_contract() const -> Perimortem::Core::Option<
       const Tetrodotoxin::Render::Language::Structure&> {
     return contract_type.visit(

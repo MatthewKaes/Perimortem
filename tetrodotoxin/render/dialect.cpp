@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/render/dialect.hpp"
 
+#include "tetrodotoxin/render/archive/reader.hpp"
+#include "tetrodotoxin/render/archive/writer.hpp"
 #include "tetrodotoxin/render/interpreter/source.hpp"
 #include "tetrodotoxin/render/language/monograph.hpp"
 
@@ -21,4 +23,25 @@ auto Render::Dialect::interpret(
       cursor.get_arena(), *this, documentation, context);
   Render::Interpreter::Source::parse(monograph, cursor);
   return monograph;
+}
+
+auto Render::Dialect::encode(
+    const Abstract& monograph,
+    Tetrodotoxin::Language::Persistence::Profile profile) const
+    -> Option<Dynamic::Bytes> {
+  auto render = monograph.select<Render::Language::Monograph>();
+  BAIL_IF(!render);
+  return Render::Archive::Writer::encode(*render, profile);
+}
+
+auto Render::Dialect::restore(
+    Allocator::Arena& arena,
+    View::Bytes payload,
+    Tetrodotoxin::Language::Persistence::Profile profile,
+    const Documentation&,
+    Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
+  auto restored =
+      Render::Archive::Reader::restore(arena, payload, profile, *this, context);
+  return restored ? Option<Tetrodotoxin::Language::Monograph&>(*restored)
+                  : Option<Tetrodotoxin::Language::Monograph&>();
 }

@@ -8,9 +8,12 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/library/archive/tag.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/language/type_reference.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
 
@@ -56,6 +59,24 @@ class Reader {
       Ttx::Concept::Abstract& context)
       -> Perimortem::Core::Option<Language::Monograph&>;
 
+  // The embedding owner constructs its exact Composite subtype first. Library
+  // then restores member identities into that object through its ordinary
+  // declaration and completion contracts.
+  static auto restore_declarations(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Core::View::Bytes payload,
+      Tetrodotoxin::Language::Persistence::Profile profile,
+      Language::Types::Composite& composite) -> Bool;
+
+  // An embedding Archive treats this payload as opaque Library meaning. The
+  // supplied context remains the real route owner for Generic arguments.
+  static auto restore_type_reference(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Core::View::Bytes payload,
+      Tetrodotoxin::Language::Persistence::Profile profile,
+      const Ttx::Concept::Abstract& context)
+      -> Perimortem::Core::Option<Language::TypeReference>;
+
   constexpr Reader(Perimortem::Core::View::Bytes payload) : payload(payload) {}
 
   auto read_record() -> Perimortem::Core::Option<Record>;
@@ -76,6 +97,9 @@ class Reader {
 
   auto read_documentation(Perimortem::Memory::Allocator::Arena& arena)
       -> Perimortem::Core::Option<const Ttx::Concept::Documentation&>;
+
+  auto read_attribute(Perimortem::Memory::Allocator::Arena& arena)
+      -> Perimortem::Core::Option<Tetrodotoxin::Language::Attribute>;
 
   constexpr auto is_complete() const -> Bool {
     return location == payload.get_size();

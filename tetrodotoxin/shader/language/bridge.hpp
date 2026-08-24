@@ -59,6 +59,8 @@ class Bridge : public Ttx::Concept::Abstract {
   auto link(Ttx::Lexical::Cursor& cursor, const Ttx::Concept::Abstract& context)
       -> Bool;
 
+  auto link_restored(const Ttx::Concept::Abstract& context) -> Bool;
+
   TTX_NAME(definition.get_name());
   TTX_DOCUMENTATION(definition.get_documentation());
   TTX_INVALID_CONTEXT;
@@ -69,6 +71,16 @@ class Bridge : public Ttx::Concept::Abstract {
   constexpr auto get_marshaling() const -> Marshaling { return marshaling; }
   constexpr auto get_synchronization() const -> Synchronization {
     return synchronization;
+  }
+
+  constexpr auto get_cpu_reference() const
+      -> const Library::Language::TypeReference& {
+    return cpu;
+  }
+
+  constexpr auto get_gpu_reference() const
+      -> const Library::Language::TypeReference& {
+    return gpu;
   }
 
   constexpr auto get_definition() const

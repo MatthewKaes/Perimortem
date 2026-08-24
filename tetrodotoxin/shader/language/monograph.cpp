@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/shader/language/monograph.hpp"
 
+#include "perimortem/core/diagnostics/log.hpp"
+
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -40,18 +42,62 @@ auto Shader::Language::Monograph::retain_bridge(Bridge& bridge) -> Bool {
 }
 
 auto Shader::Language::Monograph::link(Cursor& cursor) -> Bool {
+  if (linked) {
+    return True;
+  }
   Bool valid = library.link(cursor);
   for (Reference<Bridge> bridge : bridges.get_view()) {
     valid &= bridge.get().link(cursor, *this);
   }
+  linked = valid;
   return valid;
 }
 
 auto Shader::Language::Monograph::finalize(Cursor& cursor) -> Bool {
+  if (finalized) {
+    return True;
+  }
   Bool valid = library.finalize(cursor);
   for (Reference<Program> program : programs.get_view()) {
     valid &= program.get().validate_contract(cursor);
   }
+  finalized = valid;
+  return valid;
+}
+
+auto Shader::Language::Monograph::link_restored() -> Bool {
+  if (linked) {
+    return True;
+  }
+
+  Bool valid = library.link_restored();
+  for (Reference<Bridge> bridge : bridges.get_view()) {
+    valid &= bridge.get().link_restored(*this);
+  }
+  linked = valid;
+  return valid;
+}
+
+auto Shader::Language::Monograph::finalize_restored() -> Bool {
+  if (finalized) {
+    return True;
+  }
+
+  Bool valid = library.finalize_restored();
+  if (!valid) {
+    Diagnostics::Log::error(
+        "Shader Archive could not finalize its restored Library child."_view);
+  }
+  for (Reference<Program> program : programs.get_view()) {
+    if (!program.get().validate_contract_restored()) {
+      Diagnostics::Log::Message<256> message(
+          Diagnostics::Log::Level::Error, Diagnostics::Source());
+      message << "Shader Archive Program `"_view << program.get().get_name()
+              << "` no longer satisfies its restored Render contract."_view;
+      valid = False;
+    }
+  }
+  finalized = valid;
   return valid;
 }
 

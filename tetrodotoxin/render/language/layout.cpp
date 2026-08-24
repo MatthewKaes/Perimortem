@@ -82,6 +82,36 @@ auto Language::Layout::link(Cursor& cursor, const Abstract& context) -> Bool {
   return valid && is_linked();
 }
 
+auto Language::Layout::link_restored(const Abstract& context) -> Bool {
+  for (Count index = 0; index < slots.get_size(); index++) {
+    Slot& slot = slots[index];
+    BAIL_IF(
+        !Attributes::accepts(
+            slot.get_attributes(), Attributes::Placement::StageEntry) ||
+        slot.get_edge());
+    auto selected = slot.get_type().resolve_restored(context);
+    BAIL_IF(!selected || selected->get_layout().is_empty());
+
+    if (parameters) {
+      BAIL_IF(slot.get_name().is_empty());
+      auto& binding = Binding::create_slot(domain, slot.get_name(), *selected);
+      BAIL_IF(!slot.retain_edge(binding));
+    } else {
+      BAIL_IF(!slot.retain_edge(*selected));
+    }
+  }
+
+  for (Count index = 0; index < slots.get_size(); index++) {
+    if (slots[index].get_name().is_empty()) {
+      continue;
+    }
+    for (Count prior = 0; prior < index; prior++) {
+      BAIL_IF(slots[prior].get_name() == slots[index].get_name());
+    }
+  }
+  return is_linked();
+}
+
 auto Language::Layout::resolve_named(View::Bytes name) const
     -> const Abstract& {
   for (Count index = 0; index < slots.get_size(); index++) {

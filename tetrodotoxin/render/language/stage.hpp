@@ -23,6 +23,8 @@ class Stage : public Ttx::Model::Callable {
 
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
 
+  auto link_restored() -> Bool;
+
   TTX_NAME(definition.get_name());
   TTX_DOCUMENTATION(definition.get_documentation());
 

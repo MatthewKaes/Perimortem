@@ -6,6 +6,8 @@
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/reader/binary.hpp"
 
+#include "tetrodotoxin/library/archive/composite.hpp"
+#include "tetrodotoxin/library/archive/reference.hpp"
 #include "tetrodotoxin/library/archive/source.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/model/documentations/block.hpp"
@@ -16,6 +18,15 @@ using namespace Ttx::Concept;
 using namespace Tetrodotoxin;
 
 using BinaryReader = Reader::Binary<Data::ByteOrder::Little>;
+
+enum class LibraryReaderAttributeValue : U8 {
+  Empty,
+  Bytes,
+  Unsigned,
+  Signed,
+  Real,
+  Flag,
+};
 
 auto Library::Archive::Reader::open(
     View::Bytes payload,
@@ -58,6 +69,29 @@ auto Library::Archive::Reader::read(
       !read_source(contents, arena, monograph.get_source(), profile) ||
       !contents.is_complete());
   return monograph;
+}
+
+auto Library::Archive::Reader::restore_declarations(
+    Allocator::Arena& arena,
+    View::Bytes payload,
+    Tetrodotoxin::Language::Persistence::Profile profile,
+    Library::Language::Types::Composite& composite) -> Bool {
+  auto opened = open(payload, profile);
+  BAIL_IF(!opened);
+  return read_declarations(*opened, arena, composite, profile) &&
+         opened->is_complete();
+}
+
+auto Library::Archive::Reader::restore_type_reference(
+    Allocator::Arena& arena,
+    View::Bytes payload,
+    Tetrodotoxin::Language::Persistence::Profile profile,
+    const Abstract& context) -> Option<Library::Language::TypeReference> {
+  auto opened = open(payload, profile);
+  BAIL_IF(!opened);
+  auto reference = read_type_reference(*opened, arena, context);
+  BAIL_IF(!reference || !opened->is_complete());
+  return *reference;
 }
 
 auto Library::Archive::Reader::take(Count size) -> Option<View::Bytes> {
@@ -135,4 +169,52 @@ auto Library::Archive::Reader::read_documentation(Allocator::Arena& arena)
   auto& documentation = arena.construct<Ttx::Model::Documentations::Block>(
       View::Vector<View::Bytes>(lines.get_data(), lines.get_size()));
   return documentation;
+}
+
+auto Library::Archive::Reader::read_attribute(Allocator::Arena& arena)
+    -> Option<Tetrodotoxin::Language::Attribute> {
+  auto key = read_bytes();
+  auto kind = read_u8();
+  BAIL_IF(!key || key->is_empty() || !kind);
+
+  Tetrodotoxin::Language::Attribute::Value value;
+  switch (LibraryReaderAttributeValue(*kind)) {
+  case LibraryReaderAttributeValue::Empty:
+    break;
+  case LibraryReaderAttributeValue::Bytes: {
+    auto selected = read_bytes();
+    BAIL_IF(!selected);
+    value = Tetrodotoxin::Language::Attribute::Value(arena.proxy(*selected));
+    break;
+  }
+  case LibraryReaderAttributeValue::Unsigned: {
+    auto selected = read_u64();
+    BAIL_IF(!selected);
+    value = Tetrodotoxin::Language::Attribute::Value(*selected);
+    break;
+  }
+  case LibraryReaderAttributeValue::Signed: {
+    auto selected = read_s64();
+    BAIL_IF(!selected);
+    value = Tetrodotoxin::Language::Attribute::Value(*selected);
+    break;
+  }
+  case LibraryReaderAttributeValue::Real: {
+    auto selected = read_r64();
+    BAIL_IF(!selected);
+    value = Tetrodotoxin::Language::Attribute::Value(*selected);
+    break;
+  }
+  case LibraryReaderAttributeValue::Flag: {
+    auto selected = read_u8();
+    BAIL_IF(!selected || *selected > 1);
+    value =
+        Tetrodotoxin::Language::Attribute::Value(*selected == 1 ? True : False);
+    break;
+  }
+  default:
+    return {};
+  }
+  return Tetrodotoxin::Language::Attribute::create_synthetic(
+      arena.proxy(*key), value);
 }

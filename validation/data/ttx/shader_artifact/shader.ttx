@@ -3,9 +3,13 @@
 dialect : Shader;
 
 public TestShader : shader Formats::Simple {
-  public fragment : func = [.color : Math::Vec4D] -> [.color : Math::Vec4D] {
-    state divisor : Math::Vec4D = (.x = 1.0, .y = 1.0, .z = 1.0, .w = 1.0);
-    state copied  : Math::Vec4D = color / divisor;
+  public fragment : func = [@location(0).color : Math::Vec4D] -> [@location(0).color : Math::Vec4D] {
+    state copied : Math::Vec4D = (
+      .x = color.x + color.y,
+      .y = color.y + color.z,
+      .z = color.z + color.w,
+      .w = color.w + color.x,
+    );
     return (.color = copied);
   }
 }

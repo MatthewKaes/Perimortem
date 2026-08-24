@@ -98,7 +98,7 @@ When the Workspace is ready, Puffer coordinates the requested products:
 * The ABI Terminal publishes the shared C representation and language headers.
 * The LLVM Terminal consumes that agreement and compiles Library meaning into
   CPU code.
-* Shader produces SPIR-V for the GPU.
+* The SPIR-V Terminal consumes Shader, Render, and Library meaning for the GPU.
 * Package produces a Complete or Contract Archive.
 * The build toolchain combines native member products into libraries and
   platform executables.
@@ -107,35 +107,28 @@ The request chooses the CPU target, host platform, graphics backend,
 and Archive profile. Puffer passes those choices to the components that own the
 formats, then writes or displays their results.
 
-### Compile one Library source
+### Package and application products
 
-The shortest way to try native Library code is to compile one standalone source.
-This path skips Package restoration and keeps the request focused on the source
-in front of you. Puffer selects the command, presents diagnostics, and publishes
-the requested files together. The
-[LLVM Terminal](../tetrodotoxin/terminal/llvm/README.md) performs lowering and returns only
-completed products. Generated Objects use the linked Perimortem reference
-counted runtime surface.
+A Package request is the complete source build. It imports each dependency
+through its Contract Archive, opens the root Package once, and keeps that
+Workspace alive while every requested Terminal walks it. Library members become
+CPU objects through the
+[LLVM Terminal](../tetrodotoxin/terminal/llvm/README.md). Shader members become
+validated SPIR V words and Linker places those words in the Package's read only
+native data. Render and other contract members contribute their durable meaning
+without manufacturing an empty LLVM program.
 
-```text
-puffer -library \
-  -terminal=llvm \
-  -target=x86_64-sysv \
-  -debug=none \
-  -name=Example \
-  example.ttx \
-  -ir=example.ll \
-  -object=example.o \
-  -header=example.h
-```
+This gives the build one natural publication barrier. If any source, Terminal,
+or native provider fails, Puffer publishes none of the Package products. A
+successful request emits Complete and Contract Archives, the native member
+objects, one C interface, and the native ABI Manifest. A Package that selects a
+C++ API also emits its canonical facade.
 
-`-debug` accepts `none`, `line`, or `full`. All three modes preserve runtime
-behavior. The latter two emit DWARF 5 source correlation from the request's
-source path and Anchors, while `none` emits no debug sections. A failed
-source, Terminal, or staging request publishes none of the requested final files.
-Full debug identifies its physical scalar, pointer, array, and structure
-carriers as C11 so stock LLDB can reconstruct them. That compatibility profile
-does not assign C syntax or semantics to the authored TTX source.
+Debug selection belongs to the Package request. `none`, `line`, and `full`
+preserve the same behavior, while the latter two add DWARF 5 source correlation
+to CPU objects. Full debug identifies physical scalar, pointer, array, and
+structure carriers as C11 so stock LLDB can reconstruct them. That compatibility
+profile does not assign C syntax or semantics to authored TTX source.
 
 The generated C header is the exact declaration surface for every fully public
 Function. Independently compiled consumers provide the ABI proof. The ABI
@@ -150,18 +143,11 @@ and release interface. Object carriers are opaque one word handles. Parameters
 borrow them, results transfer one reservation, and the generated header exposes
 the generic Perimortem retain and release entries for a host that keeps a result.
 
-### Package and application requests
-
-A Package request imports every dependency through its Contract Archive,
-imports the root source Package once, and compiles each declared member into an
-independent native object. It emits the root Complete and Contract Archives,
-one raw C header, one native ABI Manifest, and the member products declared by
-the build action. A Package that publishes a C++ API also emits the configured
-canonical header and its forwarding implementation. The build supplies manifest
-rooted `.ttx` candidates, while the Package Source table remains the sole
-authority for their semantic member names and paths. Package coordinates those
-products without lowering a copied
-semantic graph.
+The build supplies manifest rooted `.ttx` candidates, while the Package Source
+table remains the sole authority for semantic member names and paths. Package
+coordinates those products without lowering a copied semantic graph. Compiled
+Shader Programs remain independent SPIR V products inside the native Package
+artifact rather than executable bodies inside its semantic Archive.
 
 An application request is source free. It restores the root Complete Archive
 and dependency Contract Archives, selects the App policy retained by the

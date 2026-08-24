@@ -21,6 +21,7 @@
 #include "tetrodotoxin/package/storage.hpp"
 #include "tetrodotoxin/render/dialect.hpp"
 #include "tetrodotoxin/scene/dialect.hpp"
+#include "tetrodotoxin/shader/dialect.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -328,8 +329,10 @@ Lsp::Documents::Documents(View::Bytes selected_packages_root)
     return;
   }
 
-  toolchain_ready =
-      Bool(toolchain.install<Scene::Dialect>("Scene"_view, *library));
+  auto scene = toolchain.install<Scene::Dialect>("Scene"_view, *library);
+  auto shader =
+      toolchain.install<Shader::Dialect>("Shader"_view, *library, *render);
+  toolchain_ready = Bool(scene && shader);
 }
 
 auto Lsp::Documents::find(View::Bytes uri) const -> Count {

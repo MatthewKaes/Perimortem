@@ -98,10 +98,14 @@ class Layout : public Ttx::Concept::Layout {
   auto link(Ttx::Lexical::Cursor& cursor, const Ttx::Concept::Abstract& context)
       -> Bool;
 
+  auto link_restored(const Ttx::Concept::Abstract& context) -> Bool;
+
   auto resolve_named(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract&;
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
+
+  constexpr auto contains_parameters() const -> Bool { return parameters; }
 
   constexpr auto get_slots() const -> Perimortem::Core::View::Vector<Slot> {
     return slots;

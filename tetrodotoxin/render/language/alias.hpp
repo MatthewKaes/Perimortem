@@ -21,9 +21,16 @@ class Alias : public Ttx::Model::Alias {
   auto link(Ttx::Lexical::Cursor& cursor, const Ttx::Concept::Abstract& context)
       -> Bool;
 
+  auto link_restored(const Ttx::Concept::Abstract& context) -> Bool;
+
   constexpr auto get_definition() const
       -> const Tetrodotoxin::Language::Definition& {
     return definition;
+  }
+
+  constexpr auto get_target_reference() const
+      -> const Tetrodotoxin::Language::TypeReference& {
+    return target;
   }
 
  private:

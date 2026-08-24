@@ -5,6 +5,7 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 
+#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
@@ -39,6 +40,10 @@ static auto append_symbol_path(
     Memory::Managed::Bytes& output,
     const Concept::Abstract& value,
     Count path_start) -> void {
+  if (value.is<Tetrodotoxin::Language::Monograph>()) {
+    return;
+  }
+
   auto function = value.select<Tetrodotoxin::Library::Language::Function>();
   if (function) {
     append_symbol_path(
@@ -131,6 +136,9 @@ Tetrodotoxin::Terminal::Abi::Symbol::Symbol(
     break;
   case Kind::Address:
     output.concat("TTX_ADDR_"_view);
+    break;
+  case Kind::ReadOnly:
+    output.concat("TTX_DATA_"_view);
     break;
   }
 

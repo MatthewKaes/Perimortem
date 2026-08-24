@@ -68,6 +68,8 @@ class SpirV {
     TypeStruct = 30,          // Defines a struct type.
     TypePointer = 32,         // Defines a pointer into a storage class.
     TypeFunction = 33,        // Defines a function signature type.
+    ConstantTrue = 41,        // Creates the true value of a Bool type.
+    ConstantFalse = 42,       // Creates the false value of a Bool type.
     Constant = 43,            // Creates a scalar constant.
     ConstantComposite = 44,   // Creates a vector/struct/array constant.
     Function = 54,            // Begins a function body.
@@ -85,6 +87,7 @@ class SpirV {
     FAdd = 129,                   // Floating point add.
     FSub = 131,                   // Floating point subtract.
     FMul = 133,                   // Floating point multiply.
+    FDiv = 136,                   // Floating point divide.
     Label = 248,                  // Begins a basic block.
     Return = 253,                 // Returns from the current function.
   };
@@ -158,6 +161,8 @@ class SpirV {
       Version version = Version::V1_0,
       U32 generator = 0) -> void;
 
+  auto patch_bound(U32 bound) -> Bool;
+
   // Low level writing primitives support the typed helpers below, which keep
   // each instruction word count paired with its opcode shape.
   auto word(U32 value) -> void;
@@ -177,8 +182,8 @@ class SpirV {
   auto execution_mode(U32 entry_point_id, ExecutionMode mode) -> void;
 
   // Debug names do not define ids. They annotate ids that may be declared
-  // later, which is why `shader.cpp` can emit names before the type/function
-  // declarations.
+  // later, which lets the module producer emit names before the Type and
+  // Function declarations.
   auto name(U32 target_id, Perimortem::Core::View::Bytes name) -> void;
   auto member_name(
       U32 target_id,
@@ -230,6 +235,7 @@ class SpirV {
   // is always a pointer type. Its storage class decides whether it is input,
   // output, push constant, uniform resource, or function local storage.
   auto constant(U32 result_type_id, U32 result_id, U32 value) -> void;
+  auto constant_flag(U32 result_type_id, U32 result_id, Bool value) -> void;
   auto constant_composite(
       U32 result_type_id,
       U32 result_id,
@@ -272,6 +278,8 @@ class SpirV {
   auto fsub(U32 result_type_id, U32 result_id, U32 left_id, U32 right_id)
       -> void;
   auto fmul(U32 result_type_id, U32 result_id, U32 left_id, U32 right_id)
+      -> void;
+  auto fdiv(U32 result_type_id, U32 result_id, U32 left_id, U32 right_id)
       -> void;
 
   // Functions contain one or more labelled basic blocks.

@@ -613,7 +613,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, fixture_rejections) {
 
 PERIMORTEM_UNIT_TEST(DialectTests, foreign_workspace) {
   static constexpr View::Bytes path =
-      "validation/data/ttx/library/foreign.ttx"_view;
+      "validation/data/ttx/products/foreign/foreign.ttx"_view;
   auto source = File::read(path);
   ASSERT(source);
 
@@ -1047,7 +1047,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
 
 PERIMORTEM_UNIT_TEST(DialectTests, executable_source) {
   static constexpr View::Bytes path =
-      "validation/data/ttx/llvm/runtime.ttx"_view;
+      "validation/data/ttx/products/runtime/runtime.ttx"_view;
   auto source = File::read(path);
   ASSERT(source);
 

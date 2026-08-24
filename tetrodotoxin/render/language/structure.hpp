@@ -42,6 +42,8 @@ class Structure : public Ttx::Model::Type {
 
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
 
+  auto link_restored() -> Bool;
+
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
   auto resolve_context(Perimortem::Core::View::Bytes name) const
@@ -75,6 +77,8 @@ class Structure : public Ttx::Model::Type {
   constexpr auto get_callables() const { return callables.get_view(); }
 
   constexpr auto get_types() const { return types.get_view(); }
+
+  constexpr auto get_instances() const { return instances.get_view(); }
 
  private:
   class InstanceLayout : public Ttx::Concept::Layout {

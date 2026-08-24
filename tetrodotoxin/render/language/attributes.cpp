@@ -58,6 +58,71 @@ static auto values_equal(
   return right.is_null();
 }
 
+static auto accepts_key(
+    View::Bytes key,
+    Render::Language::Attributes::Placement placement) -> Bool {
+  if (key == "set"_view || key == "slot"_view) {
+    return placement == Render::Language::Attributes::Placement::Resource;
+  }
+  if (key == "location"_view) {
+    return placement == Render::Language::Attributes::Placement::StageEntry;
+  }
+  if (key == "builtin"_view) {
+    return placement == Render::Language::Attributes::Placement::StageEntry;
+  }
+  if (key == "address_space"_view) {
+    return (
+        placement == Render::Language::Attributes::Placement::Resource ||
+        placement == Render::Language::Attributes::Placement::Push);
+  }
+  if (key == "capability"_view) {
+    return (
+        placement == Render::Language::Attributes::Placement::Stage ||
+        placement == Render::Language::Attributes::Placement::Structure);
+  }
+  if (key == "read"_view || key == "write"_view) {
+    return placement == Render::Language::Attributes::Placement::Resource;
+  }
+  return False;
+}
+
+static auto accepts_value(const Language::Attribute& attribute) -> Bool {
+  View::Bytes key = attribute.get_key();
+  if (key == "set"_view || key == "slot"_view || key == "location"_view) {
+    return expects_unsigned(attribute);
+  }
+  if (key == "builtin"_view || key == "address_space"_view ||
+      key == "capability"_view) {
+    return expects_name(attribute);
+  }
+  return (key == "read"_view || key == "write"_view) && !attribute.has_value();
+}
+
+static auto accepts_placement(
+    const Language::Attribute& attribute,
+    Render::Language::Attributes::Placement placement) -> Bool {
+  return accepts_key(attribute.get_key(), placement) &&
+         accepts_value(attribute);
+}
+
+auto Render::Language::Attributes::accepts(
+    View::Vector<Tetrodotoxin::Language::Attribute> attributes,
+    Placement placement) -> Bool {
+  for (Count index = 0; index < attributes.get_size(); index++) {
+    const auto& attribute = attributes.get_data()[index];
+    BAIL_IF(!accepts_placement(attribute, placement));
+    for (Count prior = 0; prior < index; prior++) {
+      BAIL_IF(attributes.get_data()[prior].get_key() == attribute.get_key());
+    }
+  }
+
+  auto set = find_attribute(attributes, "set"_view);
+  auto slot = find_attribute(attributes, "slot"_view);
+  auto location = find_attribute(attributes, "location"_view);
+  auto builtin = find_attribute(attributes, "builtin"_view);
+  return Bool(set) == Bool(slot) && !(location && builtin);
+}
+
 auto Render::Language::Attributes::validate(
     Cursor& cursor,
     View::Vector<Tetrodotoxin::Language::Attribute> attributes,
@@ -78,29 +143,8 @@ auto Render::Language::Attributes::validate(
     }
 
     View::Bytes key = attribute.get_key();
-    Bool accepted = False;
-    Bool value_valid = False;
-    if (key == "set"_view || key == "slot"_view) {
-      accepted = placement == Placement::Resource;
-      value_valid = expects_unsigned(attribute);
-    } else if (key == "location"_view) {
-      accepted = placement == Placement::StageEntry;
-      value_valid = expects_unsigned(attribute);
-    } else if (key == "builtin"_view) {
-      accepted = placement == Placement::StageEntry;
-      value_valid = expects_name(attribute);
-    } else if (key == "address_space"_view) {
-      accepted =
-          placement == Placement::Resource || placement == Placement::Push;
-      value_valid = expects_name(attribute);
-    } else if (key == "capability"_view) {
-      accepted =
-          placement == Placement::Stage || placement == Placement::Structure;
-      value_valid = expects_name(attribute);
-    } else if (key == "read"_view || key == "write"_view) {
-      accepted = placement == Placement::Resource;
-      value_valid = !attribute.has_value();
-    }
+    Bool accepted = accepts_key(key, placement);
+    Bool value_valid = accepts_value(attribute);
 
     if (!accepted) {
       auto report = cursor.create_report(attribute.get_anchor());

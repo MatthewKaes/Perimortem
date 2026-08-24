@@ -17,9 +17,9 @@ cc_library(
     ]),
     deps = [
         "//perimortem",
-        "//tetrodotoxin/language",
         "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
+        "//tetrodotoxin/language",
         "//ttx:concept",
         "//ttx:model",
     ],
@@ -36,9 +36,9 @@ cc_library(
     deps = [
         ":abi",
         "//perimortem",
-        "//tetrodotoxin/language",
         "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
+        "//tetrodotoxin/language",
         "//toolchain/llvm:sdk",
         "//ttx:concept",
         "//ttx:lexical",
@@ -56,5 +56,12 @@ cc_library(
     ]),
     deps = [
         "//perimortem",
+        "//tetrodotoxin:library",
+        "//tetrodotoxin/language",
+        "//tetrodotoxin/render/language",
+        "//tetrodotoxin/shader/language",
+        "//ttx:concept",
+        "//ttx:lexical",
+        "//ttx:model",
     ],
 )

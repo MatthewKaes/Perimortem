@@ -5,3 +5,5 @@ dialect : Render;
 public Simple : struct {
   public fragment : stage [@location(0).color : Math::Vec4D] -> [@location(0).color : Math::Vec4D];
 }
+
+private Hidden : struct {}

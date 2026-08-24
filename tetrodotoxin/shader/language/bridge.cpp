@@ -61,6 +61,29 @@ auto Shader::Language::Bridge::link(Cursor& cursor, const Abstract& context)
   return True;
 }
 
+auto Shader::Language::Bridge::link_restored(const Abstract& context) -> Bool {
+  Option<const Abstract&> selected_cpu;
+  Option<const Abstract&> selected_gpu;
+  cpu.resolve(context).visit(
+      [&](const Abstract& selected) { selected_cpu = selected; },
+      [](const Library::Language::TypeReference::Failure&) {});
+  gpu.resolve(context).visit(
+      [&](const Abstract& selected) { selected_gpu = selected; },
+      [](const Library::Language::TypeReference::Failure&) {});
+  BAIL_IF(!selected_cpu || !selected_gpu);
+
+  auto library_type = selected_cpu->select<Library::Language::Model::Type>();
+  auto shader_type = selected_gpu->select<Library::Language::Model::Type>();
+  BAIL_IF(
+      !library_type || !shader_type || &*library_type == &*shader_type ||
+      (marshaling == Marshaling::Identity &&
+       (!library_type->get_layout().fits(shader_type->get_layout()) ||
+        !shader_type->get_layout().fits(library_type->get_layout()))));
+  cpu_type = Reference<const Ttx::Model::Type>(*library_type);
+  gpu_type = Reference<const Ttx::Model::Type>(*shader_type);
+  return True;
+}
+
 auto Shader::Language::Bridge::resolve() const -> const Abstract& {
   return cpu_type && gpu_type
              ? static_cast<const Abstract&>(*this)
