@@ -1,43 +1,51 @@
-# Contained LLVM SDK
+# Contained LLVM and LLD SDK
 
-The LLVM Terminal needs headers and a runtime that agree exactly. Depending on
-whatever LLVM happens to be installed on a development machine would make that
-agreement difficult to reproduce, so Tetrodotoxin keeps one reviewed SDK pair
-behind this small Bazel facade.
+Puffer brings its native compiler with it. A developer who installs the
+Tetrodotoxin extension should not also need to discover a compatible LLVM or
+linker on the host, and a repository build should not spend hours rebuilding
+those tools from source.
 
-`MODULE.bazel` creates a pinned external repository from matching Arch Linux
-`llvm` and `llvm-libs` packages. `//toolchain/llvm:sdk` is the only local target
-that exposes them, and only `//tetrodotoxin/terminal:llvm` can consume it.
-Library and the other semantic systems therefore build without inheriting LLVM
-headers, flags, or link dependencies.
+Tetrodotoxin therefore consumes one reviewed set of prebuilt LLVM and LLD
+development packages. `MODULE.bazel` creates a pinned external repository from
+the matching LLVM 22 packages described in [`MANIFEST.md`](MANIFEST.md). The
+packages provide static LLVM components together with the ELF and COFF LLD
+drivers. LLVM and LLD source trees never enter the Bazel graph.
 
-This facade is intentionally narrower than a registered C or C++ toolchain. It
-supplies the API and `libLLVM.so.22.1` needed by the in process Terminal without
-changing ordinary compile actions elsewhere in the repository.
+`//toolchain/llvm:sdk` exposes the LLVM headers and the component closure needed
+by the x86 64 CPU Terminal. `//toolchain/llvm:lld` adds the ELF and COFF linker
+drivers over that same LLVM SDK. Both facades are private to Terminal producers,
+so Library, Shader, and the other semantic systems do not inherit native tool
+implementation details.
 
-The repository rule checks the immutable archive hashes, both package names and
-versions, the public LLVM header version, and the versioned runtime object. A
-mistaken package pair is caught during repository setup, where the relationship
-is easiest to understand, rather than later as a surprising ABI failure.
+The LLVM Terminal initializes only the x86 target selected by its current
+request. That keeps the static link honest: adding another CPU target requires
+adding its target archives and initialization as one visible change rather than
+quietly carrying every LLVM backend in Puffer.
 
-The current SDK supports Linux x86 64. A future host or LLVM revision can add
-another reviewed package pair while keeping host discovery and ambient
-toolchain configuration out of ordinary builds.
+The repository rule verifies immutable download hashes, exact package metadata,
+the LLVM header version, and representative static archives. It currently uses
+`bsdtar` to open the Debian package envelopes. This affects repository builds
+only. A packaged Puffer binary does not extract or discover an SDK at runtime.
+
+This facade describes Linux x86 64. A Windows distribution receives its own
+reviewed LLVM and LLD archive set, keeping host selection explicit at the
+distribution boundary.
 
 ## Updating the pin
 
-An update keeps the development headers and runtime together:
+An update keeps LLVM and LLD together:
 
-1. Select matching `llvm` and `llvm-libs` x86 64 packages from the immutable
-   Arch package archive.
-2. Record both filenames and SHA 256 values in
+1. Select one qualified LLVM release with matching development and LLD
+   packages.
+2. Record every filename and SHA 256 value in
    [`MANIFEST.md`](MANIFEST.md), then update the repository URLs and expected
    metadata in `repository.bzl`.
-3. Update the expected header version, runtime soname, repository name, and
-   `MODULE.bazel` facade as one reviewed change.
-4. Build `//toolchain/llvm:sdk` and `//tetrodotoxin/terminal:llvm`, then rerun
-   the object, C ABI, DWARF, reproducibility, and containment evidence.
+3. Derive the LLVM component closure with the matching `llvm-config` and review
+   any new system libraries.
+4. Build Puffer and inspect its dynamic dependency table. It should contain no
+   LLVM or LLD shared object.
+5. Run the object, C ABI, DWARF, reproducibility, and Package product evidence.
 
-The Terminal also compares the loaded runtime version with its compile time
-headers for every request. That final check keeps a replaced shared object from
-quietly changing the toolchain beneath an otherwise reproducible build.
+The release packaging pass will pin the remaining C++ runtime and LLVM support
+libraries against a portable Linux sysroot. That is a distribution concern,
+not a reason to return LLVM itself to a shared host dependency.

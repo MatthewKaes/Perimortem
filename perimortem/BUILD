@@ -26,6 +26,14 @@ cc_library(
 )
 
 cc_library(
+    name = "headless",
+    deps = [
+        ":abi",
+        ":serialization",
+    ],
+)
+
+cc_library(
     name = "abi_core",
     srcs = glob(["abi/core/*.cpp"]) + ["abi/log.cpp"],
     hdrs = glob(["abi/core/*.hpp"]),

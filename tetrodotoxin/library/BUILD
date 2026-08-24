@@ -20,7 +20,7 @@ cc_library(
         "language/**/*.hpp",
     ]),
     deps = [
-        "//perimortem",
+        "//perimortem:headless",
         "//tetrodotoxin/language",
         "//ttx:concept",
         "//ttx:lexical",
@@ -38,7 +38,7 @@ cc_library(
     ]),
     deps = [
         ":language",
-        "//perimortem",
+        "//perimortem:headless",
         "//tetrodotoxin/language",
         "//ttx:concept",
         "//ttx:lexical",
@@ -56,7 +56,7 @@ cc_library(
     ]),
     deps = [
         ":language",
-        "//perimortem",
+        "//perimortem:headless",
         "//tetrodotoxin/language",
         "//ttx:concept",
         "//ttx:lexical",
@@ -72,7 +72,7 @@ cc_library(
         ":archive",
         ":interpreter",
         ":language",
-        "//perimortem",
+        "//perimortem:headless",
         "//tetrodotoxin/language",
         "//ttx:concept",
         "//ttx:lexical",

@@ -12,7 +12,7 @@ cc_library(
     srcs = ["dialect.cpp"],
     hdrs = ["dialect.hpp"],
     deps = [
-        "//perimortem",
+        "//perimortem:headless",
         "//tetrodotoxin/language",
         "//tetrodotoxin/library",
         "//tetrodotoxin/render",

@@ -84,6 +84,12 @@ distribution boundary for the Tetrodotoxin SDK. Editor services and command
 builds can share the same Toolchain composition instead of maintaining separate
 language models.
 
+The extension delegates build planning to Puffer. Its TypeScript layer presents
+the command and reports progress, while Package discovery, target selection,
+Terminal production, and native linking follow the same Puffer request used by
+the command line release. Installing the extension therefore does not imply
+installing Bazel beside it.
+
 ## Color and editor preferences
 
 The default palette is designed around TTX's warm semantic groups. Keywords,

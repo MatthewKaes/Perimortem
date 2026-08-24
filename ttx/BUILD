@@ -19,7 +19,7 @@ cc_library(
     ]),
     deps = [
         ":concept",
-        "//perimortem",
+        "//perimortem:headless",
     ],
 )
 
@@ -32,7 +32,7 @@ cc_library(
         "concept/**/*.hpp",
     ]),
     deps = [
-        "//perimortem",
+        "//perimortem:headless",
     ],
 )
 
@@ -46,7 +46,7 @@ cc_library(
     ]),
     deps = [
         ":concept",
-        "//perimortem",
+        "//perimortem:headless",
     ],
 )
 
@@ -56,6 +56,6 @@ cc_library(
         ":concept",
         ":lexical",
         ":model",
-        "//perimortem",
+        "//perimortem:headless",
     ],
 )

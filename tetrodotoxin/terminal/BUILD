@@ -16,7 +16,7 @@ cc_library(
         "abi/**/*.hpp",
     ]),
     deps = [
-        "//perimortem",
+        "//perimortem:headless",
         "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
         "//tetrodotoxin/language",
@@ -35,7 +35,7 @@ cc_library(
     ]),
     deps = [
         ":abi",
-        "//perimortem",
+        "//perimortem:headless",
         "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
         "//tetrodotoxin/language",
@@ -55,7 +55,7 @@ cc_library(
         "spirv/**/*.hpp",
     ]),
     deps = [
-        "//perimortem",
+        "//perimortem:headless",
         "//tetrodotoxin:library",
         "//tetrodotoxin/language",
         "//tetrodotoxin/render/language",

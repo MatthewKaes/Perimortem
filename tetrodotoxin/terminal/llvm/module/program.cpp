@@ -124,11 +124,10 @@ auto Llvm::Module::Program::initialize() -> Bool {
         "The LLVM request selected an unsupported target."_view);
   }
 
-  llvm::InitializeAllTargetInfos();
-  llvm::InitializeAllTargets();
-  llvm::InitializeAllTargetMCs();
-  llvm::InitializeAllAsmParsers();
-  llvm::InitializeAllAsmPrinters();
+  LLVMInitializeX86TargetInfo();
+  LLVMInitializeX86Target();
+  LLVMInitializeX86TargetMC();
+  LLVMInitializeX86AsmPrinter();
 
   constexpr llvm::StringLiteral triple_name("x86_64-pc-linux-gnu");
   std::string error;

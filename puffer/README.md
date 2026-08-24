@@ -32,8 +32,9 @@ request from editor or command line
 Open editor documents may contain unsaved bytes, so Puffer retains their text
 and protocol identity for the session. Environment owns Workspace lifetime and
 source completion. Package owns package selection and semantic Archives.
-Language compilers own their native member products, while the selected build
-toolchain owns static archives and final executable linking.
+Language compilers own their native member products and Linker owns final native
+composition. Puffer owns the build transaction that selects and coordinates
+those components.
 
 The LSP constructs one Environment Toolchain and lends it to every replacement
 Workspace. A Package session reads the selected manifest, recursively loads
@@ -100,12 +101,31 @@ When the Workspace is ready, Puffer coordinates the requested products:
   CPU code.
 * The SPIR-V Terminal consumes Shader, Render, and Library meaning for the GPU.
 * Package produces a Complete or Contract Archive.
-* The build toolchain combines native member products into libraries and
-  platform executables.
+* Linker combines native member products into libraries and platform
+  executables.
 
 The request chooses the CPU target, host platform, graphics backend,
 and Archive profile. Puffer passes those choices to the components that own the
 formats, then writes or displays their results.
+
+### Build ownership
+
+Puffer is also the common build front door. Its build request reads the Package
+description, resolves dependencies, opens one Workspace, selects the requested
+Terminals and Linker, and publishes the completed product set transactionally.
+That orchestration is the same whether the request begins in a terminal, a
+larger build system, or an editor.
+
+The Visual Studio Code extension remains a small client. It presents build
+commands and progress, but sends the request to its bundled Puffer instead of
+recreating Package discovery, target selection, caching, or linking in
+TypeScript. A command line Puffer from a GitHub release exposes that same path
+outside VS Code.
+
+Bazel can integrate by declaring inputs and outputs around Puffer. It is not a
+semantic owner and does not define a second Tetrodotoxin build model. This lets
+the extension distribution eventually build a normal TTX project immediately,
+while repositories that already use Bazel can keep their surrounding graph.
 
 ### Package and application products
 

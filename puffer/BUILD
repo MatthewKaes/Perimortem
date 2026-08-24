@@ -12,7 +12,7 @@ cc_library(
     name = "position_encoding",
     srcs = ["lsp/position_encoding.cpp"],
     hdrs = ["lsp/position_encoding.hpp"],
-    deps = ["//perimortem"],
+    deps = ["//perimortem:headless"],
 )
 
 cc_library(
@@ -31,7 +31,7 @@ cc_library(
     ),
     deps = [
         ":position_encoding",
-        "//perimortem",
+        "//perimortem:headless",
         "//tetrodotoxin:app",
         "//tetrodotoxin:environment",
         "//tetrodotoxin:formatting",
@@ -57,7 +57,7 @@ cc_binary(
     ],
     deps = [
         ":lsp",
-        "//perimortem",
+        "//perimortem:headless",
         "//tetrodotoxin:app",
         "//tetrodotoxin:environment",
         "//tetrodotoxin:library",

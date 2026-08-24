@@ -19,9 +19,9 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        "//tetrodotoxin/language",
         ":linker",
-        "//perimortem",
+        "//perimortem:headless",
+        "//tetrodotoxin/language",
         "//ttx:concept",
         "//ttx:lexical",
         "//ttx:model",
@@ -38,7 +38,7 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        "//perimortem",
+        "//perimortem:headless",
     ],
 )
 
@@ -52,8 +52,8 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
+        "//perimortem:headless",
         "//tetrodotoxin/language",
-        "//perimortem",
         "//ttx:lexical",
     ],
 )
@@ -68,10 +68,10 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        "//tetrodotoxin/language",
         ":library",
         ":linker",
-        "//perimortem",
+        "//perimortem:headless",
+        "//tetrodotoxin/language",
         "//ttx:concept",
         "//ttx:lexical",
         "//ttx:model",
@@ -93,9 +93,9 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        "//tetrodotoxin/language",
         ":library",
-        "//perimortem",
+        "//perimortem:headless",
+        "//tetrodotoxin/language",
         "//ttx:concept",
         "//ttx:lexical",
     ],
@@ -111,7 +111,7 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        "//perimortem",
+        "//perimortem:headless",
     ],
 )
 
@@ -125,9 +125,9 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        "//tetrodotoxin/language",
         ":package",
-        "//perimortem",
+        "//perimortem:headless",
+        "//tetrodotoxin/language",
         "//ttx:concept",
         "//ttx:model",
     ],

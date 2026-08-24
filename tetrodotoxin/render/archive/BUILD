@@ -12,7 +12,7 @@ cc_library(
     srcs = glob(["**/*.cpp"]),
     hdrs = glob(["**/*.hpp"]),
     deps = [
-        "//perimortem",
+        "//perimortem:headless",
         "//tetrodotoxin/language",
         "//tetrodotoxin/render/language",
         "//ttx:concept",

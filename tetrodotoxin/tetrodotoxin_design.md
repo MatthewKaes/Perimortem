@@ -558,12 +558,14 @@ or optional subsystem bag. Workspace owns the reconstruction Arena. Source free
 payload and toolchain failures are written to Perimortem Diagnostics.
 
 Puffer is the user facing compiler driver and LSP application shell. Its caller
-or build integration supplies declared inputs and outputs. Puffer constructs
-the Workspace, presents textual reports written to the caller owned source
-error sink, stops before Terminal production when a source or Package
-transaction fails, requests each typed product from its defining component, and
-writes the declared outputs. It coordinates the transaction without becoming
-another semantic model or product owner.
+supplies a project request or declared build inputs and outputs. Puffer resolves
+that request, constructs the Workspace, presents textual reports written to the
+caller owned source error sink, stops before Terminal production when a source
+or Package transaction fails, requests each typed product from its defining
+component, invokes Linker for the selected host, and publishes the declared
+outputs. Command line, editor, and larger build system integrations enter
+through this same transaction. Puffer coordinates it without becoming another
+semantic model or product owner.
 
 ## Observable boundaries
 
