@@ -175,6 +175,20 @@ These Types reuse `Perimortem.Math` where the semantic identity is genuinely a
 math value and keep a distinct Graphics Type where point, size, color, or image
 meaning matters.
 
+`Host` is the ordinary Library Structure that describes the public transform,
+visibility, and ordering state promised by a hosted Object. It is not a base
+class or allocated node. The Graphics Interface negotiates a concrete Object
+against this real requirement, which lets Types such as Sprite retain their
+exact identities and additional behavior.
+
+`Group` is the smallest concrete hosted Object. It contributes placement and
+ordered hosted children without choosing image, geometry, Shader, or backend
+behavior, making it useful as a compositional root.
+
+`Transform2D` carries translation, scale, and rotation as domain values. The
+runtime copies their composed affine result into each stable frame submission,
+so later Scene mutations cannot change a frame already being presented.
+
 `Point2D`, `Size2D`, and `Tone` are inline Struct values. Point coordinates and
 Tone channels are `R64`. Pixel width and height are `U32`. `Image`
 and `Sprite` are nonnull Objects. An Image owns a stable decoded pixel result or

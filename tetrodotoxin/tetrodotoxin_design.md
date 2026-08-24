@@ -454,7 +454,14 @@ Graphics is not another Dialect. It defines the language neutral hosting and
 frame submission boundary between completed Scene state and a rendering
 backend. Scene keeps exact Field and Object identity, Render and Shader keep
 their semantic contracts, and target resources remain with the backend
-consumer.
+consumer. The ordinary Graphics Package publishes one Host requirement, and a
+higher order Interface proves that a concrete Library Object supplies its
+public state without turning Host into a base Type. A successful proof can
+derive compact runtime traversal behavior from those real Fields. Each frame
+copies draw inputs and transforms, retains its worker local resources, and
+refers to the selected compiled Program through an opaque process locator.
+SPIR V words and physical pipeline descriptions remain sibling target products
+owned by their Terminal and backend.
 
 The standard Memory, Math, System, and Graphics surfaces are ordinary Packages.
 They use the same dependency, Library, Foreign, persistence, and native

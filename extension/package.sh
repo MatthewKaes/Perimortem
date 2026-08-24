@@ -16,6 +16,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 VSIX_DIR="$REPO_ROOT/.vscode"
 SERVER_BIN="$REPO_ROOT/.bin/bin/puffer/puffer"
 PACKAGE_SERVER="$SCRIPT_DIR/puffer"
+PACKAGE_GRAPHICS="$SCRIPT_DIR/packages/Perimortem.Graphics"
+PACKAGE_MATH="$SCRIPT_DIR/packages/Perimortem.Math"
 PACKAGE_MEMORY="$SCRIPT_DIR/packages/Perimortem.Memory"
 PACKAGE_SYSTEM="$SCRIPT_DIR/packages/Perimortem.System"
 
@@ -49,8 +51,18 @@ cp -L "$SERVER_BIN" "$PACKAGE_SERVER"
 chmod 755 "$PACKAGE_SERVER"
 
 echo "==> Copying standard Packages into extension package..."
-rm -rf "$PACKAGE_MEMORY" "$PACKAGE_SYSTEM"
-mkdir -p "$PACKAGE_MEMORY" "$PACKAGE_SYSTEM"
+rm -rf \
+  "$PACKAGE_GRAPHICS" \
+  "$PACKAGE_MATH" \
+  "$PACKAGE_MEMORY" \
+  "$PACKAGE_SYSTEM"
+mkdir -p \
+  "$PACKAGE_GRAPHICS" \
+  "$PACKAGE_MATH" \
+  "$PACKAGE_MEMORY" \
+  "$PACKAGE_SYSTEM"
+cp "$REPO_ROOT/packages/ttx/Perimortem.Graphics/"*.ttx "$PACKAGE_GRAPHICS/"
+cp "$REPO_ROOT/packages/ttx/Perimortem.Math/"*.ttx "$PACKAGE_MATH/"
 cp "$REPO_ROOT/packages/ttx/Perimortem.Memory/"*.ttx "$PACKAGE_MEMORY/"
 cp "$REPO_ROOT/packages/ttx/Perimortem.System/"*.ttx "$PACKAGE_SYSTEM/"
 

@@ -5,15 +5,15 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-namespace Perimortem::Graphics::Render {
+namespace Perimortem::Vulkan::Description {
 
 // Identifies one named field in the host input layout. The offset and size are
-// retained as reflection data so callers can inspect or populate a layout
-// without exposing compiler types to the graphics runtime.
+// retained as reflection data so Vulkan can populate the selected layout
+// without retaining compiler Types.
 struct HostField {
   Core::View::Bytes name;
   Count offset = 0;
   Count size = 0;
 };
 
-}  // namespace Perimortem::Graphics::Render
+}  // namespace Perimortem::Vulkan::Description

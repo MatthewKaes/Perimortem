@@ -1,0 +1,8 @@
+// # Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+//
+// Publishes the shared semantic requirements used by hosted graphics values.
+//
+dialect : Package;
+
+source Hosting from "hosting.ttx";

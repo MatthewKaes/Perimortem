@@ -12,7 +12,7 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem;
-using namespace Perimortem::Graphics;
+using namespace Perimortem::Vulkan;
 
 static constexpr Count max_shader_modules = 8;
 
@@ -22,11 +22,11 @@ static auto require_success(VkResult result, View::Bytes message) -> void {
   }
 }
 
-static auto to_vk_stage(Render::Stage stage) -> VkShaderStageFlagBits {
+static auto to_vk_stage(Description::Stage stage) -> VkShaderStageFlagBits {
   switch (stage) {
-  case Render::Stage::Vertex:
+  case Description::Stage::Vertex:
     return VK_SHADER_STAGE_VERTEX_BIT;
-  case Render::Stage::Pixel:
+  case Description::Stage::Pixel:
     return VK_SHADER_STAGE_FRAGMENT_BIT;
   }
 
@@ -34,7 +34,7 @@ static auto to_vk_stage(Render::Stage stage) -> VkShaderStageFlagBits {
   return VK_SHADER_STAGE_VERTEX_BIT;
 }
 
-static auto to_vk_stage_flags(View::Vector<Render::Stage> stages)
+static auto to_vk_stage_flags(View::Vector<Description::Stage> stages)
     -> VkShaderStageFlags {
   VkShaderStageFlags flags = 0;
   const auto* stage_data = stages.get_data();
@@ -49,8 +49,9 @@ static auto to_vk_stage_flags(View::Vector<Render::Stage> stages)
   return flags;
 }
 
-static auto make_shader_module(VkDevice device, const Render::Module& source)
-    -> VkShaderModule {
+static auto make_shader_module(
+    VkDevice device,
+    const Description::Module& source) -> VkShaderModule {
   if (source.words.is_empty()) {
     Diagnostics::Log::fatal("Vulkan: Invalid render module."_view);
   }
@@ -69,7 +70,7 @@ static auto make_shader_module(VkDevice device, const Render::Module& source)
 auto Vulkan::ShaderProgram::create(
     VkDevice device,
     VkFormat color_format,
-    const Render::Program& render,
+    const Description::Program& render,
     View::Vector<VkDescriptorSetLayout> descriptor_set_layouts)
     -> Vulkan::ShaderProgram {
   const auto source_modules = render.modules;

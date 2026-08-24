@@ -14,8 +14,8 @@ package(default_visibility = ["//visibility:private"])
 
 ttx_package(
     name = "perimortem_memory",
-    cpp_header = "perimortem/memory/dynamic/bytes.hpp",
     package_name = "Perimortem.Memory",
+    cpp_header = "perimortem/memory/dynamic/bytes.hpp",
     manifest = "Perimortem.Memory/package.ttx",
     version = [
         1,
@@ -34,6 +34,17 @@ ttx_package(
     name = "perimortem_math",
     package_name = "Perimortem.Math",
     manifest = "Perimortem.Math/package.ttx",
+    version = [
+        1,
+        0,
+    ],
+    visibility = ["//visibility:public"],
+)
+
+ttx_package(
+    name = "perimortem_graphics",
+    package_name = "Perimortem.Graphics",
+    manifest = "Perimortem.Graphics/package.ttx",
     version = [
         1,
         0,

@@ -2,72 +2,79 @@
 
 A Scene should be able to describe what exists without learning how Vulkan
 records a command buffer. Graphics makes that separation practical. It reads
-completed Scene objects and gathers one stable frame submission for the
-renderer, while Scene remains focused on interactive meaning.
+real hosted Objects after an update and gathers one stable frame submission,
+leaving Scene focused on interactive meaning and the backend focused on
+presentation.
 
-Graphics is a runtime contract shared by Scene, App, Render, Shader, and the
-rendering backends rather than another Dialect. The same authored objects flow
-through it directly, so there is no generic scene Type or copied graphics graph
-between the application and renderer.
+Graphics is a runtime composition contract rather than another Dialect. It
+does not create a generic node Type, copy Scene Fields, or retain a second
+Shader model. The same Objects authored through Library remain the source of
+the frame.
 
-## Hosted graphics state
+## A semantic hosting requirement
 
-A Library Object can be hosted when its Type supports the Graphics contract.
-The standard `Perimortem.Graphics` Package provides Types such as `Image` and
-`Sprite` that support it.
+The ordinary `Perimortem.Graphics` Package publishes `Host` as a Library
+Structure. Its public state describes the transform, visibility, and ordering
+facts a hosted Object promises. A concrete Object can carry additional state
+and behavior while satisfying that requirement.
 
-Scene hosts one of these objects through a private `state` Field initialized
-with `new[ObjectType]`:
+Graphics uses a higher order TTX Interface to negotiate the real Host Type
+against the real candidate Object Type. Every required public state Field must
+remain visible, mutable instance state with the exact promised Type. Matching
+Layout alone is insufficient because two values with the same storage shape
+need not share graphics meaning.
 
-```ttx
-private state icon : Graphics::Sprite = new[Graphics::Sprite];
-```
+This relation is directional. A Sprite may satisfy Host without Host replacing
+Sprite or erasing the Sprite identity. Scene therefore keeps its exact Field
+and Object relationships, while a Terminal can derive the runtime traversal
+behavior only after the semantic proof succeeds.
 
-The Field remains an ordinary Library Field. Scene changes the Sprite through
-normal field access, and Graphics reads the same Object when it prepares a
-frame. There is no separate node declaration or copied field table.
+## Runtime traversal
 
-Hosted Objects may contain more private state Fields that follow the same rule.
-Graphics walks those real Fields in authored order. If Scene assigns a new
-Object to a hosted Field, the next frame sees the replacement through the same
-Field identity.
+At runtime, a compact descriptor reads one completed Object payload. It exposes
+that Object's local placement, its hosted children in authored order, and any
+draws it contributes. The descriptor contains behavior rather than a copied
+Field table, so replacing an Object in a real Field changes the value inspected
+for the next frame.
 
-## Frame submission
+Visibility and transforms compose while Graphics walks the hosted tree. An
+invisible value removes its complete subtree. Cycles are rejected because a
+hosted edge describes containment for one frame even when ordinary Object
+references elsewhere may form richer relationships.
 
-After `update` finishes, Graphics walks the hosted tree and records the data a
-renderer needs. This can include images, transforms, sizes, tones, visibility,
-draw order, and the selected Render and Shader contracts.
+## Stable frame submissions
 
-Visibility and transforms flow from a host to its children. An invisible host
-removes its whole subtree from the frame. Higher `z_index` values are drawn in
-front of lower values. When two values have the same index, the Field authored
-later is drawn in front.
+Each accepted draw becomes one immutable Batch. Graphics copies its input bytes
+and transform, retains its worker local resource Objects, and keeps the authored
+traversal order used to break equal draw indices. Batches are then ordered from
+back to front by `z_index`, with a later authored value remaining in front when
+indices match.
 
-The completed submission is a runtime value, not a collection of Scene objects.
-The backend presents it before Scene publishes the frame's signals and before
-App changes the active Scene. Scene replacement therefore cannot change a frame
-while the renderer is reading it.
+The completed Submission no longer borrows mutable Scene state. Scene can
+change or release its hosted Objects after collection without changing the
+frame being presented. Resource reservations remain alive through that frame
+and release naturally when the Submission leaves scope.
+
+A Batch carries only an opaque process lifetime locator for its selected
+compiled Program. SPIR-V words, descriptor layouts, and Vulkan pipelines remain
+sibling target products. The backend receives those products beside the
+Submission and never asks Graphics to recompile or reinterpret Shader meaning.
 
 ## Rendering backends
 
-A backend turns the submission into images, buffers, bindings, draw batches,
-and commands. Perimortem Graphics owns reusable image decoding and
-backend independent draw data. Vulkan owns device resources, command recording,
-synchronization, and presentation.
+Perimortem Graphics owns reusable decoded image and draw data. Vulkan owns its
+pipeline descriptions, device resources, command recording, synchronization,
+and presentation. Its descriptions are derived from completed Render, Shader,
+and SPIR-V products and live beneath the Vulkan subsystem rather than becoming
+Graphics semantics.
 
-Render and Shader describe what the backend must produce. Vulkan handles and
-target offsets remain backend details. They never enter Scene state, Package
-Archives, or the live TTX graph.
+Graphics has no Archive payload of its own. Library and Scene Archives preserve
+the Types, Fields, resources, and hosting relationships needed to rebuild the
+semantic program. Submissions, resource reservations, and backend objects are
+live runtime values.
 
-## Archives
-
-Graphics has no source language and therefore no Archive data of its own.
-Library and Scene Archives store the Types, Fields, resources, and relationships
-needed to rebuild hosted state. Frame submissions and backend objects are live
-runtime data and are never restored from an Archive.
-
-See [Scene](../scene/README.md) for hosted state and lifecycle,
-[Render](../render/README.md) for rendering interfaces, and
-[Shader](../shader/README.md) for GPU programs. The
-[standard packages](../../packages/ttx/README.md) define the Graphics Types used
-by the repository examples.
+See [Scene](../scene/README.md) for hosted application state,
+[Render](../render/README.md) for rendering requirements,
+[Shader](../shader/README.md) for GPU programs, and the
+[standard packages](../../packages/ttx/README.md) for the authored Graphics
+Types.

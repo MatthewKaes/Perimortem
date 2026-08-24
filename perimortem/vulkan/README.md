@@ -15,6 +15,12 @@ Render describes the GPU facing data. Vulkan then chooses the concrete resource
 bindings, creates the device objects, records commands, synchronizes work, and
 presents the result.
 
+The Vulkan Description records beside `ShaderProgram` are target handoff values
+derived from completed Render, Shader, and SPIR-V products. They group borrowed
+module words and physical pipeline layouts while Vulkan creates its owned
+objects. Graphics submissions carry only the selected Program locator, copied
+draw inputs, transforms, and retained resources.
+
 These Vulkan details never become Shader, Render, Library, or Package facts.
 Wayland and Win32 supply different presentation surfaces through System, while
 the renderer follows the same Graphics submission contract on either host.

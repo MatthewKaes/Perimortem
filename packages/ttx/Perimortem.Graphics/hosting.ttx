@@ -1,0 +1,42 @@
+// # Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+//
+// Describes the minimum state shared by values that participate in graphics
+// hosting. Concrete Types keep their richer meaning and may add more state.
+//
+dialect : Library;
+
+// Group is the minimal hosted Object.
+//
+// It contributes placement and ordered children without prescribing an image,
+// geometry, or backend resource.
+public Group : object {
+  public state transform : Transform2D;
+  public state visible   : Bool = true;
+  public state z_index   : S64;
+}
+
+// Host is a semantic requirement rather than an allocated node Type.
+//
+// Graphics negotiates this public state against a concrete Object Type while preserving
+// that Object's exact identity and additional domain behavior.
+public Host : struct {
+  public state transform : Transform2D;
+  public state visible   : Bool = true;
+  public state z_index   : S64;
+}
+
+// Point2D is a position in the two dimensional graphics domain. It remains
+// distinct from a general Math vector even though both carry two real values.
+public Point2D : struct {
+  public state x : R64 = 0.0;
+  public state y : R64 = 0.0;
+}
+
+// Transform2D supplies the local affine transform for one hosted value.
+public Transform2D : struct {
+  public state translation : Point2D;
+  public state scale_x     : R64 = 1.0;
+  public state scale_y     : R64 = 1.0;
+  public state rotation    : R64 = 0.0;
+}

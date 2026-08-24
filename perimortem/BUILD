@@ -200,12 +200,8 @@ cc_library(
 
 cc_library(
     name = "vulkan",
-    srcs = glob([
-        "vulkan/*.cpp",
-    ]),
-    hdrs = glob([
-        "vulkan/*.hpp",
-    ]),
+    srcs = glob(["vulkan/**/*.cpp"]),
+    hdrs = glob(["vulkan/**/*.hpp"]),
     includes = ["."],
     linkopts = ["-lvulkan"],
     deps = [
