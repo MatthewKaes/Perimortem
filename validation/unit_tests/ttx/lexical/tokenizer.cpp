@@ -799,3 +799,19 @@ PERIMORTEM_UNIT_TEST(TtxLexical, token_projection) {
   EXPECT_TEXT(token.caculate_text(tokenizer.get_source_text()), "two"_view);
   EXPECT_TEXT(token.caculate_text("red sky green"_view), "sky"_view);
 }
+
+PERIMORTEM_UNIT_TEST(TtxLexical, cursor_stream) {
+  Allocator::Arena arena;
+  Errors errors;
+  Associations associations(arena);
+  const Static::Vector<Token, 2> tokens = {{
+    Token(0, 1, 1, 6, Code::Type::Addressable),
+    Token(6, 1, 7, 0, Code::Type::Terminal),
+  }};
+  Stream stream(arena, "custom"_view, "frontend.ttx"_view, tokens);
+  Cursor cursor(stream, errors, associations);
+
+  EXPECT(cursor.matches(Code::Type::Addressable));
+  EXPECT_TEXT(cursor.get_text(), "custom"_view);
+  EXPECT_TEXT(cursor.get_source_path(), "frontend.ttx"_view);
+}

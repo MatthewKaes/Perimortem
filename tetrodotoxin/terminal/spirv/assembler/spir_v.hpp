@@ -5,10 +5,11 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-namespace Tetrodotoxin::Shader::Assembler {
+namespace Tetrodotoxin::Terminal::Spirv::Assembler {
 
 // Minimal SPIR V module writer.
 //
@@ -135,8 +136,8 @@ class SpirV {
     Offset = 35,
   };
 
-  // TODO: We are missing a lotttt of coverage here, but in practice we'll see
-  // how much we end up needing.
+  // BuiltIn grows with the semantic contracts this Terminal can emit. Position
+  // and VertexIndex form the current authored surface.
   enum class BuiltIn : U32 {
     Position = 0,
     VertexIndex = 42,
@@ -157,8 +158,8 @@ class SpirV {
       Version version = Version::V1_0,
       U32 generator = 0) -> void;
 
-  // Low level writing primitives. Most callers should use the typed helpers
-  // below so the instruction word count stays paired with the opcode shape.
+  // Low level writing primitives support the typed helpers below, which keep
+  // each instruction word count paired with its opcode shape.
   auto word(U32 value) -> void;
   auto instruction(Op opcode, Count word_count) -> void;
   auto literal_string(Perimortem::Core::View::Bytes text) -> Count;
@@ -171,12 +172,8 @@ class SpirV {
   auto entry_point(
       ExecutionModel model,
       U32 function_id,
-      Perimortem::Core::View::Bytes name) -> void;
-  auto entry_point(
-      ExecutionModel model,
-      U32 function_id,
       Perimortem::Core::View::Bytes name,
-      Perimortem::Core::View::Vector<U32> interface_ids) -> void;
+      Perimortem::Core::View::Vector<U32> interface_ids = {}) -> void;
   auto execution_mode(U32 entry_point_id, ExecutionMode mode) -> void;
 
   // Debug names do not define ids. They annotate ids that may be declared
@@ -191,8 +188,10 @@ class SpirV {
   // Decorations are semantic metadata consumed by APIs such as Vulkan:
   // locations, descriptor bindings, builtins, push constant block layout, and
   // byte offsets.
-  auto decorate(U32 target_id, Decoration decoration, U32 value) -> void;
-  auto decorate(U32 target_id, Decoration decoration) -> void;
+  auto decorate(
+      U32 target_id,
+      Decoration decoration,
+      Perimortem::Core::Option<U32> value = {}) -> void;
   auto member_decorate(
       U32 target_id,
       U32 member_index,
@@ -299,4 +298,4 @@ class SpirV {
   Perimortem::Memory::Dynamic::Bytes& words;
 };
 
-}  // namespace Tetrodotoxin::Shader::Assembler
+}  // namespace Tetrodotoxin::Terminal::Spirv::Assembler

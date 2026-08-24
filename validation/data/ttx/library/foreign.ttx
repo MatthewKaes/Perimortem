@@ -14,14 +14,12 @@ foreign "C" {
 
 private total : U64 = 0;
 
-@abi("C") @symbol("library_cross_artifact")
 public cross_artifact : func = [] -> U64 {
   state value : CrossArtifactLarge = (.first = 4, .second = 5, .third = 6);
   return foreign -> llvm_large_sum(value);
 }
 
 // Stable C interoperability entry with repeated TTX-owned Static state.
-@abi("C") @symbol("library_native")
 public library_native : func = [] -> U64 {
   total += PrivateOps -> increment();
   foreign.library_foreign_state = total;

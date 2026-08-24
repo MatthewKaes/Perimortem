@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/library/interpreter/layout.hpp"
+#include "tetrodotoxin/language/parser/layout.hpp"
 #include "tetrodotoxin/library/interpreter/literal.hpp"
 
 using namespace Perimortem;
@@ -13,9 +13,8 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library;
 
-auto Interpreter::TypeReference::parse(
-    const Abstract& context,
-    Cursor& cursor) -> Core::Option<Language::TypeReference> {
+auto Interpreter::TypeReference::parse(const Abstract& context, Cursor& cursor)
+    -> Core::Option<Language::TypeReference> {
   auto& domain = cursor.get_arena();
   auto route = parse_route(cursor);
   BAIL_IF(!route);
@@ -24,7 +23,7 @@ auto Interpreter::TypeReference::parse(
   }
 
   Memory::Managed::Vector<Language::TypeReference::Argument> arguments(domain);
-  auto closing = Layout::parse_entries(
+  auto closing = Tetrodotoxin::Language::Parser::Layout::parse_entries(
       cursor, Code::Type::BracketStart, Code::Type::BracketEnd,
       [&](Cursor& entry, Count) -> Bool {
         if (entry.matches(Code::Type::Type)) {

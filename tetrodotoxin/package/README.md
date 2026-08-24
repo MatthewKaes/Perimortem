@@ -190,7 +190,7 @@ Package admits two profiles:
 
 * `Complete` stores the public and private query contracts selected by every
   member Dialect.
-* `Interface` stores public Types, Layouts, Fields, Callable signatures,
+* `Contract` stores public Types, Layouts, Fields, Callable signatures,
   constants, ABI requests, relationships, and compiled artifact locations. It
   leaves private observations out.
 
@@ -237,9 +237,10 @@ different product kinds.
 
 Workspace creates the Package description Monograph before it reconstructs any
 member. This gives every language the same context for mappings and resources.
-Scene and Shader pass that context to their child layers. The Workspace supplies
-the installed language dependencies separately and retains every reconstructed
-Monograph handle.
+Scene and Shader pass that context to their real Library children. Shader also
+retains exact routes to neighboring Render members without copying their
+contracts. The Workspace supplies installed language dependencies and retains
+every reconstructed Monograph handle.
 
 Each Dialect receives its opaque member payload and the same Package context
 directly in one Workspace owned reconstruction Arena. There is no separate

@@ -12,10 +12,32 @@ source of truth.
 
 Canonical grammar reference: [Render.g4](grammar/Render.g4).
 
+Render uses the same Definition envelope as Library and Shader. Documentation,
+Attributes, visibility, modifiers, name, and `:` are interpreted once. The
+qualifier that follows selects `struct`, `stage`, `resource`, `push`, or another
+Render declaration, leaving each concrete parser responsible only for the
+meaning it adds.
+
 ```ttx
 // Rendering interface.
 dialect : Render;
 ```
+
+## One meaning, three responsibilities
+
+Render stays useful across editors, Archives, and GPU targets because those
+jobs meet at the language rather than blending together.
+
+The Interpreter reads authored Render syntax and creates the corresponding
+semantic objects. The Language owns the lasting interface: contract Structures,
+required values, resources, Stages, Layouts, and Attributes that another
+language or tool can query. It owns no Shader expressions or execution model.
+Archive support preserves enough of that meaning to rebuild an
+equivalent Render graph without turning the stored bytes into the graph itself.
+
+That separation leaves target work with Terminals. A SPIR-V producer can choose
+storage classes and decorations from a completed Render graph, while another
+GPU target can make different choices from the same contract.
 
 ## Render contracts
 
@@ -66,7 +88,7 @@ a convenient target binding later.
 Stage entry Attributes precede the named Layout entry:
 
 ```ttx
-public stage Fragment[
+public fragment : stage [
   @location(0) .color : Math::Vec4D,
 ] -> [
   @location(0) .color : Math::Vec4D,
@@ -77,8 +99,9 @@ public stage Fragment[
 
 Stage parameters and results use TTX Layouts. A matching shape is necessary,
 but shape alone does not say whether a value is a vector, resource, address, or
-part of a particular ABI. Render Types and Attributes describe those additional
-requirements.
+part of a particular ABI. Render contracts and Attributes describe those
+additional requirements. TTX Interface negotiation combines that meaning with
+Layout evidence when a concrete Shader Stage attempts to satisfy the contract.
 
 Fields, Types, and Stage Callables use their corresponding access domains:
 
@@ -90,19 +113,18 @@ Fields, Types, and Stage Callables use their corresponding access domains:
 ## Shader relationship
 
 Render owns the interface. [Shader](../shader/README.md) selects one Render
-contract, organizes its stages, and supplies the implementation. Each Shader
-contains one Render layer built by the Render language already installed in the
-Workspace. That layer holds the GPU Types, resources, Layouts, expressions, and
-stage bodies used by the Shader.
+contract, organizes its stages, and supplies the implementation. The Render
+Monograph remains an ordinary Workspace identity owned by its source. Shader
+retains the exact contract edge while its real Library child owns executable
+Types, Functions, expressions, and Flow.
 
-Tools can inspect either a top level Render source or the Render layer inside a
-Shader. Both use the same installed Render language, so generic Types and other
-shared identities remain consistent. There is no copied Shader model or second
-Render language hidden inside Shader.
+Tools inspect the Render contract and Shader implementation through those real
+identities. No empty child Monograph or copied interface graph is needed to make
+their relationship visible.
 
 Render does not know about Shader or Vulkan. Shader builds on Render, and a
-graphics backend later turns the completed facts into target specific bindings
-and resources.
+graphics Terminal later turns the completed facts into target specific
+bindings and resources.
 
 Runtime graphics submission is a separate consumer of completed render facts.
 It does not redefine Render grammar or Shader identity.
@@ -111,11 +133,7 @@ It does not redefine Render grammar or Shader identity.
 
 Render can be stored in a Package Archive and reconstructed without its source
 file. A Complete payload keeps its public and private render contracts, while
-an Interface payload keeps the public Attributes, Layouts, bridge facts, and
-artifact locations needed by other code. Expressions and stage bodies remain
-source or live Workspace facts.
-
-When Render belongs to a Shader, it uses the same Complete or Interface profile
-as its parent. Render does not store chosen GPU storage classes, target bindings,
-SPIR-V words, live backend handles, or source level debugging data in either
-profile.
+an Contract payload keeps the public Attributes, Layouts, and artifact
+locations needed by other code. Shader Bridges and bodies remain with Shader.
+Render does not store chosen GPU storage classes, target bindings, SPIR-V words,
+live backend handles, or source level debugging data in either profile.

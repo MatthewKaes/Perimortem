@@ -13,9 +13,16 @@
 
 namespace Tetrodotoxin::Language {
 
-// A Monograph is the lasting semantic result of one source. It shares the
-// source transaction Arena with every identity created during interpretation,
-// and Workspace retains that complete lifetime after the source succeeds.
+// A Monograph is the lasting semantic root created for one source transaction.
+// It shares that Arena with source bytes, presentation facts, and every graph
+// identity established by interpretation. Workspace retains the whole
+// transaction whenever this root exists, including an incomplete edit that is
+// useful to editor tooling.
+//
+// Linking settles edges after neighboring roots exist. Finalization admits the
+// completed semantic island to Terminal production. A fixed child Monograph is
+// appropriate only when the source directly authors meaning owned by that
+// child language, as Shader does for its executable Library body.
 class Monograph : public Ttx::Concept::Abstract {
  public:
   TTX_CONTRACT(Monograph, Ttx::Concept::Abstract);

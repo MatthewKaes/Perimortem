@@ -106,8 +106,8 @@ Abstract
 └── Callable
 ```
 
-`Layout`, `Documentation`, and `Reference` describe or connect those objects
-without becoming separate language objects themselves.
+`Layout`, `Interface`, `Documentation`, and `Reference` describe, negotiate, or
+connect those objects without becoming separate language objects themselves.
 
 A `Type` exposes one complete Layout. An `Addressable` names typed data. A
 `Pack` carries produced value flow and exposes its complete output Layout. A
@@ -167,6 +167,23 @@ can retain contextual facts, but it cannot enter value flow. An Addressable
 therefore requires a Type with at least one Layout entry. Concrete languages
 define their own scalar families, logical and numeric refinements, and abstract
 machine storage requirements.
+
+### Semantic Interface negotiation
+
+Pack and Layout form the shared data flow projection. The Pack keeps its
+producer identity, while Layout exposes the shape that can move to a consumer.
+That projection deliberately leaves behavior and richer domain meaning behind.
+
+Interface negotiates the missing semantic relation over the two original
+Abstracts. A candidate may satisfy a requirement directionally, or a concrete
+negotiator may prove that the relation is equivalent in both directions. A
+Callable Interface can use parameter and result Layouts as evidence while a
+rendering contract adds resources, locations, and capabilities. Other domains
+can define useful Interfaces even when no values flow between their objects.
+
+Equal Layouts therefore remain insufficient evidence for equal meaning.
+Interface exists only where an owner can state the richer relation explicitly,
+and it creates no wrapper or copied graph around either participant.
 Target object layout, field offsets, registers, address spaces, pointer forms,
 and runtime storage belong to the consumer that chooses a physical
 representation.

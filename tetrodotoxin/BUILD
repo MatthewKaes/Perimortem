@@ -10,23 +10,6 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
-    name = "language",
-    srcs = glob([
-        "language/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "language/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        "//perimortem",
-        "//ttx:concept",
-        "//ttx:lexical",
-        "//ttx:model",
-    ],
-)
-
-cc_library(
     name = "package",
     srcs = glob([
         "package/**/*.cpp",
@@ -36,7 +19,7 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        ":language",
+        "//tetrodotoxin/language",
         ":linker",
         "//perimortem",
         "//ttx:concept",
@@ -69,7 +52,7 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        ":language",
+        "//tetrodotoxin/language",
         "//perimortem",
         "//ttx:lexical",
     ],
@@ -85,7 +68,7 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        ":language",
+        "//tetrodotoxin/language",
         ":library",
         ":linker",
         "//perimortem",
@@ -110,42 +93,11 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        ":language",
+        "//tetrodotoxin/language",
         ":library",
         "//perimortem",
         "//ttx:concept",
         "//ttx:lexical",
-    ],
-)
-
-cc_library(
-    name = "render",
-    srcs = glob([
-        "render/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "render/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        ":language",
-        "//perimortem",
-        "//ttx:concept",
-        "//ttx:lexical",
-    ],
-)
-
-cc_library(
-    name = "shader",
-    srcs = glob([
-        "shader/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "shader/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        "//perimortem",
     ],
 )
 
@@ -173,7 +125,7 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
-        ":language",
+        "//tetrodotoxin/language",
         ":package",
         "//perimortem",
         "//ttx:concept",

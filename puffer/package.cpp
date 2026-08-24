@@ -410,7 +410,7 @@ auto Puffer::Package::run() const -> S32 {
   Core::View::Bytes manifest = value(arguments, "manifest"_view);
   Core::View::Bytes identity = value(arguments, "name"_view);
   Core::View::Bytes complete_path = value(arguments, "complete"_view);
-  Core::View::Bytes interface_path = value(arguments, "interface"_view);
+  Core::View::Bytes contract_path = value(arguments, "contract"_view);
   Core::View::Bytes header_path = value(arguments, "header"_view);
   Core::View::Bytes cpp_header_path = value(arguments, "cpp-header"_view);
   Core::View::Bytes cpp_source_path = value(arguments, "cpp-source"_view);
@@ -422,7 +422,7 @@ auto Puffer::Package::run() const -> S32 {
   auto debug = parse_debug(value(arguments, "debug"_view));
   Core::View::Bytes artifact = value(arguments, "artifact"_view);
   if (manifest.is_empty() || identity.is_empty() || complete_path.is_empty() ||
-      interface_path.is_empty() || header_path.is_empty() ||
+      contract_path.is_empty() || header_path.is_empty() ||
       abi_manifest_path.is_empty() || version.is_null() || !debug ||
       artifact != "x86_64-sysv-linux"_view) {
     Core::Diagnostics::Log::error(
@@ -479,9 +479,9 @@ auto Puffer::Package::run() const -> S32 {
         },
         [](const Tetrodotoxin::Package::Archive::Reader::Error&) {});
     if (!archive ||
-        archive->get_profile() != Language::Persistence::Profile::Interface) {
+        archive->get_profile() != Language::Persistence::Profile::Contract) {
       Core::Diagnostics::Log::error(
-          "Puffer Package rejected one dependency Interface Archive."_view);
+          "Puffer Package rejected one dependency Contract Archive."_view);
       return 1;
     }
     if (!workspace.restore_package(*archive, archive->get_identity())) {
@@ -878,11 +878,11 @@ auto Puffer::Package::run() const -> S32 {
   auto complete = Tetrodotoxin::Package::Archive::Writer::write(
       *root, identity, version, Language::Persistence::Profile::Complete,
       artifacts, exports.get_view());
-  auto interface = Tetrodotoxin::Package::Archive::Writer::write(
-      *root, identity, version, Language::Persistence::Profile::Interface,
+  auto contract = Tetrodotoxin::Package::Archive::Writer::write(
+      *root, identity, version, Language::Persistence::Profile::Contract,
       artifacts, exports.get_view());
-  if (!complete || !interface || !publish(complete_path, *complete) ||
-      !publish(interface_path, *interface) ||
+  if (!complete || !contract || !publish(complete_path, *complete) ||
+      !publish(contract_path, *contract) ||
       !publish(header_path, identified_header->get_view()) ||
       (cpp_api && (!publish(cpp_header_path, cpp_header) ||
                    !publish(cpp_source_path, cpp_source))) ||

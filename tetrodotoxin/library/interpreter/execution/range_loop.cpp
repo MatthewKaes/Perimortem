@@ -3,9 +3,9 @@
 
 #include "tetrodotoxin/library/interpreter/execution/range_loop.hpp"
 
+#include "tetrodotoxin/language/parser/layout.hpp"
 #include "tetrodotoxin/library/interpreter/execution/block.hpp"
 #include "tetrodotoxin/library/interpreter/expression.hpp"
-#include "tetrodotoxin/library/interpreter/layout.hpp"
 #include "tetrodotoxin/library/interpreter/type_reference.hpp"
 
 using namespace Perimortem::Core;
@@ -31,8 +31,16 @@ auto Interpreter::Execution::RangeLoop::parse(
 
   Managed::Vector<Language::Flow::RangeLoop::AuthoredBinding> bindings(
       cursor.get_arena());
-  auto binding_end = Interpreter::Layout::parse(
-      cursor, [&](Cursor& entry, Count, Option<Token> selected_name) -> Bool {
+  auto binding_end = Tetrodotoxin::Language::Parser::Layout::parse(
+      cursor, False,
+      [&](Cursor& entry, Count, Option<Token> selected_name,
+          View::Vector<Tetrodotoxin::Language::Attribute> attributes) -> Bool {
+        if (!attributes.is_empty()) {
+          entry.create_expression_error(
+              attributes.get_data()[0].get_anchor(),
+              "Library for loop bindings do not carry declaration Attributes."_view);
+          return False;
+        }
         if (!selected_name ||
             selected_name->get_code() != Code::Type::Addressable) {
           entry.create_token_error(
@@ -41,16 +49,15 @@ auto Interpreter::Execution::RangeLoop::parse(
         }
         View::Bytes name =
             selected_name->caculate_text(cursor.get_source_text());
-        if (bindings.get_view().contains([&](const auto& existing) {
-              return existing.name == name;
-            })) {
+        if (bindings.get_view().contains(
+                [&](const auto& existing) { return existing.name == name; })) {
           entry.create_token_error(
               *selected_name,
               "A Library for loop binding name must be unique."_view);
           return False;
         }
-        auto selected_type = Interpreter::TypeReference::parse(
-            lexical_context, entry);
+        auto selected_type =
+            Interpreter::TypeReference::parse(lexical_context, entry);
         BAIL_IF(!selected_type);
         bindings.insert({*selected_name, name, *selected_type});
         return True;
@@ -69,10 +76,9 @@ auto Interpreter::Execution::RangeLoop::parse(
   auto input = Interpreter::Expression::parse(lexical_context, cursor);
   BAIL_IF(!input);
 
-  Language::Flow::RangeLoop& loop =
-      Language::Flow::RangeLoop::create_authored(
-          cursor.get_arena(), lexical_context, bindings.get_view(), *input,
-          Anchor::create(opening, Span(opening, cursor.peek(-1))));
+  Language::Flow::RangeLoop& loop = Language::Flow::RangeLoop::create_authored(
+      cursor.get_arena(), lexical_context, bindings.get_view(), *input,
+      Anchor::create(opening, Span(opening, cursor.peek(-1))));
   auto body = Block::parse(
       cursor, loop, function, access_scope, Reference<const Abstract>(loop));
   BAIL_IF(!body);

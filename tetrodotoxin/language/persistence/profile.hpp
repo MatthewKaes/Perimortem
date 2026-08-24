@@ -7,13 +7,14 @@
 
 namespace Tetrodotoxin::Language::Persistence {
 
-// Profile selects the durable observations each persistent Dialect must retain.
-// Complete includes its public and private query contract while Interface
-// retains only the public contract required by dependent consumers. Execution
-// remains in the Dialect's compiled Terminal products.
+// Profile selects the durable observations retained by each persistent Dialect.
+// Complete includes its public and private query contract while Contract keeps
+// only the public contract required by dependent consumers. Execution
+// remains in the Dialect's compiled Terminal products. Contract stays distinct
+// from TTX Interface, which negotiates semantic substitution in a live graph.
 enum class Profile : U8 {
   Complete,
-  Interface,
+  Contract,
 };
 
 }  // namespace Tetrodotoxin::Language::Persistence

@@ -211,13 +211,13 @@ language observation while target storage stays a runtime fact.
 ## Native and durable boundaries
 
 Each standard Package owns its Library source and the data needed to rebuild it.
-Package owns the Archive, its Complete or Interface profile, and native artifact
+Package owns the Archive, its Complete or Contract profile, and native artifact
 locations. The matching Perimortem runtime component provides native behavior,
 the selected language compiler creates member objects, and the platform build
 toolchain creates native archives and executables.
 
 A Complete Archive rebuilds both public and private language objects. An
-Interface Archive rebuilds the public contracts and compiled artifact locations
+Contract Archive rebuilds the public contracts and compiled artifact locations
 needed by other Packages without including executable bodies. Neither profile
 stores LLVM IR, runtime handles, current input, decoded images, live Objects, or
 source level debugging data.

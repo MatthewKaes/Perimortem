@@ -109,12 +109,14 @@ PERIMORTEM_UNIT_TEST(DefinitionTests, type_qualifier) {
   Cursor& cursor = arena.construct<Cursor>(tokenizer, errors, associations);
 
   const Documentation& documentation = Parser::Comment::parse(cursor);
-  auto definition = Definition::parse(cursor, documentation, host);
+  auto definition =
+      Definition::parse(cursor, documentation, host, View::Vector<Attribute>());
 
   ASSERT(definition);
   EXPECT_TEXT(definition->get_name(), "value"_view);
   EXPECT(definition->get_visibility() == Visibility::Private);
   EXPECT(definition->get_qualifier().get_code() == Code::Type::Type);
+  EXPECT(definition->get_attributes().is_empty());
   EXPECT(cursor.matches(Code::Type::Type));
   EXPECT(errors.is_empty());
 }

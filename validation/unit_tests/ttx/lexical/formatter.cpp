@@ -7,6 +7,8 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "ttx/lexical/tokenizer.hpp"
+
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Ttx::Lexical;
@@ -379,6 +381,21 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, call_spacing) {
       "  state output := Dynamic::Bytes -> copy(\"value\" -> get_view());\n"
       "  output -> clear();\n"
       "}\n"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TtxFormatter, qualifier_spacing) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(
+      arena, "// Source.\ndialect:Render;public fragment:stage[]->[];"_view,
+      "Test.ttx"_view);
+
+  Dynamic::Bytes formatted = Formatter(tokenizer).format();
+  EXPECT_TEXT(
+      formatted,
+      "// Source.\n"
+      "dialect : Render;\n"
+      "\n"
+      "public fragment : stage [] -> [];\n"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxFormatter, compressed_spacing) {

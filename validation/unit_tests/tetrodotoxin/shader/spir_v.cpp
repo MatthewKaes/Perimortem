@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "tetrodotoxin/shader/assembler/spir_v.hpp"
+#include "tetrodotoxin/terminal/spirv/assembler/spir_v.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -11,7 +11,7 @@
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Tetrodotoxin::Shader;
+using namespace Tetrodotoxin::Terminal::Spirv;
 using namespace Validation;
 
 static Harness TtxSpirV = {

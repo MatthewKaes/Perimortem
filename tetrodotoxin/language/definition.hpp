@@ -24,10 +24,17 @@ namespace Tetrodotoxin::Language {
 // evidence.
 class Definition {
  public:
+  // Definition ordinarily consumes its own Attributes. An embedding
+  // interpreter can provide the view it already consumed, while an engaged
+  // empty view records that parsing has happened without inventing a value.
+  // This also lets that interpreter intentionally silence Attributes whose
+  // meaning belongs to its outer form.
   static auto parse(
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
-      Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Definition&>;
+      Ttx::Concept::Abstract& host,
+      Perimortem::Core::Option<Perimortem::Core::View::Vector<Attribute>>
+          attributes = {}) -> Perimortem::Core::Option<Definition&>;
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,

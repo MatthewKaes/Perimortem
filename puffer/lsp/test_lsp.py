@@ -526,7 +526,7 @@ def run_test():
         bytes_result.get("contents", {}).get("value", "")
         if bytes_result else "")
     check("Type Bytes" in bytes_markdown and
-          "copy-on-write container of U8 values" in bytes_markdown,
+          "copy on write container of U8 values" in bytes_markdown,
           "Package hover preserves exported Bytes Type documentation")
     memory_path = os.path.join(
         REPO_ROOT, "packages", "ttx", "Perimortem.Memory", "dynamic.ttx")
@@ -745,14 +745,16 @@ def run_test():
     check("\"Icon \\\"Preview\\\"\"" in no_dialect_texts,
           "document sync decodes escaped string text")
 
-    print("\n--- Semantic tokens: Shader dialect filtering ---")
+    print("\n--- Semantic tokens: Shader Library execution ---")
     shader_source = (
         "dialect : Shader;\n"
-        "public func main[] -> Count {\n"
-        "  if (true) {\n"
-        "    continue;\n"
+        "public Test : shader Formats::Simple {\n"
+        "  public main : func = [] -> Count {\n"
+        "    if (true) {\n"
+        "      continue;\n"
+        "    }\n"
+        "    return 0;\n"
         "  }\n"
-        "  return 0;\n"
         "}\n"
     )
     shader_uri = "file:///semantic-shader.ttx"
@@ -763,8 +765,8 @@ def run_test():
         shader_source, shader_data)]
     check(len(shader_data) > 0, "Shader document returns semantic tokens")
     check("return" in shader_texts, "Shader document keeps shared control keywords")
-    check("if" not in shader_texts and "continue" not in shader_texts,
-          "Shader document filters Library-only control keywords")
+    check("if" in shader_texts and "continue" in shader_texts,
+          "Shader document keeps Library control keywords")
 
     print("\n--- Parameter inlay hints: retained Call fitting ---")
     hint_source = (

@@ -17,7 +17,7 @@ cc_library(
     ]),
     deps = [
         "//perimortem",
-        "//tetrodotoxin:language",
+        "//tetrodotoxin/language",
         "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
         "//ttx:concept",
@@ -36,12 +36,25 @@ cc_library(
     deps = [
         ":abi",
         "//perimortem",
-        "//tetrodotoxin:language",
+        "//tetrodotoxin/language",
         "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
         "//toolchain/llvm:sdk",
         "//ttx:concept",
         "//ttx:lexical",
         "//ttx:model",
+    ],
+)
+
+cc_library(
+    name = "spirv",
+    srcs = glob([
+        "spirv/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "spirv/**/*.hpp",
+    ]),
+    deps = [
+        "//perimortem",
     ],
 )

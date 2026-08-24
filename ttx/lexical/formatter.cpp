@@ -500,6 +500,7 @@ class State {
   }
 
   auto measured_prefix(
+      Count index,
       Code::Type code,
       Bool has_previous_value,
       Code::Type previous_code,
@@ -516,7 +517,8 @@ class State {
     }
 
     if (code == Code::Type::BracketStart) {
-      return previous_code == Code::Type::For;
+      return previous_code == Code::Type::For ||
+             (index && tokens[index - 1].caculate_text(source) == "stage"_view);
     }
 
     if (code == Code::Type::AddressOp || code == Code::Type::TypeAccessOp ||
@@ -583,11 +585,11 @@ class State {
           code == Code::Type::Assign && previous_code == Code::Type::Define) {
         width += 2;
       } else {
-        width +=
-            measured_prefix(
-                code, has_previous_value, previous_code, previous_was_prefix)
-                ? 1
-                : 0;
+        width += measured_prefix(
+                     index, code, has_previous_value, previous_code,
+                     previous_was_prefix)
+                     ? 1
+                     : 0;
         width += canonical_token_width(index);
       }
 
@@ -1406,7 +1408,7 @@ class State {
     }
 
     if (code == Code::Type::Hex || code == Code::Type::Bytes) {
-      if (requires_space(code)) {
+      if (requires_space(index, code)) {
         write_space();
       }
 
@@ -1452,7 +1454,7 @@ class State {
       }
 
       append(text);
-    } else if (requires_space(code)) {
+    } else if (requires_space(index, code)) {
       write_space();
       append(text);
     } else {
@@ -1516,7 +1518,7 @@ class State {
            previous != Code::Type::PackingOp && !is_binary(previous);
   }
 
-  auto requires_space(Code::Type code) const -> Bool {
+  auto requires_space(Count index, Code::Type code) const -> Bool {
     if (!has_previous || !line_started) {
       return False;
     }
@@ -1527,7 +1529,8 @@ class State {
     }
 
     if (code == Code::Type::BracketStart) {
-      return previous == Code::Type::For;
+      return previous == Code::Type::For ||
+             (index && tokens[index - 1].caculate_text(source) == "stage"_view);
     }
 
     if (code == Code::Type::AddressOp || code == Code::Type::TypeAccessOp ||

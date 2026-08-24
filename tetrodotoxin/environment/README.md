@@ -168,9 +168,11 @@ through the same linking and finalization steps. Tools ask the outer Monograph
 for a layer instead of looking for another Workspace name.
 
 During Archive reconstruction, the Package Monograph is created before its
-members. Every member receives that Package context, including child layers
-inside Scene and Shader. The language dependencies still come from the
-Workspace. If a child layer cannot be restored, its outer member also fails.
+members. Every member receives that Package context, including the real Library
+child inside Scene. Shader relationships resolve the separately restored
+Library and Render members through that same context. Language dependencies
+still come from the Workspace. If a real child layer cannot be restored, its
+outer member also fails.
 
 ## Contextual lookup
 

@@ -3,15 +3,19 @@
 
 #include "tetrodotoxin/render/interpreter/source.hpp"
 
+#include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/render/interpreter/declaration.hpp"
+
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Render;
 
-auto Interpreter::Source::parse(Cursor& cursor) -> void {
+auto Interpreter::Source::parse(Language::Monograph& monograph, Cursor& cursor)
+    -> void {
   while (!cursor.matches(Code::Type::Terminal)) {
-    cursor.create_token_error(
-        "Render does not recognize this declaration yet."_view,
-        "Render contracts will add their declaration owners to this source "
-        "boundary."_view);
-    cursor.recover_to_statement();
+    const Ttx::Concept::Documentation& documentation =
+        Tetrodotoxin::Language::Parser::Comment::parse(cursor);
+    if (!Declaration::parse(monograph, cursor, documentation)) {
+      cursor.recover_to_statement();
+    }
   }
 }

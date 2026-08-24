@@ -116,8 +116,9 @@ tools.
 
 This removes a translation layer and gives a compiler or editor one stable
 subject to query. Backend lowering consumes the exact Library Function. Package
-retains the Alias that names another source. Shader lowering consumes the exact
-Stage body. None of those consumers has to synchronize a generic declaration
+retains the Alias that names another source. Shader lowering consumes that same
+Function through its real Library child. None of those consumers has to
+synchronize a generic declaration
 node with the object that carries the language behavior. When a concrete object
 retains a Definition, that value is part of the same authored object rather
 than a second graph node.
@@ -343,6 +344,11 @@ renaming or wrapping it. This distinction also leaves declaration owners free
 to add a default with `.name : Type = expression` or infer one with
 `.name := expression` without confusing a descriptor with supplied flow.
 
+The Language Layout parser owns the shared descriptor punctuation, Attributes,
+and name shape checks. Each Dialect consumes those entries into its own real
+Layout owner, so sharing the authored block does not introduce a common
+descriptor model.
+
 An empty Pack or one with several values remains flow and does not become an
 anonymous Type.
 Atomic Types expose one exact terminal value entry. An empty Layout exposes
@@ -357,7 +363,8 @@ lowering is a forward operation on each real graph owner. One compiler Program
 transaction retains the target configuration graph and target facts keyed by
 the original Abstract identities. It never copies Library Types, Expressions,
 Statements, or control owners into a Terminal model. Shader lowering follows the
-same rule over its exact Render child and Shader owned bridge facts. Linker owns
+same rule over its concrete GPU graph, selected Render contracts, neighboring
+Library Types, and Shader owned bridge facts. Linker owns
 object modules, symbols, relocations, target encoding, and final native products.
 
 This separation lets several targets consume the same language meaning. It also
@@ -420,7 +427,7 @@ Repositories, and restoration.
 ## Concrete language building blocks
 
 The repository provides several concrete languages that can be composed as
-building blocks. Library supplies the language model for CPU execution. It
+building blocks. Library supplies the reusable executable language model. It
 refines TTX Type once and defines its scalar and Addressable refinements,
 default construction, Generic materialization, Constants, Expressions,
 Functions, Structs, Objects, Enumerations, and Field policy while reusing TTX
@@ -433,11 +440,12 @@ owns signals, lifecycle role edges, hosted graphics relationships, frame event
 delivery, and render submission facts around that child. App owns transitions
 between Scene identities.
 
-Render declares semantic rendering interfaces and supplies the reusable GPU
-semantic layer. Each Shader Monograph owns one Library CPU child and one Render
-GPU child. Shader owns its source grammar, Stage organization, legality, and
-the exact CPU to GPU bridge and marshaling relations between those children.
-SPIR-V lowering consumes the completed GPU facts. Foreign embeds an external
+Render declares semantic rendering interfaces. Shader owns its source grammar,
+Stage organization, legality, storage roles, and exact CPU to GPU bridge and
+marshaling relations around one real Library child. Interface negotiation proves
+that a child Library Function satisfies a selected Render Stage without copying
+either graph. SPIR V lowering consumes the completed Library execution graph
+together with those Shader and Render facts. Foreign embeds an external
 ABI declaration surface inside a parent Dialect that already supports CPU
 execution.
 
@@ -486,21 +494,20 @@ pinned dependencies, member routes, Dialect names, selected payload profile,
 and native artifact locators. Each persistent Dialect defines the payload and
 reconstruction procedure needed to create a new Monograph.
 
-`Complete` and `Interface` are the two Archive profiles. A Complete payload
+`Complete` and `Contract` are the two Archive profiles. A Complete payload
 retains the public and private query contract selected by its Dialect. An
-Interface payload retains only the public contract needed by dependent
+Contract payload retains only the public contract needed by dependent
 consumers. For Library this includes public Types, Layouts, Fields, Callable
 signatures, folded constants, ABI requests, publication relationships, and
 exact artifact locators. Neither profile stores executable bodies. Debug/source
 correlation and compiled code remain separate Terminal products.
 
-The selected profile applies recursively to every embedded layer. A Complete
-Scene contains the complete query contracts of its children. An Interface Scene
-contains their public contracts and artifact locators. A Complete Shader
-contains complete Library and Render query contracts, while its Interface
-payload retains their public CPU and GPU contracts, bridge facts, and artifact
-locators. The outer payload length delimits each child section, while the child
-Dialect alone validates and interprets its opaque bytes.
+The selected profile applies recursively to every actual embedded layer. A
+Complete Scene or Shader contains the complete query contract of its Library
+child. A Contract payload contains that child's public contract and artifact
+locators. Shader also retains its Render contract route, storage roles, bridge
+facts, and artifact locators. The neighboring Render member retains its own
+payload.
 
 A compiled Package behaves like a `foreign "TTX"` graph. Its restored owners
 answer the same Type, Addressable, Callable, and constant queries that consumers

@@ -14,11 +14,11 @@ several languages chosen for the work they describe while sharing one editor,
 one Package graph, one linked understanding of the program, and one path to
 finished products.
 
-A package manifest can describe composition. Library source can express CPU
-behavior. An App can choose startup policy. Scenes can own interactive state.
-Render contracts and Shaders can meet around GPU work. Each language keeps the
-ideas that make it useful, and Tetrodotoxin connects the meaning they genuinely
-share.
+A package manifest can describe composition. Library source can express
+executable behavior shared by CPU and GPU Terminals. An App can choose startup
+policy. Scenes can own interactive state. Render contracts and Shaders can meet
+around GPU work. Each language keeps the ideas that make it useful, and
+Tetrodotoxin connects the meaning they genuinely share.
 
 ![Tetrodotoxin editor preview](extension/media/ttx-preview.png)
 
@@ -42,7 +42,7 @@ The included Dialects show how that grows into a complete platform:
 
 * **Package** makes sources, dependencies, resources, and durable Archives
   reproducible
-* **Library** provides reusable CPU code, data, and native interfaces
+* **Library** provides reusable executable code, data, and native interfaces
 * **App** describes how a finished program starts and moves through its life
 * **Scene** brings interactive state, lifecycle, signals, and graphics together
 * **Render** defines the contract shared by a program and its GPU stages
@@ -138,7 +138,7 @@ You can start with the part closest to what you want to build:
   one Workspace
 * [Language integration](tetrodotoxin/language/README.md) shows how a new
   Dialect joins the platform
-* [Library](tetrodotoxin/library/README.md) introduces the reusable CPU language
+* [Library](tetrodotoxin/library/README.md) introduces the reusable execution language
 * [App](tetrodotoxin/app/README.md), [Scene](tetrodotoxin/scene/README.md),
   [Render](tetrodotoxin/render/README.md), and
   [Shader](tetrodotoxin/shader/README.md) show how an application can span

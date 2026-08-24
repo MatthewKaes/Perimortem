@@ -1,10 +1,10 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "tetrodotoxin/shader/assembler/spir_v.hpp"
+#include "tetrodotoxin/terminal/spirv/assembler/spir_v.hpp"
 
 using namespace Perimortem::Core;
-using namespace Tetrodotoxin::Shader;
+using namespace Tetrodotoxin::Terminal::Spirv;
 
 // Validation reads the same little endian word stream the writer produces. This
 // stays local because it is only a structural sanity check, not a public
@@ -22,8 +22,8 @@ static auto read_word(View::Bytes words, Count word_index) -> U32 {
 
 auto Assembler::SpirV::begin_module(U32 bound, Version version, U32 generator)
     -> void {
-  // The fifth header word is the reserved schema field. It must be zero for the
-  // current SPIR V versions.
+  // The current SPIR V format reserves the fifth header word as a zero schema
+  // field.
   word(magic);
   word(U32(version));
   word(generator);
@@ -93,13 +93,6 @@ auto Assembler::SpirV::memory_model(
 auto Assembler::SpirV::entry_point(
     ExecutionModel model,
     U32 function_id,
-    View::Bytes name) -> void {
-  entry_point(model, function_id, name, View::Vector<U32>());
-}
-
-auto Assembler::SpirV::entry_point(
-    ExecutionModel model,
-    U32 function_id,
     View::Bytes name,
     View::Vector<U32> interface_ids) -> void {
   // OpEntryPoint binds an execution model to a function id and lists the global
@@ -144,20 +137,18 @@ auto Assembler::SpirV::member_name(
   literal_string(name);
 }
 
-auto Assembler::SpirV::decorate(U32 target_id, Decoration decoration, U32 value)
-    -> void {
+auto Assembler::SpirV::decorate(
+    U32 target_id,
+    Decoration decoration,
+    Option<U32> value) -> void {
   // OpDecorate attaches semantic metadata to an id. Decorations are how Vulkan
   // sees locations, descriptor sets, bindings, and builtin IO roles.
-  instruction(Op::Decorate, 4);
+  instruction(Op::Decorate, value ? 4 : 3);
   word(target_id);
   word(U32(decoration));
-  word(value);
-}
-
-auto Assembler::SpirV::decorate(U32 target_id, Decoration decoration) -> void {
-  instruction(Op::Decorate, 3);
-  word(target_id);
-  word(U32(decoration));
+  if (value) {
+    word(*value);
+  }
 }
 
 auto Assembler::SpirV::member_decorate(

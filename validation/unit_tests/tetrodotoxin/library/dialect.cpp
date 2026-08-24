@@ -1066,14 +1066,14 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_source) {
       monograph, Tetrodotoxin::Language::Persistence::Profile::Complete);
   auto complete_again = archive_dialect.encode(
       monograph, Tetrodotoxin::Language::Persistence::Profile::Complete);
-  auto interface = archive_dialect.encode(
-      monograph, Tetrodotoxin::Language::Persistence::Profile::Interface);
-  ASSERT(complete && complete_again && interface);
+  auto contract = archive_dialect.encode(
+      monograph, Tetrodotoxin::Language::Persistence::Profile::Contract);
+  ASSERT(complete && complete_again && contract);
   EXPECT(*complete == *complete_again);
-  EXPECT_NOT(*complete == *interface);
-  ASSERT(complete->get_size() >= 8 && interface->get_size() >= 8);
+  EXPECT_NOT(*complete == *contract);
+  ASSERT(complete->get_size() >= 8 && contract->get_size() >= 8);
   EXPECT_EQ((*complete)[6], U8(0));
-  EXPECT_EQ((*interface)[6], U8(1));
+  EXPECT_EQ((*contract)[6], U8(1));
   Allocator::Arena restored_arena;
   auto restored = archive_dialect.restore(
       restored_arena, *complete,
@@ -1106,18 +1106,18 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_source) {
   ASSERT(restored_value);
   EXPECT_EQ(restored_value->get_value(), U64(5));
 
-  Allocator::Arena interface_arena;
-  auto restored_interface = archive_dialect.restore(
-      interface_arena, *interface,
-      Tetrodotoxin::Language::Persistence::Profile::Interface,
+  Allocator::Arena contract_arena;
+  auto restored_contract = archive_dialect.restore(
+      contract_arena, *contract,
+      Tetrodotoxin::Language::Persistence::Profile::Contract,
       Documentation::get_empty(), workspace);
   ASSERT(
-      restored_interface && restored_interface->link_restored() &&
-      restored_interface->finalize_restored());
-  EXPECT(restored_interface->resolve_context("Counter"_view)
+      restored_contract && restored_contract->link_restored() &&
+      restored_contract->finalize_restored());
+  EXPECT(restored_contract->resolve_context("Counter"_view)
              .resolve()
              .is<Language::Types::Object>());
-  EXPECT(restored_interface->resolve_context("executable_acceptance"_view)
+  EXPECT(restored_contract->resolve_context("executable_acceptance"_view)
              .resolve()
              .is<Invalid>());
 

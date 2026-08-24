@@ -118,7 +118,7 @@ auto Archive::read_declarations(
     }
     case Tag::FieldSlot: {
       BAIL_IF(
-          profile != Tetrodotoxin::Language::Persistence::Profile::Interface);
+          profile != Tetrodotoxin::Language::Persistence::Profile::Contract);
       auto selected = read_field_slot(reader, arena, composite, hidden_slot);
       BAIL_IF(!selected);
       restored = *selected;
@@ -169,7 +169,7 @@ auto Archive::write(Writer& writer, const Language::Types::Structure& structure)
   auto record = writer.begin(Tag::Structure);
   Declaration declaration(structure.get_definition());
   Bool public_only = writer.get_profile() ==
-                     Tetrodotoxin::Language::Persistence::Profile::Interface;
+                     Tetrodotoxin::Language::Persistence::Profile::Contract;
   return declaration.write(writer) &&
          write_declarations(writer, structure, public_only) &&
          writer.finish(record);
@@ -202,7 +202,7 @@ auto Archive::write(Writer& writer, const Language::Types::Object& object)
   auto record = writer.begin(Tag::Object);
   Declaration declaration(object.get_definition());
   Bool public_only = writer.get_profile() ==
-                     Tetrodotoxin::Language::Persistence::Profile::Interface;
+                     Tetrodotoxin::Language::Persistence::Profile::Contract;
   return declaration.write(writer) &&
          write_declarations(writer, object, public_only) &&
          writer.finish(record);

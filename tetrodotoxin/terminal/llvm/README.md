@@ -75,10 +75,10 @@ conventions here.
 
 ## The parallel GPU path
 
-`Terminal::Spirv` follows the same architectural boundary. Shader owns a real
-Render child and a real Library child, so a SPIR-V producer can walk Shader
-stages, Render contracts, and the hosted Library execution graph together. It
-does not need a translated Library IR or a second body language.
+`Terminal::Spirv` follows the same architectural boundary. A SPIR V producer
+walks the Library Functions and Flow in Shader's real child together with their
+exact Render contract and Bridge edges. It does not need a translated Library
+IR or a second body language.
 
 The CPU and GPU Terminals can choose very different instruction representations.
 They meet at completed meaning, while native cross language products additionally

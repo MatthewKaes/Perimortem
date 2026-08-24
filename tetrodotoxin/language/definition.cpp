@@ -17,33 +17,44 @@ using namespace Tetrodotoxin;
 auto Language::Definition::parse(
     Cursor& cursor,
     const Documentation& documentation,
-    Abstract& host) -> Option<Definition&> {
+    Abstract& host,
+    Option<View::Vector<Attribute>> supplied_attributes)
+    -> Option<Definition&> {
   // Definition owns the source envelope shared by every concrete declaration.
   // Dispatch has already committed to this declaration grammar. The semantic
   // owner is constructed only after its complete common prefix is accepted.
   Token opening = cursor.current();
-  Managed::Vector<Language::Attribute> attributes(cursor.get_arena());
+  Managed::Vector<Language::Attribute> parsed_attributes(cursor.get_arena());
   const Documentation* retained_documentation = &documentation;
-  while (cursor.matches(Code::Type::Attribute) ||
-         cursor.matches(Code::Type::Comment)) {
-    if (cursor.matches(Code::Type::Attribute)) {
-      Count error_count = cursor.get_error_count();
-      auto parsed = Language::Attribute::parse(cursor);
-      BAIL_IF(parsed.is_empty() && cursor.get_error_count() != error_count);
-      for (const Language::Attribute& attribute : parsed) {
-        attributes.insert(attribute);
+  View::Vector<Language::Attribute> retained_attributes;
+  if (supplied_attributes) {
+    // An embedding interpreter may discover the outer declaration only after
+    // consuming Attributes. An engaged empty view records that decision just
+    // as clearly as a populated one, so Definition leaves the Cursor alone.
+    retained_attributes = *supplied_attributes;
+  } else {
+    while (cursor.matches(Code::Type::Attribute) ||
+           cursor.matches(Code::Type::Comment)) {
+      if (cursor.matches(Code::Type::Attribute)) {
+        Count error_count = cursor.get_error_count();
+        auto parsed = Language::Attribute::parse(cursor);
+        BAIL_IF(parsed.is_empty() && cursor.get_error_count() != error_count);
+        for (const Language::Attribute& attribute : parsed) {
+          parsed_attributes.insert(attribute);
+        }
+        continue;
       }
-      continue;
-    }
 
-    const Documentation& continued = Language::Parser::Comment::parse(cursor);
-    if (retained_documentation->is_empty()) {
-      retained_documentation = &continued;
-    } else {
-      retained_documentation =
-          &cursor.get_arena().construct<Ttx::Model::Documentations::Merged>(
-              *retained_documentation, continued);
+      const Documentation& continued = Language::Parser::Comment::parse(cursor);
+      if (retained_documentation->is_empty()) {
+        retained_documentation = &continued;
+      } else {
+        retained_documentation =
+            &cursor.get_arena().construct<Ttx::Model::Documentations::Merged>(
+                *retained_documentation, continued);
+      }
     }
+    retained_attributes = parsed_attributes.get_view();
   }
 
   Token visibility_token = cursor.current();
@@ -105,9 +116,8 @@ auto Language::Definition::parse(
   Definition& definition =
       cursor.get_arena().construct_from<Definition>([&]() -> Definition {
         return Definition(
-            *retained_documentation, attributes.get_view(),
-            modifiers.get_view(), visibility, visibility_token, name,
-            name_token, qualifier, host,
+            *retained_documentation, retained_attributes, modifiers.get_view(),
+            visibility, visibility_token, name, name_token, qualifier, host,
             Anchor::create(name_token, Span(opening, qualifier)), False);
       });
   return definition;

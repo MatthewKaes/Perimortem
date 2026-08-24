@@ -9,18 +9,16 @@
 
 namespace Ttx::Concept {
 
-// Invalid is the closed unit type for a conceptual failure in the TTX graph.
-// It is not a diagnostic, nullable stand in, partially constructed semantic
-// object, or a subtype of every contract that might fail.
+// Invalid is the stable answer to a semantic query whose requested meaning is
+// unavailable. A partially constructed identity can still remain in the graph
+// and resolve to Invalid until its owner establishes that answer. The identity
+// is not replaced by this object, which keeps tooling able to observe every
+// other fact the source transaction already produced.
 //
-// All queries of any form on Invalid loops back to Invalid. This means any
-// query that returns Invalid can be safely chained.
-//
-// Both identity and context resolution return the
-// same Invalid. This preserves the first failed boundary and prevents secondary
-// queries from manufacturing unrelated semantic results. Invalid is stateless
-// and should gain no further concepts unless the fundamental Abstract contract
-// changes.
+// Invalid carries no diagnostic because the owner with source context explains
+// why the query failed. Identity and context resolution return the same binary
+// wide object, so a later query preserves the original failed boundary instead
+// of manufacturing a nullable edge or an unrelated semantic result.
 class Invalid : public Abstract {
  public:
   TTX_CONTRACT(Invalid, Abstract);

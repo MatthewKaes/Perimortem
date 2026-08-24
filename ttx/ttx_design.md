@@ -130,8 +130,9 @@ Abstract
 └── Callable
 ```
 
-`Documentation`, `Layout`, and `Reference` are supporting values. They describe
-or connect identities without acquiring another semantic identity. Complete
+`Documentation`, `Layout`, `Interface`, and `Reference` are supporting values.
+They describe, negotiate, or connect identities without acquiring another
+semantic identity. Complete
 declaration structure, source provenance, visibility, and publication remain
 facts of each concrete language owner rather than a lossy Abstract projection.
 
@@ -288,6 +289,18 @@ composition delegates entry fitting to the source Layout that owns each edge.
 Keeping Layout semantic lets the same graph feed a CPU compiler, GPU compiler,
 interpreter, editor, and archive writer without letting the first Terminal fix
 the physical meaning for every later consumer.
+
+Layout fitting stops where data flow stops. It can prove that values move
+through compatible shapes, but that projection intentionally forgets behavior
+and richer domain meaning. Interface is the higher order companion that
+negotiates whether two real Abstracts satisfy the same semantic role. A
+Callable negotiator can build on parameter and result Layouts. A rendering or
+lifecycle negotiator can add meaning that Layout never carried.
+
+This does not make structural similarity into identity. Interface returns a
+directional satisfaction or a proven two way equivalence for one explicit
+semantic question. It retains no copied declaration model and creates no graph
+object around either participant.
 
 TTX therefore cannot answer target object layout, field offset, register,
 address space, pointer form, or calling convention questions by itself. Each

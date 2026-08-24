@@ -265,7 +265,7 @@ static auto parse_simple(Context& ctx) -> void {
 }
 
 auto Tokenizer::parse() -> void {
-  Context ctx(source_text, arena);
+  Context ctx(get_source_text(), get_arena());
   while (ctx.can_parse()) {
     ctx.begin_token();
     switch (ctx.current()) {
@@ -462,5 +462,5 @@ auto Tokenizer::parse() -> void {
   }
 
   ctx.add_terminal();
-  tokens = ctx.get_tokens();
+  set_tokens(ctx.get_tokens());
 }

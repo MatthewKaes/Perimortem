@@ -99,7 +99,7 @@ auto Puffer::Application::run() const -> S32 {
     auto archive =
         decode(arena, dependency_bytes[dependency_bytes.get_size() - 1]);
     if (!archive ||
-        archive->get_profile() != Language::Persistence::Profile::Interface ||
+        archive->get_profile() != Language::Persistence::Profile::Contract ||
         !workspace.restore_package(*archive, archive->get_identity())) {
       return 1;
     }

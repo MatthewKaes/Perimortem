@@ -40,10 +40,10 @@ every language to adopt one representation.
 The rest of this guide uses a small set of names:
 
 * **TTX** is the shared vocabulary for source locations, semantic identities,
-  Types, values, Layouts, and Callables
+  Types, values, Layouts, Interfaces, and Callables
 * A **Dialect** gives one source language its grammar and meaning
-* A **Monograph** is the lasting result of one source and may include child
-  layers from languages it builds on
+* A **Monograph** is the lasting result of one source and includes a child only
+  when that source genuinely authors meaning owned by the child language
 * A **Workspace** keeps related Monographs and their references alive together
 * A **Package** names the sources, dependencies, resources, and durable facts
   that make a project reproducible
@@ -146,8 +146,8 @@ fragment as building blocks for richer domain specific solutions:
 
 * [Package](package/README.md) declares dependencies, names source members,
   provides confined resources, and defines durable Archives.
-* [Library](library/README.md) defines reusable CPU Types, values, functions,
-  expressions, Structs, Objects, and Enumerations.
+* [Library](library/README.md) defines reusable executable Types, values,
+  functions, expressions, Structs, Objects, and Enumerations.
 * [App](app/README.md) describes startup and application lifecycle.
 * [Scene](scene/README.md) describes scene state, signals, hosted graphics, and
   lifecycle roles.
@@ -161,13 +161,13 @@ Each top level Dialect owns its source grammar and constructs concrete
 Monographs directly. Foreign is an embedded language fragment rather than an
 installed top level Dialect.
 
-Some Dialects build on layers from another Dialect. Scene contains one Library
-layer for its CPU state and functions. Shader contains a Library layer for CPU
-helpers and a Render layer for GPU data. These children come from the same
-Dialect instances already installed in the Workspace's borrowed Toolchain, so
-grammar and installed dependencies stay consistent. Each child Monograph still
-owns its concrete Types and canonical Generic materializations. The Dialect
-stores no semantic identity.
+Some Dialects build on meaning from another Dialect. Scene contains one Library
+layer because its source directly authors Library state and functions. Shader
+also contains one Library layer because its Stages directly author Library
+Types, Functions, expressions, and Flow. The outer Shader Monograph owns Render
+contract selection, storage roles, and Bridges. Interface negotiation proves
+whether each real Library Function satisfies the selected Render Stage without
+copying either graph.
 
 Dependencies always point toward the lower level language. Scene depends on
 Library. Shader depends on Library and Render. App depends on Library and Scene.
@@ -259,7 +259,7 @@ a durable form. Package Archive records enough information to build a fresh
 Workspace without reading the original source again.
 
 The Complete profile keeps the public and private semantic contract. The
-Interface profile keeps only the public contract required by dependent
+Contract profile keeps only the public contract required by dependent
 consumers. Neither stores executable bodies. Compiled artifacts carry
 execution, while source or a live Workspace remains the input for another
 lowering. The same profile applies to child layers such as the Library layer

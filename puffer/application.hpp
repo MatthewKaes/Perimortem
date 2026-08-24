@@ -8,9 +8,9 @@
 namespace Puffer {
 
 // Application turns one archived App selection into the native entry object
-// requested by the host. Dependency Interfaces and the root Complete Archive
-// rebuild the semantic graph for that request, then the finished entry object
-// leaves the transaction as its product.
+// requested by the host. Dependency Contract Archives and the root Complete
+// Archive rebuild the semantic graph for that request, then the finished entry
+// object leaves the transaction as its product.
 class Application {
  public:
   constexpr Application(const Perimortem::System::Args::Values& arguments)

@@ -24,6 +24,10 @@ namespace Tetrodotoxin::Language {
 // across every Workspace that borrows the Toolchain. Each source Cursor lends
 // the Arena where that interpretation creates its Monograph and semantic
 // identities.
+//
+// Cursor supplies an already classified Code stream. The frontend that produces
+// that stream owns tokenization, preprocessing, and macro policy, so a Dialect
+// can focus on the meaning of the source form it recognizes.
 class Dialect : public Ttx::Concept::Abstract {
  public:
   TTX_CONTRACT(Dialect, Ttx::Concept::Abstract);
@@ -50,8 +54,7 @@ class Dialect : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<Dialect>>
           installed,
       Ttx::Lexical::Cursor& cursor,
-      Ttx::Concept::Abstract& context)
-      -> Perimortem::Core::Option<Monograph&>;
+      Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
 
   // A persistent Dialect chooses the durable facts that can rebuild its own
   // Monograph. An engaged empty value is a valid empty payload, while absence

@@ -49,8 +49,8 @@ static auto select_vector(
 }
 
 PERIMORTEM_UNIT_TEST(StandardMathPackage, vector_layouts) {
-  auto product = File::read(
-      ".bin/bin/packages/ttx/Perimortem.Math/1.0/interface.txa"_view);
+  auto product =
+      File::read(".bin/bin/packages/ttx/Perimortem.Math/1.0/contract.txa"_view);
   ASSERT(product);
   Allocator::Arena archive_arena;
   auto archive = decode(archive_arena, *product);

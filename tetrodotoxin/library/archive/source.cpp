@@ -54,7 +54,7 @@ auto Archive::write(Writer& writer, const Language::Types::Source& source)
   BAIL_IF(foreign.is_authored() && !Archive::write(writer, foreign));
 
   Bool public_only = writer.get_profile() ==
-                     Tetrodotoxin::Language::Persistence::Profile::Interface;
+                     Tetrodotoxin::Language::Persistence::Profile::Contract;
   return write_declarations(writer, source, public_only) &&
          writer.finish(record);
 }

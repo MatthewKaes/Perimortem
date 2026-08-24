@@ -12,19 +12,20 @@ producer one agreement without making a particular instruction engine the
 source of representation truth.
 
 The [LLVM Terminal](llvm/README.md) consumes that ABI and lowers Library
-execution into LLVM modules and CPU objects. A future SPIR-V Terminal can walk
-Shader, Render, and their hosted Library graph in parallel. Both start from the
-same completed meaning while producing deliberately different outputs.
+execution into LLVM modules and CPU objects. The
+[SPIR-V Terminal](spirv/README.md) begins from the Library execution graph hosted
+by Shader, then follows its exact Render contract and Bridge relationships. Both paths
+start from completed meaning while producing deliberately different outputs.
 
 ```text
 Dialect and Workspace meaning
-              |
-              v
-      Terminal::Abi
-       /          \
-      v            v
- C and C++       Terminal::Llvm
- interfaces       CPU objects
+       /                 \
+      v                   v
+Terminal::Abi       Terminal::Spirv
+      |               GPU modules
+      v
+Terminal::Llvm
+  CPU objects
 ```
 
 Archive writers, formatters, and Linker remain with their natural owners. They

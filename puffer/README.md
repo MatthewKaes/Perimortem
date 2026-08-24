@@ -99,7 +99,7 @@ When the Workspace is ready, Puffer coordinates the requested products:
 * The LLVM Terminal consumes that agreement and compiles Library meaning into
   CPU code.
 * Shader produces SPIR-V for the GPU.
-* Package produces a Complete or Interface Archive.
+* Package produces a Complete or Contract Archive.
 * The build toolchain combines native member products into libraries and
   platform executables.
 
@@ -152,9 +152,9 @@ the generic Perimortem retain and release entries for a host that keeps a result
 
 ### Package and application requests
 
-A Package request imports every dependency through its Interface Archive,
+A Package request imports every dependency through its Contract Archive,
 imports the root source Package once, and compiles each declared member into an
-independent native object. It emits the root Complete and Interface Archives,
+independent native object. It emits the root Complete and Contract Archives,
 one raw C header, one native ABI Manifest, and the member products declared by
 the build action. A Package that publishes a C++ API also emits the configured
 canonical header and its forwarding implementation. The build supplies manifest
@@ -164,7 +164,7 @@ products without lowering a copied
 semantic graph.
 
 An application request is source free. It restores the root Complete Archive
-and dependency Interface Archives, selects the App policy retained by the
+and dependency Contract Archives, selects the App policy retained by the
 requested member, and emits a small native entry object. The build toolchain
 then links that entry with the Package and runtime native products.
 

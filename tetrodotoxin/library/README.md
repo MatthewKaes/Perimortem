@@ -1,14 +1,15 @@
 # Library
 
-Library is the familiar CPU language inside a larger Tetrodotoxin project. It
-is where reusable code, data structures, algorithms, native interfaces, and the
-behavior hosted by Apps or Scenes come together.
+Library is the reusable execution language inside a larger Tetrodotoxin
+project. It is where code, data structures, algorithms, native interfaces, and
+the behavior hosted by Apps, Scenes, or Shaders come together.
 
 You can write scalar expressions, Functions, Structs, shared Objects,
 Enumerations, and Generic containers without leaving the semantic world used by
 the rest of the platform. A Package refers to the real Library Type, the editor
-navigates to it, and the LLVM Terminal compiles it. There is no translated
-Library shaped IR between those experiences.
+navigates to it, and an LLVM or SPIR V Terminal can consume it from the context
+that owns its execution. There is no translated Library shaped IR between those
+experiences.
 
 Library keeps its own rules for values, access, receivers, construction, and
 Generic materialization. It shares exact identities, Layouts, Packs,
@@ -617,22 +618,24 @@ source, host, or parent edge.
 
 ### Embedded Library layers
 
-A top level Library source is already a Library layer. Scene and Shader can also
-contain a Library child built by the same Library language installed in the
-Workspace. Reusing that language keeps Generic Types such as `Option[T]`,
-`Fixed[T, count]`, and `View[T]` consistent everywhere they appear.
+A top level Library source is already a Library layer. Scene can also contain a
+Library child because Scene source directly authors Library state and behavior.
+Shader contains a Library child for the same reason: its Stages directly author
+Library Functions, expressions, Blocks, and Flow. Reusing the installed language
+keeps Generic Types such as `Option[T]`, `Fixed[T, count]`, and `View[T]`
+consistent everywhere they appear.
 
-The child has its own Source context for imports, Foreign declarations, and
-Package access. A Scene places its Object, state Fields, helpers, and lifecycle
-Functions there. A Shader uses its child for CPU helpers and marshaling. Only
-the outer Scene or Shader appears as a Package member, but Library tools can
-inspect the real child directly. Nothing is copied into a second Type or member
-list.
+Each child has its own Source context and intrinsic vocabulary. Scene places its
+Object, state Fields, helpers, and lifecycle Functions there. Shader places its
+executable Program Types and Stage Functions there. Only the outer Dialect
+appears as a Package member, while Library tools and Terminals can inspect the
+real child directly. Shader Bridges retain exact Library Type edges without
+copying them.
 
 Scene and Shader remain responsible for the parts of their languages that are
-not Library code. For example, Scene owns `emit` while the expressions and
-ordinary statements around it still follow Library rules. This lets the Library
-compiler handle the CPU code without making Library depend on Scene or Shader.
+not Library code. Scene owns `emit`, while Shader owns Render contracts, storage
+roles, and Bridges. Expressions and ordinary statements still follow Library
+rules without making Library depend on either outer Dialect.
 
 ## Definitions
 
@@ -1238,7 +1241,7 @@ bytes.
 Library can be stored in a Package Archive and reconstructed without its source
 file. A Complete payload keeps its public and private Types, Fields, Function
 signatures, folded constants, Foreign declarations, Attributes, and native
-artifact locations. An Interface payload keeps the public closure of those
+artifact locations. A Contract payload keeps the public closure of those
 facts. Neither retains Function bodies, expressions, control flow, or access
 operations.
 
@@ -1262,7 +1265,7 @@ same rules used for source. The result preserves all names, categories,
 relationships, ordering, Layout behavior, and other visible facts promised by
 the selected profile. Its in memory arrangement does not need to match the old
 process. A Library child inside Scene or Shader uses the same Complete or
-Interface profile as its parent.
+Contract profile as its parent.
 
 ## Compilation boundary
 
@@ -1277,11 +1280,9 @@ facts may use original Abstract identities as request local keys, but they never
 become another semantic model and never flow back into Library.
 
 The LLVM Terminal currently produces CPU objects and reviewable LLVM IR from a
-top level Library or a Library child selected by another Dialect. Shader can
-host the same Library execution graph while a SPIR-V Terminal interprets it for
-GPU execution alongside Shader and Render meaning. Reusing the graph keeps one
-Library language instead of asking each host Dialect to reinvent functions,
-blocks, expressions, or value flow.
+top level Library or a real Library child selected by another Dialect. The
+SPIR V Terminal walks the same Library execution graph from Shader while using
+the outer Render contracts, storage roles, and Bridges to choose GPU operations.
 
 The ABI Terminal owns the shared C representation, exported symbols, and native
 publication surface. LLVM consumes that agreement while owning instruction

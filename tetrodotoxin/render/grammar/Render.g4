@@ -18,7 +18,7 @@ renderSource
     ;
 
 documentedRenderDeclaration
-    : documentation? attribute* renderDeclaration
+    : definition renderDeclaration
     ;
 
 renderDeclaration
@@ -30,20 +30,19 @@ renderDeclaration
     ;
 
 renderAliasDeclaration
-    : visibility typeName DEFINE ALIAS ASSIGN typeReference END_STATEMENT
+    : ALIAS ASSIGN typeReference END_STATEMENT
     ;
 
 renderValueDeclaration
-    : visibility (CONST | PUSH)? addressableName DEFINE typeReference
-      END_STATEMENT
+    : typeReference END_STATEMENT
     ;
 
 renderResourceDeclaration
-    : visibility RESOURCE addressableName DEFINE typeReference END_STATEMENT
+    : (PUSH | RESOURCE) typeReference END_STATEMENT
     ;
 
 renderStageDeclaration
-    : visibility STAGE typeName renderStageSignature END_STATEMENT
+    : STAGE renderStageSignature END_STATEMENT
     ;
 
 renderStageSignature
@@ -75,6 +74,6 @@ renderNamedLayoutSlot
     ;
 
 renderStructureDeclaration
-    : visibility typeName DEFINE STRUCT SCOPE_START
+    : STRUCT SCOPE_START
       documentedRenderDeclaration* SCOPE_END
     ;

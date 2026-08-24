@@ -332,8 +332,8 @@ PERIMORTEM_UNIT_TEST(LlvmTests, debug_products) {
   EXPECT(
       Algorithm::search(
           first_products->get_llvm_ir(),
-          "define void @llvm_large(ptr noalias sret(%ttx.struct.Large)"_view) !=
-      Count(-1));
+          "define void @TTX_FUNC_large_static(ptr noalias "
+          "sret(%ttx.struct.Large)"_view) != Count(-1));
   EXPECT(
       Algorithm::search(first_header, "TTX_FUNC_small_static"_view) !=
       Count(-1));
@@ -349,7 +349,8 @@ PERIMORTEM_UNIT_TEST(LlvmTests, debug_products) {
           "typedef struct ttx_llvmtest_View_5bU64_5d {\n"
           "  const uint64_t *data;\n"_view) != Count(-1));
   EXPECT(
-      Algorithm::search(first_header, "uint64_t llvm_bytes_api(void);"_view) !=
+      Algorithm::search(
+          first_header, "uint64_t TTX_FUNC_bytes_5fapi_static(void);"_view) !=
       Count(-1));
   EXPECT(
       Algorithm::search(

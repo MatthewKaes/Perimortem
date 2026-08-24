@@ -542,14 +542,13 @@ PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
 
   Dynamic::Bytes header_flags(golden());
   set_u16(header_flags, 6, 1);
-  Allocator::Arena interface_arena;
-  auto interface =
-      Package::Archive::Reader::read(interface_arena, header_flags);
-  auto interface_archive = selected_archive(interface);
-  ASSERT(interface_archive);
+  Allocator::Arena contract_arena;
+  auto contract = Package::Archive::Reader::read(contract_arena, header_flags);
+  auto contract_archive = selected_archive(contract);
+  ASSERT(contract_archive);
   EXPECT(
-      interface_archive->get_profile() ==
-      Language::Persistence::Profile::Interface);
+      contract_archive->get_profile() ==
+      Language::Persistence::Profile::Contract);
 
   Dynamic::Bytes unknown_header_flags(golden());
   set_u16(unknown_header_flags, 6, 2);

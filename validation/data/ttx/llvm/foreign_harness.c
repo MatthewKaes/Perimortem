@@ -14,11 +14,11 @@ uint64_t library_foreign_add(uint64_t left, uint64_t right) {
 }
 
 int run_foreign_integration(void) {
-  const uint64_t first = library_native();
-  const uint64_t second = library_native();
+  const uint64_t first = TTX_FUNC_library_5fnative_static();
+  const uint64_t second = TTX_FUNC_library_5fnative_static();
   return first == UINT64_C(22) && second == UINT64_C(42) &&
                  library_foreign_state == UINT64_C(40) &&
-                 library_cross_artifact() == UINT64_C(15)
+                 TTX_FUNC_cross_5fartifact_static() == UINT64_C(15)
              ? 0
              : 1;
 }

@@ -692,7 +692,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   }
   Tetrodotoxin::Language::Persistence::Profile profile =
       (header_flags & interface_profile) != 0
-          ? Tetrodotoxin::Language::Persistence::Profile::Interface
+          ? Tetrodotoxin::Language::Persistence::Profile::Contract
           : Tetrodotoxin::Language::Persistence::Profile::Complete;
 
   // Require the declared body to consume every remaining input byte. Every

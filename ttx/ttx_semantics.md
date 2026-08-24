@@ -38,15 +38,17 @@ and span size. `Terminal` is `0x00` and `Unknown` is `0xFF`.
 Every other Code is interpreted by the exact Lexer and Lexicon contract that
 emitted it.
 
-The Tokenizer appends one zero length Terminal at the end of the source. Its
-offset equals the source byte count. A Cursor can observe a signed relative
-position without moving. Observation outside the stream returns an empty
-Terminal.
+The TTX Tokenizer appends one zero length Terminal at the end of the source. Its
+offset equals the source byte count. Another frontend may produce its own Code
+stream, including facts established by preprocessing, before constructing the
+same Cursor contract. A Cursor can observe a signed relative position without
+moving. Observation outside the stream returns an empty Terminal.
 
-A Cursor is the one mutable position over the immutable Token stream. Grammar
-dispatch proves the selected production before its parser consumes that Cursor.
-a rejected production retains its diagnostics and the source transaction owns
-discarding any candidate semantic state.
+A Cursor is the one mutable position over the immutable Token stream. It owns no
+tokenization or macro policy. Grammar dispatch proves the selected production
+before its parser consumes that Cursor. A rejected production retains its
+diagnostics and the source transaction owns discarding any candidate semantic
+state.
 
 A source transaction constructs one `Associations` index and supplies it to the
 Cursor. A consumer records an authored Anchor with the exact semantic identity
@@ -119,8 +121,8 @@ The closed identity categories are:
 * `Pack` provides produced value flow and one total output Layout.
 * `Callable` provides complete parameter and result Layouts.
 
-`Documentation`, `Layout`, and `Reference` are supporting contracts and values
-that carry no semantic identity.
+`Documentation`, `Layout`, `Interface`, and `Reference` are supporting contracts
+and values that carry no semantic identity.
 
 These categories are an interchange vocabulary rather than a complete type
 system. Concrete languages define their Type inventory, access policy,
@@ -338,6 +340,29 @@ identity.
 An empty Layout has size zero. It fits another empty Layout and describes no
 stable value or address, regardless of which concrete Type or Pack exposes it.
 
+## Interface
+
+Pack and Layout describe value flow. A Pack preserves its producer, while its
+Layout projects that flow into the shape a consumer may receive. This
+projection deliberately omits behavior and richer domain meaning.
+
+Interface negotiates the semantic relation that remains after that projection.
+It receives two real Abstracts, treats the first as the requirement and the
+second as the candidate, and returns `Rejected`, `Satisfied`, or `Equivalent`.
+Satisfied is directional. Equivalent is reserved for a relation proved in both
+directions by the concrete negotiator.
+
+An Interface may use Layout fitting and shared category proof as evidence, but
+matching Layouts alone never imply semantic equivalence. A Callable Interface
+can compare parameter and result flow while a richer owner also checks behavior
+or policy. Another Interface may negotiate resources, lifecycle roles, or a
+domain that carries no value flow.
+
+Interface carries no semantic identity and retains no copied inventory of the
+Abstracts it compares. It creates no Alias, wrapper, common Type, or dependency
+between their Dialects. The concrete owner selects the negotiator appropriate
+to its semantic question.
+
 ## Documentation
 
 Documentation carries no semantic identity. It presents an ordered view of
@@ -449,25 +474,28 @@ offsets, or treat a Terminal Type as the original semantic Type.
    one such Type, and Callable supplies complete parameter and result Layouts.
 10. Pack preserves produced value flow identity and exposes one complete output
     Layout without acquiring Type identity.
-11. Type, Pack, Addressable, Callable, and Layout remain independent contracts.
-    TTX defines no universal member model over them.
+11. Type, Pack, Addressable, Callable, Layout, and Interface remain independent
+    contracts. TTX defines no universal member model over them.
 12. Layout owns promised shape, order, and directional fitting, not produced
     value identity or copied semantic or physical
     records.
-13. Every completed concrete Type admitted to ordinary value flow has one
+13. Interface negotiates a semantic relation over real Abstracts without
+    creating identity, copying either graph, or making equal Layouts imply
+    equal meaning.
+14. Every completed concrete Type admitted to ordinary value flow has one
     language owned semantic default. TTX neither derives it from target bits
     nor makes it a shared identity or Type query.
-14. Concrete language, package, target, runtime, and diagnostic policy remain
+15. Concrete language, package, target, runtime, and diagnostic policy remain
     outside TTX.
-15. Reference preserves one exact borrowed object and never resolves or
+16. Reference preserves one exact borrowed object and never resolves or
     canonicalizes it implicitly.
-16. A Reference is valid only within the lifetime guaranteed by its graph
+17. A Reference is valid only within the lifetime guaranteed by its graph
     owner and never crosses a Terminal boundary.
-17. A Terminal product is outside the semantic graph and belongs to no TTX
+18. A Terminal product is outside the semantic graph and belongs to no TTX
     identity category.
-18. Target facts specific to a Terminal never flow backward into the graph as
+19. Target facts specific to a Terminal never flow backward into the graph as
     semantic authority.
-19. Reconstruction without source creates a new live graph through its graph
+20. Reconstruction without source creates a new live graph through its graph
     owner and never restores process addresses.
-20. A reconstructed graph is published only after the graph owner's complete
+21. A reconstructed graph is published only after the graph owner's complete
     validation, completion, and publication contract succeeds.

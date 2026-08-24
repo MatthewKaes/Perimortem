@@ -7,28 +7,21 @@
 
 namespace Ttx::Concept {
 
-// Documentation preserves text form in presentation order. It is a borrowed
-// first class concept, not an Abstract or semantic identity. Abstracts expose
-// this contract directly as treating documentation as a universal query saves
-// a ton of headache down the road compared to models that treat documentation
-// as an optional chunk of metadata.
+// Documentation is the presentation contract shared by every Abstract without
+// becoming another graph identity. Making the query total lets an editor,
+// formatter, or Archive ask the real semantic object for its prose without an
+// optional metadata table beside the graph.
 //
-// Documentation allows for wrapping and interception. Alias for instance
-// either forward their target's documentation directly or use a `Merged` node
-// to wrap their local documentation on the target's documentation. This creates
-// a direct way for layering and enriching documentation context just like any
-// other system inside of TTX.
+// Implementations can borrow authored lines, generate stable prose, or compose
+// several sources. Alias can therefore place local explanation before the
+// target documentation while both semantic identities remain unchanged. Empty
+// Documentation means that no prose is available rather than that a semantic
+// query failed.
 //
-// Implementations may own source authored lines, generate a stable comment, or
-// combine documentation from several Abstracts. They must keep every borrowed
-// line alive for as long as this object is queryable. Missing documentation is
-// empty and does not resolve to to an Invalid since presentation is optional
-// rather than a failed semantic query.
-//
-// Formaters and Serializers should be cautious when querying documentation and
-// should not assume that all documentation follows a naive schema and should
-// instead treat it as a proper contractual heirarchy to avoid needless amounts
-// of duplication.
+// Each returned line follows the lifetime of this object. Consumers preserve
+// the ordered contract instead of assuming that every implementation is one
+// flat source comment, which keeps layering and reconstruction available to the
+// owners that need them.
 class Documentation {
  public:
   constexpr virtual ~Documentation() = default;

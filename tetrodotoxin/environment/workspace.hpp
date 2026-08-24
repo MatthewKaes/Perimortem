@@ -24,9 +24,15 @@
 
 namespace Tetrodotoxin::Environment {
 
-// A Workspace gathers every Monograph that can refer to one another. It keeps
-// incomplete source transactions available to tooling while completed islands
-// remain the only inputs admitted to Terminal production.
+// A Workspace is the lifetime of one connected semantic island. It retains the
+// source transaction behind each Monograph so graph references can cross files
+// and Dialects without copying identities into a global registry.
+//
+// Incomplete transactions keep their strongest available Tokens,
+// Associations, diagnostics, and semantic edges for editor tooling. Linking
+// and finalization decide when the entire island is complete enough for a
+// Terminal producer. A later editor snapshot can release this Workspace as one
+// lifetime and recompute dependents against the replacement source identities.
 class Workspace : public Ttx::Concept::Abstract {
  public:
   class AuthoredLocation {

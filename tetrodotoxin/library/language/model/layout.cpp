@@ -295,6 +295,13 @@ auto Language::Model::Layout::resolve_named(View::Bytes route) const
   return Invalid::get_invalid();
 }
 
+auto Language::Model::Layout::get_slot_attributes(Count index) const
+    -> View::Vector<Tetrodotoxin::Language::Attribute> {
+  return index < slots.get_size()
+             ? slots.at(index).get_attributes()
+             : View::Vector<Tetrodotoxin::Language::Attribute>();
+}
+
 auto Language::Model::Layout::validate_publication(
     Ttx::Lexical::Cursor& cursor,
     const Abstract& host) const -> Bool {

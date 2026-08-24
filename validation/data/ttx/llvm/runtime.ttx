@@ -25,7 +25,6 @@ private const present : Maybe = 5;
 private object_static : Option[Counter] = new[Counter](.value = 2);
 private dynamic       : Maybe = OptionOps -> lift(0);
 
-@abi("C") @symbol("llvm_access_write")
 public access_write : func = [.offset : U64] -> U64 {
   state selected : Access[U64] = DenseAccess -> acquire();
   selected[1]     = 20;
@@ -35,13 +34,11 @@ public access_write : func = [.offset : U64] -> U64 {
   return selected:[0] + selected:[1] + selected:[2] + selected:[3];
 }
 
-@abi("C") @symbol("llvm_bool_propagation")
 public bool_propagation : func = [.value : Bool] -> Maybe {
   value?;
   return 31;
 }
 
-@abi("C") @symbol("llvm_borrow_iteration")
 public borrow_iteration : func = [] -> U64 {
   const prefix      : View[U8]       = "Echo: " -> get_view();
   const prefix_tail : View[U8]       = prefix -> slice(2, 99);
@@ -77,7 +74,6 @@ public borrow_iteration : func = [] -> U64 {
   return total;
 }
 
-@abi("C") @symbol("llvm_bytes_api")
 public bytes_api : func = [] -> U64 {
   const a     : U8 = 0x[41]:[0];
   const b     : U8 = 0x[42]:[0];
@@ -144,7 +140,6 @@ public bytes_api : func = [] -> U64 {
   return 777;
 }
 
-@abi("C") @symbol("llvm_bytes_concat_size")
 public bytes_concat_size : func = [] -> U64 {
   const left   : View[U8] = "Hi" -> get_view();
   const right  : View[U8] = "!" -> get_view();
@@ -154,7 +149,6 @@ public bytes_concat_size : func = [] -> U64 {
   return view -> get_size() + tail -> get_size();
 }
 
-@abi("C") @symbol("llvm_enumeration_iteration")
 public enumeration_iteration : func = [] -> U64 {
   const size  : U64 = Mode.size;
   state total : U64 = size;
@@ -168,7 +162,7 @@ public enumeration_iteration : func = [] -> U64 {
 }
 
 // Test documentation string for function
-@abi("C") @symbol("llvm_nonobject") @backend_note("opaque")
+@backend_note("opaque")
 public execute : func = [] -> U64 {
   state pair_value : Pair = (.left = 2, .right = 3);
 
@@ -217,16 +211,15 @@ public execute : func = [] -> U64 {
   return total;
 }
 
-@abi("C") @symbol("llvm_large")
 public large : func = [] -> Large : return LargeOps -> create();
+
+// Foreign declares this exact provider name in another compiled product.
 @abi("C") @symbol("llvm_large_sum")
 public large_sum : func = [
   .value : Large,
 ] -> U64 : return value.first + value.second + value.third;
-@abi("C") @symbol("llvm_object_add")
 public object_add : func = [.value : Counter, .amount : U64] -> U64 : return value ->
     add(amount);
-@abi("C") @symbol("llvm_object_behavior")
 public object_behavior : func = [] -> U64 {
   state original  := new[Counter](.value = 4);
   state shared    : Counter = ObjectOps -> forward(original);
@@ -272,26 +265,21 @@ public object_behavior : func = [] -> U64 {
       selected_pair -> sum() + selected_fixed:[1] + defaulted_value + distinct_defaults;
 }
 
-@abi("C") @symbol("llvm_object_create")
 public object_create : func = [] -> Counter {
   state created := new[Counter](.value = 7);
   return created;
 }
 
-@abi("C") @symbol("llvm_object_read")
 public object_read : func = [.value : Counter] -> U64 : return value.value;
-@abi("C") @symbol("llvm_object_results")
 public object_results : func = [.value : Counter] -> [
   .optional : Option[Counter],
   .count : U64,
 ] : return (.count = value.value, .optional = value);
-@abi("C") @symbol("llvm_object_static_value")
 public object_static_value : func = [] -> U64 {
   state selected : Counter = object_static!;
   return selected.value;
 }
 
-@abi("C") @symbol("llvm_object_storage")
 public object_storage : func = [] -> U64 {
   state values : Object[U64];
   state access := values -> reserve(3);
@@ -305,43 +293,33 @@ public object_storage : func = [] -> U64 {
   return values -> get_view():[0] + copy -> get_view():[0];
 }
 
-@abi("C") @symbol("llvm_pair")
 public pair : func = [] -> Pair : return (.left = 9, .right = 4);
-@abi("C") @symbol("llvm_result_error")
 public result_error : func = [.value : Outcome] -> Bool {
   state selected := value?;
   selected;
   return false;
 }
 
-@abi("C") @symbol("llvm_result_error_object_propagation")
 public result_error_object_propagation : func = [
   .value : ObjectError,
 ] -> ObjectError : return value?;
-@abi("C") @symbol("llvm_result_object")
 public result_object : func = [.value : Counter, .failed : Bool] -> ObjectOutcome {
   if failed : return failed;
 
   return value;
 }
 
-@abi("C") @symbol("llvm_result_object_propagation")
 public result_object_propagation : func = [
   .value : ObjectOutcome,
 ] -> ObjectOutcome : return value?;
-@abi("C") @symbol("llvm_result_propagation")
 public result_propagation : func = [.value : Outcome] -> Outcome : return value?;
-@abi("C") @symbol("llvm_result_wide_propagation")
 public result_wide_propagation : func = [.value : WideOutcome] -> WideOutcome : return value?;
-@abi("C") @symbol("llvm_results")
 public results : func = [] -> [.left : U64, .active : Bool] : return (.active = true, .left =
     7);
 
 // One exported bridge starts the TTX-to-TTX runtime integration. Everything
 // after entry selection is expressed by Library calls and value flow.
-@abi("C") @symbol("ttx_runtime")
 public runtime : func = [] -> [] : RuntimeIntegration -> run();
-@abi("C")
 public small : func = [.value : U8, .active : Bool] -> U8 : return value;
 
 private executable_acceptance : func = [.flag : Bool, .limit : U64] -> U64 {
@@ -517,6 +495,8 @@ private ObjectOps : struct {
 }
 
 private OptionOps : struct {
+  // The private host keeps this Callable out of automatic publication. Its
+  // explicit request exercises the deliberate native embedding path.
   @abi("C") @symbol("llvm_option")
   public forward : func = [.value : Maybe] -> Maybe : return value?;
   public lift : func = [.value : U64] -> Maybe : return value;

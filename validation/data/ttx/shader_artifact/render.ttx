@@ -3,5 +3,5 @@
 dialect : Render;
 
 public Simple : struct {
-  public stage Fragment[@location(0).color : Math::Vec4D] -> [@location(0).color : Math::Vec4D];
+  public fragment : stage [@location(0).color : Math::Vec4D] -> [@location(0).color : Math::Vec4D];
 }

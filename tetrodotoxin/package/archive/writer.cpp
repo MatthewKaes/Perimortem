@@ -189,7 +189,7 @@ auto Package::Archive::Writer::write(const Archive& archive)
   writer << U16(2);
   writer << U16(
       archive.get_profile() ==
-              Tetrodotoxin::Language::Persistence::Profile::Interface
+              Tetrodotoxin::Language::Persistence::Profile::Contract
           ? interface_profile
           : 0);
   writer << sizes.body;

@@ -46,6 +46,13 @@ and decides what kind of declaration it creates. Definition records how that
 object was introduced, but it is not a second declaration object or a universal
 syntax tree node.
 
+Descriptor Layouts share a second small grammar block. Language reads optional
+brackets, commas, Attributes, and `.name :` prefixes, then lends each entry to
+the active Dialect. Library can create parameter and result edges with Generic
+Type routes, while Render can create contract slots with simpler Type routes.
+The punctuation is shared without turning either semantic Layout into the
+other.
+
 Every Definition also remembers the language object that hosts it. The host
 records where the declaration was admitted and which private access it may use.
 It is not a universal parent link. Authored Definitions gain their source Anchor
@@ -124,10 +131,11 @@ Perimortem Diagnostics instead of manufacturing a source Cursor.
 
 ## Dialect dependencies
 
-Some languages build on the work of another language. Scene uses Library for
-its CPU state and functions. Shader uses Library for CPU helpers and Render for
-GPU data. The Workspace creates these dependencies once and gives each language
-the same shared instance.
+Some languages build on the work of another language. Scene authors Library
+state and functions in one owned child. Shader also owns a Library child for its
+executable Program and Stage meaning, while selecting Render contracts through
+its Workspace context. In both cases, Toolchain installs each dependency once
+and every source observes the same Dialect identity.
 
 Dependencies only point from a higher level language to a lower level one.
 Library does not depend on Scene or Shader. Render does not depend on Shader,
@@ -174,15 +182,16 @@ package members, entry policy, or another semantic context. Its role is the
 retained root of one source, not a promise that every language has the same
 shape.
 
-A Monograph may contain a small, fixed set of child layers built by its language
-dependencies. A Scene contains one Library layer. A Shader contains one Library
-layer and one Render layer. Tools can ask the outer Monograph for a layer by
-using the same Dialect instance installed in the borrowed Toolchain.
+A Monograph may contain a small, fixed set of child layers when the outer source
+actually authors meaning owned by that child. A Scene contains one Library
+layer. Shader also contains one Library layer because its Stage bodies directly
+author Library execution meaning. The selected Render contract remains a
+neighboring Workspace identity rather than a child.
 
 This lookup is intentionally narrow. It does not search by name, follow Aliases,
 or create a wrapper around the child. A top level Monograph answers with itself.
-A Scene answers with its Library child. A Shader answers with its Library or
-Render child. Any other request has no result.
+Scene and Shader answer with their real Library child. Any other request has no
+result.
 
 The Package table borrows only each outer member Monograph. Workspace owns those
 member handles and moves them through linking and finalization with their exact

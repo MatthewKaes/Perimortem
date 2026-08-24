@@ -26,7 +26,7 @@ _Static_assert(
     offsetof(ttx_runtime_Large, third) == 16,
     "Large.third offset changed");
 _Static_assert(
-    sizeof(ttx_results_llvm_5fresults) == 16,
+    sizeof(ttx_results_TTX_5fFUNC_5fresults_5fstatic) == 16,
     "multiple results must use their named carrier");
 _Static_assert(
     sizeof(ttx_runtime_Option_5bU64_5d) == 16,
@@ -41,8 +41,7 @@ _Static_assert(
     sizeof(ttx_runtime_Result_5bU64_2c_20Bool_5d) == 16,
     "Result must store one inline alternative and selected state");
 _Static_assert(
-    offsetof(
-        ttx_runtime_Result_5bU64_2c_20Bool_5d, value_selected) == 8,
+    offsetof(ttx_runtime_Result_5bU64_2c_20Bool_5d, value_selected) == 8,
     "Result selected state offset changed");
 _Static_assert(
     sizeof(ttx_runtime_Result_5bCounter_2c_20Bool_5d) == 16,
@@ -96,71 +95,73 @@ uint64_t llvm_object_identity(ttx_runtime_Object_5bU8_5d value) {
 }
 
 int run_runtime_integration(void) {
-  ttx_runtime();
-  const uint64_t object_static_value = llvm_object_static_value();
-  const uint64_t object_behavior = llvm_object_behavior();
-  const ttx_runtime_Pair pair = llvm_pair();
-  const ttx_runtime_Large large = llvm_large();
-  const ttx_results_llvm_5fresults results = llvm_results();
-  const ttx_runtime_Option_5bU64_5d absent = llvm_option(
-      (ttx_runtime_Option_5bU64_5d){
+  TTX_FUNC_runtime_static();
+  const uint64_t object_static_value =
+      TTX_FUNC_object_5fstatic_5fvalue_static();
+  const uint64_t object_behavior = TTX_FUNC_object_5fbehavior_static();
+  const ttx_runtime_Pair pair = TTX_FUNC_pair_static();
+  const ttx_runtime_Large large = TTX_FUNC_large_static();
+  const ttx_results_TTX_5fFUNC_5fresults_5fstatic results =
+      TTX_FUNC_results_static();
+  const ttx_runtime_Option_5bU64_5d absent =
+      llvm_option((ttx_runtime_Option_5bU64_5d){
         .value = UINT64_MAX,
         .set = false,
       });
-  const ttx_runtime_Option_5bU64_5d present = llvm_option(
-      (ttx_runtime_Option_5bU64_5d){
+  const ttx_runtime_Option_5bU64_5d present =
+      llvm_option((ttx_runtime_Option_5bU64_5d){
         .value = UINT64_C(37),
         .set = true,
       });
   const ttx_runtime_Option_5bU64_5d stopped =
-      llvm_bool_propagation(false);
+      TTX_FUNC_bool_5fpropagation_static(false);
   const ttx_runtime_Option_5bU64_5d continued =
-      llvm_bool_propagation(true);
+      TTX_FUNC_bool_5fpropagation_static(true);
   const ttx_runtime_Result_5bU64_2c_20Bool_5d result_value =
-      llvm_result_propagation(
+      TTX_FUNC_result_5fpropagation_static(
           (ttx_runtime_Result_5bU64_2c_20Bool_5d){
-        .value = UINT64_C(41),
-        .value_selected = true,
-      });
+            .value = UINT64_C(41),
+            .value_selected = true,
+          });
   const ttx_runtime_Result_5bU64_2c_20Bool_5d result_error =
-      llvm_result_propagation(
+      TTX_FUNC_result_5fpropagation_static(
           (ttx_runtime_Result_5bU64_2c_20Bool_5d){
-        .error = true,
-        .value_selected = false,
-      });
+            .error = true,
+            .value_selected = false,
+          });
   const ttx_runtime_Result_5bBool_2c_20Large_5d wide_error =
-      llvm_result_wide_propagation(
+      TTX_FUNC_result_5fwide_5fpropagation_static(
           (ttx_runtime_Result_5bBool_2c_20Large_5d){
-        .error =
-            {
-              .first = UINT64_C(4),
-              .second = UINT64_C(5),
-              .third = UINT64_C(6),
-            },
-        .value_selected = false,
-      });
-  const uint64_t access_total = llvm_access_write(0);
-  ttx_runtime_Counter object = llvm_object_create();
+            .error =
+                {
+                  .first = UINT64_C(4),
+                  .second = UINT64_C(5),
+                  .third = UINT64_C(6),
+                },
+            .value_selected = false,
+          });
+  const uint64_t access_total = TTX_FUNC_access_5fwrite_static(0);
+  ttx_runtime_Counter object = TTX_FUNC_object_5fcreate_static();
   if (object == NULL) {
     return 1;
   }
-  const uint64_t initial_object = llvm_object_read(object);
+  const uint64_t initial_object = TTX_FUNC_object_5fread_static(object);
   const ttx_runtime_Result_5bCounter_2c_20Bool_5d object_value =
-      llvm_result_object(object, false);
+      TTX_FUNC_result_5fobject_static(object, false);
   const ttx_runtime_Result_5bCounter_2c_20Bool_5d object_error =
-      llvm_result_object(object, true);
+      TTX_FUNC_result_5fobject_static(object, true);
   const ttx_runtime_Result_5bCounter_2c_20Bool_5d propagated_object =
-      llvm_result_object_propagation(
+      TTX_FUNC_result_5fobject_5fpropagation_static(
           (ttx_runtime_Result_5bCounter_2c_20Bool_5d){
-        .value = object,
-        .value_selected = true,
-      });
+            .value = object,
+            .value_selected = true,
+          });
   const ttx_runtime_Result_5bBool_2c_20Counter_5d propagated_object_error =
-      llvm_result_error_object_propagation(
+      TTX_FUNC_result_5ferror_5fobject_5fpropagation_static(
           (ttx_runtime_Result_5bBool_2c_20Counter_5d){
-        .error = object,
-        .value_selected = false,
-      });
+            .error = object,
+            .value_selected = false,
+          });
   const int object_result_valid =
       object_value.value_selected && object_value.value == object &&
       !object_error.value_selected && object_error.error &&
@@ -176,8 +177,8 @@ int run_runtime_integration(void) {
   if (!propagated_object_error.value_selected) {
     perimortem_core_object_release(propagated_object_error.error);
   }
-  const ttx_results_llvm_5fobject_5fresults object_results =
-      llvm_object_results(object);
+  const ttx_results_TTX_5fFUNC_5fobject_5f5fresults_5fstatic object_results =
+      TTX_FUNC_object_5fresults_static(object);
   const int object_results_valid =
       object_results.optional == object && object_results.count == UINT64_C(7);
   if (object_results.optional) {
@@ -185,8 +186,9 @@ int run_runtime_integration(void) {
   }
   perimortem_core_object_retain(object);
   perimortem_core_object_release(object);
-  const uint64_t changed_object = llvm_object_add(object, UINT64_C(5));
-  const uint64_t read_object = llvm_object_read(object);
+  const uint64_t changed_object =
+      TTX_FUNC_object_5fadd_static(object, UINT64_C(5));
+  const uint64_t read_object = TTX_FUNC_object_5fread_static(object);
   perimortem_core_object_release(object);
   if (pair.left != UINT64_C(9) || pair.right != UINT64_C(4) ||
       large.first != UINT64_C(4) || large.second != UINT64_C(5) ||
@@ -200,11 +202,13 @@ int run_runtime_integration(void) {
       wide_error.value_selected || wide_error.error.first != UINT64_C(4) ||
       wide_error.error.second != UINT64_C(5) ||
       wide_error.error.third != UINT64_C(6) ||
-      llvm_result_error(result_value) || !llvm_result_error(result_error) ||
-      llvm_nonobject() != UINT64_C(21) || access_total != UINT64_C(91) ||
-      llvm_bytes_concat_size() != UINT64_C(5) ||
-      llvm_bytes_api() != UINT64_C(777) ||
-      llvm_object_storage() != UINT64_C(18)) {
+      TTX_FUNC_result_5ferror_static(result_value) ||
+      !TTX_FUNC_result_5ferror_static(result_error) ||
+      TTX_FUNC_execute_static() != UINT64_C(21) ||
+      access_total != UINT64_C(91) ||
+      TTX_FUNC_bytes_5fconcat_5fsize_static() != UINT64_C(5) ||
+      TTX_FUNC_bytes_5fapi_static() != UINT64_C(777) ||
+      TTX_FUNC_object_5fstorage_static() != UINT64_C(18)) {
     return 1;
   }
   if (initial_object != UINT64_C(7) || changed_object != UINT64_C(12) ||
@@ -218,13 +222,13 @@ int run_runtime_integration(void) {
   if (object_behavior != UINT64_C(44)) {
     return 4;
   }
-  if (llvm_borrow_iteration() != UINT64_C(197) || printed_count != 1 ||
-      printed_value != UINT64_C(21) || dense_storage[0] != UINT64_C(1) ||
-      dense_storage[1] != UINT64_C(20) || dense_storage[2] != UINT64_C(37) ||
-      dense_storage[3] != UINT64_C(47)) {
+  if (TTX_FUNC_borrow_5fiteration_static() != UINT64_C(197) ||
+      printed_count != 1 || printed_value != UINT64_C(21) ||
+      dense_storage[0] != UINT64_C(1) || dense_storage[1] != UINT64_C(20) ||
+      dense_storage[2] != UINT64_C(37) || dense_storage[3] != UINT64_C(47)) {
     return 5;
   }
-  if (llvm_enumeration_iteration() != UINT64_C(22)) {
+  if (TTX_FUNC_enumeration_5fiteration_static() != UINT64_C(22)) {
     return 6;
   }
   return 0;

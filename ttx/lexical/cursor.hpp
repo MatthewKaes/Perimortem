@@ -14,21 +14,27 @@
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/errors.hpp"
-#include "ttx/lexical/tokenizer.hpp"
+#include "ttx/lexical/stream.hpp"
 
 namespace Ttx::Lexical {
 
-// Cursor gives a grammar one shared position in immutable authored Tokens and
-// carries source Errors and Associations through the same transaction.
-// Deterministic dispatch lets each grammar owner advance it after recognizing
-// the form it owns.
+// Cursor gives a grammar one shared position in an immutable Code stream and
+// carries source Errors and Associations through the same transaction. The
+// stream may come from the TTX Tokenizer or another frontend that assigns its
+// own lexical meanings before interpretation. Cursor traverses that bytecode
+// without owning tokenization, preprocessing, or macro expansion policy.
 class Cursor {
  public:
   constexpr Cursor(
-      const Lexical::Tokenizer& tokenizer,
+      const Lexical::Stream& stream,
       Lexical::Errors& errors,
       Lexical::Associations& associations)
-      : tokenizer(tokenizer), errors(errors), associations(associations) {}
+      : arena(stream.get_arena()),
+        source_text(stream.get_source_text()),
+        source_path(stream.get_source_path()),
+        tokens(stream.get_tokens()),
+        errors(errors),
+        associations(associations) {}
   Cursor(const Cursor&) = delete;
 
   // Nested parsers can report a more precise error before returning. Capturing
@@ -36,17 +42,15 @@ class Cursor {
   // second, less useful diagnostic.
   constexpr auto get_error_count() const -> Count { return errors.get_size(); }
 
-  constexpr auto current() const -> Lexical::Token {
-    return tokenizer.get_tokens()[index];
-  }
+  constexpr auto current() const -> Lexical::Token { return tokens[index]; }
 
   constexpr auto peek(S64 offset) const -> Lexical::Token {
-    return tokenizer.get_tokens()[index + offset];
+    return tokens[index + offset];
   }
 
   constexpr auto consume() -> Lexical::Token {
     Lexical::Token consumed = current();
-    if (index + 1 < tokenizer.get_tokens().get_size()) {
+    if (index + 1 < tokens.get_size()) {
       index++;
     }
 
@@ -128,9 +132,7 @@ class Cursor {
       Lexical::Anchor anchor,
       Perimortem::Core::View::Bytes message,
       Perimortem::Core::View::Bytes hint = {}) const -> void {
-    Errors::Report report(
-        errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
-        anchor);
+    Errors::Report report(errors, source_path, source_text, anchor);
     report << message;
     report.get_hint() << hint;
   }
@@ -148,9 +150,7 @@ class Cursor {
   }
 
   auto create_report(Lexical::Anchor anchor) const -> Errors::Report {
-    return Errors::Report(
-        errors, tokenizer.get_source_path(), tokenizer.get_source_text(),
-        anchor);
+    return Errors::Report(errors, source_path, source_text, anchor);
   }
 
   // Statement recovery stops at the small boundaries every grammar can
@@ -217,20 +217,20 @@ class Cursor {
   }
 
   constexpr auto get_arena() const -> Perimortem::Memory::Allocator::Arena& {
-    return tokenizer.get_arena();
+    return arena;
   }
 
   constexpr auto get_source_text() const -> Perimortem::Core::View::Bytes {
-    return tokenizer.get_source_text();
+    return source_text;
   }
 
   constexpr auto get_source_path() const -> Perimortem::Core::View::Bytes {
-    return tokenizer.get_source_path();
+    return source_path;
   }
 
   constexpr auto get_tokens() const
       -> Perimortem::Core::View::Vector<Lexical::Token> {
-    return tokenizer.get_tokens();
+    return tokens;
   }
 
   // Semantic owners add authored identities while Cursor still has their exact
@@ -241,7 +241,10 @@ class Cursor {
   }
 
  private:
-  const Lexical::Tokenizer& tokenizer;
+  Perimortem::Memory::Allocator::Arena& arena;
+  Perimortem::Core::View::Bytes source_text;
+  Perimortem::Core::View::Bytes source_path;
+  Perimortem::Core::View::Vector<Lexical::Token> tokens;
   Lexical::Errors& errors;
   Lexical::Associations& associations;
   Count index = 0;

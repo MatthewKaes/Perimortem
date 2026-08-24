@@ -170,7 +170,7 @@ bytes.
 
 Scene can be stored in a Package Archive and reconstructed without its source
 file. A Complete payload keeps its public and private Signal, lifecycle,
-render, and Library query contracts. An Interface payload keeps their public
+render, and Library query contracts. A Contract payload keeps their public
 closure and compiled artifact locations. Executable Scene behavior remains in
 the compiled artifacts.
 

@@ -48,9 +48,8 @@ static auto create_config(Memory::Allocator::Arena& arena)
   variables.insert("application"_view, "Compile one App process entry."_view);
   variables.insert("manifest"_view, "Read one Package manifest."_view);
   variables.insert("complete"_view, "Write the Complete Package Archive."_view);
-  variables.insert(
-      "interface"_view, "Write the Interface Package Archive."_view);
-  variables.insert("dep"_view, "Read one dependency Interface Archive."_view);
+  variables.insert("contract"_view, "Write the Contract Package Archive."_view);
+  variables.insert("dep"_view, "Read one dependency Contract Archive."_view);
   variables.insert(
       "dep-abi"_view, "Read one dependency native ABI Manifest."_view);
   variables.insert(

@@ -22,5 +22,5 @@ _Static_assert(
     "Option[Dynamic::Bytes] state offset changed");
 
 int main(void) {
-  return llvm_system_roundtrip() ? 0 : 1;
+  return TTX_FUNC_system_5froundtrip_static() ? 0 : 1;
 }

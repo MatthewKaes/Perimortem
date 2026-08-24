@@ -31,7 +31,7 @@ cc_library(
         "//tetrodotoxin:formatting",
         "//tetrodotoxin:library",
         "//tetrodotoxin:package",
-        "//tetrodotoxin:render",
+        "//tetrodotoxin/render",
         "//tetrodotoxin:scene",
         "//ttx",
     ],

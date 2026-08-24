@@ -10,10 +10,11 @@
 
 namespace Ttx::Lexical {
 
-// A compact representation of a token that is optimized for TTX's format sizes.
-// Can be expanded to 16 bytes if later it turns out we need to support larger
-// text values, but given the TTX formating spec all valid TTX should fix inside
-// these limits.
+// Token is the compact source coordinate carried by one frontend Code. Its byte
+// offset, line, column, and size keep authored evidence beside the
+// classification without borrowing another position table. The eight byte form
+// matches the bounded source transactions supported by the current Cursor
+// contract.
 class Token {
  public:
   Token() = default;

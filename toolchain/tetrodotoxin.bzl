@@ -59,7 +59,7 @@ the in process LLVM Terminal. ABI emits the C interface, LLVM emits the object,
 and Bazel's selected C++ toolchain owns archive creation and publishes the
 resulting CcInfo.
 
-Package dependency semantics travel through Interface Archives. Complete
+Package dependency semantics travel through Contract Archives. Complete
 Archives preserve the root Package, while LLVM IR and native objects remain
 separate target products. The Package manifest owns its semantic Source table;
 the public macro discovers candidate `.ttx` files beneath that manifest and
@@ -81,8 +81,8 @@ TtxPackageInfo = provider(
         "identity": "Exact authored Package identity.",
         "version": "Authored Package [major, minor] version.",
         "complete_archive": "Complete semantic Package Archive.",
-        "interface_archive": "Interface semantic Package Archive.",
-        "transitive_interfaces": "Dependency-first Interface Archive depset.",
+        "contract_archive": "Contract semantic Package Archive.",
+        "transitive_contracts": "Dependency first Contract Archive depset.",
         "abi_manifest": "Native ABI Manifest for the selected artifact.",
         "transitive_abi_manifests": "Dependency-first native ABI Manifest depset.",
         "artifact_id": "Exact native artifact identifier.",
@@ -250,7 +250,7 @@ def _ttx_package_impl(ctx):
         minor,
     )
     complete_archive = ctx.actions.declare_file(artifact_root + "complete.txa")
-    interface_archive = ctx.actions.declare_file(artifact_root + "interface.txa")
+    contract_archive = ctx.actions.declare_file(artifact_root + "contract.txa")
     abi_manifest = ctx.actions.declare_file(artifact_root + "abi.manifest")
     header = ctx.actions.declare_file(artifact_root + "c_abi.h")
     cpp_header = None
@@ -274,7 +274,7 @@ def _ttx_package_impl(ctx):
     arguments.add("-artifact=%s" % artifact_id)
     arguments.add("-debug=%s" % ctx.attr.debug)
     arguments.add(complete_archive, format = "-complete=%s")
-    arguments.add(interface_archive, format = "-interface=%s")
+    arguments.add(contract_archive, format = "-contract=%s")
     arguments.add(header, format = "-header=%s")
     if ctx.attr.cpp_header:
         arguments.add(cpp_header, format = "-cpp-header=%s")
@@ -283,19 +283,19 @@ def _ttx_package_impl(ctx):
         arguments.add("-c-include=%sc_abi.h" % artifact_root)
     arguments.add(abi_manifest, format = "-abi-manifest=%s")
 
-    dependency_interfaces = depset(
+    dependency_contracts = depset(
         direct = [
-            dep[TtxPackageInfo].interface_archive
+            dep[TtxPackageInfo].contract_archive
             for dep in ctx.attr.deps
         ],
         transitive = [
-            dep[TtxPackageInfo].transitive_interfaces
+            dep[TtxPackageInfo].transitive_contracts
             for dep in ctx.attr.deps
         ],
         order = "postorder",
     )
-    for interface in dependency_interfaces.to_list():
-        arguments.add(interface, format = "-dep=%s")
+    for contract in dependency_contracts.to_list():
+        arguments.add(contract, format = "-dep=%s")
 
     dependency_abi_manifests = depset(
         direct = [
@@ -322,7 +322,7 @@ def _ttx_package_impl(ctx):
 
     llvm_ir = []
     object_files = []
-    outputs = [complete_archive, interface_archive, abi_manifest, header]
+    outputs = [complete_archive, contract_archive, abi_manifest, header]
     if ctx.attr.cpp_header:
         outputs.extend([cpp_header, cpp_source])
     for index, source in enumerate(ctx.files.sources):
@@ -344,7 +344,7 @@ def _ttx_package_impl(ctx):
     ctx.actions.run(
         inputs = depset(
             direct = [ctx.file.manifest] + ctx.files.sources,
-            transitive = [dependency_interfaces, dependency_abi_manifests],
+            transitive = [dependency_contracts, dependency_abi_manifests],
         ),
         outputs = outputs,
         executable = ctx.executable._compiler,
@@ -412,9 +412,9 @@ def _ttx_package_impl(ctx):
         linking_context = linking_context,
     )
     dependency_cc_infos = [dep[CcInfo] for dep in ctx.attr.deps]
-    package_interfaces = depset(
-        direct = [interface_archive],
-        transitive = [dependency_interfaces],
+    package_contracts = depset(
+        direct = [contract_archive],
+        transitive = [dependency_contracts],
         order = "postorder",
     )
     package_abi_manifests = depset(
@@ -437,8 +437,8 @@ def _ttx_package_impl(ctx):
             identity = ctx.attr.package_name,
             version = ctx.attr.version,
             complete_archive = complete_archive,
-            interface_archive = interface_archive,
-            transitive_interfaces = package_interfaces,
+            contract_archive = contract_archive,
+            transitive_contracts = package_contracts,
             abi_manifest = abi_manifest,
             transitive_abi_manifests = package_abi_manifests,
             artifact_id = artifact_id,
@@ -460,7 +460,7 @@ _ttx_library = rule(
         deps = attr.label_list(
             providers = [TtxPackageInfo],
             doc = (
-                "TTX package dependencies whose Interface Archives must be " +
+                "TTX package dependencies whose Contract Archives must be " +
                 "visible during loading."
             ),
         ),
@@ -513,7 +513,7 @@ _ttx_package = rule(
         deps = attr.label_list(
             providers = [TtxPackageInfo],
             doc = (
-                "Dependent TTX Packages whose Interface Archives and native " +
+                "Dependent TTX Packages whose Contract Archives and native " +
                 "libraries are consumed by this Package."
             ),
         ),
@@ -555,7 +555,7 @@ _ttx_package = rule(
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
     fragments = ["cpp"],
     doc = (
-        "Compiles one authored TTX Package into Complete and Interface " +
+        "Compiles one authored TTX Package into Complete and Contract " +
         "Archives plus separate native member objects."
     ),
 )
@@ -686,13 +686,13 @@ def _ttx_application_entry_impl(ctx):
     arguments.add("-artifact=%s" % package.artifact_id)
     arguments.add(llvm_ir, format = "-ir=%s")
     arguments.add(object_file, format = "-object=%s")
-    dependency_interfaces = [
-        interface
-        for interface in package.transitive_interfaces.to_list()
-        if interface.path != package.interface_archive.path
+    dependency_contracts = [
+        contract
+        for contract in package.transitive_contracts.to_list()
+        if contract.path != package.contract_archive.path
     ]
-    for interface in dependency_interfaces:
-        arguments.add(interface, format = "-dep=%s")
+    for contract in dependency_contracts:
+        arguments.add(contract, format = "-dep=%s")
 
     dependency_abi_manifests = [
         manifest
@@ -705,7 +705,7 @@ def _ttx_application_entry_impl(ctx):
     ctx.actions.run(
         inputs = depset(
             [package.complete_archive, package.abi_manifest] +
-            dependency_interfaces + dependency_abi_manifests,
+            dependency_contracts + dependency_abi_manifests,
         ),
         outputs = [llvm_ir, object_file],
         executable = ctx.executable._compiler,

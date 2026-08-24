@@ -12,6 +12,7 @@
 #include "tetrodotoxin/library/language/generic.hpp"
 #include "ttx/lexical/lexicon.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/model/callable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -35,24 +36,6 @@ enum SemanticToken : S64 {
   SemanticDecorator,
   SemanticGeneric,
 };
-
-static auto should_filter_shader_keyword(Code code) -> Bool {
-  switch (code.get_type()) {
-  case Code::Type::If:
-  case Code::Type::In:
-  case Code::Type::For:
-  case Code::Type::Break:
-  case Code::Type::Continue:
-  case Code::Type::Case:
-  case Code::Type::Else:
-  case Code::Type::Match:
-  case Code::Type::While:
-    return True;
-
-  default:
-    return False;
-  }
-}
 
 static auto has_newline(View::Bytes text) -> Bool {
   return Algorithm::search(text, "\n"_view) != Count(-1);
@@ -164,9 +147,14 @@ static auto contextual_semantic_token(
     for (const Associations::Entry& entry : associations->get_entries()) {
       Token focus = entry.get_anchor().get_token();
       if (focus.get_offset() == token.get_offset() &&
-          focus.get_size() == token.get_size() &&
-          entry.get_semantic().is<Tetrodotoxin::Library::Language::Generic>()) {
-        return SemanticGeneric;
+          focus.get_size() == token.get_size()) {
+        if (entry.get_semantic()
+                .is<Tetrodotoxin::Library::Language::Generic>()) {
+          return SemanticGeneric;
+        }
+        if (entry.get_semantic().is<Ttx::Model::Callable>()) {
+          return SemanticFunction;
+        }
       }
     }
   }
@@ -179,6 +167,13 @@ static auto contextual_semantic_token(
     return SemanticKeyword;
   }
 
+  View::Bytes text = tokens[index].caculate_text(source);
+  if ((dialect == "Render"_view || dialect == "Shader"_view) &&
+      (text == "stage"_view || text == "resource"_view || text == "push"_view ||
+       text == "shader"_view || text == "bridge"_view)) {
+    return SemanticKeyword;
+  }
+
   Code previous =
       index == 0 ? Code::Type::Unknown : tokens[index - 1].get_code();
   if (previous == Code::Type::CallOp || previous == Code::Type::Func) {
@@ -188,9 +183,13 @@ static auto contextual_semantic_token(
     return SemanticProperty;
   }
   if (index + 2 < tokens.get_size() &&
-      tokens[index + 1].get_code() == Code::Type::Define &&
-      tokens[index + 2].get_code() == Code::Type::Func) {
-    return SemanticFunction;
+      tokens[index + 1].get_code() == Code::Type::Define) {
+    Token qualifier = tokens[index + 2];
+    if (qualifier.get_code() == Code::Type::Func ||
+        (dialect == "Render"_view &&
+         qualifier.caculate_text(source) == "stage"_view)) {
+      return SemanticFunction;
+    }
   }
 
   return SemanticVariable;
@@ -254,11 +253,6 @@ auto Lsp::semantic_tokens_for(
   Bool emitted = False;
   for (Count i = 0; i < tokens.get_size(); i++) {
     Token token = tokens[i];
-    if (dialect == "Shader"_view &&
-        should_filter_shader_keyword(token.get_code())) {
-      continue;
-    }
-
     View::Bytes text = token.caculate_text(source);
     if (text.is_empty() || has_newline(text)) {
       continue;

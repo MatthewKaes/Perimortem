@@ -1,0 +1,47 @@
+// # Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+
+#include "tetrodotoxin/render/language/stage.hpp"
+
+#include "tetrodotoxin/render/language/attributes.hpp"
+#include "ttx/concept/invalid.hpp"
+
+using namespace Perimortem::Core;
+using namespace Perimortem::Memory;
+using namespace Ttx::Concept;
+using namespace Ttx::Lexical;
+using namespace Tetrodotoxin::Render;
+
+auto Language::Stage::create(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition,
+    Layout& parameters,
+    Layout& results) -> Stage& {
+  return domain.construct_from<Stage>(
+      [&]() { return Stage(definition, parameters, results); });
+}
+
+auto Language::Stage::link(Cursor& cursor) -> Bool {
+  if (linked) {
+    return True;
+  }
+
+  Bool valid = Attributes::validate(
+      cursor, definition.get_attributes(), Attributes::Placement::Stage);
+  valid &= parameters.link(cursor, definition.get_host());
+  valid &= results.link(cursor, definition.get_host());
+  linked = valid;
+  return valid;
+}
+
+auto Language::Stage::resolve() const -> const Abstract& {
+  return linked ? static_cast<const Abstract&>(*this)
+                : static_cast<const Abstract&>(Invalid::get_invalid());
+}
+
+auto Language::Stage::resolve_context(View::Bytes name) const
+    -> const Abstract& {
+  const Abstract& parameter = parameters.resolve_named(name);
+  return parameter.is<Invalid>() ? definition.get_host().resolve_context(name)
+                                 : parameter;
+}

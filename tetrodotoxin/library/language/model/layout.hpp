@@ -9,6 +9,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/concept/reference.hpp"
@@ -40,8 +41,13 @@ class Layout final : public Ttx::Concept::Layout {
     constexpr Slot(
         Perimortem::Core::Option<TypeReference> type_reference,
         Ttx::Lexical::Anchor anchor,
-        Perimortem::Core::View::Bytes name)
-        : type_reference(type_reference), anchor(anchor), name(name) {}
+        Perimortem::Core::View::Bytes name,
+        Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>
+            attributes = {})
+        : type_reference(type_reference),
+          anchor(anchor),
+          name(name),
+          attributes(attributes) {}
 
     constexpr auto get_type_anchor() const -> Ttx::Lexical::Anchor {
       return type_reference.visit(
@@ -59,12 +65,22 @@ class Layout final : public Ttx::Concept::Layout {
       return name;
     }
 
+    // Attributes remain uninterpreted source facts on the exact Layout slot.
+    // Library execution ignores keys it does not own, while an embedding
+    // Dialect can use the same slot to express a richer interface contract.
+    constexpr auto get_attributes() const
+        -> Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute> {
+      return attributes;
+    }
+
    private:
     friend class Layout;
 
     Perimortem::Core::Option<TypeReference> type_reference;
     Ttx::Lexical::Anchor anchor;
     Perimortem::Core::View::Bytes name;
+    Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>
+        attributes;
     Perimortem::Core::Option<
         Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
         edge;
@@ -131,6 +147,9 @@ class Layout final : public Ttx::Concept::Layout {
 
   auto get_slot_anchor(Count index) const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor>;
+
+  auto get_slot_attributes(Count index) const
+      -> Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>;
 
   auto get_type_reference(Count index) const
       -> Perimortem::Core::Option<const TypeReference&>;
