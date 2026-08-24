@@ -135,8 +135,28 @@ static_assert(sizeof(R64) == 8);
 
 static_assert(sizeof(Bool) == 1);
 
-#ifndef _NEW
-constexpr void* operator new(CppSize size, void* ptr) noexcept {
-  return ptr;
+namespace Perimortem::Core {
+
+// Placement distinguishes Perimortem's construction expression from the
+// standard allocation signature. The address stays an ordinary pointer, which
+// lets Clang recognize and remove the forced inline allocation step even in a
+// debug build.
+enum class Placement : U8 {
+  Construct,
+};
+
+}  // namespace Perimortem::Core
+
+__attribute__((always_inline)) constexpr auto operator new(
+    CppSize,
+    void* address,
+    Perimortem::Core::Placement) noexcept -> void* {
+  return address;
 }
-#endif
+
+// Construction borrows its address, so the matching failure path has no
+// allocation to release when another C++ consumer enables exceptions.
+__attribute__((always_inline)) constexpr auto operator delete(
+    void*,
+    void*,
+    Perimortem::Core::Placement) noexcept -> void {}

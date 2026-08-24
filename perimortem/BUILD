@@ -55,6 +55,19 @@ cc_library(
 )
 
 cc_library(
+    name = "abi_graphics",
+    srcs = glob(["abi/graphics/*.cpp"]),
+    hdrs = glob(["abi/graphics/*.hpp"]),
+    copts = ["-Wreturn-type-c-linkage"],
+    includes = ["."],
+    deps = [
+        ":abi_core",
+        ":core",
+        ":graphics",
+    ],
+)
+
+cc_library(
     name = "abi_system",
     srcs = glob(["abi/system/*.cpp"]),
     hdrs = glob(["abi/system/*.hpp"]),
@@ -73,6 +86,7 @@ cc_library(
     name = "abi",
     deps = [
         ":abi_core",
+        ":abi_graphics",
         ":abi_memory",
         ":abi_system",
     ],
@@ -208,15 +222,16 @@ cc_library(
         ":core",
         ":graphics",
         ":memory",
+        ":system",
     ],
 )
 
 cc_library(
-    name = "wayland",
+    name = "platform",
     srcs = glob([
         "system/platform/wayland/*.cpp",
     ]),
-    hdrs = glob([
+    hdrs = ["system/window.hpp"] + glob([
         "system/platform/wayland/*.hpp",
     ]),
     includes = ["."],
@@ -224,19 +239,6 @@ cc_library(
     deps = [
         ":core",
         ":system",
-    ],
-)
-
-cc_library(
-    name = "platform",
-    srcs = [],
-    hdrs = [
-        "system/window.hpp",
-    ],
-    includes = ["."],
-    deps = [
-        ":core",
-        ":wayland",
     ],
 )
 

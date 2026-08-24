@@ -11,11 +11,11 @@ signal space_pressed;
 signal shift_pressed;
 
 Scene prepare[self] -> Void {
-  state image := Graphics::Image -> decode($[resources/logo.png]);
-  self.title_card.image       = image;
+  state image := Graphics::Image -> decode(.bytes = $[resources/logo.png])!;
+  self.title_card.image = image;
   self.title_card.size_pixels = image -> get_size_pixels();
-  self.title_card.position    = (.x = 200.0, .y = 250.0);
-  self.title_card.tone        = (.r = 1.0, .g = 1.0, .b = 1.0, .a = 1.0);
+  self.title_card.transform.translation = (.x = 200.0, .y = 250.0);
+  self.title_card.tone = (.red = 1.0, .green = 1.0, .blue = 1.0, .alpha = 1.0);
   return;
 }
 

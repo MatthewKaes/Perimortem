@@ -10,11 +10,10 @@ using namespace Perimortem::Core;
 using namespace Perimortem;
 
 Vulkan::Renderer::Renderer(
-    wl_display* display,
-    wl_surface* surface,
+    System::Presentation presentation,
     U32 width,
     U32 height)
-    : context(Vulkan::Context::create(display, surface)),
+    : context(Vulkan::Context::create(presentation)),
       swapchain(Vulkan::Swapchain::create(context, width, height)) {
   allocate_frames();
   refresh_swapchain_images();

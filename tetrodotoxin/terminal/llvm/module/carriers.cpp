@@ -1296,7 +1296,26 @@ auto Llvm::Module::Carriers::assemble(
 
   const Carrier& carrier = found->value;
   llvm::IRBuilder<>& builder = get_builder(*native_body);
-  if (carrier.kind == Kind::Option && carrier.element) {
+  if ((carrier.kind == Kind::Value || carrier.kind == Kind::Enumeration) &&
+      elements.get_size() == 1) {
+    llvm::Value* source = llvm::unwrap(elements[0]);
+    auto* source_integer = llvm::dyn_cast<llvm::IntegerType>(source->getType());
+    auto* target_integer = llvm::dyn_cast<llvm::IntegerType>(&native_type);
+    if (source_integer && target_integer) {
+      return llvm::wrap(
+          builder.CreateIntCast(source, target_integer, bool(is_signed(type))));
+    }
+
+    if (source->getType()->isFloatingPointTy() &&
+        native_type.isFloatingPointTy()) {
+      return llvm::wrap(builder.CreateFPCast(source, &native_type));
+    }
+
+    fail_toolchain(
+        get_program(body),
+        "LLVM cannot convert one semantically fitted scalar carrier."_view);
+    return {};
+  } else if (carrier.kind == Kind::Option && carrier.element) {
     if (elements.get_size() == 0) {
       return zero(get_program(body), type);
     }

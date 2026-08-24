@@ -25,8 +25,8 @@ class Batch {
 
   Batch(
       Program program,
-      Core::View::Vector<Core::Object<>> resources,
-      Core::View::Bytes inputs,
+      Memory::Dynamic::Vector<Resource>&& resources,
+      Memory::Dynamic::Bytes&& inputs,
       Transform transform,
       Count vertex_count,
       S64 z_index,

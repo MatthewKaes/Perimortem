@@ -19,7 +19,7 @@ static Harness GraphicsImage = {
 
 PERIMORTEM_UNIT_TEST(GraphicsImage, zero_addressing_edge) {
   Dynamic::Vector<Pixel> pixels;
-  pixels.emplace(Pixel(0x11, 0x22, 0x33, 0x44));
+  pixels.emplace(Pixel::from_rgba(0x11, 0x22, 0x33, 0x44));
   Image image(Data::take(pixels), 1, 1);
 
   const Pixel horizontal_edge = image.get_pixel(1, 0);
@@ -32,8 +32,8 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, zero_addressing_edge) {
 
 PERIMORTEM_UNIT_TEST(GraphicsImage, clamp_edge) {
   Dynamic::Vector<Pixel> pixels;
-  pixels.emplace(Pixel(0x11, 0x22, 0x33, 0x44));
-  pixels.emplace(Pixel(0x55, 0x66, 0x77, 0x88));
+  pixels.emplace(Pixel::from_rgba(0x11, 0x22, 0x33, 0x44));
+  pixels.emplace(Pixel::from_rgba(0x55, 0x66, 0x77, 0x88));
   Image image(Data::take(pixels), 2, 1, Image::Addressing::Clamp);
 
   const Pixel left = image.get_pixel(-1, 0);
@@ -46,8 +46,8 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, clamp_edge) {
 
 PERIMORTEM_UNIT_TEST(GraphicsImage, wrap_domain) {
   Dynamic::Vector<Pixel> pixels;
-  pixels.emplace(Pixel(0x11, 0x22, 0x33, 0x44));
-  pixels.emplace(Pixel(0x55, 0x66, 0x77, 0x88));
+  pixels.emplace(Pixel::from_rgba(0x11, 0x22, 0x33, 0x44));
+  pixels.emplace(Pixel::from_rgba(0x55, 0x66, 0x77, 0x88));
   Image image(Data::take(pixels), 2, 1, Image::Addressing::Wrap);
 
   const Pixel from_left = image.get_pixel(-1, 0);

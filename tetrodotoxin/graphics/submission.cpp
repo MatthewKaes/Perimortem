@@ -30,7 +30,7 @@ class SubmissionBuilder {
       S64 parent_z_index) -> Bool {
     BAIL_IF(object.is_empty() || path.contains(object.get_payload()));
     Perimortem::Graphics::Frame::Resource reservation(object);
-    auto placement = descriptor.placement(object.get_payload());
+    auto placement = descriptor.placement(object);
     BAIL_IF(!placement);
     if (!placement->is_visible()) {
       return True;
@@ -54,16 +54,16 @@ class SubmissionBuilder {
       const Graphics::Descriptor& descriptor,
       const Perimortem::Graphics::Frame::Transform& transform,
       S64 host_z_index) -> Bool {
-    Count count = descriptor.draw_count(object.get_payload());
+    Count count = descriptor.draw_count(object);
     for (Count index = 0; index < count; index++) {
-      auto draw = descriptor.draw(object.get_payload(), index);
+      auto draw = descriptor.draw(object, index);
       BAIL_IF(!draw);
       S64 z_index = 0;
       BAIL_IF(
           __builtin_add_overflow(host_z_index, draw->get_z_offset(), &z_index));
       batches.emplace(
           Perimortem::Graphics::Frame::Batch(
-              draw->get_program(), draw->get_resources(), draw->get_inputs(),
+              draw->get_program(), draw->take_resources(), draw->take_inputs(),
               transform, draw->get_vertex_count(), z_index, order++));
     }
     return True;
@@ -74,9 +74,9 @@ class SubmissionBuilder {
       const Graphics::Descriptor& descriptor,
       const Perimortem::Graphics::Frame::Transform& transform,
       S64 z_index) -> Bool {
-    Count count = descriptor.child_count(object.get_payload());
+    Count count = descriptor.child_count(object);
     for (Count index = 0; index < count; index++) {
-      auto child = descriptor.child(object.get_payload(), index);
+      auto child = descriptor.child(object, index);
       BAIL_IF(
           !child || !collect(
                         child->get_object(), *child->get_descriptor(),

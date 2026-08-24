@@ -40,39 +40,11 @@ static auto release(wl_seat* seat) -> void {
   }
 }
 
-const wl_seat_listener Platform::Wayland::Input::seat_listener = {
-  Platform::Wayland::Input::on_seat_capabilities,
-  Platform::Wayland::Input::on_seat_name,
-};
-
-const wl_keyboard_listener Platform::Wayland::Input::keyboard_listener = {
-  Platform::Wayland::Input::on_keyboard_keymap,
-  Platform::Wayland::Input::on_keyboard_enter,
-  Platform::Wayland::Input::on_keyboard_leave,
-  Platform::Wayland::Input::on_keyboard_key,
-  Platform::Wayland::Input::on_keyboard_modifiers,
-  Platform::Wayland::Input::on_keyboard_repeat,
-};
-
-const wl_pointer_listener Platform::Wayland::Input::pointer_listener = {
-  Platform::Wayland::Input::on_pointer_enter,
-  Platform::Wayland::Input::on_pointer_leave,
-  Platform::Wayland::Input::on_pointer_motion,
-  Platform::Wayland::Input::on_pointer_button,
-  Platform::Wayland::Input::on_pointer_axis,
-  Platform::Wayland::Input::on_pointer_frame,
-  Platform::Wayland::Input::on_pointer_axis_source,
-  Platform::Wayland::Input::on_pointer_axis_stop,
-  Platform::Wayland::Input::on_pointer_axis_discrete,
-  Platform::Wayland::Input::on_pointer_axis_value120,
-  Platform::Wayland::Input::on_pointer_axis_direction,
-};
-
 Platform::Wayland::Input::~Input() {
   destroy();
 }
 
-auto Platform::Wayland::Input::attach(wl_surface* selected_surface) -> Bool {
+auto Platform::Wayland::Input::attach(void* selected_surface) -> Bool {
   if (!selected_surface || surface) {
     return False;
   }
@@ -81,7 +53,7 @@ auto Platform::Wayland::Input::attach(wl_surface* selected_surface) -> Bool {
 }
 
 auto Platform::Wayland::Input::register_global(
-    wl_registry* registry,
+    void* registry,
     U32 name,
     const char* interface,
     U32 version) -> void {
@@ -90,11 +62,18 @@ auto Platform::Wayland::Input::register_global(
   }
 
   U32 selected_version = version < 9 ? version : 9;
-  seat = static_cast<wl_seat*>(
-      wl_registry_bind(registry, name, &wl_seat_interface, selected_version));
+  seat = static_cast<wl_seat*>(wl_registry_bind(
+      static_cast<wl_registry*>(registry), name, &wl_seat_interface,
+      selected_version));
   if (seat) {
+    static const wl_seat_listener listener = {
+      [](void* data, wl_seat*, uint32_t capabilities) {
+        on_seat_capabilities(data, U32(capabilities));
+      },
+      [](void*, wl_seat*, const char*) {},
+    };
     seat_name = name;
-    wl_seat_add_listener(seat, &seat_listener, this);
+    wl_seat_add_listener(static_cast<wl_seat*>(seat), &listener, this);
   }
 }
 
@@ -178,15 +157,15 @@ auto Platform::Wayland::Input::collect(const System::Input::Mapping& mapping)
 
 auto Platform::Wayland::Input::release_devices() -> void {
   if (keyboard) {
-    release(keyboard);
+    release(static_cast<wl_keyboard*>(keyboard));
     keyboard = nullptr;
   }
   if (pointer) {
-    release(pointer);
+    release(static_cast<wl_pointer*>(pointer));
     pointer = nullptr;
   }
   if (seat) {
-    release(seat);
+    release(static_cast<wl_seat*>(seat));
     seat = nullptr;
   }
   seat_name = 0;
@@ -201,45 +180,84 @@ auto Platform::Wayland::Input::destroy() -> void {
 
 auto Platform::Wayland::Input::on_seat_capabilities(
     void* data,
-    wl_seat* seat,
-    uint32_t capabilities) -> void {
+    U32 capabilities) -> void {
   auto* input = static_cast<Platform::Wayland::Input*>(data);
   Bool has_keyboard = Bool((capabilities & WL_SEAT_CAPABILITY_KEYBOARD) != 0);
   Bool has_pointer = Bool((capabilities & WL_SEAT_CAPABILITY_POINTER) != 0);
+  auto* native_seat = static_cast<wl_seat*>(input->seat);
 
   if (has_keyboard && !input->keyboard) {
-    input->keyboard = wl_seat_get_keyboard(seat);
+    input->keyboard = wl_seat_get_keyboard(native_seat);
     if (input->keyboard) {
-      wl_keyboard_add_listener(input->keyboard, &keyboard_listener, input);
+      static const wl_keyboard_listener listener = {
+        [](void*, wl_keyboard*, uint32_t, int32_t descriptor, uint32_t) {
+          on_keyboard_keymap(S32(descriptor));
+        },
+        [](void* context, wl_keyboard*, uint32_t, wl_surface* surface,
+           wl_array* keys) {
+          on_keyboard_enter(
+              context, surface, static_cast<const U32*>(keys->data),
+              keys->size / sizeof(U32));
+        },
+        [](void* context, wl_keyboard*, uint32_t, wl_surface* surface) {
+          on_keyboard_leave(context, surface);
+        },
+        [](void* context, wl_keyboard*, uint32_t, uint32_t, uint32_t key,
+           uint32_t state) { on_keyboard_key(context, U32(key), U32(state)); },
+        [](void*, wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t,
+           uint32_t) {},
+        [](void*, wl_keyboard*, int32_t, int32_t) {},
+      };
+      wl_keyboard_add_listener(
+          static_cast<wl_keyboard*>(input->keyboard), &listener, input);
     }
   } else if (!has_keyboard && input->keyboard) {
-    release(input->keyboard);
+    release(static_cast<wl_keyboard*>(input->keyboard));
     input->keyboard = nullptr;
     input->keyboard_focused = False;
     input->clear_keyboard();
   }
 
   if (has_pointer && !input->pointer) {
-    input->pointer = wl_seat_get_pointer(seat);
+    input->pointer = wl_seat_get_pointer(native_seat);
     if (input->pointer) {
-      wl_pointer_add_listener(input->pointer, &pointer_listener, input);
+      static const wl_pointer_listener listener = {
+        [](void* context, wl_pointer*, uint32_t, wl_surface* surface,
+           wl_fixed_t x, wl_fixed_t y) {
+          on_pointer_enter(context, surface, S32(x), S32(y));
+        },
+        [](void* context, wl_pointer*, uint32_t, wl_surface* surface) {
+          on_pointer_leave(context, surface);
+        },
+        [](void* context, wl_pointer*, uint32_t, wl_fixed_t x, wl_fixed_t y) {
+          on_pointer_motion(context, S32(x), S32(y));
+        },
+        [](void* context, wl_pointer*, uint32_t, uint32_t, uint32_t button,
+           uint32_t state) {
+          on_pointer_button(context, U32(button), U32(state));
+        },
+        [](void* context, wl_pointer*, uint32_t, uint32_t axis,
+           wl_fixed_t value) {
+          on_pointer_axis(context, U32(axis), S32(value));
+        },
+        [](void*, wl_pointer*) {},
+        [](void*, wl_pointer*, uint32_t) {},
+        [](void*, wl_pointer*, uint32_t, uint32_t) {},
+        [](void*, wl_pointer*, uint32_t, int32_t) {},
+        [](void*, wl_pointer*, uint32_t, int32_t) {},
+        [](void*, wl_pointer*, uint32_t, uint32_t) {},
+      };
+      wl_pointer_add_listener(
+          static_cast<wl_pointer*>(input->pointer), &listener, input);
     }
   } else if (!has_pointer && input->pointer) {
-    release(input->pointer);
+    release(static_cast<wl_pointer*>(input->pointer));
     input->pointer = nullptr;
     input->clear_pointer();
   }
 }
 
-auto Platform::Wayland::Input::on_seat_name(void*, wl_seat*, const char*)
-    -> void {}
-
-auto Platform::Wayland::Input::on_keyboard_keymap(
-    void*,
-    wl_keyboard*,
-    uint32_t,
-    int32_t descriptor,
-    uint32_t) -> void {
+auto Platform::Wayland::Input::on_keyboard_keymap(S32 descriptor) -> void {
   if (descriptor >= 0) {
     close(descriptor);
   }
@@ -247,10 +265,9 @@ auto Platform::Wayland::Input::on_keyboard_keymap(
 
 auto Platform::Wayland::Input::on_keyboard_enter(
     void* data,
-    wl_keyboard*,
-    uint32_t,
-    wl_surface* entered,
-    wl_array* keys) -> void {
+    void* entered,
+    const U32* keys,
+    Count key_count) -> void {
   auto* input = static_cast<Platform::Wayland::Input*>(data);
   if (entered != input->surface) {
     return;
@@ -258,18 +275,13 @@ auto Platform::Wayland::Input::on_keyboard_enter(
 
   input->clear_keyboard();
   input->keyboard_focused = True;
-  auto* codes = static_cast<const uint32_t*>(keys->data);
-  Count count = keys->size / sizeof(uint32_t);
-  for (Count index = 0; index < count; index++) {
-    input->set_key(translate_keyboard(codes[index]), True);
+  for (Count index = 0; index < key_count; index++) {
+    input->set_key(translate_keyboard(keys[index]), True);
   }
 }
 
-auto Platform::Wayland::Input::on_keyboard_leave(
-    void* data,
-    wl_keyboard*,
-    uint32_t,
-    wl_surface* left) -> void {
+auto Platform::Wayland::Input::on_keyboard_leave(void* data, void* left)
+    -> void {
   auto* input = static_cast<Platform::Wayland::Input*>(data);
   if (left == input->surface) {
     input->keyboard_focused = False;
@@ -277,13 +289,8 @@ auto Platform::Wayland::Input::on_keyboard_leave(
   }
 }
 
-auto Platform::Wayland::Input::on_keyboard_key(
-    void* data,
-    wl_keyboard*,
-    uint32_t,
-    uint32_t,
-    uint32_t key,
-    uint32_t state) -> void {
+auto Platform::Wayland::Input::on_keyboard_key(void* data, U32 key, U32 state)
+    -> void {
   auto* input = static_cast<Platform::Wayland::Input*>(data);
   if (input->keyboard_focused) {
     input->set_key(
@@ -291,28 +298,11 @@ auto Platform::Wayland::Input::on_keyboard_key(
   }
 }
 
-auto Platform::Wayland::Input::on_keyboard_modifiers(
-    void*,
-    wl_keyboard*,
-    uint32_t,
-    uint32_t,
-    uint32_t,
-    uint32_t,
-    uint32_t) -> void {}
-
-auto Platform::Wayland::Input::on_keyboard_repeat(
-    void*,
-    wl_keyboard*,
-    int32_t,
-    int32_t) -> void {}
-
 auto Platform::Wayland::Input::on_pointer_enter(
     void* data,
-    wl_pointer*,
-    uint32_t,
-    wl_surface* entered,
-    wl_fixed_t x,
-    wl_fixed_t y) -> void {
+    void* entered,
+    S32 x,
+    S32 y) -> void {
   auto* input = static_cast<Platform::Wayland::Input*>(data);
   if (entered != input->surface) {
     return;
@@ -326,23 +316,16 @@ auto Platform::Wayland::Input::on_pointer_enter(
   input->previous_pointer_focused = False;
 }
 
-auto Platform::Wayland::Input::on_pointer_leave(
-    void* data,
-    wl_pointer*,
-    uint32_t,
-    wl_surface* left) -> void {
+auto Platform::Wayland::Input::on_pointer_leave(void* data, void* left)
+    -> void {
   auto* input = static_cast<Platform::Wayland::Input*>(data);
   if (left == input->surface) {
     input->clear_pointer();
   }
 }
 
-auto Platform::Wayland::Input::on_pointer_motion(
-    void* data,
-    wl_pointer*,
-    uint32_t,
-    wl_fixed_t x,
-    wl_fixed_t y) -> void {
+auto Platform::Wayland::Input::on_pointer_motion(void* data, S32 x, S32 y)
+    -> void {
   auto* input = static_cast<Platform::Wayland::Input*>(data);
   if (input->pointer_focused) {
     input->pointer_x = R32(wl_fixed_to_double(x));
@@ -352,11 +335,8 @@ auto Platform::Wayland::Input::on_pointer_motion(
 
 auto Platform::Wayland::Input::on_pointer_button(
     void* data,
-    wl_pointer*,
-    uint32_t,
-    uint32_t,
-    uint32_t button,
-    uint32_t state) -> void {
+    U32 button,
+    U32 state) -> void {
   auto* input = static_cast<Platform::Wayland::Input*>(data);
   if (input->pointer_focused) {
     input->set_key(
@@ -365,12 +345,8 @@ auto Platform::Wayland::Input::on_pointer_button(
   }
 }
 
-auto Platform::Wayland::Input::on_pointer_axis(
-    void* data,
-    wl_pointer*,
-    uint32_t,
-    uint32_t axis,
-    wl_fixed_t value) -> void {
+auto Platform::Wayland::Input::on_pointer_axis(void* data, U32 axis, S32 value)
+    -> void {
   auto* input = static_cast<Platform::Wayland::Input*>(data);
   if (!input->pointer_focused) {
     return;
@@ -383,37 +359,6 @@ auto Platform::Wayland::Input::on_pointer_axis(
     input->scroll_y += amount;
   }
 }
-
-auto Platform::Wayland::Input::on_pointer_frame(void*, wl_pointer*) -> void {}
-
-auto Platform::Wayland::Input::on_pointer_axis_source(
-    void*,
-    wl_pointer*,
-    uint32_t) -> void {}
-
-auto Platform::Wayland::Input::on_pointer_axis_stop(
-    void*,
-    wl_pointer*,
-    uint32_t,
-    uint32_t) -> void {}
-
-auto Platform::Wayland::Input::on_pointer_axis_discrete(
-    void*,
-    wl_pointer*,
-    uint32_t,
-    int32_t) -> void {}
-
-auto Platform::Wayland::Input::on_pointer_axis_value120(
-    void*,
-    wl_pointer*,
-    uint32_t,
-    int32_t) -> void {}
-
-auto Platform::Wayland::Input::on_pointer_axis_direction(
-    void*,
-    wl_pointer*,
-    uint32_t,
-    uint32_t) -> void {}
 
 auto Platform::Wayland::Input::translate_keyboard(U32 code)
     -> System::Input::Key {

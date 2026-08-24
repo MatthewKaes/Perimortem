@@ -131,6 +131,24 @@ class Functions {
   auto end_body(Emission& body, const Ttx::Model::Callable& callable) const
       -> Bool;
 
+  auto append_call_arguments(
+      Emission& body,
+      const Ttx::Model::Callable& callable,
+      Count parameter,
+      LLVMValueRef value,
+      Perimortem::Memory::Dynamic::Vector<LLVMValueRef>& arguments) const
+      -> Bool;
+
+  auto decode_call_result(
+      Emission& body,
+      const Ttx::Model::Callable& callable,
+      LLVMValueRef value) const -> Perimortem::Core::Option<LLVMValueRef>;
+
+  auto encode_return(
+      Emission& body,
+      const Ttx::Model::Callable& callable,
+      LLVMValueRef value) const -> Perimortem::Core::Option<LLVMValueRef>;
+
   auto find_function(const Ttx::Model::Callable& callable) const
       -> Perimortem::Core::Option<LLVMValueRef>;
 
@@ -170,7 +188,12 @@ class Functions {
         definition;
     Perimortem::Core::Option<LLVMValueRef> function;
     Perimortem::Core::Option<LLVMTypeRef> sret_type;
+    Perimortem::Core::Option<LLVMTypeRef> result_type;
+    Perimortem::Core::Option<LLVMTypeRef> result_abi_type;
     Perimortem::Memory::Dynamic::Vector<Bool> indirect_parameters;
+    Perimortem::Memory::Dynamic::Vector<LLVMTypeRef> parameter_types;
+    Perimortem::Memory::Dynamic::Vector<LLVMTypeRef> parameter_abi_types;
+    Perimortem::Memory::Dynamic::Vector<Count> parameter_abi_counts;
   };
 
   class ConstructionRecord {

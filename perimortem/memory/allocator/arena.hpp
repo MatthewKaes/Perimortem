@@ -75,7 +75,8 @@ class Arena {
   auto construct(arg_types&&... args) -> type& {
     static_assert(alignof(type) <= arena_alignment);
     U8* ptr = allocate(sizeof(type)).get_data();
-    return *new (ptr) type(static_cast<arg_types&&>(args)...);
+    return *new (ptr, Core::Placement::Construct)
+        type(static_cast<arg_types&&>(args)...);
   }
 
   // Allocates one object from an exact value produced by its owning factory.
@@ -89,7 +90,8 @@ class Arena {
     static_assert(
         __is_same(type, decltype(static_cast<factory_type&&>(factory)())));
     U8* ptr = allocate(sizeof(type)).get_data();
-    return *new (ptr) type(static_cast<factory_type&&>(factory)());
+    return *new (ptr, Core::Placement::Construct)
+        type(static_cast<factory_type&&>(factory)());
   }
 
   // Creates a duplicate of the target buffer in the current arena.

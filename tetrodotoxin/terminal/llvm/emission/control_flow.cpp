@@ -151,9 +151,17 @@ static auto control_return_values(
     }
 
     auto sret_type = native_body.get_sret_type();
+    Memory::Dynamic::Vector<llvm::Type*> element_types(received.get_size());
+    for (LLVMValueRef value : received.get_view()) {
+      element_types.insert(llvm::unwrap(LLVMTypeOf(value)));
+    }
     llvm::Type* aggregate_type =
-        sret_type ? llvm::unwrap(*sret_type)
-                  : control_native_function(native_body).getReturnType();
+        sret_type
+            ? llvm::unwrap(*sret_type)
+            : llvm::StructType::get(
+                  control_native_function(native_body).getContext(),
+                  llvm::ArrayRef<llvm::Type*>(
+                      element_types.get_data(), element_types.get_size()));
     llvm::Value* aggregate = llvm::UndefValue::get(aggregate_type);
     for (Count index = 0; index < received.get_size(); index++) {
       aggregate = control_native_builder(native_body)

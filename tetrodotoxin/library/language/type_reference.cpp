@@ -178,6 +178,7 @@ auto Language::TypeReference::resolve_with_root(
   }
 
   if (!arguments) {
+    const Abstract& direct = resolve_alias(*selected);
     const Abstract& resolved =
         select_terminal(*selected, get_name(get_size() - 1), False);
     if (resolved.is<Invalid>()) {
@@ -185,7 +186,11 @@ auto Language::TypeReference::resolve_with_root(
     }
 
     if (cursor) {
-      cursor->get_associations().create(anchor, *selected);
+      // An authored Alias that directly names a Type remains the declaration
+      // readers selected. A contextual member can instead publish a same named
+      // root Type, and that concrete declaration is the useful destination.
+      const Abstract& subject = &resolved == &direct ? *selected : resolved;
+      cursor->get_associations().create(anchor, subject);
     }
     return resolved;
   }

@@ -7,22 +7,19 @@ using namespace Perimortem;
 
 Graphics::Frame::Batch::Batch(
     Program program,
-    Core::View::Vector<Core::Object<>> resources,
-    Core::View::Bytes inputs,
+    Memory::Dynamic::Vector<Resource>&& resources,
+    Memory::Dynamic::Bytes&& inputs,
     Transform transform,
     Count vertex_count,
     S64 z_index,
     Count authored_order)
     : program(program),
-      inputs(inputs),
+      resources(static_cast<Memory::Dynamic::Vector<Resource>&&>(resources)),
+      inputs(static_cast<Memory::Dynamic::Bytes&&>(inputs)),
       transform(transform),
       vertex_count(vertex_count),
       z_index(z_index),
-      authored_order(authored_order) {
-  for (Core::Object<> resource : resources) {
-    this->resources.emplace(Resource(resource));
-  }
-}
+      authored_order(authored_order) {}
 
 auto Graphics::Frame::Batch::get_inputs() const -> Core::View::Bytes {
   return inputs.get_view();

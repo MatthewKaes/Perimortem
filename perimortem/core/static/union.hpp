@@ -118,12 +118,12 @@ class Union {
   constexpr auto construct(Candidate&& candidate) -> decltype(auto) {
     if constexpr (__is_lvalue_reference(value_type)) {
       auto& reference = static_cast<value_type>(candidate);
-      new (storage) Storage<value_type>(&reference);
+      new (storage, Placement::Construct) Storage<value_type>(&reference);
       tag = type_tag<value_type>();
       return reference;
     } else {
-      value_type& value =
-          *new (storage) value_type(static_cast<Candidate&&>(candidate));
+      value_type& value = *new (storage, Placement::Construct)
+                              value_type(static_cast<Candidate&&>(candidate));
       tag = type_tag<value_type>();
       return value;
     }

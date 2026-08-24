@@ -1,0 +1,107 @@
+// # Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+
+#include "validation/unit_test.hpp"
+
+#include "perimortem/core/data.hpp"
+#include "perimortem/core/null_terminated.hpp"
+
+#include "perimortem/memory/dynamic/vector.hpp"
+
+#include "perimortem/system/file.hpp"
+
+#include "perimortem/graphics/image.hpp"
+#include "perimortem/graphics/pixel.hpp"
+#include "perimortem/graphics/sprite.hpp"
+
+using namespace Perimortem::Core;
+using namespace Perimortem::Graphics;
+using namespace Perimortem::Memory;
+using namespace Validation;
+
+static Harness GraphicsObjects = {
+  .name = "Perimortem::Graphics::Objects"_view,
+};
+
+static auto one_pixel_image() -> Image {
+  Dynamic::Vector<Pixel> pixels;
+  pixels.emplace(Pixel::from_rgba(0x12, 0x34, 0x56, 0x78));
+  return Image(Data::take(pixels), 1, 1);
+}
+
+PERIMORTEM_UNIT_TEST(GraphicsObjects, image_shares_immutable_pixels) {
+  Image empty;
+  EXPECT_NOT(empty.is_drawable());
+  EXPECT(empty.get_pixels().is_empty());
+
+  Image image = one_pixel_image();
+  Image alias = image;
+  EXPECT(image.is_drawable());
+  EXPECT_EQ(image.get_size_pixels().width, U32(1));
+  EXPECT_EQ(image.get_size_pixels().height, U32(1));
+  EXPECT_EQ(image.get_pixels().get_data(), alias.get_pixels().get_data());
+  image = Image();
+  EXPECT_EQ(alias.get_pixel(0, 0).red, U8(0x12));
+}
+
+PERIMORTEM_UNIT_TEST(GraphicsObjects, pixel_factories_are_explicit) {
+  Pixel grey = Pixel::from_grey(0x22);
+  Pixel grey_alpha = Pixel::from_grey_alpha(0x33, 0x44);
+  Pixel rgb = Pixel::from_rgb(0x55, 0x66, 0x77);
+  Pixel rgba = Pixel::from_rgba(0x88, 0x99, 0xAA, 0xBB);
+
+  EXPECT_EQ(grey.red, U8(0x22));
+  EXPECT_EQ(grey.alpha, U8(0xFF));
+  EXPECT_EQ(grey_alpha.green, U8(0x33));
+  EXPECT_EQ(grey_alpha.alpha, U8(0x44));
+  EXPECT_EQ(rgb.blue, U8(0x77));
+  EXPECT_EQ(rgb.alpha, U8(0xFF));
+  EXPECT_EQ(rgba.red, U8(0x88));
+  EXPECT_EQ(rgba.alpha, U8(0xBB));
+
+  Size2D size = {12, 34};
+  EXPECT_EQ(size.width, U32(12));
+  EXPECT_EQ(size.height, U32(34));
+}
+
+PERIMORTEM_UNIT_TEST(GraphicsObjects, decode_reports_success) {
+  auto source = Perimortem::System::File::read(
+      "validation/data/pngs/checkerboard_2x2.png"_view);
+  ASSERT(source);
+  auto decoded = Image::decode(*source);
+  ASSERT(decoded);
+  EXPECT_EQ(decoded->get_width(), U32(2));
+  EXPECT_EQ(decoded->get_height(), U32(2));
+
+  EXPECT_NOT(Image::decode("not a png"_view));
+}
+
+PERIMORTEM_UNIT_TEST(GraphicsObjects, sprite_defaults_and_aliases) {
+  Sprite sprite;
+  EXPECT_NOT(sprite.get_object().is_empty());
+  EXPECT_NOT(sprite.is_drawable());
+  EXPECT(sprite.is_visible());
+  EXPECT_EQ(sprite.get_z_index(), S64(0));
+  EXPECT_EQ(sprite.get_tone().red, R64(1.0));
+  EXPECT_EQ(sprite.get_tone().alpha, R64(1.0));
+
+  Image image = one_pixel_image();
+  sprite.set_image(image);
+  sprite.set_size_pixels({64, 32});
+  Transform2D transform;
+  transform.translation = {12.0, 34.0};
+  transform.scale_x = 2.0;
+  sprite.set_transform(transform);
+  sprite.set_tone({0.5, 0.75, 1.0, 0.25});
+  sprite.set_z_index(7);
+  ASSERT(sprite.is_drawable());
+
+  Sprite alias = sprite;
+  alias.set_visible(False);
+  EXPECT_NOT(sprite.is_visible());
+  EXPECT_NOT(sprite.is_drawable());
+  EXPECT_EQ(sprite.get_transform().translation.x, R64(12.0));
+  EXPECT_EQ(sprite.get_size_pixels().width, U32(64));
+  EXPECT_EQ(sprite.get_tone().green, R64(0.75));
+  EXPECT_EQ(sprite.get_object().get_reservations(), Count(2));
+}

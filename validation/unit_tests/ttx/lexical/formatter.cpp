@@ -5,6 +5,8 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/algorithm/search.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "ttx/lexical/tokenizer.hpp"
@@ -297,6 +299,20 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, canonical_pack_width) {
       "  .second = 22222222222222222222,\n"
       "  .third = 33333333333333333333,\n"
       ");\n"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TtxFormatter, long_signature_keeps_empty_result) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(
+      arena,
+      "// Source.\n"
+      "dialect:Library; public set_extraordinarily_long_transform_name:func="
+      "[self,.transform:Transform2D]->[]:self.transform=transform;"_view,
+      "Test.ttx"_view);
+
+  Dynamic::Bytes formatted = Formatter(tokenizer).format();
+  EXPECT(Algorithm::search(formatted.get_view(), "[]"_view) != Count(-1));
+  EXPECT(Algorithm::search(formatted.get_view(), "-> [\n"_view) == Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxFormatter, empty_fallthrough) {

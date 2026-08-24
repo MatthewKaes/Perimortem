@@ -26,6 +26,7 @@
 #include "tetrodotoxin/terminal/abi/symbol.hpp"
 #include "tetrodotoxin/terminal/llvm/lowering/execution.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
+#include "tetrodotoxin/terminal/llvm/module/c_abi.hpp"
 #include "tetrodotoxin/terminal/llvm/module/carriers.hpp"
 #include "tetrodotoxin/terminal/llvm/module/functions.hpp"
 #include "tetrodotoxin/terminal/llvm/module/program.hpp"
@@ -140,6 +141,21 @@ static auto uses_memory_abi(Llvm::Module::Program& program, llvm::Type& type)
   return Bool(
       type.isAggregateType() &&
       module.getDataLayout().getTypeAllocSize(&type).getFixedValue() > 16);
+}
+
+static auto count_c_registers(llvm::Type& type, Count& integers, Count& sse)
+    -> void {
+  if (auto* structure = llvm::dyn_cast<llvm::StructType>(&type)) {
+    for (llvm::Type* element : structure->elements()) {
+      count_c_registers(*element, integers, sse);
+    }
+    return;
+  }
+  if (type.isFloatingPointTy() || type.isVectorTy()) {
+    sse++;
+  } else {
+    integers++;
+  }
 }
 
 static auto get_extension(
@@ -579,13 +595,14 @@ auto Llvm::Module::Functions::lower_construction(
         llvm::unwrap(*present), &supplied_block, &fallback_block);
 
     native_builder.SetInsertPoint(&supplied_block);
+    BAIL_IF(!native_body.acquire(field.get_type(), *supplied));
     native_builder.CreateBr(&merge_block);
 
     native_builder.SetInsertPoint(&fallback_block);
     auto lowered = lower_construction_value(
         native_body, execution, carriers, field.get_type(),
         input.get_fallback());
-    BAIL_IF(!lowered);
+    BAIL_IF(!lowered || !native_body.acquire(field.get_type(), *lowered));
     llvm::BasicBlock* fallback_end = native_builder.GetInsertBlock();
     BAIL_IF(!fallback_end || fallback_end->getTerminator());
     native_builder.CreateBr(&merge_block);
@@ -595,6 +612,10 @@ auto Llvm::Module::Functions::lower_construction(
         llvm::unwrap(*supplied)->getType(), 2, "construction.value");
     selected.addIncoming(llvm::unwrap(*supplied), &supplied_block);
     selected.addIncoming(llvm::unwrap(*lowered), fallback_end);
+    // Both branches contribute one owned value before they meet. Tracking the
+    // merged carrier lets aggregate construction transfer that ownership once
+    // without referring to an instruction confined to either predecessor.
+    native_body.mark_owned(field.get_type(), llvm::wrap(&selected));
     values.insert(llvm::wrap(&selected));
   }
   BAIL_IF(
@@ -791,26 +812,94 @@ auto Llvm::Module::Functions::complete(
                      result_types.get_data(), result_types.get_size()));
   }
 
+  record.result_type = llvm::wrap(result);
+  llvm::Type* abi_result = result;
   Bool sret = Bool(c_boundary && uses_memory_abi(*target, *result));
   Memory::Dynamic::Vector<llvm::Type*> native_parameters;
   if (sret) {
     native_parameters.insert(llvm::PointerType::getUnqual(context));
     record.sret_type = llvm::wrap(result);
+  } else if (c_boundary && result->isAggregateType()) {
+    auto selected = CAbi::select_direct_type(program, llvm::wrap(result));
+    if (!selected) {
+      return fail_callable(
+          program, record.definition,
+          "The native C ABI cannot classify one compact Callable result."_view);
+    }
+    abi_result = llvm::unwrap(*selected);
   }
+  record.result_abi_type = llvm::wrap(abi_result);
 
   record.indirect_parameters.clear();
+  record.parameter_types.clear();
+  record.parameter_abi_types.clear();
+  record.parameter_abi_counts.clear();
+  Count integer_registers = sret ? 1 : 0;
+  Count sse_registers = 0;
   for (Count index = 0; index < parameter_types.get_size(); index++) {
     llvm::Type* parameter = parameter_types[index];
     Bool self_reference = Bool(index == 0 && declares_self(callable));
     Bool indirect = self_reference ||
                     Bool(c_boundary && uses_memory_abi(*target, *parameter));
+    llvm::Type* abi_parameter = parameter;
+    if (c_boundary && !indirect && parameter->isAggregateType()) {
+      auto selected = CAbi::select_direct_type(program, llvm::wrap(parameter));
+      if (!selected) {
+        return fail_callable(
+            program, record.definition,
+            "The native C ABI cannot classify one compact Callable parameter."_view);
+      }
+      abi_parameter = llvm::unwrap(*selected);
+    }
+
+    Count required_integers = 0;
+    Count required_sse = 0;
+    if (c_boundary && !indirect) {
+      count_c_registers(*abi_parameter, required_integers, required_sse);
+      if (parameter->isAggregateType() &&
+          (integer_registers + required_integers > 6 ||
+           sse_registers + required_sse > 8)) {
+        indirect = True;
+        abi_parameter = parameter;
+        required_integers = 0;
+        required_sse = 0;
+      }
+    } else if (c_boundary && self_reference) {
+      required_integers = 1;
+    }
+
     record.indirect_parameters.insert(indirect);
-    native_parameters.insert(
-        indirect ? llvm::PointerType::getUnqual(context) : parameter);
+    record.parameter_types.insert(llvm::wrap(parameter));
+    record.parameter_abi_types.insert(llvm::wrap(abi_parameter));
+    Count abi_count = 1;
+    if (indirect) {
+      native_parameters.insert(llvm::PointerType::getUnqual(context));
+    } else if (
+        c_boundary && parameter->isAggregateType() &&
+        get_module(*target)
+                .getDataLayout()
+                .getTypeAllocSize(parameter)
+                .getFixedValue() > 8) {
+      auto* chunks = llvm::dyn_cast<llvm::StructType>(abi_parameter);
+      if (!chunks || chunks->getNumElements() != 2) {
+        return fail_callable(
+            program, record.definition,
+            "The native C ABI produced an invalid two register parameter."_view);
+      }
+      abi_count = chunks->getNumElements();
+      for (llvm::Type* chunk : chunks->elements()) {
+        native_parameters.insert(chunk);
+      }
+    } else {
+      native_parameters.insert(abi_parameter);
+    }
+    record.parameter_abi_counts.insert(abi_count);
+    integer_registers += required_integers;
+    sse_registers += required_sse;
   }
 
   llvm::FunctionType* signature = llvm::FunctionType::get(
-      sret ? llvm::Type::getVoidTy(context) : result,
+      sret ? llvm::Type::getVoidTy(context) : abi_result,
       llvm::ArrayRef<llvm::Type*>(
           native_parameters.get_data(), native_parameters.get_size()),
       false);
@@ -834,33 +923,35 @@ auto Llvm::Module::Functions::complete(
                context, module.getDataLayout().getABITypeAlign(result)));
   }
 
+  Count native_parameter = parameter_offset;
   for (Count index = 0; index < parameter_types.get_size(); index++) {
     Bool self_reference = Bool(index == 0 && declares_self(callable));
-    if (!record.indirect_parameters[index] || self_reference) {
-      continue;
+    if (record.indirect_parameters[index] && !self_reference) {
+      function.addParamAttr(
+          U32(native_parameter),
+          llvm::Attribute::getWithByValType(context, parameter_types[index]));
+      function.addParamAttr(
+          U32(native_parameter),
+          llvm::Attribute::getWithAlignment(
+              context,
+              module.getDataLayout().getABITypeAlign(parameter_types[index])));
     }
 
-    function.addParamAttr(
-        U32(index + parameter_offset),
-        llvm::Attribute::getWithByValType(context, parameter_types[index]));
-    function.addParamAttr(
-        U32(index + parameter_offset),
-        llvm::Attribute::getWithAlignment(
-            context,
-            module.getDataLayout().getABITypeAlign(parameter_types[index])));
-  }
-
-  for (Count index = 0; index < semantic_parameters.get_size(); index++) {
-    auto extension = get_extension(*carriers, *semantic_parameters[index]);
-    if (extension) {
-      function.addParamAttr(U32(index + parameter_offset), *extension);
+    if (record.parameter_abi_counts[index] == 1 &&
+        record.parameter_abi_types[index] == record.parameter_types[index]) {
+      auto extension = get_extension(*carriers, *semantic_parameters[index]);
+      if (extension) {
+        function.addParamAttr(U32(native_parameter), *extension);
+      }
     }
+    native_parameter += record.parameter_abi_counts[index];
   }
 
   auto library_callable =
       callable.select<Tetrodotoxin::Library::Language::Model::Callable>();
   if (semantic_results.get_size() == 1 &&
-      !(library_callable && library_callable->get_self_result())) {
+      !(library_callable && library_callable->get_self_result()) &&
+      record.result_abi_type == record.result_type) {
     auto extension = get_extension(*carriers, *semantic_results[0]);
     if (extension) {
       function.addRetAttr(*extension);
@@ -920,7 +1011,10 @@ auto Llvm::Module::Functions::begin_body(
   }
 
   const Ttx::Concept::Layout& parameters = callable.get_parameters();
-  if (record.indirect_parameters.get_size() != parameters.get_size()) {
+  if (record.indirect_parameters.get_size() != parameters.get_size() ||
+      record.parameter_types.get_size() != parameters.get_size() ||
+      record.parameter_abi_types.get_size() != parameters.get_size() ||
+      record.parameter_abi_counts.get_size() != parameters.get_size()) {
     fail_toolchain(
         program,
         "LLVM Callable parameter state does not match its completed Layout."_view);
@@ -964,21 +1058,53 @@ auto Llvm::Module::Functions::bind_parameters(
     auto parameter = entry_value
                          ? entry_value->select<Ttx::Model::Addressable>()
                          : Core::Option<const Ttx::Model::Addressable&>();
-    if (!parameter || argument == function.arg_end()) {
+    if (!parameter || argument == function.arg_end() ||
+        record.parameter_abi_counts[index] == 0) {
       fail_toolchain(
           get_program(body),
           "LLVM cannot bind the completed Callable parameter Layout."_view);
       return False;
     }
 
-    llvm::Argument& native_argument = *argument;
-    argument++;
-    LLVMValueRef address = llvm::wrap(&native_argument);
-    if (!record.indirect_parameters[index]) {
+    LLVMValueRef address;
+    if (record.indirect_parameters[index]) {
+      address = llvm::wrap(&*argument);
+      argument++;
+    } else {
+      llvm::Type& abi_type = *llvm::unwrap(record.parameter_abi_types[index]);
+      llvm::Value* native_value;
+      if (record.parameter_abi_counts[index] == 1) {
+        native_value = &*argument;
+        argument++;
+      } else {
+        native_value = llvm::UndefValue::get(&abi_type);
+        for (Count chunk = 0; chunk < record.parameter_abi_counts[index];
+             chunk++) {
+          if (argument == function.arg_end()) {
+            return fail_toolchain(
+                get_program(body),
+                "LLVM lost one register from a compact C parameter."_view);
+          }
+          native_value =
+              get_builder(*native_body)
+                  .CreateInsertValue(
+                      native_value, &*argument, U32(chunk), "parameter.chunk");
+          argument++;
+        }
+      }
+
+      auto semantic = CAbi::convert(
+          *native_body, record.parameter_types[index], llvm::wrap(native_value),
+          "parameter.value"_view);
+      if (!semantic) {
+        return fail_toolchain(
+            get_program(body),
+            "LLVM could not restore one semantic Callable parameter."_view);
+      }
       LLVMValueRef storage = native_body->create_entry_alloca(
-          llvm::wrap(native_argument.getType()), "parameter"_view);
+          record.parameter_types[index], "parameter"_view);
       get_builder(*native_body)
-          .CreateStore(&native_argument, llvm::unwrap(storage));
+          .CreateStore(llvm::unwrap(*semantic), llvm::unwrap(storage));
       address = storage;
     }
 
@@ -1056,6 +1182,85 @@ auto Llvm::Module::Functions::end_body(
   }
 
   return completed;
+}
+
+auto Llvm::Module::Functions::append_call_arguments(
+    Llvm::Module::Emission& body,
+    const Ttx::Model::Callable& callable,
+    Count parameter,
+    LLVMValueRef value,
+    Memory::Dynamic::Vector<LLVMValueRef>& arguments) const -> Bool {
+  auto native_body = select_body(body);
+  auto found = records.find(&callable);
+  if (!native_body || !found ||
+      parameter >= found->value.parameter_types.get_size() ||
+      found->value.indirect_parameters[parameter] ||
+      LLVMTypeOf(value) != found->value.parameter_types[parameter]) {
+    return fail_toolchain(
+        get_program(body),
+        "LLVM cannot project this direct Callable argument into the C ABI."_view);
+  }
+
+  const Record& record = found->value;
+  auto projected = CAbi::convert(
+      *native_body, record.parameter_abi_types[parameter], value,
+      "call.argument.abi"_view);
+  if (!projected) {
+    return False;
+  }
+
+  Count count = record.parameter_abi_counts[parameter];
+  if (count == 1) {
+    arguments.insert(*projected);
+    return True;
+  }
+
+  auto* structure =
+      llvm::dyn_cast<llvm::StructType>(llvm::unwrap(LLVMTypeOf(*projected)));
+  if (!structure || structure->getNumElements() != count) {
+    return fail_toolchain(
+        get_program(body),
+        "LLVM cannot split one compact C argument into its registers."_view);
+  }
+  for (Count index = 0; index < count; index++) {
+    LLVMValueRef chunk = LLVMBuildExtractValue(
+        native_body->get_builder(), *projected, U32(index), "call.argument");
+    if (!chunk) {
+      return False;
+    }
+    arguments.insert(chunk);
+  }
+  return True;
+}
+
+auto Llvm::Module::Functions::decode_call_result(
+    Llvm::Module::Emission& body,
+    const Ttx::Model::Callable& callable,
+    LLVMValueRef value) const -> Core::Option<LLVMValueRef> {
+  auto native_body = select_body(body);
+  auto found = records.find(&callable);
+  if (!native_body || !found || !found->value.result_type ||
+      !found->value.result_abi_type || found->value.sret_type ||
+      LLVMTypeOf(value) != *found->value.result_abi_type) {
+    return {};
+  }
+  return CAbi::convert(
+      *native_body, *found->value.result_type, value, "call.result.value"_view);
+}
+
+auto Llvm::Module::Functions::encode_return(
+    Llvm::Module::Emission& body,
+    const Ttx::Model::Callable& callable,
+    LLVMValueRef value) const -> Core::Option<LLVMValueRef> {
+  auto native_body = select_body(body);
+  auto found = records.find(&callable);
+  if (!native_body || !found || !found->value.result_type ||
+      !found->value.result_abi_type || found->value.sret_type ||
+      LLVMTypeOf(value) != *found->value.result_type) {
+    return {};
+  }
+  return CAbi::convert(
+      *native_body, *found->value.result_abi_type, value, "return.abi"_view);
 }
 
 auto Llvm::Module::Functions::find_function(

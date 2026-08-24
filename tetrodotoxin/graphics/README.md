@@ -20,9 +20,11 @@ and behavior while satisfying that requirement.
 
 Graphics uses a higher order TTX Interface to negotiate the real Host Type
 against the real candidate Object Type. Every required public state Field must
-remain visible, mutable instance state with the exact promised Type. Matching
-Layout alone is insufficient because two values with the same storage shape
-need not share graphics meaning.
+remain visible mutable instance state. Domain Types such as Transform2D retain
+exact identity, while matching Library scalar families and widths let Package
+members share Bool and S64 requirements without pretending their source owned
+identities are equal. Matching Layout alone remains insufficient because two
+values with the same storage shape need not share graphics meaning.
 
 This relation is directional. A Sprite may satisfy Host without Host replacing
 Sprite or erasing the Sprite identity. Scene therefore keeps its exact Field
@@ -37,6 +39,11 @@ draws it contributes. The descriptor contains behavior rather than a copied
 Field table, so replacing an Object in a real Field changes the value inspected
 for the next frame.
 
+The standard Sprite uses the same Transform required by Host, then adds its
+Image, pixel size, and Tone. Size describes the textured quad while Transform
+remains the one authority for translation, scale, and rotation. An empty Image
+or zero size is a valid configured state that simply contributes no draw.
+
 Visibility and transforms compose while Graphics walks the hosted tree. An
 invisible value removes its complete subtree. Cycles are rejected because a
 hosted edge describes containment for one frame even when ordinary Object
@@ -45,10 +52,10 @@ references elsewhere may form richer relationships.
 ## Stable frame submissions
 
 Each accepted draw becomes one immutable Batch. Graphics copies its input bytes
-and transform, retains its worker local resource Objects, and keeps the authored
-traversal order used to break equal draw indices. Batches are then ordered from
-back to front by `z_index`, with a later authored value remaining in front when
-indices match.
+and transform, retains the worker local storage selected by each resource value,
+and keeps the authored traversal order used to break equal draw indices.
+Batches are then ordered from back to front by `z_index`, with a later authored
+value remaining in front when indices match.
 
 The completed Submission no longer borrows mutable Scene state. Scene can
 change or release its hosted Objects after collection without changing the

@@ -45,11 +45,21 @@ ttx_package(
     name = "perimortem_graphics",
     package_name = "Perimortem.Graphics",
     manifest = "Perimortem.Graphics/package.ttx",
+    native_deps = [":perimortem_graphics_native"],
     version = [
         1,
         0,
     ],
     visibility = ["//visibility:public"],
+)
+
+ttx_native_provider(
+    name = "perimortem_graphics_native",
+    dep = "//perimortem:abi_graphics",
+    functions = [
+        "perimortem_graphics_image_decode",
+    ],
+    provider_name = "Perimortem.Graphics.Host",
 )
 
 ttx_native_provider(

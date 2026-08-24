@@ -605,13 +605,14 @@ constexpr auto convert_to_pixels(
     Count source_offset = pixel_index * source_channels;
     switch (color_type) {
     case ColorType::Greyscale:
-      output[pixel_index] = Pixel(data[source_offset]);
+      output[pixel_index] = Pixel::from_grey(data[source_offset]);
       break;
     case ColorType::GreyscaleAlpha:
-      output[pixel_index] = Pixel(data[source_offset], data[source_offset + 1]);
+      output[pixel_index] =
+          Pixel::from_grey_alpha(data[source_offset], data[source_offset + 1]);
       break;
     case ColorType::Rgb:
-      output[pixel_index] = Pixel(
+      output[pixel_index] = Pixel::from_rgb(
           data[source_offset + 0], data[source_offset + 1],
           data[source_offset + 2]);
       break;
@@ -630,7 +631,7 @@ constexpr auto convert_to_pixels(
         return False;
       }
 
-      output[pixel_index] = Pixel(
+      output[pixel_index] = Pixel::from_rgb(
           palette[palette_offset + 0], palette[palette_offset + 1],
           palette[palette_offset + 2]);
       break;

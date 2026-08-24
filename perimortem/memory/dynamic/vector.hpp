@@ -24,7 +24,8 @@ class Vector {
     ensure_capacity(source_vector.get_size());
     size = source_vector.get_size();
     for (Count i = 0; i < size; i++) {
-      new (source_block + i) type(source_vector.source_block[i]);
+      new (source_block + i, Core::Placement::Construct)
+          type(source_vector.source_block[i]);
     }
   }
 
@@ -65,7 +66,8 @@ class Vector {
     ensure_capacity(source_vector.get_size());
     size = source_vector.get_size();
     for (Count i = 0; i < size; i++) {
-      new (source_block + i) type(source_vector.source_block[i]);
+      new (source_block + i, Core::Placement::Construct)
+          type(source_vector.source_block[i]);
     }
 
     return *this;
@@ -101,14 +103,16 @@ class Vector {
     ensure_capacity(size + 1);
 
     // Construct using the copy constructor.
-    return *new (source_block + (size++)) type(data);
+    return *new (source_block + (size++), Core::Placement::Construct)
+        type(data);
   }
 
   constexpr auto emplace(type&& data) -> type& {
     ensure_capacity(size + 1);
 
     // Construct using the move constructor.
-    return *new (source_block + (size++)) type(Core::Data::take(data));
+    return *new (source_block + (size++), Core::Placement::Construct)
+        type(Core::Data::take(data));
   }
 
   auto remove(Count index) -> Bool {
@@ -235,7 +239,7 @@ class Vector {
         memcpy(new_block, source_block, sizeof(type) * size);
       } else {
         for (Count i = 0; i < size; i++) {
-          new (new_block + i) type(source_block[i]);
+          new (new_block + i, Core::Placement::Construct) type(source_block[i]);
         }
 
         destruct();

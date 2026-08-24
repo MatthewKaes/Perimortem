@@ -16,7 +16,8 @@ class Record {
  public:
   template <typename... arg_types>
   Record(arg_types&&... args) : object(Core::Object<>::create(descriptor)) {
-    new (object.get_payload()) value_type(static_cast<arg_types&&>(args)...);
+    new (object.get_payload(), Core::Placement::Construct)
+        value_type(static_cast<arg_types&&>(args)...);
   }
 
   Record(Record& rhs) : object(rhs.object) { object.retain(); }

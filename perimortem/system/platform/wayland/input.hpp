@@ -3,9 +3,6 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <wayland-client.h>
-
 #include "perimortem/core/static/vector.hpp"
 
 #include "perimortem/system/input.hpp"
@@ -24,9 +21,9 @@ class Input {
   Input(const Input&) = delete;
   auto operator=(const Input&) -> Input& = delete;
 
-  auto attach(wl_surface* surface) -> Bool;
+  auto attach(void* surface) -> Bool;
   auto register_global(
-      wl_registry* registry,
+      void* registry,
       U32 name,
       const char* interface,
       U32 version) -> void;
@@ -48,90 +45,26 @@ class Input {
   auto clear_pointer() -> void;
   auto release_devices() -> void;
 
-  static auto on_seat_capabilities(void* data, wl_seat*, uint32_t capabilities)
-      -> void;
-  static auto on_seat_name(void*, wl_seat*, const char*) -> void;
-
-  static auto on_keyboard_keymap(
-      void*,
-      wl_keyboard*,
-      uint32_t,
-      int32_t descriptor,
-      uint32_t) -> void;
+  static auto on_seat_capabilities(void* data, U32 capabilities) -> void;
+  static auto on_keyboard_keymap(S32 descriptor) -> void;
   static auto on_keyboard_enter(
       void* data,
-      wl_keyboard*,
-      uint32_t,
-      wl_surface* surface,
-      wl_array* keys) -> void;
-  static auto
-      on_keyboard_leave(void* data, wl_keyboard*, uint32_t, wl_surface* surface)
-          -> void;
-  static auto on_keyboard_key(
-      void* data,
-      wl_keyboard*,
-      uint32_t,
-      uint32_t,
-      uint32_t key,
-      uint32_t state) -> void;
-  static auto on_keyboard_modifiers(
-      void*,
-      wl_keyboard*,
-      uint32_t,
-      uint32_t,
-      uint32_t,
-      uint32_t,
-      uint32_t) -> void;
-  static auto on_keyboard_repeat(void*, wl_keyboard*, int32_t, int32_t) -> void;
+      void* surface,
+      const U32* keys,
+      Count key_count) -> void;
+  static auto on_keyboard_leave(void* data, void* surface) -> void;
+  static auto on_keyboard_key(void* data, U32 key, U32 state) -> void;
 
-  static auto on_pointer_enter(
-      void* data,
-      wl_pointer*,
-      uint32_t,
-      wl_surface* surface,
-      wl_fixed_t x,
-      wl_fixed_t y) -> void;
-  static auto
-      on_pointer_leave(void* data, wl_pointer*, uint32_t, wl_surface* surface)
-          -> void;
-  static auto on_pointer_motion(
-      void* data,
-      wl_pointer*,
-      uint32_t,
-      wl_fixed_t x,
-      wl_fixed_t y) -> void;
-  static auto on_pointer_button(
-      void* data,
-      wl_pointer*,
-      uint32_t,
-      uint32_t,
-      uint32_t button,
-      uint32_t state) -> void;
-  static auto on_pointer_axis(
-      void* data,
-      wl_pointer*,
-      uint32_t,
-      uint32_t axis,
-      wl_fixed_t value) -> void;
-  static auto on_pointer_frame(void*, wl_pointer*) -> void;
-  static auto on_pointer_axis_source(void*, wl_pointer*, uint32_t) -> void;
-  static auto on_pointer_axis_stop(void*, wl_pointer*, uint32_t, uint32_t)
-      -> void;
-  static auto on_pointer_axis_discrete(void*, wl_pointer*, uint32_t, int32_t)
-      -> void;
-  static auto on_pointer_axis_value120(void*, wl_pointer*, uint32_t, int32_t)
-      -> void;
-  static auto on_pointer_axis_direction(void*, wl_pointer*, uint32_t, uint32_t)
-      -> void;
+  static auto on_pointer_enter(void* data, void* surface, S32 x, S32 y) -> void;
+  static auto on_pointer_leave(void* data, void* surface) -> void;
+  static auto on_pointer_motion(void* data, S32 x, S32 y) -> void;
+  static auto on_pointer_button(void* data, U32 button, U32 state) -> void;
+  static auto on_pointer_axis(void* data, U32 axis, S32 value) -> void;
 
-  static const wl_seat_listener seat_listener;
-  static const wl_keyboard_listener keyboard_listener;
-  static const wl_pointer_listener pointer_listener;
-
-  wl_seat* seat = nullptr;
-  wl_keyboard* keyboard = nullptr;
-  wl_pointer* pointer = nullptr;
-  wl_surface* surface = nullptr;
+  void* seat = nullptr;
+  void* keyboard = nullptr;
+  void* pointer = nullptr;
+  void* surface = nullptr;
   U32 seat_name = 0;
   KeyBits current;
   KeyBits previous;

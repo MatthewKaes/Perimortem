@@ -24,10 +24,6 @@ extern const U8 TTX_DATA_Validation_2eShader__Shader__TestShader[];
 extern const U8 TTX_DATA_Validation_2eShader__Shader__TestShader_end[];
 }
 
-static constexpr auto embedded_program() -> Program {
-  return Program(TTX_DATA_Validation_2eShader__Shader__TestShader);
-}
-
 static Count finalized_resources = 0;
 
 class SubmissionResource {
@@ -77,11 +73,16 @@ class SubmissionNode {
 
  private:
   static auto finalize(U8* payload) -> void;
-  static auto read_placement(const U8* payload) -> Descriptor::Placement;
-  static auto read_child_count(const U8* payload) -> Count;
-  static auto read_child(const U8* payload, Count index) -> Descriptor::Child;
-  static auto read_draw_count(const U8* payload) -> Count;
-  static auto read_draw(const U8* payload, Count index) -> Descriptor::Draw;
+  static auto read_placement(const U8* product, Core::Object<> object)
+      -> Descriptor::Placement;
+  static auto read_child_count(const U8* product, Core::Object<> object)
+      -> Count;
+  static auto read_child(const U8* product, Core::Object<> object, Count index)
+      -> Descriptor::Child;
+  static auto read_draw_count(const U8* product, Core::Object<> object)
+      -> Count;
+  static auto read_draw(const U8* product, Core::Object<> object, Count index)
+      -> Descriptor::Draw;
 
   static const Core::Object<>::Descriptor object_descriptor;
   Core::Object<> children[4];
@@ -95,6 +96,7 @@ const Core::Object<>::Descriptor SubmissionNode::object_descriptor(
     SubmissionNode::finalize);
 
 const Descriptor SubmissionNode::graphics_descriptor(
+    TTX_DATA_Validation_2eShader__Shader__TestShader,
     SubmissionNode::read_placement,
     SubmissionNode::read_child_count,
     SubmissionNode::read_child,
@@ -103,7 +105,8 @@ const Descriptor SubmissionNode::graphics_descriptor(
 
 auto SubmissionNode::create() -> Core::Object<> {
   Core::Object<> object = Core::Object<>::create(object_descriptor);
-  new (object.get_payload()) SubmissionNode();
+  new (object.get_payload(), Perimortem::Core::Placement::Construct)
+      SubmissionNode();
   return object;
 }
 
@@ -141,33 +144,40 @@ auto SubmissionNode::finalize(U8* payload) -> void {
   Core::Data::cast<SubmissionNode>(payload)->~SubmissionNode();
 }
 
-auto SubmissionNode::read_placement(const U8* payload)
+auto SubmissionNode::read_placement(const U8*, Core::Object<> object)
     -> Descriptor::Placement {
-  const SubmissionNode& node = *Core::Data::cast<const SubmissionNode>(payload);
+  const SubmissionNode& node = get(object);
   return Descriptor::Placement(node.transform, node.visible, node.z_index);
 }
 
-auto SubmissionNode::read_child_count(const U8* payload) -> Count {
-  return Core::Data::cast<const SubmissionNode>(payload)->child_count;
+auto SubmissionNode::read_child_count(const U8*, Core::Object<> object)
+    -> Count {
+  return get(object).child_count;
 }
 
-auto SubmissionNode::read_child(const U8* payload, Count index)
+auto SubmissionNode::read_child(const U8*, Core::Object<> object, Count index)
     -> Descriptor::Child {
-  const SubmissionNode& node = *Core::Data::cast<const SubmissionNode>(payload);
+  const SubmissionNode& node = get(object);
   return Descriptor::Child(node.children[index], graphics_descriptor);
 }
 
-auto SubmissionNode::read_draw_count(const U8* payload) -> Count {
-  return Core::Data::cast<const SubmissionNode>(payload)->draw_count;
+auto SubmissionNode::read_draw_count(const U8*, Core::Object<> object)
+    -> Count {
+  return get(object).draw_count;
 }
 
-auto SubmissionNode::read_draw(const U8* payload, Count index)
-    -> Descriptor::Draw {
-  const SubmissionNode& node = *Core::Data::cast<const SubmissionNode>(payload);
+auto SubmissionNode::read_draw(
+    const U8* product,
+    Core::Object<> object,
+    Count index) -> Descriptor::Draw {
+  const SubmissionNode& node = get(object);
+  Memory::Dynamic::Vector<Resource> resources;
+  if (!node.resource.is_empty()) {
+    resources.emplace(Resource(node.resource));
+  }
   return Descriptor::Draw(
-      embedded_program(),
-      Core::View::Vector<Core::Object<>>(
-          &node.resource, node.resource.is_empty() ? 0 : 1),
+      Program(product),
+      static_cast<Memory::Dynamic::Vector<Resource>&&>(resources),
       node.inputs.get_view(), node.vertex_count, -S64(index));
 }
 

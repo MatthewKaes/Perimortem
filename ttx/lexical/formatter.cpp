@@ -1291,6 +1291,10 @@ class State {
   }
 
   auto should_expand(Count opening, Count closing) const -> Bool {
+    if (closing == opening + 1) {
+      return False;
+    }
+
     for (Count index = opening + 1; index < closing; index++) {
       if (tokens[index].get_code() == Code::Type::Comment) {
         return True;

@@ -104,7 +104,7 @@ class Set {
     ensure_capacity(buffer_data.size + 1);
     key_type* empty_slot = get_empty(hash);
     buffer_data.size += 1;
-    new (empty_slot) key_type(key);
+    new (empty_slot, Core::Placement::Construct) key_type(key);
     return True;
   }
 

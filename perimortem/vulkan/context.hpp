@@ -4,11 +4,10 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#ifdef PERI_LINUX
-#include <vulkan/vulkan_wayland.h>
-#endif
 
 #include "perimortem/core/perimortem.hpp"
+
+#include "perimortem/system/presentation.hpp"
 
 namespace Perimortem::Vulkan {
 
@@ -16,9 +15,7 @@ namespace Perimortem::Vulkan {
 // queue, and command pool for the lifetime of the application.
 class Context {
  public:
-#ifdef PERI_LINUX
-  static auto create(wl_display* display, wl_surface* surface) -> Context;
-#endif
+  static auto create(System::Presentation presentation) -> Context;
 
   Context() = default;
   ~Context();

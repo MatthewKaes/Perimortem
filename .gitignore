@@ -29,3 +29,4 @@ build_trace.data
 AGENTS.md
 puffer/lsp/__pycache__/*
 extension/lldb/__pycache__/*
+.vscode/*.vsix

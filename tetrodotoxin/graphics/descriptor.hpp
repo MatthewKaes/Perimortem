@@ -8,7 +8,11 @@
 #include "perimortem/core/object.hpp"
 #include "perimortem/core/option.hpp"
 
+#include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/dynamic/vector.hpp"
+
 #include "perimortem/graphics/frame/program.hpp"
+#include "perimortem/graphics/frame/resource.hpp"
 #include "perimortem/graphics/frame/transform.hpp"
 
 namespace Tetrodotoxin::Graphics {
@@ -62,15 +66,18 @@ class Descriptor {
 
   class Draw {
    public:
-    constexpr Draw() = default;
-    constexpr Draw(
+    Draw() = default;
+    Draw(
         Perimortem::Graphics::Frame::Program program,
-        Perimortem::Core::View::Vector<Perimortem::Core::Object<>> resources,
+        Perimortem::Memory::Dynamic::Vector<
+            Perimortem::Graphics::Frame::Resource>&& resources,
         Perimortem::Core::View::Bytes inputs,
         Count vertex_count,
         S64 z_offset)
         : program(program),
-          resources(resources),
+          resources(
+              static_cast<Perimortem::Memory::Dynamic::Vector<
+                  Perimortem::Graphics::Frame::Resource>&&>(resources)),
           inputs(inputs),
           vertex_count(vertex_count),
           z_offset(z_offset) {}
@@ -78,52 +85,64 @@ class Descriptor {
     constexpr auto get_program() const -> Perimortem::Graphics::Frame::Program {
       return program;
     }
-    constexpr auto get_resources() const
-        -> Perimortem::Core::View::Vector<Perimortem::Core::Object<>> {
-      return resources;
+    constexpr auto get_resources() const -> Perimortem::Core::View::Vector<
+        Perimortem::Graphics::Frame::Resource> {
+      return resources.get_view();
     }
-    constexpr auto get_inputs() const -> Perimortem::Core::View::Bytes {
-      return inputs;
+    auto get_inputs() const -> Perimortem::Core::View::Bytes {
+      return inputs.get_view();
     }
     constexpr auto get_vertex_count() const -> Count { return vertex_count; }
     constexpr auto get_z_offset() const -> S64 { return z_offset; }
+    auto take_resources() -> Perimortem::Memory::Dynamic::Vector<
+        Perimortem::Graphics::Frame::Resource>&& {
+      return static_cast<Perimortem::Memory::Dynamic::Vector<
+          Perimortem::Graphics::Frame::Resource>&&>(resources);
+    }
+    auto take_inputs() -> Perimortem::Memory::Dynamic::Bytes&& {
+      return static_cast<Perimortem::Memory::Dynamic::Bytes&&>(inputs);
+    }
 
    private:
     Perimortem::Graphics::Frame::Program program;
-    Perimortem::Core::View::Vector<Perimortem::Core::Object<>> resources;
-    Perimortem::Core::View::Bytes inputs;
+    Perimortem::Memory::Dynamic::Vector<Perimortem::Graphics::Frame::Resource>
+        resources;
+    Perimortem::Memory::Dynamic::Bytes inputs;
     Count vertex_count = 0;
     S64 z_offset = 0;
   };
 
-  using ReadPlacement = Placement (*)(const U8*);
-  using ReadChildCount = Count (*)(const U8*);
-  using ReadChild = Child (*)(const U8*, Count);
-  using ReadDrawCount = Count (*)(const U8*);
-  using ReadDraw = Draw (*)(const U8*, Count);
+  using ReadPlacement = Placement (*)(const U8*, Perimortem::Core::Object<>);
+  using ReadChildCount = Count (*)(const U8*, Perimortem::Core::Object<>);
+  using ReadChild = Child (*)(const U8*, Perimortem::Core::Object<>, Count);
+  using ReadDrawCount = Count (*)(const U8*, Perimortem::Core::Object<>);
+  using ReadDraw = Draw (*)(const U8*, Perimortem::Core::Object<>, Count);
 
   constexpr Descriptor(
+      const U8* product,
       ReadPlacement read_placement,
       ReadChildCount read_child_count,
       ReadChild read_child,
       ReadDrawCount read_draw_count,
       ReadDraw read_draw)
-      : read_placement(read_placement),
+      : product(product),
+        read_placement(read_placement),
         read_child_count(read_child_count),
         read_child(read_child),
         read_draw_count(read_draw_count),
         read_draw(read_draw) {}
 
-  auto placement(const U8* payload) const
+  auto placement(Perimortem::Core::Object<> object) const
       -> Perimortem::Core::Option<Placement>;
-  auto child_count(const U8* payload) const -> Count;
-  auto child(const U8* payload, Count index) const
+  auto child_count(Perimortem::Core::Object<> object) const -> Count;
+  auto child(Perimortem::Core::Object<> object, Count index) const
       -> Perimortem::Core::Option<Child>;
-  auto draw_count(const U8* payload) const -> Count;
-  auto draw(const U8* payload, Count index) const
+  auto draw_count(Perimortem::Core::Object<> object) const -> Count;
+  auto draw(Perimortem::Core::Object<> object, Count index) const
       -> Perimortem::Core::Option<Draw>;
 
  private:
+  const U8* product;
   ReadPlacement read_placement;
   ReadChildCount read_child_count;
   ReadChild read_child;

@@ -48,14 +48,15 @@ class Vector {
     ensure_capacity(size + 1);
 
     // Construct using the copy constructor.
-    new (rented_block + (size++)) value_type(data);
+    new (rented_block + (size++), Core::Placement::Construct) value_type(data);
   }
 
   constexpr auto emplace(const value_type&& data) -> value_type& {
     ensure_capacity(size + 1);
 
     // Construct using the move constructor.
-    return *new (rented_block + (size++)) value_type(data);
+    return *new (rented_block + (size++), Core::Placement::Construct)
+        value_type(data);
   }
 
   constexpr auto contains(const value_type& data) const -> Bool {

@@ -170,10 +170,11 @@ Platform event objects and window system addresses do not become part of
 ## Perimortem.Graphics
 
 `Perimortem.Graphics` supplies the concrete Library Types used by the provided
-Scene sources. They include `Image`, `Point2D`, `Size2D`, `Tone`, and `Sprite`.
-These Types reuse `Perimortem.Math` where the semantic identity is genuinely a
-math value and keep a distinct Graphics Type where point, size, color, or image
-meaning matters.
+Scene sources. Pixel, Point2D, Size2D, Tone, Transform2D, Host, Image, and
+Sprite are each real Package members, so routes such as `Graphics::Pixel` and
+`Graphics::Sprite` select their documented Type directly. These Types reuse
+`Perimortem.Math` where the semantic identity is genuinely a math value and keep
+a distinct Graphics Type where point, size, color, or image meaning matters.
 
 `Host` is the ordinary Library Structure that describes the public transform,
 visibility, and ordering state promised by a hosted Object. It is not a base
@@ -181,29 +182,31 @@ class or allocated node. The Graphics Interface negotiates a concrete Object
 against this real requirement, which lets Types such as Sprite retain their
 exact identities and additional behavior.
 
-`Group` is the smallest concrete hosted Object. It contributes placement and
-ordered hosted children without choosing image, geometry, Shader, or backend
-behavior, making it useful as a compositional root.
-
 `Transform2D` carries translation, scale, and rotation as domain values. The
 runtime copies their composed affine result into each stable frame submission,
 so later Scene mutations cannot change a frame already being presented.
 
-`Point2D`, `Size2D`, and `Tone` are inline Struct values. Point coordinates and
-Tone channels are `R64`. Pixel width and height are `U32`. `Image`
-and `Sprite` are nonnull Objects. An Image owns a stable decoded pixel result or
-represents the authored empty image state. Backend textures and upload resources
-are not part of that Object's semantic identity.
+`Point2D`, `Size2D`, `Tone`, and `Image` are inline Struct values. Point
+coordinates and Tone channels are `R64`. Size2D width and height are `U32`.
+Image retains one shared `Object[Pixel]` buffer, its logical pixel count, its
+dimensions, and its addressing policy. Its ordinary default is the empty image
+value. Backend textures and upload resources remain independent runtime facts.
+
+`Pixel` is the four byte RGBA value shared by decoded Images and native codecs.
+Its transparent black default follows ordinary Structure construction.
+`from_grey`, `from_grey_alpha`, `from_rgb`, and `from_rgba` make every other
+construction explicit without relying on overloaded native constructors.
 
 `Sprite` is a nonnull Object that supports Tetrodotoxin Graphics hosting. Its
-public mutable Fields are `image`, `size_pixels`, `position`, `tone`, `visible`,
-and `z_index`. Their Types are `Image`, `Size2D`,
-`Point2D`, `Tone`, `Bool`, and `S64` in that order. Construction creates a
-valid unconfigured Sprite with an empty Image, zero size and position, opaque
-white tone, visible state, and zero draw index. It produces no draw until it has
-drawable content. Those authored Field initializers determine Sprite's semantic
-default. Image, the inline Structs, and each scalar also retain their own total
-Library defaults.
+public mutable Fields are `image`, `size_pixels`, `transform`, `tone`, `visible`,
+and `z_index`. Their Types are `Image`, `Size2D`, `Transform2D`, `Tone`, `Bool`,
+and `S64` in that order. Construction creates a valid unconfigured Sprite with
+an empty Image, zero size, identity transform, opaque white tone, visible state,
+and zero draw index. It produces no draw until it has drawable content. The one
+transform Field satisfies the Host requirement directly and avoids a second
+position authority. Those authored Field initializers determine Sprite's
+semantic default. Image, the other inline Structs, and each scalar also retain
+their own total Library defaults.
 
 A Scene hosts a Sprite through the private state Field initialized with `new`.
 The Scene changes the Sprite's public Fields through ordinary Library access,
@@ -215,12 +218,14 @@ later Field is in front when two indices match. Visibility and transform
 compose from host to hosted value. These are Graphics submission rules rather
 than extra Sprite identity or Scene declarations.
 
-`Image -> decode(resource)` constructs one Image from retained Package bytes.
+`Image -> decode(.bytes = resource)` returns an optional Image from retained
+Package bytes. Absence reports malformed or unsupported input without turning
+the valid empty Image default into an error state.
 `image -> get_size_pixels()` returns the exact `Size2D` value used by Sprite.
 Native image decoding is selected through the package's Foreign declarations
 and native locators rather than hidden compiler knowledge. The native boundary
-reports success and pixel lifetime explicitly. The Image Object remains the
-language observation while target storage stays a runtime fact.
+returns an optional Image value and transfers one reservation for its pixel
+buffer. Target storage remains a separate runtime fact.
 
 ## Native and durable boundaries
 

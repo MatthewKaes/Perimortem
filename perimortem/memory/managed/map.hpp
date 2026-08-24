@@ -202,7 +202,7 @@ class Map {
     Slot* slot = get_empty(hash);
     slot->hash = hash;
     buffer.size++;
-    new (&slot->entry) Entry{key, value};
+    new (&slot->entry, Core::Placement::Construct) Entry{key, value};
     return &slot->entry;
   }
 

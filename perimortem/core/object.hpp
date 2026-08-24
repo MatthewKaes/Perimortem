@@ -163,9 +163,9 @@ class Object {
     Count capacity = get_capacity();
     for (Count index = 0; index < capacity; index++) {
       if (index < source_size) {
-        new (values + index) value_type(source[index]);
+        new (values + index, Placement::Construct) value_type(source[index]);
       } else {
-        new (values + index) value_type();
+        new (values + index, Placement::Construct) value_type();
       }
     }
   }

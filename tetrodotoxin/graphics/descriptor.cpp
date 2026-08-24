@@ -6,32 +6,36 @@
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin;
 
-auto Graphics::Descriptor::placement(const U8* payload) const
+auto Graphics::Descriptor::placement(Object<> object) const
     -> Option<Placement> {
-  BAIL_IF(!payload || !read_placement);
-  return read_placement(payload);
+  BAIL_IF(object.is_empty() || !read_placement);
+  return read_placement(product, object);
 }
 
-auto Graphics::Descriptor::child_count(const U8* payload) const -> Count {
-  return payload && read_child_count ? read_child_count(payload) : 0;
+auto Graphics::Descriptor::child_count(Object<> object) const -> Count {
+  return !object.is_empty() && read_child_count
+             ? read_child_count(product, object)
+             : 0;
 }
 
-auto Graphics::Descriptor::child(const U8* payload, Count index) const
+auto Graphics::Descriptor::child(Object<> object, Count index) const
     -> Option<Child> {
-  BAIL_IF(!payload || !read_child || index >= child_count(payload));
-  Child selected = read_child(payload, index);
+  BAIL_IF(object.is_empty() || !read_child || index >= child_count(object));
+  Child selected = read_child(product, object, index);
   BAIL_IF(selected.get_object().is_empty() || !selected.get_descriptor());
   return selected;
 }
 
-auto Graphics::Descriptor::draw_count(const U8* payload) const -> Count {
-  return payload && read_draw_count ? read_draw_count(payload) : 0;
+auto Graphics::Descriptor::draw_count(Object<> object) const -> Count {
+  return !object.is_empty() && read_draw_count
+             ? read_draw_count(product, object)
+             : 0;
 }
 
-auto Graphics::Descriptor::draw(const U8* payload, Count index) const
+auto Graphics::Descriptor::draw(Object<> object, Count index) const
     -> Option<Draw> {
-  BAIL_IF(!payload || !read_draw || index >= draw_count(payload));
-  Draw selected = read_draw(payload, index);
+  BAIL_IF(object.is_empty() || !read_draw || index >= draw_count(object));
+  Draw selected = read_draw(product, object, index);
   BAIL_IF(
       !selected.get_program().is_valid() || selected.get_vertex_count() == 0);
   return selected;

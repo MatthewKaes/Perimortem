@@ -164,6 +164,18 @@ cc_library(
     deps = ["//packages/ttx:perimortem_system"],
 )
 
+cc_binary(
+    name = "graphics_integration",
+    srcs = ["data/ttx/graphics_harness.c"],
+    copts = [
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    deps = ["//packages/ttx:perimortem_graphics"],
+)
+
 ttx_package(
     name = "package_native_provider",
     package_name = "Validation.Provider",
@@ -274,6 +286,7 @@ cc_binary(
         "data/ttx/package_resources/resources/empty.bin",
         "data/ttx/package_resources/resources/table.bin",
         ":cpp_api_integration",
+        ":graphics_integration",
         ":package_native_integration",
         ":runtime_link_integration",
         ":system_abi_integration",

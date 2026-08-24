@@ -313,9 +313,11 @@ auto Llvm::Emission::Invocation::invoke(
       }
 
       argument = address;
+      native_arguments.insert(argument);
+    } else if (!functions->append_call_arguments(
+                   body, callable, index, argument, native_arguments)) {
+      return False;
     }
-
-    native_arguments.insert(argument);
   }
 
   LLVMTypeRef signature = LLVMGlobalGetValueType(*function);
@@ -400,7 +402,12 @@ auto Llvm::Emission::Invocation::invoke(
       returned = *loaded;
     }
   } else if (!returns_void) {
-    returned = *invoked;
+    auto decoded = functions->decode_call_result(body, callable, invoked);
+    if (!decoded) {
+      return call_fail_toolchain(
+          body, "LLVM could not restore one semantic C result."_view);
+    }
+    returned = **decoded;
   }
 
   return call_publish_results(

@@ -20,7 +20,8 @@ class Option {
  private:
   template <typename candidate_type>
   constexpr auto construct(candidate_type&& candidate) -> void {
-    new (&value) value_type(static_cast<candidate_type&&>(candidate));
+    new (&value, Placement::Construct)
+        value_type(static_cast<candidate_type&&>(candidate));
     set = true;
   }
 

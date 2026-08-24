@@ -72,14 +72,20 @@ static auto transition_image_layout(
 
 auto Vulkan::Texture::create(
     const Vulkan::Context& ctx,
-    const Graphics::Image& source) -> Vulkan::Texture {
+    const Graphics::Frame::Resource& resource,
+    Graphics::Size2D size_pixels,
+    VkDescriptorSetLayout descriptor_set_layout) -> Vulkan::Texture {
   Vulkan::Texture texture;
   texture.device = ctx.get_device();
 
-  const U32 width = source.get_width();
-  const U32 height = source.get_height();
+  const U32 width = size_pixels.width;
+  const U32 height = size_pixels.height;
   const VkDeviceSize image_size =
       VkDeviceSize(width) * height * Graphics::Pixel::get_byte_count();
+  if (width == 0 || height == 0 || resource.is_empty() ||
+      resource.get_capacity() < image_size) {
+    return texture;
+  }
 
   // The staging buffer uses memory visible to and coherent with the host.
   VkBufferCreateInfo buffer_info = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
@@ -111,10 +117,9 @@ auto Vulkan::Texture::create(
       vkMapMemory(ctx.get_device(), staging_memory, 0, image_size, 0, &mapped),
       "Vulkan: Failed to map texture staging memory."_view);
 
-  const auto pixels = source.get_pixels();
   // Pixel stores four RGBA bytes in the same order expected by
   // VK_FORMAT_R8G8B8A8_SRGB, so upload does not need a channel shuffle.
-  const auto source_bytes = pixels.get_bytes();
+  Core::View::Bytes source_bytes(resource.get_payload(), Count(image_size));
   Core::Access::Bytes destination_bytes(
       Core::Data::cast<U8>(mapped), Count(image_size));
   auto* destination_data = destination_bytes.get_data();
@@ -200,22 +205,6 @@ auto Vulkan::Texture::create(
           ctx.get_device(), &sampler_info, nullptr, &texture.sampler),
       "Vulkan: Failed to create texture sampler."_view);
 
-  VkDescriptorSetLayoutBinding binding = {};
-  binding.binding = 0;
-  binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-  binding.descriptorCount = 1;
-  binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-  VkDescriptorSetLayoutCreateInfo layout_info = {
-    VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-  layout_info.bindingCount = 1;
-  layout_info.pBindings = &binding;
-  require_success(
-      vkCreateDescriptorSetLayout(
-          ctx.get_device(), &layout_info, nullptr,
-          &texture.descriptor_set_layout),
-      "Vulkan: Failed to create texture descriptor set layout."_view);
-
   VkDescriptorPoolSize pool_size = {};
   pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   pool_size.descriptorCount = 1;
@@ -234,7 +223,7 @@ auto Vulkan::Texture::create(
     VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
   set_info.descriptorPool = texture.descriptor_pool;
   set_info.descriptorSetCount = 1;
-  set_info.pSetLayouts = &texture.descriptor_set_layout;
+  set_info.pSetLayouts = &descriptor_set_layout;
   require_success(
       vkAllocateDescriptorSets(
           ctx.get_device(), &set_info, &texture.descriptor_set),
@@ -261,7 +250,6 @@ Vulkan::Texture::~Texture() {
   }
 
   vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
-  vkDestroyDescriptorSetLayout(device, descriptor_set_layout, nullptr);
   vkDestroySampler(device, sampler, nullptr);
   vkDestroyImageView(device, image_view, nullptr);
   vkDestroyImage(device, image, nullptr);
@@ -274,7 +262,6 @@ Vulkan::Texture::Texture(Vulkan::Texture&& other) noexcept
       memory(other.memory),
       image_view(other.image_view),
       sampler(other.sampler),
-      descriptor_set_layout(other.descriptor_set_layout),
       descriptor_pool(other.descriptor_pool),
       descriptor_set(other.descriptor_set) {
   other.device = VK_NULL_HANDLE;
@@ -289,7 +276,6 @@ auto Vulkan::Texture::operator=(Vulkan::Texture&& other) noexcept
     memory = other.memory;
     image_view = other.image_view;
     sampler = other.sampler;
-    descriptor_set_layout = other.descriptor_set_layout;
     descriptor_pool = other.descriptor_pool;
     descriptor_set = other.descriptor_set;
     other.device = VK_NULL_HANDLE;
@@ -300,9 +286,4 @@ auto Vulkan::Texture::operator=(Vulkan::Texture&& other) noexcept
 
 auto Vulkan::Texture::get_descriptor_set() const -> VkDescriptorSet {
   return descriptor_set;
-}
-
-auto Vulkan::Texture::get_descriptor_set_layout() const
-    -> VkDescriptorSetLayout {
-  return descriptor_set_layout;
 }

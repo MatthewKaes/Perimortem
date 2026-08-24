@@ -3,9 +3,6 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <wayland-client.h>
-
 #include "perimortem/core/perimortem.hpp"
 
 namespace Perimortem::System::Platform::Wayland {
@@ -18,7 +15,7 @@ class XdgShell {
  public:
   struct Events {
     void* context = nullptr;
-    void (*configure)(void*, int32_t, int32_t) = nullptr;
+    void (*configure)(void*, S32, S32) = nullptr;
     void (*close)(void*) = nullptr;
   };
 
@@ -31,9 +28,9 @@ class XdgShell {
 
   static auto recognizes(const char* interface) -> Bool;
 
-  auto bind(wl_registry* registry, uint32_t name) -> Bool;
+  auto bind(void* registry, U32 name) -> Bool;
   auto create_toplevel(
-      wl_surface* wayland_surface,
+      void* wayland_surface,
       const char* title,
       const char* application_id,
       Events events) -> Bool;
@@ -42,25 +39,20 @@ class XdgShell {
  private:
   using ListenerFunction = void (*)(void);
 
-  static auto on_ping(void* data, wl_proxy*, uint32_t serial) -> void;
-  static auto on_surface_configure(void* data, wl_proxy*, uint32_t serial)
-      -> void;
-  static auto on_toplevel_configure(
-      void* data,
-      wl_proxy*,
-      int32_t width,
-      int32_t height,
-      wl_array*) -> void;
-  static auto on_toplevel_close(void* data, wl_proxy*) -> void;
-  static auto on_toplevel_configure_bounds(void*, wl_proxy*, int32_t, int32_t)
-      -> void;
-  static auto on_toplevel_wm_capabilities(void*, wl_proxy*, wl_array*) -> void;
+  static auto on_ping(void* data, void* shell, U32 serial) -> void;
+  static auto on_surface_configure(void* data, void* shell, U32 serial) -> void;
+  static auto
+      on_toplevel_configure(void* data, void*, S32 width, S32 height, void*)
+          -> void;
+  static auto on_toplevel_close(void* data, void*) -> void;
+  static auto on_toplevel_configure_bounds(void*, void*, S32, S32) -> void;
+  static auto on_toplevel_wm_capabilities(void*, void*, void*) -> void;
 
   Events events;
-  wl_proxy* wm_base = nullptr;
-  wl_proxy* surface = nullptr;
-  wl_proxy* toplevel = nullptr;
-  wl_surface* wayland_surface = nullptr;
+  void* wm_base = nullptr;
+  void* surface = nullptr;
+  void* toplevel = nullptr;
+  void* wayland_surface = nullptr;
 };
 
 }  // namespace Perimortem::System::Platform::Wayland

@@ -332,6 +332,13 @@ auto Llvm::Module::Body::create_return(Core::Option<LLVMValueRef> value)
     return True;
   }
 
+  if (value && callable) {
+    value = program.get_functions().encode_return(*this, *callable, *value);
+    if (!value) {
+      return False;
+    }
+  }
+
   if (value) {
     selected_builder.CreateRet(llvm::unwrap(*value));
   } else {

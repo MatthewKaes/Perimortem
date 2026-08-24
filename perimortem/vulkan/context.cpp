@@ -4,6 +4,7 @@
 #include "perimortem/vulkan/context.hpp"
 
 #include <vulkan/vulkan_wayland.h>
+#include <wayland-client.h>
 
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
@@ -169,8 +170,14 @@ static auto find_graphics_queue_family(
   return UINT32_MAX;
 }
 
-auto Vulkan::Context::create(wl_display* display, wl_surface* surface)
+auto Vulkan::Context::create(System::Presentation presentation)
     -> Vulkan::Context {
+  if (!presentation.is_valid() ||
+      presentation.get_kind() != System::Presentation::Kind::Wayland) {
+    Diagnostics::Log::fatal(
+        "Vulkan: The selected presentation kind is not supported."_view);
+  }
+
   Vulkan::Context ctx;
 
   VkApplicationInfo app_info = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
@@ -196,8 +203,8 @@ auto Vulkan::Context::create(wl_display* display, wl_surface* surface)
 
   VkWaylandSurfaceCreateInfoKHR surface_info = {
     VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR};
-  surface_info.display = display;
-  surface_info.surface = surface;
+  surface_info.display = static_cast<wl_display*>(presentation.get_host());
+  surface_info.surface = static_cast<wl_surface*>(presentation.get_surface());
   require_success(
       vkCreateWaylandSurfaceKHR(
           ctx.instance, &surface_info, nullptr, &ctx.surface),

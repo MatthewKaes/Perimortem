@@ -541,6 +541,30 @@ def run_test():
         bytes_declaration),
         "definition resolves an unopened dependency source")
 
+    graphics_root = os.path.join(
+        REPO_ROOT, "packages", "ttx", "Perimortem.Graphics")
+    transform_path = os.path.join(graphics_root, "transform2d.ttx")
+    point_path = os.path.join(graphics_root, "point2d.ttx")
+    with open(transform_path, "r", encoding="utf-8") as f:
+        transform_source = f.read()
+    with open(point_path, "r", encoding="utf-8") as f:
+        point_source = f.read()
+    transform_uri = "file://" + transform_path
+    point_uri = "file://" + point_path
+    transform_diagnostics = send_did_open(
+        conn, transform_uri, transform_source)
+    check(transform_diagnostics is not None and not transform_diagnostics.get(
+        "params", {}).get("diagnostics", []),
+        "Graphics Transform2D publishes without diagnostics")
+    point_use = transform_source.index("state translation : Point2D")
+    point_definition = send_definition(
+        conn, transform_uri, transform_source, "Point2D", 68, point_use)
+    point_declaration = point_source.index("public Point2D")
+    check(matches_location(
+        point_definition, point_uri, point_source, "Point2D",
+        point_declaration),
+        "definition resolves a same named Package member Type")
+
     concat_hover = send_hover(
         conn, main_uri, main_source, "concat", 17, prefix_use)
     concat_result = concat_hover.get("result") if concat_hover else None
@@ -895,7 +919,7 @@ def run_test():
 
     print("\n--- Semantic hover: completed Library graph ---")
     hover_path = os.path.join(
-        REPO_ROOT, "validation", "data", "ttx", "llvm",
+        REPO_ROOT, "validation", "data", "ttx", "products", "runtime",
         "runtime.ttx")
     with open(hover_path, "r", encoding="utf-8") as f:
         hover_source = f.read()

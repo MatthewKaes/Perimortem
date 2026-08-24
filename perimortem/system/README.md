@@ -4,8 +4,10 @@ Tetrodotoxin applications use Perimortem System for their native host services.
 The same layer supports ordinary C++ applications with process startup,
 arguments, files, paths, terminals, clocks, input, windows, and event loops.
 
-The public System API does not expose Linux, Windows, Wayland, or Win32 handles.
-Those details stay inside the selected platform backend.
+The public System API does not expose Linux, Windows, Wayland, or Win32 handle
+types. Native C++ composition shares one compact `Presentation` value between
+the selected Window and renderer, while its host meaning stays inside those
+implementations.
 
 ## CPU targets and platform hosts
 
@@ -32,9 +34,10 @@ Wayland window and event loop. The Windows backend provides the matching
 services through Win32. Both implement the same System window, input snapshot,
 and presentation surface contracts.
 
-Application startup selects one backend. It may pass that backend's native
-surface to Vulkan, but Vulkan does not take ownership of the window or event
-loop. Graphics, Render, and Shader remain independent of the host platform.
+Application startup selects one backend. It may pass the Window's opaque
+Presentation to Vulkan, but Vulkan does not take ownership of the window or
+event loop. Graphics, Render, and Shader remain independent of the host
+platform.
 
 ## Input snapshots
 
@@ -62,6 +65,7 @@ System finishes collecting process arguments before the Program entry function
 runs. During a windowed frame, it finishes one input snapshot and one monotonic
 time delta before Scene update begins.
 
-Platform events, file descriptors, window handles, and process addresses remain
-runtime details. Standard `Perimortem.System` Package functions expose ordinary
-language values instead of turning those native handles into TTX identities.
+Platform events, file descriptors, presentation handles, and process addresses
+remain runtime details. Standard `Perimortem.System` Package functions expose
+ordinary language values instead of turning those native facts into TTX
+identities.

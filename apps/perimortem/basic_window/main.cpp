@@ -10,7 +10,7 @@ using namespace Perimortem;
 auto main() -> int {
   System::Window window(800, 600, "Perimortem Basic Window");
   Vulkan::Renderer renderer(
-      window.get_display(), window.get_surface(),
+      window.get_presentation(),
       window.get_logical_width() * window.get_scale(),
       window.get_logical_height() * window.get_scale());
   while (window.poll_events()) {

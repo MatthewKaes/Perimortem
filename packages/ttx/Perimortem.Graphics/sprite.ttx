@@ -1,0 +1,17 @@
+// # Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+//
+// A hosted textured quad with stable image ownership.
+//
+dialect : Library;
+
+// Sprite shares the exact Host placement state and adds its Image, pixel size,
+// and Tone. Its default is valid but contributes no draw.
+public Sprite : object {
+  public state image       : Image;
+  public state size_pixels : Size2D;
+  public state transform   : Transform2D;
+  public state tone        : Tone;
+  public state visible     : Bool = true;
+  public state z_index     : S64;
+}

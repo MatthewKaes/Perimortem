@@ -1,0 +1,15 @@
+// # Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+//
+// The shared semantic requirement for hosted graphics Objects.
+//
+dialect : Library;
+
+// Host is a requirement rather than an allocated node Type. Graphics
+// negotiates this public state while preserving each concrete Object identity
+// and its richer behavior.
+public Host : struct {
+  public state transform : Transform2D;
+  public state visible   : Bool = true;
+  public state z_index   : S64;
+}
