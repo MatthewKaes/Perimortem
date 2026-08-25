@@ -134,6 +134,10 @@ platform that brings the whole experience together.
 
 You can start with the part closest to what you want to build:
 
+* [Project philosophy](PHILOSOPHY.md) explains the architectural ideas that let
+  several languages share meaning without surrendering their own models
+* [Contributing](CONTRIBUTING.md) turns those ideas into practical guidance for
+  designing, documenting, reviewing, and validating changes
 * [Tetrodotoxin overview](tetrodotoxin/README.md) follows several languages into
   one Workspace
 * [Language integration](tetrodotoxin/language/README.md) shows how a new
