@@ -219,6 +219,8 @@ PERIMORTEM_UNIT_TEST(PackageResources, identity_and_seal) {
   EXPECT(empty_resource.get_value().is_empty());
   EXPECT_TEXT(other_resource.get_value(), first_resource.get_value());
   EXPECT(&first != &other);
+  ASSERT_EQ(resources.get_values().get_size(), Count(3));
+  EXPECT(&resources.get_values().get_data()[0].get() == &first);
 
   resources.seal();
   EXPECT_NOT(resources.connect(*storage));

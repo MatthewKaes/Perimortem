@@ -420,7 +420,9 @@ $[resources/logo.png]
 Package defines confinement and stable resource identity. Library may interpret
 the bytes as a Constant, Shader may interpret them as shader data, and another
 Dialect may assign another meaning. Package transports the Resource without
-acquiring the consumer's semantics.
+acquiring the consumer's semantics. Consumers retain that real Resource edge
+when they need the bytes, so Package Archives and native products can carry the
+payload once even when several source members use it.
 
 The [Package guide](package/README.md) covers dependencies, resources, Archives,
 Repositories, and restoration.

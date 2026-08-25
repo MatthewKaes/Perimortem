@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-// LLVM must enter before Perimortem so the standard placement declaration is
+// LLVM enters before Perimortem so the standard placement declaration is
 // visible before the freestanding fallback used by Perimortem headers.
 #if __has_include("llvm/IR/IRBuilder.h")
 #include "llvm/IR/IRBuilder.h"
@@ -21,6 +21,7 @@
 #include "tetrodotoxin/terminal/llvm/module/carriers.hpp"
 #include "tetrodotoxin/terminal/llvm/module/functions.hpp"
 #include "tetrodotoxin/terminal/llvm/module/globals.hpp"
+#include "tetrodotoxin/terminal/llvm/module/literals.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Terminal;
@@ -230,6 +231,9 @@ auto Llvm::Emission::ControlFlow::begin_alternate(Branch& state) const -> Bool {
   llvm::IRBuilder<>& builder = control_native_builder(native_body);
   llvm::BasicBlock* current = builder.GetInsertBlock();
   Bool reaches_done = Bool(current && !current->getTerminator());
+  if (!native_body.clear_temporary_cleanup()) {
+    return False;
+  }
   if (reaches_done) {
     builder.CreateBr(llvm::unwrap(state.get_done()));
   }
@@ -244,6 +248,9 @@ auto Llvm::Emission::ControlFlow::end_branch(Branch state) const -> Bool {
   llvm::IRBuilder<>& builder = control_native_builder(native_body);
   llvm::BasicBlock* current = builder.GetInsertBlock();
   Bool current_reaches = Bool(current && !current->getTerminator());
+  if (!native_body.clear_temporary_cleanup()) {
+    return False;
+  }
   Bool body_reaches =
       state.has_alternate() ? state.body_reaches_done() : current_reaches;
   if (current_reaches) {
@@ -327,38 +334,6 @@ auto Llvm::Emission::ControlFlow::end_while(
   return True;
 }
 
-static auto create_bytes_view(
-    Llvm::Module::Program& program,
-    LLVMTypeRef type,
-    Core::View::Bytes value) -> Core::Option<LLVMValueRef> {
-  if (LLVMGetTypeKind(type) != LLVMStructTypeKind ||
-      LLVMCountStructElementTypes(type) != 2) {
-    return {};
-  }
-
-  LLVMContextRef context = &program.get_context();
-  LLVMModuleRef module = &program.get_module();
-  LLVMValueRef data = LLVMConstNull(LLVMPointerTypeInContext(context, 0));
-  if (!value.is_empty()) {
-    LLVMValueRef contents = LLVMConstStringInContext2(
-        context, reinterpret_cast<const char*>(value.get_data()),
-        value.get_size(), 1);
-    LLVMValueRef global =
-        LLVMAddGlobal(module, LLVMTypeOf(contents), "__ttx_bytes");
-    LLVMSetGlobalConstant(global, 1);
-    LLVMSetInitializer(global, contents);
-    LLVMSetLinkage(global, LLVMPrivateLinkage);
-    LLVMSetUnnamedAddress(global, LLVMGlobalUnnamedAddr);
-    data = global;
-  }
-
-  LLVMValueRef count =
-      LLVMConstInt(LLVMInt64TypeInContext(context), value.get_size(), 0);
-  Core::Static::Vector<LLVMValueRef, 2> elements = {{data, count}};
-  return LLVMConstNamedStruct(
-      type, elements.get_data(), U32(elements.get_size()));
-}
-
 static auto select_enumeration_value(
     llvm::IRBuilder<>& builder,
     llvm::Value& index,
@@ -382,7 +357,8 @@ static auto select_enumeration_name(
     llvm::Value& index,
     llvm::StructType& type,
     Core::View::Vector<Core::View::Bytes> names) -> Core::Option<llvm::Value&> {
-  auto empty = create_bytes_view(program, llvm::wrap(&type), {});
+  auto empty =
+      Llvm::Module::Literals::create_bytes_view(program, llvm::wrap(&type), {});
   BAIL_IF(!empty);
 
   llvm::Value* selected_data =
@@ -390,8 +366,8 @@ static auto select_enumeration_name(
   llvm::Value* selected_size =
       builder.CreateExtractValue(llvm::unwrap(*empty), 1);
   for (Count name_index = 0; name_index < names.get_size(); name_index++) {
-    auto candidate =
-        create_bytes_view(program, llvm::wrap(&type), names[name_index]);
+    auto candidate = Llvm::Module::Literals::create_bytes_view(
+        program, llvm::wrap(&type), names[name_index]);
     BAIL_IF(!candidate);
 
     llvm::Value* matches = builder.CreateICmpEQ(

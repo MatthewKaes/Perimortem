@@ -153,15 +153,15 @@ treating a platform address as a language value.
 
 ### Input snapshots
 
-`System -> get_input()` returns one read only `System::Input` snapshot. The
+`System::Input -> snapshot()` returns one immutable input snapshot. The
 production window loop and deterministic application driver both supply the
 same value shape. The snapshot exposes exact `current`, `pressed`, and
 `released` queries over stable `System::Key` identities.
 
-`System::Key -> space()` and `System::Key -> shift()` return the identities used
-by the Scene Lifetime sources. Focus loss, key repeat, and frame boundaries are
-System policy. Scene observes the completed snapshot and does not receive a
-platform event stream in its update Signature.
+`System::Key` publishes stable values such as `space` and `shift`, which can be
+imported through ordinary `using` resolution. Focus loss, key repeat, and frame
+boundaries are System policy. Scene observes the completed snapshot and does
+not receive a platform event stream in its update Signature.
 
 The native boundary turns platform events into one completed key snapshot.
 Platform event objects and window system addresses do not become part of
@@ -218,14 +218,30 @@ later Field is in front when two indices match. Visibility and transform
 compose from host to hosted value. These are Graphics submission rules rather
 than extra Sprite identity or Scene declarations.
 
-`Image -> decode(.bytes = resource)` returns an optional Image from retained
-Package bytes. Absence reports malformed or unsupported input without turning
-the valid empty Image default into an error state.
+`Format::PNG -> decode(.bytes = resource)` returns an optional Image from
+retained Package bytes. The format owns decoding while Image remains the shared
+decoded value that another codec can produce as well. Absence reports malformed
+or unsupported input without turning the valid empty Image default into an
+error state.
 `image -> get_size_pixels()` returns the exact `Size2D` value used by Sprite.
-Native image decoding is selected through the package's Foreign declarations
+Native PNG decoding is selected through the package's Foreign declarations
 and native locators rather than hidden compiler knowledge. The native boundary
 returns an optional Image value and transfers one reservation for its pixel
-buffer. Target storage remains a separate runtime fact.
+buffer. Image sampling is ordinary Library behavior on that value, while a
+Shader Terminal recognizes the same authored operation as a target image
+sample. Target storage remains a separate runtime fact.
+
+The Package also publishes the target neutral Sprite Render contract, its
+Library push layout, and the Shader implementation that consumes them. Package
+production validates and embeds that SPIR-V module. Application production
+then derives a Vulkan pipeline description from the restored contracts and the
+embedded symbol rather than falling back to a handwritten shader table.
+
+The application target pairs the hosted Sprite Type with its native Descriptor
+provider. That host choice stays in build configuration while the Scene graph
+retains only the real Sprite Field and the Interface proof. The shared runtime
+receives the configured provider from the generated App product rather than
+selecting Sprite in its frame loop.
 
 ## Native and durable boundaries
 

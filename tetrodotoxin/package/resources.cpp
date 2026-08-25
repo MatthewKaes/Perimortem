@@ -17,21 +17,6 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 
-static auto construct_resource(Allocator::Arena& domain, View::Bytes value)
-    -> Tetrodotoxin::Language::Resource& {
-  class RetainedResource : public Tetrodotoxin::Language::Resource {
-   public:
-    constexpr RetainedResource(View::Bytes value) : value(value) {}
-
-    constexpr auto get_value() const -> View::Bytes override { return value; }
-
-   private:
-    View::Bytes value;
-  };
-
-  return domain.construct<RetainedResource>(value);
-}
-
 static auto construct_error(
     Allocator::Arena& domain,
     const Package::Storage::Failure& failure)
@@ -78,6 +63,25 @@ static auto construct_error(
   };
 
   return domain.construct<RetainedError>(failure);
+}
+
+Package::Resources::Resources(
+    Allocator::Arena& domain,
+    View::Vector<Reference<Package::Resource>> restored,
+    Bool sealed)
+    : domain(domain),
+      storage(nullptr),
+      stage(sealed ? Stage::Sealed : Stage::Pending),
+      resource_cache(domain),
+      error_cache(domain),
+      values(domain) {
+  for (const Reference<Package::Resource>& retained : restored) {
+    Package::Resource& resource = retained.get();
+    if (!resource_cache.contains(resource.get_route())) {
+      resource_cache.launder(resource.get_route(), resource);
+      values.insert(resource);
+    }
+  }
 }
 
 auto Package::Resources::connect(Storage& selected) -> Bool {
@@ -133,9 +137,10 @@ auto Package::Resources::resolve(View::Bytes logical_route) -> const Abstract& {
   return read.visit(
       [&](Package::Content& content) -> const Abstract& {
         View::Bytes retained_key = domain.proxy(content.get_diagnostic_path());
-        Tetrodotoxin::Language::Resource& retained =
-            construct_resource(domain, domain.proxy(content.get_contents()));
+        Package::Resource& retained = Package::Resource::create(
+            domain, retained_key, content.get_contents());
         resource_cache.launder(retained_key, retained);
+        values.insert(retained);
         return retained;
       },
       [&](const Package::Storage::Failure& failure) -> const Abstract& {

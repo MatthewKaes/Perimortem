@@ -61,7 +61,7 @@ auto Llvm::Lowering::Builtins::lower(
             ->select<Tetrodotoxin::Library::Language::Constants::Bytes>();
     if (bytes && callable.is<Builtin::Fixed::View>()) {
       return execution.get_states().bytes_value(
-          *result_type, result, bytes->get_value());
+          *result_type, result, bytes->get_value(), bytes->get_resource());
     }
     return body.borrow_fixed(
         result, *result_type, receiver->get_type(), *receiver_source,

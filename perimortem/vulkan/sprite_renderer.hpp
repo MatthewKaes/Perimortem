@@ -58,6 +58,8 @@ class SpriteRenderer {
   static_assert(sizeof(PushConstants) == sizeof(R32) * 12);
 
   auto create_descriptor_layout() -> void;
+  auto create_vertex_buffer() -> void;
+  auto destroy_vertex_buffer() -> void;
   auto validate(
       Perimortem::Core::View::Vector<Perimortem::Graphics::Frame::Batch>
           batches) const -> Bool;
@@ -79,6 +81,8 @@ class SpriteRenderer {
   Perimortem::Graphics::Frame::Program program;
   Description::Program description;
   VkDescriptorSetLayout descriptor_layout = VK_NULL_HANDLE;
+  VkBuffer vertex_buffer = VK_NULL_HANDLE;
+  VkDeviceMemory vertex_memory = VK_NULL_HANDLE;
   ShaderProgram shader;
   Perimortem::Memory::Dynamic::Vector<Perimortem::Core::Object<>> textures;
   static const Perimortem::Core::Object<>::Descriptor cache_descriptor;

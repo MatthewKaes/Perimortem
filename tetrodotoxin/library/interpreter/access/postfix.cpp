@@ -17,9 +17,13 @@ auto Interpreter::Access::Postfix::parse_type(
     Cursor& cursor,
     Language::Expression& receiver) -> Option<Language::Expression&> {
   Token operation = cursor.consume();
-  Token type = cursor.require(
-      Code::Type::Type, "Type access requires one Type name after `::`."_view);
-  BAIL_IF(!type);
+  if (!cursor.is_one_of({{Code::Type::Type, Code::Type::Addressable}})) {
+    cursor.create_token_error(
+        cursor.current(),
+        "Type access requires one semantic name after `::`."_view);
+    return {};
+  }
+  Token type = cursor.consume();
   auto receiver_anchor = receiver.get_anchor();
   if (!receiver_anchor) {
     cursor.create_expression_error(
@@ -44,8 +48,7 @@ auto Interpreter::Access::Postfix::parse_propagate(
   BAIL_IF(!receiver_anchor);
   return Language::Access::Propagate::create_authored(
       cursor.get_arena(), receiver,
-      Anchor::create(
-          operation, receiver_anchor->get_span(), Span(operation)));
+      Anchor::create(operation, receiver_anchor->get_span(), Span(operation)));
 }
 
 auto Interpreter::Access::Postfix::parse_unwrap(
@@ -59,6 +62,5 @@ auto Interpreter::Access::Postfix::parse_unwrap(
   BAIL_IF(!receiver_anchor);
   return Language::Access::Unwrap::create_authored(
       cursor.get_arena(), receiver,
-      Anchor::create(
-          operation, receiver_anchor->get_span(), Span(operation)));
+      Anchor::create(operation, receiver_anchor->get_span(), Span(operation)));
 }

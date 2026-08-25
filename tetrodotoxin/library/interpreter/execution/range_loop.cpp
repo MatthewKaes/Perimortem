@@ -18,7 +18,8 @@ auto Interpreter::Execution::RangeLoop::parse(
     Cursor& cursor,
     Language::Flow::Block& lexical_context,
     Language::Model::Callable& function,
-    const Language::Model::Type& access_scope)
+    const Language::Model::Type& access_scope,
+    Option<const StatementParser&> extension)
     -> Option<Language::Flow::RangeLoop&> {
   Token opening = cursor.require(
       Code::Type::For, "Library for loops require the `for` keyword."_view);
@@ -80,7 +81,8 @@ auto Interpreter::Execution::RangeLoop::parse(
       cursor.get_arena(), lexical_context, bindings.get_view(), *input,
       Anchor::create(opening, Span(opening, cursor.peek(-1))));
   auto body = Block::parse(
-      cursor, loop, function, access_scope, Reference<const Abstract>(loop));
+      cursor, loop, function, access_scope, Reference<const Abstract>(loop),
+      extension);
   BAIL_IF(!body);
   BAIL_IF(!loop.complete_body(
       *body, Anchor::create(opening, Span(opening, cursor.peek(-1)))));

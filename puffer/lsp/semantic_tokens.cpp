@@ -9,7 +9,11 @@
 
 #include "perimortem/serialization/json/blueprint.hpp"
 
+#include "tetrodotoxin/app/language/runtime.hpp"
+#include "tetrodotoxin/app/language/scene.hpp"
+#include "tetrodotoxin/app/language/transition.hpp"
 #include "tetrodotoxin/library/language/generic.hpp"
+#include "tetrodotoxin/scene/language/signal.hpp"
 #include "ttx/lexical/lexicon.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/callable.hpp"
@@ -135,6 +139,19 @@ static auto source_dialect(View::Vector<Token> tokens, View::Bytes source)
   return "Library"_view;
 }
 
+static auto associated_semantic(Token token, const Associations* associations)
+    -> Option<const Ttx::Concept::Abstract&> {
+  BAIL_IF(!associations);
+  for (const Associations::Entry& entry : associations->get_entries()) {
+    Token focus = entry.get_anchor().get_token();
+    if (focus.get_offset() == token.get_offset() &&
+        focus.get_size() == token.get_size()) {
+      return entry.get_semantic();
+    }
+  }
+  return {};
+}
+
 static auto contextual_semantic_token(
     View::Vector<Token> tokens,
     Count index,
@@ -142,20 +159,23 @@ static auto contextual_semantic_token(
     View::Bytes dialect,
     const Associations* associations) -> S64 {
   Code code = tokens[index].get_code();
-  if (code == Code::Type::Type && associations) {
-    Token token = tokens[index];
-    for (const Associations::Entry& entry : associations->get_entries()) {
-      Token focus = entry.get_anchor().get_token();
-      if (focus.get_offset() == token.get_offset() &&
-          focus.get_size() == token.get_size()) {
-        if (entry.get_semantic()
-                .is<Tetrodotoxin::Library::Language::Generic>()) {
-          return SemanticGeneric;
-        }
-        if (entry.get_semantic().is<Ttx::Model::Callable>()) {
-          return SemanticFunction;
-        }
-      }
+  View::Bytes text = tokens[index].caculate_text(source);
+  auto semantic = associated_semantic(tokens[index], associations);
+  if (semantic) {
+    if (semantic->is<Tetrodotoxin::Library::Language::Generic>()) {
+      return SemanticGeneric;
+    }
+    if (semantic->is<Ttx::Model::Callable>()) {
+      return SemanticFunction;
+    }
+    if (semantic->is<Tetrodotoxin::App::Language::Runtime>() ||
+        semantic->is<Tetrodotoxin::App::Language::Scene>() ||
+        semantic->is<Tetrodotoxin::App::Language::Transition>()) {
+      return SemanticKeyword;
+    }
+    auto signal = semantic->select<Tetrodotoxin::Scene::Language::Signal>();
+    if (signal) {
+      return text == signal->get_name() ? SemanticProperty : SemanticKeyword;
     }
   }
   if (code != Code::Type::Addressable) {
@@ -167,7 +187,6 @@ static auto contextual_semantic_token(
     return SemanticKeyword;
   }
 
-  View::Bytes text = tokens[index].caculate_text(source);
   if ((dialect == "Render"_view || dialect == "Shader"_view) &&
       (text == "stage"_view || text == "resource"_view || text == "push"_view ||
        text == "shader"_view || text == "bridge"_view)) {

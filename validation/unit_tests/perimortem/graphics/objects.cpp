@@ -10,6 +10,7 @@
 
 #include "perimortem/system/file.hpp"
 
+#include "perimortem/graphics/formats/png.hpp"
 #include "perimortem/graphics/image.hpp"
 #include "perimortem/graphics/pixel.hpp"
 #include "perimortem/graphics/sprite.hpp"
@@ -68,12 +69,12 @@ PERIMORTEM_UNIT_TEST(GraphicsObjects, decode_reports_success) {
   auto source = Perimortem::System::File::read(
       "validation/data/pngs/checkerboard_2x2.png"_view);
   ASSERT(source);
-  auto decoded = Image::decode(*source);
-  ASSERT(decoded);
-  EXPECT_EQ(decoded->get_width(), U32(2));
-  EXPECT_EQ(decoded->get_height(), U32(2));
+  Image decoded = Formats::Png::decode(*source);
+  ASSERT(decoded.is_drawable());
+  EXPECT_EQ(decoded.get_width(), U32(2));
+  EXPECT_EQ(decoded.get_height(), U32(2));
 
-  EXPECT_NOT(Image::decode("not a png"_view));
+  EXPECT_NOT(Formats::Png::decode("not a png"_view).is_drawable());
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsObjects, sprite_defaults_and_aliases) {

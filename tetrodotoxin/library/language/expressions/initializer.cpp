@@ -99,11 +99,22 @@ auto Language::Expressions::Initializer::evaluate()
       },
       [&](Reference<Model::Pack>& selected)
           -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
-        auto constant = selected.get().select<Constant>();
+        Core::Option<Model::Pack&> representation(selected.get());
+        auto expression = selected.get().select<Expression>();
+        if (expression) {
+          expression->fold().visit(
+              [&](const Core::Option<Model::Pack&>& folded) {
+                if (folded) {
+                  representation = *folded;
+                }
+              },
+              [](const Expression::Error&) {});
+        }
+        auto constant = representation->select<Constant>();
         return constant && expected_type &&
                        &constant->get_type().resolve() ==
                            &expected_type->get().resolve()
-                   ? Core::Option<Model::Pack&>(selected.get())
+                   ? representation
                    : Core::Option<Model::Pack&>();
       });
 }
@@ -147,8 +158,7 @@ auto Language::Expressions::Initializer::link(
     }
 
     cursor.create_expression_error(
-        get_anchor(),
-        "Object initializer cannot change its expected Type."_view,
+        get_anchor(), "Initializer cannot change its expected Type."_view,
         "Keep the authored initializer on its original declaration."_view);
     return False;
   }

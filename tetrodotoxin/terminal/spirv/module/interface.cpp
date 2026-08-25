@@ -6,6 +6,7 @@
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/render/language/attributes.hpp"
 #include "tetrodotoxin/render/language/stage.hpp"
+#include "tetrodotoxin/shader/language/binding.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin;
@@ -48,6 +49,7 @@ static auto execution_model(
 
 auto Module::Interface::prepare(const Shader::Language::Program& program)
     -> Bool {
+  BAIL_IF(!prepare_bindings(program));
   // Render chooses which Functions are entry points. Starting from its required
   // Stages prevents a helper Function from becoming an accidental GPU entry
   // merely because it shares the Program context.
@@ -83,6 +85,40 @@ auto Module::Interface::prepare(const Shader::Language::Program& program)
     stages.insert(&stage);
   }
   return !stages.is_empty();
+}
+
+auto Module::Interface::prepare_bindings(
+    const Shader::Language::Program& program) -> Bool {
+  for (const Shader::Language::Binding& binding : program.get_bindings()) {
+    const Library::Language::Field& field = binding.get_field();
+    const Library::Language::Model::Type& type = field.get_type();
+    Assembler::SpirV::StorageClass storage;
+    if (binding.get_kind() == Render::Language::Binding::Kind::Push) {
+      storage = Assembler::SpirV::StorageClass::PushConstant;
+      BAIL_IF(!types.collect_pointer(type, storage));
+    } else if (
+        binding.get_kind() == Render::Language::Binding::Kind::Resource) {
+      storage = Assembler::SpirV::StorageClass::UniformConstant;
+      BAIL_IF(!types.collect_resource(type));
+    } else {
+      return False;
+    }
+    bindings.insert(Variable(
+        field, type, field.get_name(), field.get_definition().get_attributes(),
+        storage, ids.take()));
+  }
+  return True;
+}
+
+auto Module::Interface::is_resource(
+    const Ttx::Concept::Abstract& semantic) const -> Bool {
+  for (const Variable& binding : bindings.get_view()) {
+    if (&binding.semantic.get() == &semantic &&
+        binding.storage == Assembler::SpirV::StorageClass::UniformConstant) {
+      return True;
+    }
+  }
+  return False;
 }
 
 auto Module::Interface::prepare_variables(
@@ -134,6 +170,9 @@ auto Module::Interface::emit_entry_points(Assembler::SpirV& assembler) const
 }
 
 auto Module::Interface::emit_debug(Assembler::SpirV& assembler) const -> void {
+  for (const Variable& binding : bindings.get_view()) {
+    assembler.name(binding.id, binding.name);
+  }
   for (Stage* stage : stages.get_view()) {
     assembler.name(stage->id, stage->function.get().get_name());
     for (const Variable& input : stage->inputs.get_view()) {
@@ -177,6 +216,24 @@ auto Module::Interface::decorate(
 
 auto Module::Interface::emit_annotations(Assembler::SpirV& assembler) const
     -> Bool {
+  for (const Variable& binding : bindings.get_view()) {
+    if (binding.storage == Assembler::SpirV::StorageClass::PushConstant) {
+      BAIL_IF(!types.decorate_push(assembler, binding.type.get()));
+      continue;
+    }
+    auto set = attribute(binding.attributes, "set"_view);
+    auto slot = attribute(binding.attributes, "slot"_view);
+    const U64* set_value = set ? set->get_value().find<U64>() : nullptr;
+    const U64* slot_value = slot ? slot->get_value().find<U64>() : nullptr;
+    BAIL_IF(
+        !set_value || !slot_value || *set_value > U32(-1) ||
+        *slot_value > U32(-1));
+    assembler.decorate(
+        binding.id, Assembler::SpirV::Decoration::DescriptorSet,
+        U32(*set_value));
+    assembler.decorate(
+        binding.id, Assembler::SpirV::Decoration::Binding, U32(*slot_value));
+  }
   for (Stage* stage : stages.get_view()) {
     for (const Variable& input : stage->inputs.get_view()) {
       BAIL_IF(!decorate(assembler, input));
@@ -190,6 +247,17 @@ auto Module::Interface::emit_annotations(Assembler::SpirV& assembler) const
 
 auto Module::Interface::emit_globals(Assembler::SpirV& assembler) const
     -> Bool {
+  for (const Variable& binding : bindings.get_view()) {
+    if (binding.storage == Assembler::SpirV::StorageClass::UniformConstant) {
+      auto pointer = types.get_resource_pointer_id(binding.type.get());
+      BAIL_IF(!pointer);
+      assembler.variable(*pointer, binding.id, binding.storage);
+    } else {
+      auto pointer = types.get_pointer_id(binding.type.get(), binding.storage);
+      BAIL_IF(!pointer);
+      assembler.variable(*pointer, binding.id, binding.storage);
+    }
+  }
   for (Stage* stage : stages.get_view()) {
     for (const Variable& input : stage->inputs.get_view()) {
       auto pointer = types.get_pointer_id(input.type.get(), input.storage);

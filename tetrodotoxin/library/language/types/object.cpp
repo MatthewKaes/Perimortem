@@ -58,6 +58,35 @@ static auto select_supplied(
   return {};
 }
 
+static auto fit_supplied_fields(
+    Model::Pack& arguments,
+    View::Vector<Reference<const Abstract>> accessible_fields,
+    Managed::Vector<Reference<const Abstract>>& fitted_fields) -> Bool {
+  const Layout& inputs = arguments.get_layout();
+  fitted_fields.reset(inputs.get_size());
+
+  for (Count input_index = 0; input_index < inputs.get_size(); input_index++) {
+    auto input_name = inputs.get_name(input_index);
+    BAIL_IF(!input_name);
+
+    Count selected = 0;
+    Count matches = 0;
+    for (Count field_index = 0; field_index < accessible_fields.get_size();
+         field_index++) {
+      if (accessible_fields.get_data()[field_index].get().get_name() ==
+          *input_name) {
+        selected = field_index;
+        matches++;
+      }
+    }
+    BAIL_IF(matches != 1);
+    fitted_fields.insert(accessible_fields.get_data()[selected]);
+  }
+
+  Layouts::Fluid target_layout(fitted_fields.get_view());
+  return arguments.fits(target_layout);
+}
+
 Types::Object::Object(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition,
@@ -65,6 +94,13 @@ Types::Object::Object(
     : Structure(domain, definition, provides_initialization) {}
 
 auto Types::Object::create_authored(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition) -> Object& {
+  return domain.construct_from<Object>(
+      [&]() -> Object { return Object(domain, definition); });
+}
+
+auto Types::Object::create_synthetic(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition) -> Object& {
   return domain.construct_from<Object>(
@@ -92,8 +128,6 @@ auto Types::Object::create_supplied(
     Option<const Abstract&> access_scope,
     Option<Anchor> anchor) const -> Option<Model::Pack&> {
   Allocator::Arena& arena = cursor.get_arena();
-  const Layout& inputs = arguments.get_layout();
-
   Managed::Vector<Reference<const Abstract>> accessible_fields(arena);
   for (const Reference<Abstract>& selected : get_addressables()) {
     auto selected_field = select_accessible_field(selected.get(), access_scope);
@@ -101,26 +135,13 @@ auto Types::Object::create_supplied(
       accessible_fields.insert(*selected_field);
     }
   }
-  Layouts::Fluid accessible_layout(accessible_fields.get_view());
 
   Managed::Vector<Reference<const Abstract>> fitted_fields(arena);
-  fitted_fields.reset(inputs.get_size());
-
   // Inputs retain evaluation order, while this fitted Field sequence records
-  // which declaration owns each named value. The final Pack is assembled in
-  // authored Field order so source argument order cannot alter Object layout.
-  for (Count input_index = 0; input_index < inputs.get_size(); input_index++) {
-    for (Count field_index = 0; field_index < accessible_fields.get_size();
-         field_index++) {
-      if (inputs.fits_entry(accessible_layout, input_index, field_index)) {
-        fitted_fields.insert(accessible_fields.at(field_index));
-        break;
-      }
-    }
-  }
-
-  Layouts::Fluid target_layout(fitted_fields.get_view());
-  if (!arguments.fits(target_layout)) {
+  // which declaration owns each named value. The Pack performs the final fit
+  // so receiving Types can admit semantic conversions such as Option payloads.
+  if (!fit_supplied_fields(
+          arguments, accessible_fields.get_view(), fitted_fields)) {
     cursor.create_expression_error(
         anchor,
         "Object initializer inputs do not fit the initialization Layout."_view,
@@ -176,7 +197,6 @@ auto Types::Object::create_supplied_restored(
     Allocator::Arena& arena,
     Model::Pack& arguments,
     Option<const Abstract&> access_scope) const -> Option<Model::Pack&> {
-  const Layout& inputs = arguments.get_layout();
   Managed::Vector<Reference<const Abstract>> accessible_fields(arena);
   for (const Reference<Abstract>& selected : get_addressables()) {
     auto field = select_accessible_field(selected.get(), access_scope);
@@ -184,21 +204,9 @@ auto Types::Object::create_supplied_restored(
       accessible_fields.insert(*field);
     }
   }
-  Layouts::Fluid accessible_layout(accessible_fields.get_view());
-
   Managed::Vector<Reference<const Abstract>> fitted_fields(arena);
-  fitted_fields.reset(inputs.get_size());
-  for (Count input_index = 0; input_index < inputs.get_size(); input_index++) {
-    for (Count field_index = 0; field_index < accessible_fields.get_size();
-         field_index++) {
-      if (inputs.fits_entry(accessible_layout, input_index, field_index)) {
-        fitted_fields.insert(accessible_fields.at(field_index));
-        break;
-      }
-    }
-  }
-  Layouts::Fluid target_layout(fitted_fields.get_view());
-  BAIL_IF(!arguments.fits(target_layout));
+  BAIL_IF(!fit_supplied_fields(
+      arguments, accessible_fields.get_view(), fitted_fields));
 
   if (!owns_initialization()) {
     return Expressions::Initializer::create_provider(arena, *this, arguments);

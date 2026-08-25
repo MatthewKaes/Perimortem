@@ -266,8 +266,16 @@ static auto emit_structure(
         Llvm::Module::Functions::ConstructionField(
             *field, *value, field->get_definition().is_published()));
   }
-  return program.get_functions().lower_construction(
-      program, structure, fields.get_view());
+  if (!program.get_functions().lower_construction(
+          program, structure, fields.get_view())) {
+    Perimortem::Core::Diagnostics::Log::Message<256> message(
+        Perimortem::Core::Diagnostics::Log::Level::Error,
+        Perimortem::Core::Diagnostics::Source());
+    message << "LLVM could not emit construction for Library Type `"_view
+            << structure.get_name() << "`."_view;
+    return False;
+  }
+  return True;
 }
 
 static auto emit_type(Llvm::Module::Program& program, const Model::Type& type)

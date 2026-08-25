@@ -34,19 +34,6 @@ auto Module::Program::compile() -> Utility::Result<Products, Failure> {
     return Failure::ToolchainFailed;
   }
 
-  auto bindings = request.get_program().get_bindings();
-  if (!bindings.is_empty()) {
-    const Shader::Language::Binding& binding = bindings.get_data()[0];
-    Ttx::Lexical::Errors::Report report(
-        request.get_errors(), request.get_source_path(),
-        request.get_source_text(), binding.get_definition().get_anchor());
-    report << "Shader Binding `"_view << binding.get_field().get_name()
-           << "` has no physical form for the selected SPIR V target."_view;
-    report.get_hint()
-        << "Choose a target with a mapping for this storage role and Type."_view;
-    return Failure::SourceRejected;
-  }
-
   Count error_count = request.get_errors().get_size();
   // Collection completes target admission before the first word is emitted.
   // Unsupported meaning stays on the authored diagnostic path and no partial

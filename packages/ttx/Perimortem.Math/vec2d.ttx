@@ -9,6 +9,7 @@ dialect : Library;
 //
 // It remains a general vector so domain Packages can build points, sizes, and
 // other meanings without changing this shared Type.
+@capability("vector")
 public Vec2D : struct {
   public state x : R32;
   public state y : R32;

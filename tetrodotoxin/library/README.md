@@ -310,6 +310,19 @@ Scalar operations require the exact resolved Type identity expected by that
 operation. Library does not silently widen, narrow, retag, or reinterpret a
 Constant to make an operation legal.
 
+Use `new[Target](value)` when a program intends to cross between Signed,
+Unsigned, and Real scalar Types:
+
+```ttx
+state width := new[S64](image_size.width);
+state sample := new[R32](pixel.red);
+```
+
+This conversion is total. Integer results saturate at the target bounds. Real
+to integer conversion truncates toward zero and maps NaN to zero. Integer to
+real and real to real conversion use the destination precision. Keeping this
+operation explicit lets ordinary arithmetic continue to require exact Types.
+
 Generic formulas describe reusable Type families. A formula is not itself a
 Type. Applying its ordered arguments materializes one exact Library Type. Type
 arguments must themselves resolve to Library Types and may recursively apply

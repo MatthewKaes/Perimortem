@@ -4,8 +4,11 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/option.hpp"
 
+#include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
+#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
@@ -23,19 +26,25 @@ class Bytes : public Constant {
       Perimortem::Memory::Allocator::Arena& domain,
       const Model::Type& type,
       Value value,
-      Ttx::Lexical::Anchor anchor) -> Bytes& {
+      Ttx::Lexical::Anchor anchor,
+      Perimortem::Core::Option<const Tetrodotoxin::Language::Resource&>
+          resource = {}) -> Bytes& {
     return Expression::create_authored<Bytes>(
-        domain, anchor,
-        [&](auto source) -> Bytes { return Bytes(type, value, source); });
+        domain, anchor, [&](auto source) -> Bytes {
+          return Bytes(type, value, source, resource);
+        });
   }
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
       const Model::Type& type,
-      Value value) -> Bytes& {
+      Value value,
+      Perimortem::Core::Option<const Tetrodotoxin::Language::Resource&>
+          resource = {}) -> Bytes& {
     return Expression::create_synthetic<Bytes>(
-        domain,
-        [&](auto source) -> Bytes { return Bytes(type, value, source); });
+        domain, [&](auto source) -> Bytes {
+          return Bytes(type, value, source, resource);
+        });
   }
 
   constexpr auto get_type() const -> const Model::Type& override {
@@ -43,6 +52,19 @@ class Bytes : public Constant {
   }
 
   virtual constexpr auto get_value() const -> Value { return value; }
+
+  constexpr auto get_resource() const
+      -> Perimortem::Core::Option<const Tetrodotoxin::Language::Resource&> {
+    return resource.visit(
+        []() -> Perimortem::Core::Option<
+                 const Tetrodotoxin::Language::Resource&> { return {}; },
+        [](const Ttx::Concept::Reference<
+            const Tetrodotoxin::Language::Resource>& selected)
+            -> Perimortem::Core::Option<
+                const Tetrodotoxin::Language::Resource&> {
+          return selected.get();
+        });
+  }
 
   constexpr auto equals(const Constant& rhs) const -> Bool override {
     return rhs.visit<Bytes>(
@@ -58,11 +80,27 @@ class Bytes : public Constant {
   constexpr Bytes(
       const Model::Type& type,
       Value value,
-      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Constant(anchor), type(type), value(value) {}
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor,
+      Perimortem::Core::Option<const Tetrodotoxin::Language::Resource&>
+          resource)
+      : Constant(anchor),
+        type(type),
+        value(value),
+        resource(resource.visit(
+            []() -> Perimortem::Core::Option<Ttx::Concept::Reference<
+                     const Tetrodotoxin::Language::Resource>> { return {}; },
+            [](const Tetrodotoxin::Language::Resource& selected)
+                -> Perimortem::Core::Option<Ttx::Concept::Reference<
+                    const Tetrodotoxin::Language::Resource>> {
+              return Ttx::Concept::Reference<
+                  const Tetrodotoxin::Language::Resource>(selected);
+            })) {}
 
   const Model::Type& type;
   Value value;
+  Perimortem::Core::Option<
+      Ttx::Concept::Reference<const Tetrodotoxin::Language::Resource>>
+      resource;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Constants

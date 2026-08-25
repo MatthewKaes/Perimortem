@@ -4,11 +4,13 @@
 #include "tetrodotoxin/terminal/spirv/module/body.hpp"
 
 #include "tetrodotoxin/library/language/access/address.hpp"
+#include "tetrodotoxin/library/language/access/call.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/flow/local.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
+#include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/operation.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
@@ -43,6 +45,24 @@ static auto anchor_of(const Abstract& semantic) -> Ttx::Lexical::Anchor {
 static auto library_pack(const Ttx::Model::Pack& pack)
     -> Core::Option<const Library::Language::Model::Pack&> {
   return pack.select<Library::Language::Model::Pack>();
+}
+
+static auto is_sample_call(const Library::Language::Access::Call& call)
+    -> Bool {
+  auto callable = call.get_callable();
+  auto function = callable ? callable->select<Library::Language::Function>()
+                           : Core::Option<const Library::Language::Function&>();
+  BAIL_IF(!function);
+  for (const Tetrodotoxin::Language::Attribute& attribute :
+       function->get_definition().get_attributes()) {
+    const Core::View::Bytes* value =
+        attribute.get_value().find<Core::View::Bytes>();
+    if (attribute.get_key() == "intrinsic"_view && value &&
+        *value == "sample_2d"_view) {
+      return True;
+    }
+  }
+  return False;
 }
 
 auto Module::Body::reject(const Abstract& semantic, Core::View::Bytes message)
@@ -110,7 +130,9 @@ auto Module::Body::prepare_pack(const Library::Language::Model::Pack& pack)
 auto Module::Body::prepare_expression(
     const Library::Language::Expression& expression) -> Bool {
   auto type = Types::select(expression.get_type());
-  BAIL_IF(type && !types.collect(*type));
+  BAIL_IF(
+      type && !interface.is_resource(expression.get_result()) &&
+      !types.collect(*type));
 
   auto constant = expression.select<Library::Language::Constant>();
   if (constant) {
@@ -122,6 +144,13 @@ auto Module::Body::prepare_expression(
   auto address = expression.select<Library::Language::Access::Address>();
   if (address) {
     return prepare_expression(address->get_receiver());
+  }
+  auto call = expression.select<Library::Language::Access::Call>();
+  if (call) {
+    BAIL_IF(
+        !is_sample_call(*call) || !prepare_expression(call->get_receiver()) ||
+        !prepare_pack(call->get_arguments()));
+    return True;
   }
   auto operation = expression.select<Library::Language::Operation>();
   if (operation) {
@@ -199,7 +228,11 @@ auto Module::Body::lower_pack(
   auto expression = pack.select<Library::Language::Expression>();
   if (expression) {
     auto lowered = lower_expression(*expression, assembler);
-    BAIL_IF(!lowered || &lowered->type.get() != &expected);
+    auto source_id =
+        lowered ? types.get_id(lowered->type.get()) : Core::Option<U32>();
+    auto expected_id = types.get_id(expected);
+    BAIL_IF(
+        !lowered || !source_id || !expected_id || *source_id != *expected_id);
     return *lowered;
   }
 
@@ -266,6 +299,39 @@ auto Module::Body::lower_expression(
     auto selected = find_value(identifier->get_result());
     BAIL_IF(!selected || &selected->type.get() != &*type);
     Value value(expression, *type, selected->id);
+    BAIL_IF(!retain_value(value));
+    return value;
+  }
+  auto call = expression.select<Library::Language::Access::Call>();
+  if (call) {
+    BAIL_IF(!is_sample_call(*call));
+    auto callable = call->get_callable();
+    BAIL_IF(!callable || callable->get_parameters().get_size() != 2);
+    const Ttx::Concept::Layout& parameters = callable->get_parameters();
+    auto coordinate_semantic = parameters.get_abstract(1);
+    auto coordinate_type =
+        coordinate_semantic
+            ? Types::select(*coordinate_semantic)
+            : Core::Option<const Library::Language::Model::Type&>();
+    auto produced = call->get_arguments().get_produced(0);
+    auto coordinate_pack =
+        produced ? library_pack(produced->producer)
+                 : Core::Option<const Library::Language::Model::Pack&>();
+    auto sampled_image = lower_expression(call->get_receiver(), assembler);
+    auto coordinate =
+        coordinate_type && coordinate_pack
+            ? lower_pack(*coordinate_pack, *coordinate_type, assembler)
+            : Core::Option<Value>();
+    auto result_type = Types::select(call->get_type());
+    auto result_id =
+        result_type ? types.get_id(*result_type) : Core::Option<U32>();
+    BAIL_IF(
+        !sampled_image || !coordinate || !result_type || !result_id ||
+        call->get_arguments().get_layout().get_size() != 1);
+    U32 id = ids.take();
+    assembler.image_sample_implicit_lod(
+        *result_id, id, sampled_image->id, coordinate->id);
+    Value value(expression, *result_type, id);
     BAIL_IF(!retain_value(value));
     return value;
   }
@@ -382,6 +448,15 @@ auto Module::Body::emit(
     BAIL_IF(!retain_value(Value(input.semantic.get(), input.type.get(), id)));
   }
 
+  for (const Interface::Variable& binding : interface.get_bindings()) {
+    auto type_id = types.get_id(binding.type.get());
+    BAIL_IF(!type_id);
+    U32 id = ids.take();
+    assembler.load(*type_id, id, binding.id);
+    BAIL_IF(
+        !retain_value(Value(binding.semantic.get(), binding.type.get(), id)));
+  }
+
   Bool returned = False;
   auto body = stage.function.get().get_body();
   BAIL_IF(!body);
@@ -394,13 +469,19 @@ auto Module::Body::emit(
       auto value = type && initializer
                        ? lower_pack(*initializer, *type, assembler)
                        : Core::Option<Value>();
-      BAIL_IF(
-          !type || !value || !retain_value(Value(*local, *type, value->id)));
+      if (!type || !value || !retain_value(Value(*local, *type, value->id))) {
+        return reject(
+            *local, "This Local could not produce its SPIR V value."_view);
+      }
       continue;
     }
     auto return_statement = root.select<Library::Language::Flow::Return>();
     if (return_statement) {
-      BAIL_IF(!lower_return(return_statement->get_pack(), stage, assembler));
+      if (!lower_return(return_statement->get_pack(), stage, assembler)) {
+        return reject(
+            *return_statement,
+            "This return could not fit the SPIR V Stage outputs."_view);
+      }
       assembler.return_void();
       returned = True;
       break;

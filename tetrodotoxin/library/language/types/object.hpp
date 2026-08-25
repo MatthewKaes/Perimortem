@@ -24,6 +24,10 @@ class Object : public Structure {
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition) -> Object&;
 
+  static auto create_synthetic(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition) -> Object&;
+
   static auto create_restored(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition) -> Object&;

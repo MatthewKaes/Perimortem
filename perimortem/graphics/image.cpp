@@ -6,8 +6,6 @@
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/math.hpp"
 
-#include "perimortem/graphics/formats/png.hpp"
-
 using namespace Perimortem;
 
 static auto create_pixels(
@@ -37,12 +35,6 @@ Graphics::Image::Image(
       pixel_count(Count(width) * Count(height)),
       size_pixels({width, height}),
       addressing(addressing) {}
-
-auto Graphics::Image::decode(Core::View::Bytes source) -> Core::Option<Image> {
-  Image image = Formats::Png::decode(source);
-  BAIL_IF(!image.is_drawable());
-  return image;
-}
 
 auto Graphics::Image::get_width() const -> U32 {
   return size_pixels.width;

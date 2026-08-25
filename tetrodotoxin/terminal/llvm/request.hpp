@@ -9,6 +9,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/terminal/abi/products.hpp"
 #include "tetrodotoxin/terminal/abi/unit.hpp"
+#include "tetrodotoxin/terminal/graphics/products.hpp"
 #include "tetrodotoxin/terminal/llvm/module/debug.hpp"
 #include "tetrodotoxin/terminal/llvm/target.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -28,7 +29,9 @@ class Request {
       Target target,
       Module::Debug::Level debug_level,
       Tetrodotoxin::Terminal::Abi::Unit unit,
-      const Tetrodotoxin::Terminal::Abi::Products& native_interface)
+      const Tetrodotoxin::Terminal::Abi::Products& native_interface,
+      Perimortem::Core::Option<
+          const Tetrodotoxin::Terminal::Graphics::Products&> graphics = {})
       : monograph(monograph),
         errors(errors),
         source_path(source_path),
@@ -36,7 +39,8 @@ class Request {
         target(target),
         debug_level(debug_level),
         unit(unit.bind(monograph)),
-        native_interface(native_interface) {}
+        native_interface(native_interface),
+        graphics(graphics) {}
 
   constexpr auto get_monograph() const
       -> const Tetrodotoxin::Library::Language::Monograph& {
@@ -67,6 +71,11 @@ class Request {
     return native_interface;
   }
 
+  constexpr auto get_graphics() const -> Perimortem::Core::Option<
+      const Tetrodotoxin::Terminal::Graphics::Products&> {
+    return graphics;
+  }
+
  private:
   const Tetrodotoxin::Library::Language::Monograph& monograph;
   Ttx::Lexical::Errors& errors;
@@ -76,6 +85,8 @@ class Request {
   Module::Debug::Level debug_level;
   Tetrodotoxin::Terminal::Abi::Unit unit;
   const Tetrodotoxin::Terminal::Abi::Products& native_interface;
+  Perimortem::Core::Option<const Tetrodotoxin::Terminal::Graphics::Products&>
+      graphics;
 };
 
 }  // namespace Tetrodotoxin::Terminal::Llvm

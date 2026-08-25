@@ -32,6 +32,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "tetrodotoxin/terminal/abi/representation/name.hpp"
+#include "tetrodotoxin/terminal/abi/symbol.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
 #include "tetrodotoxin/terminal/llvm/module/carriers.hpp"
 #include "tetrodotoxin/terminal/llvm/module/program.hpp"
@@ -82,6 +83,35 @@ static auto get_builder(Llvm::Module::Body& body) -> llvm::IRBuilder<>& {
 
 static auto get_function(Llvm::Module::Body& body) -> llvm::Function& {
   return *llvm::unwrap<llvm::Function>(body.get_function());
+}
+
+static auto object_descriptor_name(
+    Llvm::Module::Program& target,
+    const Ttx::Model::Type& type) -> Core::View::Bytes {
+  auto structure = type.select<Language::Types::Structure>();
+  if (target.get_unit().is_package_member() && structure &&
+      structure->is_externally_reachable(*structure)) {
+    Tetrodotoxin::Terminal::Abi::Symbol symbol(
+        target.get_arena(), type,
+        Tetrodotoxin::Terminal::Abi::Symbol::Kind::ObjectDescriptor,
+        target.get_unit());
+    return symbol.get_view();
+  }
+  Tetrodotoxin::Terminal::Abi::Representation::Name name(
+      target.get_arena(), type,
+      Tetrodotoxin::Terminal::Abi::Representation::Name::Kind::
+          ObjectDescriptor);
+  return name.get_view();
+}
+
+static auto object_descriptor_linkage(
+    Llvm::Module::Program& target,
+    const Ttx::Model::Type& type) -> llvm::GlobalValue::LinkageTypes {
+  auto structure = type.select<Language::Types::Structure>();
+  return target.get_unit().is_package_member() && structure &&
+                 structure->is_externally_reachable(*structure)
+             ? llvm::GlobalValue::ExternalLinkage
+             : llvm::GlobalValue::InternalLinkage;
 }
 
 static auto fail_toolchain(
@@ -1608,14 +1638,10 @@ auto Llvm::Module::Carriers::get_object_descriptor(
               .getCallee());
       llvm::Constant& descriptor_value = *llvm::ConstantStruct::get(
           &descriptor_type, {&size, &alignment, &finalizer});
-      Tetrodotoxin::Terminal::Abi::Representation::Name name(
-          target->get_arena(), type,
-          Tetrodotoxin::Terminal::Abi::Representation::Name::Kind::
-              ObjectDescriptor);
       carrier.descriptor = llvm::wrap(new llvm::GlobalVariable(
           get_module(*target), &descriptor_type, true,
-          llvm::GlobalValue::InternalLinkage, &descriptor_value,
-          llvm_text(name.get_view())));
+          object_descriptor_linkage(*target, type), &descriptor_value,
+          llvm_text(object_descriptor_name(*target, type))));
     }
 
     return carrier.descriptor;
@@ -1696,14 +1722,10 @@ auto Llvm::Module::Carriers::get_object_descriptor(
     llvm::Constant& finalizer_pointer = finalizer;
     llvm::Constant& descriptor_value = *llvm::ConstantStruct::get(
         &descriptor_type, {&size, &alignment, &finalizer_pointer});
-    Tetrodotoxin::Terminal::Abi::Representation::Name name(
-        target->get_arena(), type,
-        Tetrodotoxin::Terminal::Abi::Representation::Name::Kind::
-            ObjectDescriptor);
     carrier.descriptor = llvm::wrap(new llvm::GlobalVariable(
         get_module(*target), &descriptor_type, true,
-        llvm::GlobalValue::InternalLinkage, &descriptor_value,
-        llvm_text(name.get_view())));
+        object_descriptor_linkage(*target, type), &descriptor_value,
+        llvm_text(object_descriptor_name(*target, type))));
   }
 
   return carrier.descriptor;

@@ -97,7 +97,9 @@ static auto construct_retained_bytes(
     const Abstract& context,
     Cursor& cursor,
     Span span,
-    View::Bytes value) -> Option<Library::Language::Constant&> {
+    View::Bytes value,
+    Option<const Tetrodotoxin::Language::Resource&> resource = {})
+    -> Option<Library::Language::Constant&> {
   auto type = materialize_bytes_type(context, cursor, span, value.get_size());
   return type.visit(
       []() -> Option<Library::Language::Constant&> { return {}; },
@@ -107,7 +109,7 @@ static auto construct_retained_bytes(
 
         cursor.consume();
         return Library::Language::Constants::Bytes::create_authored(
-            domain, type, value, anchor);
+            domain, type, value, anchor, resource);
       });
 }
 
@@ -232,7 +234,7 @@ static auto parse_embedded(
   // Resource keeps its backing stable for the caller domain. Borrow it directly
   // so same domain imports retain one allocation for the semantic island.
   return construct_retained_bytes(
-      domain, context, cursor, literal_span, retained);
+      domain, context, cursor, literal_span, retained, *resource);
 }
 
 // Tokenization has already selected the Flag domain. Literal therefore uses

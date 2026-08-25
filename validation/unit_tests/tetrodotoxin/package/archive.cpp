@@ -167,7 +167,7 @@ static auto rejects(
   auto rejected = Package::Archive::Reader::read(arena, input);
   if (!returns_read_error(rejected, expected) ||
       !Test::error_contains(
-          "Package::Archive::Reader Format 2 read failed"_view,
+          "Package::Archive::Reader read failed"_view,
           Diagnostics::Log::Level::Debug)) {
     return False;
   }
@@ -192,20 +192,20 @@ PERIMORTEM_UNIT_TEST(PackageArchive, typed_read_outcomes) {
       empty, Package::Archive::Reader::Error::InvalidFormat));
   EXPECT(
       Test::error_contains(
-          "Package::Archive::Reader Format 2 read failed. stage=header "
+          "Package::Archive::Reader read failed. stage=header "
           "byte_offset=0 reason=the fixed header extends beyond the input "
           "bytes."_view,
           Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes future(golden());
-  set_u16(future, 4, 3);
+  set_u16(future, 4, 4);
   auto unsupported = Package::Archive::Reader::read(arena, future);
   EXPECT(returns_read_error(
       unsupported, Package::Archive::Reader::Error::UnsupportedFormat));
   EXPECT(
       Test::error_contains(
-          "Package::Archive::Reader Format 2 read failed. stage=header "
-          "byte_offset=4 expected_format=2 actual_format=3"_view,
+          "Package::Archive::Reader read failed. stage=header "
+          "byte_offset=4 expected_format=2_or_3 actual_format=4"_view,
           Diagnostics::Log::Level::Debug));
 
   auto accepted = Package::Archive::Reader::read(arena, golden());
@@ -223,6 +223,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_two) {
   EXPECT_EQ(U16(Sections::ArtifactIds), U16(5));
   EXPECT_EQ(U16(Sections::Exports), U16(6));
   EXPECT_EQ(U16(Sections::ArtifactMetadata), U16(7));
+  EXPECT_EQ(U16(Sections::Resources), U16(8));
 
   Allocator::Arena arena;
   auto decoded = Package::Archive::Reader::read(arena, golden());
@@ -294,6 +295,42 @@ PERIMORTEM_UNIT_TEST(PackageArchive, literal_format_two) {
       Package::Archive::Writer::write(*round_trip_archive);
   ASSERT(encoded_round_trip);
   EXPECT(encoded_round_trip->get_view() == golden());
+}
+
+PERIMORTEM_UNIT_TEST(PackageArchive, resource_round_trip) {
+  Package::Archive::Member members[] = {
+    Package::Archive::Member("Main"_view, "Lib"_view, View::Bytes()),
+  };
+  Package::Archive::Resource resources[] = {
+    Package::Archive::Resource("resources/icon.png"_view, "PNG bytes"_view),
+    Package::Archive::Resource("resources/empty.bin"_view, View::Bytes()),
+  };
+  Package::Archive::Archive archive(
+      "Pkg"_view, Version(1, 0), View::Vector<Package::Language::Dependency>(),
+      members, View::Vector<Package::Archive::Artifact>(),
+      View::Vector<Package::Archive::Export>(),
+      Language::Persistence::Profile::Complete, resources);
+
+  auto encoded = Package::Archive::Writer::write(archive);
+  ASSERT(encoded);
+  ASSERT(encoded->get_size() > Package::Archive::Archive::header_size);
+  EXPECT_EQ(encoded->get_view()[4], U8(3));
+
+  Allocator::Arena arena;
+  auto decoded = Package::Archive::Reader::read(arena, *encoded);
+  auto restored = selected_archive(decoded);
+  ASSERT(restored);
+  ASSERT_EQ(restored->get_resources().get_size(), Count(2));
+  EXPECT_TEXT(
+      restored->get_resources().get_data()[0].get_route(),
+      "resources/icon.png"_view);
+  EXPECT_TEXT(
+      restored->get_resources().get_data()[0].get_value(), "PNG bytes"_view);
+  EXPECT(restored->get_resources().get_data()[1].get_value().is_empty());
+
+  auto repeated = Package::Archive::Writer::write(*restored);
+  ASSERT(repeated);
+  EXPECT(repeated->get_view() == encoded->get_view());
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, omits_provenance) {
@@ -481,7 +518,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, format_size_limits) {
   EXPECT_NOT(Package::Archive::Writer::write(oversized_count));
   EXPECT(contains(
       Test::captured_message(),
-      "Package::Archive::Writer exceeded the Format 2 body limit."_view));
+      "Package::Archive::Writer exceeded the body limit."_view));
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, borrowed_input) {
@@ -536,7 +573,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
           Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes bad_format(golden());
-  set_u16(bad_format, 4, 3);
+  set_u16(bad_format, 4, 4);
   EXPECT(
       rejects(bad_format, Package::Archive::Reader::Error::UnsupportedFormat));
 

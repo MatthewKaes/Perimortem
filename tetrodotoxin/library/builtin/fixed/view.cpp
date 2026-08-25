@@ -28,5 +28,5 @@ auto Builtin::Fixed::View::fold_call(
   auto bytes = receiver->select<Language::Constants::Bytes>();
   BAIL_IF(!bytes);
   return Language::Constants::Bytes::create_synthetic(
-      domain, result_type, bytes->get_value());
+      domain, result_type, bytes->get_value(), bytes->get_resource());
 }

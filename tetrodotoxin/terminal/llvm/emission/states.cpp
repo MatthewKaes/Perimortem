@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-// LLVM must enter before Perimortem so the standard placement declaration is
+// LLVM enters before Perimortem so the standard placement declaration is
 // visible before the freestanding fallback used by Perimortem headers.
 #if __has_include("llvm/IR/IRBuilder.h")
 #include "llvm/IR/IRBuilder.h"
@@ -22,42 +22,11 @@
 #include "tetrodotoxin/terminal/llvm/module/carriers.hpp"
 #include "tetrodotoxin/terminal/llvm/module/functions.hpp"
 #include "tetrodotoxin/terminal/llvm/module/globals.hpp"
+#include "tetrodotoxin/terminal/llvm/module/literals.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Terminal;
 using namespace Tetrodotoxin::Library;
-
-static auto create_bytes_view(
-    Llvm::Module::Program& program,
-    LLVMTypeRef type,
-    Core::View::Bytes value) -> Core::Option<LLVMValueRef> {
-  if (LLVMGetTypeKind(type) != LLVMStructTypeKind ||
-      LLVMCountStructElementTypes(type) != 2) {
-    return {};
-  }
-
-  LLVMContextRef context = &program.get_context();
-  LLVMModuleRef module = &program.get_module();
-  LLVMValueRef data = LLVMConstNull(LLVMPointerTypeInContext(context, 0));
-  if (!value.is_empty()) {
-    LLVMValueRef contents = LLVMConstStringInContext2(
-        context, reinterpret_cast<const char*>(value.get_data()),
-        value.get_size(), 1);
-    LLVMValueRef global =
-        LLVMAddGlobal(module, LLVMTypeOf(contents), "__ttx_bytes");
-    LLVMSetGlobalConstant(global, 1);
-    LLVMSetInitializer(global, contents);
-    LLVMSetLinkage(global, LLVMPrivateLinkage);
-    LLVMSetUnnamedAddress(global, LLVMGlobalUnnamedAddr);
-    data = global;
-  }
-
-  LLVMValueRef count =
-      LLVMConstInt(LLVMInt64TypeInContext(context), value.get_size(), 0);
-  Core::Static::Vector<LLVMValueRef, 2> elements = {{data, count}};
-  return LLVMConstNamedStruct(
-      type, elements.get_data(), U32(elements.get_size()));
-}
 
 // Literals materialize constants with the carrier already reserved by their
 // exact semantic Type.
@@ -134,7 +103,9 @@ auto Llvm::Emission::States::real_value(
 auto Llvm::Emission::States::bytes_value(
     const Ttx::Model::Type& carrier,
     const Ttx::Model::Pack& result,
-    Core::View::Bytes value) const -> Bool {
+    Core::View::Bytes value,
+    Core::Option<const Tetrodotoxin::Language::Resource&> resource) const
+    -> Bool {
   auto selected = select_literal_target(body);
   BAIL_IF(!selected);
 
@@ -144,7 +115,8 @@ auto Llvm::Emission::States::bytes_value(
   LLVMContextRef context = &selected->program.get_context();
   LLVMTypeKind kind = LLVMGetTypeKind(*type);
   if (kind == LLVMStructTypeKind) {
-    auto bytes = create_bytes_view(selected->program, *type, value);
+    auto bytes = Llvm::Module::Literals::create_bytes_view(
+        selected->program, *type, value, resource);
     BAIL_IF(!bytes);
     return publish_literal(selected->body, result, *bytes);
   }
@@ -201,7 +173,8 @@ auto Llvm::Emission::States::enumeration_name(
 
   auto& builder =
       *reinterpret_cast<llvm::IRBuilder<>*>(selected->body.get_builder());
-  auto empty = create_bytes_view(selected->program, *native_result, {});
+  auto empty = Llvm::Module::Literals::create_bytes_view(
+      selected->program, *native_result, {});
   BAIL_IF(!empty);
   llvm::Value* selected_data =
       builder.CreateExtractValue(llvm::unwrap(*empty), 0);
@@ -209,8 +182,8 @@ auto Llvm::Emission::States::enumeration_name(
       builder.CreateExtractValue(llvm::unwrap(*empty), 1);
   for (Count remaining = values.get_size(); remaining != 0; remaining--) {
     Count index = remaining - 1;
-    auto candidate =
-        create_bytes_view(selected->program, *native_result, names[index]);
+    auto candidate = Llvm::Module::Literals::create_bytes_view(
+        selected->program, *native_result, names[index]);
     BAIL_IF(!candidate);
 
     llvm::Value* matches = builder.CreateICmpEQ(
@@ -261,6 +234,9 @@ auto Llvm::Emission::States::begin_logic(
       context, native_body.get_function(), "logical.right");
   LLVMBasicBlockRef merge = LLVMAppendBasicBlockInContext(
       context, native_body.get_function(), "logical.merge");
+  if (!native_body.clear_temporary_cleanup()) {
+    return {};
+  }
   if (operation == Logical::And) {
     LLVMBuildCondBr(native_body.get_builder(), *left_value, right, merge);
   } else {
@@ -284,6 +260,7 @@ auto Llvm::Emission::States::end_logic(
     return False;
   }
 
+  BAIL_IF(!native_body.clear_temporary_cleanup());
   LLVMBuildBr(native_body.get_builder(), state.get_merge());
   LLVMPositionBuilderAtEnd(native_body.get_builder(), state.get_merge());
   LLVMValueRef selected =

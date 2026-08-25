@@ -1,29 +1,97 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 //
-// Stable decoded pixels owned independently from backend resources.
+// Stable decoded pixels owned independently from target resources.
 //
 dialect : Library;
 
-foreign "C" {
-  public func perimortem_graphics_image_decode[.bytes : View[U8]] -> Option[Image];
+// Addressing selects how CPU sampling observes coordinates beyond an Image.
+public Addressing : enum[U8] {
+  clamp = 1;
+  wrap = 2;
+  zero = 0;
 }
 
-// Image is a decoded RGBA value whose Object buffer can be shared by immutable
-// copies. Its dimensions and addressing policy give those pixels graphics
-// meaning while Vulkan remains responsible for device images and uploads.
+// Image is a decoded RGBA value whose Object buffer can be shared by immutable copies.
+// Its dimensions and addressing policy give those pixels graphics meaning while Vulkan
+// remains responsible for device images and uploads.
 public Image : struct {
   private state pixels      : Object[Pixel];
   private state pixel_count : U64;
   private state size_pixels : Size2D;
-  private state addressing  : U8;
+  private state addressing  : Addressing;
 
-  // Decodes one PNG and reports malformed or unsupported input as absence.
-  public decode : func = [.bytes : View[U8]] -> Option[
-    Image,
-  ] : return foreign -> perimortem_graphics_image_decode(bytes);
-
+  public get_addressing : func = [self] -> Addressing : return self.addressing;
   public get_pixels : func = [self] -> View[Pixel] : return self.pixels -> get_view() ->
       slice(0, self.pixel_count);
   public get_size_pixels : func = [self] -> Size2D : return self.size_pixels;
+
+  // Samples normalized image coordinates. CPU execution observes the decoded pixels
+  // directly, while Shader Terminals preserve the same operation as a target image
+  // sample.
+  @intrinsic("sample_2d")
+  public sample : func = [
+    self,
+    .uv : Math::Vec2D,
+  ] -> Math::Vec4D {
+    state width  := new[S64](self.size_pixels.width);
+    state height := new[S64](self.size_pixels.height);
+    if (width == new[S64](0) or height == new[S64](0)) : return new[Math::Vec4D];
+
+    state x := new[S64](uv.x * new[R32](self.size_pixels.width));
+    state y := new[S64](uv.y * new[R32](self.size_pixels.height));
+    if (self.addressing == Addressing::zero and (x < new[S64](0) or x >= width or
+        y < new[S64](0) or y >= height)) : return new[Math::Vec4D];
+    if (self.addressing == Addressing::clamp) : return self -> sample_pixel(
+      .x = Image -> clamp_coordinate(x, width),
+      .y = Image -> clamp_coordinate(y, height),
+    );
+    if (self.addressing == Addressing::wrap) : return self -> sample_pixel(
+      .x = Image -> wrap_coordinate(x, width),
+      .y = Image -> wrap_coordinate(y, height),
+    );
+
+    return self -> sample_pixel(.x = x, .y = y);
+  }
+
+  // Returns another Image value over the same immutable pixels with a new sampling
+  // policy. Both values retain the same Object identity.
+  public with_addressing : func = [self, .addressing : Addressing] -> Image : return (
+    .pixels = self.pixels,
+    .pixel_count = self.pixel_count,
+    .size_pixels = self.size_pixels,
+    .addressing = addressing,
+  );
+
+  private clamp_coordinate : func = [
+    .coordinate : S64,
+    .extent : S64,
+  ] -> S64 {
+    if (coordinate < new[S64](0)) : return new[S64](0);
+    if (coordinate >= extent) : return extent - new[S64](1);
+
+    return coordinate;
+  }
+
+  private wrap_coordinate : func = [
+    .coordinate : S64,
+    .extent : S64,
+  ] -> S64 {
+    state wrapped := coordinate % extent;
+    if (wrapped < new[S64](0)) : return wrapped + extent;
+
+    return wrapped;
+  }
+
+  private sample_pixel : func = [self, .x : S64, .y : S64] -> Math::Vec4D {
+    state width     := new[S64](self.size_pixels.width);
+    state pixel     := self.pixels -> get_view():[new[U64](y * width + x)];
+    const normalize : R32 = new[R32](1.0 / 255.0);
+    return (
+      .x = new[R32](pixel.red) * normalize,
+      .y = new[R32](pixel.green) * normalize,
+      .z = new[R32](pixel.blue) * normalize,
+      .w = new[R32](pixel.alpha) * normalize,
+    );
+  }
 }

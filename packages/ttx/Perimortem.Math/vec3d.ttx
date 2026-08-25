@@ -9,6 +9,7 @@ dialect : Library;
 //
 // It remains a general vector so domain Packages can add their own spatial or
 // color meaning without changing this shared Type.
+@capability("vector")
 public Vec3D : struct {
   public state x : R32;
   public state y : R32;

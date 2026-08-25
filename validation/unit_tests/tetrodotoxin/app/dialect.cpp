@@ -97,7 +97,9 @@ PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
   const auto& app = package.resolve_context("App"_view).resolve();
   ASSERT(app.is<App::Language::Monograph>());
   const auto& policy = static_cast<const App::Language::Monograph&>(app);
-  auto entry = policy.get_program().get_entry();
+  auto program = policy.get_program();
+  ASSERT(program);
+  auto entry = program->get_entry();
   ASSERT(entry);
   EXPECT_TEXT(entry->get_name(), "run"_view);
   EXPECT(entry->get_parameters().is_empty());
@@ -274,9 +276,9 @@ PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
       restored_complete->finalize_restored());
   const auto& complete_policy =
       static_cast<const App::Language::Monograph&>(*restored_complete);
-  ASSERT(complete_policy.get_program().get_entry());
-  EXPECT_TEXT(
-      complete_policy.get_program().get_entry()->get_name(), "run"_view);
+  auto complete_program = complete_policy.get_program();
+  ASSERT(complete_program && complete_program->get_entry());
+  EXPECT_TEXT(complete_program->get_entry()->get_name(), "run"_view);
 
   Perimortem::Memory::Allocator::Arena contract_arena;
   auto restored_contract = archive_dialect.restore(
@@ -416,8 +418,7 @@ PERIMORTEM_UNIT_TEST(AppDialect, startup_profiles) {
       "ProfilePackage"_view, "package.ttx"_view, "Validation.AppProfiles"_view,
       Version(1, 0));
   ASSERT(imported && imported->is<Package::Language::Monograph>());
-  const auto& package =
-      static_cast<const Package::Language::Monograph&>(*imported);
+  auto& package = static_cast<Package::Language::Monograph&>(*imported);
   const auto& app = package.resolve_context("Application"_view).resolve();
   ASSERT(app.is<App::Language::Monograph>());
   const auto& policy = static_cast<const App::Language::Monograph&>(app);
@@ -440,8 +441,19 @@ PERIMORTEM_UNIT_TEST(AppDialect, startup_profiles) {
   EXPECT(package_errors.is_empty());
 
   App::Dialect archive_dialect;
-  EXPECT_NOT(
-      archive_dialect.encode(policy, Language::Persistence::Profile::Complete));
+  auto archive =
+      archive_dialect.encode(policy, Language::Persistence::Profile::Complete);
+  ASSERT(archive);
+  Perimortem::Memory::Allocator::Arena restored_arena;
+  auto restored = archive_dialect.restore(
+      restored_arena, *archive, Language::Persistence::Profile::Complete,
+      Ttx::Concept::Documentation::get_empty(), package);
+  ASSERT(restored && restored->is<App::Language::Monograph>());
+  const auto& restored_policy =
+      static_cast<const App::Language::Monograph&>(*restored);
+  auto restored_window = restored_policy.get_runtime().get_windowed();
+  ASSERT(restored_window && restored_window->get_icon());
+  EXPECT_TEXT(restored_window->get_icon()->get_value(), "icon\n"_view);
 }
 
 PERIMORTEM_UNIT_TEST(AppDialect, startup_rejections) {

@@ -10,6 +10,8 @@
 #include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "perimortem/system/path.hpp"
+
 #include "ttx/lexical/lexicon.hpp"
 
 using namespace Perimortem::Core;
@@ -24,13 +26,11 @@ using LittleReader = Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>;
 // Low level logs use one stable operation identity so a higher layer can pair
 // its source diagnostic with the complete Archive validation trace.
 static constexpr View::Bytes archive_read_operation =
-    "Package::Archive::Reader Format 2 read"_view;
+    "Package::Archive::Reader read"_view;
 static constexpr U16 required_field = 1;
 static constexpr U16 interface_profile = 1;
 static constexpr U8 first_section =
     U8(Package::Archive::Archive::Sections::Identity);
-static constexpr U8 last_section =
-    U8(Package::Archive::Archive::Sections::ArtifactMetadata);
 
 // Archive qualification rules name their lexical separator Codes once and
 // leave every segment and separator spelling check with the shared Lexicon.
@@ -111,7 +111,8 @@ static auto validate(
     View::Vector<Package::Archive::Member> members,
     View::Vector<View::Bytes> artifact_ids,
     View::Vector<Package::Archive::Artifact> artifacts,
-    View::Vector<Package::Archive::Export> exports) -> Bool {
+    View::Vector<Package::Archive::Export> exports,
+    View::Vector<Package::Archive::Resource> resources) -> Bool {
   if (!Lexicon::validate(
           Code::Type::Type, identity, package_identity_separators)) {
     return log_invalid_value(
@@ -127,7 +128,7 @@ static auto validate(
 
   if (members.is_empty()) {
     Diagnostics::Log::debug(
-        "Package::Archive::Reader Format 2 read failed validation. "
+        "Package::Archive::Reader read failed validation. "
         "inventory=Members reason=at least one semantic member is required."_view);
     return False;
   }
@@ -137,6 +138,7 @@ static auto validate(
   const auto* artifact_id_data = artifact_ids.get_data();
   const auto* artifact_data = artifacts.get_data();
   const auto* export_data = exports.get_data();
+  const auto* resource_data = resources.get_data();
 
   // Dependencies retain authored order but require unique local aliases and
   // exact Package identities and pinned versions.
@@ -319,6 +321,22 @@ static auto validate(
               << " semantic_route="_view << semantic_route
               << " unknown_artifact_id="_view << artifact_id;
       return False;
+    }
+  }
+
+  for (Count i = 0; i < resources.get_size(); i++) {
+    View::Bytes route = resource_data[i].get_route();
+    Path normalized(route);
+    if (route.is_empty() || normalized.is_rooted() ||
+        normalized.get_view() != route) {
+      return log_invalid_value(
+          "Resource routes"_view, i, route,
+          "the value is not one normalized confined Package route."_view);
+    }
+    for (Count earlier = 0; earlier < i; earlier++) {
+      if (resource_data[earlier].get_route() == route) {
+        return log_duplicate_value("Resource routes"_view, route, earlier, i);
+      }
     }
   }
 
@@ -585,6 +603,34 @@ static auto parse_exports(
   return reader.get_location() == reader.get_size();
 }
 
+static auto parse_resources(
+    View::Bytes payload,
+    Dynamic::Vector<Package::Archive::Resource>& resources) -> Bool {
+  LittleReader reader(payload);
+  U32 count = reader.read_u32();
+  BAIL_IF(
+      !is_valid(reader) || !can_allocate_records<Package::Archive::Resource>(
+                               count, payload, reader.get_location(), 12));
+
+  resources = Dynamic::Vector<Package::Archive::Resource>(count);
+  for (U32 index = 0; index < count; index++) {
+    U32 record_size = reader.read_u32();
+    View::Bytes record = reader.read_bytes(record_size);
+    BAIL_IF(!is_valid(reader));
+
+    LittleReader record_reader(record);
+    View::Bytes route;
+    View::Bytes value;
+    Bool route_read = read_sized_bytes(record_reader, route);
+    Bool value_read = read_sized_bytes(record_reader, value);
+    BAIL_IF(
+        !route_read || !value_read ||
+        record_reader.get_location() != record_reader.get_size());
+    resources.emplace(Package::Archive::Resource(route, value));
+  }
+  return reader.get_location() == reader.get_size();
+}
+
 // Framing failures do not have authored source context. Preserve the Archive
 // stage and byte position in the debug trace, then let the requesting owner
 // decide how the failed dependency or compile request should be reported.
@@ -625,11 +671,13 @@ static auto retain_archive(
     View::Vector<Package::Archive::Member> members,
     View::Vector<Package::Archive::Artifact> artifacts,
     View::Vector<Package::Archive::Export> exports,
-    Tetrodotoxin::Language::Persistence::Profile profile)
+    Tetrodotoxin::Language::Persistence::Profile profile,
+    View::Vector<Package::Archive::Resource> resources)
     -> Package::Archive::Archive {
   auto retained_dependencies = retain_records(arena, dependencies);
   auto retained_members = retain_records(arena, members);
   auto retained_exports = retain_records(arena, exports);
+  auto retained_resources = retain_records(arena, resources);
   Managed::Vector<Package::Archive::Artifact> retained_artifacts(arena);
   for (const Package::Archive::Artifact& artifact : artifacts) {
     auto retained_imports = retain_records(arena, artifact.get_imports());
@@ -641,13 +689,14 @@ static auto retain_archive(
 
   return Package::Archive::Archive(
       identity, version, retained_dependencies, retained_members,
-      retained_artifacts.get_view(), retained_exports, profile);
+      retained_artifacts.get_view(), retained_exports, profile,
+      retained_resources);
 }
 
 auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     -> Result<Archive, Error> {
   // Decode the complete fixed header first. Accepted input must carry the
-  // Format 2 magic and version while leaving every reserved flag clear.
+  // Decode the shared magic and revision while leaving reserved flags clear.
   LittleReader reader(input);
   View::Bytes magic = reader.read_bytes(4);
   U16 format = reader.read_u16();
@@ -669,12 +718,12 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   }
 
   // A readable revision is the only rejection that gives callers a recovery
-  // decision beyond invalid Format 2 bytes. Keep the exact revision in the
+  // decision beyond invalid Archive bytes. Keep the exact revision in the
   // Debug record while the returned category stays small.
-  if (format != 2) {
+  if (format != 2 && format != 3) {
     Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
     message << archive_read_operation
-            << " failed. stage=header byte_offset=4 expected_format=2 "
+            << " failed. stage=header byte_offset=4 expected_format=2_or_3 "
                "actual_format="_view
             << format;
     return Error::UnsupportedFormat;
@@ -707,7 +756,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     return Error::InvalidFormat;
   }
 
-  // Hold decoded views in transaction storage until all seven sections and
+  // Hold decoded views in transaction storage until every required section and
   // their semantic relationships pass. A malformed envelope therefore cannot
   // retain partial Archive state in the caller Arena.
   View::Bytes identity;
@@ -718,7 +767,10 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   Dynamic::Vector<Artifact> artifacts;
   Dynamic::Vector<Dynamic::Vector<Linker::Import>> artifact_imports;
   Dynamic::Vector<Export> exports;
+  Dynamic::Vector<Package::Archive::Resource> resources;
   U8 expected_section = first_section;
+  U8 last_section = format == 3 ? U8(Archive::Sections::Resources)
+                                : U8(Archive::Sections::ArtifactMetadata);
 
   while (reader.has_content()) {
     // Isolate one section payload before interpreting its tag. A malformed
@@ -739,7 +791,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
       return Error::InvalidFormat;
     }
 
-    // Bit zero is the only Format 2 section flag. Any other bit would assign
+    // Bit zero is the only known section flag. Any other bit would assign
     // semantics that this Reader cannot prove.
     if ((flags & ~required_field) != 0) {
       Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
@@ -805,6 +857,9 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     case Archive::Sections::ArtifactMetadata:
       parsed = parse_artifact_metadata(payload, artifacts, artifact_imports);
       break;
+    case Archive::Sections::Resources:
+      parsed = parse_resources(payload, resources);
+      break;
     default:
       parsed = False;
       break;
@@ -837,7 +892,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   // every section is structurally complete.
   if (!validate(
           identity, version, dependencies, members, artifact_ids, artifacts,
-          exports)) {
+          exports, resources)) {
     return Error::InvalidFormat;
   }
 
@@ -845,5 +900,5 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   // bytes. The returned Archive itself remains an ordinary value.
   return retain_archive(
       arena, identity, version, dependencies, members, artifacts, exports,
-      profile);
+      profile, resources);
 }

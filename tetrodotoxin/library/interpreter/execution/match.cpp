@@ -4,9 +4,9 @@
 #include "tetrodotoxin/library/interpreter/execution/match.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
-#include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/interpreter/execution/block.hpp"
 #include "tetrodotoxin/library/interpreter/expression.hpp"
+#include "tetrodotoxin/library/language/expressions/identifier.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -17,15 +17,15 @@ auto Interpreter::Execution::Match::parse(
     Cursor& cursor,
     Language::Flow::Block& lexical_context,
     Language::Model::Callable& function,
-    const Language::Model::Type& access_scope)
+    const Language::Model::Type& access_scope,
+    Option<const StatementParser&> extension)
     -> Option<Language::Flow::Match&> {
   Token opening = cursor.require(
       Code::Type::Match,
       "Library match statements require the `match` keyword."_view);
   BAIL_IF(!opening);
   Token input_opening = cursor.current();
-  auto input_pack = Interpreter::Expression::parse(
-      lexical_context, cursor);
+  auto input_pack = Interpreter::Expression::parse(lexical_context, cursor);
   BAIL_IF(!input_pack);
   auto input = input_pack->select<Language::Expression>();
   if (!input) {
@@ -59,7 +59,8 @@ auto Interpreter::Execution::Match::parse(
     if (cursor.matches(Code::Type::Discard)) {
       cursor.consume();
       auto body = Block::parse(
-          cursor, lexical_context, function, access_scope, enclosing_loop);
+          cursor, lexical_context, function, access_scope, enclosing_loop,
+          extension);
       BAIL_IF(!body || !result.complete_default(*body));
       Tetrodotoxin::Language::Parser::Comment::parse(cursor);
       if (!cursor.matches(Code::Type::ScopeEnd)) {
@@ -81,8 +82,8 @@ auto Interpreter::Execution::Match::parse(
           cursor, pattern.get_context(), value_token,
           Anchor::create(Span(value_token)));
       auto body = Block::parse(
-          cursor, pattern.get_context(), function, access_scope,
-          enclosing_loop);
+          cursor, pattern.get_context(), function, access_scope, enclosing_loop,
+          extension);
       BAIL_IF(!body);
       result.retain_value_case(
           expression, *body, pattern.get_payload(),
@@ -92,8 +93,7 @@ auto Interpreter::Execution::Match::parse(
     }
 
     Token expression_opening = cursor.current();
-    auto case_pack = Interpreter::Expression::parse(
-        lexical_context, cursor);
+    auto case_pack = Interpreter::Expression::parse(lexical_context, cursor);
     BAIL_IF(!case_pack);
     auto expression = case_pack->select<Language::Expression>();
     if (!expression) {
@@ -104,7 +104,8 @@ auto Interpreter::Execution::Match::parse(
       return {};
     }
     auto body = Block::parse(
-        cursor, lexical_context, function, access_scope, enclosing_loop);
+        cursor, lexical_context, function, access_scope, enclosing_loop,
+        extension);
     BAIL_IF(!body);
     result.retain_constant_case(
         *expression, *body,

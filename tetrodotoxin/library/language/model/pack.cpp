@@ -115,7 +115,7 @@ class Group final : public Language::Model::Pack {
     }
     BAIL_IF(failed);
 
-    // Type selection must link so a following access can query that identity.
+    // Type selection links here so a following access can query that identity.
     // A group is a value consumer, so it rejects the same result before Layout
     // observation turns the missing value output into a process failure.
     for (Reference<Language::Model::Pack> entry : entries.get_view()) {
@@ -392,8 +392,9 @@ auto Language::Model::Pack::fits_entry(
   if (source.fits_entry(target, source_index, target_index)) {
     return True;
   }
-  BAIL_IF(source.get_name(source_index));
-
+  auto source_name = source.get_name(source_index);
+  auto target_name = get_target_name(target, target_index);
+  BAIL_IF(source_name && (!target_name || *source_name != *target_name));
   auto target_entry = target.get_abstract(target_index);
   BAIL_IF(!target_entry);
   auto target_type = select_target_type(*target_entry);
@@ -413,11 +414,31 @@ auto Language::Model::Pack::fits_at(
       target_offset > target.get_size() ||
       source.get_size() > target.get_size() - target_offset);
 
-  // A named Layout owns its target reordering. Its fits_entry implementation
-  // still delegates each selected value back through Pack when necessary.
+  // Named flow owns target reordering, while this Pack keeps contextual fitting
+  // on each real producer. Delegating the complete operation to Named would
+  // compare only raw identities and lose cross source scalar admission.
   for (Count index = 0; index < source.get_size(); index++) {
     if (source.get_name(index)) {
-      return source.fits_at(target, target_offset);
+      for (Count source_index = 0; source_index < source.get_size();
+           source_index++) {
+        auto source_name = source.get_name(source_index);
+        BAIL_IF(!source_name);
+        Count selected = 0;
+        Count matches = 0;
+        for (Count target_index = 0; target_index < source.get_size();
+             target_index++) {
+          auto target_name =
+              get_target_name(target, target_offset + target_index);
+          if (target_name && *target_name == *source_name) {
+            selected = target_index;
+            matches++;
+          }
+        }
+        BAIL_IF(
+            matches != 1 ||
+            !fits_entry(target, source_index, target_offset + selected));
+      }
+      return True;
     }
   }
 
@@ -435,6 +456,7 @@ auto Language::Model::Pack::fits(const Ttx::Concept::Layout& target) const
   }
 
   BAIL_IF(target.get_size() != 1);
+  BAIL_IF(get_layout().get_size() == 1 && get_layout().get_name(0));
   auto target_entry = target.get_abstract(0);
   BAIL_IF(!target_entry);
   auto target_type = select_target_type(*target_entry);

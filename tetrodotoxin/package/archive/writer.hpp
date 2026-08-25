@@ -14,16 +14,17 @@
 
 namespace Tetrodotoxin::Package::Archive {
 
-// Emits the canonical Package Archive Format 2 representation from a validated
-// Archive value. Writer measures the complete envelope before allocation, then
-// preserves every supplied list order through the shared section vocabulary.
+// Emits one canonical Package Archive from a validated value. Resource free
+// values preserve Format 2, while a Package that selected Resources uses
+// Format 3 and carries each route and byte value once. Writer measures the
+// complete envelope before allocation and preserves every supplied list order.
 class Writer {
  public:
   Writer() = delete;
 
-  // Writes all seven required sections in canonical order. A body that exceeds
-  // the Format 2 limit logs a warning. Failure to reach the measured boundary
-  // logs an error.
+  // Writes every required section in canonical order. A body that exceeds the
+  // unsigned 32 bit envelope limit logs a warning. Failure to reach the
+  // measured boundary logs an error.
   static auto write(const Archive& archive)
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 

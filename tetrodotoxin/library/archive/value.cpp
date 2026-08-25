@@ -5,8 +5,10 @@
 
 #include "perimortem/core/static/vector.hpp"
 
+#include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/enumeration.hpp"
@@ -72,9 +74,13 @@ static auto write_constant(
 
   auto bytes = constant.select<Language::Constants::Bytes>();
   if (bytes) {
-    auto record = writer.begin(Archive::Tag::ConstantBytes);
+    auto resource = bytes->get_resource();
+    auto record = writer.begin(
+        resource ? Archive::Tag::ConstantResourceBytes
+                 : Archive::Tag::ConstantBytes);
     return writer.write(bytes->get_type().get_name()) &&
-           writer.write(bytes->get_value()) && writer.finish(record);
+           writer.write(resource ? resource->get_name() : bytes->get_value()) &&
+           writer.finish(record);
   }
 
   auto object = constant.select<Language::Constants::Object>();
@@ -188,10 +194,30 @@ static auto materialize_type(
 static auto restore_bytes_type(const Abstract& context, Count extent)
     -> Core::Option<const Language::Model::Type&> {
   auto element = resolve_type(context, "U8"_view);
+  BAIL_IF(!element);
+
+  if (extent == 0) {
+    auto view = context.resolve_context("View"_view)
+                    .resolve()
+                    .select<Language::Generic>();
+    BAIL_IF(!view);
+    Core::Static::Vector<Language::Generic::Argument, 1> arguments = {{
+      Language::Generic::Argument(*element),
+    }};
+    return view->materialize(arguments.get_view())
+        .visit(
+            [](const Language::Model::Type& selected)
+                -> Core::Option<const Language::Model::Type&> {
+              return selected;
+            },
+            [](const Language::Generic::Failure&)
+                -> Core::Option<const Language::Model::Type&> { return {}; });
+  }
+
   auto fixed = context.resolve_context("Fixed"_view)
                    .resolve()
                    .select<Language::Generic>();
-  BAIL_IF(!element || !fixed || extent == 0);
+  BAIL_IF(!fixed);
 
   Core::Static::Vector<Language::Generic::Argument, 2> arguments = {{
     Language::Generic::Argument(*element),
@@ -294,13 +320,28 @@ auto Archive::read_folded(
   case Tag::ConstantBytes: {
     auto ignored_type_name = contents.read_bytes();
     auto value = contents.read_bytes();
-    BAIL_IF(
-        !ignored_type_name || !value || value->is_empty() ||
-        !contents.is_complete());
+    BAIL_IF(!ignored_type_name || !value || !contents.is_complete());
     auto type = restore_bytes_type(lexical_context, value->get_size());
     BAIL_IF(!type);
     return Language::Constants::Bytes::create_synthetic(
         arena, *type, arena.proxy(*value));
+  }
+  case Tag::ConstantResourceBytes: {
+    auto ignored_type_name = contents.read_bytes();
+    auto route = contents.read_bytes();
+    BAIL_IF(!ignored_type_name || !route || !contents.is_complete());
+    Memory::Managed::Bytes complete_route(arena, "$["_view);
+    complete_route.concat(*route);
+    complete_route.append(']');
+    auto resource = lexical_context.resolve_context(complete_route.get_view())
+                        .resolve()
+                        .select<Tetrodotoxin::Language::Resource>();
+    BAIL_IF(!resource);
+    auto type =
+        restore_bytes_type(lexical_context, resource->get_value().get_size());
+    BAIL_IF(!type);
+    return Language::Constants::Bytes::create_synthetic(
+        arena, *type, resource->get_value(), *resource);
   }
   case Tag::ConstantObject: {
     auto ignored_type_name = contents.read_bytes();

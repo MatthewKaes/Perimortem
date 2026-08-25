@@ -77,8 +77,7 @@ static auto parse_authored(
   auto interpretation =
       dialect.interpret(cursor, documentation, source_anchor, context);
   if (!interpretation || !cursor.matches(Code::Type::Terminal) ||
-      !interpretation->is<Language::Monograph>() ||
-      !errors.is_empty()) {
+      !interpretation->is<Language::Monograph>() || !errors.is_empty()) {
     return {};
   }
 
@@ -115,7 +114,7 @@ static auto rejects_link(View::Bytes source) -> Bool {
              &Invalid::get_invalid();
 }
 
-static auto rejects_finalize_without_cases(View::Bytes source) -> Bool {
+static auto rejects_completion_without_cases(View::Bytes source) -> Bool {
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -131,20 +130,16 @@ static auto rejects_finalize_without_cases(View::Bytes source) -> Bool {
   Tokenizer tokenizer(completion, source, "enumeration.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
-  if (!monograph.link(cursor)) {
-    return False;
-  }
-
+  Bool linked = monograph.link(cursor);
   const Abstract& selected = monograph.resolve_context("Bad"_view);
-  if (!selected.is<Language::Types::Enumeration>()) {
+  auto enumeration = selected.select<Language::Types::Enumeration>();
+  if (!enumeration) {
     return False;
   }
 
-  const auto& enumeration =
-      static_cast<const Language::Types::Enumeration&>(selected);
-  Bool finalized = monograph.finalize(cursor);
-  auto cases = enumeration.get_cases();
-  return !finalized && cases.is_empty() && !errors.is_empty() &&
+  Bool finalized = linked ? monograph.finalize(cursor) : False;
+  return !finalized && enumeration->get_cases().is_empty() &&
+         !errors.is_empty() &&
          &workspace.resolve_context("EnumerationTest"_view) ==
              &Invalid::get_invalid();
 }
@@ -300,7 +295,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, overflow_rejection) {
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
-    EXPECT(rejects_finalize_without_cases(sources[i]));
+    EXPECT(rejects_completion_without_cases(sources[i]));
   }
 }
 

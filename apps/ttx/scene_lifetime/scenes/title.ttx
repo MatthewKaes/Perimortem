@@ -1,33 +1,34 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 //
-// A mock title screen that responds to simple inputs.
-//
+// A title screen that publishes keyboard input as Scene Signals.
 dialect : Scene;
 
-private const title_card : Graphics::Sprite = new;
+using System::Key;
 
 signal space_pressed;
 signal shift_pressed;
+private state title_card : Graphics::Sprite;
 
-Scene prepare[self] -> Void {
-  state image := Graphics::Image -> decode(.bytes = $[resources/logo.png])!;
-  self.title_card.image = image;
+Scene prepare[self] -> [] {
+  state image := Graphics::Format::PNG -> decode(.bytes = $[resources/icon.png] ->
+      get_view())!;
+  state position : Graphics::Point2D = (.x = 200.0, .y = 250.0);
+  self.title_card.image       = image;
   self.title_card.size_pixels = image -> get_size_pixels();
-  self.title_card.transform.translation = (.x = 200.0, .y = 250.0);
-  self.title_card.tone = (.red = 1.0, .green = 1.0, .blue = 1.0, .alpha = 1.0);
-  return;
+  self.title_card.transform   = (
+    .translation              = position,
+    .scale_x                  = 1.0,
+    .scale_y                  = 1.0,
+    .rotation                 = 0.0,
+  );
+  self.title_card.tone        = (.red = 1.0, .green = 1.0, .blue = 1.0, .alpha =
+      1.0);
 }
 
-Scene release[self] -> Void : return;
-Scene update[self, .delta_time : R64] -> Scene::Flow {
-  const input := System -> get_input();
-  if (input -> pressed(.key = System::Key -> space())) : return Scene::Flow -> emit(
-    self.space_pressed,
-  );
-  if (input -> pressed(.key = System::Key -> shift())) : return Scene::Flow -> emit(
-    self.shift_pressed,
-  );
-
-  return Scene::Flow -> stay();
+Scene release[self] -> [] : return;
+Scene update[self, .delta_time : R64] -> [] {
+  state input := System::Input -> snapshot();
+  if (input -> pressed(.key = space)) : emit space_pressed;
+  if (input -> pressed(.key = shift)) : emit shift_pressed;
 }

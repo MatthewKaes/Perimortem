@@ -6,7 +6,6 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/object.hpp"
-#include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/dynamic/vector.hpp"
 
@@ -34,10 +33,6 @@ class Image {
       U32 width,
       U32 height,
       Addressing addressing = Addressing::Zero);
-  // Decodes one PNG into a fresh Image value. Absence reports malformed or
-  // unsupported input while a default Image remains a valid empty value.
-  static auto decode(Core::View::Bytes source) -> Core::Option<Image>;
-
   auto get_width() const -> U32;
   auto get_height() const -> U32;
   auto get_size_pixels() const -> Size2D;

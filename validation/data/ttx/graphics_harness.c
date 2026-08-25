@@ -24,12 +24,12 @@ int main(void) {
     return 1;
   }
 
-  ttx_perimortem_graphics_Image_View_5bU8_5d bytes = {
+  ttx_perimortem_graphics_Format_PNG_View_5bU8_5d bytes = {
     red_png,
     sizeof(red_png),
   };
-  ttx_perimortem_graphics_Image_Option_5bImage_5d decoded =
-      TTX_FUNC_Perimortem_2eGraphics__Image__Image__decode_static(bytes);
+  ttx_perimortem_graphics_Format_PNG_Option_5bImage_5d decoded =
+      TTX_FUNC_Perimortem_2eGraphics__Format_3a_3aPNG__PNG__decode_static(bytes);
   if (!decoded.set) {
     return 2;
   }
@@ -45,6 +45,23 @@ int main(void) {
       pixels.data[0].red != 0xff || pixels.data[0].green != 0x00 ||
       pixels.data[0].blue != 0x00 || pixels.data[0].alpha != 0xff) {
     result = 3;
+  }
+
+  ttx_perimortem_math_Vec2D_Vec2D origin = {0.0f, 0.0f};
+  ttx_perimortem_math_Vec4D_Vec4D sampled =
+      TTX_FUNC_Perimortem_2eGraphics__Image__Image__sample_self(
+          &image, origin);
+  if (sampled.x < 0.999f || sampled.x > 1.001f || sampled.y != 0.0f ||
+      sampled.z != 0.0f || sampled.w < 0.999f || sampled.w > 1.001f) {
+    result = 4;
+  }
+
+  ttx_perimortem_math_Vec2D_Vec2D outside = {2.0f, 2.0f};
+  sampled = TTX_FUNC_Perimortem_2eGraphics__Image__Image__sample_self(
+      &image, outside);
+  if (sampled.x != 0.0f || sampled.y != 0.0f || sampled.z != 0.0f ||
+      sampled.w != 0.0f) {
+    result = 5;
   }
 
   perimortem_core_object_release(image.pixels);

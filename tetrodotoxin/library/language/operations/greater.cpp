@@ -11,6 +11,7 @@
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
+#include "tetrodotoxin/library/language/model/types/value.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -24,8 +25,9 @@ static auto select_operand_type(
     const Language::Expression& right) -> const Abstract& {
   const Abstract& left_resolved = left.get_type().resolve();
   const Abstract& right_resolved = right.get_type().resolve();
-  if (!left_resolved.is<Language::Model::Type>() ||
-      &left_resolved != &right_resolved ||
+  auto left_value = left_resolved.select<Language::Model::Types::Value>();
+  auto right_value = right_resolved.select<Language::Model::Types::Value>();
+  if (!left_value || !right_value || !left_value->is_equivalent(*right_value) ||
       (!left_resolved.is<Language::Model::Types::Unsigned>() &&
        !left_resolved.is<Language::Model::Types::Signed>() &&
        !left_resolved.is<Language::Model::Types::Real>())) {
@@ -47,7 +49,6 @@ static auto make_result(
 
   return Language::Constants::False::create_synthetic(domain, type);
 }
-
 
 TTX_BINARY_OP(Greater);
 

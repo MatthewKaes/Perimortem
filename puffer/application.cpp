@@ -11,6 +11,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/system/file.hpp"
+#include "perimortem/serialization/stream/textual.hpp"
 
 #include "tetrodotoxin/app/dialect.hpp"
 #include "tetrodotoxin/app/language/monograph.hpp"
@@ -21,10 +22,14 @@
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "tetrodotoxin/render/dialect.hpp"
+#include "tetrodotoxin/scene/dialect.hpp"
 #include "tetrodotoxin/shader/dialect.hpp"
-#include "tetrodotoxin/terminal/abi/products.hpp"
-#include "tetrodotoxin/terminal/llvm/module/program.hpp"
-#include "ttx/lexical/errors.hpp"
+#include "tetrodotoxin/shader/language/program.hpp"
+#include "tetrodotoxin/terminal/application/generator.hpp"
+#include "tetrodotoxin/terminal/vulkan/compiler.hpp"
+#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/reference.hpp"
+#include "ttx/model/type.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin;
@@ -63,18 +68,66 @@ static auto publish(Core::View::Bytes path, Core::View::Bytes contents)
   return System::File::write(contents, path);
 }
 
+static auto resolve_context_route(
+    const Ttx::Concept::Abstract& root,
+    Core::View::Bytes route) -> Core::Option<const Ttx::Concept::Abstract&> {
+  Ttx::Concept::Reference<const Ttx::Concept::Abstract> selected(root);
+  Count start = 0;
+  for (Count index = 0; index <= route.get_size(); index++) {
+    Bool end = index == route.get_size();
+    Bool separator = !end && index + 1 < route.get_size() &&
+                     route[index] == ':' && route[index + 1] == ':';
+    if (!end && !separator) {
+      continue;
+    }
+    Core::View::Bytes segment = route.slice(start, index - start);
+    BAIL_IF(segment.is_empty());
+    selected = Ttx::Concept::Reference<const Ttx::Concept::Abstract>(
+        selected.get().resolve_context(segment).resolve());
+    BAIL_IF(selected.get().is<Ttx::Concept::Invalid>());
+    if (separator) {
+      index++;
+    }
+    start = index + 1;
+  }
+  return selected.get();
+}
+
+static auto find_program_symbol(
+    const Environment::Workspace& workspace,
+    const Package::Archive::Archive& archive,
+    const Shader::Language::Program& program,
+    Core::View::Bytes artifact) -> Core::Option<Core::View::Bytes> {
+  auto package = workspace.resolve_context(archive.get_identity())
+                     .resolve()
+                     .select<Package::Language::Monograph>();
+  BAIL_IF(!package);
+  Core::Option<Core::View::Bytes> symbol;
+  for (const Package::Archive::Export& exported : archive.get_exports()) {
+    if (exported.get_artifact_id() != artifact) {
+      continue;
+    }
+    auto selected =
+        resolve_context_route(*package, exported.get_semantic_route());
+    if (selected && &selected->resolve() == &program) {
+      BAIL_IF(symbol);
+      symbol = exported.get_symbol_locator();
+    }
+  }
+  return symbol;
+}
+
 auto Puffer::Application::run() const -> S32 {
   Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::plain_sink);
 
   Core::View::Bytes complete_path = value(arguments, "complete"_view);
   Core::View::Bytes app_member = value(arguments, "app-member"_view);
   Core::View::Bytes artifact = value(arguments, "artifact"_view);
-  Core::View::Bytes ir_path = value(arguments, "ir"_view);
-  Core::View::Bytes object_path = value(arguments, "object"_view);
+  Core::View::Bytes source_path = value(arguments, "source"_view);
   Core::View::Bytes abi_manifest_path = value(arguments, "abi-manifest"_view);
-  if (complete_path.is_empty() || app_member.is_empty() || ir_path.is_empty() ||
-      object_path.is_empty() || abi_manifest_path.is_empty() ||
-      ir_path == object_path || artifact != "x86_64-sysv-linux"_view) {
+  if (complete_path.is_empty() || app_member.is_empty() ||
+      source_path.is_empty() || abi_manifest_path.is_empty() ||
+      artifact != "x86_64-sysv-linux"_view) {
     Core::Diagnostics::Log::error(
         "Puffer Application mode received an incomplete request."_view);
     return 2;
@@ -86,6 +139,7 @@ auto Puffer::Application::run() const -> S32 {
   auto render = toolchain.install<Render::Dialect>("Render"_view);
   if (!toolchain.install<Package::Dialect>("Package"_view) || !library ||
       !render || !toolchain.install<App::Dialect>("App"_view) ||
+      !toolchain.install<Scene::Dialect>("Scene"_view, *library) ||
       !toolchain.install<Shader::Dialect>("Shader"_view, *library, *render)) {
     return 1;
   }
@@ -191,46 +245,115 @@ auto Puffer::Application::run() const -> S32 {
     return 1;
   }
 
-  Memory::Managed::Bytes route(arena, app->get_program().get_route());
-  route.concat("::"_view);
-  route.concat(app->get_program().get_callable_name());
-  route.concat("[static]"_view);
-  Core::Option<Core::View::Bytes> entry_symbol;
-  for (const Package::Archive::Export& exported : root_archive->get_exports()) {
-    if (exported.get_semantic_route() != route.get_view() ||
-        exported.get_artifact_id() != artifact) {
-      continue;
+  Core::View::Bytes graphics_host_route =
+      value(arguments, "graphics-host"_view);
+  Core::View::Bytes graphics_shader_route =
+      value(arguments, "graphics-shader"_view);
+  Core::Option<const Ttx::Model::Type&> graphics_host;
+  Memory::Managed::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>>
+      graphics_types(arena);
+  Core::View::Vector<Core::View::Bytes> graphics_descriptors =
+      values(arguments, "graphics-descriptor"_view);
+  if (!graphics_host_route.is_empty()) {
+    auto selected = resolve_context_route(*root, graphics_host_route);
+    graphics_host = selected ? selected->select<Ttx::Model::Type>()
+                             : Core::Option<const Ttx::Model::Type&>();
+    for (Core::View::Bytes route : values(arguments, "graphics-type"_view)) {
+      auto type = resolve_context_route(*root, route);
+      auto selected_type = type ? type->select<Ttx::Model::Type>()
+                                : Core::Option<const Ttx::Model::Type&>();
+      if (!selected_type) {
+        Core::Diagnostics::Log::error(
+            "Puffer Application could not resolve one configured graphics Type."_view);
+        return 1;
+      }
+      graphics_types.insert(*selected_type);
     }
+  }
 
-    if (entry_symbol) {
-      Core::Diagnostics::Log::error(
-          "The App entry has more than one native export."_view);
+  auto selected_shader =
+      graphics_shader_route.is_empty()
+          ? Core::Option<const Ttx::Concept::Abstract&>()
+          : resolve_context_route(*root, graphics_shader_route);
+  auto graphics_shader =
+      selected_shader ? selected_shader->select<Shader::Language::Program>()
+                      : Core::Option<const Shader::Language::Program&>();
+  if (!graphics_shader_route.is_empty() && !graphics_shader) {
+    Core::Diagnostics::Log::error(
+        "Puffer Application could not resolve its configured Shader Program."_view);
+  }
+  Core::Option<Core::View::Bytes> graphics_shader_symbol;
+  if (graphics_shader) {
+    graphics_shader_symbol = find_program_symbol(
+        workspace, *root_archive, *graphics_shader, artifact);
+    for (const Package::Archive::Archive& dependency :
+         dependency_archives.get_view()) {
+      auto selected = find_program_symbol(
+          workspace, dependency, *graphics_shader, artifact);
+      if (selected) {
+        if (graphics_shader_symbol) {
+          return 1;
+        }
+        graphics_shader_symbol = *selected;
+      }
+    }
+  }
+
+  Core::Option<Memory::Dynamic::Bytes> generated;
+  auto program = app->get_program();
+  if (program) {
+    Memory::Managed::Bytes route(arena, program->get_route());
+    route.concat("::"_view);
+    route.concat(program->get_callable_name());
+    route.concat("[static]"_view);
+    Core::Option<Core::View::Bytes> entry_symbol;
+    for (const Package::Archive::Export& exported :
+         root_archive->get_exports()) {
+      if (exported.get_semantic_route() != route.get_view() ||
+          exported.get_artifact_id() != artifact) {
+        continue;
+      }
+      if (entry_symbol) {
+        return 1;
+      }
+      entry_symbol = exported.get_symbol_locator();
+    }
+    if (!entry_symbol) {
       return 1;
     }
-    entry_symbol = exported.get_symbol_locator();
+    Memory::Dynamic::Bytes source;
+    Serialization::Stream::Textual<Memory::Dynamic::Bytes> output(source);
+    output
+        << "// # Tetrodotoxin\n"_view
+        << "// Copyright (c) 2023-present Matt Kaes and contributors\n\n"_view
+        << "extern \"C\" void "_view << *entry_symbol << "(void);\n\n"_view
+        << "int main() {\n  "_view << *entry_symbol
+        << "();\n  return 0;\n}\n"_view;
+    generated = static_cast<Memory::Dynamic::Bytes&&>(source);
+  } else {
+    if (!graphics_host || graphics_types.is_empty() || !graphics_shader ||
+        !graphics_shader_symbol ||
+        graphics_descriptors.get_size() != graphics_types.get_size()) {
+      Core::Diagnostics::Log::error(
+          "Puffer Application has an incomplete graphics product selection."_view);
+      return 1;
+    }
+    Terminal::Vulkan::Compiler vulkan_compiler;
+    auto vulkan = vulkan_compiler.compile(
+        arena, *graphics_shader, *graphics_shader_symbol);
+    if (!vulkan) {
+      Core::Diagnostics::Log::error(
+          "Puffer Application could not derive its Vulkan product."_view);
+      return 1;
+    }
+    generated = Terminal::Application::Generator::create(
+        arena, *app, root_archive->get_identity(), artifact, *graphics_host,
+        graphics_types.get_view(), graphics_descriptors, *vulkan);
   }
-  if (!entry_symbol) {
+  if (!generated || !publish(source_path, *generated)) {
     Core::Diagnostics::Log::error(
-        "The App entry has no matching native Package export."_view);
+        "Puffer Application could not publish its native entry."_view);
     return 1;
   }
-
-  Ttx::Lexical::Errors errors;
-  Tetrodotoxin::Terminal::Abi::Products native_interface({}, {}, {}, {}, {});
-  Llvm::Module::Program target(
-      arena, errors, "<app-entry>"_view, {}, Llvm::Target::X86_64SysV,
-      Llvm::Module::Debug::Level::None, Tetrodotoxin::Terminal::Abi::Unit(),
-      native_interface);
-  if (!target.initialize() || !target.create_process_entry(*entry_symbol)) {
-    return 1;
-  }
-
-  return target.compile().visit(
-      [&](const Llvm::Products& products) -> S32 {
-        return publish(ir_path, products.get_llvm_ir()) &&
-                       publish(object_path, products.get_object())
-                   ? 0
-                   : 1;
-      },
-      [](const Llvm::Failure&) -> S32 { return 1; });
+  return 0;
 }

@@ -12,6 +12,7 @@
 #include "tetrodotoxin/package/content.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/parser/name.hpp"
+#include "tetrodotoxin/package/resource.hpp"
 #include "tetrodotoxin/package/storage.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -522,9 +523,16 @@ auto Environment::Workspace::restore_package(
         "Package restoration requires the installed Package Dialect."_view);
     return {};
   }
+  Managed::Vector<Reference<Package::Resource>> resources(*root_transaction);
+  for (const Package::Archive::Resource& archived : archive.get_resources()) {
+    resources.insert(
+        Package::Resource::create(
+            *root_transaction, archived.get_route(), archived.get_value()));
+  }
   Package::Language::Monograph& root =
       Package::Language::Monograph::create_synthetic(
-          *root_transaction, *package_dialect, *this, dependencies.get_view());
+          *root_transaction, *package_dialect, *this, dependencies.get_view(),
+          resources.get_view());
 
   View::Vector<Package::Language::Dependency> restored_dependencies =
       root.get_dependencies();
@@ -570,8 +578,11 @@ auto Environment::Workspace::restore_package(
     if (!restored || restored->is<Package::Language::Monograph>() ||
         !root.bind_member(
             Package::Language::Parser::Name(member_name), *restored)) {
-      Diagnostics::Log::error(
-          "Package restoration rejected one semantic member."_view);
+      Diagnostics::Log::Message<256> message(
+          Diagnostics::Log::Level::Error, Diagnostics::Source());
+      message << "Package restoration rejected member `"_view << member_name
+              << "` for the "_view << member.get_dialect_name()
+              << " Dialect."_view;
       return {};
     }
 

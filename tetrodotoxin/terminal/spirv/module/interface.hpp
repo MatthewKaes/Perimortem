@@ -72,7 +72,7 @@ class Interface {
   };
 
   Interface(Perimortem::Memory::Allocator::Arena& arena, Ids& ids, Types& types)
-      : arena(arena), ids(ids), types(types), stages(arena) {}
+      : arena(arena), ids(ids), types(types), bindings(arena), stages(arena) {}
 
   auto prepare(const Tetrodotoxin::Shader::Language::Program& program) -> Bool;
   auto emit_entry_points(Assembler::SpirV& assembler) const -> void;
@@ -84,17 +84,27 @@ class Interface {
     return stages;
   }
 
+  constexpr auto get_bindings() const
+      -> Perimortem::Core::View::Vector<Variable> {
+    return bindings;
+  }
+
+  auto is_resource(const Ttx::Concept::Abstract& semantic) const -> Bool;
+
  private:
   auto prepare_variables(
       Stage& stage,
       const Tetrodotoxin::Library::Language::Model::Layout& layout,
       Assembler::SpirV::StorageClass storage) -> Bool;
+  auto prepare_bindings(const Tetrodotoxin::Shader::Language::Program& program)
+      -> Bool;
   static auto decorate(Assembler::SpirV& assembler, const Variable& variable)
       -> Bool;
 
   Perimortem::Memory::Allocator::Arena& arena;
   Ids& ids;
   Types& types;
+  Perimortem::Memory::Managed::Vector<Variable> bindings;
   Perimortem::Memory::Managed::Vector<Stage*> stages;
 };
 

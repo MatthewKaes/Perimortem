@@ -7,7 +7,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
-#include "tetrodotoxin/language/visibility.hpp"
+#include "tetrodotoxin/render/language/declarations.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/addressable.hpp"
@@ -72,11 +72,13 @@ class Structure : public Ttx::Model::Type {
     return definition;
   }
 
-  constexpr auto get_addressables() const { return addressables.get_view(); }
+  constexpr auto get_addressables() const {
+    return declarations.get_addressables();
+  }
 
-  constexpr auto get_callables() const { return callables.get_view(); }
+  constexpr auto get_callables() const { return declarations.get_callables(); }
 
-  constexpr auto get_types() const { return types.get_view(); }
+  constexpr auto get_types() const { return declarations.get_types(); }
 
   constexpr auto get_instances() const { return instances.get_view(); }
 
@@ -112,39 +114,16 @@ class Structure : public Ttx::Model::Type {
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition)
       : definition(definition),
-        addressables(domain),
-        published_addressables(domain),
-        callables(domain),
-        published_callables(domain),
-        types(domain),
-        published_types(domain),
+        declarations(domain),
         instances(domain),
         layout(*this) {}
 
   Tetrodotoxin::Language::Definition& definition;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      addressables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      published_addressables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      callables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      published_callables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      types;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      published_types;
+  Declarations declarations;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Model::Addressable>>
       instances;
   InstanceLayout layout;
-  Bool linked = False;
 };
 
 }  // namespace Tetrodotoxin::Render::Language

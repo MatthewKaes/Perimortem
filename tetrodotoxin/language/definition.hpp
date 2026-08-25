@@ -69,6 +69,23 @@ class Definition {
       Ttx::Lexical::Token qualifier,
       Ttx::Lexical::Anchor anchor) -> Definition&;
 
+  // Some concrete languages establish their declaration identity before an
+  // executable body can be interpreted. This factory retains that accepted
+  // prefix with the same authored evidence, while complete() later extends the
+  // Anchor through the body selected by that language.
+  static auto create_authored_prefix(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Documentation& documentation,
+      Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Vector<Attribute> attributes,
+      Perimortem::Core::View::Vector<Ttx::Lexical::Token> modifiers,
+      Visibility visibility,
+      Ttx::Lexical::Token visibility_token,
+      Perimortem::Core::View::Bytes name,
+      Ttx::Lexical::Token name_token,
+      Ttx::Lexical::Token qualifier,
+      Ttx::Lexical::Anchor anchor) -> Definition&;
+
   // Completes one authored declaration with its concrete grammar range. A
   // rejected or repeated completion leaves the original source fact intact.
   auto complete(Ttx::Lexical::Token focus, Ttx::Lexical::Token closing) -> Bool;

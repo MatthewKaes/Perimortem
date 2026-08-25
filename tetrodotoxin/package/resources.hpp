@@ -7,10 +7,12 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/error.hpp"
-#include "tetrodotoxin/language/resource.hpp"
+#include "tetrodotoxin/package/resource.hpp"
 #include "tetrodotoxin/package/storage.hpp"
+#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Package {
 
@@ -38,12 +40,11 @@ class Resources {
   };
 
  public:
-  constexpr Resources(Perimortem::Memory::Allocator::Arena& domain)
-      : domain(domain),
-        storage(nullptr),
-        stage(Stage::Pending),
-        resource_cache(domain),
-        error_cache(domain) {}
+  Resources(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Resource>>
+          restored = {},
+      Bool sealed = False);
 
   auto connect(Storage& storage) -> Bool;
   auto seal() -> void;
@@ -51,16 +52,21 @@ class Resources {
   auto resolve(Perimortem::Core::View::Bytes logical_route)
       -> const Ttx::Concept::Abstract&;
 
+  constexpr auto get_values() const
+      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Resource>> {
+    return values;
+  }
+
  private:
   Perimortem::Memory::Allocator::Arena& domain;
   Storage* storage;
   Stage stage;
-  Perimortem::Memory::Managed::
-      Map<Perimortem::Core::View::Bytes, Tetrodotoxin::Language::Resource&>
-          resource_cache;
+  Perimortem::Memory::Managed::Map<Perimortem::Core::View::Bytes, Resource&>
+      resource_cache;
   Perimortem::Memory::Managed::
       Map<Perimortem::Core::View::Bytes, Tetrodotoxin::Language::Error&>
           error_cache;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Resource>> values;
 };
 
 }  // namespace Tetrodotoxin::Package

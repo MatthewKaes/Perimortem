@@ -117,8 +117,15 @@ auto Interpreter::Program::parse(
             Interpreter::Bridge::parse(monograph, cursor, *member_definition);
       } else if (Interpreter::Value::matches(*member_definition, cursor)) {
         parsed = Interpreter::Value::parse(program, cursor, *member_definition);
-      } else {
+      } else if (
+          member_qualifier.get_code() == Code::Type::Alias ||
+          member_qualifier.get_code() == Code::Type::Struct) {
         parsed = parse_library_type(program, cursor, *member_definition);
+      } else {
+        auto report = cursor.create_report(member_definition->get_anchor());
+        report
+            << "Shader Program does not recognize declaration qualifier `"_view
+            << qualifier_name << "`."_view;
       }
     }
     if (!parsed) {

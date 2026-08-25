@@ -7,6 +7,9 @@
 
 using namespace Perimortem;
 
+extern "C" const Core::Object<>::Descriptor
+    TTX_DESC_Perimortem_2eGraphics__Sprite__Sprite __attribute__((weak));
+
 const Core::Object<>::Descriptor Graphics::Sprite::descriptor(
     sizeof(Payload),
     alignof(Payload),
@@ -105,7 +108,13 @@ auto Graphics::Sprite::is_drawable() const -> Bool {
 }
 
 auto Graphics::Sprite::retain(Core::Object<> object) -> Core::Option<Sprite> {
-  BAIL_IF(object.is_empty() || &object.get_descriptor() != &Sprite::descriptor);
+  BAIL_IF(object.is_empty());
+  const Core::Object<>::Descriptor* generated =
+      &TTX_DESC_Perimortem_2eGraphics__Sprite__Sprite;
+  const Core::Object<>::Descriptor& selected = object.get_descriptor();
+  BAIL_IF(
+      &selected != &Sprite::descriptor &&
+      (generated == nullptr || &selected != generated));
   object.retain();
   return Sprite(object);
 }

@@ -29,7 +29,7 @@ class Program {
         types(ids),
         constants(ids, types),
         interface(arena, ids, types),
-        body(ids, types, constants, request) {}
+        body(ids, types, constants, interface, request) {}
 
   auto compile() -> Perimortem::Utility::Result<Products, Failure>;
 

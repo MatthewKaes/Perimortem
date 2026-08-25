@@ -9,6 +9,7 @@
 #include "perimortem/vulkan/description/host_field.hpp"
 #include "perimortem/vulkan/description/host_input_range.hpp"
 #include "perimortem/vulkan/description/module.hpp"
+#include "perimortem/vulkan/description/vertex_input.hpp"
 
 namespace Perimortem::Vulkan::Description {
 
@@ -26,6 +27,7 @@ struct Program {
   Core::View::Vector<HostInputRange> host_input_ranges;
   Core::View::Vector<DescriptorBinding> descriptors;
   Core::View::Vector<HostField> host_fields;
+  Core::View::Vector<VertexInput> vertex_inputs;
 };
 
 }  // namespace Perimortem::Vulkan::Description

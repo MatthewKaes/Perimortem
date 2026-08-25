@@ -1,0 +1,55 @@
+// # Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+//
+// Immutable keyboard, pointer, and mouse input for one application frame.
+dialect : Library;
+
+using Key;
+
+foreign "C" {
+  public func perimortem_system_input_held[.input : Input, .key : Key] -> Bool;
+  public func perimortem_system_input_pressed[.input : Input, .key : Key] -> Bool;
+  public func perimortem_system_input_released[.input : Input, .key : Key] -> Bool;
+  public func perimortem_system_input_snapshot[] -> Input;
+}
+
+// Input is copied once from the runtime at a frame boundary. Its state remains
+// unchanged until the caller asks for the next snapshot, which keeps repeated
+// queries deterministic throughout Scene update and event delivery.
+public Input : struct {
+  private state current_0       : U64;
+  private state current_1       : U64;
+  private state current_2       : U64;
+  private state changed_0       : U64;
+  private state changed_1       : U64;
+  private state changed_2       : U64;
+  private state pointer_x       : R32;
+  private state pointer_y       : R32;
+  private state pointer_delta_x : R32;
+  private state pointer_delta_y : R32;
+  private state scroll_x        : R32;
+  private state scroll_y        : R32;
+  private state pointer_active  : Bool;
+
+  public snapshot : func = [] -> Input : return foreign -> perimortem_system_input_snapshot();
+
+  public get_pointer_delta_x : func = [self] -> R32 : return self.pointer_delta_x;
+  public get_pointer_delta_y : func = [self] -> R32 : return self.pointer_delta_y;
+  public get_pointer_x : func = [self] -> R32 : return self.pointer_x;
+  public get_pointer_y : func = [self] -> R32 : return self.pointer_y;
+  public get_scroll_x : func = [self] -> R32 : return self.scroll_x;
+  public get_scroll_y : func = [self] -> R32 : return self.scroll_y;
+  public held : func = [self, .key : Key] -> Bool : return foreign -> perimortem_system_input_held(
+    self,
+    key,
+  );
+  public is_pointer_active : func = [self] -> Bool : return self.pointer_active;
+  public pressed : func = [
+    self,
+    .key : Key,
+  ] -> Bool : return foreign -> perimortem_system_input_pressed(self, key);
+  public released : func = [
+    self,
+    .key : Key,
+  ] -> Bool : return foreign -> perimortem_system_input_released(self, key);
+}

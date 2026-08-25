@@ -58,6 +58,11 @@ class Computation {
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Pack& result,
       const Ttx::Model::Pack& operand) const -> Bool;
+  auto convert(
+      const Ttx::Model::Type& source_carrier,
+      const Ttx::Model::Type& target_carrier,
+      const Ttx::Model::Pack& result,
+      const Ttx::Model::Pack& source) const -> Bool;
   auto compare(
       Comparison operation,
       const Ttx::Model::Type& carrier,

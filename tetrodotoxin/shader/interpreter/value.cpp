@@ -98,7 +98,12 @@ static auto parse_shader_value(
   }
   Token qualifier_token = cursor.consume();
   auto type = Library::Interpreter::TypeReference::parse(program, cursor);
-  BAIL_IF(!type);
+  if (!type) {
+    cursor.create_expression_error(
+        definition.get_anchor(),
+        "Shader storage requires one complete Library Type reference."_view);
+    return False;
+  }
   Option<Library::Language::Model::Pack&> initializer;
   if (cursor.matches(Code::Type::Assign)) {
     cursor.consume();
@@ -123,6 +128,12 @@ static auto parse_shader_value(
       cursor.get_arena(), definition, Library::Language::Writability::Full,
       *type, initializer);
   Bool completed = definition.complete(qualifier_token, closing);
+  if (!completed) {
+    cursor.create_expression_error(
+        definition.get_anchor(),
+        "Shader storage could not complete its shared Definition."_view);
+    return False;
+  }
   Bool retained =
       retain_value(program, cursor, definition, field, kind, completed);
   return attributes_valid && retained;

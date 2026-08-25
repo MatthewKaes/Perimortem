@@ -11,6 +11,7 @@
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
+#include "tetrodotoxin/library/language/model/types/value.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -24,16 +25,18 @@ static auto select_result_type(
     const Language::Expression& right) -> const Abstract& {
   const Abstract& left_resolved = left.get_type().resolve();
   const Abstract& right_resolved = right.get_type().resolve();
-  if (!left_resolved.is<Language::Model::Type>() ||
-      &left_resolved != &right_resolved ||
+  auto left_value = left_resolved.select<Language::Model::Types::Value>();
+  auto right_value = right_resolved.select<Language::Model::Types::Value>();
+  if (!left_value || !right_value || !left_value->is_equivalent(*right_value) ||
       (!left_resolved.is<Language::Model::Types::Unsigned>() &&
        !left_resolved.is<Language::Model::Types::Signed>() &&
        !left_resolved.is<Language::Model::Types::Real>())) {
     return Invalid::get_invalid();
   }
 
-  // Add fixes the result to the one identity already shared by both operands.
-  // Arithmetic never becomes permission to retag or reinterpret a Constant.
+  // The left operand supplies the result identity. Equivalent builtin scalars
+  // from another source share language meaning without retagging authored
+  // Types or target storage.
   return left_resolved;
 }
 
@@ -60,7 +63,6 @@ static auto unsigned_sum(
 
   return Core::Math::is_representable(result, type.get_size());
 }
-
 
 TTX_BINARY_OP(Add);
 

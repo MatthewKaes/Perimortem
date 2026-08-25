@@ -67,6 +67,21 @@ static auto make_shader_module(
   return module;
 }
 
+static auto vertex_format(Count components) -> VkFormat {
+  switch (components) {
+  case 1:
+    return VK_FORMAT_R32_SFLOAT;
+  case 2:
+    return VK_FORMAT_R32G32_SFLOAT;
+  case 3:
+    return VK_FORMAT_R32G32B32_SFLOAT;
+  case 4:
+    return VK_FORMAT_R32G32B32A32_SFLOAT;
+  }
+  Diagnostics::Log::fatal("Vulkan: Invalid vertex input width."_view);
+  return VK_FORMAT_UNDEFINED;
+}
+
 auto Vulkan::ShaderProgram::create(
     VkDevice device,
     VkFormat color_format,
@@ -124,8 +139,44 @@ auto Vulkan::ShaderProgram::create(
     }
   }
 
+  Static::Vector<VkVertexInputBindingDescription, 1> vertex_bindings;
+  Static::Vector<VkVertexInputAttributeDescription, 8> vertex_attributes;
+  auto reflected_vertex_inputs = render.vertex_inputs;
+  if (!reflected_vertex_inputs.is_empty()) {
+    BAIL_IF(reflected_vertex_inputs.get_size() > vertex_attributes.get_size());
+    Count stride = reflected_vertex_inputs.get_data()[0].stride;
+    BAIL_IF(stride == 0 || stride > U32(-1));
+    vertex_bindings[0] = {
+      .binding = 0,
+      .stride = U32(stride),
+      .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+    };
+    for (Count index = 0; index < reflected_vertex_inputs.get_size(); index++) {
+      const Description::VertexInput& input =
+          reflected_vertex_inputs.get_data()[index];
+      BAIL_IF(
+          input.location > U32(-1) || input.offset > U32(-1) ||
+          input.stride != stride);
+      vertex_attributes[index] = {
+        .location = U32(input.location),
+        .binding = 0,
+        .format = vertex_format(input.components),
+        .offset = U32(input.offset),
+      };
+    }
+  }
+
   VkPipelineVertexInputStateCreateInfo vertex_input = {
     VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+  vertex_input.vertexBindingDescriptionCount =
+      reflected_vertex_inputs.is_empty() ? 0 : 1;
+  vertex_input.pVertexBindingDescriptions =
+      reflected_vertex_inputs.is_empty() ? nullptr : vertex_bindings.get_data();
+  vertex_input.vertexAttributeDescriptionCount =
+      U32(reflected_vertex_inputs.get_size());
+  vertex_input.pVertexAttributeDescriptions =
+      reflected_vertex_inputs.is_empty() ? nullptr
+                                         : vertex_attributes.get_data();
 
   VkPipelineInputAssemblyStateCreateInfo input_assembly = {
     VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};

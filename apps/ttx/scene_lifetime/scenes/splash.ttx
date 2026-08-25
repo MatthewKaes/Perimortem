@@ -1,29 +1,44 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 //
-// A mock splash screen fades in, then out, two icons and then transitions
-// to the next scene.
-//
+// A splash screen that fades two hosted Sprites before moving to the title.
 dialect : Scene;
 
-private const bottom_icon : Graphics::Sprite = new;
-private const fade_time   : R64 = 1.0;
-private const hold_time   : R64 = 1.5;
-private const top_icon    : Graphics::Sprite = new;
+private const fade_time : R64 = 1.0;
+private const hold_time : R64 = 1.5;
 
 signal finished;
 private state elapsed : R64 = 0.0;
+private state icon_bottom : Graphics::Sprite;
+private state icon_top : Graphics::Sprite;
 
-Scene prepare[self] -> Void {
-  state image := Graphics::Image -> decode(.bytes = $[resources/logo.png])!;
-  self -> configure_icon(self.top_icon, image, (.x = 200.0, .y = 100.0));
-  self -> configure_icon(self.bottom_icon, image, (.x = 200.0, .y = 400.0));
+Scene prepare[self] -> [] {
+  state image := Graphics::Format::PNG -> decode(.bytes = $[resources/icon.png] ->
+      get_view())!;
+  state size := image -> get_size_pixels();
+  state bottom_position : Graphics::Point2D = (.x = 190.0, .y = 140.0);
+  state top_position : Graphics::Point2D = (.x = 210.0, .y = 160.0);
   self.elapsed = 0.0;
-  return;
+  self.icon_bottom.image = image;
+  self.icon_bottom.size_pixels = size;
+  self.icon_bottom.transform = (
+    .translation = bottom_position,
+    .scale_x = 1.0,
+    .scale_y = 1.0,
+    .rotation = 0.0,
+  );
+  self.icon_top.image = image;
+  self.icon_top.size_pixels = size;
+  self.icon_top.transform = (
+    .translation = top_position,
+    .scale_x = 1.0,
+    .scale_y = 1.0,
+    .rotation = 0.0,
+  );
 }
 
-Scene release[self] -> Void : return;
-Scene update[self, .delta_time : R64] -> Scene::Flow {
+Scene release[self] -> [] : return;
+Scene update[self, .delta_time : R64] -> [] {
   self.elapsed = self.elapsed + delta_time;
 
   const duration : R64 = fade_time * 2.0 + hold_time;
@@ -34,21 +49,7 @@ Scene update[self, .delta_time : R64] -> Scene::Flow {
   if (self.elapsed >= fade_time + hold_time and self.elapsed < duration) : alpha =
       (duration - self.elapsed) / fade_time;
 
-  self.top_icon.tone.alpha    = alpha;
-  self.bottom_icon.tone.alpha = alpha;
-  if (self.elapsed >= duration) : return Scene::Flow -> emit(self.finished);
-
-  return Scene::Flow -> stay();
-}
-
-private func configure_icon[
-  self,
-  .icon : Graphics::Sprite,
-  .image : Graphics::Image,
-  .position : Graphics::Point2D,
-] -> [] {
-  icon.image = image;
-  icon.size_pixels = image -> get_size_pixels();
-  icon.transform.translation = position;
-  icon.tone = (.red = 1.0, .green = 1.0, .blue = 1.0, .alpha = 0.0);
+  self.icon_top.tone    = (.red = 1.0, .green = 1.0, .blue = 1.0, .alpha = alpha);
+  self.icon_bottom.tone = (.red = 1.0, .green = 1.0, .blue = 1.0, .alpha = alpha);
+  if (self.elapsed >= duration) : emit finished;
 }

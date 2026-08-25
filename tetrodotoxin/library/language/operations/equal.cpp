@@ -4,10 +4,12 @@
 #include "tetrodotoxin/library/language/operations/equal.hpp"
 
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
+#include "tetrodotoxin/library/language/constants/enumeration.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/model/types/value.hpp"
+#include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "ttx/concept/invalid.hpp"
 
@@ -31,6 +33,7 @@ static auto select_operand_type(
   if (&left_resolved == &right_resolved &&
       (left_resolved
            .is<Tetrodotoxin::Library::Language::Model::Types::Value>() ||
+       left_resolved.is<Language::Types::Enumeration>() ||
        (left.is<Language::Constants::Bytes>() &&
         right.is<Language::Constants::Bytes>()))) {
     return left_resolved;
@@ -68,11 +71,15 @@ static auto accepts_constant(
     return scalar->accepts_constant(constant);
   }
 
+  if (selected.is<Language::Types::Enumeration>()) {
+    return constant.is<Language::Constants::Enumeration>() &&
+           &constant.get_type().resolve() == &selected;
+  }
+
   auto type = selected.select<Language::Model::Type>();
   return type && constant.is<Language::Constants::Bytes>() &&
          type->accepts(constant);
 }
-
 
 TTX_BINARY_OP(Equal);
 

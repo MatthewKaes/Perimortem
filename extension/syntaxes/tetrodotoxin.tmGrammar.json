@@ -95,7 +95,7 @@
         },
         {
           "name": "keyword.other.policy.tetrodotoxin",
-          "match": "\\b(?:state|const|push)\\b"
+          "match": "\\b(?:state|const)\\b"
         }
       ]
     },
@@ -155,7 +155,7 @@
         },
         {
           "name": "keyword.other.tetrodotoxin",
-          "match": "\\b(dialect|foreign|func|self|new|object|struct|enum|alias|emit|resolve|source|using|from|stage|resource|shader|bridge)\\b"
+          "match": "\\b(dialect|foreign|func|self|new|object|struct|enum|alias|emit|resolve|source|using|from|stage|resource|shader|bridge|runtime|lifecycle|initial|on|replace|push|pop|exit|signal)\\b"
         }
       ]
     },

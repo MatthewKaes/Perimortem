@@ -8,6 +8,7 @@
 #include "llvm-c/Core.h"
 #include "llvm/Config/llvm-config.h"
 #include "tetrodotoxin/terminal/llvm/lowering/graph.hpp"
+#include "tetrodotoxin/terminal/llvm/lowering/graphics.hpp"
 #include "tetrodotoxin/terminal/llvm/module/program.hpp"
 
 using namespace Perimortem;
@@ -39,6 +40,11 @@ auto Llvm::Compiler::compile(
   if (!Llvm::Lowering::Graph::lower(program, request.get_monograph())) {
     return program.has_source_failure() ? Failure::SourceRejected
                                         : Failure::ToolchainFailed;
+  }
+
+  auto graphics = request.get_graphics();
+  if (graphics && !Llvm::Lowering::Graphics::lower(program, *graphics)) {
+    return Failure::ToolchainFailed;
   }
 
   return program.compile();

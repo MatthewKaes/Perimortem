@@ -21,7 +21,8 @@ namespace Tetrodotoxin::Terminal::Llvm::Lowering {
 class Execution {
  public:
   constexpr explicit Execution(Module::Body& body)
-      : computation(body),
+      : body(body),
+        computation(body),
         invocation(body),
         control_flow(body),
         states(body),
@@ -51,6 +52,8 @@ class Execution {
     return computation.get_program();
   }
 
+  constexpr auto get_body() const -> Module::Body& { return body; }
+
   auto lower(const Tetrodotoxin::Library::Language::Model::Pack& pack) const
       -> Bool;
 
@@ -65,6 +68,7 @@ class Execution {
       -> Bool;
 
  private:
+  Module::Body& body;
   Emission::Computation computation;
   Emission::Invocation invocation;
   Emission::ControlFlow control_flow;

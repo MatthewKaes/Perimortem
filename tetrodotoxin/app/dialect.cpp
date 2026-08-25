@@ -7,9 +7,11 @@
 #include "tetrodotoxin/app/archive/writer.hpp"
 #include "tetrodotoxin/app/interpreter/program.hpp"
 #include "tetrodotoxin/app/interpreter/runtime.hpp"
+#include "tetrodotoxin/app/interpreter/scene.hpp"
 #include "tetrodotoxin/app/language/monograph.hpp"
 #include "tetrodotoxin/app/language/program.hpp"
 #include "tetrodotoxin/app/language/runtime.hpp"
+#include "tetrodotoxin/app/language/scene.hpp"
 #include "tetrodotoxin/language/parser/comment.hpp"
 
 using namespace Perimortem::Core;
@@ -24,6 +26,7 @@ auto App::Dialect::interpret(
     Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
   Option<App::Language::Runtime&> runtime;
   Option<App::Language::Program&> program;
+  Option<App::Language::Scene&> scene;
   Bool failed = False;
 
   while (!cursor.matches(Code::Type::Terminal)) {
@@ -54,7 +57,7 @@ auto App::Dialect::interpret(
 
     if (cursor.matches(Code::Type::Addressable) &&
         declaration == "lifecycle"_view) {
-      if (program) {
+      if (program || scene) {
         cursor.create_token_error(
             cursor.current(),
             "App accepts exactly one lifecycle declaration."_view);
@@ -63,14 +66,23 @@ auto App::Dialect::interpret(
         continue;
       }
 
-      auto parsed =
-          App::Interpreter::Program::parse(cursor, declaration_documentation);
-      if (!parsed) {
-        cursor.recover_to_statement();
-        failed = True;
-        continue;
+      if (App::Interpreter::Scene::is_next(cursor)) {
+        auto parsed =
+            App::Interpreter::Scene::parse(cursor, declaration_documentation);
+        if (parsed) {
+          scene = *parsed;
+          continue;
+        }
+      } else {
+        auto parsed =
+            App::Interpreter::Program::parse(cursor, declaration_documentation);
+        if (parsed) {
+          program = *parsed;
+          continue;
+        }
       }
-      program = *parsed;
+      cursor.recover_to_statement();
+      failed = True;
       continue;
     }
 
@@ -85,17 +97,22 @@ auto App::Dialect::interpret(
     cursor.create_error("App requires one runtime declaration."_view);
     failed = True;
   }
-  if (!program) {
-    cursor.create_error("App requires one Program lifecycle declaration."_view);
+  if (!program && !scene) {
+    cursor.create_error("App requires one lifecycle declaration."_view);
     failed = True;
   }
   if (failed) {
     return {};
   }
 
-  App::Language::Monograph& monograph = App::Language::Monograph::create(
-      cursor.get_arena(), *this, documentation, context, *runtime, *program);
-  return monograph;
+  return program ? Option<Tetrodotoxin::Language::Monograph&>(
+                       App::Language::Monograph::create_program(
+                           cursor.get_arena(), *this, documentation, context,
+                           *runtime, *program))
+                 : Option<Tetrodotoxin::Language::Monograph&>(
+                       App::Language::Monograph::create_scene(
+                           cursor.get_arena(), *this, documentation, context,
+                           *runtime, *scene));
 }
 
 auto App::Dialect::encode(

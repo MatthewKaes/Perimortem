@@ -51,13 +51,14 @@ ttx_package(
         0,
     ],
     visibility = ["//visibility:public"],
+    deps = [":perimortem_math"],
 )
 
 ttx_native_provider(
     name = "perimortem_graphics_native",
     dep = "//perimortem:abi_graphics",
     functions = [
-        "perimortem_graphics_image_decode",
+        "perimortem_graphics_png_decode",
     ],
     provider_name = "Perimortem.Graphics.Host",
 )
@@ -66,6 +67,10 @@ ttx_native_provider(
     name = "perimortem_system_native",
     dep = "//perimortem:abi_system",
     functions = [
+        "perimortem_system_input_held",
+        "perimortem_system_input_pressed",
+        "perimortem_system_input_released",
+        "perimortem_system_input_snapshot",
         "perimortem_system_terminal_read_line",
         "perimortem_system_terminal_write_line",
     ],

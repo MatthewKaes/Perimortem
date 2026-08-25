@@ -10,7 +10,8 @@ namespace Perimortem::System {
 
 // Input is one immutable frame snapshot over a host neutral key space. The
 // selected platform finishes collection and remapping before publishing this
-// value, so application code never observes native event objects or keycodes.
+// value, so application code sees stable actions instead of native event
+// objects or keycodes.
 class Input {
  public:
   // Key names physical controls rather than text produced by a keyboard
@@ -269,6 +270,14 @@ class Input {
   auto is_current(Key key) const -> Bool;
   auto is_pressed(Key key) const -> Bool;
   auto is_released(Key key) const -> Bool;
+
+  constexpr auto get_current_word(Count index) const -> U64 {
+    return index < word_count ? current[index] : U64(0);
+  }
+
+  constexpr auto get_changed_word(Count index) const -> U64 {
+    return index < word_count ? changed[index] : U64(0);
+  }
 
   constexpr auto get_pointer() const -> const Pointer& { return pointer; }
 

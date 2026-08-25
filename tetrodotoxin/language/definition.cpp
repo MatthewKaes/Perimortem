@@ -170,6 +170,25 @@ auto Language::Definition::create_authored(
   });
 }
 
+auto Language::Definition::create_authored_prefix(
+    Cursor& cursor,
+    const Documentation& documentation,
+    Abstract& host,
+    View::Vector<Attribute> attributes,
+    View::Vector<Token> modifiers,
+    Visibility visibility,
+    Token visibility_token,
+    View::Bytes name,
+    Token name_token,
+    Token qualifier,
+    Anchor anchor) -> Definition& {
+  return cursor.get_arena().construct_from<Definition>([&]() -> Definition {
+    return Definition(
+        documentation, attributes, modifiers, visibility, visibility_token,
+        name, name_token, qualifier, host, anchor, False);
+  });
+}
+
 auto Language::Definition::complete(Token focus, Token closing) -> Bool {
   if (anchor_complete || !is_authored() || !focus || !closing ||
       !anchor.get_span()) {

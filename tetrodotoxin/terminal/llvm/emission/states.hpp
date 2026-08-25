@@ -7,6 +7,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "llvm-c/Types.h"
+#include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -91,7 +92,9 @@ class States {
   auto bytes_value(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Pack& result,
-      Perimortem::Core::View::Bytes value) const -> Bool;
+      Perimortem::Core::View::Bytes value,
+      Perimortem::Core::Option<const Tetrodotoxin::Language::Resource&>
+          resource = {}) const -> Bool;
   auto object_value(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Pack& result) const -> Bool;

@@ -58,7 +58,9 @@ auto Llvm::Lowering::Values::lower(
   auto bytes = expression.select<Constants::Bytes>();
   if (bytes) {
     return Types::prepare(execution.get_program(), bytes->get_type()) &&
-           body.bytes_value(bytes->get_type(), *bytes, bytes->get_value());
+           body.bytes_value(
+               bytes->get_type(), *bytes, bytes->get_value(),
+               bytes->get_resource());
   }
 
   auto object = expression.select<Constants::Object>();

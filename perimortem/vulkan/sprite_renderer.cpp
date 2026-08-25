@@ -24,15 +24,18 @@ Vulkan::SpriteRenderer::SpriteRenderer(
     Description::Program description)
     : context(context), program(program), description(description) {
   create_descriptor_layout();
+  create_vertex_buffer();
   rebuild(color_format);
 }
 
 Vulkan::SpriteRenderer::~SpriteRenderer() {
+  vkDeviceWaitIdle(context.get_device());
   for (Core::Object<> texture : textures.get_view()) {
     texture.release();
   }
   textures.clear();
   shader = ShaderProgram();
+  destroy_vertex_buffer();
   if (descriptor_layout) {
     vkDestroyDescriptorSetLayout(
         context.get_device(), descriptor_layout, nullptr);
@@ -65,6 +68,11 @@ auto Vulkan::SpriteRenderer::record(
 
     PushConstants inputs = make_push_constants(batch, width, height);
     shader.bind(command_buffer);
+    if (vertex_buffer) {
+      constexpr VkDeviceSize vertex_offset = 0;
+      vkCmdBindVertexBuffers(
+          command_buffer, 0, 1, &vertex_buffer, &vertex_offset);
+    }
     shader.bind_descriptor_set(command_buffer, texture->get_descriptor_set());
     shader.push_constants(
         command_buffer,
@@ -99,6 +107,92 @@ auto Vulkan::SpriteRenderer::create_descriptor_layout() -> void {
       VK_SUCCESS) {
     Diagnostics::Log::fatal(
         "Vulkan: Failed to create the Sprite descriptor layout."_view);
+  }
+}
+
+auto Vulkan::SpriteRenderer::create_vertex_buffer() -> void {
+  struct Vertex {
+    R32 position[2];
+    R32 texture_uv[2];
+  };
+  static constexpr Vertex vertices[] = {
+    {{0.0f, 0.0f}, {0.0f, 0.0f}}, {{1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{1.0f, 1.0f}, {1.0f, 1.0f}}, {{0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{1.0f, 1.0f}, {1.0f, 1.0f}}, {{0.0f, 1.0f}, {0.0f, 1.0f}},
+  };
+  auto inputs = description.vertex_inputs;
+  if (inputs.is_empty()) {
+    return;
+  }
+  if (inputs.get_size() != 2 || inputs.get_data()[0].location != 0 ||
+      inputs.get_data()[0].components != 2 ||
+      inputs.get_data()[0].offset != 0 ||
+      inputs.get_data()[0].stride != sizeof(Vertex) ||
+      inputs.get_data()[1].location != 1 ||
+      inputs.get_data()[1].components != 2 ||
+      inputs.get_data()[1].offset != sizeof(R32) * 2 ||
+      inputs.get_data()[1].stride != sizeof(Vertex)) {
+    Diagnostics::Log::fatal(
+        "Vulkan: Sprite Program has an incompatible vertex layout."_view);
+  }
+
+  VkBufferCreateInfo buffer_info = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+  buffer_info.size = sizeof(vertices);
+  buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+  buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  if (vkCreateBuffer(
+          context.get_device(), &buffer_info, nullptr, &vertex_buffer) !=
+      VK_SUCCESS) {
+    Diagnostics::Log::fatal("Vulkan: Failed to create vertex buffer."_view);
+  }
+
+  VkMemoryRequirements requirements = {};
+  vkGetBufferMemoryRequirements(
+      context.get_device(), vertex_buffer, &requirements);
+  constexpr VkMemoryPropertyFlags properties =
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+  U32 memory_type =
+      context.find_memory_type(requirements.memoryTypeBits, properties);
+  if (memory_type == UINT32_MAX) {
+    Diagnostics::Log::fatal("Vulkan: No compatible vertex memory."_view);
+  }
+  VkMemoryAllocateInfo allocation = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+  allocation.allocationSize = requirements.size;
+  allocation.memoryTypeIndex = memory_type;
+  if (vkAllocateMemory(
+          context.get_device(), &allocation, nullptr, &vertex_memory) !=
+          VK_SUCCESS ||
+      vkBindBufferMemory(
+          context.get_device(), vertex_buffer, vertex_memory, 0) !=
+          VK_SUCCESS) {
+    Diagnostics::Log::fatal("Vulkan: Failed to allocate vertex memory."_view);
+  }
+
+  void* mapped = nullptr;
+  if (vkMapMemory(
+          context.get_device(), vertex_memory, 0, sizeof(vertices), 0,
+          &mapped) != VK_SUCCESS) {
+    Diagnostics::Log::fatal("Vulkan: Failed to map vertex memory."_view);
+  }
+  auto* destination = Core::Data::cast<R32>(mapped);
+  const auto* source = Core::Data::cast<const R32>(vertices);
+  Count word_count = sizeof(vertices);
+  word_count /= sizeof(R32);
+  for (Count index = 0; index < word_count; index++) {
+    destination[index] = source[index];
+  }
+  vkUnmapMemory(context.get_device(), vertex_memory);
+}
+
+auto Vulkan::SpriteRenderer::destroy_vertex_buffer() -> void {
+  if (vertex_buffer) {
+    vkDestroyBuffer(context.get_device(), vertex_buffer, nullptr);
+    vertex_buffer = VK_NULL_HANDLE;
+  }
+  if (vertex_memory) {
+    vkFreeMemory(context.get_device(), vertex_memory, nullptr);
+    vertex_memory = VK_NULL_HANDLE;
   }
 }
 

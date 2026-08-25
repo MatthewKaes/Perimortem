@@ -54,7 +54,10 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       const Ttx::Concept::Documentation& documentation,
       Ttx::Concept::Abstract& context,
       Perimortem::Core::View::Vector<Dependency> dependencies,
-      Perimortem::Core::View::Vector<Source> sources);
+      Perimortem::Core::View::Vector<Source> sources,
+      Perimortem::Core::View::Vector<
+          Ttx::Concept::Reference<Tetrodotoxin::Package::Resource>> resources,
+      Bool resources_sealed);
 
  public:
   TTX_CONTRACT(Monograph, Tetrodotoxin::Language::Monograph);
@@ -77,7 +80,10 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Perimortem::Memory::Allocator::Arena& arena,
       const Ttx::Concept::Abstract& language,
       Ttx::Concept::Abstract& context,
-      Perimortem::Core::View::Vector<Dependency> dependencies) -> Monograph&;
+      Perimortem::Core::View::Vector<Dependency> dependencies,
+      Perimortem::Core::View::Vector<
+          Ttx::Concept::Reference<Tetrodotoxin::Package::Resource>> resources =
+          {}) -> Monograph&;
 
   // Authored Packages accept their declared Source names while source free
   // Packages accept the member inventory validated by Archive Reader. The

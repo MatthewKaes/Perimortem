@@ -5,6 +5,7 @@
 
 #include "perimortem/core/option.hpp"
 
+#include "tetrodotoxin/library/interpreter/execution/statement_parser.hpp"
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -21,7 +22,8 @@ class RangeLoop {
       Ttx::Lexical::Cursor& cursor,
       Language::Flow::Block& lexical_context,
       Language::Model::Callable& function,
-      const Language::Model::Type& access_scope)
+      const Language::Model::Type& access_scope,
+      Perimortem::Core::Option<const StatementParser&> extension)
       -> Perimortem::Core::Option<Language::Flow::RangeLoop&>;
 };
 

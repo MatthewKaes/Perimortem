@@ -116,13 +116,14 @@ does not become the Scene's identity.
 
 ## Hosted graphics state
 
-A Scene instance owns its hosted graphics state. A private `state`
-Field initialized with `new[ObjectType]` is hosted when its Object Type supports
-the Graphics hosting contract:
+A Scene instance owns its hosted graphics state. A private `state` Field is
+hosted when its Object Type supports the Graphics hosting contract. The
+ordinary Object default creates a fresh identity, while an explicit `new` can
+make that construction visible when the source benefits from it:
 
 ```ttx
-private state top_icon : Graphics::Sprite = new[Graphics::Sprite];
-private state bottom_icon : Graphics::Sprite = new[Graphics::Sprite];
+private state icon_top : Graphics::Sprite;
+private state icon_bottom : Graphics::Sprite = new[Graphics::Sprite];
 ```
 
 These Fields are the real hosted objects. Scene does not build a second node
@@ -131,8 +132,8 @@ and keeps the order written in the source. The Objects exist before `prepare`,
 which configures them through ordinary Library access:
 
 ```ttx
-self.top_icon.image = image;
-self.top_icon.position = (.x = 200, .y = 100);
+self.icon_top.image = image;
+self.icon_top.transform = transform;
 ```
 
 Graphics follows the current Object values through these Fields. Visibility and
@@ -170,9 +171,10 @@ bytes.
 
 Scene can be stored in a Package Archive and reconstructed without its source
 file. A Complete payload keeps its public and private Signal, lifecycle,
-render, and Library query contracts. A Contract payload keeps their public
-closure and compiled artifact locations. Executable Scene behavior remains in
-the compiled artifacts.
+and Library query contracts. A Contract payload keeps their public closure and
+compiled artifact locations. Graphics hosting is derived again from the
+restored real Fields, so the Archive needs no parallel render inventory.
+Executable Scene behavior remains in the compiled artifacts.
 
 Neither profile stores a live Scene instance, current Object values, queued
 frame events, elapsed time, input state, backend resources, or source level

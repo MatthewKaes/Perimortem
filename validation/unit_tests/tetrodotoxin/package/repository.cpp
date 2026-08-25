@@ -538,7 +538,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
   Dynamic::Bytes corrupt(literal_archive());
   corrupt.get_access().get_data()[0] = 'X';
   Dynamic::Bytes future(literal_archive());
-  set_u16(future, 4, 3);
+  set_u16(future, 4, 4);
 
   // Reader and Repository emit consecutive records with different owner
   // detail. The helper observes both before checking the typed caller category.
@@ -557,12 +557,12 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
       Version(1, 2), Package::Repository::Repository::Error::InvalidFormat,
       "selection_error=InvalidFormat requested_identity=Pkg.Core "
       "requested_version=1.2"_view,
-      "Package::Archive::Reader Format 2 read failed. stage=header "
+      "Package::Archive::Reader read failed. stage=header "
       "byte_offset=0 reason=the fixed header extends beyond the input "
       "bytes."_view));
   EXPECT(
       Test::error_contains(
-          "reason=the Archive failed Format 2 validation. identity=Pkg.Core "
+          "reason=the Archive failed validation. identity=Pkg.Core "
           "version=1.2"_view,
           Diagnostics::Log::Level::Info));
   EXPECT(rejects_selected_input(
@@ -570,10 +570,10 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
       Version(1, 2), Package::Repository::Repository::Error::InvalidFormat,
       "selection_error=InvalidFormat requested_identity=Pkg.Core "
       "requested_version=1.2"_view,
-      "Package::Archive::Reader Format 2 read failed"_view));
+      "Package::Archive::Reader read failed"_view));
   EXPECT(
       Test::error_contains(
-          "reason=the Archive failed Format 2 validation. identity=Pkg.Core "
+          "reason=the Archive failed validation. identity=Pkg.Core "
           "version=1.2"_view,
           Diagnostics::Log::Level::Info));
   EXPECT(rejects_selected_input(
@@ -585,7 +585,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
       "actual_magic=XTXA"_view));
   EXPECT(
       Test::error_contains(
-          "reason=the Archive failed Format 2 validation. identity=Pkg.Core "
+          "reason=the Archive failed validation. identity=Pkg.Core "
           "version=1.2"_view,
           Diagnostics::Log::Level::Info));
   EXPECT(rejects_selected_input(
@@ -593,7 +593,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
       Version(1, 2), Package::Repository::Repository::Error::UnsupportedFormat,
       "selection_error=UnsupportedFormat requested_identity=Pkg.Core "
       "requested_version=1.2"_view,
-      "stage=header byte_offset=4 expected_format=2 actual_format=3"_view));
+      "stage=header byte_offset=4 expected_format=2_or_3 actual_format=4"_view));
   EXPECT(
       Test::error_contains(
           "reason=the Archive format revision is unsupported. "

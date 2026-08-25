@@ -56,8 +56,8 @@ cc_library(
 
 cc_library(
     name = "abi_graphics",
-    srcs = glob(["abi/graphics/*.cpp"]),
-    hdrs = glob(["abi/graphics/*.hpp"]),
+    srcs = glob(["abi/graphics/**/*.cpp"]),
+    hdrs = [],
     copts = ["-Wreturn-type-c-linkage"],
     includes = ["."],
     deps = [

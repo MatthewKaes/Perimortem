@@ -19,6 +19,8 @@ class SpriteDescriptor {
     return descriptor;
   }
 
+  static auto get_runtime_descriptor() -> const Descriptor&;
+
  private:
   static auto read_placement(
       const U8* product,
@@ -35,3 +37,6 @@ class SpriteDescriptor {
 };
 
 }  // namespace Tetrodotoxin::Graphics
+
+extern "C" auto tetrodotoxin_graphics_sprite_descriptor()
+    -> const Tetrodotoxin::Graphics::Descriptor*;

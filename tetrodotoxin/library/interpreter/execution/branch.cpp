@@ -16,7 +16,8 @@ auto Interpreter::Execution::Branch::parse(
     Cursor& cursor,
     Language::Flow::Block& lexical_context,
     Language::Model::Callable& function,
-    const Language::Model::Type& access_scope)
+    const Language::Model::Type& access_scope,
+    Option<const StatementParser&> extension)
     -> Option<Language::Flow::Branch&> {
   Token opening = cursor.current();
   Language::Flow::Branch::Kind kind;
@@ -51,7 +52,8 @@ auto Interpreter::Execution::Branch::parse(
   }
 
   auto body = Block::parse(
-      cursor, lexical_context, function, access_scope, enclosing_loop);
+      cursor, lexical_context, function, access_scope, enclosing_loop,
+      extension);
   BAIL_IF(!body || !result.complete_body(*body));
   if (kind == Language::Flow::Branch::Kind::If &&
       cursor.matches(Code::Type::Else)) {
@@ -59,39 +61,43 @@ auto Interpreter::Execution::Branch::parse(
     const Documentation& documentation =
         Tetrodotoxin::Language::Parser::Comment::parse(cursor);
     if (cursor.matches(Code::Type::If)) {
-      auto nested = parse(cursor, lexical_context, function, access_scope);
+      auto nested =
+          parse(cursor, lexical_context, function, access_scope, extension);
       BAIL_IF(!nested);
-      BAIL_IF(!result.complete_alternate(Language::Statement::create(
-          *nested, documentation, nested->get_anchor(),
-          [](Language::Flow::Branch& selected, Cursor& operation_cursor,
-             Language::Flow::Scope& scope) {
-            return selected.link(
-                operation_cursor, scope, scope.get_access_scope());
-          },
-          [](Language::Flow::Branch& selected, Cursor& operation_cursor) {
-            selected.finalize(operation_cursor);
-          },
-          [](const Language::Flow::Branch& selected) {
-            return selected.reaches_next_statement();
-          })));
+      BAIL_IF(!result.complete_alternate(
+          Language::Statement::create(
+              *nested, documentation, nested->get_anchor(),
+              [](Language::Flow::Branch& selected, Cursor& operation_cursor,
+                 Language::Flow::Scope& scope) {
+                return selected.link(
+                    operation_cursor, scope, scope.get_access_scope());
+              },
+              [](Language::Flow::Branch& selected, Cursor& operation_cursor) {
+                selected.finalize(operation_cursor);
+              },
+              [](const Language::Flow::Branch& selected) {
+                return selected.reaches_next_statement();
+              })));
     } else if (
         cursor.matches(Code::Type::ScopeStart) ||
         cursor.matches(Code::Type::Define)) {
       auto nested = Block::parse(
-          cursor, lexical_context, function, access_scope, enclosing_loop);
+          cursor, lexical_context, function, access_scope, enclosing_loop,
+          extension);
       BAIL_IF(!nested);
-      BAIL_IF(!result.complete_alternate(Language::Statement::create(
-          *nested, documentation, nested->get_anchor(),
-          [](Language::Flow::Block& selected, Cursor& operation_cursor,
-             Language::Flow::Scope&) {
-            return selected.link(operation_cursor);
-          },
-          [](Language::Flow::Block& selected, Cursor& operation_cursor) {
-            selected.finalize(operation_cursor);
-          },
-          [](const Language::Flow::Block& selected) {
-            return selected.reaches_next_statement();
-          })));
+      BAIL_IF(!result.complete_alternate(
+          Language::Statement::create(
+              *nested, documentation, nested->get_anchor(),
+              [](Language::Flow::Block& selected, Cursor& operation_cursor,
+                 Language::Flow::Scope&) {
+                return selected.link(operation_cursor);
+              },
+              [](Language::Flow::Block& selected, Cursor& operation_cursor) {
+                selected.finalize(operation_cursor);
+              },
+              [](const Language::Flow::Block& selected) {
+                return selected.reaches_next_statement();
+              })));
     } else {
       cursor.create_token_error(
           "Library `else` requires one nested `if` or Block beginning with "

@@ -9,6 +9,8 @@
 #error LLVM Function is required by the Library native compiler
 #endif
 
+#include "perimortem/core/diagnostics/log.hpp"
+
 #include "llvm-c/Core.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
@@ -520,7 +522,19 @@ auto Llvm::Module::Functions::lower_construction(
     Core::View::Vector<ConstructionField> fields) const -> Bool {
   auto target = select_program(program);
   auto found = constructions.find(&owner);
-  if (!target || !found || !found->value.function) {
+  if (!target) {
+    Core::Diagnostics::Log::error(
+        "LLVM construction has no active module transaction."_view);
+    return False;
+  }
+  if (!found) {
+    Core::Diagnostics::Log::error(
+        "LLVM construction was not reserved before emission."_view);
+    return False;
+  }
+  if (!found->value.function) {
+    Core::Diagnostics::Log::error(
+        "LLVM construction was not completed before emission."_view);
     return fail_toolchain(
         program, "LLVM cannot lower Type construction before completion."_view);
   }
@@ -530,22 +544,33 @@ auto Llvm::Module::Functions::lower_construction(
     return True;
   }
 
+  // A Field fallback can prepare construction for another Type and grow this
+  // map. Copy the completed signature facts before lowering begins so nested
+  // construction cannot invalidate the active record.
+  LLVMValueRef retained_function = *record.function;
+  Core::Option<LLVMTypeRef> retained_sret_type = record.sret_type;
+  Memory::Dynamic::Vector<
+      Ttx::Concept::Reference<const Ttx::Model::Addressable>>
+      retained_parameters = record.parameters;
+  Memory::Dynamic::Vector<Bool> retained_indirect_parameters =
+      record.indirect_parameters;
+
   llvm::Function& function =
-      *llvm::cast<llvm::Function>(llvm::unwrap(*record.function));
+      *llvm::cast<llvm::Function>(llvm::unwrap(retained_function));
   if (!function.empty()) {
     return True;
   }
   llvm::BasicBlock::Create(function.getContext(), "entry", &function);
   Core::Option<LLVMValueRef> sret;
   auto argument = function.arg_begin();
-  if (record.sret_type) {
+  if (retained_sret_type) {
     BAIL_IF(argument == function.arg_end());
     sret = llvm::wrap(&*argument);
     argument++;
   }
 
   Llvm::Module::Body native_body(
-      *target, owner, *record.function, {}, sret, record.sret_type);
+      *target, owner, retained_function, {}, sret, retained_sret_type);
   llvm::IRBuilder<>& native_builder = get_builder(native_body);
   Llvm::Lowering::Execution execution(native_body);
   const Carriers& carriers = target->get_carriers();
@@ -558,15 +583,15 @@ auto Llvm::Module::Functions::lower_construction(
     Core::Option<LLVMValueRef> present;
     if (input.is_parameter()) {
       BAIL_IF(
-          parameter_index >= record.parameters.get_size() ||
-          &record.parameters[parameter_index].get() != &field ||
+          parameter_index >= retained_parameters.get_size() ||
+          &retained_parameters[parameter_index].get() != &field ||
           argument == function.arg_end());
       llvm::Value& native_value = *argument;
       argument++;
       auto carrier = carriers.get_type(field.get_type());
       BAIL_IF(!carrier);
       supplied =
-          record.indirect_parameters[parameter_index]
+          retained_indirect_parameters[parameter_index]
               ? Core::Option<LLVMValueRef>(llvm::wrap(native_builder.CreateLoad(
                     llvm::unwrap(*carrier), &native_value)))
               : Core::Option<LLVMValueRef>(llvm::wrap(&native_value));
@@ -580,7 +605,13 @@ auto Llvm::Module::Functions::lower_construction(
       auto lowered = lower_construction_value(
           native_body, execution, carriers, field.get_type(),
           input.get_fallback());
-      BAIL_IF(!lowered);
+      if (!lowered) {
+        Core::Diagnostics::Log::Message<256> message(
+            Core::Diagnostics::Log::Level::Error, Core::Diagnostics::Source());
+        message << "LLVM could not lower default construction for Field `"_view
+                << field.get_name() << "`."_view;
+        return False;
+      }
       values.insert(*lowered);
       continue;
     }
@@ -618,16 +649,29 @@ auto Llvm::Module::Functions::lower_construction(
     native_body.mark_owned(field.get_type(), llvm::wrap(&selected));
     values.insert(llvm::wrap(&selected));
   }
-  BAIL_IF(
-      parameter_index != record.parameters.get_size() ||
-      argument != function.arg_end());
+  if (parameter_index != retained_parameters.get_size() ||
+      argument != function.arg_end()) {
+    Core::Diagnostics::Log::error(
+        "LLVM construction parameters did not consume their native signature."_view);
+    return False;
+  }
 
   auto constructed = carriers.construct(native_body, owner, values.get_view());
-  BAIL_IF(
-      !constructed || !native_body.acquire(owner, *constructed) ||
+  if (!constructed) {
+    Core::Diagnostics::Log::error(
+        "LLVM could not assemble the construction result carrier."_view);
+    return fail_toolchain(
+        program, "LLVM could not assemble a constructed Type value."_view);
+  }
+  if (!native_body.acquire(owner, *constructed) ||
       !native_body.emit_storage_cleanup(0) ||
       !native_body.clear_temporary_cleanup() ||
-      !native_body.create_return(*constructed));
+      !native_body.create_return(*constructed)) {
+    Core::Diagnostics::Log::error(
+        "LLVM could not transfer construction result ownership."_view);
+    return fail_toolchain(
+        program, "LLVM could not finish constructed Type ownership."_view);
+  }
   return True;
 }
 
@@ -664,18 +708,25 @@ auto Llvm::Module::Functions::call_construction(
   }
 
   ConstructionRecord& record = found->value;
+  LLVMValueRef retained_function = *record.function;
+  Core::Option<LLVMTypeRef> retained_sret_type = record.sret_type;
+  Memory::Dynamic::Vector<
+      Ttx::Concept::Reference<const Ttx::Model::Addressable>>
+      retained_parameters = record.parameters;
+  Memory::Dynamic::Vector<Bool> retained_indirect_parameters =
+      record.indirect_parameters;
   const Carriers& carriers = native_body->get_program().get_carriers();
-  Body::NativeValues native_arguments(record.parameters.get_size() * 2 + 1);
+  Body::NativeValues native_arguments(retained_parameters.get_size() * 2 + 1);
   Core::Option<LLVMValueRef> returned_storage;
-  if (record.sret_type) {
+  if (retained_sret_type) {
     returned_storage = native_body->create_entry_alloca(
-        *record.sret_type, "construction.result"_view);
+        *retained_sret_type, "construction.result"_view);
     BAIL_IF(!returned_storage);
     native_arguments.insert(*returned_storage);
   }
 
-  for (Count index = 0; index < record.parameters.get_size(); index++) {
-    const Ttx::Model::Addressable& field = record.parameters[index].get();
+  for (Count index = 0; index < retained_parameters.get_size(); index++) {
+    const Ttx::Model::Addressable& field = retained_parameters[index].get();
     auto selected = select_construction_argument(arguments, field.get_name());
     Core::Option<LLVMValueRef> native;
     if (selected) {
@@ -690,7 +741,7 @@ auto Llvm::Module::Functions::call_construction(
     BAIL_IF(!native);
 
     LLVMValueRef argument = *native;
-    if (record.indirect_parameters[index]) {
+    if (retained_indirect_parameters[index]) {
       auto carrier = carriers.get_type(field.get_type());
       BAIL_IF(!carrier);
       auto storage = native_body->create_entry_alloca(
@@ -706,17 +757,17 @@ auto Llvm::Module::Functions::call_construction(
         selected ? 1 : 0, 0));
   }
 
-  LLVMTypeRef signature = LLVMGlobalGetValueType(*record.function);
+  LLVMTypeRef signature = LLVMGlobalGetValueType(retained_function);
   LLVMTypeRef native_result = LLVMGetReturnType(signature);
   Bool returns_void = Bool(LLVMGetTypeKind(native_result) == LLVMVoidTypeKind);
   LLVMValueRef invoked = LLVMBuildCall2(
-      native_body->get_builder(), signature, *record.function,
+      native_body->get_builder(), signature, retained_function,
       native_arguments.get_data(), U32(native_arguments.get_size()),
       returns_void ? "" : "construction");
   BAIL_IF(!invoked);
   LLVMValueRef returned =
       returned_storage ? LLVMBuildLoad2(
-                             native_body->get_builder(), *record.sret_type,
+                             native_body->get_builder(), *retained_sret_type,
                              *returned_storage, "construction.value")
                        : invoked;
   BAIL_IF(!returned);

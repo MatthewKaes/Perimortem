@@ -1008,6 +1008,12 @@ class State {
       Count closing,
       const Unit& unit,
       ScopeRole parent_scope) -> void {
+    if (closing > opening + 1 &&
+        tokens[closing - 1].get_code() == Code::Type::PackingOp) {
+      write_comma_scope(opening, closing);
+      return;
+    }
+
     if (write_function_scope(opening, closing, unit)) {
       return;
     }
@@ -1020,6 +1026,44 @@ class State {
     }
 
     write_braced_scope(opening, closing, unit, parent_scope, closing);
+  }
+
+  auto write_comma_scope(Count opening, Count closing) -> void {
+    write_token(opening);
+    write_newline();
+    indent++;
+
+    Count index = opening + 1;
+    while (index < closing) {
+      Code::Type code = tokens[index].get_code().get_type();
+      if (code == Code::Type::PackingStart ||
+          code == Code::Type::BracketStart) {
+        Count nested_closing = find_pair(index, closing);
+        if (nested_closing < closing) {
+          write_group(index, nested_closing);
+          index = nested_closing + 1;
+          continue;
+        }
+      }
+
+      if (code == Code::Type::PackingOp) {
+        append(tokens[index].caculate_text(source));
+        previous = code;
+        previous_prefix = False;
+        has_previous = True;
+        write_newline();
+      } else {
+        write_token(index);
+      }
+      index++;
+    }
+
+    if (line_started) {
+      write_newline();
+    }
+    indent--;
+    continuation_indent = 0;
+    write_token(closing);
   }
 
   auto write_braced_scope(
@@ -1295,17 +1339,44 @@ class State {
       return False;
     }
 
+    if (tokens[closing - 1].get_code() == Code::Type::PackingOp) {
+      return True;
+    }
+
+    Count packing = 0;
+    Count bracket = 0;
+    Count scope = 0;
+    Bool has_separator = False;
+    Bool has_comment = False;
     for (Count index = opening + 1; index < closing; index++) {
-      if (tokens[index].get_code() == Code::Type::Comment) {
-        return True;
+      Code::Type code = tokens[index].get_code().get_type();
+      if (!packing && !bracket && !scope && code == Code::Type::PackingOp) {
+        has_separator = True;
       }
+      if (code == Code::Type::PackingStart) {
+        packing++;
+      } else if (code == Code::Type::PackingEnd && packing) {
+        packing--;
+      } else if (code == Code::Type::BracketStart) {
+        bracket++;
+      } else if (code == Code::Type::BracketEnd && bracket) {
+        bracket--;
+      } else if (code == Code::Type::ScopeStart) {
+        scope++;
+      } else if (code == Code::Type::ScopeEnd && scope) {
+        scope--;
+      }
+      has_comment |= code == Code::Type::Comment;
+    }
+
+    if (!has_separator) {
+      return False;
+    }
+    if (has_comment) {
+      return True;
     }
 
     Count width = measure(opening, closing + 1);
-    if (closing > opening + 1 &&
-        tokens[closing - 1].get_code() == Code::Type::PackingOp && width >= 2) {
-      width -= 2;
-    }
     Bool measures_suffix =
         closing + 1 < tokens.get_size() &&
         (tokens[closing + 1].get_code() == Code::Type::Define ||

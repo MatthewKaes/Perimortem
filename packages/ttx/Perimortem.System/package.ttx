@@ -6,3 +6,5 @@ dialect : Package;
 
 resolve Memory : Perimortem.Memory = "1.0";
 source Terminal from "terminal.ttx";
+source Key from "key.ttx";
+source Input from "input.ttx";

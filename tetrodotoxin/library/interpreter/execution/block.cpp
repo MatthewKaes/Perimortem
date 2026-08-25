@@ -22,7 +22,9 @@ static auto parse_statement(
     Language::Flow::Block& block,
     Language::Model::Callable& function,
     const Language::Model::Type& access_scope,
-    const Documentation& documentation) -> Option<Language::Statement> {
+    const Documentation& documentation,
+    Option<const Interpreter::Execution::StatementParser&> extension)
+    -> Option<Language::Statement> {
   switch (cursor.get_code().get_type()) {
   case Code::Type::State:
   case Code::Type::Const: {
@@ -77,7 +79,7 @@ static auto parse_statement(
   case Code::Type::If:
   case Code::Type::While: {
     auto branch = Interpreter::Execution::Branch::parse(
-        cursor, block, function, access_scope);
+        cursor, block, function, access_scope, extension);
     BAIL_IF(!branch);
     return Language::Statement::create(
         *branch, documentation, branch->get_anchor(),
@@ -95,7 +97,7 @@ static auto parse_statement(
   }
   case Code::Type::For: {
     auto loop = Interpreter::Execution::RangeLoop::parse(
-        cursor, block, function, access_scope);
+        cursor, block, function, access_scope, extension);
     BAIL_IF(!loop);
     return Language::Statement::create(
         *loop, documentation, loop->get_anchor(),
@@ -109,7 +111,7 @@ static auto parse_statement(
   }
   case Code::Type::Match: {
     auto match = Interpreter::Execution::Match::parse(
-        cursor, block, function, access_scope);
+        cursor, block, function, access_scope, extension);
     BAIL_IF(!match);
     return Language::Statement::create(
         *match, documentation, match->get_anchor(),
@@ -132,7 +134,8 @@ static auto parse_statement(
             []() -> Option<Reference<const Abstract>> { return {}; },
             [](const Abstract& loop) -> Option<Reference<const Abstract>> {
               return Reference<const Abstract>(loop);
-            }));
+            }),
+        extension);
     BAIL_IF(!nested);
     return Language::Statement::create(
         *nested, documentation, nested->get_anchor(),
@@ -147,6 +150,11 @@ static auto parse_statement(
   }
   default:
     break;
+  }
+
+  if (extension && extension->matches(cursor)) {
+    return extension->parse(
+        cursor, block, function, access_scope, documentation);
   }
 
   Token opening = cursor.current();
@@ -173,7 +181,8 @@ auto Interpreter::Execution::Block::parse(
     const Abstract& lexical_context,
     Language::Model::Callable& function,
     const Language::Model::Type& access_scope,
-    Option<Reference<const Abstract>> enclosing_loop)
+    Option<Reference<const Abstract>> enclosing_loop,
+    Option<const StatementParser&> extension)
     -> Option<Language::Flow::Block&> {
   Code::Type opening_code = cursor.get_code().get_type();
   if (opening_code != Code::Type::ScopeStart &&
@@ -215,8 +224,8 @@ auto Interpreter::Execution::Block::parse(
       break;
     }
 
-    auto statement =
-        parse_statement(cursor, block, function, access_scope, documentation);
+    auto statement = parse_statement(
+        cursor, block, function, access_scope, documentation, extension);
     if (!statement) {
       cursor.recover_to_scoped_statement();
       if (single) {

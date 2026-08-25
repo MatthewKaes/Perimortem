@@ -31,7 +31,8 @@ auto Package::Language::Monograph::create_authored(
 
   return arena.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
-        arena, language, documentation, context, dependencies, sources);
+        arena, language, documentation, context, dependencies, sources, {},
+        False);
   });
 }
 
@@ -39,15 +40,14 @@ auto Package::Language::Monograph::create_synthetic(
     Allocator::Arena& arena,
     const Abstract& language,
     Abstract& context,
-    View::Vector<Dependency> dependencies) -> Monograph& {
+    View::Vector<Dependency> dependencies,
+    View::Vector<Reference<Package::Resource>> restored_resources)
+    -> Monograph& {
   Monograph& monograph = arena.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
-        arena, language, Documentation::get_empty(), context, dependencies, {});
+        arena, language, Documentation::get_empty(), context, dependencies, {},
+        restored_resources, True);
   });
-
-  // Restored Packages have no authored route acquisition phase. Seal before
-  // publishing the Monograph so later owners cannot attach physical Storage.
-  monograph.resources.seal();
   return monograph;
 }
 
@@ -73,7 +73,9 @@ Package::Language::Monograph::Monograph(
     const Documentation& documentation,
     Abstract& context,
     View::Vector<Dependency> authored_dependencies,
-    View::Vector<Source> authored_sources)
+    View::Vector<Source> authored_sources,
+    View::Vector<Reference<Package::Resource>> restored_resources,
+    Bool resources_sealed)
     : Tetrodotoxin::Language::Monograph(
           arena,
           language,
@@ -81,7 +83,7 @@ Package::Language::Monograph::Monograph(
           context),
       dependencies(domain),
       sources(domain),
-      resources(domain),
+      resources(domain, restored_resources, resources_sealed),
       scope(domain, "Package"_view) {
   retain_dependencies(dependencies, authored_dependencies);
   retain_sources(sources, authored_sources);

@@ -92,7 +92,12 @@ auto Language::Expressions::Identifier::get_type() const -> const Abstract& {
   return result.visit(
       []() -> const Abstract& { return Invalid::get_invalid(); },
       [&](const Reference<const Abstract>& selected) -> const Abstract& {
-        return selected.get().visit<Language::Model::Type>(
+        const Abstract& direct = selected.get();
+        auto pack = direct.select<Language::Model::Pack>();
+        if (pack) {
+          return pack->get_type();
+        }
+        return direct.visit<Language::Model::Type>(
             [](const Language::Model::Type&) -> const Abstract& {
               return Invalid::get_invalid();
             },

@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/terminal/llvm/lowering/operations.hpp"
 
+#include "tetrodotoxin/library/language/expressions/conversion.hpp"
 #include "tetrodotoxin/library/language/operation.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
 #include "tetrodotoxin/library/language/operations/add_assignment.hpp"
@@ -80,6 +81,24 @@ static auto lower_comparison(
 auto Llvm::Lowering::Operations::lower(
     const Execution& execution,
     const Expression& expression) -> Bool {
+  auto conversion =
+      expression
+          .select<Tetrodotoxin::Library::Language::Expressions::Conversion>();
+  if (conversion) {
+    auto source_type = conversion->get_source()
+                           .get_value_type(0)
+                           .resolve()
+                           .select<
+                               Tetrodotoxin::Library::Language::Model::Type>();
+    return source_type &&
+           Types::prepare(execution.get_program(), *source_type) &&
+           Types::prepare(execution.get_program(), conversion->get_type()) &&
+           execution.lower(conversion->get_source()) &&
+           execution.get_computation().convert(
+               *source_type, conversion->get_type(), *conversion,
+               conversion->get_source());
+  }
+
   auto add =
       expression.select<Tetrodotoxin::Library::Language::Operations::Add>();
   if (add) {

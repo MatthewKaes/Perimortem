@@ -85,7 +85,13 @@ auto Language::Access::Type::get_documentation() const -> const Documentation& {
 }
 
 auto Language::Access::Type::get_type() const -> const Abstract& {
-  return Invalid::get_invalid();
+  return selected.visit(
+      []() -> const Abstract& { return Invalid::get_invalid(); },
+      [](const Reference<const Abstract>& selected) -> const Abstract& {
+        auto pack = selected.get().resolve().select<Language::Model::Pack>();
+        return pack ? pack->get_type()
+                    : static_cast<const Abstract&>(Invalid::get_invalid());
+      });
 }
 
 auto Language::Access::Type::get_result() const -> const Abstract& {

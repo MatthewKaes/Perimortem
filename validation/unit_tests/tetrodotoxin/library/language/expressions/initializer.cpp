@@ -14,6 +14,8 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/option.hpp"
+#include "tetrodotoxin/library/language/constants/real.hpp"
+#include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
@@ -276,6 +278,40 @@ PERIMORTEM_UNIT_TEST(InitializerTests, inferred_object) {
   EXPECT(errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(InitializerTests, explicit_scalar_conversion) {
+  static constexpr View::Bytes source =
+      "// Explicit scalar construction.\n"
+      "dialect : Library;\n"
+      "public const narrow_signed : S8 = new[S8](300);\n"
+      "public const narrow_unsigned : U8 = new[U8](300.9);\n"
+      "public const rounded_real : R32 = new[R32](16777217);"_view;
+  auto workspace_toolchain = create_library_toolchain();
+  Workspace workspace(*workspace_toolchain);
+  Errors errors;
+  auto monograph = interpret(workspace, errors, source);
+  ASSERT(monograph);
+
+  const auto& signed_field = static_cast<const Language::Field&>(
+      monograph->get_source().resolve_context("narrow_signed"_view));
+  const auto& unsigned_field = static_cast<const Language::Field&>(
+      monograph->get_source().resolve_context("narrow_unsigned"_view));
+  const auto& real_field = static_cast<const Language::Field&>(
+      monograph->get_source().resolve_context("rounded_real"_view));
+  auto signed_value = signed_field.get_constant();
+  auto unsigned_value = unsigned_field.get_constant();
+  auto real_value = real_field.get_constant();
+  ASSERT(signed_value && unsigned_value && real_value);
+  auto selected_signed = signed_value->select<Language::Constants::Signed>();
+  auto selected_unsigned =
+      unsigned_value->select<Language::Constants::Unsigned>();
+  auto selected_real = real_value->select<Language::Constants::Real>();
+  ASSERT(selected_signed && selected_unsigned && selected_real);
+  EXPECT_EQ(selected_signed->get_value(), S64(127));
+  EXPECT_EQ(selected_unsigned->get_value(), U64(255));
+  EXPECT_EQ(selected_real->get_value(), R64(16777216.0));
+  EXPECT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(InitializerTests, argument_rejections) {
   struct Rejection {
     View::Bytes source;
@@ -284,11 +320,11 @@ PERIMORTEM_UNIT_TEST(InitializerTests, argument_rejections) {
   static constexpr Rejection rejections[] = {
     {
       "// Non Object arguments.\ndialect : Library;\npublic invalid : U32 = new[U32](.value = 1);"_view,
-      "Selected Type does not accept supplied initializer values."_view,
+      "Selected scalar Type cannot construct this value."_view,
     },
     {
       "// Positional Object argument.\ndialect : Library;\npublic Session : object { public state value : U64; }\npublic invalid : Session = new[Session](5);"_view,
-      "Object initializer inputs must name state Fields."_view,
+      "Object initializer inputs do not fit the initialization Layout."_view,
     },
     {
       "// Duplicate Object argument.\ndialect : Library;\npublic Session : object { public state value : U64; }\npublic invalid : Session = new[Session](.value = 1, .value = 2);"_view,
@@ -296,17 +332,24 @@ PERIMORTEM_UNIT_TEST(InitializerTests, argument_rejections) {
     },
     {
       "// Mixed Object arguments.\ndialect : Library;\npublic Session : object { public state value : U64; }\npublic invalid : Session = new[Session](1, .value = 2);"_view,
-      "Object initializer inputs must name state Fields."_view,
+      "Positional and named entries cannot share one Library Pack."_view,
     },
     {
       "// Empty Object arguments.\ndialect : Library;\npublic Session : object { public state value : U64; }\npublic invalid : Session = new[Session]();"_view,
-      "Object initializer arguments cannot be empty."_view,
+      "Initializer arguments cannot be empty."_view,
     },
   };
 
-  for (const Rejection& rejection : rejections) {
-    EXPECT(rejects_interpretation(rejection.source, rejection.diagnostic));
-  }
+  EXPECT(
+      rejects_interpretation(rejections[0].source, rejections[0].diagnostic));
+  EXPECT(
+      rejects_interpretation(rejections[1].source, rejections[1].diagnostic));
+  EXPECT(
+      rejects_interpretation(rejections[2].source, rejections[2].diagnostic));
+  EXPECT(
+      rejects_interpretation(rejections[3].source, rejections[3].diagnostic));
+  EXPECT(
+      rejects_interpretation(rejections[4].source, rejections[4].diagnostic));
 }
 
 PERIMORTEM_UNIT_TEST(InitializerTests, nested_defaults) {

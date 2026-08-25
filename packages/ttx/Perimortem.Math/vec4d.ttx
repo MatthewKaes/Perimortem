@@ -9,6 +9,7 @@ dialect : Library;
 //
 // Its neutral shape lets CPU and GPU contracts share one Type while each
 // domain retains the meaning it assigns to those components.
+@capability("vector")
 public Vec4D : struct {
   public state x : R32;
   public state y : R32;

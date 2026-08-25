@@ -527,7 +527,7 @@ auto Package::Repository::Repository::select_archive(
         case Archive::Reader::Error::InvalidFormat:
           log_selection_failure(
               *selected, Error::InvalidFormat, identity, version,
-              "the Archive failed Format 2 validation."_view);
+              "the Archive failed validation."_view);
           return Error::InvalidFormat;
         case Archive::Reader::Error::UnsupportedFormat:
           log_selection_failure(

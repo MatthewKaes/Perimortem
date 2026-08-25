@@ -140,6 +140,12 @@ Tetrodotoxin::Terminal::Abi::Symbol::Symbol(
   case Kind::ReadOnly:
     output.concat("TTX_DATA_"_view);
     break;
+  case Kind::ObjectDescriptor:
+    output.concat("TTX_DESC_"_view);
+    break;
+  case Kind::GraphicsChildren:
+    output.concat("TTX_GFX_"_view);
+    break;
   }
 
   Count path_start = output.get_size();

@@ -214,7 +214,10 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::link_types(
 
   storage_type = Reference<const Model::Type>(*selected_type);
   stage = Stage::StorageLinked;
-  return True;
+  // Cases are immutable Type members whose literal storage is already known at
+  // this barrier. Publishing them here lets Function bodies use the exact Alias
+  // identities without waiting for the later constant cache finalization pass.
+  return finalize(cursor);
 }
 
 auto Types::Enumeration::link_restored_types() -> Bool {
@@ -242,16 +245,13 @@ auto Types::Enumeration::link_restored_types() -> Bool {
       domain, *unsigned_count, source_cases.get_size());
   generated_size = Reference<const Model::Addressable>(size);
   storage_type = Reference<const Model::Type>(*selected_type);
-  stage = Stage::StorageLinked;
+  stage = Stage::Finalized;
   return True;
 }
 
 auto Types::Enumeration::finalize_restored() -> Bool {
-  BAIL_IF(
-      stage != Stage::StorageLinked ||
-      cases.get_size() != source_cases.get_size());
-  stage = Stage::Finalized;
-  return True;
+  return stage == Stage::Finalized &&
+         cases.get_size() == source_cases.get_size();
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize(

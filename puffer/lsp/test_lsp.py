@@ -792,6 +792,36 @@ def run_test():
     check("if" in shader_texts and "continue" in shader_texts,
           "Shader document keeps Library control keywords")
 
+    print("\n--- Semantic tokens: App and Scene policy ---")
+    app_path = os.path.join(
+        REPO_ROOT, "apps", "ttx", "scene_lifetime", "main.ttx")
+    with open(app_path, "r", encoding="utf-8") as f:
+        app_source = f.read()
+    app_uri = "file://" + app_path
+    send_did_open(conn, app_uri, app_source)
+    app_resp = send_semantic_tokens(conn, app_uri, 68)
+    app_data = app_resp.get("result", {}).get("data", []) if app_resp else []
+    app_tokens = semantic_token_texts(app_source, app_data)
+    for spelling in [
+            "runtime", "lifecycle", "initial", "on", "replace", "exit"]:
+        check((spelling, 7) in app_tokens,
+              f"App policy highlights {spelling} from its semantic owner")
+
+    scene_path = os.path.join(
+        REPO_ROOT, "apps", "ttx", "scene_lifetime", "scenes", "title.ttx")
+    with open(scene_path, "r", encoding="utf-8") as f:
+        scene_source = f.read()
+    scene_uri = "file://" + scene_path
+    send_did_open(conn, scene_uri, scene_source)
+    scene_resp = send_semantic_tokens(conn, scene_uri, 69)
+    scene_data = (
+        scene_resp.get("result", {}).get("data", []) if scene_resp else [])
+    scene_tokens = semantic_token_texts(scene_source, scene_data)
+    check(("signal", 7) in scene_tokens,
+          "Scene highlights the Signal declaration keyword")
+    check(("space_pressed", 5) in scene_tokens,
+          "Scene highlights the real Signal identity as a property")
+
     print("\n--- Parameter inlay hints: retained Call fitting ---")
     hint_source = (
         "// Inlay hint source.\n"

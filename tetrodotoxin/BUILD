@@ -58,47 +58,9 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "app",
-    srcs = glob([
-        "app/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "app/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        ":library",
-        ":linker",
-        "//perimortem:headless",
-        "//tetrodotoxin/language",
-        "//ttx:concept",
-        "//ttx:lexical",
-        "//ttx:model",
-    ],
-)
-
 alias(
     name = "library",
     actual = "//tetrodotoxin/library",
-)
-
-cc_library(
-    name = "scene",
-    srcs = glob([
-        "scene/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "scene/**/*.hpp",
-    ]),
-    includes = ["."],
-    deps = [
-        ":library",
-        "//perimortem:headless",
-        "//tetrodotoxin/language",
-        "//ttx:concept",
-        "//ttx:lexical",
-    ],
 )
 
 cc_library(

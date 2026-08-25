@@ -8,6 +8,22 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "application",
+    srcs = glob(["application/**/*.cpp"]),
+    hdrs = glob(["application/**/*.hpp"]),
+    deps = [
+        ":abi",
+        ":graphics",
+        ":vulkan",
+        "//perimortem:headless",
+        "//tetrodotoxin/app/language",
+        "//tetrodotoxin/scene/language",
+        "//ttx:concept",
+        "//ttx:model",
+    ],
+)
+
+cc_library(
     name = "abi",
     srcs = glob([
         "abi/**/*.cpp",
@@ -19,6 +35,7 @@ cc_library(
         "//perimortem:headless",
         "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
+        "//tetrodotoxin:package",
         "//tetrodotoxin/language",
         "//ttx:concept",
         "//ttx:model",
@@ -35,13 +52,33 @@ cc_library(
     ]),
     deps = [
         ":abi",
+        ":graphics",
         "//perimortem:headless",
         "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
         "//tetrodotoxin/language",
+        "//tetrodotoxin/scene/language",
         "//toolchain/llvm:sdk",
         "//ttx:concept",
         "//ttx:lexical",
+        "//ttx:model",
+    ],
+)
+
+cc_library(
+    name = "graphics",
+    srcs = glob([
+        "graphics/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "graphics/**/*.hpp",
+    ]),
+    deps = [
+        "//perimortem:headless",
+        "//tetrodotoxin/graphics:hosting",
+        "//tetrodotoxin/library:language",
+        "//tetrodotoxin/scene/language",
+        "//ttx:concept",
         "//ttx:model",
     ],
 )
@@ -62,6 +99,25 @@ cc_library(
         "//tetrodotoxin/shader/language",
         "//ttx:concept",
         "//ttx:lexical",
+        "//ttx:model",
+    ],
+)
+
+cc_library(
+    name = "vulkan",
+    srcs = glob([
+        "vulkan/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "vulkan/**/*.hpp",
+    ]),
+    deps = [
+        ":spirv",
+        "//perimortem:headless",
+        "//tetrodotoxin/library:language",
+        "//tetrodotoxin/render/language",
+        "//tetrodotoxin/shader/language",
+        "//ttx:concept",
         "//ttx:model",
     ],
 )

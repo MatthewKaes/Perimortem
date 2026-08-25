@@ -159,6 +159,134 @@ auto Llvm::Emission::Computation::negate(
   return arithmetic_publish_scalar(native_body, result, selected);
 }
 
+static auto integer_max(Count bits, Bool signed_value) -> U64 {
+  if (!signed_value) {
+    return bits >= 64 ? U64(-1) : (U64(1) << bits) - 1;
+  }
+  return bits >= 64 ? U64(-1) >> 1 : (U64(1) << (bits - 1)) - 1;
+}
+
+static auto integer_min(Count bits) -> S64 {
+  return bits >= 64 ? S64(U64(1) << 63) : -(S64(1) << (bits - 1));
+}
+
+static auto clamp_integer(
+    LLVMBuilderRef builder,
+    LLVMValueRef value,
+    Bool source_signed,
+    Count source_bits,
+    Bool target_signed,
+    Count target_bits) -> LLVMValueRef {
+  LLVMTypeRef source_type = LLVMTypeOf(value);
+  LLVMValueRef selected = value;
+  if (source_signed && !target_signed) {
+    LLVMValueRef negative = LLVMBuildICmp(
+        builder, LLVMIntSLT, selected, LLVMConstInt(source_type, 0, 1), "");
+    selected = LLVMBuildSelect(
+        builder, negative, LLVMConstInt(source_type, 0, 0), selected, "");
+  }
+
+  U64 source_max = integer_max(source_bits, source_signed);
+  U64 target_max = integer_max(target_bits, target_signed);
+  if (target_max < source_max) {
+    LLVMValueRef maximum = LLVMConstInt(source_type, target_max, 0);
+    LLVMValueRef above = LLVMBuildICmp(
+        builder, source_signed ? LLVMIntSGT : LLVMIntUGT, selected, maximum,
+        "");
+    selected = LLVMBuildSelect(builder, above, maximum, selected, "");
+  }
+
+  if (source_signed && target_signed && target_bits < source_bits) {
+    S64 target_minimum = integer_min(target_bits);
+    LLVMValueRef minimum = LLVMConstInt(source_type, U64(target_minimum), 1);
+    LLVMValueRef below =
+        LLVMBuildICmp(builder, LLVMIntSLT, selected, minimum, "");
+    selected = LLVMBuildSelect(builder, below, minimum, selected, "");
+  }
+  return selected;
+}
+
+static auto convert_real_to_integer(
+    LLVMBuilderRef builder,
+    LLVMValueRef value,
+    LLVMTypeRef target_type,
+    Bool target_signed,
+    Count target_bits) -> LLVMValueRef {
+  LLVMTypeRef source_type = LLVMTypeOf(value);
+  LLVMValueRef zero_real = LLVMConstReal(source_type, 0.0);
+  LLVMValueRef unordered =
+      LLVMBuildFCmp(builder, LLVMRealUNO, value, value, "");
+  LLVMValueRef below = LLVMBuildFCmp(
+      builder, LLVMRealOLE, value,
+      LLVMConstReal(
+          source_type,
+          target_signed ? R64(integer_min(target_bits)) : R64(0.0)),
+      "");
+  LLVMValueRef above = LLVMBuildFCmp(
+      builder, LLVMRealOGE, value,
+      LLVMConstReal(source_type, R64(integer_max(target_bits, target_signed))),
+      "");
+  LLVMValueRef outside = LLVMBuildOr(
+      builder, unordered, LLVMBuildOr(builder, below, above, ""), "");
+  LLVMValueRef safe = LLVMBuildSelect(builder, outside, zero_real, value, "");
+  LLVMValueRef converted =
+      target_signed ? LLVMBuildFPToSI(builder, safe, target_type, "")
+                    : LLVMBuildFPToUI(builder, safe, target_type, "");
+  LLVMValueRef minimum = LLVMConstInt(
+      target_type, target_signed ? U64(integer_min(target_bits)) : U64(0),
+      bool(target_signed));
+  LLVMValueRef maximum = LLVMConstInt(
+      target_type, integer_max(target_bits, target_signed),
+      bool(target_signed));
+  LLVMValueRef bounded =
+      LLVMBuildSelect(builder, above, maximum, converted, "");
+  bounded = LLVMBuildSelect(builder, below, minimum, bounded, "");
+  return LLVMBuildSelect(
+      builder, unordered, LLVMConstInt(target_type, 0, 0), bounded, "");
+}
+
+auto Llvm::Emission::Computation::convert(
+    const Ttx::Model::Type& source_carrier,
+    const Ttx::Model::Type& target_carrier,
+    const Ttx::Model::Pack& result,
+    const Ttx::Model::Pack& source) const -> Bool {
+  auto carriers = arithmetic_select_carriers(body);
+  auto value = arithmetic_find_scalar(body, source);
+  auto source_type = carriers ? carriers->get_type(source_carrier)
+                              : Core::Option<LLVMTypeRef>();
+  auto target_type = carriers ? carriers->get_type(target_carrier)
+                              : Core::Option<LLVMTypeRef>();
+  BAIL_IF(
+      !carriers || !value || !source_type || !target_type ||
+      LLVMTypeOf(*value) != *source_type);
+
+  Bool source_real = carriers->is_real(source_carrier);
+  Bool target_real = carriers->is_real(target_carrier);
+  Bool source_signed = carriers->is_signed(source_carrier);
+  Bool target_signed = carriers->is_signed(target_carrier);
+  LLVMValueRef converted = nullptr;
+  if (source_real && target_real) {
+    converted = LLVMBuildFPCast(body.get_builder(), *value, *target_type, "");
+  } else if (source_real) {
+    converted = convert_real_to_integer(
+        body.get_builder(), *value, *target_type, target_signed,
+        LLVMGetIntTypeWidth(*target_type));
+  } else if (target_real) {
+    converted =
+        source_signed
+            ? LLVMBuildSIToFP(body.get_builder(), *value, *target_type, "")
+            : LLVMBuildUIToFP(body.get_builder(), *value, *target_type, "");
+  } else {
+    LLVMValueRef clamped = clamp_integer(
+        body.get_builder(), *value, source_signed,
+        LLVMGetIntTypeWidth(*source_type), target_signed,
+        LLVMGetIntTypeWidth(*target_type));
+    converted = LLVMBuildIntCast2(
+        body.get_builder(), clamped, *target_type, bool(source_signed), "");
+  }
+  return converted && arithmetic_publish_scalar(body, result, converted);
+}
+
 // Calls receive arguments in resolved parameter order. Call owns semantic
 // fitting while Computation owns native parameter carriers and result
 // transport.

@@ -33,16 +33,21 @@
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "tetrodotoxin/render/dialect.hpp"
+#include "tetrodotoxin/scene/dialect.hpp"
 #include "tetrodotoxin/shader/dialect.hpp"
 #include "tetrodotoxin/shader/language/monograph.hpp"
 #include "tetrodotoxin/terminal/abi/c/header.hpp"
 #include "tetrodotoxin/terminal/abi/compiler.hpp"
 #include "tetrodotoxin/terminal/abi/products.hpp"
+#include "tetrodotoxin/terminal/abi/resource_product.hpp"
 #include "tetrodotoxin/terminal/abi/symbol.hpp"
+#include "tetrodotoxin/terminal/graphics/compiler.hpp"
 #include "tetrodotoxin/terminal/llvm/compiler.hpp"
 #include "tetrodotoxin/terminal/spirv/compiler.hpp"
 #include "ttx/concept/invalid.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/model/type.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin;
@@ -448,11 +453,15 @@ auto Puffer::Package::run() const -> S32 {
   Core::View::Bytes cpp_include = value(arguments, "cpp-include"_view);
   Core::View::Bytes c_include = value(arguments, "c-include"_view);
   Core::View::Bytes abi_manifest_path = value(arguments, "abi-manifest"_view);
+  Core::View::Bytes resources_object_path =
+      value(arguments, "resources-object"_view);
   System::Version version =
       System::Version::parse(value(arguments, "version"_view));
   auto debug = parse_debug(value(arguments, "debug"_view));
   Core::View::Bytes artifact = value(arguments, "artifact"_view);
   Core::View::Bytes spirv_target = value(arguments, "spirv-target"_view);
+  Core::View::Bytes graphics_host_route =
+      value(arguments, "graphics-host"_view);
   if (manifest.is_empty() || identity.is_empty() || complete_path.is_empty() ||
       contract_path.is_empty() || header_path.is_empty() ||
       abi_manifest_path.is_empty() || version.is_null() || !debug ||
@@ -495,6 +504,7 @@ auto Puffer::Package::run() const -> S32 {
   auto render = toolchain.install<Render::Dialect>("Render"_view);
   if (!toolchain.install<Tetrodotoxin::Package::Dialect>("Package"_view) ||
       !library || !render || !toolchain.install<App::Dialect>("App"_view) ||
+      !toolchain.install<Scene::Dialect>("Scene"_view, *library) ||
       !toolchain.install<Shader::Dialect>("Shader"_view, *library, *render)) {
     return 1;
   }
@@ -595,6 +605,37 @@ auto Puffer::Package::run() const -> S32 {
     return 1;
   }
 
+  Core::Option<const Ttx::Model::Type&> graphics_host;
+  Memory::Managed::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>>
+      graphics_types(arena);
+  if (!graphics_host_route.is_empty()) {
+    auto selected = resolve_context_route(*root, graphics_host_route);
+    graphics_host = selected ? selected->resolve().select<Ttx::Model::Type>()
+                             : Core::Option<const Ttx::Model::Type&>();
+    if (!graphics_host) {
+      Core::Diagnostics::Log::error(
+          "Puffer Package could not resolve its configured graphics Host."_view);
+      return 1;
+    }
+    for (Core::View::Bytes route : values(arguments, "graphics-type"_view)) {
+      auto selected_type = resolve_context_route(*root, route);
+      auto resolved = selected_type
+                          ? selected_type->resolve().select<Ttx::Model::Type>()
+                          : Core::Option<const Ttx::Model::Type&>();
+      if (!resolved) {
+        Core::Diagnostics::Log::error(
+            "Puffer Package could not resolve one configured graphics Type."_view);
+        return 1;
+      }
+      graphics_types.insert(*resolved);
+    }
+    if (graphics_types.is_empty()) {
+      return 2;
+    }
+  } else if (!values(arguments, "graphics-type"_view).is_empty()) {
+    return 2;
+  }
+
   Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Unit::TypeBinding>
       type_bindings(arena);
   Memory::Managed::Vector<Core::View::Bytes> dependency_headers(arena);
@@ -679,6 +720,29 @@ auto Puffer::Package::run() const -> S32 {
     }
   }
 
+  auto resources = Tetrodotoxin::Terminal::Abi::ResourceProduct::compile(
+      arena, root->get_resources(), identity, artifact);
+  if (!resources) {
+    Core::Diagnostics::Log::error(
+        "Puffer Package could not derive its Resource product."_view);
+    return 1;
+  }
+  for (const Tetrodotoxin::Terminal::Abi::Unit::Binding& binding :
+       resources->get_bindings()) {
+    external.insert(binding);
+  }
+  if (!resources_object_path.is_empty()) {
+    if (!publish(resources_object_path, resources->get_object())) {
+      Core::Diagnostics::Log::error(
+          "Puffer Package could not emit its Resource product."_view);
+      return 1;
+    }
+  } else if (!resources->get_bindings().is_empty()) {
+    Core::Diagnostics::Log::error(
+        "Puffer Package has Resources without a target product path."_view);
+    return 2;
+  }
+
   Memory::Managed::Vector<Tetrodotoxin::Package::Archive::Export> exports(
       arena);
   Memory::Managed::Vector<Linker::Import> selected_imports(arena);
@@ -750,17 +814,37 @@ auto Puffer::Package::run() const -> S32 {
         cpp_include);
     Core::Option<Tetrodotoxin::Terminal::Abi::Products> native_interface;
     Core::Option<Llvm::Products> cpu_products;
+    Core::Option<Tetrodotoxin::Terminal::Graphics::Products> graphics_products;
     Memory::Dynamic::Bytes member_object;
-    auto library = member->select<Library::Language::Monograph>();
     auto shader = member->select<Shader::Language::Monograph>();
-    if (library) {
+    auto library_layer =
+        shader ? Core::Option<const Library::Language::Monograph&>()
+               : select_library(*member, *library_dialect);
+    if (library_layer) {
+      auto scene = member->select<Scene::Language::Monograph>();
+      if (scene && graphics_host) {
+        Tetrodotoxin::Terminal::Graphics::Compiler graphics_compiler;
+        graphics_products = graphics_compiler.compile(
+            arena, *scene, *graphics_host, graphics_types.get_view());
+        if (!graphics_products) {
+          Core::Diagnostics::Log::error(
+              "Puffer Package could not derive the Scene graphics product."_view);
+          return 1;
+        }
+      }
       Tetrodotoxin::Terminal::Abi::Compiler interface_compiler;
       native_interface = interface_compiler.compile(
-          arena, *library, unit, errors, source_path, *source);
+          arena, *library_layer, unit, errors, source_path, *source);
       if (native_interface) {
         Llvm::Request request(
-            *library, errors, source_path, *source, Llvm::Target::X86_64SysV,
-            *debug, unit, *native_interface);
+            *library_layer, errors, source_path, *source,
+            Llvm::Target::X86_64SysV, *debug, unit, *native_interface,
+            graphics_products
+                ? Core::Option<
+                      const Tetrodotoxin::Terminal::Graphics::Products&>(
+                      *graphics_products)
+                : Core::Option<
+                      const Tetrodotoxin::Terminal::Graphics::Products&>());
         Llvm::Compiler compiler;
         compiler.compile(arena, request)
             .visit(
@@ -939,6 +1023,16 @@ auto Puffer::Package::run() const -> S32 {
   auto contract = Tetrodotoxin::Package::Archive::Writer::write(
       *root, identity, version, Language::Persistence::Profile::Contract,
       artifacts, exports.get_view());
+  if (!complete) {
+    Core::Diagnostics::Log::error(
+        "Puffer Package could not encode its Complete Archive."_view);
+    return 1;
+  }
+  if (!contract) {
+    Core::Diagnostics::Log::error(
+        "Puffer Package could not encode its Contract Archive."_view);
+    return 1;
+  }
   if (!complete || !contract || !publish(complete_path, *complete) ||
       !publish(contract_path, *contract) ||
       !publish(header_path, identified_header->get_view()) ||

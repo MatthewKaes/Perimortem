@@ -15,6 +15,8 @@
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/render/dialect.hpp"
+#include "tetrodotoxin/shader/dialect.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -51,9 +53,21 @@ static auto has_callable(
 }
 
 PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
+  auto math_product =
+      File::read(".bin/bin/packages/ttx/Perimortem.Math/1.0/contract.txa"_view);
   auto product = File::read(
       ".bin/bin/packages/ttx/Perimortem.Graphics/1.0/contract.txa"_view);
-  ASSERT(product);
+  ASSERT(math_product && product);
+  Allocator::Arena math_archive_arena;
+  auto decoded_math =
+      Package::Archive::Reader::read(math_archive_arena, *math_product);
+  Option<Package::Archive::Archive> math_archive;
+  decoded_math.visit(
+      [&](const Package::Archive::Archive& selected) {
+        math_archive = selected;
+      },
+      [](const Package::Archive::Reader::Error&) {});
+  ASSERT(math_archive);
   Allocator::Arena archive_arena;
   auto decoded = Package::Archive::Reader::read(archive_arena, *product);
   Option<Package::Archive::Archive> archive;
@@ -64,8 +78,12 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
 
   Environment::Toolchain toolchain;
   ASSERT(toolchain.install<Package::Dialect>("Package"_view));
-  ASSERT(toolchain.install<Library::Dialect>("Library"_view));
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
+  auto render = toolchain.install<Render::Dialect>("Render"_view);
+  ASSERT(library && render);
+  ASSERT(toolchain.install<Shader::Dialect>("Shader"_view, *library, *render));
   Environment::Workspace workspace(toolchain);
+  ASSERT(workspace.restore_package(*math_archive, "Math"_view));
   auto restored = workspace.restore_package(*archive, "Graphics"_view);
   ASSERT(restored && restored->is<Package::Language::Monograph>());
   const auto& package =
@@ -78,8 +96,17 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
   auto host = select_type(package, "Host"_view);
   auto image = select_type(package, "Image"_view);
   auto sprite = select_type(package, "Sprite"_view);
+  const auto& format = package.resolve_context("Format"_view).resolve();
+  auto png_member = format.resolve_context("PNG"_view)
+                        .resolve()
+                        .select<Library::Language::Monograph>();
+  auto png = png_member ? png_member->resolve_context("PNG"_view)
+                              .resolve()
+                              .select<Library::Language::Types::Composite>()
+                        : Option<const Library::Language::Types::Composite&>();
   ASSERT(
-      pixel && point && size && tone && transform && host && image && sprite);
+      pixel && point && size && tone && transform && host && image && sprite &&
+      png);
 
   EXPECT_EQ(pixel->get_layout().get_size(), Count(4));
   EXPECT_EQ(point->get_layout().get_size(), Count(2));
@@ -90,9 +117,12 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
   EXPECT(has_callable(*pixel, "from_grey_alpha"_view));
   EXPECT(has_callable(*pixel, "from_rgb"_view));
   EXPECT(has_callable(*pixel, "from_rgba"_view));
-  EXPECT(has_callable(*image, "decode"_view));
+  EXPECT(has_callable(*png, "decode"_view));
   EXPECT(has_callable(*image, "get_pixels"_view));
+  EXPECT(has_callable(*image, "get_addressing"_view));
   EXPECT(has_callable(*image, "get_size_pixels"_view));
+  EXPECT(has_callable(*image, "sample"_view));
+  EXPECT(has_callable(*image, "with_addressing"_view));
 
   Graphics::Hosting hosting;
   EXPECT(hosting.accepts(*host, *sprite));

@@ -27,13 +27,21 @@ class Types {
   auto collect_pointer(
       const Tetrodotoxin::Library::Language::Model::Type& type,
       Assembler::SpirV::StorageClass storage) -> Bool;
+  auto collect_resource(
+      const Tetrodotoxin::Library::Language::Model::Type& type) -> Bool;
   auto emit(Assembler::SpirV& assembler) const -> Bool;
+  auto decorate_push(
+      Assembler::SpirV& assembler,
+      const Tetrodotoxin::Library::Language::Model::Type& type) const -> Bool;
 
   auto get_id(const Tetrodotoxin::Library::Language::Model::Type& type) const
       -> Perimortem::Core::Option<U32>;
   auto get_pointer_id(
       const Tetrodotoxin::Library::Language::Model::Type& type,
       Assembler::SpirV::StorageClass storage) const
+      -> Perimortem::Core::Option<U32>;
+  auto get_resource_pointer_id(
+      const Tetrodotoxin::Library::Language::Model::Type& type) const
       -> Perimortem::Core::Option<U32>;
 
   constexpr auto get_void_id() const -> U32 { return void_id; }
@@ -70,6 +78,32 @@ class Types {
     U32 id;
   };
 
+  class Resource {
+   public:
+    constexpr Resource(
+        const Tetrodotoxin::Library::Language::Model::Type& type,
+        const Tetrodotoxin::Library::Language::Model::Type& sampled,
+        U32 image_id,
+        U32 sampled_id,
+        U32 pointer_id)
+        : type(type),
+          sampled(sampled),
+          image_id(image_id),
+          sampled_id(sampled_id),
+          pointer_id(pointer_id) {}
+
+    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
+        type;
+    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
+        sampled;
+    U32 image_id;
+    U32 sampled_id;
+    U32 pointer_id;
+  };
+
+  auto find_resource(const Tetrodotoxin::Library::Language::Model::Type& type)
+      const -> Perimortem::Core::Option<const Resource&>;
+
   Ids& ids;
   U32 void_id;
   U32 function_id;
@@ -78,6 +112,7 @@ class Types {
       visiting;
   Perimortem::Memory::Dynamic::Vector<Entry> entries;
   Perimortem::Memory::Dynamic::Vector<Pointer> pointers;
+  Perimortem::Memory::Dynamic::Vector<Resource> resources;
 };
 
 }  // namespace Tetrodotoxin::Terminal::Spirv::Module

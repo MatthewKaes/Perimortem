@@ -141,6 +141,16 @@ class Descriptor {
   auto draw(Perimortem::Core::Object<> object, Count index) const
       -> Perimortem::Core::Option<Draw>;
 
+  // A native provider publishes callbacks independently from the compiled
+  // product selected by an App. Binding copies that behavior with the exact
+  // process lifetime locator so configuration can compose new hosted Types
+  // without teaching the shared runtime their concrete classes.
+  constexpr auto bind(const U8* selected_product) const -> Descriptor {
+    return Descriptor(
+        selected_product, read_placement, read_child_count, read_child,
+        read_draw_count, read_draw);
+  }
+
  private:
   const U8* product;
   ReadPlacement read_placement;

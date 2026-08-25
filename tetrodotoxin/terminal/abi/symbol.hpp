@@ -13,7 +13,7 @@
 namespace Tetrodotoxin::Terminal::Abi {
 
 // Symbol owns one readable native spelling derived from semantic identity.
-// Filesystem locations never enter the path, so moving source keeps linkage
+// Filesystem locations stay outside the path, so moving source keeps linkage
 // stable.
 class Symbol {
  public:
@@ -24,6 +24,8 @@ class Symbol {
     Construction,
     Address,
     ReadOnly,
+    ObjectDescriptor,
+    GraphicsChildren,
   };
 
   Symbol(

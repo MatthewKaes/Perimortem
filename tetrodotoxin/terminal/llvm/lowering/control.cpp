@@ -16,6 +16,8 @@
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
+#include "tetrodotoxin/scene/language/emission.hpp"
+#include "tetrodotoxin/terminal/llvm/lowering/scene.hpp"
 #include "tetrodotoxin/terminal/llvm/lowering/types.hpp"
 
 using namespace Perimortem;
@@ -199,6 +201,10 @@ static auto lower_root(
   auto match = root.select<Flow::Match>();
   if (match) {
     return lower_match(execution, *match);
+  }
+  auto emission = root.select<Tetrodotoxin::Scene::Language::Emission>();
+  if (emission) {
+    return Llvm::Lowering::Scene::lower(execution, *emission);
   }
   auto block = root.select<Flow::Block>();
   return block && execution.lower(*block);

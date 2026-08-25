@@ -54,8 +54,7 @@ auto Elf::Object::add_read_only(
     Core::View::Bytes contents) -> Bool {
   BAIL_IF(
       symbol.is_empty() || end_symbol.is_empty() || has_nul(symbol) ||
-      has_nul(end_symbol) || contents.is_empty() ||
-      contents.get_size() % 4 != 0 ||
+      has_nul(end_symbol) ||
       contents.get_size() > U32(-1) - read_only.get_size() - 3);
   auto retained_symbols = symbols.get_view();
   for (Count index = 0; index < retained_symbols.get_size(); index++) {

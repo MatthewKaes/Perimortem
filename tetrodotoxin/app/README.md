@@ -136,7 +136,7 @@ profile.
 ## Persistence
 
 App supports both Package Archive profiles. Complete stores the public and
-private startup and lifecycle policy. Interface stores its public policy and
+private startup and lifecycle policy. Contract stores its public policy and
 compiled program location. App execution remains in compiled artifacts rather
 than either semantic payload.
 

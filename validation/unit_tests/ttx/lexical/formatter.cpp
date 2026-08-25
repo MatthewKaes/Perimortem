@@ -293,12 +293,51 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, canonical_pack_width) {
       "// Source.\n"
       "dialect : Library;\n"
       "\n"
-      "private const compact  := (.right = 2, .left = 1);\n"
+      "private const compact  := (\n"
+      "  .right = 2,\n"
+      "  .left = 1,\n"
+      ");\n"
       "private const expanded := (\n"
       "  .first = 11111111111111111111,\n"
       "  .second = 22222222222222222222,\n"
       "  .third = 33333333333333333333,\n"
       ");\n"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TtxFormatter, trailing_comma_braced_list) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(
+      arena,
+      "// Source.\n"
+      "dialect:App;runtime=Windowed{.title=\"Example\",.width=800,"
+      ".height=600,.resizable=true,} lifecycle{initial Main;}"_view,
+      "Test.ttx"_view);
+
+  Dynamic::Bytes formatted = Formatter(tokenizer).format();
+  EXPECT(
+      Algorithm::search(
+          formatted.get_view(),
+          "runtime = Windowed {\n"
+          "  .title = \"Example\",\n"
+          "  .width = 800,\n"
+          "  .height = 600,\n"
+          "  .resizable = true,\n"
+          "}"_view) != Count(-1));
+}
+
+PERIMORTEM_UNIT_TEST(TtxFormatter, parenthesized_expression_is_not_a_pack) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(
+      arena,
+      "// Source.\n"
+      "dialect:Library;public check:func=[.first:S64,.second:S64,.third:S64,"
+      ".fourth:S64]->Bool:return first<second and (second<third or third<fourth);"_view,
+      "Test.ttx"_view);
+
+  Dynamic::Bytes formatted = Formatter(tokenizer).format();
+  EXPECT(
+      Algorithm::search(formatted.get_view(), "third < fourth,"_view) ==
+      Count(-1));
 }
 
 PERIMORTEM_UNIT_TEST(TtxFormatter, long_signature_keeps_empty_result) {

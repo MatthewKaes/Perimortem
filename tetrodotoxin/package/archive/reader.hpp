@@ -11,9 +11,10 @@
 
 namespace Tetrodotoxin::Package::Archive {
 
-// Validates and materializes one Package Archive Format 2 envelope. Reader owns
-// byte framing, semantic relationships, retained record storage, and low level
-// validation logs. Archive receives only the completed stable views.
+// Validates and materializes one Package Archive envelope. Format 2 preserves
+// the resource free contract, while Format 3 restores Package Resources before
+// member Dialects consume their routes. Reader owns framing, relationships,
+// retained record storage, and low level validation logs.
 class Reader {
  public:
   Reader() = delete;
@@ -23,8 +24,9 @@ class Reader {
     UnsupportedFormat,
   };
 
-  // Reads one complete Format 2 envelope. Result exposes exactly Archive or
-  // Error. Rejection logs the exact validation stage and retains nothing.
+  // Reads one complete Format 2 or Format 3 envelope. Result exposes exactly
+  // Archive or Error. Rejection logs the exact validation stage and retains
+  // nothing.
   // The caller that knows why this Archive was requested decides whether
   // failure becomes a textual source diagnostic. Success borrows the input and
   // retains its record ranges in the caller Arena. The caller keeps the input

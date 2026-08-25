@@ -52,13 +52,27 @@ static auto create_config(Memory::Allocator::Arena& arena)
       "artifact"_view, "Select the native artifact identity."_view);
   variables.insert(
       "spirv-target"_view, "Select the SPIR V validation environment."_view);
+  variables.insert(
+      "graphics-host"_view, "Select one graphics Host requirement route."_view);
+  variables.insert(
+      "graphics-type"_view, "Select one hosted graphics Type route."_view);
+  variables.insert(
+      "graphics-descriptor"_view,
+      "Select one native graphics Descriptor provider."_view);
+  variables.insert(
+      "graphics-shader"_view, "Select one graphics Shader Program route."_view);
   variables.insert("app-member"_view, "Select the Package App member."_view);
   variables.insert(
       "version"_view, "Set the Package `<major>.<minor>` version."_view);
   variables.insert("debug"_view, "Select none, line, or full debug data."_view);
   variables.insert("name"_view, "Set the source semantic name."_view);
+  variables.insert(
+      "source"_view, "Write the generated native entry source."_view);
   variables.insert("ir"_view, "Write the emitted LLVM IR."_view);
   variables.insert("object"_view, "Write the emitted ELF object."_view);
+  variables.insert(
+      "resources-object"_view,
+      "Write the Package owned immutable Resource object."_view);
   variables.insert("header"_view, "Write the generated C header."_view);
   variables.insert(
       "cpp-header"_view, "Write the generated C++ Package header."_view);

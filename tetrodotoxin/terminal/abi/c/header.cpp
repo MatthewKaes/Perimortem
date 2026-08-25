@@ -685,6 +685,24 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
   HeaderTypeSet collected(arena);
   HeaderNames names(arena);
 
+  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
+       monograph.get_source().get_types(
+           Tetrodotoxin::Language::Visibility::Public)) {
+    auto type = declaration.get().select<Ttx::Model::Type>();
+    auto kind =
+        type ? types.get_kind(*type)
+             : Core::Option<
+                   Tetrodotoxin::Terminal::Abi::Representation::Type::Kind>();
+    if (type && kind &&
+        *kind !=
+            Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Context &&
+        !collect_type(
+            arena, ordered, collected, names, types, unit, *type,
+            HeaderOrigin(unit.get_package(), unit.get_member()))) {
+      return {};
+    }
+  }
+
   for (const Tetrodotoxin::Terminal::Abi::Export& exported : exports) {
     if (!collect_callable(
             arena, ordered, collected, names, types, unit,

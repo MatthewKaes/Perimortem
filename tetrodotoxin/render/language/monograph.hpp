@@ -3,11 +3,8 @@
 
 #pragma once
 
-#include "perimortem/memory/managed/vector.hpp"
-
 #include "tetrodotoxin/language/monograph.hpp"
-#include "tetrodotoxin/language/visibility.hpp"
-#include "ttx/concept/reference.hpp"
+#include "tetrodotoxin/render/language/declarations.hpp"
 
 namespace Tetrodotoxin::Render::Language {
 
@@ -60,11 +57,13 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
 
-  constexpr auto get_addressables() const { return addressables.get_view(); }
+  constexpr auto get_addressables() const {
+    return declarations.get_addressables();
+  }
 
-  constexpr auto get_callables() const { return callables.get_view(); }
+  constexpr auto get_callables() const { return declarations.get_callables(); }
 
-  constexpr auto get_types() const { return types.get_view(); }
+  constexpr auto get_types() const { return declarations.get_types(); }
 
   constexpr auto is_finalized() const -> Bool { return finalized; }
 
@@ -81,32 +80,9 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
             language,
             documentation,
             context),
-        addressables(arena),
-        published_addressables(arena),
-        callables(arena),
-        published_callables(arena),
-        types(arena),
-        published_types(arena) {}
+        declarations(arena) {}
 
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      addressables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      published_addressables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      callables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      published_callables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      types;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      published_types;
-  Bool linked = False;
+  Declarations declarations;
   Bool finalized = False;
 };
 

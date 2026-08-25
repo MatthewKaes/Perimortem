@@ -22,6 +22,13 @@ Graphics::SpriteDescriptor::SpriteDescriptor(
           read_draw_count,
           read_draw) {}
 
+auto Graphics::SpriteDescriptor::get_runtime_descriptor() -> const Descriptor& {
+  static const SpriteDescriptor descriptor{
+    Perimortem::Graphics::Frame::Program(),
+  };
+  return descriptor.get_descriptor();
+}
+
 auto Graphics::SpriteDescriptor::read_placement(const U8*, Object<> object)
     -> Descriptor::Placement {
   auto sprite = Perimortem::Graphics::Sprite::retain(object);
@@ -62,4 +69,9 @@ auto Graphics::SpriteDescriptor::read_draw(
       static_cast<Perimortem::Memory::Dynamic::Vector<
           Perimortem::Graphics::Frame::Resource>&&>(resources),
       View::Bytes(Data::cast<const U8>(&frame), sizeof(frame)), 6, 0);
+}
+
+extern "C" auto tetrodotoxin_graphics_sprite_descriptor()
+    -> const Graphics::Descriptor* {
+  return &Graphics::SpriteDescriptor::get_runtime_descriptor();
 }

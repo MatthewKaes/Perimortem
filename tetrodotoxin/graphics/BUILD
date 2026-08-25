@@ -20,11 +20,13 @@ cc_library(
 cc_library(
     name = "runtime",
     srcs = [
+        "compiled_descriptor.cpp",
         "descriptor.cpp",
         "sprite_descriptor.cpp",
         "submission.cpp",
     ],
     hdrs = [
+        "compiled_descriptor.hpp",
         "descriptor.hpp",
         "sprite_descriptor.hpp",
         "submission.hpp",

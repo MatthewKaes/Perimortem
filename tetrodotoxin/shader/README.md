@@ -40,7 +40,7 @@ Shader follows the same division as the other Tetrodotoxin languages. Its
 Interpreter understands Shader syntax and directs each declaration to its real
 owner. A real Library child keeps the Types, Functions, expressions, Blocks, and
 Flow authored by each Stage. The outer Shader graph keeps Programs, Render
-contract selection, storage roles, and CPU to GPU Bridges. Archive support later
+contract selection, storage roles, and CPU to GPU Bridges. Archive support
 reconstructs that observable graph without becoming another Shader model.
 
 This is what lets GPU lowering begin from completed meaning. The SPIR-V
@@ -145,11 +145,11 @@ allowed by the selected Render contract.
 ## SPIR-V and Vulkan
 
 The SPIR-V Terminal chooses the GPU representation, storage classes, bindings,
-and instructions. It can emit validated SPIR-V from a completed Shader without
-reading the source again. The generated SPIR-V is an output of compilation, not
-an input to the language model. During Package production Linker embeds each
-completed module as named read only native data, so an application does not
-need a loose shader file beside its executable.
+and instructions while the completed live Shader still retains executable
+bodies. The generated SPIR-V is an output of compilation, not an input to the
+language model. During Package production Linker embeds each completed module
+as named read only native data, so source free application composition can use
+that product without a loose shader file beside its executable.
 
 Shader keeps graphics API independent marshaling and synchronization
 requirements. Vulkan later consumes the generated SPIR-V, Graphics batches,

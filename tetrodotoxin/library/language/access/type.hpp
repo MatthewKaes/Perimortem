@@ -17,8 +17,9 @@ namespace Tetrodotoxin::Library::Language::Access {
 // Type is one postfix `:: Name` Expression. It retains the receiver and exact
 // authored Token without binding during parsing. Linking evaluates the
 // receiver result and selects the next context through that owner. Intermediate
-// Package, Monograph, and namespace contexts remain available to another `::`,
-// while a terminal Type can enter Static invocation or declaration flow.
+// Package, Monograph, and namespace contexts remain available to another `::`.
+// A terminal Type can enter Static invocation or declaration flow, while a
+// context owned value such as an Enumeration case enters ordinary value flow.
 class Type : public Expression {
  public:
   TTX_CONTRACT(Type, Expression);

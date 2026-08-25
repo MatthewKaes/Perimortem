@@ -37,6 +37,7 @@ enum class Tag : U16 {
   Layout = 26,
   FieldSlot = 27,
   ConstantObject = 28,
+  ConstantResourceBytes = 29,
 };
 
 }  // namespace Tetrodotoxin::Library::Archive

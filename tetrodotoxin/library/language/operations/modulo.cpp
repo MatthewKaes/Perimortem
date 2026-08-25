@@ -9,6 +9,7 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
+#include "tetrodotoxin/library/language/model/types/value.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem;
@@ -41,8 +42,10 @@ static auto select_result_type(
     const Language::Expression& right) -> const Abstract& {
   const Abstract& left_resolved = left.get_type().resolve();
   const Abstract& right_resolved = right.get_type().resolve();
-  if (!left_resolved.is<Language::Model::Type>() ||
-      &left_resolved != &right_resolved || !is_integer_type(left_resolved)) {
+  auto left_value = left_resolved.select<Language::Model::Types::Value>();
+  auto right_value = right_resolved.select<Language::Model::Types::Value>();
+  if (!left_value || !right_value || !left_value->is_equivalent(*right_value) ||
+      !is_integer_type(left_resolved)) {
     return Invalid::get_invalid();
   }
 
@@ -50,7 +53,6 @@ static auto select_result_type(
   // performs any conversion before construction so every input follows it.
   return left_resolved;
 }
-
 
 TTX_BINARY_OP(Modulo);
 

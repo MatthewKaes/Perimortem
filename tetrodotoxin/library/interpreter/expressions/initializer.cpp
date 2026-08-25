@@ -11,8 +11,8 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library;
 
-auto Interpreter::Expressions::Initializer::is_next(
-    const Cursor& cursor) -> Bool {
+auto Interpreter::Expressions::Initializer::is_next(const Cursor& cursor)
+    -> Bool {
   return cursor.matches(Code::Type::New);
 }
 
@@ -41,16 +41,8 @@ auto Interpreter::Expressions::Initializer::parse(
     if (argument_closing.get_code().get_type() == Code::Type::PackingEnd) {
       cursor.create_expression_error(
           Span(argument_opening, argument_closing),
-          "Object initializer arguments cannot be empty."_view,
-          "Omit the argument list when every state Field should use its "
-          "default."_view);
-      return {};
-    }
-    if (argument_closing.get_code().get_type() != Code::Type::AddressOp) {
-      cursor.create_token_error(
-          argument_closing,
-          "Object initializer inputs must name state Fields."_view,
-          "Use `.field = value` for every supplied value."_view);
+          "Initializer arguments cannot be empty."_view,
+          "Omit the argument list to request the Type default."_view);
       return {};
     }
     auto parsed = Interpreter::Pack::parse(context, cursor, True);

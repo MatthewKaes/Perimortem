@@ -24,8 +24,17 @@ namespace Tetrodotoxin::Terminal::Spirv::Module {
 // only the physical data flow needed by the emitted function.
 class Body {
  public:
-  Body(Ids& ids, Types& types, Constants& constants, const Request& request)
-      : ids(ids), types(types), constants(constants), request(request) {}
+  Body(
+      Ids& ids,
+      Types& types,
+      Constants& constants,
+      const Interface& interface,
+      const Request& request)
+      : ids(ids),
+        types(types),
+        constants(constants),
+        interface(interface),
+        request(request) {}
 
   auto prepare(const Interface::Stage& stage) -> Bool;
   auto emit(const Interface::Stage& stage, Assembler::SpirV& assembler) -> Bool;
@@ -75,6 +84,7 @@ class Body {
   Ids& ids;
   Types& types;
   Constants& constants;
+  const Interface& interface;
   const Request& request;
   Perimortem::Memory::Dynamic::Vector<Value> values;
 };

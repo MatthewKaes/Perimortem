@@ -24,8 +24,36 @@ static constexpr U64 format_limit = U32(-1);
 static constexpr U32 section_header_size = 8;
 static constexpr U16 required_field = 1;
 static constexpr U16 interface_profile = 1;
-static constexpr U64 section_count =
+static constexpr U64 format_two_section_count =
     U8(Package::Archive::Archive::Sections::ArtifactMetadata);
+
+static auto resolve_member(
+    const Ttx::Concept::Abstract& root,
+    View::Bytes route) -> const Ttx::Concept::Abstract& {
+  const Ttx::Concept::Abstract* selected = &root;
+  Count start = 0;
+  for (Count index = 0; index <= route.get_size(); index++) {
+    Bool terminal = index == route.get_size();
+    Bool separator = !terminal && index + 1 < route.get_size() &&
+                     route[index] == ':' && route[index + 1] == ':';
+    if (!terminal && !separator) {
+      continue;
+    }
+    View::Bytes segment = route.slice(start, index - start);
+    if (segment.is_empty()) {
+      return Ttx::Concept::Invalid::get_invalid();
+    }
+    selected = &selected->resolve_context(segment).resolve();
+    if (selected->is<Ttx::Concept::Invalid>()) {
+      return *selected;
+    }
+    if (separator) {
+      index++;
+      start = index + 1;
+    }
+  }
+  return *selected;
+}
 
 // Holds the proven payload size for each canonical section and the complete
 // envelope. These measurements belong to one write transaction and never
@@ -37,6 +65,7 @@ struct FormatSizes {
   U32 artifact_ids = 0;
   U32 exports = 0;
   U32 artifact_metadata = 0;
+  U32 resources = 0;
   U32 body = 0;
   Count total = 0;
 };
@@ -84,6 +113,12 @@ static auto measure_export_record(const Package::Archive::Export& entry)
          measure_sized_bytes(entry.get_symbol_locator());
 }
 
+static auto measure_resource_record(const Package::Archive::Resource& resource)
+    -> U64 {
+  return measure_sized_bytes(resource.get_route()) +
+         measure_sized_bytes(resource.get_value());
+}
+
 // Measures all seven section payloads and the complete body with unsigned 64
 // bit locals. Every nested value contributes a positive part of the body.
 // Proving the body fits therefore proves every unsigned 32 bit section and
@@ -94,10 +129,12 @@ static auto calculate_sizes(const Package::Archive::Archive& archive)
   auto member_values = archive.get_members();
   auto artifacts_values = archive.get_artifacts();
   auto export_values = archive.get_exports();
+  auto resource_values = archive.get_resources();
   if (dependency_values.get_size() > format_limit ||
       member_values.get_size() > format_limit ||
       artifacts_values.get_size() > format_limit ||
-      export_values.get_size() > format_limit) {
+      export_values.get_size() > format_limit ||
+      resource_values.get_size() > format_limit) {
     return {};
   }
 
@@ -128,8 +165,16 @@ static auto calculate_sizes(const Package::Archive::Archive& archive)
     exports += 4 + measure_export_record(export_values.get_data()[i]);
   }
 
+  U64 resources = 4;
+  for (const Package::Archive::Resource& resource : resource_values) {
+    resources += 4 + measure_resource_record(resource);
+  }
+
+  U64 section_count =
+      format_two_section_count + (resource_values.is_empty() ? 0 : 1);
   U64 body = section_header_size * section_count + identity + 4 + dependencies +
-             members + artifact_ids + exports + artifact_metadata;
+             members + artifact_ids + exports + artifact_metadata +
+             (resource_values.is_empty() ? 0 : resources);
   if (body > format_limit) {
     return {};
   }
@@ -141,14 +186,15 @@ static auto calculate_sizes(const Package::Archive::Archive& archive)
     .artifact_ids = U32(artifact_ids),
     .exports = U32(exports),
     .artifact_metadata = U32(artifact_metadata),
+    .resources = U32(resources),
     .body = U32(body),
     .total = Count(body) + Package::Archive::Archive::header_size,
   };
 }
 
 // Writes one required section header from the Archive vocabulary. Reader may
-// accept bounded optional extensions, but canonical output contains only these
-// seven known sections.
+// accept bounded optional extensions, while canonical output contains only the
+// sections selected by the current revision.
 static auto write_section_header(
     LittleWriter& writer,
     Package::Archive::Archive::Sections section,
@@ -167,12 +213,12 @@ static auto write_sized_bytes(LittleWriter& writer, View::Bytes value) -> void {
 
 auto Package::Archive::Writer::write(const Archive& archive)
     -> Option<Dynamic::Bytes> {
-  // Prove the complete envelope fits Format 2 before allocating or emitting
+  // Prove the complete envelope fits its bounded format before allocating
   // any output.
   auto measured = calculate_sizes(archive);
   if (!measured) {
     Diagnostics::Log::warning(
-        "Package::Archive::Writer exceeded the Format 2 body limit."_view);
+        "Package::Archive::Writer exceeded the body limit."_view);
     return {};
   }
 
@@ -184,9 +230,11 @@ auto Package::Archive::Writer::write(const Archive& archive)
   output.forgetful_resize(sizes.total);
   LittleWriter writer(output.get_access());
 
-  // Establish the fixed Format 2 header before emitting any section payload.
+  // Resource free values preserve Format 2 exactly. Format 3 adds one final
+  // required Package Resource section while leaving the first seven section
+  // identities unchanged.
   writer << "TTXA"_view;
-  writer << U16(2);
+  writer << U16(archive.get_resources().is_empty() ? 2 : 3);
   writer << U16(
       archive.get_profile() ==
               Tetrodotoxin::Language::Persistence::Profile::Contract
@@ -279,12 +327,22 @@ auto Package::Archive::Writer::write(const Archive& archive)
     }
   }
 
+  auto resources = archive.get_resources();
+  if (!resources.is_empty()) {
+    write_section_header(writer, Archive::Sections::Resources, sizes.resources);
+    writer << U32(resources.get_size());
+    for (const Package::Archive::Resource& resource : resources) {
+      writer << U32(measure_resource_record(resource));
+      write_sized_bytes(writer, resource.get_route());
+      write_sized_bytes(writer, resource.get_value());
+    }
+  }
+
   // Require emission to finish at the measured boundary. A mismatch means the
   // measurement and canonical encoding no longer describe the same format.
   if (!writer.is_valid() || writer.get_location() != output.get_size()) {
     Diagnostics::Log::error(
-        "Package::Archive::Writer did not emit the measured Format 2 "
-        "size."_view);
+        "Package::Archive::Writer did not emit the measured size."_view);
     return {};
   }
 
@@ -306,7 +364,7 @@ auto Package::Archive::Writer::write(
   Managed::Vector<Member> members(arena);
   for (const Package::Language::Source& source : package.get_sources()) {
     const Ttx::Concept::Abstract& selected =
-        package.resolve_context(source.get_local_name()).resolve();
+        resolve_member(package, source.get_local_name());
     auto member = selected.select<Tetrodotoxin::Language::Monograph>();
     auto dialect =
         member
@@ -315,15 +373,30 @@ auto Package::Archive::Writer::write(
     BAIL_IF(!member || !dialect);
 
     auto payload = dialect->encode(*member, profile);
-    BAIL_IF(!payload);
+    if (!payload) {
+      Diagnostics::Log::Message<256> message(
+          Diagnostics::Log::Level::Error, Diagnostics::Source());
+      message << "Package Archive could not encode `"_view
+              << source.get_local_name() << "` with the "_view
+              << dialect->get_name() << " Dialect."_view;
+      return {};
+    }
     payloads.emplace(static_cast<Dynamic::Bytes&&>(*payload));
     members.insert(Member(
         source.get_local_name(), dialect->get_name(),
         payloads[payloads.get_size() - 1].get_view()));
   }
 
+  Managed::Vector<Package::Archive::Resource> resources(arena);
+  for (const Ttx::Concept::Reference<Package::Resource>& retained :
+       package.get_resources().get_values()) {
+    const Package::Resource& resource = retained.get();
+    resources.insert(
+        Package::Archive::Resource(resource.get_route(), resource.get_value()));
+  }
+
   Archive archive(
       identity, version, package.get_dependencies(), members.get_view(),
-      artifacts, exports, profile);
+      artifacts, exports, profile, resources.get_view());
   return write(archive);
 }

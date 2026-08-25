@@ -76,6 +76,9 @@ TtxPackageInfo = provider(
         "abi_manifest": "Native ABI Manifest for the selected artifact.",
         "transitive_abi_manifests": "Dependency-first native ABI Manifest depset.",
         "artifact_id": "Exact native artifact identifier.",
+        "graphics_host": "Configured graphics Host requirement route.",
+        "graphics_bindings": "Hosted Type routes paired with native Descriptor providers.",
+        "graphics_shader": "Configured Shader Program route.",
         "cpp_compilation_context": "Generated C++ facade headers when requested.",
         "cpp_objects": "Generated C++ facade implementation objects.",
         "cpp_pic_objects": "Generated position independent C++ facade objects.",
@@ -151,6 +154,10 @@ def _ttx_package_impl(ctx):
         fail("ttx_package version 0.0 is reserved for an unset version")
     if not ctx.files.sources:
         fail("ttx_package requires at least one candidate source")
+    for graphics_binding in ctx.attr.graphics_bindings:
+        parts = graphics_binding.split("|")
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            fail("graphics_bindings entries must be <Type route>|<provider symbol>")
 
     artifact_id = "x86_64-sysv-linux"
     artifact_root = "%s/%d.%d/" % (
@@ -192,6 +199,10 @@ def _ttx_package_impl(ctx):
         arguments.add("-cpp-include=%s" % ctx.attr.cpp_header)
         arguments.add("-c-include=%sc_abi.h" % artifact_root)
     arguments.add(abi_manifest, format = "-abi-manifest=%s")
+    if ctx.attr.graphics_host:
+        arguments.add("-graphics-host=%s" % ctx.attr.graphics_host)
+    for graphics_binding in ctx.attr.graphics_bindings:
+        arguments.add("-graphics-type=%s" % graphics_binding.split("|")[0])
 
     dependency_contracts = depset(
         direct = [
@@ -248,9 +259,17 @@ def _ttx_package_impl(ctx):
         object_files.append(object_file)
         outputs.append(object_file)
 
+    if ctx.files.resources:
+        resource_object = ctx.actions.declare_file(
+            artifact_root + "resources.o",
+        )
+        arguments.add(resource_object, format = "-resources-object=%s")
+        object_files.append(resource_object)
+        outputs.append(resource_object)
+
     ctx.actions.run(
         inputs = depset(
-            direct = [ctx.file.manifest] + ctx.files.sources,
+            direct = [ctx.file.manifest] + ctx.files.sources + ctx.files.resources,
             transitive = [dependency_contracts, dependency_abi_manifests],
         ),
         outputs = outputs,
@@ -349,6 +368,9 @@ def _ttx_package_impl(ctx):
             abi_manifest = abi_manifest,
             transitive_abi_manifests = package_abi_manifests,
             artifact_id = artifact_id,
+            graphics_host = ctx.attr.graphics_host,
+            graphics_bindings = ctx.attr.graphics_bindings,
+            graphics_shader = ctx.attr.graphics_shader,
             cpp_compilation_context = api_compilation_context,
             cpp_objects = api_compilation_outputs.objects if api_compilation_outputs else [],
             cpp_pic_objects = api_compilation_outputs.pic_objects if api_compilation_outputs else [],
@@ -369,6 +391,10 @@ _ttx_package = rule(
             mandatory = True,
             allow_files = [".ttx"],
             doc = "Candidate source files rooted beside the Package manifest.",
+        ),
+        resources = attr.label_list(
+            allow_files = True,
+            doc = "Candidate resource files available beneath the Package root.",
         ),
         deps = attr.label_list(
             providers = [TtxPackageInfo],
@@ -401,6 +427,15 @@ _ttx_package = rule(
             default = "vulkan1.0",
             values = ["vulkan1.0"],
             doc = "SPIR V validation environment for Shader member products.",
+        ),
+        graphics_host = attr.string(
+            doc = "Package contextual route for the selected graphics Host requirement.",
+        ),
+        graphics_bindings = attr.string_list(
+            doc = "Hosted Type routes paired with native Descriptor provider symbols.",
+        ),
+        graphics_shader = attr.string(
+            doc = "Package contextual route for the Shader Program used by hosted draws.",
         ),
         cpp_header = attr.string(
             doc = "Repository relative include path for the generated C++ API.",
@@ -502,6 +537,11 @@ def ttx_package(name, manifest, version, **kwargs):
         [prefix + "**/*.ttx"],
         exclude = [manifest],
     )
+    resources = native.glob(
+        [prefix + "**/*"],
+        allow_empty = True,
+        exclude = [manifest, prefix + "**/*.ttx"],
+    )
     if "debug" not in kwargs:
         kwargs["debug"] = select({
             "//toolchain:debug_mode": "full",
@@ -510,6 +550,7 @@ def ttx_package(name, manifest, version, **kwargs):
     _ttx_package(
         name = name,
         manifest = manifest,
+        resources = resources,
         sources = sources,
         version = version,
         **kwargs
@@ -529,16 +570,22 @@ def _ttx_application_entry_impl(ctx):
         fail("ttx_application requires the x86_64-sysv-linux artifact")
 
     artifact_root = ctx.label.name + "/"
-    llvm_ir = ctx.actions.declare_file(artifact_root + "entry.ll")
-    object_file = ctx.actions.declare_file(artifact_root + "entry.o")
+    source_file = ctx.actions.declare_file(artifact_root + "entry.cpp")
     arguments = ctx.actions.args()
     arguments.add("-application")
     arguments.add(package.complete_archive, format = "-complete=%s")
     arguments.add(package.abi_manifest, format = "-abi-manifest=%s")
     arguments.add("-app-member=%s" % ctx.attr.app_member)
     arguments.add("-artifact=%s" % package.artifact_id)
-    arguments.add(llvm_ir, format = "-ir=%s")
-    arguments.add(object_file, format = "-object=%s")
+    arguments.add(source_file, format = "-source=%s")
+    if package.graphics_host:
+        arguments.add("-graphics-host=%s" % package.graphics_host)
+    for graphics_binding in package.graphics_bindings:
+        parts = graphics_binding.split("|")
+        arguments.add("-graphics-type=%s" % parts[0])
+        arguments.add("-graphics-descriptor=%s" % parts[1])
+    if package.graphics_shader:
+        arguments.add("-graphics-shader=%s" % package.graphics_shader)
     dependency_contracts = [
         contract
         for contract in package.transitive_contracts.to_list()
@@ -560,7 +607,7 @@ def _ttx_application_entry_impl(ctx):
             [package.complete_archive, package.abi_manifest] +
             dependency_contracts + dependency_abi_manifests,
         ),
-        outputs = [llvm_ir, object_file],
+        outputs = [source_file],
         executable = ctx.executable._compiler,
         arguments = [arguments],
         mnemonic = "TtxApplicationEntry",
@@ -574,9 +621,15 @@ def _ttx_application_entry_impl(ctx):
         requested_features = ctx.features,
         unsupported_features = ctx.disabled_features,
     )
-    compilation_outputs = cc_common.create_compilation_outputs(
-        objects = depset([object_file]),
-        pic_objects = depset([object_file]),
+    _, compilation_outputs = cc_common.compile(
+        actions = ctx.actions,
+        name = ctx.label.name + "_native",
+        cc_toolchain = cc_toolchain,
+        feature_configuration = feature_configuration,
+        srcs = [source_file],
+        compilation_contexts = [
+            ctx.attr._runtime[CcInfo].compilation_context,
+        ],
     )
     linking_context, _ = cc_common.create_linking_context_from_compilation_outputs(
         actions = ctx.actions,
@@ -591,9 +644,12 @@ def _ttx_application_entry_impl(ctx):
     return [
         cc_common.merge_cc_infos(
             direct_cc_infos = [entry_cc_info],
-            cc_infos = [ctx.attr.package[CcInfo]],
+            cc_infos = [
+                ctx.attr.package[CcInfo],
+                ctx.attr._runtime[CcInfo],
+            ],
         ),
-        DefaultInfo(files = depset([llvm_ir, object_file])),
+        DefaultInfo(files = depset([source_file] + compilation_outputs.objects)),
     ]
 
 _ttx_application_entry = rule(
@@ -614,6 +670,11 @@ _ttx_application_entry = rule(
             executable = True,
             cfg = "exec",
             doc = "The Tetrodotoxin compiler binary.",
+        ),
+        _runtime = attr.label(
+            default = "//tetrodotoxin/runtime:application",
+            providers = [CcInfo],
+            doc = "The runtime realization selected by the App product.",
         ),
     ),
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
