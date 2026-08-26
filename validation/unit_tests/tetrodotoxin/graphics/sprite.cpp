@@ -29,29 +29,76 @@ alignas(U32) static constexpr U32 sprite_program[] = {0x07230203};
 
 struct SpriteParameters {
   R32 tone[4];
+  Object<> noise;
 };
 
-static auto finalize_parameters(U8*) -> void {}
+static auto finalize_parameters(U8* payload) -> void {
+  Data::cast<SpriteParameters>(payload)->noise.release();
+}
 
 static const Object<>::Descriptor parameter_descriptor(
     sizeof(SpriteParameters),
     alignof(SpriteParameters),
     finalize_parameters);
 
+static constexpr Perimortem::Graphics::Projection::Resource sprite_resources[] =
+    {
+      {
+        Perimortem::Graphics::Projection::ResourceSource::HostTexture,
+        0,
+      },
+};
+
+static constexpr Perimortem::Graphics::Projection::Resource
+    blended_resources[] = {
+      {
+        Perimortem::Graphics::Projection::ResourceSource::InstanceTexture,
+        __builtin_offsetof(SpriteParameters, noise),
+      },
+      {
+        Perimortem::Graphics::Projection::ResourceSource::HostTexture,
+        0,
+      },
+};
+
 static const Perimortem::Graphics::Projection sprite_projection = {
+  Data::cast<const U8>(sprite_program), 0, sizeof(R32) * 4, sprite_resources, 1,
+};
+
+static const Perimortem::Graphics::Projection blended_projection = {
   Data::cast<const U8>(sprite_program),
   0,
-  sizeof(SpriteParameters),
+  sizeof(R32) * 4,
+  blended_resources,
+  2,
 };
 
 static auto create_shader() -> Implementation {
   Object<> instance = Object<>::create(parameter_descriptor);
+  new (instance.get_payload(), Placement::Construct) SpriteParameters();
   auto* parameters = Data::cast<SpriteParameters>(instance.get_payload());
   parameters->tone[0] = 0.25f;
   parameters->tone[1] = 0.5f;
   parameters->tone[2] = 0.75f;
   parameters->tone[3] = 1.0f;
   auto implementation = Implementation::retain(instance, &sprite_projection);
+  instance.release();
+  return implementation ? static_cast<Implementation&&>(*implementation)
+                        : Implementation();
+}
+
+static auto create_blended_shader(const Perimortem::Graphics::Texture2D& noise)
+    -> Implementation {
+  Object<> instance = Object<>::create(parameter_descriptor);
+  new (instance.get_payload(), Placement::Construct) SpriteParameters();
+  auto* parameters = Data::cast<SpriteParameters>(instance.get_payload());
+  parameters->tone[0] = 1.0f;
+  parameters->tone[1] = 1.0f;
+  parameters->tone[2] = 1.0f;
+  parameters->tone[3] = 1.0f;
+  parameters->noise = noise.get_object();
+  parameters->noise.retain();
+  auto implementation = Implementation::retain(instance, &blended_projection);
   instance.release();
   return implementation ? static_cast<Implementation&&>(*implementation)
                         : Implementation();
@@ -112,4 +159,25 @@ PERIMORTEM_UNIT_TEST(GraphicsSprite, projects_live_shader_parameters) {
       Data::cast<const SpriteParameters>(second->get_inputs().get_data());
   EXPECT_EQ(first_parameters->tone[1], R32(0.5));
   EXPECT_EQ(second_parameters->tone[1], R32(0.125));
+}
+
+PERIMORTEM_UNIT_TEST(GraphicsSprite, projects_generated_material_resources) {
+  Perimortem::Graphics::Sprite sprite = configured_sprite();
+  Dynamic::Vector<Perimortem::Graphics::Pixel> pixels;
+  pixels.emplace(
+      Perimortem::Graphics::Pixel::from_rgba(0x40, 0x80, 0xC0, 0xFF));
+  Perimortem::Graphics::Image image(Data::take(pixels), 1, 1);
+  Perimortem::Graphics::Texture2D noise(image);
+  sprite.set_shader(create_blended_shader(noise));
+
+  const Drawable2D& drawable = SpriteDrawable2D::get_runtime();
+  auto draw = drawable.draw(sprite.get_object(), 0);
+  ASSERT(draw);
+  ASSERT_EQ(draw->get_resources().get_size(), Count(2));
+  EXPECT_EQ(
+      draw->get_resources()[0].get_object().get_payload(),
+      noise.get_object().get_payload());
+  EXPECT_EQ(
+      draw->get_resources()[1].get_object().get_payload(),
+      sprite.get_texture().get_object().get_payload());
 }

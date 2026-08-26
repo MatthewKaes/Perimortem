@@ -40,6 +40,8 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, workspace_contract_and_stage) {
       "// GPU implementation.\n"
       "dialect : Shader;\n"
       "public Test : shader Formats::Simple {\n"
+      "  @set(1) @slot(0) @read\n"
+      "  public noise : resource Cpu::S64 -> Cpu::U64;\n"
       "  public gain : uniform Cpu::R64 = 0.0;\n"
       "  public fragment : func {\n"
       "    state copied : Cpu::R64 = color + color + parameters.gain;\n"
@@ -93,7 +95,26 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, workspace_contract_and_stage) {
                  Library::Language::Model::Type::Access::Static)
              .resolve()
              .is<Library::Language::Field>());
-  EXPECT_EQ(program.get_bindings().get_size(), Count(2));
+  EXPECT_EQ(program.get_bindings().get_size(), Count(3));
+  auto gpu_noise = program
+                       .resolve_type_access(
+                           program, "noise"_view,
+                           Library::Language::Model::Type::Access::Static)
+                       .resolve()
+                       .select<Library::Language::Field>();
+  auto runtime_noise = program.get_instance()
+                           .resolve_type_access(
+                               program, "noise"_view,
+                               Library::Language::Model::Type::Access::Self)
+                           .resolve()
+                           .select<Library::Language::Field>();
+  ASSERT(gpu_noise && runtime_noise);
+  EXPECT_TEXT(gpu_noise->get_type().get_name(), "U64"_view);
+  EXPECT_TEXT(runtime_noise->get_type().get_name(), "S64"_view);
+  auto bindings = program.get_bindings();
+  auto runtime_binding = bindings.get_data()[0].get_instance_field();
+  ASSERT(runtime_binding);
+  EXPECT(&*runtime_binding == &*runtime_noise);
   ASSERT_EQ(program.get_uniforms().get_size(), Count(1));
   EXPECT_EQ(program.get_parameters().get_layout().get_size(), Count(1));
   EXPECT(program.satisfies(*program.get_contract()));

@@ -7,7 +7,7 @@ the behavior hosted by Apps, Scenes, or Shaders come together.
 You can write scalar expressions, Functions, Structs, shared Objects,
 Enumerations, and Generic containers without leaving the semantic world used by
 the rest of the platform. A Package refers to the real Library Type, the editor
-navigates to it, and an LLVM or SPIR V Terminal can consume it from the context
+navigates to it, and an LLVM or Vulkan Terminal can consume it from the context
 that owns its execution. There is no translated Library shaped IR between those
 experiences.
 
@@ -1303,8 +1303,9 @@ become another semantic model and never flow back into Library.
 
 The LLVM Terminal currently produces CPU objects and reviewable LLVM IR from a
 top level Library or a real Library child selected by another Dialect. The
-SPIR V Terminal walks the same Library execution graph from Shader while using
-the outer Render contracts, storage roles, and Bridges to choose GPU operations.
+Vulkan Terminal walks the same Library execution graph from Shader while using
+the outer Render contracts, storage roles, and Bridges to choose GPU operations
+and their matching CPU bindings.
 
 The ABI Terminal owns the shared C representation, exported symbols, and native
 publication surface. LLVM consumes that agreement while owning instruction

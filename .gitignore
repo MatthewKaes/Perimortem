@@ -26,6 +26,7 @@ perf.*
 # Testing locally.
 .scratch/*
 build_trace.data
+perimortem_*.log
 AGENTS.md
 puffer/lsp/__pycache__/*
 extension/lldb/__pycache__/*

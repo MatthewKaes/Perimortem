@@ -412,17 +412,17 @@ def run_test():
         REPO_ROOT, "apps", "ttx", "scene_lifetime", "scenes", "title.ttx")
     package_path = os.path.join(
         REPO_ROOT, "apps", "ttx", "scene_lifetime", "package.ttx")
-    glitch_path = os.path.join(
-        REPO_ROOT, "apps", "ttx", "scene_lifetime", "shaders", "glitch.ttx")
+    blend_path = os.path.join(
+        REPO_ROOT, "apps", "ttx", "scene_lifetime", "shaders", "blend.ttx")
     with open(title_path, "r", encoding="utf-8") as f:
         title_source = f.read()
     with open(package_path, "r", encoding="utf-8") as f:
         scene_package_source = f.read()
-    with open(glitch_path, "r", encoding="utf-8") as f:
-        glitch_source = f.read()
+    with open(blend_path, "r", encoding="utf-8") as f:
+        blend_source = f.read()
     title_uri = "file://" + title_path
     package_uri = "file://" + package_path
-    glitch_uri = "file://" + glitch_path
+    blend_uri = "file://" + blend_path
     title_diagnostics = send_did_open(conn, title_uri, title_source)
     title_messages = (title_diagnostics or {}).get(
         "params", {}).get("diagnostics", [])
@@ -451,7 +451,7 @@ def run_test():
         "qualified definition selects the Graphics Package alias")
 
     shader_route = title_source.index(
-        "Shaders::Glitch::TexturedQuad2D::Instance")
+        "Shaders::Blend::TexturedQuad2D::Instance")
     shaders_hover = send_hover(
         conn, title_uri, title_source, "Shaders", 103, shader_route)
     shaders_result = shaders_hover.get("result") if shaders_hover else None
@@ -463,27 +463,27 @@ def run_test():
           "qualified hover preserves the Shaders Package scope")
     shaders_definition = send_definition(
         conn, title_uri, title_source, "Shaders", 104, shader_route)
-    shaders_declaration = scene_package_source.index("source Shaders::Glitch")
+    shaders_declaration = scene_package_source.index("source Shaders::Blend")
     check(matches_location(
         shaders_definition, package_uri, scene_package_source, "Shaders",
         shaders_declaration),
         "qualified definition selects the Shaders Package scope")
 
-    glitch_hover = send_hover(
-        conn, title_uri, title_source, "Glitch", 105, shader_route)
-    glitch_result = glitch_hover.get("result") if glitch_hover else None
-    glitch_markdown = (
-        glitch_result.get("contents", {}).get("value", "")
-        if glitch_result else "")
-    check("Glitch : alias" in glitch_markdown and
-          "Type Instance" not in glitch_markdown,
-          "qualified hover preserves the Glitch Package alias")
-    glitch_definition = send_definition(
-        conn, title_uri, title_source, "Glitch", 106, shader_route)
+    blend_hover = send_hover(
+        conn, title_uri, title_source, "Blend", 105, shader_route)
+    blend_result = blend_hover.get("result") if blend_hover else None
+    blend_markdown = (
+        blend_result.get("contents", {}).get("value", "")
+        if blend_result else "")
+    check("Blend : alias" in blend_markdown and
+          "Type Instance" not in blend_markdown,
+          "qualified hover preserves the Blend Package alias")
+    blend_definition = send_definition(
+        conn, title_uri, title_source, "Blend", 106, shader_route)
     check(matches_location(
-        glitch_definition, package_uri, scene_package_source, "Glitch",
+        blend_definition, package_uri, scene_package_source, "Blend",
         shaders_declaration),
-        "qualified definition selects the Glitch Package alias")
+        "qualified definition selects the Blend Package alias")
 
     textured_hover = send_hover(
         conn, title_uri, title_source, "TexturedQuad2D", 107, shader_route)
@@ -496,9 +496,9 @@ def run_test():
           "qualified hover selects the app owned Shader Program")
     textured_definition = send_definition(
         conn, title_uri, title_source, "TexturedQuad2D", 108, shader_route)
-    textured_declaration = glitch_source.index("public TexturedQuad2D")
+    textured_declaration = blend_source.index("public TexturedQuad2D")
     check(matches_location(
-        textured_definition, glitch_uri, glitch_source, "TexturedQuad2D",
+        textured_definition, blend_uri, blend_source, "TexturedQuad2D",
         textured_declaration),
         "qualified definition selects the app owned Shader Program")
 

@@ -9,6 +9,7 @@
 #include "tetrodotoxin/shader/interpreter/bridge.hpp"
 #include "tetrodotoxin/shader/interpreter/stage.hpp"
 #include "tetrodotoxin/shader/interpreter/uniform.hpp"
+#include "tetrodotoxin/shader/interpreter/value.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -114,10 +115,12 @@ auto Interpreter::Program::parse(
       } else if (qualifier_name == "uniform"_view) {
         parsed =
             Interpreter::Uniform::parse(program, cursor, *member_definition);
+      } else if (Interpreter::Value::matches(*member_definition, cursor)) {
+        parsed = Interpreter::Value::parse(program, cursor, *member_definition);
       } else {
         auto report = cursor.create_report(member_definition->get_anchor());
         report
-            << "Shader Programs author only Stage bodies, uniforms, and Bridges, not `"_view
+            << "Shader Programs author only Stage bodies, storage values, uniforms, and Bridges, not `"_view
             << qualifier_name << "`."_view;
       }
     }

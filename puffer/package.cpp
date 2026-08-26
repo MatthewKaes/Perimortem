@@ -44,7 +44,7 @@
 #include "tetrodotoxin/terminal/abi/symbol.hpp"
 #include "tetrodotoxin/terminal/graphics/compiler.hpp"
 #include "tetrodotoxin/terminal/llvm/compiler.hpp"
-#include "tetrodotoxin/terminal/spirv/compiler.hpp"
+#include "tetrodotoxin/terminal/vulkan/compiler.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -860,7 +860,7 @@ auto Puffer::Package::run() const -> S32 {
     Linker::Elf::Object product_builder;
     Bool products_complete = True;
     if (shader) {
-      Spirv::Compiler compiler;
+      Vulkan::Compiler compiler;
       for (const Ttx::Concept::Reference<Shader::Language::Program>& retained :
            shader->get_programs()) {
         const Shader::Language::Program& program = retained.get();
@@ -878,7 +878,7 @@ auto Puffer::Package::run() const -> S32 {
             *shader, program, errors, source_path, *source,
             Spirv::Target::Vulkan1_0);
         Core::Option<Spirv::Products> module;
-        compiler.compile(arena, request)
+        compiler.compile_module(arena, request)
             .visit(
                 [&](const Spirv::Products& compiled) { module = compiled; },
                 [](Spirv::Failure) {});

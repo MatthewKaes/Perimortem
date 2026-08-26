@@ -179,8 +179,30 @@ auto Shader::Language::Program::complete_authored_body() -> void {
 
 auto Shader::Language::Program::retain_shader_binding(
     Library::Language::Field& field,
-    Render::Language::Binding::Kind kind) -> void {
-  bindings.insert(Binding(field, kind));
+    Render::Language::Binding::Kind kind,
+    Option<Library::Language::Field&> instance_field) -> void {
+  if (!instance_field && kind == Render::Language::Binding::Kind::Resource) {
+    instance_field = find_field(instance->get(), field.get_name());
+  }
+  bindings.insert(Binding(field, kind, instance_field));
+}
+
+auto Shader::Language::Program::retain_instance_resource(
+    Library::Language::Field& field,
+    Library::Language::TypeReference runtime_type)
+    -> Option<Library::Language::Field&> {
+  const Tetrodotoxin::Language::Definition& authored = field.get_definition();
+  auto& definition = Tetrodotoxin::Language::Definition::create_synthetic(
+      domain, authored.get_documentation(), instance->get(),
+      domain.proxy(field.get_name()), authored.get_visibility(),
+      Anchor::create(Span()), authored.get_attributes());
+  auto& runtime_field = Library::Language::Field::create(
+      domain, definition, Library::Language::Writability::Internal,
+      runtime_type, {});
+  BAIL_IF(!instance->get().retain_definition(
+      runtime_field, Library::Language::Types::Composite::Category::Addressable,
+      definition.is_published()));
+  return runtime_field;
 }
 
 auto Shader::Language::Program::retain_uniform(Library::Language::Field& field)

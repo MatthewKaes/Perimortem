@@ -35,9 +35,7 @@ int main(void) {
   }
   ttx_perimortem_graphics_Image_Image image = decoded.value;
 
-  ttx_perimortem_graphics_Size2D_Size2D size =
-      TTX_FUNC_Perimortem_2eGraphics__Image__Image__get_5fsize_5fpixels_self(
-          &image);
+  ttx_perimortem_graphics_Size2D_Size2D size = image.size;
   ttx_perimortem_graphics_Image_View_5bPixel_5d pixels =
       TTX_FUNC_Perimortem_2eGraphics__Image__Image__get_5fpixels_self(&image);
   int result = 0;

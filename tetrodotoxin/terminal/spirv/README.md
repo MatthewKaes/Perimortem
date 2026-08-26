@@ -1,8 +1,9 @@
-# SPIR-V Terminal
+# Vulkan SPIR-V producer
 
-Shader finishes with concrete GPU meaning, not target words. The SPIR-V
-Terminal is where that meaning becomes a module with selected storage classes,
-decorations, identifiers, and instructions.
+Shader finishes with concrete GPU meaning, not target words. This Vulkan
+producer turns that meaning into a module with selected storage classes,
+decorations, identifiers, and instructions while its sibling producer derives
+the CPU description for the same Program.
 
 The producer starts with each Stage required by the selected Render contract,
 finds the exact Library Function that satisfies it, and walks that Function's
@@ -18,9 +19,9 @@ Shader, Render, or Library graph.
 
 The word assembler beneath this folder owns portable binary framing and typed
 instruction spellings. It deliberately performs only structural checks. The
-complete product is also suitable for an independent SPIR-V validator, while
-Vulkan remains the later consumer that owns device resources, commands,
-synchronization, and presentation.
+complete module is also suitable for an independent SPIR-V validator. The
+Vulkan runtime later consumes both generated products and owns device
+resources, commands, synchronization, and presentation.
 
 When a completed Library operation has no valid mapping for the selected GPU
 target, the Terminal reports that authored operation instead of approximating

@@ -1,11 +1,12 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
+#include "tetrodotoxin/library/language/interfaces/structure.hpp"
+
 #include "validation/unit_test.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
-#include "tetrodotoxin/library/language/interfaces/structure.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -14,13 +15,13 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Validation;
 
-static Harness GraphicsHosting = {
-  .name = "Tetrodotoxin::Graphics::Hosting"_view,
+static Harness StructureInterface = {
+  .name = "Tetrodotoxin::Library::Language::Interfaces::Structure"_view,
 };
 
-PERIMORTEM_UNIT_TEST(GraphicsHosting, negotiates_real_library_types) {
+PERIMORTEM_UNIT_TEST(StructureInterface, negotiates_real_library_types) {
   static constexpr View::Bytes source =
-      "// Graphics hosting contract.\n"
+      "// Structure Interface contract.\n"
       "dialect : Library;\n"
       "public Transform : struct { public state x : R64; }\n"
       "public Host : struct {\n"
@@ -55,7 +56,7 @@ PERIMORTEM_UNIT_TEST(GraphicsHosting, negotiates_real_library_types) {
   Environment::Workspace workspace(toolchain);
   Errors errors;
   auto monograph = workspace.interpret_source(
-      errors, "Graphics"_view, "graphics-hosting.ttx"_view, source);
+      errors, "Interfaces"_view, "structure-interface.ttx"_view, source);
   ASSERT(monograph);
   ASSERT(errors.is_empty());
 

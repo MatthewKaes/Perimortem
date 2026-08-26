@@ -84,7 +84,9 @@ auto Language::Diagnostics::write_pack(
     if (name) {
       report << "."_view << *name << " = "_view;
     }
-    write_type(report, pack.get_value_type(index));
+    layout.get_abstract(index).visit(
+        [&]() { report << "<invalid>"_view; },
+        [&](const Abstract& selected) { write_type(report, selected); });
   }
   report << "]"_view;
 }

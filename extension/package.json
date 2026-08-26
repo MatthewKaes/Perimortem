@@ -9,7 +9,7 @@
   "author": "Matt Kaes",
   "license": "MIT",
   "icon": "media/icon.png",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "keywords": [
     "TTX",
     "Tetrodotoxin",
@@ -129,13 +129,6 @@
           },
           {
             "scope": "comment.line.raw.tetrodotoxin",
-            "settings": {
-              "foreground": "#5c5850",
-              "fontStyle": "italic"
-            }
-          },
-          {
-            "scope": "comment.line.disabled.tetrodotoxin",
             "settings": {
               "foreground": "#5c5850",
               "fontStyle": "italic"

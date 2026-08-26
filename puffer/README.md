@@ -99,7 +99,8 @@ When the Workspace is ready, Puffer coordinates the requested products:
 * The ABI Terminal publishes the shared C representation and language headers.
 * The LLVM Terminal consumes that agreement and compiles Library meaning into
   CPU code.
-* The SPIR-V Terminal consumes Shader, Render, and Library meaning for the GPU.
+* The Vulkan Terminal consumes Shader, Render, and Library meaning and emits
+  the SPIR-V module with its matching CPU pipeline description.
 * Package produces a Complete or Contract Archive.
 * Linker combines native member products into libraries and platform
   executables.

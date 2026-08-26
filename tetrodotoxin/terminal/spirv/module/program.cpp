@@ -99,15 +99,20 @@ auto Module::Program::compile() -> Utility::Result<Products, Failure> {
     emitted = False;
   }
   for (Interface::Stage* stage : interface.get_stages()) {
-    if (emitted && !body.emit(*stage, assembler)) {
-      Ttx::Lexical::Errors::Report report(
-          request.get_errors(), request.get_source_path(),
-          request.get_source_text(), stage->function.get().get_anchor());
-      report << "Shader Stage `"_view << stage->function.get().get_name()
-             << "` could not emit a complete SPIR V body."_view;
-      report.get_hint()
-          << "Use executable Library meaning admitted by the SPIR V target."_view;
-      emitted = False;
+    if (emitted) {
+      Count stage_error_count = request.get_errors().get_size();
+      if (!body.emit(*stage, assembler)) {
+        if (request.get_errors().get_size() == stage_error_count) {
+          Ttx::Lexical::Errors::Report report(
+              request.get_errors(), request.get_source_path(),
+              request.get_source_text(), stage->function.get().get_anchor());
+          report << "Shader Stage `"_view << stage->function.get().get_name()
+                 << "` could not emit a complete SPIR V body."_view;
+          report.get_hint()
+              << "Use executable Library meaning admitted by the SPIR V target."_view;
+        }
+        emitted = False;
+      }
     }
   }
   if (emitted && !assembler.patch_bound(ids.get_bound())) {

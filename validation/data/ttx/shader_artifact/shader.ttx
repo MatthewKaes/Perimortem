@@ -15,7 +15,7 @@ public TestShader : shader Formats::Simple {
       .z = color.z + color.w,
       .w = color.w + color.x,
     );
-    return (.color = copied);
+    return (copied.[x, y, z], phase);
   }
 }
 

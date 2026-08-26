@@ -35,9 +35,9 @@ language or tool can query. It owns no Shader expressions or execution model.
 Archive support preserves enough of that meaning to rebuild an
 equivalent Render graph without turning the stored bytes into the graph itself.
 
-That separation leaves target work with Terminals. A SPIR-V producer can choose
-storage classes and decorations from a completed Render graph, while another
-GPU target can make different choices from the same contract.
+That separation leaves target work with Terminals. The Vulkan Terminal can
+choose SPIR V storage classes and decorations from a completed Render graph,
+while another GPU target can make different choices from the same contract.
 
 ## Render contracts
 

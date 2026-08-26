@@ -103,7 +103,14 @@ static auto uses_float64(const Library::Language::Model::Type& type) -> Bool {
   return False;
 }
 
-auto Terminal::Vulkan::Compiler::compile(
+auto Terminal::Vulkan::Compiler::compile_module(
+    Memory::Allocator::Arena& arena,
+    const Terminal::Spirv::Request& request) const
+    -> Utility::Result<Terminal::Spirv::Products, Terminal::Spirv::Failure> {
+  return Terminal::Spirv::Compiler().compile(arena, request);
+}
+
+auto Terminal::Vulkan::Compiler::describe(
     Memory::Allocator::Arena& arena,
     const Shader::Language::Program& program,
     Core::View::Bytes symbol) const -> Core::Option<Products> {
@@ -224,8 +231,14 @@ auto Terminal::Vulkan::Compiler::compile(
         Core::Math::max(host_alignment, structure_layout->get_alignment());
   }
   host_size = align_up(host_size, host_alignment);
-  BAIL_IF(
-      descriptors.get_size() != 1 || host_size == 0 || parameters_size == 0);
+  BAIL_IF(descriptors.is_empty() || host_size == 0 || parameters_size == 0);
+  for (Count index = 0; index < descriptors.get_size(); index++) {
+    for (Count prior = 0; prior < index; prior++) {
+      BAIL_IF(
+          descriptors[index].set == descriptors[prior].set &&
+          descriptors[index].slot == descriptors[prior].slot);
+    }
+  }
 
   Memory::Managed::Vector<Products::VertexInput> vertex_inputs(arena);
   Count stride = 0;

@@ -69,7 +69,6 @@ cc_binary(
         "//tetrodotoxin/terminal:application",
         "//tetrodotoxin/terminal:graphics",
         "//tetrodotoxin/terminal:llvm",
-        "//tetrodotoxin/terminal:spirv",
         "//tetrodotoxin/terminal:vulkan",
         "//ttx",
     ],

@@ -444,7 +444,7 @@ auto Puffer::Application::run() const -> S32 {
           workspace, *root_archive, dependency_archives.get_view(),
           selected.get(), artifact);
       auto product =
-          symbol ? vulkan_compiler.compile(arena, selected.get(), *symbol)
+          symbol ? vulkan_compiler.describe(arena, selected.get(), *symbol)
                  : Core::Option<Terminal::Vulkan::Products>();
       if (!product) {
         Core::Diagnostics::Log::error(

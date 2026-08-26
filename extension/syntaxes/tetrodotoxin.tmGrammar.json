@@ -13,9 +13,6 @@
           "include": "#comments"
         },
         {
-          "include": "#disabled"
-        },
-        {
           "include": "#modifiers"
         },
         {
@@ -82,10 +79,6 @@
           "match": "//.*$"
         }
       ]
-    },
-    "disabled": {
-      "name": "comment.line.disabled.tetrodotoxin",
-      "match": "/>.*$"
     },
     "modifiers": {
       "patterns": [

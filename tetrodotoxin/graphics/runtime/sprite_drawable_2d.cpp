@@ -48,9 +48,40 @@ auto Runtime::SpriteDrawable2D::read_draw(Object<> object, Count index)
           projection->parameters_size));
   Perimortem::Memory::Dynamic::Vector<Perimortem::Graphics::Frame::Resource>
       resources;
-  resources.emplace(
-      Perimortem::Graphics::Frame::Resource::retain_texture(
-          sprite->get_texture()));
+  if (projection->resources == nullptr || projection->resource_count == 0) {
+    return {};
+  }
+  for (Count resource_index = 0; resource_index < projection->resource_count;
+       resource_index++) {
+    const Perimortem::Graphics::Projection::Resource& projected =
+        projection->resources[resource_index];
+    Perimortem::Core::Option<Perimortem::Graphics::Texture2D> texture;
+    switch (projected.source) {
+    case Perimortem::Graphics::Projection::ResourceSource::HostTexture:
+      texture = Perimortem::Graphics::Texture2D::retain(
+          sprite->get_texture().get_object());
+      break;
+    case Perimortem::Graphics::Projection::ResourceSource::InstanceTexture:
+      if (projected.offset > instance_size ||
+          sizeof(Object<>) > instance_size - projected.offset) {
+        return {};
+      }
+      texture =
+          Perimortem::Graphics::Texture2D::retain(*Data::cast<const Object<>>(
+              instance.get_payload() + projected.offset));
+      break;
+    }
+    if (!texture) {
+      return {};
+    }
+    auto retained =
+        Perimortem::Graphics::Frame::Resource::retain_texture(*texture);
+    if (retained.is_empty()) {
+      return {};
+    }
+    resources.emplace(
+        static_cast<Perimortem::Graphics::Frame::Resource&&>(retained));
+  }
   return Drawable2D::Draw(
       Perimortem::Graphics::Frame::Program(projection->program),
       static_cast<Perimortem::Memory::Dynamic::Vector<

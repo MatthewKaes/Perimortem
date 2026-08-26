@@ -47,7 +47,14 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
 
   auto retain_shader_binding(
       Tetrodotoxin::Library::Language::Field& field,
-      Tetrodotoxin::Render::Language::Binding::Kind kind) -> void;
+      Tetrodotoxin::Render::Language::Binding::Kind kind,
+      Perimortem::Core::Option<Tetrodotoxin::Library::Language::Field&>
+          instance_field = {}) -> void;
+
+  auto retain_instance_resource(
+      Tetrodotoxin::Library::Language::Field& field,
+      Tetrodotoxin::Library::Language::TypeReference runtime_type)
+      -> Perimortem::Core::Option<Tetrodotoxin::Library::Language::Field&>;
 
   auto retain_uniform(Tetrodotoxin::Library::Language::Field& field) -> void;
 

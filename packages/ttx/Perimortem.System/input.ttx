@@ -17,12 +17,8 @@ foreign "C" {
 // unchanged until the caller asks for the next snapshot, which keeps repeated
 // queries deterministic throughout Scene update and event delivery.
 public Input : struct {
-  private state current_0       : U64;
-  private state current_1       : U64;
-  private state current_2       : U64;
-  private state changed_0       : U64;
-  private state changed_1       : U64;
-  private state changed_2       : U64;
+  private state current         : Fixed[U64, 3];
+  private state changed         : Fixed[U64, 3];
   private state pointer_x       : R32;
   private state pointer_y       : R32;
   private state pointer_delta_x : R32;

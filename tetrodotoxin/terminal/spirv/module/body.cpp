@@ -6,6 +6,7 @@
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
+#include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/expressions/conversion.hpp"
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
@@ -253,15 +254,22 @@ auto Module::Body::select_source(
                : Core::Option<Count>();
   }
 
+  Bool named_source = False;
   Core::Option<Count> selected;
   for (Count index = 0; index < pack.get_layout().get_size(); index++) {
     auto source_name = pack.get_layout().get_name(index);
+    named_source |= Bool(source_name);
     if (source_name && *source_name == *target_name) {
       BAIL_IF(selected);
       selected = index;
     }
   }
-  return selected;
+  if (named_source) {
+    return selected;
+  }
+  return target_index < pack.get_layout().get_size()
+             ? Core::Option<Count>(target_index)
+             : Core::Option<Count>();
 }
 
 auto Module::Body::lower_pack(
@@ -496,17 +504,29 @@ auto Module::Body::lower_return(
   const auto& results = stage.function.get().get_signature().get_results();
   BAIL_IF(results.get_size() != stage.outputs.get_size());
   for (Count index = 0; index < results.get_size(); index++) {
-    auto source_index = select_source(pack, results, index);
     auto semantic = results.get_abstract(index);
     auto type = semantic
                     ? Types::select(*semantic)
                     : Core::Option<const Library::Language::Model::Type&>();
+    BAIL_IF(!type);
+
+    // A single aggregate result may accept several positional Pack values.
+    // Preserve that complete fitted Pack so Structure lowering can construct
+    // the target instead of selecting only its first scalar producer.
+    if (results.get_size() == 1 && pack.fits(*type)) {
+      auto value = lower_pack(pack, *type, assembler);
+      BAIL_IF(!value);
+      assembler.store(stage.outputs.get_view().get_data()[index].id, value->id);
+      continue;
+    }
+
+    auto source_index = select_source(pack, results, index);
     auto produced = source_index ? pack.get_produced(*source_index)
                                  : Core::Option<Ttx::Model::Pack::Produced>();
     auto child = produced
                      ? library_pack(produced->producer)
                      : Core::Option<const Library::Language::Model::Pack&>();
-    BAIL_IF(!type || !produced || produced->local_index != 0 || !child);
+    BAIL_IF(!produced || produced->local_index != 0 || !child);
     auto value = lower_pack(*child, *type, assembler);
     BAIL_IF(!value);
     assembler.store(stage.outputs.get_view().get_data()[index].id, value->id);
@@ -565,9 +585,21 @@ auto Module::Body::emit(
     auto return_statement = root.select<Library::Language::Flow::Return>();
     if (return_statement) {
       if (!lower_return(return_statement->get_pack(), stage, assembler)) {
-        return reject(
-            *return_statement,
-            "This return could not fit the SPIR V Stage outputs."_view);
+        Ttx::Lexical::Errors::Report report(
+            request.get_errors(), request.get_source_path(),
+            request.get_source_text(), return_statement->get_anchor());
+        report
+            << "SPIR V lowering could not materialize this valid return Pack.\n"
+               "Source produces: "_view;
+        Library::Language::Diagnostics::write_pack(
+            report, return_statement->get_pack());
+        report << "\nStage accepts: "_view;
+        Library::Language::Diagnostics::write_layout(
+            report, stage.function.get().get_signature().get_results());
+        report.get_hint()
+            << "The Library return is valid; this is a missing target "
+               "lowering."_view;
+        return False;
       }
       assembler.return_void();
       returned = True;

@@ -234,8 +234,9 @@ Once the Workspace is complete, tools and
 [Terminal producers](terminal/README.md) can use the same facts without
 translating the program into another language's model. The ABI Terminal defines
 the common native C representation, LLVM walks Library layers to produce CPU
-code, and a SPIR-V Terminal will walk Shader, Render, and their real Library
-child to produce GPU modules. Package production asks Linker to carry those
+code, and the Vulkan Terminal will walk Shader, Render, and their real Library
+child to produce GPU modules and matching CPU pipeline descriptions. Package
+production asks Linker to carry those
 modules as read only native data, then Linker combines the resulting objects
 into ELF or PE programs. These finished outputs no longer need the Workspace.
 

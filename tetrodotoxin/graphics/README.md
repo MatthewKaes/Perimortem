@@ -56,9 +56,11 @@ self.shader.parameters.tone = (
 );
 ```
 
-The concrete Shader Instance remains the parameter owner. Frame collection
-copies its current parameter bytes, so later Scene mutations appear in the next
-stable frame without copying those Fields into Sprite.
+The concrete Shader Instance remains the parameter and authored material
+resource owner. Frame collection copies its current parameter bytes and follows
+the generated resource projection in descriptor order. Later Scene mutations
+therefore appear in the next stable frame without copying those Fields into
+Sprite or adding shader specific resource slots to it.
 
 ## Render and Shader agreement
 
@@ -81,9 +83,9 @@ Shader::DefaultTexturedQuad2D
   Instance { parameters }
   executable Stage bodies
 
-Application::GlitchTexturedQuad2D
-  Parameters { phase_milliseconds }
-  Instance { parameters }
+Application::BlendTexturedQuad2D
+  Parameters { time_milliseconds }
+  Instance { parameters, noise }
   executable Stage bodies
 ```
 
@@ -104,10 +106,10 @@ Shader parameter bytes and composed transform, retains the Texture2D resources
 used by that frame, and carries the exact process lifetime Program locator.
 
 Vulkan consumes ordered Batches together with the generated Program table. It
-builds a distinct pipeline for each locator, fills target host roles, caches
-device textures by Texture2D identity, and owns command recording,
-synchronization, and presentation. None of those target facts flow back into
-Graphics, Render, Shader, or Scene.
+builds a distinct pipeline for each locator, fills target host roles, realizes
+the generated descriptor sets, caches device textures by Texture2D identity,
+and owns command recording, synchronization, and presentation. None of those
+target facts flow back into Graphics, Render, Shader, or Scene.
 
 See [Scene](../scene/README.md) for application state,
 [Render](../render/README.md) for rendering contracts,

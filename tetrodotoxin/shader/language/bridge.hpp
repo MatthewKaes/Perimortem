@@ -23,7 +23,7 @@ namespace Tetrodotoxin::Shader::Language {
 //
 // Marshaling explains how values correspond while synchronization explains
 // when the receiving side may observe them. These remain Shader meaning because
-// CPU and SPIR V Terminals can realize the same relationship differently
+// LLVM and Vulkan Terminals can realize the same relationship differently
 // without changing either Type.
 class Bridge : public Ttx::Concept::Abstract {
  public:

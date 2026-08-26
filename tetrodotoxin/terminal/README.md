@@ -12,13 +12,12 @@ producer one agreement without making a particular instruction engine the
 source of representation truth.
 
 The [LLVM Terminal](llvm/README.md) consumes that ABI and lowers Library
-execution into LLVM modules and CPU objects. The
-[SPIR-V Terminal](spirv/README.md) begins from the Library execution graph hosted
-by Shader, then follows its exact Render contract and Bridge relationships.
-Graphics compiles hosted Scene Fields into compact access behavior, and Vulkan
-turns the Shader product into the pipeline description consumed beside each
-stable frame submission. Application composition connects those independent
-products to the App policy and selected runtime.
+execution into LLVM modules and CPU objects. The Vulkan Terminal begins from
+the Library execution graph hosted by Shader, follows its exact Render contract
+and Bridge relationships, and derives both the [SPIR V module](spirv/README.md)
+and matching CPU pipeline description. Graphics compiles hosted Scene Fields
+into compact access behavior. Application composition connects those products
+to the App policy and selected runtime.
 
 An application target pairs each configured Type route with separate native
 Placement2D, Children2D, and Drawable2D providers. That target configuration
@@ -34,11 +33,11 @@ description, and generated process entry are sibling outputs after that handoff.
 Dialect and Workspace meaning
        /                 \
       v                   v
-Terminal::Abi       Terminal::Spirv
-      |               GPU modules
-      v                    |
-Terminal::Llvm             v
-  CPU objects      Terminal::Vulkan
+Terminal::Abi       Terminal::Vulkan
+      |           GPU module and CPU glue
+      v                   |
+Terminal::Llvm            |
+  CPU objects             |
        \                 /
         v               v
        Terminal::Application

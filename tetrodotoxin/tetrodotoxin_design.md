@@ -387,11 +387,12 @@ Linker depends on those declared target and host facts, never on LLVM as a
 semantic authority.
 
 The GPU path is parallel. Shader and Render complete target neutral GPU facts,
-the SPIR-V Terminal emits their GPU module, and Linker carries that module as
-read only data in the Package's native product. Vulkan consumes the linked
-artifact together with Graphics batches and one selected host surface. Vulkan owns
-realized descriptors, offsets, commands, handles, and synchronization. Those
-facts never flow downward into Shader, Render, or Library.
+the Vulkan Terminal derives their SPIR V module and matching CPU program
+description, and Linker carries the module as read only data in the Package's
+native product. The Vulkan runtime consumes that linked artifact together with
+generated descriptors, Graphics batches, and one selected host surface. It owns
+realized resources, commands, handles, and synchronization. Those facts never
+flow downward into Shader, Render, or Library.
 
 ## Package as a composition example
 
@@ -466,10 +467,14 @@ Image owns decoded pixels while Texture2D gives those pixels stable rendering
 identity. Sprite stores one explicit
 `Implementation[Render::TexturedQuad2D]`, retaining the concrete Shader
 Instance and its ABI Projection without copying parameter state into Sprite.
-Each frame copies current parameter bytes and transforms, retains its worker
-local Texture2D resources, and refers to the selected compiled Program through
-an opaque process locator. SPIR V words and physical pipeline descriptions
-remain sibling target products owned by their Terminal and backend.
+An authored Shader resource pairs its configured CPU carrier Type with the GPU
+sampling Type after `resource`, so the generated Instance owns real material
+values without making the Stage execute over runtime carriers. Each frame
+copies current parameter bytes and transforms, projects the ordered resource
+Fields from that Instance, retains its worker local Texture2D resources, and
+refers to the selected compiled Program through an opaque process locator. The
+Vulkan Terminal owns both the SPIR V words and the matching CPU description
+derived from that completed Program.
 
 The standard Memory, Math, System, and Graphics surfaces are ordinary Packages.
 They use the same dependency, Library, Foreign, persistence, and native
@@ -495,11 +500,12 @@ composition for one output.
 A Linker object module is a native Terminal product owned by Linker. The
 [Linker guide](linker/README.md) describes object input, archive resolution,
 dynamic dependencies, and executable production. LLVM IR is a target Terminal
-product limited to the compilation request that emits it. SPIR-V words are a
-Shader Terminal product. Linker may consume those words immediately to embed a
-GPU module in the native Package product. Each product preserves the target
-facts its next consumer needs, which makes it useful precisely because it can
-leave unrelated language meaning behind.
+product limited to the compilation request that emits it. SPIR V words and the
+matching CPU pipeline description are Vulkan Terminal products. Linker may
+consume the words immediately to embed a GPU module in the native Package
+product. Each product preserves the target facts its next consumer needs, which
+makes it useful precisely because it can leave unrelated language meaning
+behind.
 
 Terminal is relative to the Workspace boundary. LLVM IR or an emitted MLIR
 module can be a completed Tetrodotoxin product while remaining an intermediate

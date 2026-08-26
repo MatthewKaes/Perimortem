@@ -40,12 +40,19 @@ static auto retain_value(
     Tetrodotoxin::Language::Definition& definition,
     Library::Language::Field& field,
     Render::Language::Binding::Kind kind,
+    Option<Library::Language::TypeReference> runtime_type,
     Bool accepted) -> Bool {
   Bool retained = program.retain_authored_definition(
       field, definition,
       Library::Language::Types::Composite::Category::Addressable, cursor);
+  Option<Library::Language::Field&> instance_field;
+  if (retained && kind == Render::Language::Binding::Kind::Resource) {
+    BAIL_IF(!runtime_type);
+    instance_field = program.retain_instance_resource(field, *runtime_type);
+    retained = Bool(instance_field);
+  }
   if (retained) {
-    program.retain_shader_binding(field, kind);
+    program.retain_shader_binding(field, kind, instance_field);
   }
   return retained && accepted;
 }
@@ -72,7 +79,7 @@ static auto parse_library_value(
           ? Render::Language::Binding::Kind::Constant
           : Render::Language::Binding::Kind::Value;
   Bool retained = retain_value(
-      program, cursor, definition, *field, kind, member->is_accepted());
+      program, cursor, definition, *field, kind, {}, member->is_accepted());
   if (member->needs_recovery()) {
     cursor.recover_to_scoped_statement();
   }
@@ -104,8 +111,22 @@ static auto parse_shader_value(
         "Shader storage requires one complete Library Type reference."_view);
     return False;
   }
+  Option<Library::Language::TypeReference> runtime_type;
+  if (qualifier == "resource"_view) {
+    runtime_type = *type;
+    BAIL_IF(!cursor.require(
+        Code::Type::CallOp,
+        "Shader resource requires `->` between its runtime and GPU Types."_view));
+    type = Library::Interpreter::TypeReference::parse(program, cursor);
+    BAIL_IF(!type);
+  }
   Option<Library::Language::Model::Pack&> initializer;
   if (cursor.matches(Code::Type::Assign)) {
+    if (qualifier == "resource"_view) {
+      cursor.create_token_error(
+          "Shader resources are configured through their generated Instance Field."_view);
+      return False;
+    }
     cursor.consume();
     initializer = Library::Interpreter::Pack::parse(program, cursor);
     BAIL_IF(!initializer);
@@ -134,8 +155,8 @@ static auto parse_shader_value(
         "Shader storage could not complete its shared Definition."_view);
     return False;
   }
-  Bool retained =
-      retain_value(program, cursor, definition, field, kind, completed);
+  Bool retained = retain_value(
+      program, cursor, definition, field, kind, runtime_type, completed);
   return attributes_valid && retained;
 }
 

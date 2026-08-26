@@ -100,7 +100,7 @@ before body linking.
 
 Stage Functions and their bodies use the canonical Library parser and semantic
 owners. Shader decides which Library operations and Types are legal for GPU
-execution, while the SPIR V Terminal chooses their representation. Constants,
+execution, while the Vulkan Terminal chooses their representation. Constants,
 inherited push values, resources, uniforms, and local state therefore keep one
 executable graph. Render declarations retain their real identities, while
 Shader creates only the deterministic Library projections required for
@@ -149,10 +149,24 @@ Shader facts. Vulkan, another graphics API, or an offline compiler decides how
 to realize them.
 
 Shader describes uploads, downloads, and marshaling without choosing a graphics
-API. Once the Shader and its Render contract are complete, the SPIR-V compiler
-chooses a GPU representation. The CPU compiler follows the selected Library
-meaning independently. Neither
+API. Once the Shader and its Render contract are complete, the Vulkan
+Terminal's SPIR V producer chooses a GPU representation. CPU generation follows
+the selected Library meaning independently. Neither
 side tries to reconstruct the other from offsets or reflection data.
+
+A material resource gives that relationship one configured runtime value and
+one GPU sampling Type. The left Type becomes a public Field on the generated
+`Instance`, while the right Type is the binding visible to Stage code:
+
+```ttx
+@set(1) @slot(0) @read
+public noise : resource Graphics::Texture2D -> Graphics::Image::Image;
+```
+
+This lets CPU code retain a stable Texture2D identity while GPU code uses the
+Image sampling contract. The generated ABI Projection records the Instance
+Field offset beside the descriptor order. Graphics freezes those exact
+resources into each frame without teaching Sprite or Vulkan the resource name.
 
 ## Access
 
@@ -172,12 +186,13 @@ allowed by the selected Render contract.
 
 ## SPIR-V and Vulkan
 
-The SPIR-V Terminal chooses the GPU representation, storage classes, bindings,
-and instructions while the completed live Shader still retains executable
-bodies. The generated SPIR-V is an output of compilation, not an input to the
-language model. During Package production Linker embeds each completed module
-as named read only native data, so source free application composition can use
-that product without a loose shader file beside its executable.
+The Vulkan generation path chooses the SPIR-V representation, storage classes,
+bindings, instructions, host ranges, descriptors, and pipeline facts while the
+completed live Shader still retains executable bodies.
+Generated SPIR-V is one Vulkan Terminal product, not an input to the language
+model. During Package production Linker embeds each completed module as named
+read only native data, so source free application composition can use that
+product without a loose shader file beside its executable.
 
 Exact R64 flow remains R64 in SPIR V. A module that needs it declares Float64,
 64 bit constants retain both literal words, real remainder uses `OpFRem`, and

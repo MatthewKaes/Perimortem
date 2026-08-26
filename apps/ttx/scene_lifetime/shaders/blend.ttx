@@ -1,23 +1,24 @@
 /// Tetrodotoxin
 /// Copyright (c) 2023-present Matt Kaes and contributors
 //
-// Scene Lifetime's application specific textured quad effect.
+// Scene Lifetime's application specific scrolling noise blend.
 dialect : Shader;
 
 public TexturedQuad2D : shader Graphics::Render::TexturedQuad2D {
-  public phase_milliseconds : uniform U32 = new[U32];
+  @set(1) @slot(0) @read
+  public noise : resource Graphics::Texture2D -> Graphics::Image::Image;
+  public time_milliseconds : uniform U32 = new[U32];
 
   public fragment : func {
-    state phase_milliseconds := new[R32](parameters.phase_milliseconds);
-    state phase := phase_milliseconds / new[R32](1000.0);
-    state row := texture_uv.y * new[R32](37.0) + phase * new[R32](11.0);
-    state shift := (row % new[R32](1.0) - new[R32](0.5)) * new[R32](0.06);
-    state glitched_uv : Math::Vec2D = (
-      .x = texture_uv.x + shift,
-      .y = texture_uv.y,
+    state time_milliseconds := new[R32](parameters.time_milliseconds);
+    state time := time_milliseconds / new[R32](1000.0);
+    state noise_uv : Math::Vec2D = (
+      .x = texture_uv.x + time * new[R32](0.125),
+      .y = texture_uv.y + time * new[R32](0.0625),
     );
-    state sampled := image -> sample(.uv = glitched_uv);
-    return (.color = sampled);
+    state sampled := image -> sample(.uv = texture_uv);
+    state noise_sample := noise -> sample(.uv = noise_uv);
+    return (sampled.[x, y, z], sampled.w * noise_sample.x);
   }
 
   public vertex : func {

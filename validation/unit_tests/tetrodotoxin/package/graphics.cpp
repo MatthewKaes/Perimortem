@@ -52,6 +52,18 @@ static auto has_callable(
   return False;
 }
 
+static auto has_public_addressable(
+    const Library::Language::Types::Composite& type,
+    View::Bytes name) -> Bool {
+  for (const auto& addressable :
+       type.get_addressables(Tetrodotoxin::Language::Visibility::Public)) {
+    if (addressable.get().get_name() == name) {
+      return True;
+    }
+  }
+  return False;
+}
+
 PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
   auto math_product =
       File::read(".bin/bin/packages/ttx/Perimortem.Math/1.0/contract.txa"_view);
@@ -120,10 +132,9 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
   EXPECT(has_callable(*pixel, "from_rgba"_view));
   EXPECT(has_callable(*png, "decode"_view));
   EXPECT(has_callable(*image, "get_pixels"_view));
-  EXPECT(has_callable(*image, "get_addressing"_view));
-  EXPECT(has_callable(*image, "get_size_pixels"_view));
   EXPECT(has_callable(*image, "sample"_view));
-  EXPECT(has_callable(*image, "with_addressing"_view));
+  EXPECT(has_public_addressable(*image, "size"_view));
+  EXPECT(has_public_addressable(*image, "addressing"_view));
   EXPECT(has_callable(*texture, "from_image"_view));
   EXPECT(has_callable(*texture, "get_image"_view));
 

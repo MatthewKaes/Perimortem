@@ -8,16 +8,24 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/shader/language/program.hpp"
+#include "tetrodotoxin/terminal/spirv/compiler.hpp"
 #include "tetrodotoxin/terminal/vulkan/products.hpp"
 
 namespace Tetrodotoxin::Terminal::Vulkan {
 
-// Compiler reflects the Vulkan facts already proven by Render and Shader. The
-// selected SPIR V symbol remains an external product locator, while pipeline
-// layout and vertex input facts are derived from the completed graph.
+// Compiler owns the Vulkan generation boundary over one completed Shader
+// Program. Module generation produces its SPIR V words, while description
+// generation derives the matching CPU pipeline facts from the same graph.
 class Compiler {
  public:
-  auto compile(
+  auto compile_module(
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Tetrodotoxin::Terminal::Spirv::Request& request) const
+      -> Perimortem::Utility::Result<
+          Tetrodotoxin::Terminal::Spirv::Products,
+          Tetrodotoxin::Terminal::Spirv::Failure>;
+
+  auto describe(
       Perimortem::Memory::Allocator::Arena& arena,
       const Tetrodotoxin::Shader::Language::Program& program,
       Perimortem::Core::View::Bytes symbol) const

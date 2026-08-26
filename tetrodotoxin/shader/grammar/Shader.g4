@@ -34,6 +34,7 @@ shaderDeclaration
     : shaderStageDeclaration
     | shaderUniformDeclaration
     | shaderBridgeDeclaration
+    | shaderStorageDeclaration
     ;
 
 shaderBridgeDeclaration
@@ -48,4 +49,9 @@ shaderStageDeclaration
 
 shaderUniformDeclaration
     : ADDRESSABLE typeReference (ASSIGN declarationInitializer)? END_STATEMENT
+    ;
+
+shaderStorageDeclaration
+    : PUSH typeReference (ASSIGN declarationInitializer)? END_STATEMENT
+    | RESOURCE typeReference CALL typeReference END_STATEMENT
     ;

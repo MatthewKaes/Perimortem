@@ -202,8 +202,10 @@ construction explicit without relying on overloaded native constructors.
 `Sprite` is a nonnull Object with public mutable `texture`, `shader`,
 `size_pixels`, `transform`, `visible`, and `z_index` Fields. The shader Field is
 `Implementation[Render::TexturedQuad2D]`. It retains one real Shader Instance
-Object and the ABI Projection that selects its generated Program and Parameters
-byte range. Construction creates a valid unconfigured Sprite with an empty
+Object and the ABI Projection that selects its generated Program, Parameters
+byte range, and ordered material resources. A Shader can therefore add a
+Texture2D resource to its own Instance without adding an application specific
+Field to Sprite. Construction creates a valid unconfigured Sprite with an empty
 Shader implementation, zero size, identity transform, visible state, and zero
 draw index. It produces no draw until its texture, Shader, and size are
 configured. The transform Field satisfies Placement2D directly and avoids a
@@ -224,7 +226,8 @@ retained Package bytes. The format owns decoding while Image remains the shared
 decoded value that another codec can produce as well. Absence reports malformed
 or unsupported input without turning the valid empty Image default into an
 error state.
-`image -> get_size_pixels()` returns the exact `Size2D` value used by Sprite.
+The exposed `image.size` is the exact read only `Size2D` value used by Sprite,
+while public `image.addressing` selects zero, clamp, or wrap sampling directly.
 Native PNG decoding is selected through the package's Foreign declarations
 and native locators rather than hidden compiler knowledge. The native boundary
 returns an optional Image value and transfers one reservation for its pixel

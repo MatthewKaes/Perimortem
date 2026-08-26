@@ -18,7 +18,7 @@ Scene prepare[self] -> [] {
   state image := Graphics::Format::PNG -> decode(.bytes = $[resources/icon.png] ->
       get_view())!;
   state texture := Graphics::Texture2D -> from_image(.image = image);
-  state size := image -> get_size_pixels();
+  state size := image.size;
   state bottom_position : Graphics::Point2D = (.x = 190.0, .y = 140.0);
   state top_position : Graphics::Point2D = (.x = 210.0, .y = 160.0);
   self.elapsed = 0.0;
