@@ -129,9 +129,9 @@ Package assembly selects the App result that provides the application policy.
 Its Source route is the stable Package name used to select it. `main.ttx` is
 only a filename convention.
 
-Embedded startup resources resolve beneath the App source's Package root. The
-Package retains their bytes and App interprets their role in the startup
-profile.
+Embedded startup resources resolve relative to the App source beneath its
+Package root. Package retains their canonical bytes and App interprets their
+role in the startup profile.
 
 ## Persistence
 

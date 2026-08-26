@@ -6,7 +6,10 @@
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/map.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/language/import.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -52,6 +55,20 @@ class Monograph : public Ttx::Concept::Abstract {
   virtual auto get_layer(const Ttx::Concept::Abstract& requested) const
       -> Perimortem::Core::Option<const Monograph&>;
 
+  // Environment binds source-local Import Aliases to these real roots. The
+  // root is a Dialect semantic object, never the Monograph lifetime owner.
+  virtual auto get_root() const -> const Ttx::Concept::Abstract&;
+
+  virtual auto retain_import(
+      const Import::Description& description,
+      Perimortem::Core::Option<Ttx::Lexical::Associations&> associations = {})
+      -> Bool;
+
+  virtual constexpr auto get_imports() const
+      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Import>> {
+    return imports.get_view();
+  }
+
   // Linking begins after every source in the transaction has established stable
   // identities. Finalization follows as a second barrier where each Monograph
   // can validate edges that may cross into another source.
@@ -70,6 +87,12 @@ class Monograph : public Ttx::Concept::Abstract {
       -> const Ttx::Concept::Abstract& override;
 
  protected:
+  // Concrete source roots can compose their owned lookup surface with common
+  // imports without falling through to the outer context. This keeps a fixed
+  // child layer from recursing through its owning Monograph.
+  auto resolve_import(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract&;
+
   // Keeping concrete facts in the Monograph's lifetime domain lets graph edges
   // remain valid for as long as Workspace exposes the source result.
   Perimortem::Memory::Allocator::Arena& domain;
@@ -84,6 +107,9 @@ class Monograph : public Ttx::Concept::Abstract {
 
  private:
   const Ttx::Concept::Abstract& language;
+  Perimortem::Memory::Managed::Map<Perimortem::Core::View::Bytes, Import&>
+      import_lookup;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Import>> imports;
 };
 
 }  // namespace Tetrodotoxin::Language

@@ -1,8 +1,0 @@
-/// Tetrodotoxin
-/// Copyright (c) 2023-present Matt Kaes and contributors
-//
-// Rejects distinct semantic identities for one normalized logical path.
-dialect : Package;
-
-source First from "./member.ttx";
-source Second from "member.ttx";

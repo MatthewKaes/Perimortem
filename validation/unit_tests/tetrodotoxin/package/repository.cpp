@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
@@ -19,6 +20,7 @@
 #include "perimortem/system/path.hpp"
 
 #include "tetrodotoxin/linker/manifest.hpp"
+#include "tetrodotoxin/package/storage.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -205,7 +207,7 @@ class TemporaryRepositoryFiles {
       -> TemporaryRepositoryFiles& = delete;
 
   ~TemporaryRepositoryFiles() {
-    static constexpr Static::Vector<View::Bytes, 15> members = {{
+    static constexpr Static::Vector<View::Bytes, 21> members = {{
       "core-12.ttxa"_view,
       "core-20.ttxa"_view,
       "other.ttxa"_view,
@@ -221,6 +223,20 @@ class TemporaryRepositoryFiles {
       "absent.ttxa"_view,
       "cpu.abi"_view,
       "bad.abi"_view,
+      "local/package.ttx"_view,
+      "Pkg.Core/1.2/package.ttx"_view,
+      "Pkg.Core/1.2/contract.txa"_view,
+      "Pkg.Core/1.2/abi.manifest"_view,
+      "Pkg.Core/1.2/assets/payload.bin"_view,
+      "Pkg.Core/1.2/native/cpu/package.a"_view,
+    }};
+    static constexpr Static::Vector<View::Bytes, 6> directories = {{
+      "Pkg.Core/1.2/native/cpu"_view,
+      "Pkg.Core/1.2/native"_view,
+      "Pkg.Core/1.2/assets"_view,
+      "Pkg.Core/1.2"_view,
+      "Pkg.Core"_view,
+      "local"_view,
     }};
 
     if (!valid) {
@@ -232,6 +248,11 @@ class TemporaryRepositoryFiles {
       if (File::exists(location)) {
         File::remove(location);
       }
+    }
+
+    for (Count index = 0; index < directories.get_size(); index++) {
+      Dynamic::Bytes location = get_path(directories[index]);
+      File::remove(location);
     }
 
     File::remove(get_root());
@@ -250,6 +271,13 @@ class TemporaryRepositoryFiles {
   auto write(View::Bytes member, View::Bytes bytes) const -> Bool {
     Dynamic::Bytes location = get_path(member);
     return File::write(bytes, location);
+  }
+
+  auto create_directory(View::Bytes member) const -> Bool {
+    Dynamic::Bytes location = get_path(member);
+    location.append('\0');
+    return mkdir(Data::cast<char>(location.get_access().get_data()), S_IRWXU) ==
+           0;
   }
 
   auto remove(View::Bytes member) const -> Bool {
@@ -370,6 +398,100 @@ static Harness PackageRepository = {
   .teardown =
       []() { Diagnostics::Log::set_level(Diagnostics::Log::Level::Info); },
 };
+
+PERIMORTEM_UNIT_TEST(PackageRepository, source_distribution) {
+  TemporaryRepositoryFiles files;
+  ASSERT(files);
+  ASSERT(files.create_directory("local"_view));
+  ASSERT(files.create_directory("Pkg.Core"_view));
+  ASSERT(files.create_directory("Pkg.Core/1.2"_view));
+  ASSERT(files.create_directory("Pkg.Core/1.2/assets"_view));
+  ASSERT(files.create_directory("Pkg.Core/1.2/native"_view));
+  ASSERT(files.create_directory("Pkg.Core/1.2/native/cpu"_view));
+  ASSERT(files.write("local/package.ttx"_view, "// local"_view));
+  ASSERT(files.write("Pkg.Core/1.2/package.ttx"_view, "// installed"_view));
+  ASSERT(files.write("Pkg.Core/1.2/contract.txa"_view, literal_archive()));
+  ASSERT(files.write("Pkg.Core/1.2/assets/payload.bin"_view, "resource"_view));
+  ASSERT(files.write("Pkg.Core/1.2/native/cpu/package.a"_view, "native"_view));
+  auto manifest = cpu_manifest();
+  ASSERT(manifest);
+  ASSERT(files.write("Pkg.Core/1.2/abi.manifest"_view, *manifest));
+
+  Dynamic::Bytes local_root = files.get_path("local"_view);
+  Package::Repository::Input local(
+      "Pkg.Local"_view, Version(1, 0), {},
+      View::Vector<Package::Repository::Artifact>(), local_root);
+  Allocator::Arena arena;
+  auto repository = Package::Repository::Repository::create(
+      arena, View::Vector<Package::Repository::Input>(&local, 1), {}, {},
+      files.get_root());
+  ASSERT(repository);
+
+  Bool local_selected =
+      repository->select_source("Pkg.Local"_view, Version(1, 0))
+          .visit(
+              [&](View::Bytes selected) {
+                return selected == local_root.get_view();
+              },
+              [](Package::Repository::Repository::Error) { return False; });
+  EXPECT(local_selected);
+
+  Dynamic::Bytes installed_root = files.get_path("Pkg.Core/1.2"_view);
+  Bool installed_selected =
+      repository->select_source("Pkg.Core"_view, Version(1, 2))
+          .visit(
+              [&](View::Bytes selected) {
+                return selected == installed_root.get_view();
+              },
+              [](Package::Repository::Repository::Error) { return False; });
+  EXPECT(installed_selected);
+
+  Allocator::Arena source_acquisition;
+  auto storage =
+      Package::Storage::open(source_acquisition, installed_root.get_view());
+  ASSERT(storage);
+  Bool resource_selected =
+      storage->read("assets/payload.bin"_view)
+          .visit(
+              [](const Package::Content& content) {
+                return content.get_contents() == "resource"_view;
+              },
+              [](const Package::Storage::Failure&) { return False; });
+  EXPECT(resource_selected);
+
+  auto archive = repository->select_archive("Pkg.Core"_view, Version(1, 2));
+  const Package::Archive::Archive* selected = selected_archive(archive);
+  ASSERT(selected);
+  EXPECT_TEXT(selected->get_identity(), "Pkg.Core"_view);
+  EXPECT(selected->get_version() == Version(1, 2));
+
+  auto selected_manifest =
+      repository->select_manifest("Pkg.Core"_view, Version(1, 2), "cpu"_view);
+  Bool manifest_selected = selected_manifest.visit(
+      [](const Linker::Manifest& selected) {
+        return Bool(
+            selected.get_identity() == "Pkg.Core"_view &&
+            selected.get_version() == Version(1, 2) &&
+            selected.get_artifact() == "cpu"_view);
+      },
+      [](Package::Repository::Repository::Error) { return False; });
+  EXPECT(manifest_selected);
+
+  auto native =
+      repository->select_native("Pkg.Core"_view, Version(1, 2), "cpu"_view);
+  auto native_path = selected_native(native);
+  ASSERT(native_path);
+  EXPECT_TEXT(
+      *native_path,
+      files.get_path("Pkg.Core/1.2/native/cpu/package.a"_view).get_view());
+  auto native_bytes = File::read(*native_path);
+  ASSERT(native_bytes);
+  EXPECT_TEXT(native_bytes->get_view(), "native"_view);
+
+  auto missing = repository->select_source("Pkg.Core"_view, Version(2, 0));
+  EXPECT(returns_selection_error(
+      missing, Package::Repository::Repository::Error::Unreadable));
+}
 
 PERIMORTEM_UNIT_TEST(PackageRepository, exact_lazy_selection) {
   TemporaryRepositoryFiles files;
@@ -538,7 +660,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
   Dynamic::Bytes corrupt(literal_archive());
   corrupt.get_access().get_data()[0] = 'X';
   Dynamic::Bytes future(literal_archive());
-  set_u16(future, 4, 4);
+  set_u16(future, 4, 5);
 
   // Reader and Repository emit consecutive records with different owner
   // detail. The helper observes both before checking the typed caller category.
@@ -593,7 +715,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
       Version(1, 2), Package::Repository::Repository::Error::UnsupportedFormat,
       "selection_error=UnsupportedFormat requested_identity=Pkg.Core "
       "requested_version=1.2"_view,
-      "stage=header byte_offset=4 expected_format=2_or_3 actual_format=4"_view));
+      "stage=header byte_offset=4 expected_format=2_3_or_4 actual_format=5"_view));
   EXPECT(
       Test::error_contains(
           "reason=the Archive format revision is unsupported. "

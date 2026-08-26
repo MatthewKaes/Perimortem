@@ -5,5 +5,4 @@
 //
 dialect : Package;
 
-source Main from "main.ttx";
-source Application from "app.ttx";
+public Application : alias = source("app.ttx");

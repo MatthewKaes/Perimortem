@@ -20,6 +20,26 @@ namespace Tetrodotoxin::Package::Archive {
 // complete envelope before allocation and preserves every supplied list order.
 class Writer {
  public:
+  class GraphMember {
+   public:
+    constexpr GraphMember(
+        Perimortem::Core::View::Bytes name,
+        const Tetrodotoxin::Language::Monograph& monograph)
+        : name(name), monograph(monograph) {}
+
+    constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
+      return name;
+    }
+    constexpr auto get_monograph() const
+        -> const Tetrodotoxin::Language::Monograph& {
+      return monograph;
+    }
+
+   private:
+    Perimortem::Core::View::Bytes name;
+    const Tetrodotoxin::Language::Monograph& monograph;
+  };
+
   Writer() = delete;
 
   // Writes every required section in canonical order. A body that exceeds the
@@ -33,6 +53,8 @@ class Writer {
       Perimortem::Core::View::Bytes identity,
       Perimortem::System::Version version,
       Tetrodotoxin::Language::Persistence::Profile profile,
+      Perimortem::Core::View::Vector<GraphMember> members,
+      Perimortem::Core::View::Vector<GraphImport> imports,
       Perimortem::Core::View::Vector<Artifact> artifacts = {},
       Perimortem::Core::View::Vector<Export> exports = {})
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;

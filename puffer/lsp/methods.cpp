@@ -338,18 +338,23 @@ auto Puffer::Lsp::definition(Documents& documents, const Rpc::Message& message)
     return message.report_result(Json::Node());
   }
 
-  auto semantic = documents.find_semantic(
-      uri, PositionEncoding::Position(
-               Count(line.get_number()), Count(character.get_number())));
+  PositionEncoding::Position position(
+      Count(line.get_number()), Count(character.get_number()));
+  auto semantic = documents.find_semantic(uri, position);
   if (!semantic) {
     return message.report_result(Json::Node());
   }
 
-  const Ttx::Concept::Abstract& subject = semantic_subject(*semantic);
-  if (subject.is<Tetrodotoxin::Library::Language::Expression>()) {
-    return message.report_result(Json::Node());
+  Option<Tetrodotoxin::Environment::Workspace::AuthoredLocation> location =
+      documents.find_acquired_definition(uri, position, *semantic);
+  if (!location) {
+    const Ttx::Concept::Abstract& subject = semantic_subject(*semantic);
+    if (subject.is<Tetrodotoxin::Library::Language::Expression>()) {
+      return message.report_result(Json::Node());
+    }
+
+    location = documents.find_definition(uri, subject);
   }
-  auto location = documents.find_definition(uri, subject);
   if (!location) {
     return message.report_result(Json::Node());
   }

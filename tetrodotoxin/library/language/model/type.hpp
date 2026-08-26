@@ -206,6 +206,23 @@ class Type : public Ttx::Model::Type {
       Perimortem::Core::View::Bytes route,
       Access access) const -> const Ttx::Concept::Abstract&;
 
+  // A named Type is already the complete Static receiver. This keeps common
+  // source Import Aliases on the same semantic path as a locally authored
+  // Type instead of requiring callers to retain or recognize its Monograph.
+  auto resolve_access(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override {
+    return resolve_type_access(host, route, Access::Static);
+  }
+
+  auto resolve_call(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override {
+    return resolve_type_call(host, route, Access::Static);
+  }
+
   // Lookup, reflection, and completion enumerate the same exact Callable
   // identities. Visibility selects caller access without creating another
   // generated or authored category.

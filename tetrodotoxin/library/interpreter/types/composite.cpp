@@ -11,7 +11,7 @@ using namespace Tetrodotoxin::Library;
 
 auto Interpreter::Types::Composite::parse_body(
     Cursor& cursor,
-    Language::Types::Structure& structure,
+    Language::Types::Composite& structure,
     Tetrodotoxin::Language::Definition& definition,
     Token kind_token) -> ParseState {
   if (!cursor.require(

@@ -4,4 +4,4 @@
 
 dialect : Package;
 
-source SystemAbi from "system_abi.ttx";
+public SystemAbi : alias = source("system_abi.ttx");

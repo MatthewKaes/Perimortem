@@ -3,9 +3,10 @@
 
 #include "tetrodotoxin/package/dialect.hpp"
 
-#include "tetrodotoxin/package/language/dependency.hpp"
+#include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/library/interpreter/member.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
-#include "tetrodotoxin/package/language/source.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -16,110 +17,36 @@ using namespace Tetrodotoxin;
 auto Package::Dialect::interpret(
     Cursor& cursor,
     const Documentation& documentation,
-    const Anchor&,
+    const Anchor& source_anchor,
     Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
   Allocator::Arena& transaction = cursor.get_arena();
-
-  // Package produces a Monograph rather than a synthetic source Type, so it
-  // has no semantic owner for the source envelope Anchor.
-  Managed::Vector<Language::Dependency> dependencies(transaction);
-  Managed::Vector<Language::Source> sources(transaction);
-  Bool source_region = False;
-
-  // Consume complete statements until Terminal. Each failed statement reaches
-  // a synchronizing terminator before the loop continues, so later independent
-  // diagnostics remain observable without risking a stalled Cursor.
+  auto& monograph = Language::Monograph::create_authored(
+      transaction, *this, documentation, source_anchor, context, library);
+  auto& root = monograph.edit_library().get_source();
   while (!cursor.matches(Code::Type::Terminal)) {
-    Token statement = cursor.current();
-    switch (cursor.get_code().get_type()) {
-    case Code::Type::Resolve: {
-      auto dependency = Language::Dependency::parse(cursor);
-      if (!dependency) {
-        continue;
-      }
-
-      if (source_region) {
-        cursor.create_token_error(
-            statement,
-            "Resolve statements must precede every Source statement."_view);
-        continue;
-      }
-
-      if (dependencies.get_view().contains(
-              [&](const Language::Dependency& existing) {
-                return existing.get_local_name() ==
-                       dependency->get_local_name();
-              })) {
-        cursor.create_token_error(
-            statement,
-            "Duplicate Dependency local alias in this Package."_view);
-      }
-
-      dependencies.insert(*dependency);
-      continue;
-    }
-
-    case Code::Type::Source: {
-      source_region = True;
-      auto source = Language::Source::parse(cursor);
-      if (!source) {
-        continue;
-      }
-
-      // Source owns complete statement consumption, so this range includes the
-      // terminating Token. The collision belongs to the whole binding rather
-      // than only its opening keyword or semantic name.
-      if (dependencies.get_view().contains(
-              [&](const Language::Dependency& dependency) {
-                return dependency.get_local_name() == source->get_local_name();
-              })) {
-        cursor.create_expression_error(
-            source->get_span(),
-            "Source semantic name collides with a Dependency local alias in "
-            "this Package."_view);
-      }
-
-      if (sources.get_view().contains([&](const Language::Source& existing) {
-            return existing.get_local_name() == source->get_local_name();
-          })) {
-        cursor.create_token_error(
-            statement, "Duplicate Source semantic name in this Package."_view);
-      }
-
-      if (sources.get_view().contains([&](const Language::Source& existing) {
-            return existing.get_source_path() == source->get_source_path();
-          })) {
-        cursor.create_token_error(
-            statement,
-            "Duplicate normalized Source path in this Package."_view);
-      }
-
-      sources.insert(*source);
-      continue;
-    }
-
-    default:
-      cursor.create_token_error(
-          statement,
-          "Package bodies contain only `resolve` and `source` statements."_view);
+    const Documentation& declaration_documentation =
+        Tetrodotoxin::Language::Parser::Comment::parse(cursor);
+    auto definition = Tetrodotoxin::Language::Definition::parse(
+        cursor, declaration_documentation, root);
+    if (!definition) {
       cursor.recover_to_statement();
-      break;
+      continue;
+    }
+    auto member = Library::Interpreter::Member::parse(cursor, *definition);
+    if (!member || member->get_category() !=
+                       Library::Language::Types::Composite::Category::Type) {
+      cursor.create_expression_error(
+          definition->get_anchor(),
+          "Package sources contain only Library Type definitions."_view,
+          "Import source or Package roots with Alias declarations, then publish Types or namespaces."_view);
+      cursor.recover_to_statement();
+      continue;
+    }
+    root.retain_authored_definition(
+        member->get_semantic(), *definition, member->get_category(), cursor);
+    if (member->needs_recovery()) {
+      cursor.recover_to_statement();
     }
   }
-
-  // A Package without one complete Source has no semantic member inventory.
-  if (sources.is_empty()) {
-    cursor.create_error(
-        "Package requires at least one complete Source statement."_view);
-    return {};
-  }
-
-  // Valid entries still describe the Package the author is building. Keeping
-  // that Monograph lets editor tooling expose those routes while diagnostics
-  // identify the declarations that need another edit.
-
-  auto monograph = Language::Monograph::create_authored(
-      transaction, *this, documentation, context, dependencies, sources);
-  BAIL_IF(!monograph);
-  return *monograph;
+  return monograph;
 }

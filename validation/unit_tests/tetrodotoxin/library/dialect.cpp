@@ -539,10 +539,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_aliases) {
 }
 
 PERIMORTEM_UNIT_TEST(DialectTests, alias_rejection) {
-  static constexpr Static::Vector<View::Bytes, 5> rejected = {{
+  static constexpr Static::Vector<View::Bytes, 4> rejected = {{
     "// Rejected documentation.\npublic Broken : alias Bool;"_view,
     "public Bool : alias = U8;"_view,
-    "public Outer : alias = U8;"_view,
     "public Broken : alias = Bool"_view,
     "public First : alias = Bool; public First : alias = U8;"_view,
   }};

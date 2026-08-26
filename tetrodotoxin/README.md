@@ -90,20 +90,18 @@ public twice : func = [.value : U64] -> U64 {
 }
 ```
 
-A Package gives source files semantic names independently from their paths:
+Each source gives its imports local semantic names independently from paths:
 
 ```ttx
-// The package manifest.
+// The Package export source.
 dialect : Package;
 
-resolve System : Perimortem.System = "1.0";
-source Utilities from "utilities.ttx";
-source Main from "main.ttx";
+public Main : alias = source("main.ttx");
 ```
 
-The filename locates input beneath the package root. `Utilities` and `Main` are
-the names other sources query. Moving a file does not silently change the
-semantic route used by the program.
+The filename is resolved relative to this source beneath the Package root.
+`Main` is the name this source queries. Moving a file requires changing only
+the importing Alias; it does not silently derive a new semantic route.
 
 ## Languages meet through explicit queries
 
@@ -223,10 +221,11 @@ Workspace keeps that source Arena so hover, navigation, completion, diagnostics,
 and formatting can use every fact the Dialect established. An absent Monograph
 releases the local Arena because no semantic root exists to own it.
 
-A Package manifest supplies one fixed Source table. Workspace interprets those
-members together and retains each Monograph that could be created. Each retained
-member may contribute the meaning it can establish for tooling, but finalization
-begins only when the complete island links without errors.
+A Package root supplies a restricted Library export surface and common Alias
+imports. Workspace walks those source-local edges, canonicalizes relative paths,
+and retains each Monograph that could be created. Each retained member may
+contribute the meaning it can establish for tooling, but finalization begins
+only when the complete island links without errors.
 LLVM, SPIR-V, Archives, and other Terminal products remain gated on the whole
 island completing.
 
@@ -286,18 +285,18 @@ implicitly. A Toolchain used only for standalone sources may omit the Package
 Dialect. Package enters a Workspace when a request composes a Package, acquires
 its resources, or restores an Archive.
 
-Package owns reproducible dependency selection, semantic source names,
-confined Storage, resource acquisition, Archives, and Repository selection. It
-keeps host paths and acquisition policy outside the consuming language.
+Package owns the named export surface, confined Storage, resource acquisition,
+Archives, and Repository selection. Source-local Aliases own dependency and
+source names, while Workspace owns the Monographs and graph walk.
 
 Package paths stay beneath one opened Package root. An embedded operand such
-as `$[resources/table.bin]` asks the source Package for retained bytes. The
-consuming Dialect decides what those bytes mean, and an empty file is still a
-valid Resource. A recognized request returns either the Resource or an Error
-defined by Package.
+as `$[../resources/table.bin]` is resolved relative to its source through the
+same canonical cache as source imports. The consuming Dialect decides what
+those bytes mean, and an empty file is still a valid Resource. A recognized
+request returns either the Resource or an Error defined by Package.
 
 Packages may also be distributed as Archives used without source. Package owns
-the envelope and dependency inventory while each persistent Dialect owns the
+the envelope and exact Import graph while each persistent Dialect owns the
 payload needed to construct new Monographs.
 
 ## Where to go next

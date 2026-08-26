@@ -7,6 +7,7 @@
 #include "tetrodotoxin/library/interpreter/declarations/field.hpp"
 #include "tetrodotoxin/library/interpreter/declarations/function.hpp"
 #include "tetrodotoxin/library/interpreter/types/enumeration.hpp"
+#include "tetrodotoxin/library/interpreter/types/namespace.hpp"
 #include "tetrodotoxin/library/interpreter/types/object.hpp"
 #include "tetrodotoxin/library/interpreter/types/structure.hpp"
 #include "tetrodotoxin/library/language/alias.hpp"
@@ -57,6 +58,13 @@ auto Interpreter::Member::parse(
         enumeration->get_semantic(), Language::Types::Composite::Category::Type,
         enumeration->get_state());
   }
+  case Code::Type::Namespace: {
+    auto selected = Interpreter::Types::Namespace::parse(cursor, definition);
+    BAIL_IF(!selected);
+    return Result(
+        selected->get_semantic(), Language::Types::Composite::Category::Type,
+        selected->get_state());
+  }
   case Code::Type::Struct: {
     auto structure = Interpreter::Types::Structure::parse(cursor, definition);
     BAIL_IF(!structure);
@@ -74,7 +82,8 @@ auto Interpreter::Member::parse(
   default:
     cursor.create_token_error(
         qualifier,
-        "Library members require a Type, `alias`, `enum`, `struct`, `object`, "
+        "Library members require a Type, `alias`, `namespace`, `enum`, "
+        "`struct`, `object`, "
         "`func`, or inferred initializer qualifier."_view);
     return {};
   }

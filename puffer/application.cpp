@@ -13,6 +13,7 @@
 #include "perimortem/system/file.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
+#include "puffer/dependencies.hpp"
 #include "tetrodotoxin/app/dialect.hpp"
 #include "tetrodotoxin/app/language/monograph.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
@@ -84,6 +85,7 @@ static auto resolve_context_route(
     if (!end && !separator) {
       continue;
     }
+
     Core::View::Bytes segment = route.slice(start, index - start);
     BAIL_IF(segment.is_empty());
     selected = Ttx::Concept::Reference<const Ttx::Concept::Abstract>(
@@ -92,9 +94,37 @@ static auto resolve_context_route(
     if (separator) {
       index++;
     }
+
     start = index + 1;
   }
+
   return selected.get();
+}
+
+static auto resolve_source_route(
+    const Environment::Workspace& workspace,
+    const Package::Language::Monograph& package,
+    Core::View::Bytes route) -> Core::Option<const Ttx::Concept::Abstract&> {
+  Core::Option<const Ttx::Concept::Abstract&> selected =
+      resolve_context_route(package, route);
+  Count count = workspace.get_package_source_count(package);
+  for (Count index = 0; index < count; index++) {
+    auto source = workspace.get_package_source(package, index);
+    auto candidate = source
+                         ? resolve_context_route(source->get_monograph(), route)
+                         : Core::Option<const Ttx::Concept::Abstract&>();
+    if (!candidate) {
+      continue;
+    }
+
+    if (selected && &selected->resolve() != &candidate->resolve()) {
+      return {};
+    }
+
+    selected = *candidate;
+  }
+
+  return selected;
 }
 
 static auto find_program_symbol(
@@ -111,13 +141,15 @@ static auto find_program_symbol(
     if (exported.get_artifact_id() != artifact) {
       continue;
     }
-    auto selected =
-        resolve_context_route(*package, exported.get_semantic_route());
+
+    auto selected = resolve_source_route(
+        workspace, *package, exported.get_semantic_route());
     if (selected && &selected->resolve() == &program) {
       BAIL_IF(symbol);
       symbol = exported.get_symbol_locator();
     }
   }
+
   return symbol;
 }
 
@@ -131,6 +163,7 @@ static auto retain_scene(
       return;
     }
   }
+
   scenes.insert(scene);
 }
 
@@ -144,6 +177,7 @@ static auto retain_program(
       return;
     }
   }
+
   programs.insert(program);
 }
 
@@ -160,6 +194,7 @@ static auto collect_programs(
       return;
     }
   }
+
   visited.insert(type);
 
   auto object = type.select<Library::Language::Types::Object>();
@@ -175,6 +210,7 @@ static auto collect_programs(
   if (!composite) {
     return;
   }
+
   for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
        composite->get_addressables()) {
     auto field = declaration.get().select<Library::Language::Field>();
@@ -199,6 +235,7 @@ static auto find_program_symbol(
       symbol = *selected;
     }
   }
+
   return symbol;
 }
 
@@ -222,16 +259,16 @@ auto Puffer::Application::run() const -> S32 {
   Environment::Toolchain toolchain;
   auto library = toolchain.install<Library::Dialect>("Library"_view);
   auto render = toolchain.install<Render::Dialect>("Render"_view);
-  if (!toolchain.install<Package::Dialect>("Package"_view) || !library ||
-      !render || !toolchain.install<App::Dialect>("App"_view) ||
+  if (!library || !render ||
+      !toolchain.install<Package::Dialect>("Package"_view, *library) ||
+      !toolchain.install<App::Dialect>("App"_view) ||
       !toolchain.install<Scene::Dialect>("Scene"_view, *library) ||
       !toolchain.install<Shader::Dialect>("Shader"_view, *library, *render)) {
     return 1;
   }
-  Environment::Workspace workspace(toolchain);
 
   Memory::Dynamic::Vector<Memory::Dynamic::Bytes> dependency_bytes;
-  Memory::Managed::Vector<Package::Archive::Archive> dependency_archives(arena);
+  Dependencies selected_dependencies(arena, repository);
   for (Core::View::Bytes dependency_path : values(arguments, "dep"_view)) {
     auto bytes = System::File::read(dependency_path);
     if (!bytes) {
@@ -241,12 +278,49 @@ auto Puffer::Application::run() const -> S32 {
     dependency_bytes.emplace(static_cast<Memory::Dynamic::Bytes&&>(*bytes));
     auto archive =
         decode(arena, dependency_bytes[dependency_bytes.get_size() - 1]);
-    if (!archive ||
-        archive->get_profile() != Language::Persistence::Profile::Contract ||
-        !workspace.restore_package(*archive, archive->get_identity())) {
+    if (!archive || !selected_dependencies.retain(*archive)) {
       return 1;
     }
-    dependency_archives.insert(*archive);
+  }
+
+  auto complete_bytes = System::File::read(complete_path);
+  if (!complete_bytes) {
+    return 1;
+  }
+
+  auto root_archive = decode(arena, *complete_bytes);
+  if (!root_archive ||
+      root_archive->get_profile() != Language::Persistence::Profile::Complete) {
+    return 1;
+  }
+
+  for (const Package::Archive::GraphImport& import :
+       root_archive->get_imports()) {
+    if (import.get_kind() == Language::Import::Kind::Package &&
+        !selected_dependencies.acquire(
+            import.get_target(), import.get_version())) {
+      return 1;
+    }
+  }
+
+  for (const Package::Language::Dependency& dependency :
+       root_archive->get_dependencies()) {
+    if (!selected_dependencies.acquire(
+            dependency.get_package_name(), dependency.get_version())) {
+      return 1;
+    }
+  }
+
+  auto dependency_archives = selected_dependencies.get_archives();
+  Environment::Workspace workspace(toolchain);
+  for (const Package::Archive::Archive& archive : dependency_archives) {
+    if (!workspace.restore_package(archive, archive.get_identity())) {
+      return 1;
+    }
+  }
+
+  if (!workspace.restore_package(*root_archive, root_archive->get_identity())) {
+    return 1;
   }
 
   Memory::Dynamic::Vector<Memory::Dynamic::Bytes> dependency_manifest_bytes;
@@ -256,6 +330,7 @@ auto Puffer::Application::run() const -> S32 {
     if (!bytes) {
       return 1;
     }
+
     dependency_manifest_bytes.emplace(
         static_cast<Memory::Dynamic::Bytes&&>(*bytes));
     auto decoded = Linker::Manifest::read(
@@ -271,14 +346,27 @@ auto Puffer::Application::run() const -> S32 {
       return 1;
     }
   }
-  for (const Package::Archive::Archive& archive :
-       dependency_archives.get_view()) {
+
+  for (const Package::Archive::Archive& archive : dependency_archives) {
     Count matches = 0;
     for (const Linker::Manifest& manifest : dependency_manifests.get_view()) {
       matches +=
           manifest.get_artifact() == artifact && archive.matches(manifest) ? 1
                                                                            : 0;
     }
+
+    if (matches == 0) {
+      repository
+          .select_manifest(
+              archive.get_identity(), archive.get_version(), artifact)
+          .visit(
+              [&](const Linker::Manifest& manifest) {
+                dependency_manifests.insert(manifest);
+                matches = 1;
+              },
+              [](Package::Repository::Repository::Error) {});
+    }
+
     if (matches != 1) {
       Core::Diagnostics::Log::error(
           "Puffer Application could not match one dependency ABI Manifest."_view);
@@ -286,22 +374,11 @@ auto Puffer::Application::run() const -> S32 {
     }
   }
 
-  auto complete_bytes = System::File::read(complete_path);
-  if (!complete_bytes) {
-    return 1;
-  }
-
-  auto root_archive = decode(arena, *complete_bytes);
-  if (!root_archive ||
-      root_archive->get_profile() != Language::Persistence::Profile::Complete ||
-      !workspace.restore_package(*root_archive, root_archive->get_identity())) {
-    return 1;
-  }
-
   auto root_manifest_bytes = System::File::read(abi_manifest_path);
   if (!root_manifest_bytes) {
     return 1;
   }
+
   auto root_manifest = Linker::Manifest::read(arena, *root_manifest_bytes);
   Bool root_abi_matches = root_manifest.visit(
       [&](const Linker::Manifest& manifest) -> Bool {
@@ -324,6 +401,7 @@ auto Puffer::Application::run() const -> S32 {
               .resolve()
               .select<App::Language::Monograph>();
   }
+
   if (!app) {
     Core::Diagnostics::Log::error(
         "The selected Package member does not contain an App policy."_view);
@@ -342,11 +420,12 @@ auto Puffer::Application::run() const -> S32 {
   Core::View::Vector<Core::View::Bytes> graphics_drawables =
       values(arguments, "graphics-drawable-provider"_view);
   if (!graphics_placement_route.is_empty()) {
-    auto selected = resolve_context_route(*root, graphics_placement_route);
+    auto selected =
+        resolve_source_route(workspace, *root, graphics_placement_route);
     graphics_placement = selected ? selected->select<Ttx::Model::Type>()
                                   : Core::Option<const Ttx::Model::Type&>();
     for (Core::View::Bytes route : values(arguments, "graphics-type"_view)) {
-      auto type = resolve_context_route(*root, route);
+      auto type = resolve_source_route(workspace, *root, route);
       auto selected_type = type ? type->select<Ttx::Model::Type>()
                                 : Core::Option<const Ttx::Model::Type&>();
       if (!selected_type) {
@@ -354,6 +433,7 @@ auto Puffer::Application::run() const -> S32 {
             "Puffer Application could not resolve one configured graphics Type."_view);
         return 1;
       }
+
       graphics_types.insert(*selected_type);
     }
   }
@@ -361,7 +441,9 @@ auto Puffer::Application::run() const -> S32 {
   Core::Option<Memory::Dynamic::Bytes> generated;
   auto program = app->get_program();
   if (program) {
-    Memory::Managed::Bytes route(arena, program->get_route());
+    Memory::Managed::Bytes route(arena, app_member);
+    route.concat("::"_view);
+    route.concat(program->get_route());
     route.concat("::"_view);
     route.concat(program->get_callable_name());
     route.concat("[static]"_view);
@@ -372,14 +454,18 @@ auto Puffer::Application::run() const -> S32 {
           exported.get_artifact_id() != artifact) {
         continue;
       }
+
       if (entry_symbol) {
         return 1;
       }
+
       entry_symbol = exported.get_symbol_locator();
     }
+
     if (!entry_symbol) {
       return 1;
     }
+
     Memory::Dynamic::Bytes source;
     Serialization::Stream::Textual<Memory::Dynamic::Bytes> output(source);
     output
@@ -398,6 +484,7 @@ auto Puffer::Application::run() const -> S32 {
           "Puffer Application has an incomplete graphics product selection."_view);
       return 1;
     }
+
     auto scene_policy = app->get_scene();
     auto initial_scene =
         scene_policy ? scene_policy->get_initial_scene()
@@ -405,6 +492,7 @@ auto Puffer::Application::run() const -> S32 {
     if (!scene_policy || !initial_scene) {
       return 1;
     }
+
     Memory::Managed::Vector<
         Ttx::Concept::Reference<const Scene::Language::Monograph>>
         scenes(arena);
@@ -416,6 +504,7 @@ auto Puffer::Application::run() const -> S32 {
       if (!source) {
         return 1;
       }
+
       retain_scene(scenes, *source);
       if (destination) {
         retain_scene(scenes, *destination);
@@ -428,10 +517,26 @@ auto Puffer::Application::run() const -> S32 {
     Memory::Managed::Vector<
         Ttx::Concept::Reference<const Library::Language::Model::Type>>
         visited(arena);
+    Memory::Managed::Vector<Terminal::Application::Generator::MemberBinding>
+        scene_members(arena);
     for (const Ttx::Concept::Reference<const Scene::Language::Monograph>&
              scene : scenes.get_view()) {
       collect_programs(scene.get().get_instance(), programs, visited);
     }
+
+    Count source_count = workspace.get_package_source_count(*root);
+    for (Count index = 0; index < source_count; index++) {
+      auto source = workspace.get_package_source(*root, index);
+      auto scene =
+          source ? source->get_monograph().select<Scene::Language::Monograph>()
+                 : Core::Option<const Scene::Language::Monograph&>();
+      if (source && scene) {
+        scene_members.insert(
+            Terminal::Application::Generator::MemberBinding(
+                *scene, source->get_name()));
+      }
+    }
+
     if (programs.is_empty()) {
       return 1;
     }
@@ -441,8 +546,8 @@ auto Puffer::Application::run() const -> S32 {
     for (const Ttx::Concept::Reference<const Shader::Language::Program>&
              selected : programs.get_view()) {
       auto symbol = find_program_symbol(
-          workspace, *root_archive, dependency_archives.get_view(),
-          selected.get(), artifact);
+          workspace, *root_archive, dependency_archives, selected.get(),
+          artifact);
       auto product =
           symbol ? vulkan_compiler.describe(arena, selected.get(), *symbol)
                  : Core::Option<Terminal::Vulkan::Products>();
@@ -451,17 +556,22 @@ auto Puffer::Application::run() const -> S32 {
             "Puffer Application could not derive one reachable Vulkan Program."_view);
         return 1;
       }
+
       vulkan.insert(*product);
     }
+
     generated = Terminal::Application::Generator::create(
         arena, *app, root_archive->get_identity(), artifact,
-        *graphics_placement, graphics_types.get_view(), graphics_placements,
-        graphics_children, graphics_drawables, vulkan.get_view());
+        scene_members.get_view(), *graphics_placement,
+        graphics_types.get_view(), graphics_placements, graphics_children,
+        graphics_drawables, vulkan.get_view());
   }
+
   if (!generated || !publish(source_path, *generated)) {
     Core::Diagnostics::Log::error(
         "Puffer Application could not publish its native entry."_view);
     return 1;
   }
+
   return 0;
 }

@@ -21,6 +21,7 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
+using namespace Ttx::Lexical;
 using namespace Validation;
 
 // This literal is the independent Format 2 oracle. Keeping it separate from
@@ -198,14 +199,14 @@ PERIMORTEM_UNIT_TEST(PackageArchive, typed_read_outcomes) {
           Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes future(golden());
-  set_u16(future, 4, 4);
+  set_u16(future, 4, 5);
   auto unsupported = Package::Archive::Reader::read(arena, future);
   EXPECT(returns_read_error(
       unsupported, Package::Archive::Reader::Error::UnsupportedFormat));
   EXPECT(
       Test::error_contains(
           "Package::Archive::Reader read failed. stage=header "
-          "byte_offset=4 expected_format=2_or_3 actual_format=4"_view,
+          "byte_offset=4 expected_format=2_3_or_4 actual_format=5"_view,
           Diagnostics::Log::Level::Debug));
 
   auto accepted = Package::Archive::Reader::read(arena, golden());
@@ -334,46 +335,27 @@ PERIMORTEM_UNIT_TEST(PackageArchive, resource_round_trip) {
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, omits_provenance) {
-  static constexpr View::Bytes source =
-      "// Authored Package\n"
-      "dialect : Package;\n"
-      "resolve Core : Pkg.Base = \"3.4\";\n"
-      "source Main from \"main.ttx\";"_view;
-  Package::Dialect authored_dialect;
-  Allocator::Arena authored_arena;
-  Ttx::Lexical::Errors errors;
-
-  // The direct Dialect fixture supplies real authored provenance without
-  // asking Workspace to publish an incomplete Package. A synthetic Dependency
-  // alone could not prove spans were excluded.
-  auto interpreted = interpret_package(
-      authored_arena, authored_dialect, errors, source, "package.ttx"_view);
-  ASSERT(interpreted);
-  const Package::Language::Monograph& authored = *interpreted;
-  ASSERT_EQ(authored.get_dependencies().get_size(), Count(1));
-  ASSERT_EQ(authored.get_sources().get_size(), Count(1));
-  EXPECT(authored.get_dependencies().get_data()[0].get_span());
-  EXPECT(authored.get_sources().get_data()[0].get_span());
-  EXPECT(errors.is_empty());
-
-  Allocator::Arena arena;
-  Package::Dialect synthetic_dialect;
-  Package::Language::Dependency source_free_dependencies[] = {
+  Span span(
+      Token(0, 1, 1, 6, Code::Type::Public),
+      Token(48, 1, 49, 1, Code::Type::EndStatement));
+  Package::Language::Dependency authored_dependencies[] = {
+    Package::Language::Dependency(
+        "Core"_view, "Pkg.Base"_view, Version(3, 4), span),
+  };
+  Package::Language::Dependency restored_dependencies[] = {
     Package::Language::Dependency("Core"_view, "Pkg.Base"_view, Version(3, 4)),
   };
-  auto& source_free = Package::Language::Monograph::create_synthetic(
-      arena, synthetic_dialect, synthetic_dialect, source_free_dependencies);
-  EXPECT_NOT(source_free.get_dependencies().get_data()[0].get_span());
-  EXPECT(source_free.get_sources().is_empty());
+  EXPECT(authored_dependencies[0].get_span());
+  EXPECT_NOT(restored_dependencies[0].get_span());
   Package::Archive::Member members[] = {
     Package::Archive::Member("Main"_view, "Lib"_view, View::Bytes()),
   };
   Package::Archive::Archive authored_archive(
-      "Pkg.Core"_view, Version(1, 2), authored.get_dependencies(), members,
+      "Pkg.Core"_view, Version(1, 2), authored_dependencies, members,
       View::Vector<Package::Archive::Artifact>(),
       View::Vector<Package::Archive::Export>());
   Package::Archive::Archive source_free_archive(
-      "Pkg.Core"_view, Version(1, 2), source_free.get_dependencies(), members,
+      "Pkg.Core"_view, Version(1, 2), restored_dependencies, members,
       View::Vector<Package::Archive::Artifact>(),
       View::Vector<Package::Archive::Export>());
 
@@ -406,6 +388,65 @@ PERIMORTEM_UNIT_TEST(PackageArchive, omits_provenance) {
   auto restored_bytes = Package::Archive::Writer::write(*restored);
   ASSERT(restored_bytes);
   EXPECT(restored_bytes->get_view() == authored_bytes->get_view());
+}
+
+PERIMORTEM_UNIT_TEST(PackageArchive, graph_import_roundtrip) {
+  Package::Archive::Member members[] = {
+    Package::Archive::Member("PackageSurface"_view, "Library"_view, {}),
+    Package::Archive::Member("Root"_view, "Library"_view, {}),
+    Package::Archive::Member("Shared"_view, "Library"_view, {}),
+  };
+  Package::Archive::GraphImport imports[] = {
+    Package::Archive::GraphImport(
+        "PackageSurface"_view, "Root"_view, Language::Import::Kind::Source,
+        "Root"_view),
+    Package::Archive::GraphImport(
+        "Root"_view, "Shared"_view, Language::Import::Kind::Source,
+        "Shared"_view),
+    Package::Archive::GraphImport(
+        "Root"_view, "Math"_view, Language::Import::Kind::Package,
+        "Perimortem.Math"_view, Version(1, 0)),
+  };
+  Package::Archive::Archive archive(
+      "Pkg.Graph"_view, Version(1, 0), {}, members, {}, {},
+      Language::Persistence::Profile::Complete, {}, imports);
+  auto encoded = Package::Archive::Writer::write(archive);
+  ASSERT(encoded);
+  ASSERT(encoded->get_size() > 6);
+  EXPECT_EQ(encoded->get_view()[4], U8(4));
+
+  Allocator::Arena arena;
+  auto decoded = Package::Archive::Reader::read(arena, *encoded);
+  auto restored = selected_archive(decoded);
+  ASSERT(restored);
+  EXPECT(restored->get_dependencies().is_empty());
+  ASSERT_EQ(restored->get_imports().get_size(), Count(3));
+  EXPECT_TEXT(
+      restored->get_imports().get_data()[0].get_local_name(), "Root"_view);
+  EXPECT_TEXT(
+      restored->get_imports().get_data()[1].get_target(), "Shared"_view);
+  EXPECT(restored->get_imports().get_data()[2].get_version() == Version(1, 0));
+
+  auto repeated = Package::Archive::Writer::write(*restored);
+  ASSERT(repeated);
+  EXPECT(repeated->get_view() == encoded->get_view());
+
+  Package::Archive::GraphImport duplicate_imports[] = {
+    imports[0],
+    Package::Archive::GraphImport(
+        "PackageSurface"_view, "Root"_view, Language::Import::Kind::Source,
+        "Shared"_view),
+  };
+  Package::Archive::Archive duplicate(
+      "Pkg.Graph"_view, Version(1, 0), {}, members, {}, {},
+      Language::Persistence::Profile::Complete, {}, duplicate_imports);
+  auto duplicate_bytes = Package::Archive::Writer::write(duplicate);
+  ASSERT(duplicate_bytes);
+  Allocator::Arena duplicate_arena;
+  auto rejected =
+      Package::Archive::Reader::read(duplicate_arena, *duplicate_bytes);
+  EXPECT(returns_read_error(
+      rejected, Package::Archive::Reader::Error::InvalidFormat));
 }
 
 PERIMORTEM_UNIT_TEST(PackageArchive, empty_inventories) {
@@ -573,7 +614,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
           Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes bad_format(golden());
-  set_u16(bad_format, 4, 4);
+  set_u16(bad_format, 4, 5);
   EXPECT(
       rejects(bad_format, Package::Archive::Reader::Error::UnsupportedFormat));
 

@@ -223,6 +223,7 @@ auto Shader::Language::Program::project_binding(
     Library::Language::Writability writability,
     Bool retain_role) -> Bool {
   auto definition = requirement.get_definition();
+  BAIL_IF(!requirement.is_linked());
   auto type = project_type(requirement.get_type());
   BAIL_IF(!definition || !type);
 

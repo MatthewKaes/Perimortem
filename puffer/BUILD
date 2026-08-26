@@ -51,6 +51,8 @@ cc_binary(
         "application.hpp",
         "command.cpp",
         "command.hpp",
+        "dependencies.cpp",
+        "dependencies.hpp",
         "main.cpp",
         "package.cpp",
         "package.hpp",

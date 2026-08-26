@@ -19,7 +19,9 @@ Language::Monograph::Monograph(
     : domain(domain),
       documentation(documentation),
       context(context),
-      language(language) {}
+      language(language),
+      import_lookup(domain),
+      imports(domain) {}
 
 auto Language::Monograph::get_layer(const Abstract& requested) const
     -> Option<const Monograph&> {
@@ -28,6 +30,26 @@ auto Language::Monograph::get_layer(const Abstract& requested) const
   }
 
   return {};
+}
+
+auto Language::Monograph::get_root() const -> const Abstract& {
+  return *this;
+}
+
+auto Language::Monograph::retain_import(
+    const Import::Description& description,
+    Option<Associations&> associations) -> Bool {
+  if (import_lookup.contains(description.get_name())) {
+    return False;
+  }
+
+  Import& import = domain.construct<Import>(domain, description);
+  import_lookup.launder(description.get_name(), import);
+  imports.insert(import);
+  if (associations) {
+    associations->create(description.get_anchor(), import);
+  }
+  return True;
 }
 
 auto Language::Monograph::compose(Cursor&) -> Bool {
@@ -59,5 +81,13 @@ auto Language::Monograph::resolve_context(View::Bytes route) const
   // A base Monograph contributes no synthetic lookup surface. Concrete roots
   // answer their own names first and use this boundary only for the borrowed
   // outer context supplied by the source transaction.
-  return context.resolve_context(route);
+  const Abstract& imported = resolve_import(route);
+  return imported.is<Invalid>() ? context.resolve_context(route) : imported;
+}
+
+auto Language::Monograph::resolve_import(View::Bytes route) const
+    -> const Abstract& {
+  return import_lookup.visit(
+      route, [](const Import& selected) -> const Abstract& { return selected; },
+      []() -> const Abstract& { return Invalid::get_invalid(); });
 }

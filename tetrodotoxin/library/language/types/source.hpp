@@ -78,6 +78,9 @@ class Source : public Composite {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
+  auto resolve_public_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
   auto resolve_type_access(
       const Ttx::Concept::Abstract& host,
       Perimortem::Core::View::Bytes route,

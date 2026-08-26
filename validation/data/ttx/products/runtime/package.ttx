@@ -4,4 +4,4 @@
 
 dialect : Package;
 
-source Runtime from "runtime.ttx";
+public Runtime : alias = source("runtime.ttx");

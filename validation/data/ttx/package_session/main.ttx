@@ -4,6 +4,14 @@
 // System ABI Package consumer.
 dialect : Library;
 
+public Helper : alias = source("helper.ttx");
+public Memory : alias =
+    package(.name = "Perimortem.Memory", .version = "1.0");
+public Math : alias =
+    package(.name = "Perimortem.Math", .version = "1.0");
+public System : alias =
+    package(.name = "Perimortem.System", .version = "1.0");
+
 using Helper;
 using Memory;
 

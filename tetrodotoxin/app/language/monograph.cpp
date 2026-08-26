@@ -35,8 +35,7 @@ auto Language::Monograph::create_scene(
 }
 
 auto Language::Monograph::link(Cursor& cursor) -> Bool {
-  return program ? program->link(cursor, context)
-                 : scene->link(cursor, context);
+  return program ? program->link(cursor, *this) : scene->link(cursor, *this);
 }
 
 auto Language::Monograph::finalize(Cursor&) -> Bool {
@@ -45,8 +44,7 @@ auto Language::Monograph::finalize(Cursor&) -> Bool {
 }
 
 auto Language::Monograph::link_restored() -> Bool {
-  return program ? program->link_restored(context)
-                 : scene->link_restored(context);
+  return program ? program->link_restored(*this) : scene->link_restored(*this);
 }
 
 auto Language::Monograph::finalize_restored() -> Bool {

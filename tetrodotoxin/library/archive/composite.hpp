@@ -12,6 +12,7 @@
 #include "tetrodotoxin/library/archive/writer.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
+#include "tetrodotoxin/library/language/types/namespace.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/abstract.hpp"
@@ -37,6 +38,15 @@ auto read_structure(
     Ttx::Concept::Abstract& host,
     Tetrodotoxin::Language::Persistence::Profile profile)
     -> Perimortem::Core::Option<Language::Types::Structure&>;
+
+auto write(Writer& writer, const Language::Types::Namespace& selected) -> Bool;
+
+auto read_namespace(
+    Reader& reader,
+    Perimortem::Memory::Allocator::Arena& arena,
+    Ttx::Concept::Abstract& host,
+    Tetrodotoxin::Language::Persistence::Profile profile)
+    -> Perimortem::Core::Option<Language::Types::Namespace&>;
 
 auto write(Writer& writer, const Language::Types::Object& object) -> Bool;
 

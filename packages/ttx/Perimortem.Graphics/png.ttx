@@ -5,6 +5,10 @@
 //
 dialect : Library;
 
+public ImageSource : alias = source("image.ttx");
+
+public Image : alias = ImageSource::Image;
+
 foreign "C" {
   public func perimortem_graphics_png_decode[.bytes : View[U8]] -> Option[Image];
 }

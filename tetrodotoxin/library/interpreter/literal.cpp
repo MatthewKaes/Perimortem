@@ -6,6 +6,10 @@
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/reader/textual.hpp"
 
+#include "perimortem/memory/managed/bytes.hpp"
+
+#include "perimortem/system/path.hpp"
+
 #include "tetrodotoxin/language/error.hpp"
 #include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
@@ -212,7 +216,21 @@ static auto parse_embedded(
   Span literal_span(cursor.current());
   View::Bytes route = literal_span.caculate_text(cursor.get_source_text());
 
-  const Abstract& selected = source_context.resolve_context(route).resolve();
+  View::Bytes authored = route.slice(2, route.get_size() - 3);
+  Perimortem::System::Path canonical(cursor.get_logical_path(), authored);
+  if (canonical.get_view().is_empty() || canonical.is_rooted()) {
+    cursor.create_expression_error(
+        literal_span,
+        "Embedded literal did not resolve to one confined relative path."_view,
+        "Use a path relative to this source without escaping the Package root."_view);
+    return {};
+  }
+  Managed::Bytes canonical_route(domain, "$["_view);
+  canonical_route.concat(canonical.get_view());
+  canonical_route.append(']');
+
+  const Abstract& selected =
+      source_context.resolve_context(canonical_route.get_view()).resolve();
   auto error = selected.select<Tetrodotoxin::Language::Error>();
   if (error) {
     auto report = cursor.create_report(literal_span);
@@ -225,7 +243,7 @@ static auto parse_embedded(
     cursor.create_expression_error(
         literal_span,
         "Embedded literal did not resolve to a Package Resource."_view,
-        "Check the package relative route and confirm the Resource exists."_view);
+        "Check the source relative route and confirm the Resource exists."_view);
     return {};
   }
 

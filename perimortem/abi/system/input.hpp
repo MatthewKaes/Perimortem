@@ -3,9 +3,12 @@
 
 #pragma once
 
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/perimortem.hpp"
 
 #include "perimortem/system/input.hpp"
+
+#include "perimortem/math/vec2d.hpp"
 
 namespace Perimortem::Abi::System {
 
@@ -13,20 +16,17 @@ namespace Perimortem::Abi::System {
 // It mirrors one immutable Perimortem snapshot without exposing the C++ class
 // or the platform events that produced it.
 struct Input {
-  U64 current[3];
-  U64 changed[3];
-  R32 pointer_x;
-  R32 pointer_y;
-  R32 pointer_delta_x;
-  R32 pointer_delta_y;
-  R32 scroll_x;
-  R32 scroll_y;
+  Core::Static::Vector<U64, 3> current;
+  Core::Static::Vector<U64, 3> changed;
+  Math::Vec2D pointer;
+  Math::Vec2D pointer_delta;
+  Math::Vec2D scroll;
   bool pointer_active;
 };
 
 static_assert(sizeof(Input) == sizeof(Perimortem::System::Input));
 static_assert(alignof(Input) == alignof(Perimortem::System::Input));
-static_assert(__is_trivial(Input));
+static_assert(__is_trivially_copyable(Input));
 static_assert(__is_standard_layout(Input));
 
 // The application runtime publishes once after collecting a frame. TTX reads
@@ -39,6 +39,9 @@ auto publish_input(const Perimortem::System::Input& input) -> void;
 
 }  // namespace Perimortem::Abi::System
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
+
 extern "C" auto perimortem_system_input_snapshot()
     -> Perimortem::Abi::System::Input;
 extern "C" auto perimortem_system_input_held(
@@ -50,3 +53,5 @@ extern "C" auto perimortem_system_input_pressed(
 extern "C" auto perimortem_system_input_released(
     Perimortem::Abi::System::Input input,
     U8 key) -> bool;
+
+#pragma clang diagnostic pop

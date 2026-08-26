@@ -51,9 +51,10 @@ Package dependency semantics travel through Contract Archives. Complete
 Archives preserve the root Package, while native objects remain separate target
 products. Shader Programs become SPIR V modules inside the Package native
 product without storing target words in the semantic payload.
-The Package manifest owns its semantic Source table. The public macro discovers
-candidate `.ttx` files beneath that manifest and never repeats member names in
-BUILD syntax.
+The Package source owns only its restricted export surface. The public macro
+offers every candidate `.ttx` file beneath that root as a hermetic action input;
+Workspace follows the source-local Alias graph and decides which files belong
+to the product.
 """
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
@@ -392,12 +393,12 @@ _ttx_package = rule(
         manifest = attr.label(
             mandatory = True,
             allow_single_file = [".ttx"],
-            doc = "The one explicit package.ttx manifest.",
+            doc = "The one explicit Package export source.",
         ),
         sources = attr.label_list(
             mandatory = True,
             allow_files = [".ttx"],
-            doc = "Candidate source files rooted beside the Package manifest.",
+            doc = "Candidate source files available to the Package source graph.",
         ),
         resources = attr.label_list(
             allow_files = True,
@@ -530,7 +531,7 @@ def ttx_native_provider(name, **kwargs):
     )
 
 def ttx_package(name, manifest, version, **kwargs):
-    """Builds one manifest-owned Package without duplicating its Source table."""
+    """Builds one source-graph Package from a restricted export root."""
     if type(manifest) != "string":
         fail("ttx_package manifest must be one package-relative path")
 

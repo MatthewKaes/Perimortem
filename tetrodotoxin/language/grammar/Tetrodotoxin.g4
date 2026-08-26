@@ -15,6 +15,17 @@ documentation
     : COMMENT+
     ;
 
+sourceImport
+    : PUBLIC typeName DEFINE ALIAS ASSIGN SOURCE PACKING_START STRING
+      PACKING_END END_STATEMENT
+    ;
+
+packageImport
+    : PUBLIC typeName DEFINE ALIAS ASSIGN PACKAGE_IMPORT PACKING_START
+      ADDRESS addressableName ASSIGN STRING PACK
+      ADDRESS addressableName ASSIGN STRING PACKING_END END_STATEMENT
+    ;
+
 attribute
     : ATTRIBUTE (PACKING_START attributeValue PACKING_END)?
     ;

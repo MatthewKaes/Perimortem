@@ -17,6 +17,7 @@ cc_library(
         ":compression",
         ":core",
         ":graphics",
+        ":math",
         ":memory",
         ":platform",
         ":serialization",
@@ -77,6 +78,7 @@ cc_library(
         ":abi_core",
         ":abi_memory",
         ":core",
+        ":math",
         ":memory",
         ":system",
     ],
@@ -134,6 +136,13 @@ cc_library(
     deps = [
         ":core",
     ],
+)
+
+cc_library(
+    name = "math",
+    hdrs = glob(["math/**/*.hpp"]),
+    includes = ["."],
+    deps = [":core"],
 )
 
 cc_library(

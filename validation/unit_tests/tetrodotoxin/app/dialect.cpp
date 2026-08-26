@@ -35,9 +35,28 @@ static Harness AppDialect = {
   .name = "Tetrodotoxin::App::Dialect"_view,
 };
 
+class RestoreContext : public Ttx::Concept::Abstract {
+ public:
+  constexpr RestoreContext(const Ttx::Concept::Abstract& source)
+      : source(source) {}
+
+  TTX_CONTRACT(RestoreContext, Ttx::Concept::Abstract);
+  TTX_NAME("RestoreContext"_view);
+  TTX_EMPTY_DOCUMENTATION();
+
+  auto resolve_context(View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override {
+    return source.resolve_context(name);
+  }
+
+ private:
+  const Ttx::Concept::Abstract& source;
+};
+
 static auto install(Environment::Toolchain& toolchain) -> Bool {
-  return toolchain.install<Package::Dialect>("Package"_view) &&
-         toolchain.install<Library::Dialect>("Library"_view) &&
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
+  return library &&
+         toolchain.install<Package::Dialect>("Package"_view, *library) &&
          toolchain.install<App::Dialect>("App"_view);
 }
 
@@ -63,6 +82,20 @@ static auto decode_archive(
               -> Option<Package::Archive::Archive> { return {}; });
 }
 
+static auto find_package_source(
+    const Environment::Workspace& workspace,
+    const Package::Language::Monograph& package,
+    View::Bytes name) -> Option<const Tetrodotoxin::Language::Monograph&> {
+  Count count = workspace.get_package_source_count(package);
+  for (Count index = 0; index < count; index++) {
+    auto source = workspace.get_package_source(package, index);
+    if (source && source->get_name() == name) {
+      return source->get_monograph();
+    }
+  }
+  return {};
+}
+
 PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
   Environment::Toolchain toolchain;
   ASSERT(install(toolchain));
@@ -70,23 +103,29 @@ PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
   Errors errors;
   auto memory_product = File::read(
       ".bin/bin/packages/ttx/Perimortem.Memory/1.0/contract.txa"_view);
+  auto math_product =
+      File::read(".bin/bin/packages/ttx/Perimortem.Math/1.0/contract.txa"_view);
   auto system_product = File::read(
       ".bin/bin/packages/ttx/Perimortem.System/1.0/contract.txa"_view);
   auto echo_product = File::read(
       ".bin/bin/apps/ttx/echo/Perimortem.Echo/1.0/complete.txa"_view);
-  ASSERT(memory_product && system_product && echo_product);
+  ASSERT(memory_product && math_product && system_product && echo_product);
 
   Perimortem::Memory::Allocator::Arena memory_product_arena;
+  Perimortem::Memory::Allocator::Arena math_product_arena;
   Perimortem::Memory::Allocator::Arena system_product_arena;
   Perimortem::Memory::Allocator::Arena echo_product_arena;
   auto memory_archive = decode_archive(memory_product_arena, *memory_product);
+  auto math_archive = decode_archive(math_product_arena, *math_product);
   auto system_archive = decode_archive(system_product_arena, *system_product);
   auto echo_archive = decode_archive(echo_product_arena, *echo_product);
-  ASSERT(memory_archive && system_archive && echo_archive);
+  ASSERT(memory_archive && math_archive && system_archive && echo_archive);
 
   auto memory_imported =
       workspace.restore_package(*memory_archive, "Memory"_view);
   ASSERT(memory_imported);
+  auto math_imported = workspace.restore_package(*math_archive, "Math"_view);
+  ASSERT(math_imported);
   auto system_imported =
       workspace.restore_package(*system_archive, "System"_view);
   ASSERT(system_imported);
@@ -94,7 +133,7 @@ PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
 
   ASSERT(imported && imported->is<Package::Language::Monograph>());
   auto& package = static_cast<Package::Language::Monograph&>(*imported);
-  const auto& app = package.resolve_context("App"_view).resolve();
+  const auto& app = package.resolve_context("AppSource"_view).resolve();
   ASSERT(app.is<App::Language::Monograph>());
   const auto& policy = static_cast<const App::Language::Monograph&>(app);
   auto program = policy.get_program();
@@ -106,20 +145,22 @@ PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
   EXPECT(entry->get_results().is_empty());
   EXPECT(errors.is_empty());
 
-  const auto& main = package.resolve_context("Main"_view).resolve();
-  ASSERT(main.is<Tetrodotoxin::Library::Language::Monograph>());
+  auto main = find_package_source(workspace, package, "AppSource::Main"_view);
+  ASSERT(main && main->is<Tetrodotoxin::Library::Language::Monograph>());
   Library::Dialect library_archive_dialect;
   auto main_complete = library_archive_dialect.encode(
-      main, Language::Persistence::Profile::Complete);
+      *main, Language::Persistence::Profile::Complete);
   auto main_interface = library_archive_dialect.encode(
-      main, Language::Persistence::Profile::Contract);
+      *main, Language::Persistence::Profile::Contract);
   ASSERT(main_complete && main_interface);
 
   auto& memory_package =
       static_cast<Package::Language::Monograph&>(*memory_imported);
-  const auto& memory = memory_package.resolve_context("Dynamic"_view).resolve();
+  auto memory =
+      find_package_source(workspace, memory_package, "DynamicSource"_view);
+  ASSERT(memory);
   auto memory_interface = library_archive_dialect.encode(
-      memory, Language::Persistence::Profile::Contract);
+      *memory, Language::Persistence::Profile::Contract);
   ASSERT(memory_interface);
   EXPECT_EQ(
       Perimortem::Core::Algorithm::search(*memory_interface, "storage"_view),
@@ -149,10 +190,11 @@ PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
 
   auto& system_package =
       static_cast<Package::Language::Monograph&>(*system_imported);
-  const auto& system =
-      system_package.resolve_context("Terminal"_view).resolve();
+  auto system =
+      find_package_source(workspace, system_package, "TerminalSource"_view);
+  ASSERT(system);
   auto system_interface = library_archive_dialect.encode(
-      system, Language::Persistence::Profile::Contract);
+      *system, Language::Persistence::Profile::Contract);
   ASSERT(system_interface);
   Perimortem::Memory::Allocator::Arena system_restore_arena;
   auto restored_system = library_archive_dialect.restore(
@@ -182,13 +224,9 @@ PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
       workspace.resolve_context("Memory"_view).resolve();
   const auto& restored_dynamic =
       restored_memory_package.resolve_context("Dynamic"_view).resolve();
-  auto restored_dynamic_library =
-      restored_dynamic.select<Library::Language::Monograph>();
-  ASSERT(restored_dynamic_library);
-  auto restored_bytes_type =
-      restored_dynamic_library->resolve_context("Bytes"_view)
-          .resolve()
-          .select<Library::Language::Types::Structure>();
+  auto restored_bytes_type = restored_dynamic.resolve_context("Bytes"_view)
+                                 .resolve()
+                                 .select<Library::Language::Types::Structure>();
   ASSERT(restored_bytes_type);
   EXPECT(restored_bytes_type
              ->resolve_type_call(
@@ -243,6 +281,7 @@ PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
           selected_consumer->get_llvm_ir(), construction_symbol) != Count(-1));
 
   App::Dialect archive_dialect;
+  RestoreContext restore_context(policy);
   auto complete =
       archive_dialect.encode(policy, Language::Persistence::Profile::Complete);
   auto complete_again =
@@ -260,17 +299,17 @@ PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
   Perimortem::Memory::Allocator::Arena malformed_arena;
   EXPECT_NOT(archive_dialect.restore(
       malformed_arena, malformed, Language::Persistence::Profile::Complete,
-      Ttx::Concept::Documentation::get_empty(), package));
+      Ttx::Concept::Documentation::get_empty(), restore_context));
 
   Perimortem::Memory::Allocator::Arena disagreement_arena;
   EXPECT_NOT(archive_dialect.restore(
       disagreement_arena, *complete, Language::Persistence::Profile::Contract,
-      Ttx::Concept::Documentation::get_empty(), package));
+      Ttx::Concept::Documentation::get_empty(), restore_context));
 
   Perimortem::Memory::Allocator::Arena complete_arena;
   auto restored_complete = archive_dialect.restore(
       complete_arena, *complete, Language::Persistence::Profile::Complete,
-      Ttx::Concept::Documentation::get_empty(), package);
+      Ttx::Concept::Documentation::get_empty(), restore_context);
   ASSERT(
       restored_complete && restored_complete->link_restored() &&
       restored_complete->finalize_restored());
@@ -283,7 +322,7 @@ PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
   Perimortem::Memory::Allocator::Arena contract_arena;
   auto restored_contract = archive_dialect.restore(
       contract_arena, *contract, Language::Persistence::Profile::Contract,
-      Ttx::Concept::Documentation::get_empty(), package);
+      Ttx::Concept::Documentation::get_empty(), restore_context);
   ASSERT(
       restored_contract && restored_contract->link_restored() &&
       restored_contract->finalize_restored());

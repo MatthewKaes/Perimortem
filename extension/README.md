@@ -4,7 +4,7 @@
   <img src="https://raw.githubusercontent.com/tetrodotoxin-dev/Tetrodotoxin/main/extension/media/logo.png" alt="Tetrodotoxin Toolchain" width="100%">
 </p>
 
-Open a Tetrodotoxin project and move from its Package manifest to CPU code,
+Open a Tetrodotoxin project and move from its Package export source to CPU code,
 application policy, Scene state, render contract, and Shader without changing
 mental models or editor tools. This extension gives every installed language a
 shared editing experience while preserving the meaning that makes each one
@@ -30,7 +30,8 @@ an approximation based only on spelling.
   available after the trailing space in the canonical ` -> ` spelling
 * Parameter hints name fitted positional arguments at their call sites
 * Go to definition follows authored identities across Package sources and
-  dependencies
+  dependencies, while import and embedded Resource locators open the physical
+  file acquired by the Workspace when it remains available
 * Diagnostics point back to exact authored Tokens and ranges
 * Source colors distinguish Types, Addressables, Callables, values, control
   flow, modifiers, and punctuation using Tetrodotoxin's own vocabulary
@@ -75,8 +76,10 @@ debugger bridge. The authored source and language model remain TTX.
 ## A toolchain in the extension
 
 The Linux VSIX includes Puffer, the Tetrodotoxin language server and command
-host, together with the standard Tetrodotoxin Packages needed by editor
-sessions. Puffer owns the editor session while Environment, Package, and each
+host, together with a versioned installation of the standard Tetrodotoxin
+Packages. Each installed coordinate carries its complete source tree,
+arbitrary embedded files, semantic Archives, ABI agreement, and native Package
+products. Puffer owns the editor session while Environment, Package, and each
 Dialect continue to own the semantic work they contribute.
 
 Packaging Puffer with the standard Packages makes the extension a natural
@@ -89,6 +92,35 @@ the command and reports progress, while Package discovery, target selection,
 Terminal production, and native linking follow the same Puffer request used by
 the command line release. Installing the extension therefore does not imply
 installing Bazel beside it.
+
+A workspace can map one exact Package coordinate to a sibling checkout without
+copying its source into the extension installation:
+
+```json
+{
+  "tetrodotoxin.packageSources": {
+    "Example.Math@1.0": "../Example.Math"
+  }
+}
+```
+
+Relative paths begin at the first workspace folder. Reload the window after
+changing the mapping so the Puffer session starts with one immutable Repository
+configuration. This is a source override for editor sessions. Compiled
+dependency products still come from the selected installation root or explicit
+build inputs.
+
+The bundled standard store remains the default. A workspace that maintains one
+shared installation for standard and locally built Packages can select it
+instead:
+
+```json
+{
+  "tetrodotoxin.packagesRoot": "/opt/tetrodotoxin/packages"
+}
+```
+
+That root uses the same exact identity and version layout as the bundled store.
 
 ## Color and editor preferences
 

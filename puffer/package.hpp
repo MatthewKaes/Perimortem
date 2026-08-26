@@ -5,6 +5,8 @@
 
 #include "perimortem/system/args.hpp"
 
+#include "tetrodotoxin/package/repository/repository.hpp"
+
 namespace Puffer {
 
 // Package owns one command line Package compilation transaction. It restores
@@ -13,13 +15,16 @@ namespace Puffer {
 // The semantic Archives become visible only after the complete product agrees.
 class Package {
  public:
-  constexpr Package(const Perimortem::System::Args::Values& arguments)
-      : arguments(arguments) {}
+  constexpr Package(
+      const Perimortem::System::Args::Values& arguments,
+      Tetrodotoxin::Package::Repository::Repository& repository)
+      : arguments(arguments), repository(repository) {}
 
   auto run() const -> S32;
 
  private:
   const Perimortem::System::Args::Values& arguments;
+  Tetrodotoxin::Package::Repository::Repository& repository;
 };
 
 }  // namespace Puffer

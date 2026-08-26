@@ -4,9 +4,12 @@
 // Scene Lifetime's application specific scrolling noise blend.
 dialect : Shader;
 
+public Math     : alias = package(.name = "Perimortem.Math", .version = "1.0");
+public Graphics : alias = package(.name = "Perimortem.Graphics", .version = "1.0");
+
 public TexturedQuad2D : shader Graphics::Render::TexturedQuad2D {
   @set(1) @slot(0) @read
-  public noise : resource Graphics::Texture2D -> Graphics::Image::Image;
+  public noise : resource Graphics::Texture2D -> Graphics::Image;
   public time_milliseconds : uniform U32 = new[U32];
 
   public fragment : func {

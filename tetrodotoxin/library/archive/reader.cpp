@@ -71,6 +71,25 @@ auto Library::Archive::Reader::read(
   return monograph;
 }
 
+auto Library::Archive::Reader::restore_source(
+    Allocator::Arena& arena,
+    View::Bytes payload,
+    Tetrodotoxin::Language::Persistence::Profile profile,
+    Library::Language::Types::Source& source) -> Bool {
+  auto opened = open(payload, profile);
+  BAIL_IF(!opened);
+  auto record = opened->read_record();
+  BAIL_IF(
+      !record || record->get_tag() != U16(Tag::Source) ||
+      record->is_optional() || !opened->is_complete());
+  Reader contents(record->get_payload());
+  auto documentation = contents.read_documentation(arena);
+  BAIL_IF(
+      !documentation || !read_source(contents, arena, source, profile) ||
+      !contents.is_complete());
+  return True;
+}
+
 auto Library::Archive::Reader::restore_declarations(
     Allocator::Arena& arena,
     View::Bytes payload,

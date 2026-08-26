@@ -12,14 +12,18 @@
 
 #include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/map.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "perimortem/system/args.hpp"
 #include "perimortem/system/file.hpp"
+#include "perimortem/system/version.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
 #include "puffer/application.hpp"
 #include "puffer/lsp/methods.hpp"
 #include "puffer/package.hpp"
+#include "tetrodotoxin/package/repository/input.hpp"
+#include "tetrodotoxin/package/repository/repository.hpp"
 #include "ttx/lexical/formatter.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -32,11 +36,14 @@ static auto create_config(Memory::Allocator::Arena& arena)
       "pipe"_view, "Run as an LSP server over the provided socket."_view);
   variables.insert(
       "packages-root"_view,
-      "Select the standard source Package root for LSP sessions."_view);
+      "Select one versioned installed Package root."_view);
+  variables.insert(
+      "package-source"_view,
+      "Map `<identity>|<version>|<root>` to one local source Package."_view);
   variables.insert("format"_view, "Format each positional TTX source."_view);
   variables.insert("package"_view, "Compile one Package."_view);
   variables.insert("application"_view, "Compile one App process entry."_view);
-  variables.insert("manifest"_view, "Read one Package manifest."_view);
+  variables.insert("manifest"_view, "Read one Package export source."_view);
   variables.insert("complete"_view, "Write the Complete Package Archive."_view);
   variables.insert("contract"_view, "Write the Contract Package Archive."_view);
   variables.insert("dep"_view, "Read one dependency Contract Archive."_view);
@@ -104,6 +111,43 @@ static auto value(const System::Args::Values& args, Core::View::Bytes name)
   return values.is_empty() ? Core::View::Bytes() : values[0];
 }
 
+static auto values(const System::Args::Values& args, Core::View::Bytes name)
+    -> Core::View::Vector<Core::View::Bytes> {
+  auto entry = args.find(name);
+  return entry ? entry->value->get_view()
+               : Core::View::Vector<Core::View::Bytes>();
+}
+
+static auto split_count(Core::View::Bytes value, U8 separator) -> Count {
+  Count count = 1;
+  for (Count index = 0; index < value.get_size(); index++) {
+    count += value[index] == separator ? 1 : 0;
+  }
+
+  return count;
+}
+
+static auto split(Core::View::Bytes value, U8 separator, Count selected)
+    -> Core::View::Bytes {
+  Count start = 0;
+  Count entry = 0;
+  for (Count index = 0; index <= value.get_size(); index++) {
+    Bool terminal = index == value.get_size();
+    if (!terminal && value[index] != separator) {
+      continue;
+    }
+
+    if (entry == selected) {
+      return value.slice(start, index - start);
+    }
+
+    entry++;
+    start = index + 1;
+  }
+
+  return {};
+}
+
 static auto has_one(const System::Args::Values& args, Core::View::Bytes name)
     -> Bool {
   auto entry = args.find(name);
@@ -117,9 +161,41 @@ static auto write_error(Core::View::Bytes message) -> void {
   fwrite(newline.get_data(), 1, CppSize(newline.get_size()), stderr);
 }
 
+static auto create_repository(
+    Memory::Allocator::Arena& arena,
+    const System::Args::Values& args)
+    -> Core::Option<Tetrodotoxin::Package::Repository::Repository> {
+  Memory::Managed::Vector<Tetrodotoxin::Package::Repository::Input> inputs(
+      arena);
+  for (Core::View::Bytes specification : values(args, "package-source"_view)) {
+    if (split_count(specification, '|') != 3) {
+      write_error(
+          "puffer: -package-source needs identity, version, and root"_view);
+      return {};
+    }
+
+    Core::View::Bytes identity = split(specification, '|', 0);
+    System::Version version =
+        System::Version::parse(split(specification, '|', 1));
+    Core::View::Bytes root = split(specification, '|', 2);
+    if (identity.is_empty() || version.is_null() || root.is_empty()) {
+      write_error("puffer: -package-source contains an invalid value"_view);
+      return {};
+    }
+
+    inputs.insert(
+        Tetrodotoxin::Package::Repository::Input(
+            identity, version, {}, {}, root));
+  }
+
+  return Tetrodotoxin::Package::Repository::Repository::create(
+      arena, inputs.get_view(), {}, {}, value(args, "packages-root"_view));
+}
+
 static auto run_lsp(
-    Core::View::Bytes pipe_name,
-    Core::View::Bytes packages_root) -> S32 {
+    const System::Args::Values& args,
+    Tetrodotoxin::Package::Repository::Repository& repository) -> S32 {
+  Core::View::Bytes pipe_name = value(args, "pipe"_view);
   if (pipe_name.is_empty() || pipe_name == "true"_view) {
     write_error("puffer: -pipe needs a socket path"_view);
     return 2;
@@ -127,7 +203,7 @@ static auto run_lsp(
 
   Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::console_sink);
   Core::Diagnostics::Log::set_disable_header(True);
-  Puffer::Lsp::Executor executor(packages_root);
+  Puffer::Lsp::Executor executor(repository);
   executor.execute(pipe_name);
   return 0;
 }
@@ -219,13 +295,32 @@ auto Puffer::Command::run() const -> S32 {
   }
 
   if (pipe) {
-    return run_lsp(value(args, "pipe"_view), value(args, "packages-root"_view));
+    auto repository = create_repository(arena, args);
+    if (!repository) {
+      write_error("puffer: Package Repository configuration is invalid"_view);
+      return 2;
+    }
+
+    return run_lsp(args, *repository);
   } else if (format) {
     return run_format(args);
   } else if (package) {
-    return Puffer::Package(args).run();
+    auto repository = create_repository(arena, args);
+    if (!repository) {
+      write_error("puffer: Package Repository configuration is invalid"_view);
+      return 2;
+    }
+
+    return Puffer::Package(args, *repository).run();
   } else if (application) {
-    return Puffer::Application(args).run();
+    auto repository = create_repository(arena, args);
+    if (!repository) {
+      write_error("puffer: Package Repository configuration is invalid"_view);
+      return 2;
+    }
+
+    return Puffer::Application(args, *repository).run();
   }
+
   return 2;
 }

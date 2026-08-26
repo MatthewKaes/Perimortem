@@ -23,6 +23,8 @@ auto Ttx::Lexical::Code::get_semantics() const
   // Definition keywords
   case Type::Alias:
     return "Alias definition"_view;
+  case Type::Namespace:
+    return "Namespace definition"_view;
   case Type::Enum:
     return "Enumeration definition"_view;
   case Type::Struct:
@@ -32,11 +34,9 @@ auto Ttx::Lexical::Code::get_semantics() const
 
   // Statement and import keywords
   case Type::Using:
-    return "source import"_view;
+    return "context forwarding"_view;
   case Type::New:
     return "Object initializer"_view;
-  case Type::From:
-    return "source origin relation"_view;
   case Type::If:
     return "conditional branch"_view;
   case Type::In:
@@ -59,10 +59,10 @@ auto Ttx::Lexical::Code::get_semantics() const
     return "return statement"_view;
   case Type::Emit:
     return "emission keyword"_view;
-  case Type::Resolve:
-    return "exact package resolution"_view;
   case Type::Source:
-    return "package Source membership"_view;
+    return "source import"_view;
+  case Type::Package:
+    return "Package import"_view;
   case Type::Dialect:
     return "source Dialect selection"_view;
   case Type::Func:

@@ -5,10 +5,4 @@
 // transaction resolves those requests before publishing any member Source.
 dialect : Package;
 
-resolve Math : Perimortem.Math = "1.0";
-resolve Graphics : Perimortem.Graphics = "1.0";
-resolve System : Perimortem.System = "1.0";
-source Shaders::Blend from "shaders/blend.ttx";
-source Scenes::Splash from "scenes/splash.ttx";
-source Scenes::Title from "scenes/title.ttx";
-source Main from "main.ttx";
+public MainSource : alias = source("main.ttx");

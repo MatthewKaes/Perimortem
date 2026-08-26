@@ -4,6 +4,9 @@
 // Contract only Object construction consumer.
 dialect : Library;
 
+public Provider : alias =
+    package(.name = "Validation.Provider", .version = "1.0");
+
 public Value : alias = Provider::Api::U64;
 
 public default_value : func = [] -> Value {

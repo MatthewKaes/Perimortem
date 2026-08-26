@@ -10,8 +10,7 @@ program.
 | Path | Contents |
 | --- | --- |
 | [`library/`](library/) | Library source examples, focused rejection inputs, Foreign declarations, and a native C harness |
-| [`package/`](package/) | Focused invalid Package manifests |
-| [`package_resources/`](package_resources/) | A Package with two Library members that share retained resource input |
+| [`package_resources/`](package_resources/) | Canonical source and Resource path reuse across one Package graph |
 | [`products/`](products/) | Complete Package fixtures for native Library and Foreign integration |
 | [`oracles/`](oracles/) | Exact Scene lifecycle observations |
 | [`shader_artifact/`](shader_artifact/) | One Render contract and Shader Program compiled into an embedded GPU module |
@@ -33,30 +32,23 @@ receiver and are not postfix Address access.
 
 ## Package fixtures
 
-The focused manifests in [`package/`](package/) each preserve one invalid input:
-
-| File | Source condition |
-| --- | --- |
-| [`duplicate_semantic_name.ttx`](package/duplicate_semantic_name.ttx) | two Sources use the same semantic name |
-| [`duplicate_normalized_path.ttx`](package/duplicate_normalized_path.ttx) | `./member.ttx` and `member.ttx` normalize to one logical path |
-| [`float_version.ttx`](package/float_version.ttx) | a Package version is written as an unquoted real literal |
-| [`noncanonical_version.ttx`](package/noncanonical_version.ttx) | a quoted Package version uses a leading zero |
-
-Package Source declarations keep semantic identity separate from path:
+Common source imports keep semantic identity separate from path:
 
 ```ttx
-source Scenes::Splash from "scenes/splash.ttx";
+public Splash : alias = source("scenes/splash.ttx");
 ```
 
-`Scenes::Splash` is queried through contextual `::` access. The quoted path is a
-confined Package root location and does not derive semantic identity.
+`Splash` is the local Alias granted by this source. The quoted path is resolved
+relative to that source, canonicalized inside the Package root, and never
+derives semantic identity.
 
 ## Resource fixtures
 
-[`package_resources/package.ttx`](package_resources/package.ttx) binds
-`SharedA` and `SharedB`. Both Library sources read
-`resources/table.bin` and select its first 64 bytes. `SharedA` also reads the
-zero byte `resources/empty.bin`.
+[`package_resources/package.ttx`](package_resources/package.ttx) imports the
+same source through two equivalent paths and proves both Aliases bind one
+identity. A nested third source reads `../resources/./table.bin`, while root
+sources read `resources/table.bin`; all routes select one cached Resource.
+`SharedA` also reads the zero byte `resources/empty.bin`.
 
 The first 64 bytes of `table.bin` are:
 

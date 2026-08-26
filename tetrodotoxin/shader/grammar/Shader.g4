@@ -14,7 +14,7 @@ import Library;
 
 shaderSource
     : documentation DIALECT DEFINE SHADER_DIALECT END_STATEMENT
-      documentedShaderDefinition+ EOF
+      (sourceImport | packageImport)* documentedShaderDefinition+ EOF
     ;
 
 documentedShaderDefinition

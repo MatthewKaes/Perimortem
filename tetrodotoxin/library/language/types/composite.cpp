@@ -32,9 +32,8 @@ static constexpr U8 type_publication = 1 << 1;
 static constexpr U8 static_callable_publication = 1 << 2;
 static constexpr U8 self_callable_publication = 1 << 3;
 
-auto Types::Composite::NameIndex::Entry::select(
-    Category category,
-    Bool self) const -> Option<Abstract&> {
+auto Types::Composite::NameIndex::Entry::select(Category category, Bool self)
+    const -> Option<Abstract&> {
   switch (category) {
   case Category::Addressable:
     return addressable;
@@ -174,16 +173,15 @@ auto Types::Composite::NameIndex::resolve(
   }
 
   auto selected = entry->value.select(category, self);
-  if (!selected ||
-      (visibility != Visibility::Private &&
-       !entry->value.is_published(*selected))) {
+  if (!selected || (visibility != Visibility::Private &&
+                    !entry->value.is_published(*selected))) {
     return Invalid::get_invalid();
   }
   return *selected;
 }
 
-auto Types::Composite::NameIndex::is_published(
-    const Abstract& binding) const -> Bool {
+auto Types::Composite::NameIndex::is_published(const Abstract& binding) const
+    -> Bool {
   auto entry = entries.find(binding.get_name());
   return entry && entry->value.is_published(binding);
 }
@@ -733,9 +731,13 @@ auto Types::Composite::resolve_binding(
 
 auto Types::Composite::resolve_context(View::Bytes route) const
     -> const Abstract& {
-  const Abstract& type =
-      resolve_binding(route, Category::Type, Visibility::Public);
-  return !type.is<Invalid>() ? type : get_host().resolve_context(route);
+  const Abstract& local = resolve_public_context(route);
+  return !local.is<Invalid>() ? local : get_host().resolve_context(route);
+}
+
+auto Types::Composite::resolve_public_context(View::Bytes route) const
+    -> const Abstract& {
+  return resolve_binding(route, Category::Type, Visibility::Public);
 }
 
 auto Types::Composite::resolve_lexical_context(View::Bytes route) const
@@ -786,8 +788,8 @@ auto Types::Composite::resolve_type_call(
     View::Bytes route,
     Type::Access access) const -> const Abstract& {
   Bool self = access == Type::Access::Self;
-  const Abstract& binding = resolve_binding(
-      route, Category::Callable, Visibility::Private, self);
+  const Abstract& binding =
+      resolve_binding(route, Category::Callable, Visibility::Private, self);
   if (binding.is<Invalid>()) {
     return binding;
   }
@@ -806,8 +808,8 @@ auto Types::Composite::resolve_type_call(
 }
 
 auto Types::Composite::is_externally_reachable(const Type& type) const -> Bool {
-  const Abstract& local = resolve_binding(
-      type.get_name(), Category::Type, Visibility::Public);
+  const Abstract& local =
+      resolve_binding(type.get_name(), Category::Type, Visibility::Public);
   if (!local.is<Invalid>()) {
     return &local.resolve() == &type;
   }

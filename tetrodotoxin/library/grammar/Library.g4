@@ -16,7 +16,7 @@ import Tetrodotoxin, Foreign;
 
 librarySource
     : documentation DIALECT DEFINE LIBRARY_DIALECT END_STATEMENT
-      documentedSourceDeclaration* EOF
+      (sourceImport | packageImport)* documentedSourceDeclaration* EOF
     ;
 
 documentedSourceDeclaration
@@ -37,6 +37,7 @@ libraryDefinition
 
 typeDefinition
     : ALIAS ASSIGN typeReference END_STATEMENT
+    | NAMESPACE structureBody
     | ENUM BRACKET_START typeReference BRACKET_END
       SCOPE_START enumerationCase* SCOPE_END
     | (STRUCT | OBJECT) structureBody

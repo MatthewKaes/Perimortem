@@ -14,7 +14,7 @@ import Tetrodotoxin;
 
 appSource
     : documentation DIALECT DEFINE APP_DIALECT END_STATEMENT
-      documentedAppDeclaration* EOF
+      (sourceImport | packageImport)* documentedAppDeclaration* EOF
     ;
 
 documentedAppDeclaration

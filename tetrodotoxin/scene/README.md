@@ -104,11 +104,11 @@ Persistent receiving state uses a newly constructed Object identity.
 
 ## Package identity
 
-A Scene's Package Source route gives it a stable identity:
+A source import gives each Scene a stable local identity:
 
 ```ttx
-source Scenes::Splash from "scenes/splash.ttx";
-source Scenes::Title from "scenes/title.ttx";
+public Splash : alias = source("scenes/splash.ttx");
+public Title  : alias = source("scenes/title.ttx");
 ```
 
 The paths only locate the source inside Package storage. A directory or filename
@@ -172,9 +172,9 @@ graphics specific parameter.
 
 ## Resources and persistence
 
-Embedded assets resolve beneath the source Package root. Package keeps those
-resources confined and alive while Scene or its Library child interprets their
-bytes.
+Embedded assets resolve relative to the Scene source beneath its Package root.
+Package canonicalizes and keeps those resources confined and alive while Scene
+or its Library child interprets their bytes.
 
 Scene can be stored in a Package Archive and reconstructed without its source
 file. A Complete payload keeps its public and private Signal, lifecycle,

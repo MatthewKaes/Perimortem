@@ -81,7 +81,7 @@ class Enumeration : public Model::Type {
 
   constexpr auto get_declaration_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
-    return get_anchor();
+    return definition.get_name_anchor();
   }
 
   TTX_NAME(definition.get_name());

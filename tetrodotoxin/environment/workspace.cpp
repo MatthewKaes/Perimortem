@@ -6,12 +6,16 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "perimortem/memory/dynamic/record.hpp"
+#include "perimortem/memory/managed/bytes.hpp"
 
 #include "perimortem/system/path.hpp"
 
+#include "tetrodotoxin/library/archive/reader.hpp"
+#include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/package/content.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
-#include "tetrodotoxin/package/language/parser/name.hpp"
 #include "tetrodotoxin/package/resource.hpp"
 #include "tetrodotoxin/package/storage.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -55,8 +59,10 @@ Environment::Workspace::Workspace(
       snapshots(selected_snapshots),
       arena(),
       retained_sources(),
+      package_members(arena),
       retained_monographs(),
-      packages(arena) {}
+      packages(arena),
+      pending_package_imports() {}
 
 Environment::Workspace::~Workspace() = default;
 
@@ -99,12 +105,11 @@ auto Environment::Workspace::interpret_source(
   Bool completed = errors.get_size() == source_error_count;
 
   if (monograph.is<Package::Language::Monograph>()) {
-    // A manifest needs the Package path because its member table forms one
-    // completion barrier. Sending it through the direct path could expose an
-    // Alias before the member that owns its target exists.
+    // A Package root needs its confined path because Workspace must walk and
+    // complete every source-local Alias edge before publishing the graph.
     if (completed) {
       cursor.create_error(
-          "A Package manifest must be completed through Workspace Package "
+          "A Package root must be completed through Workspace Package "
           "import."_view);
     }
     return {};
@@ -114,8 +119,11 @@ auto Environment::Workspace::interpret_source(
   // Retaining its transaction here preserves Tokens, Associations, and every
   // partial identity while later barriers decide product eligibility.
   Count retained_index = retained_sources.get_size();
+  View::Bytes retained_name = arena.proxy(semantic_name);
   retained_sources.insert({
     .package_root = {},
+    .name = retained_name,
+    .logical_route = retained_path,
     .diagnostic_path = retained_path,
     .source_text = retained_contents,
     .transaction = transaction,
@@ -148,7 +156,6 @@ auto Environment::Workspace::interpret_source(
     }
   }
 
-  View::Bytes retained_name = arena.proxy(semantic_name);
   retained_monographs.insert(
       retained_name, Ttx::Concept::Reference<Language::Monograph>(monograph));
   retained_sources[retained_index].completed = completed;
@@ -163,7 +170,7 @@ auto Environment::Workspace::import_package(
     View::Bytes root_logical_route,
     View::Bytes root_package_identity,
     Version root_package_version) -> Option<Language::Monograph&> {
-  // Reading the manifest creates the first authored Cursor. Failures before
+  // Reading the Package root creates the first authored Cursor. Failures before
   // that point belong to Package acquisition, while later failures can use the
   // exact source text and Anchor from that Cursor.
   Allocator::Arena acquisition;
@@ -191,14 +198,14 @@ auto Environment::Workspace::import_package(
                 Diagnostics::Log::Message<768> message(
                     Diagnostics::Log::Level::Error);
                 append_storage_failure(
-                    message, failure, "Package manifest"_view);
+                    message, failure, "Package root source"_view);
                 return Option<Package::Content&>();
               });
   if (!manifest) {
     return {};
   }
 
-  // The manifest begins the candidate graph. Its bytes, Tokens, Cursor, and
+  // The Package root begins the candidate graph. Its bytes, Tokens, Cursor, and
   // Package Monograph share one Arena, so a rejected import releases every
   // borrowed view together.
   Dynamic::Record<Allocator::Arena> root_transaction;
@@ -210,7 +217,7 @@ auto Environment::Workspace::import_package(
   Associations& root_associations =
       root_transaction->construct<Associations>(*root_transaction);
   Cursor& root_cursor = root_transaction->construct<Cursor>(
-      root_tokenizer, errors, root_associations);
+      root_tokenizer, errors, root_associations, root_logical_route);
   if (retained_monographs.contains(root_semantic_name)) {
     root_cursor.create_error(
         "This Package semantic name is already published in the Workspace."_view,
@@ -241,15 +248,16 @@ auto Environment::Workspace::import_package(
     return {};
   }
 
-  // Interpreting the manifest gives Workspace the complete Dependency and
-  // Source table before it starts acquiring members.
+  // The Package root contributes only its Library export surface and common
+  // Import Aliases. Workspace discovers the complete source graph by walking
+  // those Alias edges.
   Count root_error_count = errors.get_size();
   auto root_interpretation = Language::Dialect::interpret_source(
       toolchain.get_dialects(), root_cursor, *this);
   if (!root_interpretation) {
     if (errors.get_size() == root_error_count) {
       root_cursor.create_error(
-          "Package manifest interpretation failed without a more specific "
+          "Package root interpretation failed without a more specific "
           "diagnostic."_view);
     }
     return {};
@@ -265,16 +273,19 @@ auto Environment::Workspace::import_package(
   }
   Package::Language::Monograph& root = *selected_root;
 
-  Dynamic::Vector<Dynamic::Record<Allocator::Arena>> candidate_transactions(
-      root.get_sources().get_size() + 1);
+  Dynamic::Vector<Dynamic::Record<Allocator::Arena>> candidate_transactions;
   Managed::Vector<Language::Monograph*> candidates(acquisition);
   Managed::Vector<Cursor*> cursors(acquisition);
   Managed::Vector<View::Bytes> diagnostic_paths(acquisition);
+  Managed::Vector<View::Bytes> logical_routes(acquisition);
+  Managed::Vector<View::Bytes> source_names(acquisition);
   Managed::Vector<Bool> parse_validity(acquisition);
   candidate_transactions.insert(root_transaction);
   candidates.insert(&root);
   cursors.insert(&root_cursor);
   diagnostic_paths.insert(root_path);
+  logical_routes.insert(root_logical_route);
+  source_names.insert(root_semantic_name);
   parse_validity.insert(errors.get_size() == root_error_count);
 
   Bool retained = False;
@@ -287,6 +298,8 @@ auto Environment::Workspace::import_package(
     for (Count index = 0; index < candidate_transactions.get_size(); index++) {
       retained_sources.insert({
         .package_root = retained_package_root,
+        .name = source_names[index],
+        .logical_route = logical_routes[index],
         .diagnostic_path = diagnostic_paths[index],
         .source_text = cursors[index]->get_source_text(),
         .transaction = candidate_transactions[index],
@@ -295,6 +308,14 @@ auto Environment::Workspace::import_package(
         .associations = cursors[index]->get_associations(),
         .completed = completed,
       });
+      if (index != 0) {
+        package_members.insert({
+          .package = &root,
+          .name = arena.proxy(source_names[index]),
+          .logical_route = arena.proxy(logical_routes[index]),
+          .monograph = candidates[index],
+        });
+      }
     }
     retained_monographs.insert(
         arena.proxy(root_semantic_name),
@@ -312,133 +333,206 @@ auto Environment::Workspace::import_package(
     return {};
   }
 
-  // Dependencies arrive as completed Workspace facts. Matching their exact
-  // identity and version keeps this import focused on the graph named by its
-  // manifest.
   Bool parsed = parse_validity[0];
-  View::Vector<Package::Language::Dependency> dependencies =
-      root.get_dependencies();
-  for (Count dependency_index = 0; dependency_index < dependencies.get_size();
-       dependency_index++) {
-    const Package::Language::Dependency& dependency =
-        dependencies.get_data()[dependency_index];
-    Option<const ImportedPackage&> selected;
-    for (Count i = 0; i < packages.get_size(); i++) {
-      const ImportedPackage& imported = packages[i];
-      if (imported.identity == dependency.get_package_name()) {
-        selected = imported;
-        break;
+
+  // Common Import Aliases own the new source graph. Each local locator is
+  // resolved relative to the importing source, while package imports terminate
+  // at one already restored exact Package product. Aliases bind the selected
+  // semantic root rather than the Monograph that retains its lifetime.
+  for (Count candidate_index = 0; candidate_index < candidates.get_size();
+       candidate_index++) {
+    Language::Monograph& importer = *candidates[candidate_index];
+    for (const Reference<Language::Import>& retained_import :
+         importer.get_imports()) {
+      Language::Import& import = retained_import.get();
+      if (!import.resolve().is<Invalid>()) {
+        continue;
+      }
+
+      if (import.get_kind() == Language::Import::Kind::Package) {
+        Option<const ImportedPackage&> selected;
+        for (Count package_index = 0; package_index < packages.get_size();
+             package_index++) {
+          const ImportedPackage& candidate = packages[package_index];
+          if (candidate.identity == import.get_locator() &&
+              candidate.version == import.get_version()) {
+            selected = candidate;
+            break;
+          }
+        }
+        if (!selected || !import.bind(selected->monograph->get_root())) {
+          if (!selected && !pending_package_imports.get_view().contains(
+                               [&](const Reference<Language::Import>& pending) {
+                                 return pending.get().get_locator() ==
+                                            import.get_locator() &&
+                                        pending.get().get_version() ==
+                                            import.get_version();
+                               })) {
+            pending_package_imports.emplace(import);
+          }
+          cursors[candidate_index]->create_expression_error(
+              import.get_anchor(),
+              "Package Import did not select one restored exact Package."_view,
+              import.get_locator());
+          parse_validity[candidate_index] = False;
+          parsed = False;
+        }
+        continue;
+      }
+
+      Path route(logical_routes[candidate_index], import.get_locator());
+      View::Bytes normalized_route = route.get_view();
+      if (normalized_route.is_empty() || route.is_rooted()) {
+        cursors[candidate_index]->create_expression_error(
+            import.get_anchor(),
+            "Source Import did not resolve to one confined relative path."_view,
+            import.get_locator());
+        parse_validity[candidate_index] = False;
+        parsed = False;
+        continue;
+      }
+
+      Option<Count> existing_index;
+      for (Count index = 0; index < logical_routes.get_size(); index++) {
+        if (logical_routes[index] == normalized_route) {
+          existing_index = index;
+          break;
+        }
+      }
+
+      if (!existing_index) {
+        Option<Package::Content&> content =
+            storage->read(normalized_route)
+                .visit(
+                    [](Package::Content& acquired) {
+                      return Option<Package::Content&>(acquired);
+                    },
+                    [&](const Package::Storage::Failure& failure) {
+                      auto report = cursors[candidate_index]->create_report(
+                          import.get_anchor());
+                      append_storage_failure(
+                          report, failure, "Source Import"_view);
+                      return Option<Package::Content&>();
+                    });
+        if (!content) {
+          parse_validity[candidate_index] = False;
+          parsed = False;
+          continue;
+        }
+
+        Dynamic::Record<Allocator::Arena> source_transaction;
+        View::Bytes source_contents =
+            source_transaction->proxy(content->get_contents());
+        View::Bytes source_path =
+            source_transaction->proxy(content->get_diagnostic_path());
+        View::Bytes retained_route =
+            source_transaction->proxy(normalized_route);
+        Tokenizer& tokenizer = source_transaction->construct<Tokenizer>(
+            *source_transaction, source_contents, source_path);
+        Associations& associations =
+            source_transaction->construct<Associations>(*source_transaction);
+        Cursor& cursor = source_transaction->construct<Cursor>(
+            tokenizer, errors, associations, retained_route);
+        Count source_error_count = errors.get_size();
+        auto interpretation = Language::Dialect::interpret_source(
+            toolchain.get_dialects(), cursor, root);
+        if (!interpretation) {
+          if (errors.get_size() == source_error_count) {
+            cursor.create_error(
+                "Imported source interpretation failed without a more specific diagnostic."_view);
+          }
+          parse_validity[candidate_index] = False;
+          parsed = False;
+          continue;
+        }
+        if (interpretation->is<Package::Language::Monograph>()) {
+          cursor.create_error(
+              "A local source Import cannot begin another Package product."_view,
+              "Use package(.name = ..., .version = ...) at that boundary."_view);
+          parse_validity[candidate_index] = False;
+          parsed = False;
+          continue;
+        }
+
+        candidate_transactions.insert(source_transaction);
+        candidates.insert(&*interpretation);
+        cursors.insert(&cursor);
+        diagnostic_paths.insert(source_path);
+        logical_routes.insert(retained_route);
+        Managed::Bytes semantic_route(*source_transaction);
+        if (candidate_index != 0) {
+          semantic_route.concat(source_names[candidate_index]);
+          semantic_route.concat("::"_view);
+        }
+        semantic_route.concat(import.get_name());
+        source_names.insert(semantic_route.get_view());
+        parse_validity.insert(errors.get_size() == source_error_count);
+        existing_index = candidates.get_size() - 1;
+      }
+
+      if (!import.bind(candidates[*existing_index]->get_root())) {
+        cursors[candidate_index]->create_expression_error(
+            import.get_anchor(),
+            "Source Import Alias could not bind its selected semantic root."_view,
+            import.get_locator());
+        parse_validity[candidate_index] = False;
+        parsed = False;
       }
     }
-
-    if (!selected) {
-      root_cursor.create_expression_error(
-          dependency.get_span(),
-          "Package dependency is not already imported in this Workspace."_view,
-          dependency.get_package_name());
-      parsed = False;
-      continue;
-    }
-
-    if (selected->version != dependency.get_version()) {
-      root_cursor.create_expression_error(
-          dependency.get_span(),
-          "Package dependency requests a different version than the one "
-          "already imported in this Workspace."_view,
-          dependency.get_package_name());
-      parsed = False;
-      continue;
-    }
-
-    if (!root.bind_dependency(
-            dependency, *selected->monograph, root_associations)) {
-      root_cursor.create_expression_error(
-          dependency.get_span(),
-          "Package dependency could not enter the Package mapping table."_view,
-          dependency.get_local_name());
-      parsed = False;
-    }
-  }
-
-  // Each declared Source gets its own owner and Cursor. Source values and
-  // diagnostics can then retain the exact text and location of that member.
-  for (const Package::Language::Source& source : root.get_sources()) {
-    Option<Package::Content&> content =
-        storage->read(source.get_source_path())
-            .visit(
-                [&](Package::Content& acquired) {
-                  return Option<Package::Content&>(acquired);
-                },
-                [&](const Package::Storage::Failure& failure) {
-                  auto report = root_cursor.create_report(source.get_span());
-                  append_storage_failure(
-                      report, failure, "Package source"_view);
-                  return Option<Package::Content&>();
-                });
-    if (!content) {
-      parsed = False;
-      continue;
-    }
-
-    Dynamic::Record<Allocator::Arena> source_transaction;
-    View::Bytes source_contents =
-        source_transaction->proxy(content->get_contents());
-    View::Bytes source_path =
-        source_transaction->proxy(content->get_diagnostic_path());
-    Tokenizer& tokenizer = source_transaction->construct<Tokenizer>(
-        *source_transaction, source_contents, source_path);
-    Associations& associations =
-        source_transaction->construct<Associations>(*source_transaction);
-    Cursor& cursor =
-        source_transaction->construct<Cursor>(tokenizer, errors, associations);
-    Count source_error_count = errors.get_size();
-    auto member_interpretation = Language::Dialect::interpret_source(
-        toolchain.get_dialects(), cursor, root);
-    if (!member_interpretation) {
-      if (errors.get_size() == source_error_count) {
-        cursor.create_error(
-            "Package source interpretation failed without a more specific "
-            "diagnostic."_view);
-      }
-      parsed = False;
-      continue;
-    }
-    Language::Monograph& member = *member_interpretation;
-
-    candidate_transactions.insert(source_transaction);
-    candidates.insert(&member);
-    cursors.insert(&cursor);
-    diagnostic_paths.insert(source_path);
-    parse_validity.insert(errors.get_size() == source_error_count);
-    Count candidate_index = candidates.get_size() - 1;
-
-    // The root manifest has already fixed the complete member table. Treating
-    // one member as another Package would grow the table after its barrier and
-    // leave the import order responsible for its shape.
-    if (member.is<Package::Language::Monograph>()) {
-      cursor.create_error(
-          "A Package Source cannot create another Package import."_view);
-      parse_validity[candidate_index] = False;
-      parsed = False;
-      continue;
-    }
-
-    if (!root.bind_member(
-            source.get_local_route(), member, root_associations)) {
-      root_cursor.create_expression_error(
-          source.get_span(),
-          "Package source could not enter the Package mapping table."_view,
-          source.get_local_name());
-      parse_validity[candidate_index] = False;
-      parsed = False;
-      continue;
-    }
-    parsed &= parse_validity[candidate_index];
   }
   // Source parsing is where Package Storage becomes authored language facts.
   // Linking receives the sealed context after that conversion, when the set of
   // semantic candidates is already fixed.
   root.get_resources().seal();
+
+  // Source Alias edges determine completion order. Parsing established every
+  // identity already; this dependency-first order now lets each imported
+  // source settle its generated and authored Types before an importer validates
+  // those layouts. Package imports terminate at graphs restored earlier.
+  Managed::Vector<U8> source_states(acquisition);
+  Managed::Vector<Count> source_order(acquisition);
+  for (Count index = 0; index < candidates.get_size(); index++) {
+    source_states.insert(0);
+  }
+  auto order_source = [&](auto& self, Count index) -> Bool {
+    if (source_states[index] == 2) {
+      return True;
+    }
+    if (source_states[index] == 1) {
+      cursors[index]->create_error(
+          "Source Import graph contains a cycle."_view,
+          "Break the cycle or place the shared Types in a third source."_view);
+      return False;
+    }
+    source_states[index] = 1;
+    for (const Reference<Language::Import>& retained_import :
+         candidates[index]->get_imports()) {
+      const Language::Import& import = retained_import.get();
+      if (import.get_kind() != Language::Import::Kind::Source) {
+        continue;
+      }
+      const Abstract& target = import.resolve();
+      Option<Count> target_index;
+      for (Count candidate_index = 0; candidate_index < candidates.get_size();
+           candidate_index++) {
+        if (&candidates[candidate_index]->get_root() == &target) {
+          target_index = candidate_index;
+          break;
+        }
+      }
+      if (!target_index || !self(self, *target_index)) {
+        return False;
+      }
+    }
+    source_states[index] = 2;
+    source_order.insert(index);
+    return True;
+  };
+  for (Count index = 0; index < candidates.get_size(); index++) {
+    if (!order_source(order_source, index)) {
+      parsed = False;
+    }
+  }
 
   // Composition follows installed Dialect order after every member identity is
   // present. Dependency Dialects can publish inherited declarations before an
@@ -468,7 +562,8 @@ auto Environment::Workspace::import_package(
   // the strongest graph it can observe. Publication remains closed when any
   // earlier composition or parse step failed.
   Bool linked = composed;
-  for (Count i = 0; i < candidates.get_size(); i++) {
+  for (Count ordered = 0; ordered < source_order.get_size(); ordered++) {
+    Count i = source_order[ordered];
     Count source_error_count = errors.get_size();
     Bool candidate_linked = candidates[i]->link(*cursors[i]);
     if (!candidate_linked) {
@@ -485,7 +580,8 @@ auto Environment::Workspace::import_package(
   // the whole graph to link gives each candidate the same completed context.
   Bool finalized = linked;
   if (linked) {
-    for (Count i = 0; i < candidates.get_size(); i++) {
+    for (Count ordered = 0; ordered < source_order.get_size(); ordered++) {
+      Count i = source_order[ordered];
       Count source_error_count = errors.get_size();
       if (!candidates[i]->finalize(*cursors[i])) {
         if (errors.get_size() == source_error_count) {
@@ -532,17 +628,6 @@ auto Environment::Workspace::restore_package(
   }
 
   Dynamic::Record<Allocator::Arena> root_transaction;
-  Managed::Vector<Package::Language::Dependency> dependencies(
-      *root_transaction);
-  for (const Package::Language::Dependency& dependency :
-       archive.get_dependencies()) {
-    dependencies.insert(
-        Package::Language::Dependency(
-            Package::Language::Parser::Name(
-                root_transaction->proxy(dependency.get_local_name())),
-            root_transaction->proxy(dependency.get_package_name()),
-            dependency.get_version()));
-  }
   auto package_dialect = toolchain.find("Package"_view);
   if (!package_dialect || !package_dialect->is<Package::Dialect>()) {
     Diagnostics::Log::error(
@@ -557,34 +642,15 @@ auto Environment::Workspace::restore_package(
   }
   Package::Language::Monograph& root =
       Package::Language::Monograph::create_synthetic(
-          *root_transaction, *package_dialect, *this, dependencies.get_view(),
+          *root_transaction, *package_dialect, *this,
+          static_cast<Package::Dialect&>(*package_dialect).get_library(),
           resources.get_view());
-
-  View::Vector<Package::Language::Dependency> restored_dependencies =
-      root.get_dependencies();
-  for (Count dependency_index = 0;
-       dependency_index < restored_dependencies.get_size();
-       dependency_index++) {
-    const Package::Language::Dependency& dependency =
-        restored_dependencies.get_data()[dependency_index];
-    Option<const ImportedPackage&> selected;
-    for (Count index = 0; index < packages.get_size(); index++) {
-      const ImportedPackage& imported = packages[index];
-      if (imported.identity == dependency.get_package_name() &&
-          imported.version == dependency.get_version()) {
-        selected = imported;
-        break;
-      }
-    }
-    if (!selected || !root.bind_dependency(dependency, *selected->monograph)) {
-      Diagnostics::Log::error(
-          "Package restoration could not bind one exact dependency."_view);
-      return {};
-    }
-  }
 
   Dynamic::Vector<Dynamic::Record<Allocator::Arena>> candidates;
   Managed::Vector<Language::Monograph*> monographs(*root_transaction);
+  Managed::Vector<View::Bytes> restored_member_names(*root_transaction);
+  Managed::Map<View::Bytes, Language::Monograph&> restored_members(
+      *root_transaction);
   candidates.insert(root_transaction);
   monographs.insert(&root);
   for (const Package::Archive::Member& member : archive.get_members()) {
@@ -595,15 +661,26 @@ auto Environment::Workspace::restore_package(
       return {};
     }
 
+    if (member.get_semantic_name() == "PackageSurface"_view) {
+      if (&*dialect !=
+              &static_cast<Package::Dialect&>(*package_dialect).get_library() ||
+          !Library::Archive::Reader::restore_source(
+              *root_transaction, member.get_payload(), archive.get_profile(),
+              root.edit_library().get_source())) {
+        Diagnostics::Log::error(
+            "Package restoration rejected its Library export surface."_view);
+        return {};
+      }
+      continue;
+    }
+
     Dynamic::Record<Allocator::Arena> transaction;
     auto restored = dialect->restore(
         *transaction, member.get_payload(), archive.get_profile(),
         Documentation::get_empty(), root);
     View::Bytes member_name =
         root_transaction->proxy(member.get_semantic_name());
-    if (!restored || restored->is<Package::Language::Monograph>() ||
-        !root.bind_member(
-            Package::Language::Parser::Name(member_name), *restored)) {
+    if (!restored || restored->is<Package::Language::Monograph>()) {
       Diagnostics::Log::Message<256> message(
           Diagnostics::Log::Level::Error, Diagnostics::Source());
       message << "Package restoration rejected member `"_view << member_name
@@ -614,6 +691,101 @@ auto Environment::Workspace::restore_package(
 
     candidates.insert(transaction);
     monographs.insert(&*restored);
+    restored_members.launder(member_name, *restored);
+    restored_member_names.insert(member_name);
+  }
+
+  for (const Package::Archive::GraphImport& archived : archive.get_imports()) {
+    Language::Monograph* importer = nullptr;
+    if (archived.get_importer() == "PackageSurface"_view) {
+      importer = &root;
+    } else {
+      auto selected = restored_members.find(archived.get_importer());
+      if (selected) {
+        importer = &selected->value;
+      }
+    }
+    if (!importer) {
+      Diagnostics::Log::error(
+          "Package restoration could not select one Import owner."_view);
+      return {};
+    }
+
+    Language::Import::Description description(
+        root_transaction->proxy(archived.get_local_name()),
+        Documentation::get_empty(), Language::Visibility::Public,
+        archived.get_kind(), root_transaction->proxy(archived.get_target()),
+        archived.get_version(), Anchor::create(Span()));
+    if (!importer->retain_import(description)) {
+      Diagnostics::Log::error(
+          "Package restoration could not retain one Import Alias."_view);
+      return {};
+    }
+    Language::Import& import =
+        importer->get_imports()
+            .get_data()[importer->get_imports().get_size() - 1]
+            .get();
+
+    const Abstract* target = nullptr;
+    if (archived.get_kind() == Language::Import::Kind::Source) {
+      auto selected = restored_members.find(archived.get_target());
+      if (selected) {
+        target = &selected->value.get_root();
+      }
+    } else {
+      for (const ImportedPackage& candidate : packages.get_view()) {
+        if (candidate.identity == archived.get_target() &&
+            candidate.version == archived.get_version()) {
+          target = &candidate.monograph->get_root();
+          break;
+        }
+      }
+    }
+    if (!target || !import.bind(*target)) {
+      Diagnostics::Log::error(
+          "Package restoration could not bind one Import Alias target."_view);
+      return {};
+    }
+  }
+
+  Managed::Vector<U8> restored_states(*root_transaction);
+  Managed::Vector<Count> restored_order(*root_transaction);
+  for (Count index = 0; index < monographs.get_size(); index++) {
+    restored_states.insert(0);
+  }
+  auto order_restored = [&](auto& self, Count index) -> Bool {
+    if (restored_states[index] == 2) {
+      return True;
+    }
+    BAIL_IF(restored_states[index] == 1);
+    restored_states[index] = 1;
+    for (const Reference<Language::Import>& retained_import :
+         monographs[index]->get_imports()) {
+      const Language::Import& import = retained_import.get();
+      if (import.get_kind() != Language::Import::Kind::Source) {
+        continue;
+      }
+      const Abstract& target = import.resolve();
+      Option<Count> target_index;
+      for (Count candidate = 0; candidate < monographs.get_size();
+           candidate++) {
+        if (&monographs[candidate]->get_root() == &target) {
+          target_index = candidate;
+          break;
+        }
+      }
+      BAIL_IF(!target_index || !self(self, *target_index));
+    }
+    restored_states[index] = 2;
+    restored_order.insert(index);
+    return True;
+  };
+  for (Count index = 0; index < monographs.get_size(); index++) {
+    if (!order_restored(order_restored, index)) {
+      Diagnostics::Log::error(
+          "Package restoration rejected a cyclic Source Import graph."_view);
+      return {};
+    }
   }
 
   for (const Reference<Language::Dialect>& dialect : toolchain.get_dialects()) {
@@ -629,14 +801,16 @@ auto Environment::Workspace::restore_package(
     }
   }
 
-  for (Count index = 0; index < monographs.get_size(); index++) {
+  for (Count ordered = 0; ordered < restored_order.get_size(); ordered++) {
+    Count index = restored_order[ordered];
     if (!monographs[index]->link_restored()) {
       Diagnostics::Log::error(
           "Package restoration failed while linking member graphs."_view);
       return {};
     }
   }
-  for (Count index = 0; index < monographs.get_size(); index++) {
+  for (Count ordered = 0; ordered < restored_order.get_size(); ordered++) {
+    Count index = restored_order[ordered];
     if (!monographs[index]->finalize_restored()) {
       Diagnostics::Log::error(
           "Package restoration failed while finalizing member graphs."_view);
@@ -647,6 +821,15 @@ auto Environment::Workspace::restore_package(
   for (const Dynamic::Record<Allocator::Arena>& candidate :
        candidates.get_view()) {
     restored_transactions.insert(candidate);
+  }
+  for (Count index = 0; index < restored_member_names.get_size(); index++) {
+    View::Bytes name = arena.proxy(restored_member_names[index]);
+    package_members.insert({
+      .package = &root,
+      .name = name,
+      .logical_route = name,
+      .monograph = monographs[index + 1],
+    });
   }
   View::Bytes retained_identity = arena.proxy(archive.get_identity());
   packages.insert({
@@ -692,6 +875,33 @@ auto Environment::Workspace::get_completed_monograph(
   return {};
 }
 
+auto Environment::Workspace::get_package_source_count(
+    const Package::Language::Monograph& package) const -> Count {
+  Count count = 0;
+  for (const PackageMember& member : package_members.get_view()) {
+    if (member.package == &package) {
+      count++;
+    }
+  }
+  return count;
+}
+
+auto Environment::Workspace::get_package_source(
+    const Package::Language::Monograph& package,
+    Count selected_index) const -> Option<PackageSource> {
+  Count index = 0;
+  for (const PackageMember& member : package_members.get_view()) {
+    if (member.package != &package) {
+      continue;
+    }
+    if (index++ == selected_index) {
+      return PackageSource(
+          member.name, member.logical_route, *member.monograph);
+    }
+  }
+  return {};
+}
+
 auto Environment::Workspace::get_tokens(View::Bytes diagnostic_path) const
     -> View::Vector<Token> {
   for (const RetainedSource& source : retained_sources.get_view()) {
@@ -716,6 +926,60 @@ auto Environment::Workspace::get_associations(
 
 auto Environment::Workspace::find_authored_location(
     const Abstract& semantic) const -> Option<AuthoredLocation> {
+  Option<Anchor> declaration;
+  semantic.visit<Library::Language::Model::Type>(
+      [&](const Library::Language::Model::Type& type) {
+        declaration = type.get_declaration_anchor();
+      },
+      [&](const Abstract& candidate) {
+        candidate.visit<Library::Language::Model::Addressable>(
+            [&](const Library::Language::Model::Addressable& addressable) {
+              declaration = addressable.get_declaration_anchor();
+            },
+            [&](const Abstract& callable_candidate) {
+              callable_candidate.visit<Library::Language::Model::Callable>(
+                  [&](const Library::Language::Model::Callable& callable) {
+                    declaration = callable.get_declaration_anchor();
+                  },
+                  [&](const Abstract& import_candidate) {
+                    auto import = import_candidate.select<Language::Import>();
+                    if (import) {
+                      declaration = import->get_anchor();
+                    }
+                  });
+            });
+      });
+
+  if (declaration) {
+    Token focus = declaration->get_token();
+    Span span = declaration->get_span();
+    for (const RetainedSource& source : retained_sources.get_view()) {
+      for (const Associations::Entry& entry :
+           source.associations.get_entries()) {
+        if (&entry.get_semantic() != &semantic) {
+          continue;
+        }
+        Anchor candidate = entry.get_anchor();
+        Token candidate_focus = candidate.get_token();
+        Span candidate_span = candidate.get_span();
+        Bool same_focus =
+            bool(focus) == bool(candidate_focus) &&
+            (!focus || (focus.get_offset() == candidate_focus.get_offset() &&
+                        focus.get_size() == candidate_focus.get_size() &&
+                        focus.get_code() == candidate_focus.get_code()));
+        Bool same_span =
+            bool(span) == bool(candidate_span) &&
+            (!span || (span.get_offset() == candidate_span.get_offset() &&
+                       span.get_size() == candidate_span.get_size()));
+        if ((focus && same_focus) || (!focus && same_span)) {
+          return AuthoredLocation(
+              source.package_root, source.diagnostic_path, source.source_text,
+              candidate);
+        }
+      }
+    }
+  }
+
   for (const RetainedSource& source : retained_sources.get_view()) {
     auto anchor = source.associations.find(semantic);
     if (anchor) {
@@ -726,6 +990,81 @@ auto Environment::Workspace::find_authored_location(
   }
 
   return {};
+}
+
+auto Environment::Workspace::find_acquired_location(
+    View::Bytes package_root,
+    View::Bytes logical_route,
+    Count offset,
+    const Abstract& semantic) const -> Option<AuthoredLocation> {
+  const RetainedSource* importer = nullptr;
+  for (const RetainedSource& source : retained_sources.get_view()) {
+    if (source.package_root == package_root &&
+        source.logical_route == logical_route) {
+      importer = &source;
+      break;
+    }
+  }
+  BAIL_IF(importer == nullptr);
+
+  Token selected;
+  for (const Token& token : importer->tokens) {
+    Count start = token.get_offset();
+    Count end = start + token.get_size();
+    if (offset >= start && offset < end) {
+      selected = token;
+      break;
+    }
+  }
+  BAIL_IF(!selected);
+
+  Code::Type code = selected.get_code().get_type();
+  if (code == Code::Type::Source || code == Code::Type::Package) {
+    auto import = semantic.select<Language::Import>();
+    BAIL_IF(
+        !import ||
+        (code == Code::Type::Source &&
+         import->get_kind() != Language::Import::Kind::Source) ||
+        (code == Code::Type::Package &&
+         import->get_kind() != Language::Import::Kind::Package));
+
+    const Abstract& target = import->resolve();
+    BAIL_IF(target.is<Invalid>());
+    for (const RetainedSource& source : retained_sources.get_view()) {
+      if (&source.monograph.get_root() == &target) {
+        return AuthoredLocation(
+            source.package_root, source.diagnostic_path, source.source_text,
+            Anchor::create(Span()));
+      }
+    }
+
+    return {};
+  }
+
+  BAIL_IF(code != Code::Type::Embedded);
+  auto resource = semantic.select<Package::Resource>();
+  BAIL_IF(!resource);
+
+  auto package = importer->monograph.select<Package::Language::Monograph>();
+  const Package::Language::Monograph* owner = package ? &*package : nullptr;
+  if (owner == nullptr) {
+    for (const PackageMember& member : package_members.get_view()) {
+      if (member.monograph == &importer->monograph) {
+        owner = member.package;
+        break;
+      }
+    }
+  }
+  BAIL_IF(owner == nullptr);
+
+  Bool retained = owner->get_resources().get_values().contains(
+      [&](const Reference<Package::Resource>& candidate) {
+        return &candidate.get() == &*resource;
+      });
+  BAIL_IF(!retained);
+  return AuthoredLocation(
+      importer->package_root, resource->get_route(), {},
+      Anchor::create(Span()));
 }
 
 auto Environment::Workspace::get_name() const -> View::Bytes {

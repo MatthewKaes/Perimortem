@@ -5,6 +5,15 @@
 //
 dialect : Library;
 
+public Texture2DSource   : alias = source("texture2d.ttx");
+public Render            : alias = source("render.ttx");
+public Size2DSource      : alias = source("size2d.ttx");
+public Transform2DSource : alias = source("transform2d.ttx");
+
+public Texture2D   : alias = Texture2DSource::Texture2D;
+public Size2D      : alias = Size2DSource::Size2D;
+public Transform2D : alias = Transform2DSource::Transform2D;
+
 // Sprite keeps its concrete Shader Instance through the TexturedQuad2D Render
 // contract. An empty Shader or texture contributes no draw without changing
 // the Sprite identity.

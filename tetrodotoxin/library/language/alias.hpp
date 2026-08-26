@@ -56,7 +56,8 @@ class Alias : public Ttx::Model::Alias {
   }
 
   // Source orders Alias completion across its whole declaration tree. Alias
-  // itself only resolves its retained route and binds the resulting Type.
+  // itself resolves its retained route and binds the resulting TTX Type. A
+  // value consumer separately proves the narrower Library Type protocol.
   auto link() -> Bool;
   auto report_unresolved(Ttx::Lexical::Cursor& cursor) const -> void;
 

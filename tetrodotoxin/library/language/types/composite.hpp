@@ -100,6 +100,8 @@ class Composite : public Model::Type {
       Category category,
       Bool published) -> Bool;
 
+  virtual auto complete_body() -> void { complete_field_layout(); }
+
   constexpr auto get_definition() const
       -> const Tetrodotoxin::Language::Definition& {
     return definition;
@@ -151,7 +153,7 @@ class Composite : public Model::Type {
 
   constexpr auto get_declaration_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
-    return get_anchor();
+    return definition.get_name_anchor();
   }
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
@@ -161,6 +163,9 @@ class Composite : public Model::Type {
   // declaration authority to the remainder of a qualified route.
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
+
+  virtual auto resolve_public_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract&;
 
   // Declaration owners use this one name query for their unqualified root.
   // Actual containment grants local access without attaching authority to any
@@ -223,9 +228,8 @@ class Composite : public Model::Type {
     constexpr NameIndex(Perimortem::Memory::Allocator::Arena& domain)
         : entries(domain) {}
 
-    auto can_bind(
-        const Ttx::Concept::Abstract& binding,
-        Category category) const -> Bool;
+    auto can_bind(const Ttx::Concept::Abstract& binding, Category category)
+        const -> Bool;
 
     auto bind(
         Ttx::Concept::Abstract& binding,
@@ -265,9 +269,7 @@ class Composite : public Model::Type {
       U8 publication = 0;
     };
 
-    Perimortem::Memory::Managed::Map<
-        Perimortem::Core::View::Bytes,
-        Entry>
+    Perimortem::Memory::Managed::Map<Perimortem::Core::View::Bytes, Entry>
         entries;
   };
 

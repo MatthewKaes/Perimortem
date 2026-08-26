@@ -5,6 +5,9 @@
 //
 dialect : Shader;
 
+public Math   : alias = package(.name = "Perimortem.Math", .version = "1.0");
+public Render : alias = source("render.ttx");
+
 public DefaultTexturedQuad2D : shader Render::TexturedQuad2D {
   public tone : uniform Math::Vec4D = (
     .x = new[R32](1.0),

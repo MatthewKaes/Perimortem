@@ -112,7 +112,8 @@ static auto validate(
     View::Vector<View::Bytes> artifact_ids,
     View::Vector<Package::Archive::Artifact> artifacts,
     View::Vector<Package::Archive::Export> exports,
-    View::Vector<Package::Archive::Resource> resources) -> Bool {
+    View::Vector<Package::Archive::Resource> resources,
+    View::Vector<Package::Archive::GraphImport> imports) -> Bool {
   if (!Lexicon::validate(
           Code::Type::Type, identity, package_identity_separators)) {
     return log_invalid_value(
@@ -139,6 +140,61 @@ static auto validate(
   const auto* artifact_data = artifacts.get_data();
   const auto* export_data = exports.get_data();
   const auto* resource_data = resources.get_data();
+
+  for (Count index = 0; index < imports.get_size(); index++) {
+    const Package::Archive::GraphImport& import = imports.get_data()[index];
+    if (!Lexicon::validate(
+            Code::Type::Type, import.get_importer(),
+            semantic_name_separators) ||
+        !Lexicon::validate(Code::Type::Type, import.get_local_name()) ||
+        import.get_target().is_empty()) {
+      return log_invalid_value(
+          "Graph Imports"_view, index, import.get_local_name(),
+          "the importer, local name, or target is invalid."_view);
+    }
+    Bool package_import =
+        import.get_kind() == Tetrodotoxin::Language::Import::Kind::Package;
+    if (package_import == import.get_version().is_null()) {
+      return log_invalid_version(
+          "Graph Imports"_view, index, import.get_version(),
+          "only Package imports carry one non-null version."_view);
+    }
+
+    Bool importer_exists = import.get_importer() == "PackageSurface"_view;
+    Bool target_exists = False;
+    for (const Package::Archive::Member& member : members) {
+      importer_exists |= member.get_semantic_name() == import.get_importer();
+      target_exists |= member.get_semantic_name() == import.get_target() &&
+                       member.get_semantic_name() != "PackageSurface"_view;
+    }
+    if (!importer_exists) {
+      return log_invalid_value(
+          "Graph Imports"_view, index, import.get_importer(),
+          "the importing source is not an Archive member."_view);
+    }
+    if (package_import) {
+      if (!Lexicon::validate(
+              Code::Type::Type, import.get_target(),
+              package_identity_separators)) {
+        return log_invalid_value(
+            "Graph Imports"_view, index, import.get_target(),
+            "the Package target is not a qualified Package Type name."_view);
+      }
+    } else if (!target_exists) {
+      return log_invalid_value(
+          "Graph Imports"_view, index, import.get_target(),
+          "the source target is not an Archive member."_view);
+    }
+    for (Count earlier = 0; earlier < index; earlier++) {
+      const Package::Archive::GraphImport& prior = imports.get_data()[earlier];
+      if (prior.get_importer() == import.get_importer() &&
+          prior.get_local_name() == import.get_local_name()) {
+        return log_duplicate_value(
+            "Graph Import local names"_view, import.get_local_name(), earlier,
+            index);
+      }
+    }
+  }
 
   // Dependencies retain authored order but require unique local aliases and
   // exact Package identities and pinned versions.
@@ -631,6 +687,41 @@ static auto parse_resources(
   return reader.get_location() == reader.get_size();
 }
 
+static auto parse_graph_imports(
+    View::Bytes payload,
+    Dynamic::Vector<Package::Archive::GraphImport>& imports) -> Bool {
+  LittleReader reader(payload);
+  U32 count = reader.read_u32();
+  BAIL_IF(
+      !is_valid(reader) || !can_allocate_records<Package::Archive::GraphImport>(
+                               count, payload, reader.get_location(), 17));
+  imports = Dynamic::Vector<Package::Archive::GraphImport>(count);
+  for (U32 index = 0; index < count; index++) {
+    U32 record_size = reader.read_u32();
+    View::Bytes record = reader.read_bytes(record_size);
+    BAIL_IF(!is_valid(reader));
+    LittleReader entry(record);
+    U8 kind = entry.read_u8();
+    View::Bytes importer;
+    View::Bytes local_name;
+    View::Bytes target;
+    Bool importer_read = read_sized_bytes(entry, importer);
+    Bool local_read = read_sized_bytes(entry, local_name);
+    Bool target_read = read_sized_bytes(entry, target);
+    U16 major = entry.read_u16();
+    U16 minor = entry.read_u16();
+    BAIL_IF(
+        kind > U8(Tetrodotoxin::Language::Import::Kind::Package) ||
+        !importer_read || !local_read || !target_read || !is_valid(entry) ||
+        entry.get_location() != entry.get_size());
+    imports.emplace(
+        Package::Archive::GraphImport(
+            importer, local_name, Tetrodotoxin::Language::Import::Kind(kind),
+            target, Version(major, minor)));
+  }
+  return reader.get_location() == reader.get_size();
+}
+
 // Framing failures do not have authored source context. Preserve the Archive
 // stage and byte position in the debug trace, then let the requesting owner
 // decide how the failed dependency or compile request should be reported.
@@ -672,12 +763,14 @@ static auto retain_archive(
     View::Vector<Package::Archive::Artifact> artifacts,
     View::Vector<Package::Archive::Export> exports,
     Tetrodotoxin::Language::Persistence::Profile profile,
-    View::Vector<Package::Archive::Resource> resources)
+    View::Vector<Package::Archive::Resource> resources,
+    View::Vector<Package::Archive::GraphImport> imports)
     -> Package::Archive::Archive {
   auto retained_dependencies = retain_records(arena, dependencies);
   auto retained_members = retain_records(arena, members);
   auto retained_exports = retain_records(arena, exports);
   auto retained_resources = retain_records(arena, resources);
+  auto retained_graph_imports = retain_records(arena, imports);
   Managed::Vector<Package::Archive::Artifact> retained_artifacts(arena);
   for (const Package::Archive::Artifact& artifact : artifacts) {
     auto retained_imports = retain_records(arena, artifact.get_imports());
@@ -690,7 +783,7 @@ static auto retain_archive(
   return Package::Archive::Archive(
       identity, version, retained_dependencies, retained_members,
       retained_artifacts.get_view(), retained_exports, profile,
-      retained_resources);
+      retained_resources, retained_graph_imports);
 }
 
 auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
@@ -720,10 +813,10 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   // A readable revision is the only rejection that gives callers a recovery
   // decision beyond invalid Archive bytes. Keep the exact revision in the
   // Debug record while the returned category stays small.
-  if (format != 2 && format != 3) {
+  if (format != 2 && format != 3 && format != 4) {
     Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
     message << archive_read_operation
-            << " failed. stage=header byte_offset=4 expected_format=2_or_3 "
+            << " failed. stage=header byte_offset=4 expected_format=2_3_or_4 "
                "actual_format="_view
             << format;
     return Error::UnsupportedFormat;
@@ -768,9 +861,12 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   Dynamic::Vector<Dynamic::Vector<Linker::Import>> artifact_imports;
   Dynamic::Vector<Export> exports;
   Dynamic::Vector<Package::Archive::Resource> resources;
+  Dynamic::Vector<Package::Archive::GraphImport> imports;
   U8 expected_section = first_section;
-  U8 last_section = format == 3 ? U8(Archive::Sections::Resources)
-                                : U8(Archive::Sections::ArtifactMetadata);
+  U8 last_section =
+      format == 4 ? U8(Archive::Sections::Imports)
+                  : (format == 3 ? U8(Archive::Sections::Resources)
+                                 : U8(Archive::Sections::ArtifactMetadata));
 
   while (reader.has_content()) {
     // Isolate one section payload before interpreting its tag. A malformed
@@ -860,6 +956,9 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     case Archive::Sections::Resources:
       parsed = parse_resources(payload, resources);
       break;
+    case Archive::Sections::Imports:
+      parsed = parse_graph_imports(payload, imports);
+      break;
     default:
       parsed = False;
       break;
@@ -888,11 +987,17 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     return Error::InvalidFormat;
   }
 
+  if (format == 4 && dependencies.get_size() != 0) {
+    return reject_archive(
+        "dependencies"_view, 0,
+        "Format 4 records Package edges only in the Imports section."_view);
+  }
+
   // Validate Package names, versions, uniqueness, and Export references after
   // every section is structurally complete.
   if (!validate(
           identity, version, dependencies, members, artifact_ids, artifacts,
-          exports, resources)) {
+          exports, resources, imports)) {
     return Error::InvalidFormat;
   }
 
@@ -900,5 +1005,5 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   // bytes. The returned Archive itself remains an ordinary value.
   return retain_archive(
       arena, identity, version, dependencies, members, artifacts, exports,
-      profile, resources);
+      profile, resources, imports);
 }

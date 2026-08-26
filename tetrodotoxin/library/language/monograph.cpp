@@ -100,7 +100,7 @@ auto Library::Language::Monograph::create(
 }
 
 auto Library::Language::Monograph::link(Cursor& cursor) -> Bool {
-  return source.link(cursor, context);
+  return source.link(cursor, *this);
 }
 
 auto Library::Language::Monograph::finalize(Cursor& cursor) -> Bool {
@@ -120,7 +120,7 @@ auto Library::Language::Monograph::finalize(Cursor& cursor) -> Bool {
 }
 
 auto Library::Language::Monograph::link_restored() -> Bool {
-  return source.link_restored(context);
+  return source.link_restored(*this);
 }
 
 auto Library::Language::Monograph::finalize_restored() -> Bool {
@@ -133,6 +133,14 @@ auto Library::Language::Monograph::get_name() const -> View::Bytes {
 
 auto Library::Language::Monograph::resolve_context(View::Bytes route) const
     -> const Abstract& {
+  const Abstract& local = resolve_local_context(route);
+  return local.is<Invalid>()
+             ? Tetrodotoxin::Language::Monograph::resolve_context(route)
+             : local;
+}
+
+auto Library::Language::Monograph::resolve_local_context(
+    View::Bytes route) const -> const Abstract& {
   // Source and Foreign are the two reserved authored contexts. Ordinary
   // declarations remain in Source while root vocabulary and using contexts
   // answer only names that those owned contexts leave unresolved.
@@ -154,7 +162,22 @@ auto Library::Language::Monograph::resolve_context(View::Bytes route) const
     return root;
   }
 
-  return source.resolve_imports(route);
+  const Abstract& imported = source.resolve_imports(route);
+  return imported.is<Invalid>() ? resolve_import(route) : imported;
+}
+
+auto Library::Language::Monograph::can_bind_source_type(View::Bytes name) const
+    -> Bool {
+  return resolve_root_context(name).is<Invalid>() &&
+         resolve_import(name).is<Invalid>();
+}
+
+auto Library::Language::Monograph::retain_import(
+    const Tetrodotoxin::Language::Import::Description& description,
+    Option<Associations&> associations) -> Bool {
+  BAIL_IF(!can_bind_source_type(description.get_name()));
+  return Tetrodotoxin::Language::Monograph::retain_import(
+      description, associations);
 }
 
 auto Library::Language::Monograph::resolve_root_context(View::Bytes route) const
@@ -167,7 +190,7 @@ auto Library::Language::Monograph::resolve_root_context(View::Bytes route) const
     return intrinsic;
   }
 
-  return Tetrodotoxin::Language::Monograph::resolve_context(route);
+  return Invalid::get_invalid();
 }
 
 auto Library::Language::Monograph::resolve_access(

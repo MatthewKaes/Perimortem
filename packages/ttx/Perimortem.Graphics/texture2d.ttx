@@ -5,6 +5,10 @@
 //
 dialect : Library;
 
+public ImageSource : alias = source("image.ttx");
+
+public Image : alias = ImageSource::Image;
+
 // Texture2D gives one Image a durable rendering identity. Graphics backends
 // realize device storage from this Object while the image and sampling meaning
 // remain independent from any Vulkan handle.

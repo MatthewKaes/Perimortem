@@ -21,6 +21,7 @@ cc_library(
     deps = [
         ":linker",
         "//perimortem:headless",
+        "//tetrodotoxin/library",
         "//tetrodotoxin/language",
         "//ttx:concept",
         "//ttx:lexical",

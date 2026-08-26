@@ -7,6 +7,7 @@
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -148,8 +149,8 @@ auto Types::Source::can_bind_static(const Abstract& binding, Category category)
     return True;
   }
 
-  View::Bytes name = binding.get_name();
-  return get_host().resolve_context(name).is<Invalid>();
+  auto monograph = get_host().select<Library::Language::Monograph>();
+  return !monograph || monograph->can_bind_source_type(binding.get_name());
 }
 
 auto Types::Source::retain_import_context(const Abstract& imported) -> Bool {
@@ -165,7 +166,14 @@ auto Types::Source::retain_import_context(const Abstract& imported) -> Bool {
 
   auto has_conflict = [&](auto bindings) -> Bool {
     for (const Reference<Abstract>& binding : bindings) {
-      if (!context.resolve_context(binding.get().get_name()).is<Invalid>()) {
+      const Abstract& visible = context.visit<Composite>(
+          [&](const Composite& composite) -> const Abstract& {
+            return composite.resolve_public_context(binding.get().get_name());
+          },
+          [&](const Abstract& selected) -> const Abstract& {
+            return selected.resolve_context(binding.get().get_name());
+          });
+      if (!visible.is<Invalid>()) {
         return True;
       }
     }
@@ -300,18 +308,19 @@ auto Types::Source::retain_binding(
 auto Types::Source::resolve_context(View::Bytes route) const
     -> const Abstract& {
   // Foreign is one reserved receiver context, while authored Source names use
-  // the ordinary public categories. The Monograph fallback composes intrinsic,
-  // outer Package, and using contexts without copying any of their bindings.
+  // the ordinary public categories. The Monograph fallback supplies intrinsic
+  // and source-local import names.
   if (route == "foreign"_view && foreign.is_authored()) {
     return foreign;
   }
 
-  const Abstract& local = resolve_local(route, Visibility::Public);
-  if (!local.is<Invalid>()) {
-    return local;
-  }
+  const Abstract& local = resolve_public_context(route);
+  return !local.is<Invalid>() ? local : get_host().resolve_context(route);
+}
 
-  return get_host().resolve_context(route);
+auto Types::Source::resolve_public_context(View::Bytes route) const
+    -> const Abstract& {
+  return resolve_local(route, Visibility::Public);
 }
 
 auto Types::Source::create_default(Allocator::Arena&) const
@@ -329,7 +338,14 @@ auto Types::Source::resolve_imports(View::Bytes route) const
   // provider identities make the query ambiguous and therefore Invalid.
   Option<const Abstract&> selected;
   for (const Reference<const Abstract>& retained : imports.get_view()) {
-    const Abstract& candidate = retained.get().resolve_context(route);
+    const Abstract& context = retained.get();
+    const Abstract& candidate = context.visit<Composite>(
+        [&](const Composite& composite) -> const Abstract& {
+          return composite.resolve_public_context(route);
+        },
+        [&](const Abstract& provider) -> const Abstract& {
+          return provider.resolve_context(route);
+        });
     if (candidate.is<Invalid>()) {
       continue;
     }

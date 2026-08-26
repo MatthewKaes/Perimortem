@@ -5,6 +5,10 @@
 //
 dialect : Library;
 
+public Point2DSource : alias = source("point2d.ttx");
+
+public Point2D : alias = Point2DSource::Point2D;
+
 // Transform2D carries translation, scale, and rotation without choosing a
 // backend matrix representation.
 public Transform2D : struct {

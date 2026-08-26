@@ -127,7 +127,7 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, segment_queries) {
   EXPECT(errors.is_empty());
 }
 
-PERIMORTEM_UNIT_TEST(LibraryTypeReference, package_source_terminal) {
+PERIMORTEM_UNIT_TEST(LibraryTypeReference, explicit_package_alias) {
   Allocator::Arena arena;
   Errors errors;
   Tokenizer tokenizer(arena, "Math::U64"_view, "route.ttx"_view);
@@ -137,9 +137,8 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, package_source_terminal) {
   ASSERT(reference);
 
   Language::Types::U64 terminal;
-  RouteContext source("Library"_view, "U64"_view, terminal);
-  Alias source_alias("U64"_view, source);
-  RouteContext package("Package"_view, "U64"_view, source_alias);
+  Alias exported_alias("U64"_view, terminal);
+  RouteContext package("Package"_view, "U64"_view, exported_alias);
   Alias package_alias("Math"_view, package);
   RouteContext root("Root"_view, "Math"_view, package_alias);
   Option<const Abstract&> selected;

@@ -136,7 +136,7 @@ auto Package::Resources::resolve(View::Bytes logical_route) -> const Abstract& {
   auto read = storage->read(logical_route);
   return read.visit(
       [&](Package::Content& content) -> const Abstract& {
-        View::Bytes retained_key = domain.proxy(content.get_diagnostic_path());
+        View::Bytes retained_key = domain.proxy(request_key);
         Package::Resource& retained = Package::Resource::create(
             domain, retained_key, content.get_contents());
         resource_cache.launder(retained_key, retained);

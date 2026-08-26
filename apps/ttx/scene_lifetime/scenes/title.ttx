@@ -4,19 +4,22 @@
 // A title screen that publishes keyboard input as Scene Signals.
 dialect : Scene;
 
+public Graphics : alias = package(.name = "Perimortem.Graphics", .version = "1.0");
+public System : alias = package(.name = "Perimortem.System", .version = "1.0");
+public Blend : alias = source("../shaders/blend.ttx");
 using System::Key;
 
 signal space_pressed;
 signal shift_pressed;
 private state title_card : Graphics::Sprite;
-private state title_shader : Shaders::Blend::TexturedQuad2D::Instance;
+private state title_shader : Blend::TexturedQuad2D::Instance;
 private state elapsed : R64 = 0.0;
 
 Scene prepare[self] -> [] {
-  state image := Graphics::Format::PNG -> decode(.bytes = $[resources/logo.png] ->
+  state image       := Graphics::Format::PNG -> decode(.bytes = $[../resources/logo.png] ->
       get_view())!;
-  state texture := Graphics::Texture2D -> from_image(.image = image);
-  state noise_image := Graphics::Format::PNG -> decode(.bytes = $[resources/perlin.png] ->
+  state texture     := Graphics::Texture2D -> from_image(.image = image);
+  state noise_image := Graphics::Format::PNG -> decode(.bytes = $[../resources/perlin.png] ->
       get_view())!;
   noise_image.addressing = Graphics::Image::Addressing::wrap;
 
@@ -44,6 +47,6 @@ Scene update[self, .delta_time : R64] -> [] {
   self.title_shader.parameters.time_milliseconds = new[U32](wrapped_time * 1000.0);
 
   state input := System::Input -> snapshot();
-  if (input -> pressed(.key = space)) : emit space_pressed;
-  if (input -> pressed(.key = shift)) : emit shift_pressed;
+  if input -> pressed(.key = space) : emit space_pressed;
+  if input -> pressed(.key = shift) : emit shift_pressed;
 }

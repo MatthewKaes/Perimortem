@@ -12,20 +12,22 @@
 
 namespace Tetrodotoxin::Package::Repository {
 
-// Binds one Package key to the exact Archive and native files supplied by
-// Bazel. Locations remain outside the key because moving a build output must
-// not create a different semantic Package.
+// Binds one Package key to the exact source and compiled products supplied by
+// a caller. Locations remain outside the key because moving an installation or
+// local checkout does not create a different semantic Package.
 class Input {
  public:
   constexpr Input(
       Perimortem::Core::View::Bytes identity,
       Perimortem::System::Version version,
       Perimortem::Core::View::Bytes archive_location,
-      Perimortem::Core::View::Vector<Artifact> artifacts)
+      Perimortem::Core::View::Vector<Artifact> artifacts,
+      Perimortem::Core::View::Bytes source_location = {})
       : identity(identity),
         version(version),
         archive_location(archive_location),
-        artifacts(artifacts) {}
+        artifacts(artifacts),
+        source_location(source_location) {}
 
   // Treating different locations as different Inputs would allow two physical
   // declarations to compete for one Package key. Equality therefore stops at
@@ -51,11 +53,16 @@ class Input {
     return artifacts;
   }
 
+  constexpr auto get_source_location() const -> Perimortem::Core::View::Bytes {
+    return source_location;
+  }
+
  private:
   Perimortem::Core::View::Bytes identity;
   Perimortem::System::Version version;
   Perimortem::Core::View::Bytes archive_location;
   Perimortem::Core::View::Vector<Artifact> artifacts;
+  Perimortem::Core::View::Bytes source_location;
 };
 
 }  // namespace Tetrodotoxin::Package::Repository

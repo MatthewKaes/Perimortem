@@ -17,6 +17,7 @@
 #include "tetrodotoxin/environment/toolchain.hpp"
 #include "tetrodotoxin/package/archive/archive.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/package/resource.hpp"
 #include "tetrodotoxin/package/snapshots.hpp"
 #include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -35,6 +36,36 @@ namespace Tetrodotoxin::Environment {
 // lifetime and recompute dependents against the replacement source identities.
 class Workspace : public Ttx::Concept::Abstract {
  public:
+  class PackageSource {
+   public:
+    constexpr PackageSource(
+        Perimortem::Core::View::Bytes name,
+        Perimortem::Core::View::Bytes logical_route,
+        const Language::Monograph& monograph)
+        : name(name), logical_route(logical_route), monograph(monograph) {}
+
+    constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
+      return name;
+    }
+    constexpr auto get_logical_route() const -> Perimortem::Core::View::Bytes {
+      return logical_route;
+    }
+    constexpr auto get_monograph() const -> const Language::Monograph& {
+      return monograph;
+    }
+
+   private:
+    // The first route discovered from the Package root gives terminal products
+    // one deterministic graph key. It is not an intrinsic Monograph name;
+    // every authored Alias remains local to its importer.
+    Perimortem::Core::View::Bytes name;
+    Perimortem::Core::View::Bytes logical_route;
+    const Language::Monograph& monograph;
+  };
+
+  // Carries one Workspace owned editor projection. Semantic definitions retain
+  // their authored Anchor and source text, while an acquired file uses an
+  // empty Anchor to select the beginning of that physical input.
   class AuthoredLocation {
    public:
     constexpr AuthoredLocation(
@@ -86,9 +117,9 @@ class Workspace : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes contents)
       -> Perimortem::Core::Option<Language::Monograph&>;
 
-  // A Package begins with its manifest because that table gives every member a
-  // stable name and path. Dependencies arrive as completed Workspace facts, so
-  // this import cannot quietly start another import.
+  // A Package begins with its restricted export source. Workspace follows
+  // source-local Alias imports relative to each importer and terminates at
+  // exact Package facts already supplied by the terminal.
   auto import_package(
       Ttx::Lexical::Errors& errors,
       Perimortem::Core::View::Bytes package_root,
@@ -99,8 +130,8 @@ class Workspace : public Ttx::Concept::Abstract {
       -> Perimortem::Core::Option<Language::Monograph&>;
 
   // Archive restoration rebuilds a Package from facts that have already passed
-  // archive validation. Completing dependencies first gives restored members
-  // the same context as authored members.
+  // archive validation, binds its recorded Alias graph, and applies the same
+  // completion order as authored sources.
   auto restore_package(
       const Package::Archive::Archive& archive,
       Perimortem::Core::View::Bytes root_semantic_name)
@@ -121,6 +152,22 @@ class Workspace : public Ttx::Concept::Abstract {
   auto get_completed_monograph(Perimortem::Core::View::Bytes diagnostic_path)
       const -> Perimortem::Core::Option<const Language::Monograph&>;
 
+  auto get_package_source_count(
+      const Package::Language::Monograph& package) const -> Count;
+
+  auto get_package_source(
+      const Package::Language::Monograph& package,
+      Count index) const -> Perimortem::Core::Option<PackageSource>;
+
+  // Package imports terminate the local source walk. A terminal that can
+  // acquire Packages may inspect these unresolved exact requests, load those
+  // products, and rebuild the Workspace without duplicating source parsing.
+  constexpr auto get_pending_package_imports() const
+      -> Perimortem::Core::View::Vector<
+          Ttx::Concept::Reference<Language::Import>> {
+    return pending_package_imports;
+  }
+
   // Keeping the original Token stream beside a retained source lets tooling
   // borrow the same lexical facts that built its semantic graph. That shared
   // view saves another tokenization pass and keeps source coordinates aligned.
@@ -128,6 +175,16 @@ class Workspace : public Ttx::Concept::Abstract {
       -> Perimortem::Core::View::Vector<Ttx::Lexical::Token>;
 
   auto find_authored_location(const Ttx::Concept::Abstract& semantic) const
+      -> Perimortem::Core::Option<AuthoredLocation>;
+
+  // Tooling may project a selected locator back to the physical input that
+  // satisfied it. This query uses retained Workspace acquisition facts and
+  // does not add source paths to Import or Resource semantic identity.
+  auto find_acquired_location(
+      Perimortem::Core::View::Bytes package_root,
+      Perimortem::Core::View::Bytes logical_route,
+      Count offset,
+      const Ttx::Concept::Abstract& semantic) const
       -> Perimortem::Core::Option<AuthoredLocation>;
 
   auto get_name() const -> Perimortem::Core::View::Bytes override;
@@ -143,11 +200,20 @@ class Workspace : public Ttx::Concept::Abstract {
     Package::Language::Monograph* monograph;
   };
 
+  struct PackageMember {
+    const Package::Language::Monograph* package;
+    Perimortem::Core::View::Bytes name;
+    Perimortem::Core::View::Bytes logical_route;
+    const Language::Monograph* monograph;
+  };
+
   // One retained source keeps its text, Tokens, authored index, semantic root,
   // and Arena together. Completion decides product eligibility without
   // discarding the evidence an editor can still use.
   struct RetainedSource {
     Perimortem::Core::View::Bytes package_root;
+    Perimortem::Core::View::Bytes name;
+    Perimortem::Core::View::Bytes logical_route;
     Perimortem::Core::View::Bytes diagnostic_path;
     Perimortem::Core::View::Bytes source_text;
     Perimortem::Memory::Dynamic::Record<Perimortem::Memory::Allocator::Arena>
@@ -167,6 +233,7 @@ class Workspace : public Ttx::Concept::Abstract {
       snapshots;
   Perimortem::Memory::Allocator::Arena arena;
   Perimortem::Memory::Dynamic::Vector<RetainedSource> retained_sources;
+  Perimortem::Memory::Managed::Vector<PackageMember> package_members;
   Perimortem::Memory::Dynamic::Vector<
       Perimortem::Memory::Dynamic::Record<Perimortem::Memory::Allocator::Arena>>
       restored_transactions;
@@ -175,6 +242,8 @@ class Workspace : public Ttx::Concept::Abstract {
       Ttx::Concept::Reference<Language::Monograph>>
       retained_monographs;
   Perimortem::Memory::Managed::Vector<ImportedPackage> packages;
+  Perimortem::Memory::Dynamic::Vector<Ttx::Concept::Reference<Language::Import>>
+      pending_package_imports;
 };
 
 }  // namespace Tetrodotoxin::Environment

@@ -9,13 +9,12 @@
 #include "perimortem/core/algorithm/search.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
+#include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/interpreter/source/import.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/package/dialect.hpp"
-#include "tetrodotoxin/package/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -30,14 +29,30 @@ using namespace Validation;
 
 class ImportContext : public Abstract {
  public:
+  ImportContext(Allocator::Arena& arena, View::Bytes name)
+      : name(name), bindings(arena) {}
+
   TTX_CONTRACT(ImportContext, Abstract);
-  TTX_NAME("ImportContext"_view);
+  TTX_NAME(name);
   TTX_EMPTY_DOCUMENTATION();
 
-  constexpr auto resolve_context(View::Bytes) const
-      -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto bind(View::Bytes local_name, Abstract& target) -> Bool {
+    BAIL_IF(local_name.is_empty() || bindings.contains(local_name));
+    bindings.launder(local_name, target);
+    return True;
   }
+
+  auto resolve_context(View::Bytes local_name) const
+      -> const Abstract& override {
+    return bindings.visit(
+        local_name,
+        [](const Abstract& selected) -> const Abstract& { return selected; },
+        []() -> const Abstract& { return Invalid::get_invalid(); });
+  }
+
+ private:
+  View::Bytes name;
+  Managed::Map<View::Bytes, Abstract&> bindings;
 };
 
 static auto interpret_library(
@@ -68,32 +83,6 @@ static auto complete_library(
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
   return monograph.link(cursor) && monograph.finalize(cursor);
-}
-
-static auto create_package(Allocator::Arena& arena, Package::Dialect& dialect)
-    -> Package::Language::Monograph& {
-  return Package::Language::Monograph::create_synthetic(
-      arena, dialect, dialect, {});
-}
-
-static auto create_package(
-    Allocator::Arena& arena,
-    Package::Dialect& dialect,
-    View::Bytes dependency_name) -> Package::Language::Monograph& {
-  Managed::Vector<Package::Language::Dependency> dependencies(arena);
-  dependencies.insert(
-      Package::Language::Dependency(
-          dependency_name, "Test.Dependency"_view, Version(1, 0)));
-  return Package::Language::Monograph::create_synthetic(
-      arena, dialect, dialect, dependencies);
-}
-
-static auto bind_dependency(
-    Package::Language::Monograph& source,
-    const Package::Language::Monograph& target) -> Bool {
-  auto dependencies = source.get_dependencies();
-  return dependencies.get_size() == 1 &&
-         source.bind_dependency(dependencies.get_data()[0], target);
 }
 
 static auto diagnostic_contains(const Errors& errors, View::Bytes text)
@@ -166,20 +155,19 @@ PERIMORTEM_UNIT_TEST(LibraryImports, selected_fallback) {
 
   Allocator::Arena arena;
   Library::Dialect library;
-  Package::Dialect package;
-  ImportContext context;
+  ImportContext context(arena, "Root"_view);
   Errors errors;
   auto provider =
       interpret_library(arena, library, context, provider_source, errors);
   ASSERT(provider);
   ASSERT(complete_library(arena, *provider, provider_source, errors));
 
-  auto& target = create_package(arena, package);
-  ASSERT(target.bind_member("Provider"_view, *provider));
-  auto& runtime = create_package(arena, package);
-  ASSERT(runtime.bind_member("Core"_view, target));
-  auto& source = create_package(arena, package, "Runtime"_view);
-  ASSERT(bind_dependency(source, runtime));
+  ImportContext target(arena, "Core"_view);
+  ASSERT(target.bind("Provider"_view, *provider));
+  ImportContext runtime(arena, "Runtime"_view);
+  ASSERT(runtime.bind("Core"_view, target));
+  ImportContext source(arena, "Source"_view);
+  ASSERT(source.bind("Runtime"_view, runtime));
 
   auto importer =
       interpret_library(arena, library, source, importer_source, errors);
@@ -214,25 +202,24 @@ PERIMORTEM_UNIT_TEST(LibraryImports, fallback_composition) {
 
   Allocator::Arena arena;
   Library::Dialect library;
-  Package::Dialect package;
-  ImportContext context;
+  ImportContext context(arena, "Root"_view);
   Errors errors;
   auto upstream =
       interpret_library(arena, library, context, upstream_source, errors);
   ASSERT(upstream);
   ASSERT(complete_library(arena, *upstream, upstream_source, errors));
-  auto& upstream_package = create_package(arena, package);
-  ASSERT(upstream_package.bind_member("Api"_view, *upstream));
+  ImportContext upstream_context(arena, "Upstream"_view);
+  ASSERT(upstream_context.bind("Api"_view, *upstream));
 
-  auto& provider_context = create_package(arena, package, "Up"_view);
-  ASSERT(bind_dependency(provider_context, upstream_package));
+  ImportContext provider_context(arena, "ProviderContext"_view);
+  ASSERT(provider_context.bind("Up"_view, upstream_context));
   auto provider = interpret_library(
       arena, library, provider_context, provider_source, errors);
   ASSERT(provider);
   ASSERT(complete_library(arena, *provider, provider_source, errors));
 
-  auto& importer_context = create_package(arena, package);
-  ASSERT(importer_context.bind_member("Provider"_view, *provider));
+  ImportContext importer_context(arena, "ImporterContext"_view);
+  ASSERT(importer_context.bind("Provider"_view, *provider));
   auto importer = interpret_library(
       arena, library, importer_context, importer_source, errors);
   ASSERT(importer);
@@ -256,15 +243,14 @@ PERIMORTEM_UNIT_TEST(LibraryImports, local_collision) {
 
   Allocator::Arena arena;
   Library::Dialect library;
-  Package::Dialect package;
-  ImportContext context;
+  ImportContext context(arena, "Root"_view);
   Errors errors;
   auto provider =
       interpret_library(arena, library, context, provider_source, errors);
   ASSERT(provider);
   ASSERT(complete_library(arena, *provider, provider_source, errors));
-  auto& package_context = create_package(arena, package);
-  ASSERT(package_context.bind_member("Provider"_view, *provider));
+  ImportContext package_context(arena, "ImporterContext"_view);
+  ASSERT(package_context.bind("Provider"_view, *provider));
   auto importer = interpret_library(
       arena, library, package_context, importer_source, errors);
   ASSERT(importer);
@@ -288,15 +274,14 @@ PERIMORTEM_UNIT_TEST(LibraryImports, route_diagnostics) {
   for (Count index = 0; index < rejected.get_size(); index++) {
     Allocator::Arena arena;
     Library::Dialect library;
-    Package::Dialect package;
-    ImportContext context;
+    ImportContext context(arena, "Root"_view);
     Errors errors;
     auto provider =
         interpret_library(arena, library, context, provider_source, errors);
     ASSERT(provider);
     ASSERT(complete_library(arena, *provider, provider_source, errors));
-    auto& package_context = create_package(arena, package);
-    ASSERT(package_context.bind_member("Provider"_view, *provider));
+    ImportContext package_context(arena, "ImporterContext"_view);
+    ASSERT(package_context.bind("Provider"_view, *provider));
 
     auto importer = interpret_library(
         arena, library, package_context, rejected[index], errors);
@@ -317,8 +302,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, ambiguous_fallback) {
 
   Allocator::Arena arena;
   Library::Dialect library;
-  Package::Dialect package;
-  ImportContext context;
+  ImportContext context(arena, "Root"_view);
   Errors errors;
   auto first =
       interpret_library(arena, library, context, provider_source, errors);
@@ -328,9 +312,9 @@ PERIMORTEM_UNIT_TEST(LibraryImports, ambiguous_fallback) {
   ASSERT(complete_library(arena, *first, provider_source, errors));
   ASSERT(complete_library(arena, *second, provider_source, errors));
 
-  auto& package_context = create_package(arena, package);
-  ASSERT(package_context.bind_member("First"_view, *first));
-  ASSERT(package_context.bind_member("Second"_view, *second));
+  ImportContext package_context(arena, "ImporterContext"_view);
+  ASSERT(package_context.bind("First"_view, *first));
+  ASSERT(package_context.bind("Second"_view, *second));
   auto importer = interpret_library(
       arena, library, package_context, importer_source, errors);
   ASSERT(importer);

@@ -14,7 +14,7 @@ import Library;
 
 sceneSource
     : documentation DIALECT DEFINE SCENE_DIALECT END_STATEMENT
-      sceneSourceDeclaration* EOF
+      (sourceImport | packageImport)* sceneSourceDeclaration* EOF
     ;
 
 sceneSourceDeclaration

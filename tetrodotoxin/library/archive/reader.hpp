@@ -59,6 +59,12 @@ class Reader {
       Ttx::Concept::Abstract& context)
       -> Perimortem::Core::Option<Language::Monograph&>;
 
+  static auto restore_source(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Core::View::Bytes payload,
+      Tetrodotoxin::Language::Persistence::Profile profile,
+      Language::Types::Source& source) -> Bool;
+
   // The embedding owner constructs its exact Composite subtype first. Library
   // then restores member identities into that object through its ordinary
   // declaration and completion contracts.

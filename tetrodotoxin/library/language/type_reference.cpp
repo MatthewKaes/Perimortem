@@ -36,28 +36,6 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
       [](const Abstract& direct) -> const Abstract& { return direct; });
 }
 
-static auto select_terminal(
-    const Abstract& binding,
-    Core::View::Bytes name,
-    Bool expects_generic) -> const Abstract& {
-  const Abstract& resolved = resolve_alias(binding);
-  if (resolved.is<Invalid>() ||
-      (expects_generic && resolved.is<Language::Generic>()) ||
-      (!expects_generic && resolved.is<Ttx::Model::Type>())) {
-    return resolved;
-  }
-
-  // A Package Source keeps its real Monograph behind the authored Alias. When
-  // that source publishes a matching root Type or Generic, the declaration
-  // route can use it without changing the Package binding seen by other tools.
-  const Abstract& nested = resolve_alias(resolved.resolve_context(name));
-  if ((expects_generic && nested.is<Language::Generic>()) ||
-      (!expects_generic && nested.is<Ttx::Model::Type>())) {
-    return nested;
-  }
-  return resolved;
-}
-
 auto Language::TypeReference::get_size() const -> Count {
   if (route.is_empty()) {
     return 0;
@@ -206,26 +184,20 @@ auto Language::TypeReference::resolve_with_root(
 
   if (!arguments) {
     const Abstract& direct = resolve_alias(*selected);
-    const Abstract& resolved =
-        select_terminal(*selected, get_name(get_size() - 1), False);
+    const Abstract& resolved = direct;
     if (resolved.is<Invalid>()) {
       return Failure(Failure::Type::Route, anchor, get_size() - 1);
     }
 
     if (cursor) {
-      // An authored Alias that directly names a Type remains the declaration
-      // readers selected. A contextual member can instead publish a same named
-      // root Type, and that concrete declaration is the useful destination.
-      const Abstract& subject = &resolved == &direct ? *selected : resolved;
       Token token = get_token(get_size() - 1);
       cursor->get_associations().create(
-          Anchor::create(token, Span(token)), subject);
+          Anchor::create(token, Span(token)), *selected);
     }
     return resolved;
   }
 
-  const Abstract& resolved =
-      select_terminal(*selected, get_name(get_size() - 1), True);
+  const Abstract& resolved = resolve_alias(*selected);
   if (resolved.is<Invalid>()) {
     return Failure(Failure::Type::Route, anchor, get_size() - 1);
   }

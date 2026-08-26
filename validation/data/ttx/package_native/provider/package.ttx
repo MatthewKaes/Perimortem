@@ -4,4 +4,4 @@
 // Native Package provider.
 dialect : Package;
 
-source Api from "api.ttx";
+public Api : alias = source("api.ttx");

@@ -21,7 +21,7 @@ ttx_package(
 
 ttx_application(
     name = "echo",
-    app_member = "App",
+    app_member = "AppSource",
     package = ":package",
     visibility = ["//visibility:public"],
 )

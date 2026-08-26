@@ -6,6 +6,11 @@
 //
 dialect : Library;
 
+public Memory : alias =
+    package(.name = "Perimortem.Memory", .version = "1.0");
+public System : alias =
+    package(.name = "Perimortem.System", .version = "1.0");
+
 using Memory;
 
 public run : func = [] -> [] {

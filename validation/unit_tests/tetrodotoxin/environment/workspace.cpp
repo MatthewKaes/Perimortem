@@ -12,6 +12,7 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/package/archive/archive.hpp"
+#include "tetrodotoxin/package/archive/graph_import.hpp"
 #include "tetrodotoxin/package/archive/member.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
@@ -147,6 +148,17 @@ static Harness EnvironmentWorkspace = {
   .teardown =
       []() { Diagnostics::Log::set_sink(Diagnostics::Log::default_sink); },
 };
+
+static auto errors_contain(const Errors& errors, View::Bytes text) -> Bool {
+  Allocator::Arena arena;
+  for (Count index = 0; index < errors.get_size(); index++) {
+    if (Algorithm::search(errors.render_message(arena, index), text) !=
+        Count(-1)) {
+      return True;
+    }
+  }
+  return False;
+}
 
 static constexpr View::Bytes source_prefix =
     "// Workspace source.\ndialect : Trace;\n"_view;
@@ -326,8 +338,9 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, keeps_first_source) {
 
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, imports_package) {
   Environment::Toolchain toolchain;
-  ASSERT(toolchain.install<Package::Dialect>("Package"_view));
-  ASSERT(toolchain.install<Library::Dialect>("Library"_view));
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
+  ASSERT(library);
+  ASSERT(toolchain.install<Package::Dialect>("Package"_view, *library));
   Environment::Workspace workspace(toolchain);
   Errors errors;
   auto imported = workspace.import_package(
@@ -337,29 +350,40 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, imports_package) {
   const auto& package =
       static_cast<const Package::Language::Monograph&>(*imported);
 
-  ASSERT_EQ(package.get_sources().get_size(), Count(2));
+  ASSERT_EQ(workspace.get_package_source_count(package), Count(3));
   const Abstract& first = package.resolve_context("SharedA"_view).resolve();
+  const Abstract& repeated =
+      package.resolve_context("SharedAgain"_view).resolve();
   const Abstract& second = package.resolve_context("SharedB"_view).resolve();
-  EXPECT(first.is<Library::Language::Monograph>());
-  EXPECT(second.is<Library::Language::Monograph>());
+  EXPECT(first.is<Library::Language::Types::Source>());
+  EXPECT(&first == &repeated);
+  EXPECT(second.is<Library::Language::Types::Source>());
+  EXPECT_EQ(package.get_resources().get_values().get_size(), Count(2));
   EXPECT(&workspace.resolve_context("Resources"_view) == &package);
   EXPECT(&workspace.resolve_context("SharedA"_view) == &Invalid::get_invalid());
   EXPECT(workspace.get_associations(package));
-  EXPECT(workspace.get_associations(
-      static_cast<const Language::Monograph&>(first)));
-  EXPECT(workspace.get_associations(
-      static_cast<const Language::Monograph&>(second)));
+  auto first_source = workspace.get_package_source(package, 0);
+  auto second_source = workspace.get_package_source(package, 1);
+  ASSERT(first_source && second_source);
+  EXPECT(workspace.get_associations(first_source->get_monograph()));
+  EXPECT(workspace.get_associations(second_source->get_monograph()));
   EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, restores_package) {
   Package::Archive::Member member(
       "Main"_view, "Restored"_view, "restored"_view);
+  Package::Archive::GraphImport root_import(
+      "PackageSurface"_view, "Main"_view, Language::Import::Kind::Source,
+      "Main"_view);
   Package::Archive::Archive archive(
       "Validation.Restored"_view, Version(1, 0), {}, View::Vector(&member, 1),
-      {}, {});
+      {}, {}, Language::Persistence::Profile::Complete, {},
+      View::Vector(&root_import, 1));
   Environment::Toolchain toolchain;
-  ASSERT(toolchain.install<Package::Dialect>("Package"_view));
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
+  ASSERT(library);
+  ASSERT(toolchain.install<Package::Dialect>("Package"_view, *library));
   ASSERT(toolchain.install<WorkspaceDialect>("Restored"_view));
   Environment::Workspace workspace(toolchain);
 
@@ -428,17 +452,43 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, logs_import_errors) {
   EXPECT(errors.is_empty());
   EXPECT(
       Test::error_contains(
-          "Package manifest `missing-package.ttx` could not be read"_view));
+          "Package root source `missing-package.ttx` could not be read"_view));
 }
 
-PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, rejects_manifest) {
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, rejects_path_escape) {
+  static constexpr View::Bytes root =
+      "validation/data/ttx/package_resources"_view;
+  static constexpr View::Bytes source =
+      "// Escape test.\n"
+      "dialect : Package;\n"
+      "public Outside : alias = source(\"../outside.ttx\");"_view;
   Environment::Toolchain toolchain;
-  ASSERT(toolchain.install<Package::Dialect>("Package"_view));
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
+  ASSERT(library);
+  ASSERT(toolchain.install<Package::Dialect>("Package"_view, *library));
+  Dynamic::Record<Package::Snapshots> snapshots;
+  ASSERT(snapshots->overlay(root, "escape.ttx"_view, source));
+  Environment::Workspace workspace(toolchain, snapshots);
+  Errors errors;
+  auto imported = workspace.import_package(
+      errors, root, "Escape"_view, "escape.ttx"_view, "Validation.Escape"_view,
+      Version(1, 0));
+
+  EXPECT_NOT(imported);
+  EXPECT(errors_contain(errors, "confined relative path"_view));
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, rejects_direct_package) {
+  Environment::Toolchain toolchain;
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
+  ASSERT(library);
+  ASSERT(toolchain.install<Package::Dialect>("Package"_view, *library));
   Environment::Workspace workspace(toolchain);
   Errors errors;
   auto interpreted = workspace.interpret_source(
       errors, "Manifest"_view, "package.ttx"_view,
-      "// Package.\ndialect : Package;\nsource Main from \"main.ttx\";"_view);
+      "// Package.\ndialect : Package;\n"
+      "public Main : alias = source(\"main.ttx\");"_view);
 
   EXPECT_NOT(interpreted);
   EXPECT_NOT(errors.is_empty());

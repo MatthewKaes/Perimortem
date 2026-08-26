@@ -227,8 +227,8 @@ class State {
       if (code == Code::Type::Dialect) {
         return Section::Header;
       } else if (
-          code == Code::Type::Using || code == Code::Type::Resolve ||
-          code == Code::Type::Source) {
+          code == Code::Type::Using || code == Code::Type::Source ||
+          code == Code::Type::Package) {
         return Section::Import;
       } else if (code == Code::Type::Public || code == Code::Type::Expose) {
         is_public = True;
@@ -250,7 +250,7 @@ class State {
         is_alias = True;
       } else if (
           code == Code::Type::Struct || code == Code::Type::Object ||
-          code == Code::Type::Enum) {
+          code == Code::Type::Namespace || code == Code::Type::Enum) {
         is_type = True;
       } else if (code == Code::Type::Const) {
         is_constant = True;
@@ -1283,6 +1283,8 @@ class State {
   }
 
   auto write_group(Count opening, Count closing) -> void {
+    Alignment saved_alignment = alignment;
+    alignment = {};
     Bool expanded = should_expand(opening, closing);
     Bool trailing = closing > opening + 1 &&
                     tokens[closing - 1].get_code() == Code::Type::PackingOp;
@@ -1339,6 +1341,7 @@ class State {
     }
 
     write_token(closing);
+    alignment = saved_alignment;
   }
 
   auto should_expand(Count opening, Count closing) const -> Bool {
@@ -1438,6 +1441,10 @@ class State {
 
       if (code == Code::Type::Struct || code == Code::Type::Object) {
         return ScopeRole::Instance;
+      }
+
+      if (code == Code::Type::Namespace) {
+        return ScopeRole::Static;
       }
 
       if (code == Code::Type::Enum) {

@@ -45,6 +45,19 @@ static auto retain_scene(
   return True;
 }
 
+static auto find_member_route(
+    Core::View::Vector<Terminal::Application::Generator::MemberBinding> members,
+    const Scene::Language::Monograph& scene)
+    -> Core::Option<Core::View::Bytes> {
+  for (const Terminal::Application::Generator::MemberBinding& member :
+       members) {
+    if (&member.get_scene() == &scene) {
+      return member.get_route();
+    }
+  }
+  return {};
+}
+
 static auto write_symbol_declaration(
     Serialization::Stream::Textual<Memory::Dynamic::Bytes>& output,
     Core::View::Bytes result,
@@ -99,6 +112,7 @@ auto Terminal::Application::Generator::create(
     const App::Language::Monograph& app,
     Core::View::Bytes package,
     Core::View::Bytes artifact,
+    Core::View::Vector<MemberBinding> members,
     const Ttx::Model::Type& graphics_placement,
     Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>>
         graphics_types,
@@ -129,25 +143,26 @@ auto Terminal::Application::Generator::create(
   }
   auto initial = policy->get_initial_scene();
   BAIL_IF(!initial);
+  auto initial_route = find_member_route(members, *initial);
+  BAIL_IF(!initial_route);
 
   Memory::Managed::Vector<ApplicationSceneSelection> scenes(arena);
-  BAIL_IF(!retain_scene(
-      scenes, *initial, policy->get_initial_route().get_spelling()));
+  BAIL_IF(!retain_scene(scenes, *initial, *initial_route));
   for (const Ttx::Concept::Reference<App::Language::Transition>& retained :
        policy->get_transitions()) {
     const App::Language::Transition& transition = retained.get();
     auto source = transition.get_source_scene();
+    auto source_route = source ? find_member_route(members, *source)
+                               : Core::Option<Core::View::Bytes>();
     BAIL_IF(
-        !source ||
-        !retain_scene(
-            scenes, *source, transition.get_source_route().get_spelling()));
+        !source || !source_route ||
+        !retain_scene(scenes, *source, *source_route));
     auto destination = transition.get_destination_scene();
     if (destination) {
+      auto destination_route = find_member_route(members, *destination);
       BAIL_IF(
-          !transition.get_destination_route() ||
-          !retain_scene(
-              scenes, *destination,
-              transition.get_destination_route()->get_spelling()));
+          !destination_route ||
+          !retain_scene(scenes, *destination, *destination_route));
     }
   }
 

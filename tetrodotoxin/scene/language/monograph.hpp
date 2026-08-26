@@ -95,6 +95,18 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
+  auto retain_import(
+      const Tetrodotoxin::Language::Import::Description& description,
+      Perimortem::Core::Option<Ttx::Lexical::Associations&> associations = {})
+      -> Bool override {
+    return library.retain_import(description, associations);
+  }
+
+  constexpr auto get_imports() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<Tetrodotoxin::Language::Import>> override {
+    return library.get_imports();
+  }
+
   auto resolve_access(
       const Ttx::Concept::Abstract& host,
       Perimortem::Core::View::Bytes route) const

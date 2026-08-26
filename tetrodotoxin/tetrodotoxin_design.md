@@ -229,13 +229,13 @@ while a completed Monograph is the only state eligible for Terminal production.
 Replacing an editor document rebuilds its complete Workspace session, so no
 consumer keeps pointers into an older source transaction.
 
-Package supplies a fixed Dependency and Source description table. Workspace
-owns the candidate Arena handles, operation Cursors, and durable Associations
-indexes. It retains every member Monograph it can create, links members whose
-graphs can answer queries against the fixed Package context, and finalizes only
-after every member completes interpretation and linking without errors.
-Package stores only borrowed Alias mappings. A member never adds another
-import, and a dependency must already be completed in the same Workspace.
+Package supplies one restricted Library export surface. Common Alias imports in
+each source name local source or exact Package edges. Workspace owns the
+candidate Arena handles, operation Cursors, durable Associations indexes, path
+canonicalization, and source graph walk. It retains every Monograph it can
+create, links the acyclic graph dependency first, and finalizes only after every
+member completes interpretation and linking without errors. A Package import
+must already be completed in the same Workspace.
 
 This model gives immutable consumers a clear starting point. A compiler,
 Archive writer, or other Terminal producer begins after completion. Only code
@@ -401,32 +401,36 @@ a Package, acquires a Package resource, or restores an Archive installs the
 Package Dialect and enters its contextual model. A Workspace interpreting one
 standalone source can omit Package entirely.
 
-A Package source binds external dependencies and authored source members:
+A Package source is a restricted Library export surface. Common source imports
+name its graph edges:
 
 ```ttx
-resolve Graphics : Perimortem.Graphics = "1.0";
-source Scenes::Splash from "scenes/splash.ttx";
+public Splash : alias = source("scenes/splash.ttx");
+public Graphics : alias =
+    package(.name = "Perimortem.Graphics", .version = "1.0");
 ```
 
-`resolve` gives an external Package identity a local Alias. `source` gives one
-confined input a semantic route. Package paths locate bytes, while semantic
-routes identify Monographs and participate in contextual resolution.
+Both forms create an ordinary source-local Alias. The path only locates a
+source relative to its importer, while the Alias name grants that imported
+semantic root its local route. Workspace canonicalizes equivalent paths and
+owns the imported Monographs; Package owns no second member table.
 
 An embedded resource operand asks the source Package for retained bytes:
 
 ```ttx
-$[resources/logo.png]
+$[../resources/logo.png]
 ```
 
-Package defines confinement and stable resource identity. Library may interpret
+Package resolves the path relative to its source and uses the same canonical
+confined cache as source imports. Library may interpret
 the bytes as a Constant, Shader may interpret them as shader data, and another
 Dialect may assign another meaning. Package transports the Resource without
 acquiring the consumer's semantics. Consumers retain that real Resource edge
 when they need the bytes, so Package Archives and native products can carry the
 payload once even when several source members use it.
 
-The [Package guide](package/README.md) covers dependencies, resources, Archives,
-Repositories, and restoration.
+The [Package guide](package/README.md) covers source-local imports, resources,
+Archives, Repositories, and restoration.
 
 ## Concrete language building blocks
 

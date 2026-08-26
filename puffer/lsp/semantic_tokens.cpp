@@ -69,6 +69,7 @@ static auto classify_semantic_token(Code code) -> S64 {
 
   case Code::Type::Type:
   case Code::Type::Alias:
+  case Code::Type::Namespace:
     return SemanticType;
 
   case Code::Type::Addressable:
@@ -131,6 +132,7 @@ static auto source_dialect(View::Vector<Token> tokens, View::Bytes source)
       if (code == Code::Type::EndStatement) {
         break;
       }
+
       if (code == Code::Type::Define) {
         has_define = True;
       } else if (has_define && code == Code::Type::Type) {
@@ -152,6 +154,7 @@ static auto associated_semantic(Token token, const Associations* associations)
       return entry.get_semantic();
     }
   }
+
   return {};
 }
 
@@ -167,20 +170,20 @@ static auto contextual_semantic_token(
   if (semantic) {
     if (semantic->is<Tetrodotoxin::Library::Language::Generic>()) {
       return SemanticGeneric;
-    }
-    if (semantic->is<Ttx::Model::Callable>()) {
+    } else if (semantic->is<Ttx::Model::Callable>()) {
       return SemanticFunction;
-    }
-    if (semantic->is<Tetrodotoxin::App::Language::Runtime>() ||
+    } else if (
+        semantic->is<Tetrodotoxin::App::Language::Runtime>() ||
         semantic->is<Tetrodotoxin::App::Language::Scene>() ||
         semantic->is<Tetrodotoxin::App::Language::Transition>()) {
       return SemanticKeyword;
-    }
-    auto signal = semantic->select<Tetrodotoxin::Scene::Language::Signal>();
-    if (signal) {
+    } else if (
+        auto signal =
+            semantic->select<Tetrodotoxin::Scene::Language::Signal>()) {
       return text == signal->get_name() ? SemanticProperty : SemanticKeyword;
     }
   }
+
   if (code != Code::Type::Addressable) {
     return classify_semantic_token(code);
   }
@@ -188,9 +191,8 @@ static auto contextual_semantic_token(
   if (dialect == "Library"_view &&
       tokens[index].caculate_text(source) == "foreign"_view) {
     return SemanticKeyword;
-  }
-
-  if ((dialect == "Render"_view || dialect == "Shader"_view) &&
+  } else if (
+      (dialect == "Render"_view || dialect == "Shader"_view) &&
       (text == "stage"_view || text == "resource"_view || text == "push"_view ||
        text == "shader"_view || text == "bridge"_view)) {
     return SemanticKeyword;
@@ -200,10 +202,10 @@ static auto contextual_semantic_token(
       index == 0 ? Code::Type::Unknown : tokens[index - 1].get_code();
   if (previous == Code::Type::CallOp || previous == Code::Type::Func) {
     return SemanticFunction;
-  }
-  if (previous == Code::Type::AddressOp) {
+  } else if (previous == Code::Type::AddressOp) {
     return SemanticProperty;
   }
+
   if (index + 2 < tokens.get_size() &&
       tokens[index + 1].get_code() == Code::Type::Define) {
     Token qualifier = tokens[index + 2];
@@ -295,6 +297,7 @@ auto Lsp::semantic_tokens_for(
       start_offset -= prefix;
       byte_width += prefix;
     }
+
     auto start = encoding.locate(source, start_offset);
     auto end = encoding.locate(source, start_offset + byte_width);
     if (!start || !end || start->get_line() != end->get_line()) {

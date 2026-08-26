@@ -80,6 +80,29 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, declaration_order) {
       "}\n"_view);
 }
 
+PERIMORTEM_UNIT_TEST(TtxFormatter, import_aliases) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(
+      arena,
+      "// Source.\n"
+      "dialect:Library; public Zed:alias=source(\"z.ttx\"); "
+      "public Alpha:alias=package(.name=\"Example\",.version=\"1.0\"); "
+      "public Local:alias=U8;"_view,
+      "Test.ttx"_view);
+
+  Dynamic::Bytes formatted = Formatter(tokenizer).format();
+  EXPECT_TEXT(
+      formatted,
+      "// Source.\n"
+      "dialect : Library;\n"
+      "\n"
+      "public Zed : alias = source(\"z.ttx\");\n"
+      "public Alpha : alias = package(.name = \"Example\", .version = "
+      "\"1.0\");\n"
+      "\n"
+      "public Local : alias = U8;\n"_view);
+}
+
 PERIMORTEM_UNIT_TEST(TtxFormatter, inferred_declaration) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
@@ -102,6 +125,29 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, inferred_declaration) {
       "  for [.entry : U8] in 0...1 : value += entry;\n"
       "\n"
       "  return value! + 2;\n"
+      "}\n"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TtxFormatter, canonical_if_pack) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(
+      arena,
+      "// Source.\n"
+      "dialect:Library; public check:func=[.first:S64,.second:S64,.third:S64]"
+      "->[]{if first<second:first=second;"
+      "if first<second and (second<third or third<first):return;}"_view,
+      "Test.ttx"_view);
+
+  Dynamic::Bytes formatted = Formatter(tokenizer).format();
+  EXPECT_TEXT(
+      formatted,
+      "// Source.\n"
+      "dialect : Library;\n"
+      "\n"
+      "public check : func = [.first : S64, .second : S64, .third : S64] -> "
+      "[] {\n"
+      "  if first < second : first = second;\n"
+      "  if first < second and (second < third or third < first) : return;\n"
       "}\n"_view);
 }
 
@@ -293,6 +339,34 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, alignment_islands) {
       "public Table : struct {\n"
       "  public state count     : U64  = 0;\n"
       "  private state selected : Bool = false;\n"
+      "}\n"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TtxFormatter, pack_alignment_is_local) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(
+      arena,
+      "// Source.\n"
+      "dialect:Library;public update:func=[]->[]{"
+      "self.icon_top_shader.parameters.tone=(.x=1,.y=2,);"
+      "self.icon_bottom_shader.parameters.tone=(.x=3,.y=4,);return;}"_view,
+      "Test.ttx"_view);
+
+  Dynamic::Bytes formatted = Formatter(tokenizer).format();
+  EXPECT_TEXT(
+      formatted,
+      "// Source.\n"
+      "dialect : Library;\n"
+      "\n"
+      "public update : func = [] -> [] {\n"
+      "  self.icon_top_shader.parameters.tone    = (\n"
+      "    .x = 1,\n"
+      "    .y = 2,\n"
+      "  );\n"
+      "  self.icon_bottom_shader.parameters.tone = (\n"
+      "    .x = 3,\n"
+      "    .y = 4,\n"
+      "  );\n"
       "}\n"_view);
 }
 

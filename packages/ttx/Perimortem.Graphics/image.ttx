@@ -5,12 +5,12 @@
 //
 dialect : Library;
 
-// Addressing selects how CPU sampling observes coordinates beyond an Image.
-public Addressing : enum[U8] {
-  clamp = 1;
-  wrap = 2;
-  zero = 0;
-}
+public Math : alias = package(.name = "Perimortem.Math", .version = "1.0");
+public PixelSource : alias = source("pixel.ttx");
+public Size2DSource : alias = source("size2d.ttx");
+
+public Pixel  : alias = PixelSource::Pixel;
+public Size2D : alias = Size2DSource::Size2D;
 
 // Image is a decoded RGBA value whose immutable pixel Object is shared by value copies.
 // Its size and addressing policy give those pixels graphics meaning while Vulkan remains
@@ -34,17 +34,17 @@ public Image : struct {
   ] -> Math::Vec4D {
     state width  := new[S64](self.size.width);
     state height := new[S64](self.size.height);
-    if (width == new[S64](0) or height == new[S64](0)) : return new[Math::Vec4D];
+    if width == new[S64](0) or height == new[S64](0) : return new[Math::Vec4D];
 
     state x := new[S64](uv.x * new[R32](self.size.width));
     state y := new[S64](uv.y * new[R32](self.size.height));
-    if (self.addressing == Addressing::zero and (x < new[S64](0) or x >= width or
-        y < new[S64](0) or y >= height)) : return new[Math::Vec4D];
-    if (self.addressing == Addressing::clamp) : return self -> sample_pixel(
+    if self.addressing == Addressing::zero and (x < new[S64](0) or x >= width or
+        y < new[S64](0) or y >= height) : return new[Math::Vec4D];
+    if self.addressing == Addressing::clamp : return self -> sample_pixel(
       .x = Image -> clamp_coordinate(x, width),
       .y = Image -> clamp_coordinate(y, height),
     );
-    if (self.addressing == Addressing::wrap) : return self -> sample_pixel(
+    if self.addressing == Addressing::wrap : return self -> sample_pixel(
       .x = Image -> wrap_coordinate(x, width),
       .y = Image -> wrap_coordinate(y, height),
     );
@@ -56,8 +56,8 @@ public Image : struct {
     .coordinate : S64,
     .extent : S64,
   ] -> S64 {
-    if (coordinate < new[S64](0)) : return new[S64](0);
-    if (coordinate >= extent) : return extent - new[S64](1);
+    if coordinate < new[S64](0) : return new[S64](0);
+    if coordinate >= extent : return extent - new[S64](1);
 
     return coordinate;
   }
@@ -67,7 +67,7 @@ public Image : struct {
     .extent : S64,
   ] -> S64 {
     state wrapped := coordinate % extent;
-    if (wrapped < new[S64](0)) : return wrapped + extent;
+    if wrapped < new[S64](0) : return wrapped + extent;
 
     return wrapped;
   }
@@ -82,5 +82,12 @@ public Image : struct {
       .z = new[R32](pixel.blue) * normalize,
       .w = new[R32](pixel.alpha) * normalize,
     );
+  }
+
+  // Addressing selects how CPU sampling observes coordinates beyond an Image.
+  public Addressing : enum[U8] {
+    clamp = 1;
+    wrap = 2;
+    zero = 0;
   }
 }

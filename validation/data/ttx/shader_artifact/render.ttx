@@ -3,6 +3,9 @@
 //
 dialect : Render;
 
+public Math : alias =
+    package(.name = "Perimortem.Math", .version = "1.0");
+
 public Simple : struct {
   public fragment : stage [@location(0).color : Math::Vec4D] -> [@location(0).color : Math::Vec4D];
 }

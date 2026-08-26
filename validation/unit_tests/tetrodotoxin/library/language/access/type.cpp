@@ -101,7 +101,7 @@ PERIMORTEM_UNIT_TEST(TypeAccessTests, no_pack_flow) {
     "// Type result as an initializer argument.\ndialect : Library; public Packet : struct {} public Target : object { public state value : Bool; } private invalid := new[Target](.value = Packet);"_view,
     "// Type result as a Call argument.\ndialect : Library; public Packet : struct {} public Calls : struct { public use : func = [.value : Bool] -> Bool { return value; } } private invalid := Calls -> use(Packet);"_view,
     "// Type result as a return value.\ndialect : Library; public Packet : struct {} private invalid : func = [] -> Bool { return Packet; }"_view,
-    "// Type result as a branch condition.\ndialect : Library; public Packet : struct {} private invalid : func = [] -> [] { if (Packet) { return; } return; }"_view,
+    "// Type result as a branch condition.\ndialect : Library; public Packet : struct {} private invalid : func = [] -> [] { if Packet { return; } return; }"_view,
     "// Type result as an assignment source.\ndialect : Library; public Packet : struct {} private invalid : func = [] -> [] { state value : Bool = false; value = Packet; return; }"_view,
     "// Type result as a swizzle receiver.\ndialect : Library; public Packet : struct { public state value : Bool; } private invalid := Packet.[value];"_view,
     "// Type result as a match input.\ndialect : Library; public Packet : struct {} private invalid : func = [] -> [] { match Packet { case Packet {} } return; }"_view,

@@ -29,13 +29,7 @@ static auto resolve_receiver(const Language::Expression& receiver)
 
 static auto select_type_access(const Abstract& receiver, Core::View::Bytes name)
     -> const Abstract& {
-  const Abstract& binding = receiver.resolve_context(name).resolve();
-  // Package Source Aliases retain their Monograph as promised. A source may
-  // publish one matching root Type under that authored route. Expression Type
-  // access selects that Type while declaration and using queries still observe
-  // the real Monograph binding.
-  const Abstract& nested = binding.resolve_context(name).resolve();
-  return nested.is<Language::Model::Type>() ? nested : binding;
+  return receiver.resolve_context(name).resolve();
 }
 
 auto Language::Access::Type::create_authored(

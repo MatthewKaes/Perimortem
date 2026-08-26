@@ -19,21 +19,6 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
       [](const Abstract& direct) -> const Abstract& { return direct; });
 }
 
-static auto select_terminal(const Abstract& binding, View::Bytes name)
-    -> const Abstract& {
-  const Abstract& resolved = resolve_alias(binding);
-  if (resolved.is<Invalid>() || resolved.is<Ttx::Model::Type>()) {
-    return resolved;
-  }
-
-  // A Package Source Alias keeps its Monograph visible to ordinary queries.
-  // A Type route may still select the matching root Type published by that
-  // Monograph, which preserves both observations without copying the Type into
-  // Package.
-  const Abstract& nested = resolve_alias(resolved.resolve_context(name));
-  return nested.is<Ttx::Model::Type>() ? nested : resolved;
-}
-
 static auto segment_anchor(
     Anchor route_anchor,
     View::Bytes route,
@@ -108,7 +93,7 @@ static auto resolve_route(
       terminal_name = route.slice(terminal_start, index - terminal_start);
     }
   }
-  const Abstract& resolved = select_terminal(*selected, terminal_name);
+  const Abstract& resolved = resolve_alias(*selected);
   auto type = resolved.select<Ttx::Model::Type>();
   if (!type) {
     if (cursor) {

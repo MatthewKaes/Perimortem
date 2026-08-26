@@ -96,9 +96,10 @@ publishes textual reports, while Workspace's local Arena handle carries the
 produced root until the Workspace retains or releases it.
 
 The context local to a source during interpretation is an ordinary TTX
-Abstract. A direct source may receive the Workspace. A Package member may
-receive its Package Monograph. The concrete Dialect decides which contextual
-queries that object supports.
+Abstract. A direct source may receive the Workspace, while every source in a
+Package graph receives that Package root. Common Import Aliases remain owned by
+the source Monograph and bind real semantic roots before linking. The concrete
+Dialect decides which contextual queries those roots support.
 
 Package can be installed in a Tetrodotoxin Toolchain without becoming an
 implicit context for every source. A standalone Toolchain may omit the Package
@@ -193,10 +194,11 @@ or create a wrapper around the child. A top level Monograph answers with itself.
 Scene and Shader answer with their real Library child. Any other request has no
 result.
 
-The Package table borrows only each outer member Monograph. Workspace owns those
-member handles and moves them through linking and finalization with their exact
-source Cursors. A fixed child layer remains owned by its outer Monograph and does
-not become a separate Package member or copied view of the same declarations.
+Workspace owns each outer member Monograph and moves those handles through
+linking and finalization with their exact source Cursors. Package owns no member
+table; its restricted Library source exports Types and common Alias imports name
+the graph. A fixed child layer remains owned by its outer Monograph and does not
+become a separate Archive member or copied view of the same declarations.
 
 The Monograph remains queryable for the lifetime of its Workspace. It retains
 semantic facts rather than parser positions or source traversal state.
@@ -262,10 +264,11 @@ One source participates in four stages:
 4. Finalization performs language work only after interpretation and linking
    complete without errors across the island.
 
-Workspace performs these stages in one direct source call. Retained incomplete
-meaning remains available to tooling, while only completed meaning can enter a
-Terminal producer. Package is the sole multiple source model. It interprets all
-declared members first and finalizes none of them until the island links.
+Workspace performs these stages in one direct source call or across one Package
+source graph. Retained incomplete meaning remains available to tooling, while
+only completed meaning can enter a Terminal producer. Workspace interprets all
+reachable source imports first and finalizes none of them until the island
+links.
 
 ## Persistence
 
@@ -306,12 +309,12 @@ A payload may be much smaller than a memory image because it records only the
 owner facts needed for those observations. Compactness is a format benefit. It
 does not define whether a Dialect is persistent.
 
-When reconstructing a Package, Workspace creates its description Monograph
-before its members. Every member receives that same Package context, so mappings
-and resources work the same way they do for authored source. Scene and Shader
-pass the context to their child layers. Language dependencies still come from
-the Workspace, not from the Package. If a child rejects its data, the outer
-Monograph also fails.
+When reconstructing a Package, Workspace creates its restricted export
+Monograph, restores every member, and then binds the archived source-local Alias
+graph. Resources are reconstructed before a payload that refers to them. Scene
+and Shader pass the surrounding context to their child layers. Exact Package
+dependencies still come from the Workspace. If a child rejects its data, the
+outer Monograph also fails.
 
 The Dialect validates its complete bounded payload before returning an optional
 Monograph reference from its reconstruction Arena. Workspace holds those Arena

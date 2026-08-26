@@ -68,6 +68,7 @@ auto Archive::write_declarations(
       continue;
     }
     auto structure = declaration.select<Language::Types::Structure>();
+    auto name_space = declaration.select<Language::Types::Namespace>();
     auto object = declaration.select<Language::Types::Object>();
     if (object) {
       BAIL_IF(!Archive::write(writer, *object));
@@ -75,6 +76,10 @@ auto Archive::write_declarations(
     }
     if (structure) {
       BAIL_IF(!Archive::write(writer, *structure));
+      continue;
+    }
+    if (name_space) {
+      BAIL_IF(!Archive::write(writer, *name_space));
       continue;
     }
     auto enumeration = declaration.select<Language::Types::Enumeration>();
@@ -139,6 +144,13 @@ auto Archive::read_declarations(
       category = Category::Type;
       break;
     }
+    case Tag::Namespace: {
+      auto selected = read_namespace(reader, arena, composite, profile);
+      BAIL_IF(!selected);
+      restored = *selected;
+      category = Category::Type;
+      break;
+    }
     case Tag::Object: {
       auto selected = read_object(reader, arena, composite, profile);
       BAIL_IF(!selected);
@@ -173,6 +185,38 @@ auto Archive::write(Writer& writer, const Language::Types::Structure& structure)
   return declaration.write(writer) &&
          write_declarations(writer, structure, public_only) &&
          writer.finish(record);
+}
+
+auto Archive::write(Writer& writer, const Language::Types::Namespace& selected)
+    -> Bool {
+  auto record = writer.begin(Tag::Namespace);
+  Declaration declaration(selected.get_definition());
+  Bool public_only = writer.get_profile() ==
+                     Tetrodotoxin::Language::Persistence::Profile::Contract;
+  return declaration.write(writer) &&
+         write_declarations(writer, selected, public_only) &&
+         writer.finish(record);
+}
+
+auto Archive::read_namespace(
+    Reader& reader,
+    Allocator::Arena& arena,
+    Abstract& host,
+    Tetrodotoxin::Language::Persistence::Profile profile)
+    -> Option<Language::Types::Namespace&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != U16(Tag::Namespace) ||
+      record->is_optional());
+  Reader contents(record->get_payload());
+  auto declaration = Declaration::read(contents, arena);
+  BAIL_IF(!declaration);
+  auto& definition = declaration->create_definition(arena, host);
+  auto& selected =
+      Language::Types::Namespace::create_restored(arena, definition);
+  BAIL_IF(!read_declarations(contents, arena, selected, profile));
+  selected.complete_body();
+  return selected;
 }
 
 auto Archive::read_structure(

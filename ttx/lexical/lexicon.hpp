@@ -91,6 +91,8 @@ class Lexicon {
     // Definition keywords
     case Code::Type::Alias:
       return "alias"_view;
+    case Code::Type::Namespace:
+      return "namespace"_view;
     case Code::Type::Enum:
       return "enum"_view;
     case Code::Type::Struct:
@@ -103,8 +105,6 @@ class Lexicon {
       return "using"_view;
     case Code::Type::New:
       return "new"_view;
-    case Code::Type::From:
-      return "from"_view;
     case Code::Type::If:
       return "if"_view;
     case Code::Type::In:
@@ -127,10 +127,10 @@ class Lexicon {
       return "return"_view;
     case Code::Type::Emit:
       return "emit"_view;
-    case Code::Type::Resolve:
-      return "resolve"_view;
     case Code::Type::Source:
       return "source"_view;
+    case Code::Type::Package:
+      return "package"_view;
     case Code::Type::Dialect:
       return "dialect"_view;
     case Code::Type::Func:
@@ -272,16 +272,16 @@ class Lexicon {
       {get_spelling(Code::Type::False), Code::Type::False},
       {get_spelling(Code::Type::Return), Code::Type::Return},
       {get_spelling(Code::Type::Emit), Code::Type::Emit},
-      {get_spelling(Code::Type::Resolve), Code::Type::Resolve},
       {get_spelling(Code::Type::Source), Code::Type::Source},
+      {get_spelling(Code::Type::Package), Code::Type::Package},
       {get_spelling(Code::Type::Dialect), Code::Type::Dialect},
       {get_spelling(Code::Type::Alias), Code::Type::Alias},
+      {get_spelling(Code::Type::Namespace), Code::Type::Namespace},
       {get_spelling(Code::Type::Enum), Code::Type::Enum},
       {get_spelling(Code::Type::Struct), Code::Type::Struct},
       {get_spelling(Code::Type::Object), Code::Type::Object},
       {get_spelling(Code::Type::Using), Code::Type::Using},
       {get_spelling(Code::Type::New), Code::Type::New},
-      {get_spelling(Code::Type::From), Code::Type::From},
       {get_spelling(Code::Type::Public), Code::Type::Public},
       {get_spelling(Code::Type::Private), Code::Type::Private},
       {get_spelling(Code::Type::Expose), Code::Type::Expose},

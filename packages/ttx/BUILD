@@ -87,5 +87,8 @@ ttx_package(
         0,
     ],
     visibility = ["//visibility:public"],
-    deps = [":perimortem_memory"],
+    deps = [
+        ":perimortem_math",
+        ":perimortem_memory",
+    ],
 )

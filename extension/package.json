@@ -9,7 +9,7 @@
   "author": "Matt Kaes",
   "license": "MIT",
   "icon": "media/icon.png",
-  "version": "0.1.30",
+  "version": "0.1.32",
   "keywords": [
     "TTX",
     "Tetrodotoxin",
@@ -88,6 +88,21 @@
           "scope": "resource",
           "default": false,
           "description": "Enable Tetrodotoxin LSP semantic tokens. Leave disabled to use the bundled TextMate color rules."
+        },
+        "tetrodotoxin.packagesRoot": {
+          "type": "string",
+          "scope": "resource",
+          "default": "",
+          "description": "Use an absolute or workspace-relative versioned Package installation root instead of the standard Packages bundled with the extension. Reload the window after changing this setting."
+        },
+        "tetrodotoxin.packageSources": {
+          "type": "object",
+          "scope": "resource",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Map exact Package coordinates such as `Example.Math@1.0` to absolute or workspace-relative local source roots. Reload the window after changing this setting."
         }
       }
     },

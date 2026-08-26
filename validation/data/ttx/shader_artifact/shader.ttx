@@ -3,6 +3,10 @@
 //
 dialect : Shader;
 
+public Formats : alias = source("render.ttx");
+public Math : alias =
+    package(.name = "Perimortem.Math", .version = "1.0");
+
 public TestShader : shader Formats::Simple {
   public phase_milliseconds : uniform U32 = new[U32];
 

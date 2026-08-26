@@ -10,6 +10,7 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/app/language/monograph.hpp"
+#include "tetrodotoxin/scene/language/monograph.hpp"
 #include "tetrodotoxin/terminal/vulkan/products.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/type.hpp"
@@ -21,6 +22,28 @@ namespace Tetrodotoxin::Terminal::Application {
 // model or target code of its own.
 class Generator {
  public:
+  class MemberBinding {
+   public:
+    constexpr MemberBinding(
+        const Tetrodotoxin::Scene::Language::Monograph& scene,
+        Perimortem::Core::View::Bytes route)
+        : scene(scene), route(route) {}
+
+    constexpr auto get_scene() const
+        -> const Tetrodotoxin::Scene::Language::Monograph& {
+      return scene.get();
+    }
+
+    constexpr auto get_route() const -> Perimortem::Core::View::Bytes {
+      return route;
+    }
+
+   private:
+    Ttx::Concept::Reference<const Tetrodotoxin::Scene::Language::Monograph>
+        scene;
+    Perimortem::Core::View::Bytes route;
+  };
+
   Generator() = delete;
 
   static auto create(
@@ -28,6 +51,7 @@ class Generator {
       const Tetrodotoxin::App::Language::Monograph& app,
       Perimortem::Core::View::Bytes package,
       Perimortem::Core::View::Bytes artifact,
+      Perimortem::Core::View::Vector<MemberBinding> members,
       const Ttx::Model::Type& graphics_placement,
       Perimortem::Core::View::Vector<
           Ttx::Concept::Reference<const Ttx::Model::Type>> graphics_types,

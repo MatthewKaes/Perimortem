@@ -4,6 +4,8 @@
 // A splash screen that fades two hosted Sprites before moving to the title.
 dialect : Scene;
 
+public Graphics : alias = package(.name = "Perimortem.Graphics", .version = "1.0");
+
 private const fade_time : R64 = 1.0;
 private const hold_time : R64 = 1.5;
 
@@ -15,7 +17,7 @@ private state icon_bottom_shader : Graphics::Shader::DefaultTexturedQuad2D::Inst
 private state icon_top_shader : Graphics::Shader::DefaultTexturedQuad2D::Instance;
 
 Scene prepare[self] -> [] {
-  state image := Graphics::Format::PNG -> decode(.bytes = $[resources/icon.png] ->
+  state image := Graphics::Format::PNG -> decode(.bytes = $[../resources/icon.png] ->
       get_view())!;
   state texture := Graphics::Texture2D -> from_image(.image = image);
   state size := image.size;
@@ -48,23 +50,23 @@ Scene update[self, .delta_time : R64] -> [] {
 
   const duration : R64 = fade_time * 2.0 + hold_time;
   state alpha    : R64 = 0.0;
-  if (self.elapsed < fade_time) : alpha = self.elapsed / fade_time;
-  if (self.elapsed >= fade_time and self.elapsed < fade_time + hold_time) : alpha =
+  if self.elapsed < fade_time : alpha = self.elapsed / fade_time;
+  if self.elapsed >= fade_time and self.elapsed < fade_time + hold_time : alpha =
       1.0;
-  if (self.elapsed >= fade_time + hold_time and self.elapsed < duration) : alpha =
+  if self.elapsed >= fade_time + hold_time and self.elapsed < duration : alpha =
       (duration - self.elapsed) / fade_time;
 
   self.icon_top_shader.parameters.tone    = (
-    .x                                    = new[R32](1.0),
-    .y                                    = new[R32](1.0),
-    .z                                    = new[R32](1.0),
-    .w                                    = new[R32](alpha),
+    .x = new[R32](1.0),
+    .y = new[R32](1.0),
+    .z = new[R32](1.0),
+    .w = new[R32](alpha),
   );
   self.icon_bottom_shader.parameters.tone = (
-    .x                                    = new[R32](1.0),
-    .y                                    = new[R32](1.0),
-    .z                                    = new[R32](1.0),
-    .w                                    = new[R32](alpha),
+    .x = new[R32](1.0),
+    .y = new[R32](1.0),
+    .z = new[R32](1.0),
+    .w = new[R32](alpha),
   );
-  if (self.elapsed >= duration) : emit finished;
+  if self.elapsed >= duration : emit finished;
 }

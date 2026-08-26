@@ -28,10 +28,13 @@ class Cursor {
   constexpr Cursor(
       const Lexical::Stream& stream,
       Lexical::Errors& errors,
-      Lexical::Associations& associations)
+      Lexical::Associations& associations,
+      Perimortem::Core::View::Bytes logical_path = {})
       : arena(stream.get_arena()),
         source_text(stream.get_source_text()),
         source_path(stream.get_source_path()),
+        logical_path(
+            logical_path.is_empty() ? stream.get_source_path() : logical_path),
         tokens(stream.get_tokens()),
         errors(errors),
         associations(associations) {}
@@ -228,6 +231,10 @@ class Cursor {
     return source_path;
   }
 
+  constexpr auto get_logical_path() const -> Perimortem::Core::View::Bytes {
+    return logical_path;
+  }
+
   constexpr auto get_tokens() const
       -> Perimortem::Core::View::Vector<Lexical::Token> {
     return tokens;
@@ -244,6 +251,7 @@ class Cursor {
   Perimortem::Memory::Allocator::Arena& arena;
   Perimortem::Core::View::Bytes source_text;
   Perimortem::Core::View::Bytes source_path;
+  Perimortem::Core::View::Bytes logical_path;
   Perimortem::Core::View::Vector<Lexical::Token> tokens;
   Lexical::Errors& errors;
   Lexical::Associations& associations;

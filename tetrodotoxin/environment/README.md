@@ -93,39 +93,40 @@ interpretation establishes that Monograph. Workspace uses the same Cursor to
 link every fact the current graph can support. Finalization begins only when
 interpretation and linking complete without errors. An incomplete result stays
 available to editor queries but cannot enter a Terminal, Archive writer, or
-another immutable Terminal product. A Package manifest is not a direct source.
-It enters through Package import so its fixed Source table can complete as one
+another immutable Terminal product. A Package root enters through Package
+import so Workspace can walk its complete source-local Alias graph as one
 island.
 
 ## Package import
 
-A Package import begins with one Package manifest and its confined root. The
-Package names dependencies and Source members explicitly:
+A Package import begins with one Package source and its confined root. Common
+imports name every local source and external Package edge:
 
 ```ttx
-resolve Graphics : Perimortem.Graphics = "1.0";
-source Scenes::Splash from "scenes/splash.ttx";
+public Splash : alias = source("scenes/splash.ttx");
+public Graphics : alias =
+    package(.name = "Perimortem.Graphics", .version = "1.0");
 ```
 
-Workspace reads each path in the manifest's fixed Source table from confined
-Package storage. It creates one source transaction Arena per member, asks the
-installed Dialect to interpret it, and gives each member the same Package
-context. A member cannot create another Package import. Names local to a Package
-remain inside that Package rather than entering the Workspace root
-automatically.
+Workspace resolves each source path relative to its importer, canonicalizes it,
+and reuses one cached file and Monograph when equivalent spellings reach the
+same route. Each distinct source gets one transaction Arena and its concrete
+Dialect. A source import may extend the same graph; a Package import terminates
+the local walk at one exact completed Package fact.
 
-Dependencies must be completed Workspace facts before that fixed member
-barrier begins. The host repository or editor session reads a requested
-manifest, recursively acquires each exact Package identity and version, detects
-cycles in the active request chain, and imports dependencies before the
-consumer. Workspace validates and binds those completed facts. It does not
-invent a standard dependency set or perform ambient repository discovery.
+The build request supplies completed Package facts before a consumer links.
+Editor sessions may inspect Workspace's unresolved exact Package requests,
+acquire them from one Repository, detect request cycles, and rebuild the island
+in dependency order. Repository selects a caller supplied local root or the
+versioned installed root for the exact requested coordinate. Workspace does not
+invent a standard dependency set or derive a Package identity from a filesystem
+path.
 
 The host may retain immutable filesystem snapshots independently from any one
 source graph transaction and lend them to replacement Workspaces. Package still
-owns logical routing, confinement, and the decision to request one normalized
-resource path. Snapshot storage keys the
-resulting snapshot by the exact Package root and normalized route, retains the
+owns logical routing, confinement, and the decision to request one canonical
+source or resource path. Snapshot storage keys the
+resulting snapshot by the exact Package root and canonical route, retains the
 bytes outside the replaceable graph Arenas, and records a fingerprint obtained
 from the same opened filesystem object that supplied those bytes. A later full
 graph replacement probes that fingerprint and reuses the immutable bytes only
@@ -149,18 +150,17 @@ interpret to one optional Monograph in the source Arena
 ```
 
 Workspace owns the one staged multiple source operation and the local candidate
-Arena handles. It parses exactly the manifest entries and retains every member
-Monograph it can create. Retained members attempt linking against the fixed
-Package context, which keeps their strongest definitions and inferred Types
-available while the user edits. Finalization waits until every member completes
-interpretation and linking without errors. Only that completed island can enter
-Terminal production. The Package Monograph itself owns only Dependency and
-Source values plus borrowed Alias mappings.
+Arena handles. It walks common source Alias edges, retains every Monograph it
+can create, and links the acyclic graph dependency first. This keeps the
+strongest definitions and inferred Types available while the user edits.
+Finalization waits until every member completes interpretation and linking
+without errors. Only that completed island can enter Terminal production. The
+Package Monograph owns its restricted Library export surface and no parallel
+member inventory.
 
-Dependencies do not recursively start imports. An authored Package binds only
-an exact identity and version already completed in the same Workspace. Archive
-reconstruction is an explicit source free operation rather than a side effect
-of authored import.
+A Package Alias binds only an exact identity and version already completed in
+the same Workspace. A terminal may acquire that product and rebuild the source
+island, while Archive reconstruction remains an explicit source-free operation.
 
 A Monograph may contain child layers from its dependencies. Environment keeps
 and publishes the outer Monograph, while the outer language moves its children
@@ -202,8 +202,9 @@ collection is created.
 ## Boundaries
 
 Environment owns semantic lifetime, source transactions, source dispatch,
-direct and fixed table Package completion, and root publication. Package owns
-its description tables, path confinement, borrowed maps, and durable products.
+source graph completion, canonical path reuse, and root publication. Package
+owns its restricted export surface, path confinement, resources, and durable
+products.
 Concrete Dialects own source grammar and language semantics. Compilers and
 linkers consume completed Monographs without becoming part of Workspace lookup.
 

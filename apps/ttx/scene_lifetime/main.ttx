@@ -4,6 +4,9 @@
 // Window and Scene stack policy for the Scene Lifetime application.
 dialect : App;
 
+public Splash : alias = source("scenes/splash.ttx");
+public Title  : alias = source("scenes/title.ttx");
+
 // Opens the native presentation used by the Scene stack.
 runtime = Windowed {
   .title = "Scene Lifetime",
@@ -16,8 +19,8 @@ runtime = Windowed {
 // The first matching Signal mapping chooses the one transition applied after
 // the frame has been presented.
 lifecycle = Scene {
-  initial Scenes::Splash;
-  on Scenes::Splash.finished replace Scenes::Title;
-  on Scenes::Title.shift_pressed replace Scenes::Splash;
-  on Scenes::Title.space_pressed exit;
+  initial Splash;
+  on Splash.finished replace Title;
+  on Title.shift_pressed replace Splash;
+  on Title.space_pressed exit;
 }

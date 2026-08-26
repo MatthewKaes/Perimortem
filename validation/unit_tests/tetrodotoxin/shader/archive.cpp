@@ -51,8 +51,8 @@ static auto prove_profile(
   Environment::Toolchain toolchain;
   auto library = toolchain.install<Library::Dialect>("Library"_view);
   auto render = toolchain.install<Render::Dialect>("Render"_view);
-  ASSERT(toolchain.install<Package::Dialect>("Package"_view));
   ASSERT(library && render);
+  ASSERT(toolchain.install<Package::Dialect>("Package"_view, *library));
   ASSERT(toolchain.install<Shader::Dialect>("Shader"_view, *library, *render));
   Environment::Workspace workspace(toolchain);
   ASSERT(workspace.restore_package(math, "Math"_view));
@@ -61,14 +61,14 @@ static auto prove_profile(
   auto package = workspace.resolve_context("ShaderProduct"_view)
                      .resolve()
                      .select<Package::Language::Monograph>();
-  auto format = package ? package->resolve_context("Formats"_view)
-                              .resolve()
-                              .select<Render::Language::Monograph>()
-                        : Option<const Render::Language::Monograph&>();
   auto shader_member = package ? package->resolve_context("Shader"_view)
                                      .resolve()
                                      .select<Shader::Language::Monograph>()
                                : Option<const Shader::Language::Monograph&>();
+  auto format = shader_member ? shader_member->resolve_context("Formats"_view)
+                                    .resolve()
+                                    .select<Render::Language::Monograph>()
+                              : Option<const Render::Language::Monograph&>();
   auto program = shader_member
                      ? shader_member->resolve_context("TestShader"_view)
                            .resolve()
@@ -138,7 +138,7 @@ PERIMORTEM_UNIT_TEST(ShaderArchive, rejects_corrupt_payloads) {
   Library::Dialect library;
   Render::Dialect render;
   Shader::Dialect shader(library, render);
-  Package::Dialect package;
+  Package::Dialect package(library);
   Count checked = 0;
   for (const Package::Archive::Member& member : archive->get_members()) {
     if (member.get_dialect_name() != "Render"_view &&

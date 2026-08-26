@@ -5,6 +5,10 @@
 //
 dialect : Package;
 
-source Vec2D from "vec2d.ttx";
-source Vec3D from "vec3d.ttx";
-source Vec4D from "vec4d.ttx";
+public Vec2DSource : alias = source("vec2d.ttx");
+public Vec3DSource : alias = source("vec3d.ttx");
+public Vec4DSource : alias = source("vec4d.ttx");
+
+public Vec2D : alias = Vec2DSource::Vec2D;
+public Vec3D : alias = Vec3DSource::Vec3D;
+public Vec4D : alias = Vec4DSource::Vec4D;

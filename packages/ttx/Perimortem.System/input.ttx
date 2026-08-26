@@ -4,7 +4,10 @@
 // Immutable keyboard, pointer, and mouse input for one application frame.
 dialect : Library;
 
-using Key;
+public Math      : alias = package(.name = "Perimortem.Math", .version = "1.0");
+public KeySource : alias = source("key.ttx");
+
+using KeySource;
 
 foreign "C" {
   public func perimortem_system_input_held[.input : Input, .key : Key] -> Bool;
@@ -17,29 +20,19 @@ foreign "C" {
 // unchanged until the caller asks for the next snapshot, which keeps repeated
 // queries deterministic throughout Scene update and event delivery.
 public Input : struct {
-  private state current         : Fixed[U64, 3];
-  private state changed         : Fixed[U64, 3];
-  private state pointer_x       : R32;
-  private state pointer_y       : R32;
-  private state pointer_delta_x : R32;
-  private state pointer_delta_y : R32;
-  private state scroll_x        : R32;
-  private state scroll_y        : R32;
-  private state pointer_active  : Bool;
+  private state current       : Fixed[U64, 3];
+  private state changed       : Fixed[U64, 3];
+  expose state pointer        : Math::Vec2D;
+  expose state pointer_delta  : Math::Vec2D;
+  expose state scroll         : Math::Vec2D;
+  expose state pointer_active : Bool;
 
   public snapshot : func = [] -> Input : return foreign -> perimortem_system_input_snapshot();
 
-  public get_pointer_delta_x : func = [self] -> R32 : return self.pointer_delta_x;
-  public get_pointer_delta_y : func = [self] -> R32 : return self.pointer_delta_y;
-  public get_pointer_x : func = [self] -> R32 : return self.pointer_x;
-  public get_pointer_y : func = [self] -> R32 : return self.pointer_y;
-  public get_scroll_x : func = [self] -> R32 : return self.scroll_x;
-  public get_scroll_y : func = [self] -> R32 : return self.scroll_y;
   public held : func = [self, .key : Key] -> Bool : return foreign -> perimortem_system_input_held(
     self,
     key,
   );
-  public is_pointer_active : func = [self] -> Bool : return self.pointer_active;
   public pressed : func = [
     self,
     .key : Key,

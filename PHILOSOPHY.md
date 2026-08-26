@@ -3,7 +3,7 @@
 > **The common layer is meaning, not representation.**
 
 Most software already contains several languages, even when the project only
-calls one of them code. A Package manifest describes composition. A scene
+calls one of them code. A Package source describes composition. A scene
 describes lifecycle and relationships. A shader describes GPU behavior. A build
 file describes how the product comes together. Each format carries rules that
 matter to the finished system.

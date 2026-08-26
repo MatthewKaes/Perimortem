@@ -41,7 +41,7 @@ would no longer give every consumer the original semantic fact.
 
 The shared vocabulary contains relationships that are genuinely cross domain
 rather than source features owned by one language.
-A Library Object, a Package Dependency, a Scene signal, and a Shader resource
+A Library Object, a Package Alias, a Scene signal, and a Shader resource
 can all expose exact TTX identities while retaining their richer rules in their
 own domains.
 
@@ -58,7 +58,7 @@ ask of the same object.
 
 That arrangement lets one completed Workspace serve several kinds of consumer:
 
-* Package follows names, dependencies, and reconstructable language facts
+* Package preserves named Import edges and reconstructable language facts
 * Editors use source Anchors, Documentation, and semantic categories
 * Compilers use Type, Pack, Layout, Addressable, and Callable contracts
 * Runtimes receive finished products and the values defined by their language
@@ -187,11 +187,11 @@ addresses.
 `resolve()` follows represented identity. `resolve_context(name)` asks the
 receiving Abstract to interpret one borrowed name in its own domain. The
 concrete operator splits qualified syntax and asks each selected result about
-the next name, so a route can cross Package, Monograph, source, and Type
-contexts without flattening those contexts into one key or converting them
-into one common category. Alias remains opaque to contextual lookup: the
-caller resolves it before asking the selected identity to interpret the next
-name.
+the next name, so a route can cross Package, source, and Type contexts without
+flattening those contexts into one key or converting them into one common
+category. Monograph retains lifetime and never becomes an authored route
+segment. Alias remains opaque to contextual lookup: the caller resolves it
+before asking the selected identity to interpret the next name.
 
 Context lookup does not stand in for explicit receiver access. Address and call
 operators issue `resolve_access(host, name)` and `resolve_call(host, name)` with

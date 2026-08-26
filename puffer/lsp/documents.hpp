@@ -16,6 +16,7 @@
 #include "puffer/lsp/position_encoding.hpp"
 #include "tetrodotoxin/environment/toolchain.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
+#include "tetrodotoxin/package/repository/repository.hpp"
 #include "tetrodotoxin/package/snapshots.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -48,7 +49,7 @@ class Documents {
     Perimortem::Core::View::Bytes source_name;
   };
 
-  Documents(Perimortem::Core::View::Bytes packages_root = {});
+  Documents(Tetrodotoxin::Package::Repository::Repository& repository);
 
   auto upsert(
       Perimortem::Core::View::Bytes uri,
@@ -70,6 +71,12 @@ class Documents {
       -> Perimortem::Core::View::Vector<Ttx::Lexical::Token>;
   auto find_definition(
       Perimortem::Core::View::Bytes source_uri,
+      const Ttx::Concept::Abstract& semantic)
+      -> Perimortem::Core::Option<
+          Tetrodotoxin::Environment::Workspace::AuthoredLocation>;
+  auto find_acquired_definition(
+      Perimortem::Core::View::Bytes source_uri,
+      const PositionEncoding::Position& position,
       const Ttx::Concept::Abstract& semantic)
       -> Perimortem::Core::Option<
           Tetrodotoxin::Environment::Workspace::AuthoredLocation>;
@@ -112,7 +119,7 @@ class Documents {
       snapshots;
   Perimortem::Core::Static::Vector<Document, 64> records;
   Perimortem::Core::Static::Vector<Session, 16> sessions;
-  Perimortem::Memory::Dynamic::Bytes packages_root;
+  Tetrodotoxin::Package::Repository::Repository& repository;
   PositionEncoding position_encoding;
   Bool toolchain_ready = False;
 };

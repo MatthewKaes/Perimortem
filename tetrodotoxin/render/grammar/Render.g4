@@ -14,7 +14,7 @@ import Tetrodotoxin;
 
 renderSource
     : documentation DIALECT DEFINE RENDER_DIALECT END_STATEMENT
-      documentedRenderDeclaration* EOF
+      (sourceImport | packageImport)* documentedRenderDeclaration* EOF
     ;
 
 documentedRenderDeclaration

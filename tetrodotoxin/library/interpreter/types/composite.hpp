@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/interpreter/parsed.hpp"
-#include "tetrodotoxin/library/language/types/structure.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Interpreter::Types {
@@ -19,7 +19,7 @@ class Composite {
 
   static auto parse_body(
       Ttx::Lexical::Cursor& cursor,
-      Language::Types::Structure& structure,
+      Language::Types::Composite& structure,
       Tetrodotoxin::Language::Definition& definition,
       Ttx::Lexical::Token kind_token) -> ParseState;
 };

@@ -5,6 +5,9 @@
 //
 dialect : Render;
 
+public Math  : alias = package(.name = "Perimortem.Math", .version = "1.0");
+public Image : alias = source("image.ttx");
+
 @topology("triangle_list") @blend("alpha") @geometry("unit_quad_2d") @vertex_count(6)
 public TexturedQuad2D : struct {
   @set(0) @slot(0) @read

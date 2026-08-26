@@ -12,6 +12,7 @@
 #include "tetrodotoxin/linker/manifest.hpp"
 #include "tetrodotoxin/package/archive/artifact.hpp"
 #include "tetrodotoxin/package/archive/export.hpp"
+#include "tetrodotoxin/package/archive/graph_import.hpp"
 #include "tetrodotoxin/package/archive/member.hpp"
 #include "tetrodotoxin/package/archive/resource.hpp"
 #include "tetrodotoxin/package/language/dependency.hpp"
@@ -26,8 +27,9 @@ namespace Tetrodotoxin::Package::Archive {
 class Archive {
  public:
   // Defines the section vocabulary shared by Reader and Writer. Format 2 owns
-  // the first seven sections. Format 3 adds Resources after them so older
-  // resource free values keep their exact representation.
+  // the first seven sections. Format 3 adds Resources. Format 4 adds the exact
+  // source-local Import graph and requires the legacy Dependencies section to
+  // be empty.
   enum class Sections : U8 {
     Identity = 1,
     Version,
@@ -37,6 +39,7 @@ class Archive {
     Exports,
     ArtifactMetadata,
     Resources,
+    Imports,
   };
 
   // Counts the fixed magic, format, flags, and body size prefix. Reader
@@ -55,7 +58,8 @@ class Archive {
       Perimortem::Core::View::Vector<Export> exports,
       Tetrodotoxin::Language::Persistence::Profile profile =
           Tetrodotoxin::Language::Persistence::Profile::Complete,
-      Perimortem::Core::View::Vector<Resource> resources = {})
+      Perimortem::Core::View::Vector<Resource> resources = {},
+      Perimortem::Core::View::Vector<GraphImport> imports = {})
       : identity(identity),
         version(version),
         dependencies(dependencies),
@@ -63,7 +67,8 @@ class Archive {
         artifacts(artifacts),
         exports(exports),
         profile(profile),
-        resources(resources) {};
+        resources(resources),
+        imports(imports) {};
 
   constexpr auto get_identity() const -> Perimortem::Core::View::Bytes {
     return identity;
@@ -101,6 +106,11 @@ class Archive {
     return resources;
   }
 
+  constexpr auto get_imports() const
+      -> Perimortem::Core::View::Vector<GraphImport> {
+    return imports;
+  }
+
   // Matches one physical Manifest against the complete native agreement stored
   // by this semantic Archive. The requested artifact remains the caller's
   // selection while this operation proves that the two products belong
@@ -116,6 +126,7 @@ class Archive {
   Perimortem::Core::View::Vector<Export> exports;
   Tetrodotoxin::Language::Persistence::Profile profile;
   Perimortem::Core::View::Vector<Resource> resources;
+  Perimortem::Core::View::Vector<GraphImport> imports;
 };
 
 }  // namespace Tetrodotoxin::Package::Archive

@@ -39,7 +39,7 @@ auto Alias::link() -> Bool {
           [](const TypeReference::Failure&) {});
   BAIL_IF(!selected);
 
-  auto target = selected->select<Model::Type>();
+  auto target = selected->select<Ttx::Model::Type>();
   BAIL_IF(!target);
 
   if (!bind_target(*target)) {
@@ -73,7 +73,7 @@ auto Alias::report_unresolved(Cursor& cursor) const -> void {
     return;
   }
 
-  if (selected && selected->is<Model::Type>()) {
+  if (selected && selected->is<Ttx::Model::Type>()) {
     return;
   }
   cursor.create_expression_error(

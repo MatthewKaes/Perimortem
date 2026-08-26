@@ -1,8 +1,9 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 //
-// Canonical Package source shape. Package owns manifest coordinates and
-// confined source paths while semantic routes keep the shared Type shape.
+// Canonical Package source shape. The common source envelope consumes Import
+// Aliases first; Package then accepts only Library Type definitions that form
+// its named export surface.
 
 parser grammar Package;
 
@@ -10,29 +11,9 @@ options {
   tokenVocab = TTXLexer;
 }
 
-import Tetrodotoxin;
+import Library;
 
 packageSource
     : documentation DIALECT DEFINE PACKAGE_DIALECT END_STATEMENT
-      documentedDependency* documentedSource+ EOF
-    ;
-
-documentedDependency
-    : documentation? dependencyDeclaration
-    ;
-
-dependencyDeclaration
-    : RESOLVE typeRoute DEFINE externalPackageName ASSIGN STRING END_STATEMENT
-    ;
-
-externalPackageName
-    : typeName (ADDRESS typeName)*
-    ;
-
-documentedSource
-    : documentation? sourceDeclaration
-    ;
-
-sourceDeclaration
-    : SOURCE typeRoute FROM STRING END_STATEMENT
+      (sourceImport | packageImport)* (definition typeDefinition)* EOF
     ;

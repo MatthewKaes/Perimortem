@@ -123,7 +123,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, reserved_keywords) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
       arena,
-      "public private expose state const enum struct object using new from "
+      "public private expose state const enum struct object using new package "
       "emit emitter @package_name @public"_view,
       "Test.Package"_view);
 
@@ -134,7 +134,7 @@ PERIMORTEM_UNIT_TEST(TtxLexical, reserved_keywords) {
     Code::Type::Public,      Code::Type::Private, Code::Type::Expose,
     Code::Type::State,       Code::Type::Const,   Code::Type::Enum,
     Code::Type::Struct,      Code::Type::Object,  Code::Type::Using,
-    Code::Type::New,         Code::Type::From,    Code::Type::Emit,
+    Code::Type::New,         Code::Type::Package, Code::Type::Emit,
     Code::Type::Addressable,
   };
   static constexpr Count expected_size = sizeof(expected) / sizeof(*expected);
@@ -192,7 +192,6 @@ PERIMORTEM_UNIT_TEST(TtxLexical, lexicon) {
   EXPECT_TEXT(Lexicon::get_spelling(Token::CallOp), "->"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::QuestionOp), "?"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Dialect), "dialect"_view);
-  EXPECT_TEXT(Lexicon::get_spelling(Token::Resolve), "resolve"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Source), "source"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Emit), "emit"_view);
   EXPECT_TEXT(Lexicon::get_spelling(Token::Expose), "expose"_view);

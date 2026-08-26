@@ -15,12 +15,9 @@ auto Abi::System::create_input(const Perimortem::System::Input& input)
     output.changed[index] = input.get_changed_word(index);
   }
   const Perimortem::System::Input::Pointer& pointer = input.get_pointer();
-  output.pointer_x = pointer.x;
-  output.pointer_y = pointer.y;
-  output.pointer_delta_x = pointer.delta_x;
-  output.pointer_delta_y = pointer.delta_y;
-  output.scroll_x = pointer.scroll_x;
-  output.scroll_y = pointer.scroll_y;
+  output.pointer = {pointer.x, pointer.y};
+  output.pointer_delta = {pointer.delta_x, pointer.delta_y};
+  output.scroll = {pointer.scroll_x, pointer.scroll_y};
   output.pointer_active = bool(pointer.active);
   return output;
 }

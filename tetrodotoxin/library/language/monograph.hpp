@@ -40,8 +40,25 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
   auto get_name() const -> Perimortem::Core::View::Bytes override;
 
+  constexpr auto get_root() const -> const Ttx::Concept::Abstract& override {
+    return source;
+  }
+
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
+
+  // Resolves only this source's authored, intrinsic, using, and common Import
+  // surface. An outer Dialect can expose that surface without re-entering its
+  // own context fallback.
+  auto resolve_local_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract&;
+
+  auto can_bind_source_type(Perimortem::Core::View::Bytes name) const -> Bool;
+
+  auto retain_import(
+      const Tetrodotoxin::Language::Import::Description& description,
+      Perimortem::Core::Option<Ttx::Lexical::Associations&> associations = {})
+      -> Bool override;
 
   auto resolve_access(
       const Ttx::Concept::Abstract& host,

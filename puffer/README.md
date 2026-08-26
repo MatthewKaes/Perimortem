@@ -37,12 +37,41 @@ composition. Puffer owns the build transaction that selects and coordinates
 those components.
 
 The LSP constructs one Environment Toolchain and lends it to every replacement
-Workspace. A Package session reads the selected manifest, recursively loads
-each exact dependency from the configured Package root, detects active cycles,
-and imports the consumer only after its dependencies complete. One shared
-Snapshot owner retains editor overlays and unchanged filesystem bytes across
-those complete graph replacements. No standard Package name is injected into
-an unrelated Package.
+Workspace. A Package session walks the selected source graph, recursively loads
+each unresolved exact Package Alias through Package Repository, detects active
+cycles, and rebuilds the consumer after its dependencies complete. Repository
+maps an exact identity and version to either a declared local source root or the
+versioned installed layout. One shared Snapshot owner retains editor overlays
+and unchanged filesystem bytes across those complete graph replacements. No
+standard Package name is injected into an unrelated Package.
+
+An installed source Package uses this layout:
+
+```text
+<packages-root>/<identity>/<major>.<minor>/package.ttx
+```
+
+The directory also carries imported sources, arbitrary embedded files,
+`contract.txa`, `complete.txa`, `abi.manifest`, and target products beneath
+`native/<artifact>/`. A local checkout can override one exact coordinate
+without changing authored source:
+
+```text
+puffer --pipe=<socket-path> \
+  --packages-root=<installed-root> \
+  --package-source=Example.Math|1.0|/work/Example.Math
+```
+
+Package and application builds use the same Repository to acquire a missing
+dependency Contract and ABI Manifest. Explicit build inputs remain valid and
+take precedence for their exact coordinate, while the installed store lets the
+same Puffer command run outside Bazel.
+
+A local source mapping changes source acquisition only. It does not infer a
+build request for that Package because artifact targets, native providers, and
+selected Terminal products belong to the caller's build. The Package can
+publish its completed products into the shared installation root or the caller
+can continue supplying them explicitly.
 
 Puffer's process model and user interface are optional. Another application can
 reuse source interpretation, Package resolution, compilation, linking, and
@@ -67,8 +96,14 @@ receive one prescribed spelling. Packs and Layouts stay on one line through the
 100 column limit, then place one top level entry on each line with a trailing
 comma. Adjacent declarations and plain assignments align their `:` and `=`
 columns only when the required padding is at most eight columns and the aligned
-prefix remains short. Documentation, Attributes, and Blocks end an alignment
-island.
+prefix remains short. Pack delimiters, Documentation, Attributes, and Blocks
+end an alignment island, so an outer assignment never pads named entries inside
+its Pack.
+
+Control statements receive a Pack directly. A one-expression `if` condition
+therefore omits optional outer parentheses while retaining parentheses needed
+for precedence inside that expression. Empty and multiple-value Packs keep
+their delimiters.
 
 Within one scope paragraph, formatting accepts Definitions, ordinary
 Statements, any number of compressed `:` Blocks, then at most one braced Block.
@@ -131,7 +166,8 @@ while repositories that already use Bazel can keep their surrounding graph.
 ### Package and application products
 
 A Package request is the complete source build. It imports each dependency
-through its Contract Archive, opens the root Package once, and keeps that
+through its Contract Archive, opens the root Package once, walks its source-local
+Alias graph, and keeps that
 Workspace alive while every requested Terminal walks it. Library members become
 CPU objects through the
 [LLVM Terminal](../tetrodotoxin/terminal/llvm/README.md). Shader members become
@@ -164,8 +200,8 @@ and release interface. Object carriers are opaque one word handles. Parameters
 borrow them, results transfer one reservation, and the generated header exposes
 the generic Perimortem retain and release entries for a host that keeps a result.
 
-The build supplies manifest rooted `.ttx` candidates, while the Package Source
-table remains the sole authority for semantic member names and paths. Package
+The build supplies Package-rooted `.ttx` candidates, while source-local Alias
+imports are the sole authority for semantic names and graph edges. Package
 coordinates those products without lowering a copied semantic graph. Compiled
 Shader Programs remain independent SPIR V products inside the native Package
 artifact rather than executable bodies inside its semantic Archive.
@@ -177,10 +213,11 @@ then links that entry with the Package and runtime native products.
 
 ## Restoring an Archive
 
-Puffer first asks Package to check the Archive, its dependencies, and its
+Puffer first asks Package to check the Archive, its exact Import graph, and its
 selected profile. It then creates a new Workspace with the languages named by
-the Archive. Package is restored first so every member receives the same import
-and resource context. Scene and Shader pass that context to their child layers.
+the Archive. Package is restored first, each member is reconstructed, and the
+recorded source-local Aliases bind their real roots before graph completion.
+Scene and Shader pass the surrounding context to their child layers.
 
 The restored members still go through normal linking and finalization before
 Puffer exposes them. Restoration skips reading and parsing source, but it does
@@ -212,7 +249,9 @@ Once a document is open, the server provides:
 * semantic hover with complete Callable signatures, documentation, declaration
   facts, Types, and constants
 * parameter name inlay hints derived from each Call's retained input fitting
-* go to definition for authored semantic identities across Package sources
+* go to definition for authored semantic identities across Package sources and
+  for available source, Package, and embedded Resource inputs selected by the
+  Workspace
 * semantic tokens that recognize Generic formulas selected by the completed
   graph
 * clean shutdown and exit handling

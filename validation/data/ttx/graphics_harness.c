@@ -13,31 +13,31 @@ static const uint8_t red_png[] = {
 };
 
 int main(void) {
-  ttx_perimortem_graphics_Pixel_Pixel rgb =
-      TTX_FUNC_Perimortem_2eGraphics__Pixel__Pixel__from_5frgb_static(
+  ttx_perimortem_graphics_Pixel rgb =
+      TTX_FUNC_Perimortem_2eGraphics__PixelSource__Pixel__from_5frgb_static(
           0x11, 0x22, 0x33);
-  ttx_perimortem_graphics_Pixel_Pixel rgba =
-      TTX_FUNC_Perimortem_2eGraphics__Pixel__Pixel__from_5frgba_static(
+  ttx_perimortem_graphics_Pixel rgba =
+      TTX_FUNC_Perimortem_2eGraphics__PixelSource__Pixel__from_5frgba_static(
           0x44, 0x55, 0x66, 0x77);
   if (rgb.red != 0x11 || rgb.alpha != 0xff || rgba.blue != 0x66 ||
       rgba.alpha != 0x77) {
     return 1;
   }
 
-  ttx_perimortem_graphics_Format_PNG_View_5bU8_5d bytes = {
+  ttx_perimortem_graphics_PNGSource_View_5bU8_5d bytes = {
     red_png,
     sizeof(red_png),
   };
-  ttx_perimortem_graphics_Format_PNG_Option_5bImage_5d decoded =
-      TTX_FUNC_Perimortem_2eGraphics__Format_3a_3aPNG__PNG__decode_static(bytes);
+  ttx_perimortem_graphics_PNGSource_Option_5bImage_5d decoded =
+      TTX_FUNC_Perimortem_2eGraphics__PNGSource__PNG__decode_static(bytes);
   if (!decoded.set) {
     return 2;
   }
-  ttx_perimortem_graphics_Image_Image image = decoded.value;
+  ttx_perimortem_graphics_Image image = decoded.value;
 
-  ttx_perimortem_graphics_Size2D_Size2D size = image.size;
-  ttx_perimortem_graphics_Image_View_5bPixel_5d pixels =
-      TTX_FUNC_Perimortem_2eGraphics__Image__Image__get_5fpixels_self(&image);
+  ttx_perimortem_graphics_Size2D size = image.size;
+  ttx_perimortem_graphics_ImageSource_View_5bPixel_5d pixels =
+      TTX_FUNC_Perimortem_2eGraphics__ImageSource__Image__get_5fpixels_self(&image);
   int result = 0;
   if (size.width != 1 || size.height != 1 || pixels.size != 1 ||
       pixels.data[0].red != 0xff || pixels.data[0].green != 0x00 ||
@@ -45,17 +45,17 @@ int main(void) {
     result = 3;
   }
 
-  ttx_perimortem_math_Vec2D_Vec2D origin = {0.0f, 0.0f};
-  ttx_perimortem_math_Vec4D_Vec4D sampled =
-      TTX_FUNC_Perimortem_2eGraphics__Image__Image__sample_self(
+  ttx_perimortem_math_Vec2D origin = {0.0f, 0.0f};
+  ttx_perimortem_math_Vec4D sampled =
+      TTX_FUNC_Perimortem_2eGraphics__ImageSource__Image__sample_self(
           &image, origin);
   if (sampled.x < 0.999f || sampled.x > 1.001f || sampled.y != 0.0f ||
       sampled.z != 0.0f || sampled.w < 0.999f || sampled.w > 1.001f) {
     result = 4;
   }
 
-  ttx_perimortem_math_Vec2D_Vec2D outside = {2.0f, 2.0f};
-  sampled = TTX_FUNC_Perimortem_2eGraphics__Image__Image__sample_self(
+  ttx_perimortem_math_Vec2D outside = {2.0f, 2.0f};
+  sampled = TTX_FUNC_Perimortem_2eGraphics__ImageSource__Image__sample_self(
       &image, outside);
   if (sampled.x != 0.0f || sampled.y != 0.0f || sampled.z != 0.0f ||
       sampled.w != 0.0f) {

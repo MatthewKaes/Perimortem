@@ -3,6 +3,8 @@
 //
 dialect : App;
 
+public Main : alias = source("main.ttx");
+
 // Selects the App owned startup profile used to produce the final process.
 // The profile chooses linked support libraries, generated platform entry code,
 // and package configuration. It is not a resolved Runtime Package.

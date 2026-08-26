@@ -27,8 +27,20 @@ BINARY = os.environ.get(
     "PUFFER_BINARY",
     os.path.join(REPO_ROOT, ".bin/bin/puffer/puffer"))
 PACKAGES_ROOT = os.environ.get(
-    "PUFFER_PACKAGES_ROOT",
-    os.path.join(REPO_ROOT, "packages", "ttx"))
+    "PUFFER_PACKAGES_ROOT", "")
+PACKAGE_SOURCES = [] if PACKAGES_ROOT else [
+    (
+        identity,
+        "1.0",
+        os.path.join(REPO_ROOT, "packages", "ttx", identity),
+    )
+    for identity in (
+        "Perimortem.Graphics",
+        "Perimortem.Math",
+        "Perimortem.Memory",
+        "Perimortem.System",
+    )
+]
 POSITION_ENCODING = "utf-16" if "--utf16" in sys.argv else "utf-8"
 SCENE_ONLY = "--scene-only" in sys.argv
 RESPONSE_BUFFERS = {}
@@ -207,6 +219,16 @@ def matches_location(response, uri, source_text, needle, start=0):
             target_range.get("end") == expected_end)
 
 
+def matches_file_start(response, uri):
+    location = response.get("result") if response else None
+    if not location or location.get("uri") != uri:
+        return False
+    origin = {"line": 0, "character": 0}
+    target_range = location.get("range", {})
+    return (target_range.get("start") == origin and
+            target_range.get("end") == origin)
+
+
 def send_semantic_tokens(conn, uri, request_id):
     conn.sendall(lsp_frame({
         "jsonrpc": "2.0",
@@ -299,12 +321,14 @@ def run_test():
             env["LD_PRELOAD"] = asan_path
             print(f"ASAN: {asan_path}")
 
+    server_arguments = [BINARY, f"--pipe={SOCKET_PATH}"]
+    if PACKAGES_ROOT:
+        server_arguments.append("--packages-root=" + PACKAGES_ROOT)
+    server_arguments.extend(
+        "--package-source=" + "|".join(package)
+        for package in PACKAGE_SOURCES)
     proc = subprocess.Popen(
-        [
-            BINARY,
-            f"--pipe={SOCKET_PATH}",
-            "--packages-root=" + PACKAGES_ROOT,
-        ],
+        server_arguments,
         stderr=subprocess.PIPE,
         text=True,
         env=env,
@@ -410,18 +434,13 @@ def run_test():
 
     title_path = os.path.join(
         REPO_ROOT, "apps", "ttx", "scene_lifetime", "scenes", "title.ttx")
-    package_path = os.path.join(
-        REPO_ROOT, "apps", "ttx", "scene_lifetime", "package.ttx")
     blend_path = os.path.join(
         REPO_ROOT, "apps", "ttx", "scene_lifetime", "shaders", "blend.ttx")
     with open(title_path, "r", encoding="utf-8") as f:
         title_source = f.read()
-    with open(package_path, "r", encoding="utf-8") as f:
-        scene_package_source = f.read()
     with open(blend_path, "r", encoding="utf-8") as f:
         blend_source = f.read()
     title_uri = "file://" + title_path
-    package_uri = "file://" + package_path
     blend_uri = "file://" + blend_path
     title_diagnostics = send_did_open(conn, title_uri, title_source)
     title_messages = (title_diagnostics or {}).get(
@@ -444,33 +463,16 @@ def run_test():
           "qualified hover preserves the Graphics Package alias")
     graphics_definition = send_definition(
         conn, title_uri, title_source, "Graphics", 102, graphics_route)
-    graphics_declaration = scene_package_source.index("resolve Graphics")
+    graphics_declaration = title_source.index("public Graphics")
     check(matches_location(
-        graphics_definition, package_uri, scene_package_source, "Graphics",
+        graphics_definition, title_uri, title_source, "Graphics",
         graphics_declaration),
         "qualified definition selects the Graphics Package alias")
 
-    shader_route = title_source.index(
-        "Shaders::Blend::TexturedQuad2D::Instance")
-    shaders_hover = send_hover(
-        conn, title_uri, title_source, "Shaders", 103, shader_route)
-    shaders_result = shaders_hover.get("result") if shaders_hover else None
-    shaders_markdown = (
-        shaders_result.get("contents", {}).get("value", "")
-        if shaders_result else "")
-    check("```tetrodotoxin\nShaders\n```" in shaders_markdown and
-          "Type Instance" not in shaders_markdown,
-          "qualified hover preserves the Shaders Package scope")
-    shaders_definition = send_definition(
-        conn, title_uri, title_source, "Shaders", 104, shader_route)
-    shaders_declaration = scene_package_source.index("source Shaders::Blend")
-    check(matches_location(
-        shaders_definition, package_uri, scene_package_source, "Shaders",
-        shaders_declaration),
-        "qualified definition selects the Shaders Package scope")
+    shader_route = title_source.index("Blend::TexturedQuad2D::Instance")
 
     blend_hover = send_hover(
-        conn, title_uri, title_source, "Blend", 105, shader_route)
+        conn, title_uri, title_source, "Blend", 103, shader_route)
     blend_result = blend_hover.get("result") if blend_hover else None
     blend_markdown = (
         blend_result.get("contents", {}).get("value", "")
@@ -479,14 +481,40 @@ def run_test():
           "Type Instance" not in blend_markdown,
           "qualified hover preserves the Blend Package alias")
     blend_definition = send_definition(
-        conn, title_uri, title_source, "Blend", 106, shader_route)
+        conn, title_uri, title_source, "Blend", 104, shader_route)
+    blend_declaration = title_source.index("public Blend")
     check(matches_location(
-        blend_definition, package_uri, scene_package_source, "Blend",
-        shaders_declaration),
+        blend_definition, title_uri, title_source, "Blend",
+        blend_declaration),
         "qualified definition selects the Blend Package alias")
 
+    source_definition = send_definition(
+        conn, title_uri, title_source, "source", 107)
+    check(matches_file_start(source_definition, blend_uri),
+          "source locator definition opens the imported file")
+
+    graphics_package_root = (
+        os.path.join(PACKAGES_ROOT, "Perimortem.Graphics", "1.0")
+        if PACKAGES_ROOT else
+        os.path.join(
+            REPO_ROOT, "packages", "ttx", "Perimortem.Graphics"))
+    graphics_package_uri = "file://" + os.path.join(
+        graphics_package_root, "package.ttx")
+    package_definition = send_definition(
+        conn, title_uri, title_source, "package", 108)
+    check(matches_file_start(package_definition, graphics_package_uri),
+          "package locator definition opens the selected Package root")
+
+    icon_uri = "file://" + os.path.join(
+        REPO_ROOT, "apps", "ttx", "scene_lifetime", "resources",
+        "icon.png")
+    icon_definition = send_definition(
+        conn, splash_uri, splash_source, "icon.png", 110)
+    check(matches_file_start(icon_definition, icon_uri),
+          "embedded Resource definition opens the acquired file")
+
     textured_hover = send_hover(
-        conn, title_uri, title_source, "TexturedQuad2D", 107, shader_route)
+        conn, title_uri, title_source, "TexturedQuad2D", 105, shader_route)
     textured_result = textured_hover.get("result") if textured_hover else None
     textured_markdown = (
         textured_result.get("contents", {}).get("value", "")
@@ -495,11 +523,14 @@ def run_test():
           "Type Instance" not in textured_markdown,
           "qualified hover selects the app owned Shader Program")
     textured_definition = send_definition(
-        conn, title_uri, title_source, "TexturedQuad2D", 108, shader_route)
+        conn, title_uri, title_source, "TexturedQuad2D", 106, shader_route)
     textured_declaration = blend_source.index("public TexturedQuad2D")
-    check(matches_location(
+    textured_matches = matches_location(
         textured_definition, blend_uri, blend_source, "TexturedQuad2D",
-        textured_declaration),
+        textured_declaration)
+    if not textured_matches:
+        print("  TexturedQuad2D definition:", textured_definition)
+    check(textured_matches,
         "qualified definition selects the app owned Shader Program")
 
     instance_hover = send_hover(
@@ -624,7 +655,7 @@ def run_test():
     check(system_package_diagnostics is not None and
           not system_package_diagnostics.get(
               "params", {}).get("diagnostics", []),
-          "Perimortem.System manifest publishes without diagnostics")
+          "Perimortem.System Package root publishes without diagnostics")
     package_messages = (package_diagnostics or {}).get(
         "params", {}).get("diagnostics", [])
     if package_messages:
@@ -633,7 +664,7 @@ def run_test():
             print("   ", diagnostic.get("message"))
     check(package_diagnostics is not None and not package_diagnostics.get(
         "params", {}).get("diagnostics", []),
-        "consumer Package manifest publishes without diagnostics")
+        "consumer Package root publishes without diagnostics")
     main_messages = (main_diagnostics or {}).get(
         "params", {}).get("diagnostics", [])
     if main_messages:
@@ -642,7 +673,7 @@ def run_test():
             print("   ", diagnostic.get("message"))
     check(main_diagnostics is not None and not main_diagnostics.get(
         "params", {}).get("diagnostics", []),
-        "Package member resolves its sibling and Perimortem.System")
+        "Package source resolves its sibling and Perimortem.System")
     prefix_use = main_source.index("Dynamic::Bytes -> concat")
     system_hover = send_hover(
         conn, main_uri, main_source, "line_prefix", 11, prefix_use)
@@ -686,13 +717,9 @@ def run_test():
     graphics_root = os.path.join(
         REPO_ROOT, "packages", "ttx", "Perimortem.Graphics")
     transform_path = os.path.join(graphics_root, "transform2d.ttx")
-    point_path = os.path.join(graphics_root, "point2d.ttx")
     with open(transform_path, "r", encoding="utf-8") as f:
         transform_source = f.read()
-    with open(point_path, "r", encoding="utf-8") as f:
-        point_source = f.read()
     transform_uri = "file://" + transform_path
-    point_uri = "file://" + point_path
     transform_diagnostics = send_did_open(
         conn, transform_uri, transform_source)
     check(transform_diagnostics is not None and not transform_diagnostics.get(
@@ -701,11 +728,11 @@ def run_test():
     point_use = transform_source.index("state translation : Point2D")
     point_definition = send_definition(
         conn, transform_uri, transform_source, "Point2D", 68, point_use)
-    point_declaration = point_source.index("public Point2D")
+    point_declaration = transform_source.index("public Point2D : alias")
     check(matches_location(
-        point_definition, point_uri, point_source, "Point2D",
+        point_definition, transform_uri, transform_source, "Point2D",
         point_declaration),
-        "definition resolves a same named Package member Type")
+        "definition preserves the source-local Point2D Alias")
 
     concat_hover = send_hover(
         conn, main_uri, main_source, "concat", 17, prefix_use)
@@ -844,7 +871,7 @@ def run_test():
     check(bool(partial_messages),
           "unfinished inferred access remains diagnostic")
     check("state output : Bytes" in partial_markdown,
-          "retained Package member preserves an inferred Local Type")
+          "retained Package source preserves an inferred Local Type")
     check("concat" in inferred_labels,
           "inferred Local completion survives unfinished invocation")
     check(matches_location(

@@ -14,15 +14,17 @@
 
 #include "perimortem/utility/result.hpp"
 
+#include "tetrodotoxin/linker/manifest.hpp"
 #include "tetrodotoxin/package/archive/archive.hpp"
 #include "tetrodotoxin/package/repository/input.hpp"
 #include "tetrodotoxin/package/repository/output.hpp"
 
 namespace Tetrodotoxin::Package::Repository {
 
-// Selects only products supplied by the calling Bazel action. Discovery and
-// version preference would make the result depend on ambient repository state,
-// so every semantic key, physical input, and publication route is explicit.
+// Selects source and compiled products through one exact Package coordinate.
+// Callers may supply a local input for that coordinate or one installed root
+// whose identity and version layout is deterministic. Repository never chooses
+// a preferred version or derives semantic identity from a physical path.
 class Repository {
  public:
   // Names the stable caller decision for one rejected Repository selection.
@@ -48,8 +50,17 @@ class Repository {
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Vector<Input> inputs,
       Perimortem::Core::View::Vector<Output> archive_outputs,
-      Perimortem::Core::View::Vector<Output> native_outputs)
+      Perimortem::Core::View::Vector<Output> native_outputs,
+      Perimortem::Core::View::Bytes installed_root = {})
       -> Perimortem::Core::Option<Repository>;
+
+  // Source selection returns the Package directory that contains
+  // `package.ttx`. A local Input wins for its exact coordinate. Otherwise the
+  // installed layout is `<root>/<identity>/<major>.<minor>`.
+  auto select_source(
+      Perimortem::Core::View::Bytes identity,
+      Perimortem::System::Version version)
+      -> Perimortem::Utility::Result<Perimortem::Core::View::Bytes, Error>;
 
   // Selects the exact declared semantic Archive and preserves it in the
   // Repository cache. Every call chooses the Archive or a stable caller error,
@@ -60,13 +71,22 @@ class Repository {
       -> Perimortem::Utility::Result<const Archive::Archive&, Error>;
 
   // Semantic selection succeeds without native declarations. This operation
-  // adds the complete native inventory check before exposing one borrowed
-  // path, keeping native bytes with their eventual format consumer.
+  // verifies the selected artifact and ABI agreement before exposing one
+  // borrowed path, keeping native bytes with their eventual format consumer.
   auto select_native(
       Perimortem::Core::View::Bytes identity,
       Perimortem::System::Version version,
       Perimortem::Core::View::Bytes artifact_id)
       -> Perimortem::Utility::Result<Perimortem::Core::View::Bytes, Error>;
+
+  // The ABI Manifest is selected independently from native bytes because a
+  // semantic build needs agreement with a dependency without loading or
+  // linking that dependency's target object.
+  auto select_manifest(
+      Perimortem::Core::View::Bytes identity,
+      Perimortem::System::Version version,
+      Perimortem::Core::View::Bytes artifact_id) -> Perimortem::Utility::
+      Result<const Tetrodotoxin::Linker::Manifest&, Error>;
 
   // The shared Output value does not erase product kind. Archive lookup stays
   // on its own inventory and cannot fall through to a native declaration.
@@ -89,18 +109,41 @@ class Repository {
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Vector<Input> inputs,
       Perimortem::Core::View::Vector<Output> archive_outputs,
-      Perimortem::Core::View::Vector<Output> native_outputs)
+      Perimortem::Core::View::Vector<Output> native_outputs,
+      Perimortem::Core::View::Bytes installed_root)
       : arena(arena),
         inputs(inputs),
         archive_outputs(archive_outputs),
         native_outputs(native_outputs),
-        archive_cache(arena) {}
+        installed_root(installed_root),
+        archive_cache(arena),
+        manifest_cache(arena),
+        source_cache(arena),
+        native_cache(arena) {}
+
+  struct SourceSelection {
+    Perimortem::Core::View::Bytes identity;
+    Perimortem::System::Version version;
+    Perimortem::Core::View::Bytes root;
+  };
+
+  struct NativeSelection {
+    Perimortem::Core::View::Bytes identity;
+    Perimortem::System::Version version;
+    Perimortem::Core::View::Bytes artifact;
+    Perimortem::Core::View::Bytes path;
+  };
 
   Perimortem::Memory::Allocator::Arena& arena;
   Perimortem::Core::View::Vector<Input> inputs;
   Perimortem::Core::View::Vector<Output> archive_outputs;
   Perimortem::Core::View::Vector<Output> native_outputs;
+  Perimortem::Core::View::Bytes installed_root;
   Perimortem::Memory::Managed::Vector<Archive::Archive> archive_cache;
+  Perimortem::Memory::Managed::Vector<Tetrodotoxin::Linker::Manifest>
+      manifest_cache;
+  Perimortem::Memory::Managed::Vector<SourceSelection> source_cache;
+  Perimortem::Memory::Managed::Vector<NativeSelection> native_cache;
 };
 
 }  // namespace Tetrodotoxin::Package::Repository

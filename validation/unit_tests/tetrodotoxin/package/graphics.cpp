@@ -31,11 +31,7 @@ static Harness StandardGraphicsPackage = {
 static auto select_type(
     const Package::Language::Monograph& package,
     View::Bytes name) -> Option<const Library::Language::Types::Composite&> {
-  auto member = package.resolve_context(name)
-                    .resolve()
-                    .select<Library::Language::Monograph>();
-  BAIL_IF(!member);
-  return member->resolve_context(name)
+  return package.resolve_context(name)
       .resolve()
       .select<Library::Language::Types::Composite>();
 }
@@ -89,10 +85,10 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
   ASSERT(archive);
 
   Environment::Toolchain toolchain;
-  ASSERT(toolchain.install<Package::Dialect>("Package"_view));
   auto library = toolchain.install<Library::Dialect>("Library"_view);
   auto render = toolchain.install<Render::Dialect>("Render"_view);
   ASSERT(library && render);
+  ASSERT(toolchain.install<Package::Dialect>("Package"_view, *library));
   ASSERT(toolchain.install<Shader::Dialect>("Shader"_view, *library, *render));
   Environment::Workspace workspace(toolchain);
   ASSERT(workspace.restore_package(*math_archive, "Math"_view));
@@ -110,13 +106,9 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
   auto texture = select_type(package, "Texture2D"_view);
   auto sprite = select_type(package, "Sprite"_view);
   const auto& format = package.resolve_context("Format"_view).resolve();
-  auto png_member = format.resolve_context("PNG"_view)
-                        .resolve()
-                        .select<Library::Language::Monograph>();
-  auto png = png_member ? png_member->resolve_context("PNG"_view)
-                              .resolve()
-                              .select<Library::Language::Types::Composite>()
-                        : Option<const Library::Language::Types::Composite&>();
+  auto png = format.resolve_context("PNG"_view)
+                 .resolve()
+                 .select<Library::Language::Types::Composite>();
   ASSERT(
       pixel && point && size && tone && transform && placement && image &&
       texture && sprite && png);

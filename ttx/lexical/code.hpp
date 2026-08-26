@@ -116,16 +116,16 @@ class Code {
     False,
     Return,
     Emit,
-    Resolve,
     Source,
+    Package,
     Dialect,
     Alias,
+    Namespace,
     Enum,
     Struct,
     Object,
     Using,
     New,
-    From,
 
     // Modifiers receive distinct Codes because publication and evaluation are
     // prescribed groupings in this Lexer contract. Consumers can accept or

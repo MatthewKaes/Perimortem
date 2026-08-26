@@ -5,8 +5,8 @@ needs to own data, perform math, talk to its host, and submit graphics. They mak
 Perimortem runtime services feel like ordinary authored dependencies rather
 than secret compiler features.
 
-A source chooses the Packages it wants, names them in its manifest, and can use
-the same public identities whether they came from source or a durable Archive.
+A source chooses the Packages it wants with local Alias imports and can use the
+same public identities whether they came from source or a durable Archive.
 Another host is free to provide different Packages for the same roles. That
 keeps the platform useful beyond one runtime without making `Memory`, `Math`,
 `System`, or `Graphics` appear by magic.
@@ -18,11 +18,12 @@ different Types.
 ## Perimortem.Memory
 
 `Perimortem.Memory` publishes the exact `Dynamic::Bytes` identity shared by
-Packages that exchange owned byte values. A dependent Package declares Memory
-in its manifest and uses its context explicitly:
+Packages that exchange owned byte values. A dependent source imports Memory and
+uses its context explicitly:
 
 ```ttx
-resolve Memory : Perimortem.Memory = "1.0";
+public Memory : alias =
+    package(.name = "Perimortem.Memory", .version = "1.0");
 ```
 
 ```ttx
@@ -156,7 +157,9 @@ treating a platform address as a language value.
 `System::Input -> snapshot()` returns one immutable input snapshot. The
 production window loop and deterministic application driver both supply the
 same value shape. The snapshot exposes exact `current`, `pressed`, and
-`released` queries over stable `System::Key` identities.
+`released` queries over stable `System::Key` identities. Its exposed `pointer`,
+`pointer_delta`, and `scroll` values use the shared `Math::Vec2D` Type, while
+`pointer_active` reports whether the pointer currently belongs to the surface.
 
 `System::Key` publishes stable values such as `space` and `shift`, which can be
 imported through ordinary `using` resolution. Focus loss, key repeat, and frame

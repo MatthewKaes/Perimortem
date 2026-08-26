@@ -5,16 +5,37 @@
 //
 dialect : Package;
 
-resolve Math : Perimortem.Math = "1.0";
-source Pixel from "pixel.ttx";
-source Point2D from "point2d.ttx";
-source Size2D from "size2d.ttx";
-source Tone from "tone.ttx";
-source Transform2D from "transform2d.ttx";
-source Placement2D from "placement2d.ttx";
-source Image from "image.ttx";
-source Texture2D from "texture2d.ttx";
-source Format::PNG from "png.ttx";
-source Sprite from "sprite.ttx";
-source Render from "render.ttx";
-source Shader from "shader.ttx";
+public PixelSource       : alias = source("pixel.ttx");
+public Point2DSource     : alias = source("point2d.ttx");
+public Size2DSource      : alias = source("size2d.ttx");
+public ToneSource        : alias = source("tone.ttx");
+public Transform2DSource : alias = source("transform2d.ttx");
+public Placement2DSource : alias = source("placement2d.ttx");
+public ImageSource       : alias = source("image.ttx");
+public Texture2DSource   : alias = source("texture2d.ttx");
+public PNGSource         : alias = source("png.ttx");
+public SpriteSource      : alias = source("sprite.ttx");
+public RenderSource      : alias = source("render.ttx");
+public ShaderSource      : alias = source("shader.ttx");
+
+public Pixel       : alias = PixelSource::Pixel;
+public Point2D     : alias = Point2DSource::Point2D;
+public Size2D      : alias = Size2DSource::Size2D;
+public Tone        : alias = ToneSource::Tone;
+public Transform2D : alias = Transform2DSource::Transform2D;
+public Placement2D : alias = Placement2DSource::Placement2D;
+public Image       : alias = ImageSource::Image;
+public Texture2D   : alias = Texture2DSource::Texture2D;
+public Sprite      : alias = SpriteSource::Sprite;
+
+public Format : namespace {
+  public PNG : alias = PNGSource::PNG;
+}
+
+public Render : namespace {
+  public TexturedQuad2D : alias = RenderSource::TexturedQuad2D;
+}
+
+public Shader : namespace {
+  public DefaultTexturedQuad2D : alias = ShaderSource::DefaultTexturedQuad2D;
+}

@@ -9,6 +9,7 @@
 #include "perimortem/serialization/stream/textual.hpp"
 
 #include "puffer/lsp/semantic.hpp"
+#include "tetrodotoxin/language/import.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/enumeration.hpp"
@@ -66,9 +67,11 @@ static auto append_bytes(
              << hexadecimal.slice(byte & 0x0F, 1);
     }
   }
+
   if (value.get_size() > visible) {
     output << "…"_view;
   }
+
   output << "\""_view;
 }
 
@@ -81,6 +84,7 @@ static auto append_constant(
       output << "absent"_view;
       return;
     }
+
     output << "some("_view;
     option->get_payload().visit(
         [&]() { output << "?"_view; },
@@ -88,33 +92,21 @@ static auto append_constant(
           append_pack(output, payload, depth + 1);
         });
     output << ")"_view;
-    return;
-  }
-  if (auto value = constant.select<Constants::Unsigned>()) {
+  } else if (auto value = constant.select<Constants::Unsigned>()) {
     output << value->get_value();
-    return;
-  }
-  if (auto value = constant.select<Constants::Signed>()) {
+  } else if (auto value = constant.select<Constants::Signed>()) {
     output << value->get_value();
-    return;
-  }
-  if (auto value = constant.select<Constants::Real>()) {
+  } else if (auto value = constant.select<Constants::Real>()) {
     output << value->get_value();
-    return;
-  }
-  if (auto value = constant.select<Constants::Flag>()) {
+  } else if (auto value = constant.select<Constants::Flag>()) {
     output << (value->get_value() ? "true"_view : "false"_view);
-    return;
-  }
-  if (auto value = constant.select<Constants::Enumeration>()) {
+  } else if (auto value = constant.select<Constants::Enumeration>()) {
     output << value->get_value();
-    return;
-  }
-  if (auto value = constant.select<Constants::Bytes>()) {
+  } else if (auto value = constant.select<Constants::Bytes>()) {
     append_bytes(output, value->get_value());
-    return;
+  } else {
+    output << "<constant>"_view;
   }
-  output << "<constant>"_view;
 }
 
 static auto append_pack(
@@ -128,6 +120,7 @@ static auto append_pack(
     output << "<depth limit>"_view;
     return;
   }
+
   auto constant = pack.select<Constant>();
   if (constant) {
     append_constant(output, *constant, depth);
@@ -139,6 +132,7 @@ static auto append_pack(
     output << "()"_view;
     return;
   }
+
   if (size == 1) {
     auto produced = pack.get_produced(0);
     if (produced && &produced->producer != &pack) {
@@ -148,6 +142,7 @@ static auto append_pack(
         return;
       }
     }
+
     output << "<dynamic>"_view;
     return;
   }
@@ -157,6 +152,7 @@ static auto append_pack(
     if (i != 0) {
       output << ", "_view;
     }
+
     auto produced = pack.get_produced(i);
     if (!produced || &produced->producer == &pack) {
       output << "?"_view;
@@ -169,6 +165,7 @@ static auto append_pack(
       }
     }
   }
+
   output << ")"_view;
 }
 
@@ -192,6 +189,7 @@ static auto append_type(
       }
     }
   }
+
   if (!type) {
     auto local = semantic.select<Flow::Local>();
     if (local) {
@@ -205,6 +203,7 @@ static auto append_type(
       }
     }
   }
+
   if (!type) {
     const Abstract& resolved = semantic.resolve();
     auto addressable = resolved.select<Model::Addressable>();
@@ -212,10 +211,12 @@ static auto append_type(
       type = addressable->get_type();
     }
   }
+
   if (!type) {
     const Abstract& resolved = semantic.resolve();
     type = resolved.select<Model::Type>();
   }
+
   output << (type ? type->get_name() : "<unknown>"_view);
 }
 
@@ -232,6 +233,7 @@ static auto append_signature_layout(
       } else {
         append_type(output, *entry);
       }
+
       return;
     }
   }
@@ -241,6 +243,7 @@ static auto append_signature_layout(
     if (index != 0) {
       output << ", "_view;
     }
+
     auto entry = layout.get_abstract(index);
     if (!entry) {
       output << "<unknown>"_view;
@@ -254,15 +257,19 @@ static auto append_signature_layout(
     if (name.is_empty() && addressable) {
       name = addressable->get_name();
     }
+
     if (name == "self"_view) {
       output << "self"_view;
       continue;
     }
+
     if (!name.is_empty()) {
       output << "."_view << name << " : "_view;
     }
+
     append_type(output, *entry);
   }
+
   output << "]"_view;
 }
 
@@ -278,6 +285,16 @@ static auto append_callable(
 static auto append_declaration(
     Stream::Textual<Managed::Bytes>& output,
     const Abstract& subject) -> Bool {
+  auto import = subject.select<Tetrodotoxin::Language::Import>();
+  if (import) {
+    output << import->get_name() << " : alias = "_view
+           << (import->get_kind() ==
+                       Tetrodotoxin::Language::Import::Kind::Package
+                   ? "Package"_view
+                   : "Source"_view);
+    return True;
+  }
+
   auto alias = subject.select<Ttx::Model::Alias>();
   if (alias) {
     output << alias->get_name() << " : alias"_view;
@@ -285,6 +302,7 @@ static auto append_declaration(
     if (!target.is<Invalid>() && !target.get_name().is_empty()) {
       output << " = "_view << target.get_name();
     }
+
     return True;
   }
 
@@ -339,6 +357,7 @@ static auto append_declaration(
   if (subject.get_name().is_empty()) {
     return False;
   }
+
   output << subject.get_name();
   return True;
 }
@@ -384,6 +403,7 @@ auto Lsp::semantic_hover(Allocator::Arena& arena, const Abstract& semantic)
   if (!append_declaration(output, subject)) {
     return Json::Node();
   }
+
   append_value(output, subject);
   output << "\n```"_view;
 
@@ -394,12 +414,14 @@ auto Lsp::semantic_hover(Allocator::Arena& arena, const Abstract& semantic)
       if (i != 0) {
         output << "\n"_view;
       }
+
       View::Bytes line = documentation.get_line(i);
       if (!line.is_empty()) {
         output << line;
       }
     }
   }
+
   return Json::Blueprint{
     {
       {"contents"_view,

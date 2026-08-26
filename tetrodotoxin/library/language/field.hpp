@@ -147,7 +147,7 @@ class Field : public Model::Addressable {
 
   constexpr auto get_declaration_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
-    return get_anchor();
+    return definition.get_name_anchor();
   }
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const

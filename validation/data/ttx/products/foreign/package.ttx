@@ -4,4 +4,4 @@
 
 dialect : Package;
 
-source Foreign from "foreign.ttx";
+public Foreign : alias = source("foreign.ttx");

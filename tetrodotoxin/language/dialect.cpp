@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/language/parser/dialect.hpp"
+#include "tetrodotoxin/language/parser/import.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -86,7 +87,29 @@ auto Language::Dialect::interpret_source(
     return {};
   }
 
-  return dialect->interpret(cursor, documentation, source_anchor, context);
+  Managed::Vector<Import::Description> imports(cursor.get_arena());
+  while (Parser::Import::is_next(cursor)) {
+    const Documentation& import_documentation = Parser::Comment::parse(cursor);
+    auto import = Parser::Import::parse(cursor, import_documentation);
+    if (import) {
+      imports.insert(*import);
+    } else {
+      cursor.recover_to_statement();
+    }
+  }
+
+  auto interpretation =
+      dialect->interpret(cursor, documentation, source_anchor, context);
+  BAIL_IF(!interpretation);
+  for (const Import::Description& import : imports.get_view()) {
+    if (!interpretation->retain_import(import, cursor.get_associations())) {
+      cursor.create_expression_error(
+          import.get_anchor(),
+          "Source repeats one local Import Alias name."_view,
+          "Give each imported source or Package one distinct local name."_view);
+    }
+  }
+  return *interpretation;
 }
 
 auto Language::Dialect::encode(const Abstract&, Persistence::Profile) const

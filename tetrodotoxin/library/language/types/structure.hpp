@@ -48,7 +48,7 @@ class Structure : public Composite {
   // The closing brace fixes member identity and source order even though
   // individual Type edges settle later. Source interpretation calls this once
   // after the complete authored body has been retained.
-  auto complete_body() -> void;
+  auto complete_body() -> void override;
 
  protected:
   Structure(

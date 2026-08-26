@@ -9,7 +9,7 @@
 
 namespace Tetrodotoxin::Package::Repository {
 
-// Describes the common key and route carried by every Bazel publication.
+// Describes the common key and route carried by every product publication.
 // Archive and native product kinds remain separate Repository inventories, so
 // duplicating their data shape as separate classes would add type differences
 // without adding an ownership difference.

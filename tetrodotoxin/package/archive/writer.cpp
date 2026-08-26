@@ -27,34 +27,6 @@ static constexpr U16 interface_profile = 1;
 static constexpr U64 format_two_section_count =
     U8(Package::Archive::Archive::Sections::ArtifactMetadata);
 
-static auto resolve_member(
-    const Ttx::Concept::Abstract& root,
-    View::Bytes route) -> const Ttx::Concept::Abstract& {
-  const Ttx::Concept::Abstract* selected = &root;
-  Count start = 0;
-  for (Count index = 0; index <= route.get_size(); index++) {
-    Bool terminal = index == route.get_size();
-    Bool separator = !terminal && index + 1 < route.get_size() &&
-                     route[index] == ':' && route[index + 1] == ':';
-    if (!terminal && !separator) {
-      continue;
-    }
-    View::Bytes segment = route.slice(start, index - start);
-    if (segment.is_empty()) {
-      return Ttx::Concept::Invalid::get_invalid();
-    }
-    selected = &selected->resolve_context(segment).resolve();
-    if (selected->is<Ttx::Concept::Invalid>()) {
-      return *selected;
-    }
-    if (separator) {
-      index++;
-      start = index + 1;
-    }
-  }
-  return *selected;
-}
-
 // Holds the proven payload size for each canonical section and the complete
 // envelope. These measurements belong to one write transaction and never
 // become retained Archive facts.
@@ -66,6 +38,7 @@ struct FormatSizes {
   U32 exports = 0;
   U32 artifact_metadata = 0;
   U32 resources = 0;
+  U32 imports = 0;
   U32 body = 0;
   Count total = 0;
 };
@@ -119,6 +92,13 @@ static auto measure_resource_record(const Package::Archive::Resource& resource)
          measure_sized_bytes(resource.get_value());
 }
 
+static auto measure_graph_import_record(
+    const Package::Archive::GraphImport& import) -> U64 {
+  return 1 + measure_sized_bytes(import.get_importer()) +
+         measure_sized_bytes(import.get_local_name()) +
+         measure_sized_bytes(import.get_target()) + 4;
+}
+
 // Measures all seven section payloads and the complete body with unsigned 64
 // bit locals. Every nested value contributes a positive part of the body.
 // Proving the body fits therefore proves every unsigned 32 bit section and
@@ -130,11 +110,13 @@ static auto calculate_sizes(const Package::Archive::Archive& archive)
   auto artifacts_values = archive.get_artifacts();
   auto export_values = archive.get_exports();
   auto resource_values = archive.get_resources();
+  auto import_values = archive.get_imports();
   if (dependency_values.get_size() > format_limit ||
       member_values.get_size() > format_limit ||
       artifacts_values.get_size() > format_limit ||
       export_values.get_size() > format_limit ||
-      resource_values.get_size() > format_limit) {
+      resource_values.get_size() > format_limit ||
+      import_values.get_size() > format_limit) {
     return {};
   }
 
@@ -170,11 +152,18 @@ static auto calculate_sizes(const Package::Archive::Archive& archive)
     resources += 4 + measure_resource_record(resource);
   }
 
-  U64 section_count =
-      format_two_section_count + (resource_values.is_empty() ? 0 : 1);
+  U64 imports = 4;
+  for (const Package::Archive::GraphImport& import : import_values) {
+    imports += 4 + measure_graph_import_record(import);
+  }
+
+  Bool graph_format = !import_values.is_empty();
+  U64 section_count = format_two_section_count +
+                      (graph_format ? 2 : (resource_values.is_empty() ? 0 : 1));
   U64 body = section_header_size * section_count + identity + 4 + dependencies +
              members + artifact_ids + exports + artifact_metadata +
-             (resource_values.is_empty() ? 0 : resources);
+             (graph_format || !resource_values.is_empty() ? resources : 0) +
+             (graph_format ? imports : 0);
   if (body > format_limit) {
     return {};
   }
@@ -187,6 +176,7 @@ static auto calculate_sizes(const Package::Archive::Archive& archive)
     .exports = U32(exports),
     .artifact_metadata = U32(artifact_metadata),
     .resources = U32(resources),
+    .imports = U32(imports),
     .body = U32(body),
     .total = Count(body) + Package::Archive::Archive::header_size,
   };
@@ -234,7 +224,10 @@ auto Package::Archive::Writer::write(const Archive& archive)
   // required Package Resource section while leaving the first seven section
   // identities unchanged.
   writer << "TTXA"_view;
-  writer << U16(archive.get_resources().is_empty() ? 2 : 3);
+  writer << U16(
+      !archive.get_imports().is_empty()
+          ? 4
+          : (archive.get_resources().is_empty() ? 2 : 3));
   writer << U16(
       archive.get_profile() ==
               Tetrodotoxin::Language::Persistence::Profile::Contract
@@ -328,13 +321,28 @@ auto Package::Archive::Writer::write(const Archive& archive)
   }
 
   auto resources = archive.get_resources();
-  if (!resources.is_empty()) {
+  if (!resources.is_empty() || !archive.get_imports().is_empty()) {
     write_section_header(writer, Archive::Sections::Resources, sizes.resources);
     writer << U32(resources.get_size());
     for (const Package::Archive::Resource& resource : resources) {
       writer << U32(measure_resource_record(resource));
       write_sized_bytes(writer, resource.get_route());
       write_sized_bytes(writer, resource.get_value());
+    }
+  }
+
+  auto graph_imports = archive.get_imports();
+  if (!graph_imports.is_empty()) {
+    write_section_header(writer, Archive::Sections::Imports, sizes.imports);
+    writer << U32(graph_imports.get_size());
+    for (const Package::Archive::GraphImport& import : graph_imports) {
+      writer << U32(measure_graph_import_record(import));
+      writer << U8(import.get_kind());
+      write_sized_bytes(writer, import.get_importer());
+      write_sized_bytes(writer, import.get_local_name());
+      write_sized_bytes(writer, import.get_target());
+      writer << import.get_version().get_major();
+      writer << import.get_version().get_minor();
     }
   }
 
@@ -355,35 +363,45 @@ auto Package::Archive::Writer::write(
     View::Bytes identity,
     Perimortem::System::Version version,
     Tetrodotoxin::Language::Persistence::Profile profile,
+    View::Vector<GraphMember> graph,
+    View::Vector<GraphImport> imports,
     View::Vector<Artifact> artifacts,
     View::Vector<Export> exports) -> Option<Dynamic::Bytes> {
   BAIL_IF(identity.is_empty());
 
   Allocator::Arena arena;
-  Dynamic::Vector<Dynamic::Bytes> payloads(package.get_sources().get_size());
+  Dynamic::Vector<Dynamic::Bytes> payloads(graph.get_size() + 1);
   Managed::Vector<Member> members(arena);
-  for (const Package::Language::Source& source : package.get_sources()) {
-    const Ttx::Concept::Abstract& selected =
-        resolve_member(package, source.get_local_name());
-    auto member = selected.select<Tetrodotoxin::Language::Monograph>();
-    auto dialect =
-        member
-            ? member->get_language().select<Tetrodotoxin::Language::Dialect>()
-            : Option<const Tetrodotoxin::Language::Dialect&>();
-    BAIL_IF(!member || !dialect);
+  auto package_library = package.get_library()
+                             .get_language()
+                             .select<Tetrodotoxin::Language::Dialect>();
+  BAIL_IF(!package_library);
+  auto package_payload =
+      package_library->encode(package.get_library(), profile);
+  BAIL_IF(!package_payload);
+  payloads.emplace(static_cast<Dynamic::Bytes&&>(*package_payload));
+  members.insert(Member(
+      "PackageSurface"_view, package_library->get_name(),
+      payloads[payloads.get_size() - 1].get_view()));
 
-    auto payload = dialect->encode(*member, profile);
+  for (const GraphMember& selected : graph) {
+    const Tetrodotoxin::Language::Monograph& member = selected.get_monograph();
+    auto dialect =
+        member.get_language().select<Tetrodotoxin::Language::Dialect>();
+    BAIL_IF(!dialect);
+
+    auto payload = dialect->encode(member, profile);
     if (!payload) {
       Diagnostics::Log::Message<256> message(
           Diagnostics::Log::Level::Error, Diagnostics::Source());
       message << "Package Archive could not encode `"_view
-              << source.get_local_name() << "` with the "_view
+              << selected.get_name() << "` with the "_view
               << dialect->get_name() << " Dialect."_view;
       return {};
     }
     payloads.emplace(static_cast<Dynamic::Bytes&&>(*payload));
     members.insert(Member(
-        source.get_local_name(), dialect->get_name(),
+        selected.get_name(), dialect->get_name(),
         payloads[payloads.get_size() - 1].get_view()));
   }
 
@@ -395,8 +413,9 @@ auto Package::Archive::Writer::write(
         Package::Archive::Resource(resource.get_route(), resource.get_value()));
   }
 
+  Managed::Vector<Package::Language::Dependency> dependencies(arena);
   Archive archive(
-      identity, version, package.get_dependencies(), members.get_view(),
-      artifacts, exports, profile, resources.get_view());
+      identity, version, dependencies.get_view(), members.get_view(), artifacts,
+      exports, profile, resources.get_view(), imports);
   return write(archive);
 }

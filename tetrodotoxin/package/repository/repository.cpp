@@ -5,10 +5,13 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
+#include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
+#include "perimortem/memory/managed/bytes.hpp"
 
 #include "perimortem/system/file.hpp"
 #include "perimortem/system/path.hpp"
+#include "perimortem/serialization/stream/textual.hpp"
 
 #include "tetrodotoxin/linker/manifest.hpp"
 #include "tetrodotoxin/package/archive/reader.hpp"
@@ -18,6 +21,45 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::System;
 using namespace Perimortem::Utility;
 using namespace Tetrodotoxin;
+
+static auto append_package_root(
+    Dynamic::Bytes& path,
+    View::Bytes root,
+    View::Bytes identity,
+    Version version) -> Bool {
+  BAIL_IF(
+      root.is_empty() || identity.is_empty() || version.is_null() ||
+      identity.get_size() > Path::max_size);
+
+  for (Count index = 0; index < identity.get_size(); index++) {
+    U8 byte = identity[index];
+    BAIL_IF(byte == '/' || byte == '\\' || byte == '\0');
+  }
+
+  path = root;
+  if (path[path.get_size() - 1] != '/') {
+    path.append('/');
+  }
+
+  path.concat(identity);
+  path.append('/');
+  Perimortem::Serialization::Stream::Textual<Dynamic::Bytes> output(path);
+  output << version.get_major() << "."_view << version.get_minor();
+  return path.get_size() <= Path::max_size;
+}
+
+static auto package_product_path(
+    View::Bytes root,
+    View::Bytes identity,
+    Version version,
+    View::Bytes product) -> Dynamic::Bytes {
+  Dynamic::Bytes path;
+  BAIL_IF(!append_package_root(path, root, identity, version));
+  path.append('/');
+  path.concat(product);
+  BAIL_IF(path.get_size() > Path::max_size);
+  return path;
+}
 
 // Repository logs describe declaration and selection facts that a textual
 // source diagnostic cannot recover after this transaction returns.
@@ -116,7 +158,7 @@ static auto retain_outputs(
       }
     }
 
-    // Bazel declarations use one host neutral spelling. Accepting backslashes
+    // Product declarations use one host neutral spelling. Accepting backslashes
     // would make the authored contract platform dependent even though Path can
     // normalize them for general filesystem use.
     View::Bytes route = output.get_route();
@@ -165,7 +207,7 @@ static auto retain_outputs(
     }
 
     // Different lexical routes can collapse to one physical destination.
-    // Detecting collisions after normalization prevents one Bazel output from
+    // Detecting collisions after normalization prevents one product output from
     // overwriting another through `.` or parent aliases.
     for (Count earlier = 0; earlier < normalized_routes.get_size(); earlier++) {
       if (normalized_routes[earlier] == *normalized) {
@@ -194,8 +236,8 @@ static auto retain_outputs(
   return retained.get_view();
 }
 
-// Bazel supplies a small bounded declaration list, so a linear lookup avoids a
-// second index that would duplicate Package key ownership and lifetime state.
+// A caller supplies a small bounded declaration list, so a linear lookup avoids
+// a second index that would duplicate Package key ownership and lifetime state.
 static auto find_input(
     View::Vector<Package::Repository::Input> inputs,
     View::Bytes identity,
@@ -289,7 +331,7 @@ static auto log_selection_failure(
 }
 
 // Archive order is durable semantic data while native declaration order is
-// only Bazel input order. Compare the inventories as a set so order cannot
+// only caller input order. Compare the inventories as a set so order cannot
 // create a false mismatch.
 static auto validate_artifacts(
     const Package::Repository::Input& input,
@@ -413,7 +455,8 @@ auto Package::Repository::Repository::create(
     Allocator::Arena& arena,
     View::Vector<Input> inputs,
     View::Vector<Output> archive_outputs,
-    View::Vector<Output> native_outputs) -> Option<Repository> {
+    View::Vector<Output> native_outputs,
+    View::Bytes installed_root) -> Option<Repository> {
   // Two locations for one Package key would make selection depend on
   // declaration order. Input equality intentionally ignores those locations so
   // the ambiguity is rejected here.
@@ -446,10 +489,86 @@ auto Package::Repository::Repository::create(
     return {};
   }
 
-  // Construction is the transaction boundary. Returning only after both passes
-  // keeps duplicate and collision failures from publishing partial state.
+  View::Bytes retained_root;
+  if (!installed_root.is_empty()) {
+    Path root(installed_root);
+    if (!root.is_rooted()) {
+      Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Info);
+      message << repository_create_operation
+              << " failed. reason=the installed root is not rooted root="_view
+              << installed_root;
+      return {};
+    }
+
+    auto normalized = Path::normalize(arena, installed_root);
+    if (!normalized) {
+      Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Info);
+      message << repository_create_operation
+              << " failed. reason=the installed root is invalid root="_view
+              << installed_root;
+      return {};
+    }
+
+    retained_root = *normalized;
+  }
+
+  // Construction is the transaction boundary. The source root joins the two
+  // product inventories only after every declaration has one stable meaning.
   return Repository(
-      arena, inputs, *retained_archive_outputs, *retained_native_outputs);
+      arena, inputs, *retained_archive_outputs, *retained_native_outputs,
+      retained_root);
+}
+
+auto Package::Repository::Repository::select_source(
+    View::Bytes identity,
+    Version version) -> Result<View::Bytes, Error> {
+  for (const SourceSelection& cached : source_cache.get_view()) {
+    if (cached.identity == identity && cached.version == version) {
+      return cached.root;
+    }
+  }
+
+  auto input = find_input(inputs, identity, version);
+  View::Bytes declared = input ? input->get_source_location() : View::Bytes();
+  Dynamic::Bytes installed;
+  if (declared.is_empty() && !installed_root.is_empty()) {
+    if (!append_package_root(installed, installed_root, identity, version)) {
+      return Error::Unreadable;
+    }
+
+    declared = installed.get_view();
+  }
+
+  if (declared.is_empty()) {
+    Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
+    write_selection_failure(message, Error::NotDeclared, identity, version);
+    message
+        << " reason=no local source or installed Package matches the key"_view;
+    return Error::NotDeclared;
+  }
+
+  Path normalized(declared);
+  Dynamic::Bytes manifest(normalized.get_view());
+  if (!normalized.is_rooted() || normalized.get_view().is_empty()) {
+    Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
+    write_selection_failure(message, Error::Unreadable, identity, version);
+    message << " reason=the selected source root is invalid root="_view
+            << declared;
+    return Error::Unreadable;
+  }
+
+  manifest.concat("/package.ttx"_view);
+  if (!File::exists(manifest.get_view())) {
+    Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
+    write_selection_failure(message, Error::Unreadable, identity, version);
+    message << " reason=the selected source root has no package.ttx root="_view
+            << normalized.get_view();
+    return Error::Unreadable;
+  }
+
+  View::Bytes retained = arena.proxy(normalized.get_view());
+  source_cache.insert(SourceSelection(identity, version, retained));
+  return retained;
 }
 
 auto Package::Repository::Repository::select_archive(
@@ -470,24 +589,42 @@ auto Package::Repository::Repository::select_archive(
     }
   }
 
-  // A missing declaration is a stable dependency decision rather than a null
-  // lookup. Repository records the requested key because no selected Input can
-  // carry that evidence for a later textual diagnostic.
   auto selected = find_input(inputs, identity, version);
-  if (!selected) {
+  Dynamic::Bytes installed_archive;
+  View::Bytes archive_location =
+      selected ? selected->get_archive_location() : View::Bytes();
+  if (archive_location.is_empty() && !installed_root.is_empty()) {
+    installed_archive = package_product_path(
+        installed_root, identity, version, "contract.txa"_view);
+    archive_location = installed_archive.get_view();
+  }
+
+  if (archive_location.is_empty()) {
     Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
     write_selection_failure(message, Error::NotDeclared, identity, version);
-    message << " reason=no Package input declaration matches the requested "
-               "key."_view;
+    if (!selected && installed_root.is_empty()) {
+      message << " reason=no Package input declaration matches the requested "
+                 "key."_view;
+    } else {
+      message
+          << " reason=no declared or installed Contract matches the key"_view;
+    }
+
     return Error::NotDeclared;
   }
 
-  // Lazy reading keeps an invalid unused declaration inert and avoids touching
-  // every filesystem input during Repository construction.
-  auto bytes = File::read(arena, selected->get_archive_location());
+  Input declaration(
+      identity, version, archive_location,
+      selected ? selected->get_artifacts() : View::Vector<Artifact>(),
+      selected ? selected->get_source_location() : View::Bytes());
+
+  // Lazy reading leaves unused installed coordinates inert. A selected source
+  // Package can therefore remain useful to the editor even when no Contract
+  // product has been installed beside it.
+  auto bytes = File::read(arena, declaration.get_archive_location());
   if (!bytes) {
     log_selection_failure(
-        *selected, Error::Unreadable, identity, version,
+        declaration, Error::Unreadable, identity, version,
         "the Archive file could not be read."_view);
     return Error::Unreadable;
   }
@@ -498,17 +635,17 @@ auto Package::Repository::Repository::select_archive(
   auto read = Archive::Reader::read(arena, *bytes);
   return read.visit(
       [&](Archive::Archive& archive) -> Selection {
-        // A valid Archive can still be attached to the wrong Bazel key. Reader
+        // A valid Archive can still be attached to the wrong caller key. Reader
         // cannot check that external declaration, so Repository compares it
         // after decode.
-        if (archive.get_identity() != selected->get_identity() ||
-            archive.get_version() != selected->get_version()) {
+        if (archive.get_identity() != declaration.get_identity() ||
+            archive.get_version() != declaration.get_version()) {
           Diagnostics::Log::Message<1024> message(
               Diagnostics::Log::Level::Info);
           write_selection_failure(
               message, Error::PackageKeyMismatch, identity, version);
           message << " reason=decoded Package key mismatch expected"_view;
-          write_input_key(message, *selected);
+          write_input_key(message, declaration);
           message << " actual_identity="_view << archive.get_identity()
                   << " actual_version="_view;
           write_version(message, archive.get_version());
@@ -526,21 +663,102 @@ auto Package::Repository::Repository::select_archive(
         switch (read_error) {
         case Archive::Reader::Error::InvalidFormat:
           log_selection_failure(
-              *selected, Error::InvalidFormat, identity, version,
+              declaration, Error::InvalidFormat, identity, version,
               "the Archive failed validation."_view);
           return Error::InvalidFormat;
         case Archive::Reader::Error::UnsupportedFormat:
           log_selection_failure(
-              *selected, Error::UnsupportedFormat, identity, version,
+              declaration, Error::UnsupportedFormat, identity, version,
               "the Archive format revision is unsupported."_view);
           return Error::UnsupportedFormat;
         default:
           log_selection_failure(
-              *selected, Error::Unknown, identity, version,
+              declaration, Error::Unknown, identity, version,
               "the Archive reader returned an unknown error."_view);
           return Error::Unknown;
         }
       });
+}
+
+auto Package::Repository::Repository::select_manifest(
+    View::Bytes identity,
+    Version version,
+    View::Bytes artifact_id) -> Result<const Linker::Manifest&, Error> {
+  for (const Linker::Manifest& cached : manifest_cache.get_view()) {
+    if (cached.get_identity() == identity && cached.get_version() == version &&
+        cached.get_artifact() == artifact_id) {
+      return cached;
+    }
+  }
+
+  Option<const Archive::Archive&> archive;
+  Option<Error> archive_error;
+  select_archive(identity, version)
+      .visit(
+          [&](const Archive::Archive& selected) { archive = selected; },
+          [&](Error error) { archive_error = error; });
+  if (archive_error || !archive) {
+    return archive_error ? *archive_error : Error::Unknown;
+  }
+
+  auto input = find_input(inputs, identity, version);
+  Option<const Artifact&> declared;
+  if (input) {
+    for (const Artifact& candidate : input->get_artifacts()) {
+      if (candidate.get_id() == artifact_id) {
+        declared = candidate;
+        break;
+      }
+    }
+  }
+
+  Dynamic::Bytes installed_manifest;
+  View::Bytes manifest_location =
+      declared ? declared->get_abi_manifest_location() : View::Bytes();
+  if (manifest_location.is_empty() && !installed_root.is_empty()) {
+    installed_manifest = package_product_path(
+        installed_root, identity, version, "abi.manifest"_view);
+    manifest_location = installed_manifest.get_view();
+  }
+
+  if (manifest_location.is_empty()) {
+    Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Info);
+    write_selection_failure(
+        message, Error::ArtifactNotDeclared, identity, version);
+    message << " requested_artifact="_view << artifact_id
+            << " reason=no ABI Manifest matches the artifact"_view;
+    return Error::ArtifactNotDeclared;
+  }
+
+  auto bytes = File::read(arena, manifest_location);
+  if (!bytes) {
+    Diagnostics::Log::Message<640> message(Diagnostics::Log::Level::Info);
+    write_selection_failure(message, Error::AbiMismatch, identity, version);
+    message << " requested_artifact="_view << artifact_id
+            << " reason=the ABI Manifest is unreadable location="_view
+            << manifest_location;
+    return Error::AbiMismatch;
+  }
+
+  Option<Linker::Manifest> manifest;
+  Linker::Manifest::read(arena, *bytes)
+      .visit(
+          [&](const Linker::Manifest& selected) { manifest = selected; },
+          [](Linker::Manifest::Error) {});
+  if (!manifest || manifest->get_identity() != identity ||
+      manifest->get_version() != version ||
+      manifest->get_artifact() != artifact_id || !archive->matches(*manifest)) {
+    Diagnostics::Log::Message<640> message(Diagnostics::Log::Level::Info);
+    write_selection_failure(message, Error::AbiMismatch, identity, version);
+    message << " requested_artifact="_view << artifact_id
+            << " reason=the ABI Manifest disagrees with the Contract"_view;
+    return Error::AbiMismatch;
+  }
+
+  manifest_cache.insert(*manifest);
+  const Linker::Manifest& retained =
+      manifest_cache[manifest_cache.get_size() - 1];
+  return retained;
 }
 
 auto Package::Repository::Repository::select_native(
@@ -550,6 +768,13 @@ auto Package::Repository::Repository::select_native(
     -> Result<View::Bytes, Package::Repository::Repository::Error> {
   using Selection = Result<View::Bytes, Error>;
 
+  for (const NativeSelection& cached : native_cache.get_view()) {
+    if (cached.identity == identity && cached.version == version &&
+        cached.artifact == artifact_id) {
+      return cached.path;
+    }
+  }
+
   // Semantic failures already have one exact Repository record. Propagating
   // the selected category keeps native control flow typed without manufacturing
   // a second explanation for the same failed Archive.
@@ -557,9 +782,58 @@ auto Package::Repository::Repository::select_native(
   return archive_selection.visit(
       [&](const Package::Archive::Archive& archive) -> Selection {
         auto selected = find_input(inputs, identity, version);
-        // Repository inputs are immutable, so Archive success proves this
-        // declaration. Keep the proof local because native validation cannot
-        // accept a missing owner.
+        if ((!selected || selected->get_artifacts().is_empty()) &&
+            !installed_root.is_empty()) {
+          Bool declared = archive.get_artifacts().contains(
+              [&](const Package::Archive::Artifact& artifact) {
+                return artifact.get_id() == artifact_id;
+              });
+          if (!declared) {
+            Diagnostics::Log::Message<768> message(
+                Diagnostics::Log::Level::Info);
+            write_selection_failure(
+                message, Error::ArtifactNotDeclared, identity, version);
+            message << " requested_artifact="_view << artifact_id
+                    << " reason=requested native artifact is not declared"_view;
+            return Error::ArtifactNotDeclared;
+          }
+
+          for (Count index = 0; index < artifact_id.get_size(); index++) {
+            U8 byte = artifact_id[index];
+            if (byte == '/' || byte == '\\' || byte == '\0') {
+              return Error::ArtifactNotDeclared;
+            }
+          }
+
+          Dynamic::Bytes package_root;
+          if (!append_package_root(
+                  package_root, installed_root, identity, version)) {
+            return Error::ArtifactNotDeclared;
+          }
+
+          Dynamic::Bytes installed_native(package_root.get_view());
+          installed_native.concat("/native/"_view);
+          installed_native.concat(artifact_id);
+          installed_native.concat("/package.a"_view);
+          if (installed_native.get_size() > Path::max_size) {
+            return Error::ArtifactNotDeclared;
+          }
+
+          Bool manifest_matches =
+              select_manifest(identity, version, artifact_id)
+                  .visit(
+                      [](const Linker::Manifest&) { return True; },
+                      [](Error) { return False; });
+          if (!manifest_matches) {
+            return Error::AbiMismatch;
+          }
+
+          View::Bytes retained_path = arena.proxy(installed_native.get_view());
+          native_cache.insert(
+              NativeSelection(identity, version, artifact_id, retained_path));
+          return retained_path;
+        }
+
         if (!selected) {
           return Error::NotDeclared;
         }

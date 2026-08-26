@@ -4,7 +4,10 @@
 // Perimortem System Package.
 dialect : Package;
 
-resolve Memory : Perimortem.Memory = "1.0";
-source Terminal from "terminal.ttx";
-source Key from "key.ttx";
-source Input from "input.ttx";
+public TerminalSource : alias = source("terminal.ttx");
+public KeySource      : alias = source("key.ttx");
+public InputSource    : alias = source("input.ttx");
+
+public Terminal : alias = TerminalSource::Terminal;
+public Key      : alias = KeySource::Key;
+public Input    : alias = InputSource::Input;

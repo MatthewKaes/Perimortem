@@ -56,6 +56,8 @@ class Binding : public Ttx::Model::Addressable {
 
   auto get_type() const -> const Ttx::Model::Type& override;
 
+  constexpr auto is_linked() const -> Bool { return Bool(type); }
+
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
   constexpr auto get_kind() const -> Kind { return kind; }

@@ -39,11 +39,7 @@ static auto decode(Allocator::Arena& arena, View::Bytes bytes)
 static auto select_vector(
     const Package::Language::Monograph& package,
     View::Bytes name) -> Option<const Library::Language::Types::Structure&> {
-  auto member = package.resolve_context(name)
-                    .resolve()
-                    .select<Library::Language::Monograph>();
-  BAIL_IF(!member);
-  return member->resolve_context(name)
+  return package.resolve_context(name)
       .resolve()
       .select<Library::Language::Types::Structure>();
 }
@@ -57,8 +53,9 @@ PERIMORTEM_UNIT_TEST(StandardMathPackage, vector_layouts) {
   ASSERT(archive);
 
   Environment::Toolchain toolchain;
-  ASSERT(toolchain.install<Package::Dialect>("Package"_view));
-  ASSERT(toolchain.install<Library::Dialect>("Library"_view));
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
+  ASSERT(library);
+  ASSERT(toolchain.install<Package::Dialect>("Package"_view, *library));
   Environment::Workspace workspace(toolchain);
   auto restored = workspace.restore_package(*archive, "Math"_view);
   ASSERT(restored && restored->is<Package::Language::Monograph>());
