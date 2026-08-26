@@ -16,7 +16,7 @@ static Harness LibraryArchive = {
 };
 
 PERIMORTEM_UNIT_TEST(LibraryArchive, frozen_format) {
-  static constexpr Static::Vector<Library::Archive::Tag, 28> tags = {{
+  static constexpr Static::Vector<Library::Archive::Tag, 29> tags = {{
     Library::Archive::Tag::Source,
     Library::Archive::Tag::Import,
     Library::Archive::Tag::Foreign,
@@ -45,10 +45,11 @@ PERIMORTEM_UNIT_TEST(LibraryArchive, frozen_format) {
     Library::Archive::Tag::Layout,
     Library::Archive::Tag::FieldSlot,
     Library::Archive::Tag::ConstantObject,
+    Library::Archive::Tag::ConstantResourceBytes,
   }};
-  static constexpr Static::Vector<U16, 28> golden = {{
-    1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14,
-    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
+  static constexpr Static::Vector<U16, 29> golden = {{
+    1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
+    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
   }};
 
   for (Count index = 0; index < tags.get_size(); index++) {

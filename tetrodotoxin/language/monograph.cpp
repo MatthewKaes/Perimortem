@@ -30,11 +30,19 @@ auto Language::Monograph::get_layer(const Abstract& requested) const
   return {};
 }
 
+auto Language::Monograph::compose(Cursor&) -> Bool {
+  return True;
+}
+
 auto Language::Monograph::link(Cursor&) -> Bool {
   return True;
 }
 
 auto Language::Monograph::finalize(Cursor&) -> Bool {
+  return True;
+}
+
+auto Language::Monograph::compose_restored() -> Bool {
   return True;
 }
 

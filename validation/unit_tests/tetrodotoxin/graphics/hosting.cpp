@@ -1,12 +1,11 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "tetrodotoxin/graphics/hosting.hpp"
-
 #include "validation/unit_test.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/interfaces/structure.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -65,7 +64,7 @@ PERIMORTEM_UNIT_TEST(GraphicsHosting, negotiates_real_library_types) {
   const Abstract& wrong_type = monograph->resolve_context("WrongType"_view);
   const Abstract& hidden_state = monograph->resolve_context("HiddenState"_view);
   const Abstract& inline_value = monograph->resolve_context("InlineValue"_view);
-  Graphics::Hosting hosting;
+  Library::Language::Interfaces::Structure hosting;
 
   EXPECT(
       hosting.negotiate(requirement, requirement) ==

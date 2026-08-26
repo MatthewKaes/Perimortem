@@ -24,6 +24,7 @@ class Type {
     Range,
     View,
     Access,
+    Implementation,
     Structure,
     ObjectStorage,
     Object,

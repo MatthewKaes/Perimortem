@@ -53,12 +53,20 @@ auto Graphics::Sprite::operator=(Sprite&& source) -> Sprite& {
   return *this;
 }
 
-auto Graphics::Sprite::get_image() const -> const Image& {
-  return get_payload().image;
+auto Graphics::Sprite::get_texture() const -> const Texture2D& {
+  return get_payload().texture;
 }
 
-auto Graphics::Sprite::set_image(const Image& image) -> void {
-  get_payload().image = image;
+auto Graphics::Sprite::set_texture(const Texture2D& texture) -> void {
+  get_payload().texture = texture;
+}
+
+auto Graphics::Sprite::get_shader() const -> const Core::Implementation& {
+  return get_payload().shader;
+}
+
+auto Graphics::Sprite::set_shader(const Core::Implementation& shader) -> void {
+  get_payload().shader = shader;
 }
 
 auto Graphics::Sprite::get_size_pixels() const -> Size2D {
@@ -75,14 +83,6 @@ auto Graphics::Sprite::get_transform() const -> Transform2D {
 
 auto Graphics::Sprite::set_transform(Transform2D transform) -> void {
   get_payload().transform = transform;
-}
-
-auto Graphics::Sprite::get_tone() const -> Tone {
-  return get_payload().tone;
-}
-
-auto Graphics::Sprite::set_tone(Tone tone) -> void {
-  get_payload().tone = tone;
 }
 
 auto Graphics::Sprite::is_visible() const -> Bool {
@@ -104,7 +104,8 @@ auto Graphics::Sprite::set_z_index(S64 z_index) -> void {
 auto Graphics::Sprite::is_drawable() const -> Bool {
   const Payload& payload = get_payload();
   return payload.visible && payload.size_pixels.width != 0 &&
-         payload.size_pixels.height != 0 && payload.image.is_drawable();
+         payload.size_pixels.height != 0 && payload.texture.is_drawable() &&
+         payload.shader.is_valid();
 }
 
 auto Graphics::Sprite::retain(Core::Object<> object) -> Core::Option<Sprite> {

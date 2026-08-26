@@ -6,15 +6,18 @@
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
+#include "tetrodotoxin/library/language/expressions/conversion.hpp"
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/flow/local.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/model/types/real.hpp"
+#include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/operation.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
 #include "tetrodotoxin/library/language/operations/divide.hpp"
+#include "tetrodotoxin/library/language/operations/modulo.hpp"
 #include "tetrodotoxin/library/language/operations/multiply.hpp"
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
@@ -45,6 +48,20 @@ static auto anchor_of(const Abstract& semantic) -> Ttx::Lexical::Anchor {
 static auto library_pack(const Ttx::Model::Pack& pack)
     -> Core::Option<const Library::Language::Model::Pack&> {
   return pack.select<Library::Language::Model::Pack>();
+}
+
+static auto constant_conversion(
+    const Library::Language::Expressions::Conversion& conversion)
+    -> Core::Option<const Library::Language::Model::Pack&> {
+  auto folded = conversion.get_folded();
+  auto produced = folded && folded->get_layout().get_size() == 1
+                      ? folded->get_produced(0)
+                      : Core::Option<Ttx::Model::Pack::Produced>();
+  auto constant = produced
+                      ? produced->producer.select<Library::Language::Constant>()
+                      : Core::Option<const Library::Language::Constant&>();
+  return constant ? folded
+                  : Core::Option<const Library::Language::Model::Pack&>();
 }
 
 static auto is_sample_call(const Library::Language::Access::Call& call)
@@ -139,6 +156,34 @@ auto Module::Body::prepare_expression(
     return constants.collect(*constant);
   }
   if (expression.is<Library::Language::Expressions::Identifier>()) {
+    return True;
+  }
+  auto conversion =
+      expression.select<Library::Language::Expressions::Conversion>();
+  if (conversion) {
+    auto folded = constant_conversion(*conversion);
+    if (folded) {
+      return prepare_pack(*folded);
+    }
+    auto source =
+        conversion->get_source().select<Library::Language::Model::Pack>();
+    auto source_type =
+        source ? Types::select(source->get_value_type(0))
+               : Core::Option<const Library::Language::Model::Type&>();
+    auto target_real =
+        type ? type->select<Library::Language::Model::Types::Real>()
+             : Core::Option<const Library::Language::Model::Types::Real&>();
+    auto source_real =
+        source_type
+            ? source_type->select<Library::Language::Model::Types::Real>()
+            : Core::Option<const Library::Language::Model::Types::Real&>();
+    auto source_unsigned =
+        source_type
+            ? source_type->select<Library::Language::Model::Types::Unsigned>()
+            : Core::Option<const Library::Language::Model::Types::Unsigned&>();
+    BAIL_IF(
+        !source || !source_type || !target_real ||
+        (!source_real && !source_unsigned) || !prepare_pack(*source));
     return True;
   }
   auto address = expression.select<Library::Language::Access::Address>();
@@ -302,6 +347,45 @@ auto Module::Body::lower_expression(
     BAIL_IF(!retain_value(value));
     return value;
   }
+  auto conversion =
+      expression.select<Library::Language::Expressions::Conversion>();
+  if (conversion) {
+    auto folded = constant_conversion(*conversion);
+    if (folded) {
+      auto lowered = lower_pack(*folded, *type, assembler);
+      BAIL_IF(!lowered);
+      Value value(expression, *type, lowered->id);
+      BAIL_IF(!retain_value(value));
+      return value;
+    }
+    const auto& source = conversion->get_source();
+    BAIL_IF(source.get_layout().get_size() != 1);
+    auto source_type = Types::select(source.get_value_type(0));
+    auto target_id = types.get_id(*type);
+    auto lowered = source_type ? lower_pack(source, *source_type, assembler)
+                               : Core::Option<Value>();
+    auto source_real =
+        source_type
+            ? source_type->select<Library::Language::Model::Types::Real>()
+            : Core::Option<const Library::Language::Model::Types::Real&>();
+    auto source_unsigned =
+        source_type
+            ? source_type->select<Library::Language::Model::Types::Unsigned>()
+            : Core::Option<const Library::Language::Model::Types::Unsigned&>();
+    auto target_real = type->select<Library::Language::Model::Types::Real>();
+    BAIL_IF(
+        !lowered || !target_id || (!source_real && !source_unsigned) ||
+        !target_real);
+    U32 id = ids.take();
+    if (source_real) {
+      assembler.fconvert(*target_id, id, lowered->id);
+    } else {
+      assembler.convert_u_to_f(*target_id, id, lowered->id);
+    }
+    Value value(expression, *type, id);
+    BAIL_IF(!retain_value(value));
+    return value;
+  }
   auto call = expression.select<Library::Language::Access::Call>();
   if (call) {
     BAIL_IF(!is_sample_call(*call));
@@ -376,6 +460,8 @@ auto Module::Body::lower_expression(
       assembler.fmul(*type_id, id, left->id, right->id);
     } else if (operation->is<Library::Language::Operations::Divide>()) {
       assembler.fdiv(*type_id, id, left->id, right->id);
+    } else if (operation->is<Library::Language::Operations::Modulo>()) {
+      assembler.frem(*type_id, id, left->id, right->id);
     } else {
       reject(
           expression,
@@ -450,9 +536,10 @@ auto Module::Body::emit(
 
   for (const Interface::Variable& binding : interface.get_bindings()) {
     auto type_id = types.get_id(binding.type.get());
-    BAIL_IF(!type_id);
+    auto pointer = interface.get_binding_pointer(binding, assembler);
+    BAIL_IF(!type_id || !pointer);
     U32 id = ids.take();
-    assembler.load(*type_id, id, binding.id);
+    assembler.load(*type_id, id, *pointer);
     BAIL_IF(
         !retain_value(Value(binding.semantic.get(), binding.type.get(), id)));
   }

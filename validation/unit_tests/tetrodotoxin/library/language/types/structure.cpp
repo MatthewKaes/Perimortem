@@ -82,7 +82,7 @@ static auto parse_authored(
   Tokenizer tokenizer(lexical, source, "structure.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
-  if (!cursor.matches(Code::Type::Comment)) {
+  if (!cursor.get_code().is_comment()) {
     return {};
   }
 
@@ -100,8 +100,7 @@ static auto parse_authored(
   auto interpretation =
       dialect.interpret(cursor, documentation, source_anchor, context);
   if (!interpretation || !cursor.matches(Code::Type::Terminal) ||
-      !interpretation->is<Language::Monograph>() ||
-      !errors.is_empty()) {
+      !interpretation->is<Language::Monograph>() || !errors.is_empty()) {
     return {};
   }
 
@@ -489,17 +488,17 @@ PERIMORTEM_UNIT_TEST(StructureTests, indexed_name_domains) {
   EXPECT(packet.is_published(static_invoke));
   EXPECT(packet.is_published(self_invoke));
 
-  EXPECT(packet.resolve_type_access(
-                   outside, "hidden"_view,
-                   Language::Model::Type::Access::Self)
+  EXPECT(packet
+             .resolve_type_access(
+                 outside, "hidden"_view, Language::Model::Type::Access::Self)
              .is<Invalid>());
   const Abstract& hidden = packet.resolve_type_access(
       packet, "hidden"_view, Language::Model::Type::Access::Self);
   ASSERT(hidden.is<Language::Field>());
   EXPECT_NOT(packet.is_published(hidden));
 
-  EXPECT(packet.resolve_context("Visible"_view)
-             .is<Language::Types::Structure>());
+  EXPECT(
+      packet.resolve_context("Visible"_view).is<Language::Types::Structure>());
   EXPECT(packet.resolve_context("Hidden"_view).is<Invalid>());
   EXPECT(packet.resolve_lexical_context("Hidden"_view)
              .is<Language::Types::Structure>());

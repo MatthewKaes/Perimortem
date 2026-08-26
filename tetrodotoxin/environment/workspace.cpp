@@ -129,7 +129,8 @@ auto Environment::Workspace::interpret_source(
   // incomplete source form. The earlier report keeps publication closed while
   // editor queries gain any Types and declaration edges that did settle.
   source_error_count = errors.get_size();
-  Bool linked = monograph.link(cursor);
+  Bool composed = monograph.compose(cursor);
+  Bool linked = composed && monograph.link(cursor);
   if (!linked && completed && errors.get_size() == source_error_count) {
     cursor.create_error(
         "Source linking failed without a more specific diagnostic."_view);
@@ -349,7 +350,8 @@ auto Environment::Workspace::import_package(
       continue;
     }
 
-    if (!root.bind_dependency(dependency, *selected->monograph)) {
+    if (!root.bind_dependency(
+            dependency, *selected->monograph, root_associations)) {
       root_cursor.create_expression_error(
           dependency.get_span(),
           "Package dependency could not enter the Package mapping table."_view,
@@ -421,7 +423,8 @@ auto Environment::Workspace::import_package(
       continue;
     }
 
-    if (!root.bind_member(source.get_local_route(), member)) {
+    if (!root.bind_member(
+            source.get_local_route(), member, root_associations)) {
       root_cursor.create_expression_error(
           source.get_span(),
           "Package source could not enter the Package mapping table."_view,
@@ -437,11 +440,34 @@ auto Environment::Workspace::import_package(
   // semantic candidates is already fixed.
   root.get_resources().seal();
 
-  // Every parsed identity enters the candidate set before any member resolves
-  // context. Authored Source order therefore cannot decide which routes are
-  // visible. Each retained candidate gets the same chance to settle useful
-  // graph edges, while any parse or link failure keeps the island unpublished.
-  Bool linked = parsed;
+  // Composition follows installed Dialect order after every member identity is
+  // present. Dependency Dialects can publish inherited declarations before an
+  // unrelated Library consumer links, so Package source order never chooses
+  // the available semantic surface.
+  Bool composed = parsed;
+  for (const Reference<Language::Dialect>& dialect : toolchain.get_dialects()) {
+    for (Count i = 0; i < candidates.get_size(); i++) {
+      if (&candidates[i]->get_language() != &dialect.get()) {
+        continue;
+      }
+
+      Count source_error_count = errors.get_size();
+      Bool candidate_composed = candidates[i]->compose(*cursors[i]);
+      if (!candidate_composed) {
+        if (parse_validity[i] && errors.get_size() == source_error_count) {
+          cursors[i]->create_error(
+              "Package source composition failed without a more specific "
+              "diagnostic."_view);
+        }
+        composed = False;
+      }
+    }
+  }
+
+  // Ordinary linking still visits every retained candidate so tooling keeps
+  // the strongest graph it can observe. Publication remains closed when any
+  // earlier composition or parse step failed.
+  Bool linked = composed;
   for (Count i = 0; i < candidates.get_size(); i++) {
     Count source_error_count = errors.get_size();
     Bool candidate_linked = candidates[i]->link(*cursors[i]);
@@ -588,6 +614,19 @@ auto Environment::Workspace::restore_package(
 
     candidates.insert(transaction);
     monographs.insert(&*restored);
+  }
+
+  for (const Reference<Language::Dialect>& dialect : toolchain.get_dialects()) {
+    for (Count index = 0; index < monographs.get_size(); index++) {
+      if (&monographs[index]->get_language() != &dialect.get()) {
+        continue;
+      }
+      if (!monographs[index]->compose_restored()) {
+        Diagnostics::Log::error(
+            "Package restoration failed while composing member graphs."_view);
+        return {};
+      }
+    }
   }
 
   for (Count index = 0; index < monographs.get_size(); index++) {

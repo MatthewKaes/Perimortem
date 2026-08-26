@@ -18,6 +18,9 @@ Tetrodotoxin::Terminal::Abi::Representation::Name::Name(
     Kind kind) {
   Memory::Managed::Bytes output(arena);
   switch (kind) {
+  case Kind::ImplementationType:
+    output.concat("ttx.implementation."_view);
+    break;
   case Kind::OptionType:
     output.concat("ttx.option."_view);
     break;

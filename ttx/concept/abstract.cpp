@@ -16,3 +16,7 @@ auto Abstract::resolve_call(const Abstract&, Perimortem::Core::View::Bytes)
     const -> const Abstract& {
   return Invalid::get_invalid();
 }
+
+auto Abstract::satisfies(const Abstract&) const -> Bool {
+  return False;
+}

@@ -88,9 +88,10 @@ not make managed Object reclamation observable.
 ## Shader source sample
 
 [`shader_artifact/shader.ttx`](shader_artifact/shader.ttx) demonstrates named
-Stage Layouts and `Formats::Simple` contextual Type access. Its companion
+Stage Layouts, portable U32 parameter transport, optional R64 execution, and
+`Formats::Simple` contextual Type access. Its companion
 [`render.ttx`](shader_artifact/render.ttx) owns the matching target neutral
-contract. Package validation compiles that Program through the SPIR V Terminal,
+contract. Package validation compiles both Programs through the SPIR V Terminal,
 links the resulting words as read only native data, and validates the linked
 bytes independently. The canonical Render model is documented in
 [Tetrodotoxin Render](../../../tetrodotoxin/render/README.md).

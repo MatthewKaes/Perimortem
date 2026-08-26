@@ -282,7 +282,9 @@ auto Tokenizer::parse() -> void {
 
     case '/':
       if (ctx.peek_ahead(1) == '/') {
-        ctx.parse_range<false, false>(Code::Type::Comment, '\n');
+        Code::Type type = ctx.peek_ahead(2) == '/' ? Code::Type::RawComment
+                                                   : Code::Type::Comment;
+        ctx.parse_range<false, false>(type, '\n');
         break;
       } else {
         parse_simple<Code::Type::DivOp>(ctx);

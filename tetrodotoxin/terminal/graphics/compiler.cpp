@@ -5,8 +5,8 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/graphics/hosting.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
+#include "tetrodotoxin/library/language/interfaces/structure.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "ttx/concept/interface.hpp"
 
@@ -35,7 +35,7 @@ auto Terminal::Graphics::Compiler::compile(
         configured) const -> Core::Option<Products> {
   BAIL_IF(!scene.is_finalized() || configured.is_empty());
 
-  Tetrodotoxin::Graphics::Hosting hosting;
+  Library::Language::Interfaces::Structure hosting;
   Memory::Managed::Vector<Products::Hosted> hosted(arena);
   for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
        scene.get_instance().get_addressables()) {

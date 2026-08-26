@@ -24,17 +24,10 @@
 using namespace Perimortem;
 using namespace Perimortem::Serialization;
 
-using HeaderStream = Stream::Textual<Memory::Managed::Bytes>;
-using HeaderTypes = Memory::Managed::Vector<const Ttx::Model::Type*>;
-using HeaderTypeSet = Memory::Managed::Map<const Ttx::Model::Type*, Bool>;
-
 static constexpr Core::View::Bytes header_opening =
     "// # Tetrodotoxin\n"
     "// Copyright (c) 2023-present Matt Kaes and contributors\n\n"
     "#pragma once\n\n"_view;
-
-using HeaderNames = Memory::Managed::Vector<
-    Tetrodotoxin::Terminal::Abi::Representation::TypeName>;
 
 class HeaderOrigin {
  public:
@@ -76,7 +69,7 @@ static auto require_parameter(const Ttx::Concept::Layout& layout, Count index)
 }
 
 static auto write_encoded_name(
-    HeaderStream& output,
+    Stream::Textual<Memory::Managed::Bytes>& output,
     Core::View::Bytes value,
     Bool lowercase = False) -> void {
   constexpr auto hex = "0123456789abcdef"_view;
@@ -101,8 +94,9 @@ static auto write_encoded_name(
   }
 }
 
-static auto write_package_name(HeaderStream& output, Core::View::Bytes package)
-    -> void {
+static auto write_package_name(
+    Stream::Textual<Memory::Managed::Bytes>& output,
+    Core::View::Bytes package) -> void {
   Count start = 0;
   for (Count index = 0; index <= package.get_size(); index++) {
     Bool end = index == package.get_size();
@@ -118,7 +112,8 @@ static auto write_package_name(HeaderStream& output, Core::View::Bytes package)
 }
 
 static auto find_header_name(
-    const HeaderNames& names,
+    const Memory::Managed::Vector<
+        Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Ttx::Model::Type& type)
     -> Core::Option<
         const Tetrodotoxin::Terminal::Abi::Representation::TypeName&> {
@@ -135,7 +130,8 @@ static auto find_header_name(
 
 static auto create_header_name(
     Memory::Allocator::Arena& arena,
-    HeaderNames& names,
+    Memory::Managed::Vector<
+        Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
     const Ttx::Model::Type& type,
     HeaderOrigin inherited) -> Core::Option<HeaderOrigin> {
@@ -163,9 +159,10 @@ static auto create_header_name(
 
 static auto collect_type(
     Memory::Allocator::Arena& arena,
-    HeaderTypes& ordered,
-    HeaderTypeSet& collected,
-    HeaderNames& names,
+    Memory::Managed::Vector<const Ttx::Model::Type*>& ordered,
+    Memory::Managed::Map<const Ttx::Model::Type*, Bool>& collected,
+    Memory::Managed::Vector<
+        Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
     const Ttx::Model::Type& type,
@@ -197,6 +194,7 @@ static auto collect_type(
   collected.insert(&type, True);
   switch (*kind) {
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Value:
+  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Implementation:
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::ObjectStorage:
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Object:
     ordered.insert(&type);
@@ -265,9 +263,10 @@ static auto collect_type(
 
 static auto collect_callable(
     Memory::Allocator::Arena& arena,
-    HeaderTypes& ordered,
-    HeaderTypeSet& collected,
-    HeaderNames& names,
+    Memory::Managed::Vector<const Ttx::Model::Type*>& ordered,
+    Memory::Managed::Map<const Ttx::Model::Type*, Bool>& collected,
+    Memory::Managed::Vector<
+        Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
     const Ttx::Model::Callable& callable) -> Bool {
@@ -298,9 +297,10 @@ static auto collect_callable(
 }
 
 static auto write_type_name(
-    HeaderStream& output,
+    Stream::Textual<Memory::Managed::Bytes>& output,
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
-    const HeaderNames& names,
+    const Memory::Managed::Vector<
+        Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Ttx::Model::Type& type) -> Bool {
   auto kind = types.get_kind(type);
   if (!kind) {
@@ -349,6 +349,7 @@ static auto write_type_name(
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Range:
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::View:
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Access:
+  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Implementation:
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Structure:
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::ObjectStorage:
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Object: {
@@ -364,9 +365,10 @@ static auto write_type_name(
 }
 
 static auto write_type_definition(
-    HeaderStream& output,
+    Stream::Textual<Memory::Managed::Bytes>& output,
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
-    const HeaderNames& names,
+    const Memory::Managed::Vector<
+        Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
     const Ttx::Model::Type& type,
     Bool& uses_objects) -> Bool {
@@ -406,6 +408,13 @@ static auto write_type_definition(
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::ObjectStorage:
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Object:
     output << "typedef struct "_view << type_name << "_object *"_view
+           << type_name << ";\n#endif\n\n"_view;
+    uses_objects = True;
+    return True;
+
+  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Implementation:
+    output << "typedef struct "_view << type_name
+           << " {\n  void *object;\n  const void *projection;\n} "_view
            << type_name << ";\n#endif\n\n"_view;
     uses_objects = True;
     return True;
@@ -561,16 +570,18 @@ static auto write_type_definition(
   return True;
 }
 
-static auto write_result_name(HeaderStream& output, Core::View::Bytes symbol)
-    -> void {
+static auto write_result_name(
+    Stream::Textual<Memory::Managed::Bytes>& output,
+    Core::View::Bytes symbol) -> void {
   output << "ttx_results_"_view;
   write_encoded_name(output, symbol);
 }
 
 static auto write_result_definition(
-    HeaderStream& output,
+    Stream::Textual<Memory::Managed::Bytes>& output,
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
-    const HeaderNames& names,
+    const Memory::Managed::Vector<
+        Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Ttx::Model::Callable& callable,
     Core::View::Bytes symbol) -> Bool {
   const Ttx::Concept::Layout& results = callable.get_results();
@@ -618,9 +629,10 @@ static auto declares_self(const Ttx::Model::Callable& callable) -> Bool {
 }
 
 static auto write_signature(
-    HeaderStream& output,
+    Stream::Textual<Memory::Managed::Bytes>& output,
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
-    const HeaderNames& names,
+    const Memory::Managed::Vector<
+        Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Ttx::Model::Callable& callable,
     Core::View::Bytes symbol) -> Bool {
   const Ttx::Concept::Layout& results = callable.get_results();
@@ -681,9 +693,10 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
     Core::View::Vector<Tetrodotoxin::Terminal::Abi::Export> exports)
     -> Core::Option<Tetrodotoxin::Terminal::Abi::C::Header> {
-  HeaderTypes ordered(arena);
-  HeaderTypeSet collected(arena);
-  HeaderNames names(arena);
+  Memory::Managed::Vector<const Ttx::Model::Type*> ordered(arena);
+  Memory::Managed::Map<const Ttx::Model::Type*, Bool> collected(arena);
+  Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Representation::TypeName>
+      names(arena);
 
   for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
        monograph.get_source().get_types(
@@ -736,7 +749,7 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
   }
 
   Memory::Managed::Bytes buffer(arena);
-  HeaderStream output(buffer);
+  Stream::Textual<Memory::Managed::Bytes> output(buffer);
   output << header_opening
          << "#include <stdbool.h>\n#include <stdint.h>\n\n"_view;
   for (Core::View::Bytes header : unit.get_headers()) {
@@ -840,7 +853,7 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::identify(
   // an ordinary Library header contributes the declarations after the shared
   // preamble.
   Memory::Managed::Bytes buffer(arena);
-  HeaderStream output(buffer);
+  Stream::Textual<Memory::Managed::Bytes> output(buffer);
   output << header_opening << "#define TTX_ABI_FINGERPRINT_"_view;
   write_package_name(output, owner);
   output << " \""_view << fingerprint.render(arena) << "\"\n\n"_view;

@@ -54,13 +54,14 @@ static auto parse_qualified_name(
 }
 
 auto Parser::Name::parse_semantic(Cursor& cursor) -> Option<Name> {
+  Token first = cursor.current();
   View::Bytes spelling = parse_qualified_name(
       cursor, Code::Type::TypeAccessOp,
       "Expected an authored Type shaped semantic name."_view,
       "Semantic name qualification requires a Type segment after `::`."_view,
       "Semantic names cannot contain whitespace around `::`."_view);
   BAIL_IF(spelling.is_empty());
-  return Name(spelling);
+  return Name(spelling, first);
 }
 
 auto Parser::Name::parse_package(Cursor& cursor) -> View::Bytes {
@@ -108,4 +109,17 @@ auto Parser::Name::get_segment(Count requested) const -> View::Bytes {
   }
 
   return {};
+}
+
+auto Parser::Name::get_token(Count requested) const -> Token {
+  View::Bytes segment = get_segment(requested);
+  if (!first || segment.is_empty()) {
+    return {};
+  }
+
+  Count offset = Count(segment.get_data() - spelling.get_data());
+  return Token(
+      U16(Count(first.get_offset()) + offset), first.get_line(),
+      U16(Count(first.get_column()) + offset), U8(segment.get_size()),
+      first.get_code());
 }

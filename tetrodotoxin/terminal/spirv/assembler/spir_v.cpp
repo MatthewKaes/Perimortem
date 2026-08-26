@@ -290,6 +290,15 @@ auto Assembler::SpirV::constant(U32 result_type_id, U32 result_id, U32 value)
   word(value);
 }
 
+auto Assembler::SpirV::constant_64(U32 result_type_id, U32 result_id, U64 value)
+    -> void {
+  instruction(Op::Constant, 5);
+  word(result_type_id);
+  word(result_id);
+  word(U32(value));
+  word(U32(value >> 32));
+}
+
 auto Assembler::SpirV::constant_flag(
     U32 result_type_id,
     U32 result_id,
@@ -466,6 +475,36 @@ auto Assembler::SpirV::fdiv(
   word(result_id);
   word(left_id);
   word(right_id);
+}
+
+auto Assembler::SpirV::frem(
+    U32 result_type_id,
+    U32 result_id,
+    U32 left_id,
+    U32 right_id) -> void {
+  instruction(Op::FRem, 5);
+  word(result_type_id);
+  word(result_id);
+  word(left_id);
+  word(right_id);
+}
+
+auto Assembler::SpirV::convert_u_to_f(
+    U32 result_type_id,
+    U32 result_id,
+    U32 value_id) -> void {
+  instruction(Op::ConvertUToF, 4);
+  word(result_type_id);
+  word(result_id);
+  word(value_id);
+}
+
+auto Assembler::SpirV::fconvert(U32 result_type_id, U32 result_id, U32 value_id)
+    -> void {
+  instruction(Op::FConvert, 4);
+  word(result_type_id);
+  word(result_id);
+  word(value_id);
 }
 
 auto Assembler::SpirV::function(

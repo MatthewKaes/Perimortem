@@ -3,12 +3,12 @@
 
 #pragma once
 
+#include "perimortem/core/implementation.hpp"
 #include "perimortem/core/object.hpp"
 #include "perimortem/core/option.hpp"
 
-#include "perimortem/graphics/image.hpp"
 #include "perimortem/graphics/size_2d.hpp"
-#include "perimortem/graphics/tone.hpp"
+#include "perimortem/graphics/texture_2d.hpp"
 #include "perimortem/graphics/transform_2d.hpp"
 
 namespace Perimortem::Graphics {
@@ -26,14 +26,14 @@ class Sprite {
   auto operator=(const Sprite& source) -> Sprite&;
   auto operator=(Sprite&& source) -> Sprite&;
 
-  auto get_image() const -> const Image&;
-  auto set_image(const Image& image) -> void;
+  auto get_texture() const -> const Texture2D&;
+  auto set_texture(const Texture2D& texture) -> void;
+  auto get_shader() const -> const Core::Implementation&;
+  auto set_shader(const Core::Implementation& shader) -> void;
   auto get_size_pixels() const -> Size2D;
   auto set_size_pixels(Size2D size) -> void;
   auto get_transform() const -> Transform2D;
   auto set_transform(Transform2D transform) -> void;
-  auto get_tone() const -> Tone;
-  auto set_tone(Tone tone) -> void;
   auto is_visible() const -> Bool;
   auto set_visible(Bool visible) -> void;
   auto get_z_index() const -> S64;
@@ -51,23 +51,24 @@ class Sprite {
  private:
   class Payload {
    public:
-    Image image;
+    Texture2D texture;
+    Core::Implementation shader;
     Size2D size_pixels;
     Transform2D transform;
-    Tone tone;
     Bool visible = True;
     S64 z_index = 0;
   };
-  static_assert(__builtin_offsetof(Payload, image) == 0);
-  static_assert(__builtin_offsetof(Payload, size_pixels) == sizeof(Image));
+  static_assert(__builtin_offsetof(Payload, texture) == 0);
+  static_assert(__builtin_offsetof(Payload, shader) == sizeof(Texture2D));
   static_assert(
-      __builtin_offsetof(Payload, transform) == sizeof(Image) + sizeof(Size2D));
+      __builtin_offsetof(Payload, size_pixels) ==
+      sizeof(Texture2D) + sizeof(Core::Implementation));
   static_assert(
-      __builtin_offsetof(Payload, tone) ==
-      sizeof(Image) + sizeof(Size2D) + sizeof(Transform2D));
-  static_assert(__builtin_offsetof(Payload, visible) == 112);
-  static_assert(__builtin_offsetof(Payload, z_index) == 120);
-  static_assert(sizeof(Payload) == 128);
+      __builtin_offsetof(Payload, transform) ==
+      sizeof(Texture2D) + sizeof(Core::Implementation) + sizeof(Size2D));
+  static_assert(__builtin_offsetof(Payload, visible) == 72);
+  static_assert(__builtin_offsetof(Payload, z_index) == 80);
+  static_assert(sizeof(Payload) == 88);
 
   explicit Sprite(Core::Object<> object) : object(object) {}
   static auto finalize(U8* payload) -> void;

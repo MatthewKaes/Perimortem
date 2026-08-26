@@ -84,16 +84,20 @@ class SpirV {
     CompositeConstruct = 80,  // Builds a composite from constituent ids.
     CompositeExtract = 81,    // Reads a member/lane out of a composite.
     ImageSampleImplicitLod = 87,  // Samples an image using implicit LOD.
+    ConvertUToF = 112,            // Converts an unsigned integer to a Real.
+    FConvert = 115,               // Converts one floating point width.
     FAdd = 129,                   // Floating point add.
     FSub = 131,                   // Floating point subtract.
     FMul = 133,                   // Floating point multiply.
     FDiv = 136,                   // Floating point divide.
+    FRem = 140,                   // Floating point remainder.
     Label = 248,                  // Begins a basic block.
     Return = 253,                 // Returns from the current function.
   };
 
   enum class Capability : U32 {
     Shader = 1,
+    Float64 = 10,
   };
 
   enum class AddressingModel : U32 {
@@ -235,6 +239,7 @@ class SpirV {
   // is always a pointer type. Its storage class decides whether it is input,
   // output, push constant, uniform resource, or function local storage.
   auto constant(U32 result_type_id, U32 result_id, U32 value) -> void;
+  auto constant_64(U32 result_type_id, U32 result_id, U64 value) -> void;
   auto constant_flag(U32 result_type_id, U32 result_id, Bool value) -> void;
   auto constant_composite(
       U32 result_type_id,
@@ -281,6 +286,10 @@ class SpirV {
       -> void;
   auto fdiv(U32 result_type_id, U32 result_id, U32 left_id, U32 right_id)
       -> void;
+  auto frem(U32 result_type_id, U32 result_id, U32 left_id, U32 right_id)
+      -> void;
+  auto convert_u_to_f(U32 result_type_id, U32 result_id, U32 value_id) -> void;
+  auto fconvert(U32 result_type_id, U32 result_id, U32 value_id) -> void;
 
   // Functions contain one or more labelled basic blocks.
   auto function(

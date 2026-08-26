@@ -1,48 +1,53 @@
-// # Tetrodotoxin
-// Copyright (c) 2023-present Matt Kaes and contributors
+/// Tetrodotoxin
+/// Copyright (c) 2023-present Matt Kaes and contributors
 //
-// Sprite rendering expressed through shared Library execution meaning.
+// The standard textured quad implementation.
 //
 dialect : Shader;
 
-public SpriteProgram : shader Render::Sprite {
-  @set(0) @slot(0) @read
-  public image : resource Image::Image;
-  public sprite : push ShaderTypes::SpriteInputs;
+public DefaultTexturedQuad2D : shader Render::TexturedQuad2D {
+  public tone : uniform Math::Vec4D = (
+    .x = new[R32](1.0),
+    .y = new[R32](1.0),
+    .z = new[R32](1.0),
+    .w = new[R32](1.0),
+  );
 
-  public fragment : func = [@location(0).texture_uv : Math::Vec2D] -> [
-    @location(0).color : Math::Vec4D,
-  ] {
+  public fragment : func {
     state sampled := image -> sample(.uv = texture_uv);
     state color   : Math::Vec4D = (
-      .x = sampled.x * sprite.tone.x,
-      .y = sampled.y * sprite.tone.y,
-      .z = sampled.z * sprite.tone.z,
-      .w = sampled.w * sprite.tone.w,
+      .x = sampled.x * parameters.tone.x,
+      .y = sampled.y * parameters.tone.y,
+      .z = sampled.z * parameters.tone.z,
+      .w = sampled.w * parameters.tone.w,
     );
     return (.color = color);
   }
 
-  public vertex : func = [
-    @location(0).position : Math::Vec2D,
-    @location(1).texture_uv : Math::Vec2D,
-  ] -> [@builtin("position").clip_position : Math::Vec4D, @location(0).texture_uv : Math::Vec2D] {
-    state one := sprite.transform_x.w / sprite.transform_x.w;
+  public vertex : func {
+    state one := inputs.transform_x.w / inputs.transform_x.w;
     state two := one + one;
     state zero := one - one;
     state pixel : Math::Vec2D = (
-      .x = sprite.transform_x.x * position.x + sprite.transform_x.y * position.y +
-          sprite.transform_x.z,
-      .y = sprite.transform_y.x * position.x + sprite.transform_y.y * position.y +
-          sprite.transform_y.z,
+      .x = inputs.transform_x.x * position.x + inputs.transform_x.y * position.y +
+          inputs.transform_x.z,
+      .y = inputs.transform_y.x * position.x + inputs.transform_y.y * position.y +
+          inputs.transform_y.z,
     );
     state clip : Math::Vec2D = (
-      .x = pixel.x / sprite.transform_x.w * two - one,
-      .y = one - pixel.y / sprite.transform_y.w * two,
+      .x = pixel.x / inputs.transform_x.w * two - one,
+      .y = one - pixel.y / inputs.transform_y.w * two,
     );
-    state clip_position : Math::Vec4D = (.x = clip.x, .y = clip.y, .z = zero, .w =
-        one);
-    state sampled_uv : Math::Vec2D = (.x = texture_uv.x, .y = one - texture_uv.y);
+    state clip_position : Math::Vec4D = (
+      .x = clip.x,
+      .y = clip.y,
+      .z = zero,
+      .w = one,
+    );
+    state sampled_uv : Math::Vec2D = (
+      .x = texture_uv.x,
+      .y = one - texture_uv.y,
+    );
     return (.clip_position = clip_position, .texture_uv = sampled_uv);
   }
 }

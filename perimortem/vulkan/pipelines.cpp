@@ -1,0 +1,386 @@
+// # Tetrodotoxin
+// Copyright (c) 2023-present Matt Kaes and contributors
+
+#include "perimortem/vulkan/pipelines.hpp"
+
+#include "perimortem/core/data.hpp"
+#include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
+
+#include "perimortem/graphics/texture_2d.hpp"
+
+using namespace Perimortem::Core;
+using namespace Perimortem;
+
+const Core::Object<>::Descriptor Vulkan::Pipelines::cache_descriptor(
+    sizeof(CacheEntry),
+    alignof(CacheEntry),
+    Pipelines::finalize_cache);
+
+const Core::Object<>::Descriptor Vulkan::Pipelines::realization_descriptor(
+    sizeof(Realization),
+    alignof(Realization),
+    Pipelines::finalize_realization);
+
+Vulkan::Pipelines::Pipelines(
+    const Context& context,
+    VkFormat color_format,
+    View::Vector<Description::Program> descriptions)
+    : context(context), descriptions(descriptions) {
+  validate_descriptions();
+  create_descriptor_layout();
+  create_vertex_buffer();
+  rebuild(color_format);
+}
+
+Vulkan::Pipelines::~Pipelines() {
+  vkDeviceWaitIdle(context.get_device());
+  for (Core::Object<> texture : textures.get_view()) {
+    texture.release();
+  }
+  textures.clear();
+  for (Core::Object<> realization : realizations.get_view()) {
+    realization.release();
+  }
+  realizations.clear();
+  destroy_vertex_buffer();
+  if (descriptor_layout) {
+    vkDestroyDescriptorSetLayout(
+        context.get_device(), descriptor_layout, nullptr);
+  }
+}
+
+auto Vulkan::Pipelines::validate_descriptions() const -> void {
+  if (descriptions.is_empty()) {
+    Diagnostics::Log::fatal(
+        "Vulkan: No generated Programs were supplied."_view);
+  }
+  for (Count index = 0; index < descriptions.get_size(); index++) {
+    const Description::Program& description = descriptions.get_data()[index];
+    if (description.locator == nullptr || description.modules.is_empty() ||
+        description.host_input_ranges.get_size() != 1 ||
+        description.host_size == 0 ||
+        description.parameters_offset > description.host_size ||
+        description.parameters_size >
+            description.host_size - description.parameters_offset ||
+        description.vertex_count == 0 ||
+        description.geometry != Description::Geometry::UnitQuad2D ||
+        description.descriptors.get_size() != 1 ||
+        description.descriptors.get_data()[0].set != 0 ||
+        description.descriptors.get_data()[0].slot != 0 ||
+        description.descriptors.get_data()[0].resource !=
+            Description::Resource::SampledTexture2D ||
+        (description.requires_float64 && !context.supports_float64())) {
+      Diagnostics::Log::fatal(
+          "Vulkan: A generated Program is not supported by this device."_view);
+    }
+    for (Count previous = 0; previous < index; previous++) {
+      if (descriptions.get_data()[previous].locator == description.locator) {
+        Diagnostics::Log::fatal(
+            "Vulkan: Generated Program locators must be unique."_view);
+      }
+    }
+  }
+}
+
+auto Vulkan::Pipelines::create_descriptor_layout() -> void {
+  VkDescriptorSetLayoutBinding binding = {};
+  binding.binding = 0;
+  binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  binding.descriptorCount = 1;
+  binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  VkDescriptorSetLayoutCreateInfo info = {
+    VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+  info.bindingCount = 1;
+  info.pBindings = &binding;
+  if (vkCreateDescriptorSetLayout(
+          context.get_device(), &info, nullptr, &descriptor_layout) !=
+      VK_SUCCESS) {
+    Diagnostics::Log::fatal(
+        "Vulkan: Failed to create the generated descriptor layout."_view);
+  }
+}
+
+auto Vulkan::Pipelines::create_vertex_buffer() -> void {
+  struct Vertex {
+    R32 position[2];
+    R32 texture_uv[2];
+  };
+  static constexpr Vertex vertices[] = {
+    {{0.0f, 0.0f}, {0.0f, 0.0f}}, {{1.0f, 0.0f}, {1.0f, 0.0f}},
+    {{1.0f, 1.0f}, {1.0f, 1.0f}}, {{0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{1.0f, 1.0f}, {1.0f, 1.0f}}, {{0.0f, 1.0f}, {0.0f, 1.0f}},
+  };
+  for (const Description::Program& description : descriptions) {
+    auto inputs = description.vertex_inputs;
+    if (inputs.get_size() != 2 || inputs.get_data()[0].location != 0 ||
+        inputs.get_data()[0].components != 2 ||
+        inputs.get_data()[0].offset != 0 ||
+        inputs.get_data()[0].stride != sizeof(Vertex) ||
+        inputs.get_data()[1].location != 1 ||
+        inputs.get_data()[1].components != 2 ||
+        inputs.get_data()[1].offset != sizeof(R32) * 2 ||
+        inputs.get_data()[1].stride != sizeof(Vertex)) {
+      Diagnostics::Log::fatal(
+          "Vulkan: A generated Program has an unsupported vertex layout."_view);
+    }
+  }
+
+  VkBufferCreateInfo buffer_info = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+  buffer_info.size = sizeof(vertices);
+  buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+  buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  if (vkCreateBuffer(
+          context.get_device(), &buffer_info, nullptr, &vertex_buffer) !=
+      VK_SUCCESS) {
+    Diagnostics::Log::fatal("Vulkan: Failed to create vertex buffer."_view);
+  }
+
+  VkMemoryRequirements requirements = {};
+  vkGetBufferMemoryRequirements(
+      context.get_device(), vertex_buffer, &requirements);
+  constexpr VkMemoryPropertyFlags properties =
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+  U32 memory_type =
+      context.find_memory_type(requirements.memoryTypeBits, properties);
+  if (memory_type == UINT32_MAX) {
+    Diagnostics::Log::fatal("Vulkan: No compatible vertex memory."_view);
+  }
+  VkMemoryAllocateInfo allocation = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+  allocation.allocationSize = requirements.size;
+  allocation.memoryTypeIndex = memory_type;
+  if (vkAllocateMemory(
+          context.get_device(), &allocation, nullptr, &vertex_memory) !=
+          VK_SUCCESS ||
+      vkBindBufferMemory(
+          context.get_device(), vertex_buffer, vertex_memory, 0) !=
+          VK_SUCCESS) {
+    Diagnostics::Log::fatal("Vulkan: Failed to allocate vertex memory."_view);
+  }
+
+  void* mapped = nullptr;
+  if (vkMapMemory(
+          context.get_device(), vertex_memory, 0, sizeof(vertices), 0,
+          &mapped) != VK_SUCCESS) {
+    Diagnostics::Log::fatal("Vulkan: Failed to map vertex memory."_view);
+  }
+  Data::copy(
+      Data::cast<U8>(mapped), Data::cast<const U8>(vertices), sizeof(vertices));
+  vkUnmapMemory(context.get_device(), vertex_memory);
+}
+
+auto Vulkan::Pipelines::destroy_vertex_buffer() -> void {
+  if (vertex_buffer) {
+    vkDestroyBuffer(context.get_device(), vertex_buffer, nullptr);
+    vertex_buffer = VK_NULL_HANDLE;
+  }
+  if (vertex_memory) {
+    vkFreeMemory(context.get_device(), vertex_memory, nullptr);
+    vertex_memory = VK_NULL_HANDLE;
+  }
+}
+
+auto Vulkan::Pipelines::rebuild(VkFormat color_format) -> void {
+  for (Core::Object<> realization : realizations.get_view()) {
+    realization.release();
+  }
+  realizations.clear();
+  View::Vector<VkDescriptorSetLayout> layouts(&descriptor_layout, 1);
+  for (Count index = 0; index < descriptions.get_size(); index++) {
+    const Description::Program& description = descriptions.get_data()[index];
+    Core::Object<> storage = Core::Object<>::create(realization_descriptor);
+    new (storage.get_payload(), Core::Placement::Construct) Realization();
+    Realization& realization = get_realization(storage);
+    realization.description = &description;
+    realization.shader = ShaderProgram::create(
+        context.get_device(), color_format, description, layouts);
+    realizations.emplace(static_cast<Core::Object<>&&>(storage));
+  }
+}
+
+auto Vulkan::Pipelines::find_realization(const U8* locator) -> Realization* {
+  for (Core::Object<> object : realizations.get_view()) {
+    Realization& realization = get_realization(object);
+    if (realization.description->locator == locator) {
+      return &realization;
+    }
+  }
+  return nullptr;
+}
+
+auto Vulkan::Pipelines::find_realization(const U8* locator) const
+    -> const Realization* {
+  for (Core::Object<> object : realizations.get_view()) {
+    const Realization& realization = get_realization(object);
+    if (realization.description->locator == locator) {
+      return &realization;
+    }
+  }
+  return nullptr;
+}
+
+auto Vulkan::Pipelines::validate(
+    View::Vector<Perimortem::Graphics::Frame::Batch> batches) const -> Bool {
+  for (const Perimortem::Graphics::Frame::Batch& batch : batches) {
+    const Realization* realization =
+        find_realization(batch.get_program().get_locator());
+    BAIL_IF(realization == nullptr);
+    const Description::Program& description = *realization->description;
+    BAIL_IF(
+        batch.get_resources().get_size() !=
+            description.descriptors.get_size() ||
+        batch.get_inputs().get_size() != description.parameters_size ||
+        batch.get_size_pixels().width == 0 ||
+        batch.get_size_pixels().height == 0);
+    auto texture = Perimortem::Graphics::Texture2D::retain(
+        batch.get_resources().get_data()[0].get_object());
+    BAIL_IF(!texture || !texture->is_drawable());
+  }
+  return True;
+}
+
+auto Vulkan::Pipelines::record(
+    VkCommandBuffer command_buffer,
+    U32 width,
+    U32 height,
+    View::Vector<Perimortem::Graphics::Frame::Batch> batches) -> Bool {
+  BAIL_IF(!command_buffer || width == 0 || height == 0 || !validate(batches));
+
+  // Resource realization finishes before command recording begins. A rejected
+  // Texture or Program therefore leaves no partial draw sequence in this frame.
+  for (const Perimortem::Graphics::Frame::Batch& batch : batches) {
+    BAIL_IF(!realize_texture(batch.get_resources().get_data()[0]));
+  }
+  for (const Perimortem::Graphics::Frame::Batch& batch : batches) {
+    Realization* realization =
+        find_realization(batch.get_program().get_locator());
+    Texture* texture = find_texture(batch.get_resources().get_data()[0]);
+    BAIL_IF(realization == nullptr || texture == nullptr);
+    Memory::Dynamic::Bytes inputs =
+        make_host_inputs(*realization->description, batch, width, height);
+    BAIL_IF(inputs.get_size() != realization->description->host_size);
+    realization->shader.bind(command_buffer);
+    constexpr VkDeviceSize vertex_offset = 0;
+    vkCmdBindVertexBuffers(
+        command_buffer, 0, 1, &vertex_buffer, &vertex_offset);
+    realization->shader.bind_descriptor_set(
+        command_buffer, texture->get_descriptor_set());
+    realization->shader.push_constants(command_buffer, inputs.get_view());
+    realization->shader.draw(
+        command_buffer, realization->description->vertex_count);
+  }
+
+  sweep_textures();
+  return True;
+}
+
+auto Vulkan::Pipelines::make_host_inputs(
+    const Description::Program& description,
+    const Perimortem::Graphics::Frame::Batch& batch,
+    U32 width,
+    U32 height) const -> Memory::Dynamic::Bytes {
+  Memory::Dynamic::Bytes inputs;
+  inputs.append(0, description.host_size);
+  auto access = inputs.get_access();
+  // Parameters already use the generated target layout. Host roles fill only
+  // values owned by current placement and presentation state.
+  if (description.parameters_size != 0) {
+    Data::copy(
+        access.get_data() + description.parameters_offset,
+        batch.get_inputs().get_data(), description.parameters_size);
+  }
+
+  const auto& transform = batch.get_transform();
+  const auto size = batch.get_size_pixels();
+  for (const Description::HostField& field : description.host_fields) {
+    if (field.offset > description.host_size ||
+        field.size > description.host_size - field.offset) {
+      return {};
+    }
+    if (field.role == Description::HostRole::Parameter) {
+      if (field.offset < description.parameters_offset ||
+          field.offset + field.size >
+              description.parameters_offset + description.parameters_size) {
+        return {};
+      }
+      continue;
+    }
+    if (field.size != sizeof(R32) * 4) {
+      return {};
+    }
+    R32 values[4] = {};
+    if (field.role == Description::HostRole::TransformX) {
+      values[0] = R32(transform.get_xx() * size.width);
+      values[1] = R32(transform.get_xy() * size.height);
+      values[2] = R32(transform.get_x());
+      values[3] = R32(width);
+    } else if (field.role == Description::HostRole::TransformY) {
+      values[0] = R32(transform.get_yx() * size.width);
+      values[1] = R32(transform.get_yy() * size.height);
+      values[2] = R32(transform.get_y());
+      values[3] = R32(height);
+    }
+    Data::copy(access.get_data() + field.offset, values, 4);
+  }
+  return inputs;
+}
+
+auto Vulkan::Pipelines::find_texture(
+    const Perimortem::Graphics::Frame::Resource& resource) -> Texture* {
+  for (Core::Object<> object : textures.get_view()) {
+    CacheEntry& entry = get_cache_entry(object);
+    if (entry.resource.get_object().get_payload() ==
+        resource.get_object().get_payload()) {
+      return &entry.texture;
+    }
+  }
+  return nullptr;
+}
+
+auto Vulkan::Pipelines::realize_texture(
+    const Perimortem::Graphics::Frame::Resource& resource) -> Texture* {
+  Texture* retained = find_texture(resource);
+  if (retained) {
+    return retained;
+  }
+
+  Core::Object<> storage = Core::Object<>::create(cache_descriptor);
+  new (storage.get_payload(), Core::Placement::Construct) CacheEntry();
+  CacheEntry& entry = get_cache_entry(storage);
+  entry.resource = resource;
+  entry.texture = Texture::create(context, resource, descriptor_layout);
+  Core::Object<>& inserted =
+      textures.emplace(static_cast<Core::Object<>&&>(storage));
+  return &get_cache_entry(inserted).texture;
+}
+
+auto Vulkan::Pipelines::sweep_textures() -> void {
+  Count index = 0;
+  while (index < textures.get_size()) {
+    CacheEntry& entry = get_cache_entry(textures[index]);
+    if (entry.resource.get_reservations() == 1) {
+      textures[index].release();
+      textures.remove(index);
+    } else {
+      index++;
+    }
+  }
+}
+
+auto Vulkan::Pipelines::finalize_cache(U8* payload) -> void {
+  Data::cast<CacheEntry>(payload)->~CacheEntry();
+}
+
+auto Vulkan::Pipelines::finalize_realization(U8* payload) -> void {
+  Data::cast<Realization>(payload)->~Realization();
+}
+
+auto Vulkan::Pipelines::get_cache_entry(Core::Object<> object) -> CacheEntry& {
+  return *Data::cast<CacheEntry>(object.get_payload());
+}
+
+auto Vulkan::Pipelines::get_realization(Core::Object<> object) -> Realization& {
+  return *Data::cast<Realization>(object.get_payload());
+}

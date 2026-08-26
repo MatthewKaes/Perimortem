@@ -13,6 +13,7 @@
 #include "perimortem/graphics/frame/program.hpp"
 #include "perimortem/graphics/frame/resource.hpp"
 #include "perimortem/graphics/frame/transform.hpp"
+#include "perimortem/graphics/size_2d.hpp"
 
 namespace Perimortem::Graphics::Frame {
 
@@ -28,7 +29,7 @@ class Batch {
       Memory::Dynamic::Vector<Resource>&& resources,
       Memory::Dynamic::Bytes&& inputs,
       Transform transform,
-      Count vertex_count,
+      Size2D size_pixels,
       S64 z_index,
       Count authored_order);
 
@@ -38,7 +39,7 @@ class Batch {
   }
   auto get_inputs() const -> Core::View::Bytes;
   constexpr auto get_transform() const -> const Transform& { return transform; }
-  constexpr auto get_vertex_count() const -> Count { return vertex_count; }
+  constexpr auto get_size_pixels() const -> Size2D { return size_pixels; }
   constexpr auto get_z_index() const -> S64 { return z_index; }
   constexpr auto get_authored_order() const -> Count { return authored_order; }
   constexpr auto operator>(const Batch& rhs) const -> Bool {
@@ -51,7 +52,7 @@ class Batch {
   Memory::Dynamic::Vector<Resource> resources;
   Memory::Dynamic::Bytes inputs;
   Transform transform;
-  Count vertex_count = 0;
+  Size2D size_pixels;
   S64 z_index = 0;
   Count authored_order = 0;
 };

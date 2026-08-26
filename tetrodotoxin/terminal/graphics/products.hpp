@@ -13,8 +13,9 @@ namespace Tetrodotoxin::Terminal::Graphics {
 
 // Products keeps the target behavior selected for one completed Scene. Each
 // hosted entry points to the real Field that supplied it, while its type index
-// selects one configured runtime Descriptor. LLVM can compile those facts into
-// access behavior without copying a Scene tree or publishing semantic state.
+// selects one configured set of runtime Interfaces. LLVM can compile those
+// facts into access behavior without copying a Scene tree or publishing
+// semantic state.
 class Products {
  public:
   class Hosted {

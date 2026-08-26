@@ -80,6 +80,10 @@ class TypeReference {
 
   auto get_name(Count index) const -> Perimortem::Core::View::Bytes;
 
+  // Authored routes are contiguous, so each segment Token remains recoverable
+  // without retaining a second parser representation.
+  auto get_token(Count index) const -> Ttx::Lexical::Token;
+
   constexpr auto get_root() const -> Perimortem::Core::View::Bytes {
     return get_name(0);
   }

@@ -15,9 +15,6 @@ using namespace Perimortem::Serialization;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin;
 
-using Appender = Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>;
-using Patcher = Perimortem::Core::Writer::Binary<Data::ByteOrder::Little>;
-
 enum class ShaderWriterAttributeValue : U8 {
   Empty,
   Bytes,
@@ -30,7 +27,7 @@ enum class ShaderWriterAttributeValue : U8 {
 Shader::Archive::Writer::Writer(
     Tetrodotoxin::Language::Persistence::Profile profile)
     : profile(profile) {
-  Appender appender(bytes);
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> appender(bytes);
   appender << "TTXS"_view;
   appender << U16(1);
   appender << U8(profile);
@@ -66,7 +63,7 @@ auto Shader::Archive::Writer::encode(
 
 auto Shader::Archive::Writer::begin(Tag tag) -> Record {
   Count offset = bytes.get_size();
-  Appender appender(bytes);
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> appender(bytes);
   appender << U16(tag);
   appender << U16(0);
   appender << U32(0);
@@ -78,34 +75,35 @@ auto Shader::Archive::Writer::finish(Record record) -> Bool {
   BAIL_IF(offset > bytes.get_size() || bytes.get_size() - offset < 8);
   Count size = bytes.get_size() - offset - 8;
   BAIL_IF(size > U32(-1));
-  Patcher patcher(bytes.get_access().slice(offset + 4, 4));
+  Perimortem::Core::Writer::Binary<Data::ByteOrder::Little> patcher(
+      bytes.get_access().slice(offset + 4, 4));
   patcher << U32(size);
   return patcher.is_valid();
 }
 
 auto Shader::Archive::Writer::write(U8 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Shader::Archive::Writer::write(U32 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Shader::Archive::Writer::write(U64 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Shader::Archive::Writer::write(S64 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Shader::Archive::Writer::write(R64 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Shader::Archive::Writer::write(View::Bytes value) -> Bool {
   BAIL_IF(value.get_size() > U32(-1));
-  Appender appender(bytes);
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> appender(bytes);
   appender << U32(value.get_size());
   appender << value;
   return True;
@@ -198,6 +196,23 @@ auto Shader::Archive::Writer::write(const Shader::Language::Program& program)
     BAIL_IF(!write(binding.get_field().get_name()));
     write(U8(binding.get_kind()));
     BAIL_IF(!finish(binding_record));
+  }
+
+  auto uniforms = program.get_uniforms();
+  Count included_uniforms = 0;
+  for (const Reference<Library::Language::Field>& uniform : uniforms) {
+    if (!public_only() || uniform.get().get_definition().is_published()) {
+      included_uniforms++;
+    }
+  }
+  BAIL_IF(included_uniforms > U32(-1));
+  write(U32(included_uniforms));
+  for (const Reference<Library::Language::Field>& uniform : uniforms) {
+    if (public_only() && !uniform.get().get_definition().is_published()) {
+      continue;
+    }
+    auto uniform_record = begin(Tag::Uniform);
+    BAIL_IF(!write(uniform.get().get_name()) || !finish(uniform_record));
   }
   return finish(record);
 }

@@ -43,7 +43,7 @@ static auto select_terminal(
   const Abstract& resolved = resolve_alias(binding);
   if (resolved.is<Invalid>() ||
       (expects_generic && resolved.is<Language::Generic>()) ||
-      (!expects_generic && resolved.is<Language::Model::Type>())) {
+      (!expects_generic && resolved.is<Ttx::Model::Type>())) {
     return resolved;
   }
 
@@ -52,7 +52,7 @@ static auto select_terminal(
   // route can use it without changing the Package binding seen by other tools.
   const Abstract& nested = resolve_alias(resolved.resolve_context(name));
   if ((expects_generic && nested.is<Language::Generic>()) ||
-      (!expects_generic && nested.is<Language::Model::Type>())) {
+      (!expects_generic && nested.is<Ttx::Model::Type>())) {
     return nested;
   }
   return resolved;
@@ -96,6 +96,23 @@ auto Language::TypeReference::get_name(Count requested) const
   }
 
   return {};
+}
+
+auto Language::TypeReference::get_token(Count requested) const -> Token {
+  if (requested + 1 == get_size() && terminal) {
+    return terminal;
+  }
+  Core::View::Bytes name = get_name(requested);
+  Token first = anchor.get_token();
+  if (!first || name.is_empty()) {
+    return {};
+  }
+
+  Count offset = Count(name.get_data() - route.get_data());
+  return Token(
+      U16(Count(first.get_offset()) + offset), first.get_line(),
+      U16(Count(first.get_column()) + offset), U8(name.get_size()),
+      first.get_code());
 }
 
 auto Language::TypeReference::matches_route(const TypeReference& other) const
@@ -161,6 +178,11 @@ auto Language::TypeReference::resolve_with_root(
   if (selected->is<Invalid>()) {
     return Failure(Failure::Type::Route, anchor, 0);
   }
+  if (cursor && get_size() > 1) {
+    Token token = get_token(0);
+    cursor->get_associations().create(
+        Anchor::create(token, Span(token)), *selected);
+  }
 
   for (Count i = 1; i < get_size(); i++) {
     // Alias resolution reveals the identity that can answer the next ordinary
@@ -174,6 +196,11 @@ auto Language::TypeReference::resolve_with_root(
     selected = &route_context.resolve_context(get_name(i));
     if (selected->is<Invalid>()) {
       return Failure(Failure::Type::Route, anchor, i);
+    }
+    if (cursor && i + 1 < get_size()) {
+      Token token = get_token(i);
+      cursor->get_associations().create(
+          Anchor::create(token, Span(token)), *selected);
     }
   }
 
@@ -190,7 +217,9 @@ auto Language::TypeReference::resolve_with_root(
       // readers selected. A contextual member can instead publish a same named
       // root Type, and that concrete declaration is the useful destination.
       const Abstract& subject = &resolved == &direct ? *selected : resolved;
-      cursor->get_associations().create(anchor, subject);
+      Token token = get_token(get_size() - 1);
+      cursor->get_associations().create(
+          Anchor::create(token, Span(token)), subject);
     }
     return resolved;
   }
@@ -209,8 +238,9 @@ auto Language::TypeReference::resolve_with_root(
     // arguments returns a materialized Type. Recording the terminal Token lets
     // editor tooling show that distinction with the same identity selected by
     // resolution.
+    Token token = get_token(get_size() - 1);
     cursor->get_associations().create(
-        Anchor::create(terminal, Span(terminal)), *generic);
+        Anchor::create(token, Span(token)), *generic);
   }
 
   // Resolution assembles one temporary Layout from the real argument
@@ -234,7 +264,7 @@ auto Language::TypeReference::resolve_with_root(
       if (nested_failure) {
         return *nested_failure;
       }
-      if (!nested || !nested->is<Language::Model::Type>()) {
+      if (!nested || !nested->is<Ttx::Model::Type>()) {
         return Failure(Failure::Type::Argument, anchor, i);
       }
       linked.insert(*nested);

@@ -49,6 +49,7 @@ A Render contract can declare:
 * required Shader Stages
 * parameter and result Layouts for each Stage
 * built in values, locations, sets, slots, and access capabilities
+* portable topology, blend, geometry, vertex count, and host input roles
 
 Each declaration stays independently inspectable. For example, a resource
 binding that needs both a set and a slot uses two Attributes instead of hiding
@@ -61,11 +62,16 @@ Render defines these Attribute keys:
 * `@builtin("name")`, `@address_space("name")`, and
   `@capability("name")` carry names interpreted by Render.
 * `@read` and `@write` state independent resource capabilities.
+* `@topology("triangle_list")`, `@blend("alpha")`,
+  `@geometry("unit_quad_2d")`, and `@vertex_count(number)` describe fixed
+  portable pipeline agreement on the enclosing contract.
+* `@host("transform_x")` and `@host("transform_y")` identify the base values
+  supplied by graphics placement.
 
 Each Attribute has at most one scalar value. Duplicate keys on one declaration
-are invalid. Shader uses the same keys when it implements the corresponding
-Render fact. Other Dialects do not acquire these meanings merely because they
-share TTX Attribute storage.
+are invalid. Shader inherits these facts from the selected contract rather than
+authoring them again. Other Dialects do not acquire these meanings merely
+because they share TTX Attribute storage.
 
 Placement is part of each Attribute's meaning:
 
@@ -103,6 +109,12 @@ part of a particular ABI. Render contracts and Attributes describe those
 additional requirements. TTX Interface negotiation combines that meaning with
 Layout evidence when a concrete Shader Stage attempts to satisfy the contract.
 
+A contract may keep related data requirements beneath its own semantic name.
+The standard two dimensional contract uses `TexturedQuad2D::Inputs`. During the
+cross Dialect composition barrier, Shader generates the exact executable Library
+projection needed by Stage bodies and retains its relationship to the real
+Render declaration. Authors do not repeat the Type or its Fields.
+
 Fields, Types, and Stage Callables use their corresponding access domains:
 
 * named values are selected with `.`
@@ -115,8 +127,10 @@ Fields, Types, and Stage Callables use their corresponding access domains:
 Render owns the interface. [Shader](../shader/README.md) selects one Render
 contract, organizes its stages, and supplies the implementation. The Render
 Monograph remains an ordinary Workspace identity owned by its source. Shader
-retains the exact contract edge while its real Library child owns executable
-Types, Functions, expressions, and Flow.
+retains the exact contract edge while its real Library child owns generated
+executable projections, Stage Functions, expressions, and Flow. Composition
+runs in installed Dialect dependency order before ordinary linking, so Package
+source order does not change inherited binding availability.
 
 Tools inspect the Render contract and Shader implementation through those real
 identities. No empty child Monograph or copied interface graph is needed to make

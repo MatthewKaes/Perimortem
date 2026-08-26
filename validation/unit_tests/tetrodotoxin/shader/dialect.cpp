@@ -40,12 +40,9 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, workspace_contract_and_stage) {
       "// GPU implementation.\n"
       "dialect : Shader;\n"
       "public Test : shader Formats::Simple {\n"
-      "  @set(0) @slot(1) @read\n"
-      "  public texture : resource Cpu::U64;\n"
-      "  @capability(\"fragment\")\n"
-      "  public fragment : func = [@location(0).color : Cpu::R64] -> "
-      "[@location(0).color : Cpu::R64] {\n"
-      "    state copied : Cpu::R64 = color + color;\n"
+      "  public gain : uniform Cpu::R64 = 0.0;\n"
+      "  public fragment : func {\n"
+      "    state copied : Cpu::R64 = color + color + parameters.gain;\n"
       "    return (.color = copied);\n"
       "  }\n"
       "  @direction(\"upload\") @marshal(\"copy\") @sync(\"submission\")\n"
@@ -96,7 +93,10 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, workspace_contract_and_stage) {
                  Library::Language::Model::Type::Access::Static)
              .resolve()
              .is<Library::Language::Field>());
-  EXPECT_EQ(program.get_bindings().get_size(), Count(1));
+  EXPECT_EQ(program.get_bindings().get_size(), Count(2));
+  ASSERT_EQ(program.get_uniforms().get_size(), Count(1));
+  EXPECT_EQ(program.get_parameters().get_layout().get_size(), Count(1));
+  EXPECT(program.satisfies(*program.get_contract()));
   EXPECT(monograph.get_bridges().get_data()[0].get().get_cpu_type());
   EXPECT(monograph.get_bridges().get_data()[0].get().get_gpu_type());
   EXPECT(render_errors.is_empty());
@@ -116,10 +116,10 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, rejects_incomplete_contract) {
       "  public texture : resource Cpu::U64;\n"
       "}"_view;
   static constexpr View::Bytes shader_source =
-      "// Missing required texture.\n"
+      "// Missing required Stage body.\n"
       "dialect : Shader;\n"
       "public Broken : shader Formats::Required {\n"
-      "  public fragment : func = [] -> [] { return; }\n"
+      "  public seed : uniform Cpu::R64 = 0.0;\n"
       "}"_view;
 
   Environment::Toolchain toolchain;

@@ -32,13 +32,17 @@ class Interface {
         Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>
             attributes,
         Assembler::SpirV::StorageClass storage,
-        U32 id)
+        U32 id,
+        Count push_index = Count(-1),
+        U32 push_index_id = 0)
         : semantic(semantic),
           type(type),
           name(name),
           attributes(attributes),
           storage(storage),
-          id(id) {}
+          id(id),
+          push_index(push_index),
+          push_index_id(push_index_id) {}
 
     Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic;
     Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
@@ -48,6 +52,8 @@ class Interface {
         attributes;
     Assembler::SpirV::StorageClass storage;
     U32 id;
+    Count push_index;
+    U32 push_index_id;
   };
 
   class Stage {
@@ -78,7 +84,11 @@ class Interface {
   auto emit_entry_points(Assembler::SpirV& assembler) const -> void;
   auto emit_debug(Assembler::SpirV& assembler) const -> void;
   auto emit_annotations(Assembler::SpirV& assembler) const -> Bool;
+  auto emit_types(Assembler::SpirV& assembler) const -> Bool;
   auto emit_globals(Assembler::SpirV& assembler) const -> Bool;
+
+  auto get_binding_pointer(const Variable& binding, Assembler::SpirV& assembler)
+      const -> Perimortem::Core::Option<U32>;
 
   constexpr auto get_stages() const -> Perimortem::Core::View::Vector<Stage*> {
     return stages;
@@ -106,6 +116,11 @@ class Interface {
   Types& types;
   Perimortem::Memory::Managed::Vector<Variable> bindings;
   Perimortem::Memory::Managed::Vector<Stage*> stages;
+  U32 push_type_id = 0;
+  U32 push_pointer_id = 0;
+  U32 push_variable_id = 0;
+  U32 push_index_type_id = 0;
+  Bool owns_push_index_type = False;
 };
 
 }  // namespace Tetrodotoxin::Terminal::Spirv::Module

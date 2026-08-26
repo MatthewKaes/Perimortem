@@ -363,6 +363,17 @@ Abstracts it compares. It creates no Alias, wrapper, common Type, or dependency
 between their Dialects. The concrete owner selects the negotiator appropriate
 to its semantic question.
 
+Interface negotiation creates no runtime representation. A concrete language
+may define an explicit erased value that retains an accepted candidate, and a
+Terminal may derive the Projection required by its target ABI. Without that value,
+the candidate remains concrete and incurs no runtime dispatch merely because an
+Interface accepted it.
+
+`Abstract::satisfies(requirement)` is the higher order routing hook used by an
+explicit erased value. The concrete candidate owner answers one exact semantic
+question without moving its Type system into TTX. The default answer is false.
+This query records no relation object and creates no physical Projection.
+
 ## Documentation
 
 Documentation carries no semantic identity. It presents an ordered view of
@@ -372,6 +383,11 @@ Missing documentation is the shared empty Documentation value.
 Documentation may present one generated line, an ordered authored block, or a
 composition of two complete Documentation values. It does not participate in
 identity, resolution, or Layout fitting.
+
+An authored `//` line contributes one presentation line. When the comment
+payload begins with `/`, the resulting `///` form is a raw comment instead.
+Raw comments remain in the lexical source and editor token stream, but they do
+not contribute Documentation. Formatting preserves their authored content.
 
 ## Reference
 

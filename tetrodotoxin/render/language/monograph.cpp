@@ -38,6 +38,10 @@ auto Language::Monograph::retain_type(
   return declarations.retain_type(declaration, visibility);
 }
 
+auto Language::Monograph::compose(Cursor& cursor) -> Bool {
+  return declarations.link(cursor, *this);
+}
+
 auto Language::Monograph::link(Cursor& cursor) -> Bool {
   return declarations.link(cursor, *this);
 }
@@ -48,6 +52,10 @@ auto Language::Monograph::finalize(Cursor&) -> Bool {
 }
 
 auto Language::Monograph::link_restored() -> Bool {
+  return declarations.link_restored(*this);
+}
+
+auto Language::Monograph::compose_restored() -> Bool {
   return declarations.link_restored(*this);
 }
 

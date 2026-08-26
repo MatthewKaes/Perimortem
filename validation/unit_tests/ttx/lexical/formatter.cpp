@@ -223,6 +223,25 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, documentation_break) {
       "}\n"_view);
 }
 
+PERIMORTEM_UNIT_TEST(TtxFormatter, raw_comments_are_unchanged) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(
+      arena,
+      "///Tetrodotoxin   metadata\n"
+      "///  Copyright metadata\n"
+      "//Public documentation.\n"
+      "dialect:Library;"_view,
+      "Test.ttx"_view);
+
+  Dynamic::Bytes formatted = Formatter(tokenizer).format();
+  EXPECT_TEXT(
+      formatted,
+      "///Tetrodotoxin   metadata\n"
+      "///  Copyright metadata\n"
+      "// Public documentation.\n"
+      "dialect : Library;\n"_view);
+}
+
 PERIMORTEM_UNIT_TEST(TtxFormatter, hexadecimal_literals) {
   Allocator::Arena arena;
   Tokenizer tokenizer(

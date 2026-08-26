@@ -43,9 +43,12 @@ class Types {
   auto get_resource_pointer_id(
       const Tetrodotoxin::Library::Language::Model::Type& type) const
       -> Perimortem::Core::Option<U32>;
+  auto get_unsigned_32_id() const -> Perimortem::Core::Option<U32>;
 
   constexpr auto get_void_id() const -> U32 { return void_id; }
   constexpr auto get_function_id() const -> U32 { return function_id; }
+
+  auto requires_float64() const -> Bool;
 
   static auto select(const Ttx::Concept::Abstract& semantic)
       -> Perimortem::Core::Option<

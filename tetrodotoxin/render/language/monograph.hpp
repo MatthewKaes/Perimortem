@@ -33,11 +33,15 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Ttx::Concept::Abstract& declaration,
       Tetrodotoxin::Language::Visibility visibility) -> Bool;
 
+  auto compose(Ttx::Lexical::Cursor& cursor) -> Bool override;
+
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
   auto link_restored() -> Bool override;
+
+  auto compose_restored() -> Bool override;
 
   auto finalize_restored() -> Bool override;
 

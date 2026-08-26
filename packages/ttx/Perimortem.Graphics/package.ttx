@@ -1,5 +1,5 @@
-// # Tetrodotoxin
-// Copyright (c) 2023-present Matt Kaes and contributors
+/// Tetrodotoxin
+/// Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Publishes the value, resource, and hosted Object Types used by graphics.
 //
@@ -11,10 +11,10 @@ source Point2D from "point2d.ttx";
 source Size2D from "size2d.ttx";
 source Tone from "tone.ttx";
 source Transform2D from "transform2d.ttx";
-source Host from "host.ttx";
+source Placement2D from "placement2d.ttx";
 source Image from "image.ttx";
+source Texture2D from "texture2d.ttx";
 source Format::PNG from "png.ttx";
 source Sprite from "sprite.ttx";
-source ShaderTypes from "shader_types.ttx";
 source Render from "render.ttx";
 source Shader from "shader.ttx";

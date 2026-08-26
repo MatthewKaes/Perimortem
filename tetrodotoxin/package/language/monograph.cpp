@@ -91,22 +91,30 @@ Package::Language::Monograph::Monograph(
 
 auto Package::Language::Monograph::Scope::bind(
     const Parser::Name& route,
-    const Abstract& target) -> Option<Alias&> {
+    const Abstract& target,
+    Option<Associations&> associations) -> Option<Alias&> {
   BAIL_IF(route.get_size() == 0);
 
   Scope* selected = this;
   for (Count index = 0; index + 1 < route.get_size(); index++) {
     View::Bytes segment = route.get_segment(index);
+    Token token = route.get_token(index);
     auto existing = selected->bindings.find(segment);
     if (existing) {
       auto nested = existing->value.select<Scope>();
       BAIL_IF(!nested);
+      if (associations) {
+        associations->create(Anchor::create(token, Span(token)), *nested);
+      }
       selected = &*nested;
       continue;
     }
 
     Scope& nested = arena.construct<Scope>(arena, segment);
     selected->bindings.launder(segment, nested);
+    if (associations) {
+      associations->create(Anchor::create(token, Span(token)), nested);
+    }
     selected = &nested;
   }
 
@@ -114,6 +122,10 @@ auto Package::Language::Monograph::Scope::bind(
   BAIL_IF(leaf.is_empty() || selected->bindings.contains(leaf));
   Alias& alias = arena.construct<Alias>(leaf, target);
   selected->bindings.launder(leaf, alias);
+  if (associations) {
+    Token token = route.get_token(route.get_size() - 1);
+    associations->create(Anchor::create(token, Span(token)), alias);
+  }
   return alias;
 }
 
@@ -127,7 +139,8 @@ auto Package::Language::Monograph::Scope::resolve_context(
 
 auto Package::Language::Monograph::bind_member(
     const Parser::Name& local_name,
-    const Tetrodotoxin::Language::Monograph& member) -> Bool {
+    const Tetrodotoxin::Language::Monograph& member,
+    Option<Associations&> associations) -> Bool {
   // Every rejection happens before either inventory changes, so exact lookup
   // and member order preserve the first completed edge.
   if (local_name.get_size() == 0 ||
@@ -142,14 +155,15 @@ auto Package::Language::Monograph::bind_member(
     return False;
   }
 
-  auto alias = scope.bind(local_name, member);
+  auto alias = scope.bind(local_name, member, associations);
   BAIL_IF(!alias);
   return True;
 }
 
 auto Package::Language::Monograph::bind_dependency(
     const Dependency& dependency,
-    const Monograph& package) -> Bool {
+    const Monograph& package,
+    Option<Associations&> associations) -> Bool {
   const Parser::Name& local_name = dependency.get_local_route();
 
   // A caller cannot manufacture another alias spelling for a retained request.
@@ -166,7 +180,7 @@ auto Package::Language::Monograph::bind_dependency(
     return False;
   }
 
-  return Bool(scope.bind(local_name, package));
+  return Bool(scope.bind(local_name, package, associations));
 }
 
 auto Package::Language::Monograph::resolve_context(View::Bytes route) const

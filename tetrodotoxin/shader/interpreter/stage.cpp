@@ -3,12 +3,15 @@
 
 #include "tetrodotoxin/shader/interpreter/stage.hpp"
 
-#include "tetrodotoxin/library/interpreter/member.hpp"
+#include "perimortem/memory/managed/vector.hpp"
+
+#include "tetrodotoxin/library/interpreter/execution/block.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/render/language/attributes.hpp"
+#include "tetrodotoxin/library/language/model/layout.hpp"
+#include "tetrodotoxin/library/language/signature.hpp"
 
 using namespace Perimortem::Core;
-using namespace Ttx::Concept;
+using namespace Perimortem::Memory;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 using namespace Tetrodotoxin::Shader;
@@ -17,36 +20,51 @@ auto Interpreter::Stage::parse(
     Shader::Language::Program& program,
     Cursor& cursor,
     Tetrodotoxin::Language::Definition& definition) -> Bool {
-  auto member = Library::Interpreter::Member::parse(cursor, definition);
-  BAIL_IF(!member);
-  auto function = member->get_semantic().select<Library::Language::Function>();
-  if (!function) {
+  if (definition.get_name_token().get_code() != Code::Type::Addressable ||
+      definition.get_visibility() !=
+          Tetrodotoxin::Language::Visibility::Public ||
+      !definition.get_modifiers().is_empty() ||
+      !definition.get_attributes().is_empty()) {
     cursor.create_expression_error(
         definition.get_anchor(),
-        "Shader Stage qualifiers create one Library Function."_view);
+        "Shader Stage bodies require one public Function name."_view,
+        "Keep the Render signature and interface facts on the selected contract."_view);
     return False;
   }
 
-  // The Function parser owns the complete Signature and Block. Shader adds
-  // only Render admission policy around that real executable identity.
-  Bool attributes_valid = Render::Language::Attributes::validate(
-      cursor, definition.get_attributes(),
-      Render::Language::Attributes::Placement::Stage);
-  auto validate_slots = [&](const Library::Language::Model::Layout& layout) {
-    for (Count i = 0; i < layout.get_size(); i++) {
-      attributes_valid &= Render::Language::Attributes::validate(
-          cursor, layout.get_slot_attributes(i),
-          Render::Language::Attributes::Placement::StageEntry);
-    }
-  };
-  validate_slots(function->get_signature().get_parameters());
-  validate_slots(function->get_signature().get_results());
-
-  Bool retained = program.retain_authored_definition(
-      *function, definition,
-      Library::Language::Types::Composite::Category::Callable, cursor);
-  if (member->needs_recovery()) {
-    cursor.recover_to_scoped_statement();
+  Token qualifier = cursor.require(
+      Code::Type::Func, "Shader Stage bodies use the `func` qualifier."_view);
+  BAIL_IF(!qualifier);
+  if (cursor.matches(Code::Type::Assign)) {
+    cursor.create_token_error(
+        "Shader Stage bodies inherit their complete Render signature."_view,
+        "Remove the repeated parameter and result Layouts."_view);
+    return False;
   }
-  return attributes_valid && retained && member->is_accepted();
+
+  Managed::Vector<Library::Language::Model::Layout::Slot> parameter_slots(
+      cursor.get_arena());
+  Managed::Vector<Library::Language::Model::Layout::Slot> result_slots(
+      cursor.get_arena());
+  auto& parameters = Library::Language::Model::Layout::create_authored(
+      cursor.get_arena(), parameter_slots, Anchor::create(Span()), True);
+  auto& results = Library::Language::Model::Layout::create_authored(
+      cursor.get_arena(), result_slots, Anchor::create(Span()), False);
+  auto& signature = Library::Language::Signature::create_authored(
+      cursor.get_arena(), program, parameters, results);
+  auto& function = Library::Language::Function::create_authored(
+      cursor.get_arena(), definition, signature);
+  Count error_count = cursor.get_error_count();
+  auto body = Library::Interpreter::Execution::Block::parse(
+      cursor, function, function, function.get_host());
+  BAIL_IF(!body);
+
+  Bool accepted =
+      definition.complete(qualifier, body->get_anchor().get_span().get_end()) &&
+      function.complete_body(*body) && cursor.get_error_count() == error_count;
+  BAIL_IF(!program.retain_authored_definition(
+      function, definition,
+      Library::Language::Types::Composite::Category::Callable, cursor));
+  program.retain_stage(function, parameters, results);
+  return accepted;
 }

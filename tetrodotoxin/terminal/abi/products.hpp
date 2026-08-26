@@ -7,6 +7,7 @@
 #include "perimortem/core/view/vector.hpp"
 
 #include "tetrodotoxin/terminal/abi/export.hpp"
+#include "tetrodotoxin/terminal/abi/projection.hpp"
 #include "tetrodotoxin/terminal/abi/publication.hpp"
 
 namespace Tetrodotoxin::Terminal::Abi {
@@ -21,12 +22,14 @@ class Products {
       Perimortem::Core::View::Bytes cpp_header,
       Perimortem::Core::View::Bytes cpp_source,
       Perimortem::Core::View::Vector<Abi::Export> exports,
-      Perimortem::Core::View::Vector<Abi::Publication> publications)
+      Perimortem::Core::View::Vector<Abi::Publication> publications,
+      Perimortem::Core::View::Vector<Abi::Projection> projections = {})
       : c_header(c_header),
         cpp_header(cpp_header),
         cpp_source(cpp_source),
         exports(exports),
-        publications(publications) {}
+        publications(publications),
+        projections(projections) {}
 
   constexpr auto get_c_header() const -> Perimortem::Core::View::Bytes {
     return c_header;
@@ -72,12 +75,18 @@ class Products {
     return {};
   }
 
+  constexpr auto get_projections() const
+      -> Perimortem::Core::View::Vector<Abi::Projection> {
+    return projections;
+  }
+
  private:
   Perimortem::Core::View::Bytes c_header;
   Perimortem::Core::View::Bytes cpp_header;
   Perimortem::Core::View::Bytes cpp_source;
   Perimortem::Core::View::Vector<Abi::Export> exports;
   Perimortem::Core::View::Vector<Abi::Publication> publications;
+  Perimortem::Core::View::Vector<Abi::Projection> projections;
 };
 
 }  // namespace Tetrodotoxin::Terminal::Abi

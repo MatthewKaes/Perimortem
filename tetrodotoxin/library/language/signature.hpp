@@ -46,6 +46,9 @@ class Signature {
   }
   constexpr auto get_results() const -> const Model::Layout& { return results; }
 
+  constexpr auto edit_parameters() -> Model::Layout& { return parameters; }
+  constexpr auto edit_results() -> Model::Layout& { return results; }
+
   auto declares_self() const -> Bool;
   auto is_linked() const -> Bool;
 

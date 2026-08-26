@@ -75,7 +75,9 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
 
       auto initializer = field->get_initializer();
       if (initializer) {
-        values.insert(const_cast<Model::Pack&>(*initializer));
+        Model::Pack& source = const_cast<Model::Pack&>(*initializer);
+        auto fitted = field->get_type().create_fitted(arena, source);
+        values.insert(fitted ? *fitted : source);
         continue;
       }
 
@@ -89,4 +91,11 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
   }();
   creating_default = False;
   return result;
+}
+
+auto Types::Structure::create_fitted(
+    Allocator::Arena& arena,
+    Model::Pack& source) const -> Option<Model::Pack&> {
+  BAIL_IF(!source.fits(*this));
+  return Expressions::Initializer::create_provider(arena, *this, source);
 }

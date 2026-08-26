@@ -31,9 +31,11 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto retain_program(Program& program) -> Bool;
   auto retain_bridge(Bridge& bridge) -> Bool;
 
+  auto compose(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
+  auto compose_restored() -> Bool override;
   auto link_restored() -> Bool override;
   auto finalize_restored() -> Bool override;
 

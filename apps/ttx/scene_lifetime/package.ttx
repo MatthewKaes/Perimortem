@@ -1,5 +1,5 @@
-// # Tetrodotoxin
-// Copyright (c) 2023-present Matt Kaes and contributors
+/// Tetrodotoxin
+/// Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Records exact external Package requests and member Source routes. The Package
 // transaction resolves those requests before publishing any member Source.
@@ -8,6 +8,7 @@ dialect : Package;
 resolve Math : Perimortem.Math = "1.0";
 resolve Graphics : Perimortem.Graphics = "1.0";
 resolve System : Perimortem.System = "1.0";
+source Shaders::Glitch from "shaders/glitch.ttx";
 source Scenes::Splash from "scenes/splash.ttx";
 source Scenes::Title from "scenes/title.ttx";
 source Main from "main.ttx";

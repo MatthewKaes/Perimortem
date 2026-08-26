@@ -75,7 +75,14 @@ class State {
       : tokens(tokenizer.get_tokens()), source(tokenizer.get_source_text()) {}
 
   auto format() -> Dynamic::Bytes {
-    if (tokens.is_empty() || tokens[0].get_code() != Code::Type::Comment) {
+    Bool has_opening_documentation = False;
+    for (Count index = 0;
+         index < tokens.get_size() && tokens[index].get_code().is_comment();
+         index++) {
+      has_opening_documentation |=
+          tokens[index].get_code() == Code::Type::Comment;
+    }
+    if (!has_opening_documentation) {
       output.concat("//\n// Place holder source documentation.\n//\n\n"_view);
     }
 
@@ -178,7 +185,7 @@ class State {
     while (current < last) {
       Code::Type code = tokens[current].get_code().get_type();
 
-      if (code == Code::Type::Comment) {
+      if (tokens[current].get_code().is_comment()) {
         current++;
         continue;
       }
@@ -959,8 +966,8 @@ class State {
 
   auto write_documentation(Count first, Count last) -> void {
     for (Count index = first; index < last; index++) {
-      if (tokens[index].get_code() == Code::Type::Comment) {
-        write_comment(tokens[index].caculate_text(source));
+      if (tokens[index].get_code().is_comment()) {
+        write_comment(tokens[index]);
       }
     }
   }
@@ -1245,7 +1252,7 @@ class State {
   auto has_comment(const Unit& unit) const -> Bool {
     Count content = find_unit_start(unit.first, unit.last);
     for (Count index = unit.first; index < content; index++) {
-      if (tokens[index].get_code() == Code::Type::Comment) {
+      if (tokens[index].get_code().is_comment()) {
         return True;
       }
     }
@@ -1366,7 +1373,7 @@ class State {
       } else if (code == Code::Type::ScopeEnd && scope) {
         scope--;
       }
-      has_comment |= code == Code::Type::Comment;
+      has_comment |= tokens[index].get_code().is_comment();
     }
 
     if (!has_separator) {
@@ -1459,8 +1466,8 @@ class State {
       write_newline(2);
     }
 
-    if (code == Code::Type::Comment) {
-      write_comment(text);
+    if (tokens[index].get_code().is_comment()) {
+      write_comment(tokens[index]);
       return;
     }
 
@@ -1642,9 +1649,16 @@ class State {
            code == Code::Type::Or || code == Code::Type::In;
   }
 
-  auto write_comment(View::Bytes text) -> void {
+  auto write_comment(Token token) -> void {
     if (line_started) {
       write_space();
+    }
+
+    View::Bytes text = token.caculate_text(source);
+    if (token.get_code() == Code::Type::RawComment) {
+      append(text);
+      write_newline();
+      return;
     }
 
     View::Bytes marker = Lexicon::get_spelling(Code::Type::Comment);

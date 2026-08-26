@@ -76,9 +76,8 @@ TtxPackageInfo = provider(
         "abi_manifest": "Native ABI Manifest for the selected artifact.",
         "transitive_abi_manifests": "Dependency-first native ABI Manifest depset.",
         "artifact_id": "Exact native artifact identifier.",
-        "graphics_host": "Configured graphics Host requirement route.",
-        "graphics_bindings": "Hosted Type routes paired with native Descriptor providers.",
-        "graphics_shader": "Configured Shader Program route.",
+        "graphics_placement": "Configured graphics Placement2D requirement route.",
+        "graphics_bindings": "Graphics Type routes paired with independent native capability providers.",
         "cpp_compilation_context": "Generated C++ facade headers when requested.",
         "cpp_objects": "Generated C++ facade implementation objects.",
         "cpp_pic_objects": "Generated position independent C++ facade objects.",
@@ -156,8 +155,8 @@ def _ttx_package_impl(ctx):
         fail("ttx_package requires at least one candidate source")
     for graphics_binding in ctx.attr.graphics_bindings:
         parts = graphics_binding.split("|")
-        if len(parts) != 2 or not parts[0] or not parts[1]:
-            fail("graphics_bindings entries must be <Type route>|<provider symbol>")
+        if len(parts) != 4 or not parts[0] or not (parts[1] or parts[2] or parts[3]):
+            fail("graphics_bindings entries must be <Type route>|<Placement2D provider>|<Children2D provider>|<Drawable2D provider>")
 
     artifact_id = "x86_64-sysv-linux"
     artifact_root = "%s/%d.%d/" % (
@@ -199,8 +198,8 @@ def _ttx_package_impl(ctx):
         arguments.add("-cpp-include=%s" % ctx.attr.cpp_header)
         arguments.add("-c-include=%sc_abi.h" % artifact_root)
     arguments.add(abi_manifest, format = "-abi-manifest=%s")
-    if ctx.attr.graphics_host:
-        arguments.add("-graphics-host=%s" % ctx.attr.graphics_host)
+    if ctx.attr.graphics_placement:
+        arguments.add("-graphics-placement=%s" % ctx.attr.graphics_placement)
     for graphics_binding in ctx.attr.graphics_bindings:
         arguments.add("-graphics-type=%s" % graphics_binding.split("|")[0])
 
@@ -251,13 +250,22 @@ def _ttx_package_impl(ctx):
         object_file = ctx.actions.declare_file(
             artifact_root + unit_name + ".o",
         )
+        product_file = ctx.actions.declare_file(
+            artifact_root + unit_name + "_products.o",
+        )
         arguments.add_joined(
             [source.path, object_file.path],
             join_with = "|",
             format_joined = "-unit=%s",
         )
+        arguments.add_joined(
+            [source.path, product_file.path],
+            join_with = "|",
+            format_joined = "-product-unit=%s",
+        )
         object_files.append(object_file)
-        outputs.append(object_file)
+        object_files.append(product_file)
+        outputs.extend([object_file, product_file])
 
     if ctx.files.resources:
         resource_object = ctx.actions.declare_file(
@@ -368,9 +376,8 @@ def _ttx_package_impl(ctx):
             abi_manifest = abi_manifest,
             transitive_abi_manifests = package_abi_manifests,
             artifact_id = artifact_id,
-            graphics_host = ctx.attr.graphics_host,
+            graphics_placement = ctx.attr.graphics_placement,
             graphics_bindings = ctx.attr.graphics_bindings,
-            graphics_shader = ctx.attr.graphics_shader,
             cpp_compilation_context = api_compilation_context,
             cpp_objects = api_compilation_outputs.objects if api_compilation_outputs else [],
             cpp_pic_objects = api_compilation_outputs.pic_objects if api_compilation_outputs else [],
@@ -428,14 +435,11 @@ _ttx_package = rule(
             values = ["vulkan1.0"],
             doc = "SPIR V validation environment for Shader member products.",
         ),
-        graphics_host = attr.string(
-            doc = "Package contextual route for the selected graphics Host requirement.",
+        graphics_placement = attr.string(
+            doc = "Package contextual route for the selected graphics Placement2D requirement.",
         ),
         graphics_bindings = attr.string_list(
-            doc = "Hosted Type routes paired with native Descriptor provider symbols.",
-        ),
-        graphics_shader = attr.string(
-            doc = "Package contextual route for the Shader Program used by hosted draws.",
+            doc = "Graphics Type routes paired with native Placement2D, Children2D, and Drawable2D provider symbols.",
         ),
         cpp_header = attr.string(
             doc = "Repository relative include path for the generated C++ API.",
@@ -578,14 +582,14 @@ def _ttx_application_entry_impl(ctx):
     arguments.add("-app-member=%s" % ctx.attr.app_member)
     arguments.add("-artifact=%s" % package.artifact_id)
     arguments.add(source_file, format = "-source=%s")
-    if package.graphics_host:
-        arguments.add("-graphics-host=%s" % package.graphics_host)
+    if package.graphics_placement:
+        arguments.add("-graphics-placement=%s" % package.graphics_placement)
     for graphics_binding in package.graphics_bindings:
         parts = graphics_binding.split("|")
         arguments.add("-graphics-type=%s" % parts[0])
-        arguments.add("-graphics-descriptor=%s" % parts[1])
-    if package.graphics_shader:
-        arguments.add("-graphics-shader=%s" % package.graphics_shader)
+        arguments.add("-graphics-placement-provider=%s" % parts[1])
+        arguments.add("-graphics-children-provider=%s" % parts[2])
+        arguments.add("-graphics-drawable-provider=%s" % parts[3])
     dependency_contracts = [
         contract
         for contract in package.transitive_contracts.to_list()

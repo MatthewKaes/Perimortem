@@ -2,7 +2,6 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/operations/modulo.hpp"
-#include "tetrodotoxin/library/interpreter/operation.hpp"
 
 #include "validation/unit_test.hpp"
 #include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
@@ -11,6 +10,7 @@
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/interpreter/operation.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/real.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
@@ -213,19 +213,22 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection) {
   EXPECT(!link_operation(mismatch, source));
   EXPECT(!link_operation(unresolved_pair, source));
   EXPECT(!link_operation(invalid_pair, source));
-  EXPECT(!link_operation(real_values, source));
+  EXPECT(link_operation(real_values, source));
   EXPECT(!link_operation(flags, source));
   EXPECT(!link_operation(byte_values, source));
 
   auto retained = selected(unsigned_exact.fold());
+  auto real_retained = selected(real_values.fold());
 
   EXPECT(&signed_exact.get_type() == &s8);
   EXPECT(&unsigned_exact.get_type() == &u8);
   EXPECT_NOT(retained);
+  ASSERT(real_retained);
+  EXPECT(value_is<Constants::Real>(*real_retained, R64(0.0)));
   EXPECT(mismatch.get_type().resolve().is<Invalid>());
   EXPECT(unresolved_pair.get_type().resolve().is<Invalid>());
   EXPECT(invalid_pair.get_type().resolve().is<Invalid>());
-  EXPECT(real_values.get_type().resolve().is<Invalid>());
+  EXPECT(&real_values.get_type() == &r32);
   EXPECT(flags.get_type().resolve().is<Invalid>());
   EXPECT(byte_values.get_type().resolve().is<Invalid>());
 }
@@ -397,8 +400,8 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, atomic_provenance) {
       success_left_trigger, Span(success_left_trigger, success_left_end));
   auto& success_left = Constants::Signed::create_authored(
       domain, parser_type, -7, success_left_anchor);
-  auto parsed = Interpreter::Operation::parse_binary(Code::Type::ModOp,
-      source, success_cursor, success_left,
+  auto parsed = Interpreter::Operation::parse_binary(
+      Code::Type::ModOp, source, success_cursor, success_left,
       Span(success_left_trigger, success_left_end));
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "-7 % true"_view, "modulo.ttx"_view);
@@ -410,8 +413,8 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, atomic_provenance) {
       failure_left_trigger, Span(failure_left_trigger, failure_left_end));
   auto& failure_left = Constants::Signed::create_authored(
       domain, parser_type, -7, failure_left_anchor);
-  auto rejected = Interpreter::Operation::parse_binary(Code::Type::ModOp,
-      source, failure_cursor, failure_left,
+  auto rejected = Interpreter::Operation::parse_binary(
+      Code::Type::ModOp, source, failure_cursor, failure_left,
       Span(failure_left_trigger, failure_left_end));
 
   ASSERT(parsed);

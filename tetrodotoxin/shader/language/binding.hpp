@@ -24,6 +24,10 @@ class Binding {
     return field;
   }
 
+  constexpr auto edit_field() -> Tetrodotoxin::Library::Language::Field& {
+    return field;
+  }
+
   constexpr auto get_definition() const
       -> const Tetrodotoxin::Language::Definition& {
     return field.get_definition();

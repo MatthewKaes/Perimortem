@@ -5,13 +5,10 @@
 
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/language/parser/type_reference.hpp"
-#include "tetrodotoxin/library/interpreter/member.hpp"
-#include "tetrodotoxin/library/language/alias.hpp"
-#include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/render/language/attributes.hpp"
 #include "tetrodotoxin/shader/interpreter/bridge.hpp"
 #include "tetrodotoxin/shader/interpreter/stage.hpp"
-#include "tetrodotoxin/shader/interpreter/value.hpp"
+#include "tetrodotoxin/shader/interpreter/uniform.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -41,40 +38,35 @@ static auto has_program_shape(
         "Shader Programs use public visibility."_view);
     return False;
   }
-  if (!definition.get_modifiers().is_empty()) {
-    cursor.create_token_error(
-        definition.get_modifiers().get_data()[0],
-        "Shader Programs do not accept evaluation modifiers."_view);
-    return False;
-  }
-  return Render::Language::Attributes::validate(
-      cursor, definition.get_attributes(),
-      Render::Language::Attributes::Placement::Structure);
-}
-
-static auto parse_library_type(
-    Shader::Language::Program& program,
-    Cursor& cursor,
-    Tetrodotoxin::Language::Definition& definition) -> Bool {
-  auto member = Library::Interpreter::Member::parse(cursor, definition);
-  BAIL_IF(!member);
-
-  Abstract& semantic = member->get_semantic();
-  Bool admitted = semantic.is<Library::Language::Alias>() ||
-                  semantic.is<Library::Language::Types::Structure>();
-  if (!admitted) {
+  if (!definition.get_modifiers().is_empty() ||
+      !definition.get_attributes().is_empty()) {
     cursor.create_expression_error(
         definition.get_anchor(),
-        "Shader Programs admit Library Alias and Structure Types here."_view,
-        "Use `func`, value, resource, push, or bridge for other declarations."_view);
+        "Shader Programs do not accept modifiers or pipeline Attributes."_view,
+        "Keep fixed pipeline meaning on the selected Render contract."_view);
+    return False;
   }
-  Bool retained =
-      admitted && program.retain_authored_definition(
-                      semantic, definition, member->get_category(), cursor);
-  if (member->needs_recovery()) {
-    cursor.recover_to_scoped_statement();
+  return True;
+}
+
+static auto begins_uniform(const Cursor& cursor) -> Bool {
+  S64 offset = 0;
+  Code::Type visibility = cursor.peek(offset).get_code().get_type();
+  BAIL_IF(
+      visibility != Code::Type::Public && visibility != Code::Type::Private &&
+      visibility != Code::Type::Expose);
+  offset++;
+  while (cursor.peek(offset).get_code().is_evaluation_modifier()) {
+    offset++;
   }
-  return retained && member->is_accepted();
+  BAIL_IF(
+      cursor.peek(offset).get_code() != Code::Type::Addressable &&
+      cursor.peek(offset).get_code() != Code::Type::Type);
+  offset++;
+  BAIL_IF(cursor.peek(offset).get_code() != Code::Type::Define);
+  offset++;
+  return cursor.peek(offset).caculate_text(cursor.get_source_text()) ==
+         "uniform"_view;
 }
 
 auto Interpreter::Program::parse(
@@ -88,14 +80,15 @@ auto Interpreter::Program::parse(
   BAIL_IF(!cursor.require(
       Code::Type::ScopeStart, "Shader Program requires one `{}` body."_view));
 
-  auto& program = Shader::Language::Program::create(
+  auto& program = Shader::Language::Program::create_authored(
       cursor.get_arena(), definition, *contract, monograph);
+  BAIL_IF(!program.initialize_runtime_surface());
 
-  // The Program is admitted directly into the child Source as a Library Type.
-  // Its executable declarations therefore participate in the ordinary Library
-  // completion barriers instead of a Shader specific body graph.
-  BAIL_IF(!monograph.edit_library().get_source().bind_static(
-      program, Library::Language::Types::Composite::Category::Type));
+  // Program enters the real Library child before its body is interpreted. Its
+  // generated runtime Types and authored Stage bodies then share the ordinary
+  // Library completion barriers.
+  BAIL_IF(!monograph.edit_library().get_source().retain_definition(
+      program, Library::Language::Types::Composite::Category::Type, True));
   BAIL_IF(!monograph.retain_program(program));
   cursor.get_associations().create(definition.get_name_anchor(), program);
 
@@ -103,8 +96,11 @@ auto Interpreter::Program::parse(
          !cursor.matches(Code::Type::Terminal)) {
     const Documentation& documentation =
         Tetrodotoxin::Language::Parser::Comment::parse(cursor);
-    auto member_definition = Tetrodotoxin::Language::Definition::parse(
-        cursor, documentation, program);
+    Bool uniform = begins_uniform(cursor);
+    Abstract& host = uniform ? static_cast<Abstract&>(program.edit_parameters())
+                             : static_cast<Abstract&>(program);
+    auto member_definition =
+        Tetrodotoxin::Language::Definition::parse(cursor, documentation, host);
     Bool parsed = False;
     if (member_definition) {
       Token member_qualifier = member_definition->get_qualifier();
@@ -115,16 +111,13 @@ auto Interpreter::Program::parse(
       } else if (qualifier_name == "bridge"_view) {
         parsed =
             Interpreter::Bridge::parse(monograph, cursor, *member_definition);
-      } else if (Interpreter::Value::matches(*member_definition, cursor)) {
-        parsed = Interpreter::Value::parse(program, cursor, *member_definition);
-      } else if (
-          member_qualifier.get_code() == Code::Type::Alias ||
-          member_qualifier.get_code() == Code::Type::Struct) {
-        parsed = parse_library_type(program, cursor, *member_definition);
+      } else if (qualifier_name == "uniform"_view) {
+        parsed =
+            Interpreter::Uniform::parse(program, cursor, *member_definition);
       } else {
         auto report = cursor.create_report(member_definition->get_anchor());
         report
-            << "Shader Program does not recognize declaration qualifier `"_view
+            << "Shader Programs author only Stage bodies, uniforms, and Bridges, not `"_view
             << qualifier_name << "`."_view;
       }
     }
@@ -136,10 +129,6 @@ auto Interpreter::Program::parse(
       Code::Type::ScopeEnd, "Shader Program requires one closing `}`."_view);
   BAIL_IF(!closing);
   Bool completed = definition.complete(qualifier, closing);
-
-  // Structure owns the body boundary used by Library completion. Closing it
-  // here gives later Type and Function barriers one ordinary Composite rather
-  // than a special Shader publication path.
-  program.complete_body();
+  program.complete_authored_body();
   return completed;
 }

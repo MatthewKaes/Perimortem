@@ -32,6 +32,7 @@ class Code {
     //                              TTX Data Model
     // ========================================================================
     Comment,       // //
+    RawComment,    // ///
     Attribute,     // @
     Addressable,   // Any symbol that starts with a lowercase ASCII letter
     Type,          // Any symbol that starts with an uppercase ASCII letter
@@ -171,6 +172,10 @@ class Code {
 
   constexpr auto is_modifier() const -> Bool {
     return is_publication_modifier() || is_evaluation_modifier();
+  }
+
+  constexpr auto is_comment() const -> Bool {
+    return type == Type::Comment || type == Type::RawComment;
   }
 
   constexpr auto get_type() const -> Type { return type; }

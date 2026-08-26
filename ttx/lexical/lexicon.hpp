@@ -235,6 +235,8 @@ class Lexicon {
       return "@"_view;
     case Code::Type::Comment:
       return "//"_view;
+    case Code::Type::RawComment:
+      return "///"_view;
     case Code::Type::String:
       return "\""_view;
 

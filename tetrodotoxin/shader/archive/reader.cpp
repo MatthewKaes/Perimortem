@@ -19,8 +19,6 @@ using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin;
 
-using BinaryReader = Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>;
-
 enum class ShaderReaderAttributeValue : U8 {
   Empty,
   Bytes,
@@ -95,7 +93,8 @@ auto Shader::Archive::Reader::open(
     View::Bytes payload,
     Tetrodotoxin::Language::Persistence::Profile profile) -> Option<Reader> {
   BAIL_IF(payload.get_size() < 8);
-  BinaryReader reader(payload.slice(0, 8));
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> reader(
+      payload.slice(0, 8));
   View::Bytes magic = reader.read_bytes(4);
   U16 version = reader.read_u16();
   U8 encoded_profile = reader.read_u8();
@@ -157,7 +156,7 @@ auto Shader::Archive::Reader::take(Count size) -> Option<View::Bytes> {
 auto Shader::Archive::Reader::read_record() -> Option<Record> {
   auto header = take(8);
   BAIL_IF(!header);
-  BinaryReader reader(*header);
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> reader(*header);
   U16 tag = reader.read_u16();
   U16 flags = reader.read_u16();
   U32 size = reader.read_u32();
@@ -169,32 +168,52 @@ auto Shader::Archive::Reader::read_record() -> Option<Record> {
 
 auto Shader::Archive::Reader::read_u8() -> Option<U8> {
   auto selected = take(sizeof(U8));
-  return selected ? Option<U8>(BinaryReader(*selected).read_u8())
-                  : Option<U8>();
+  return selected
+             ? Option<U8>(
+                   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                       *selected)
+                       .read_u8())
+             : Option<U8>();
 }
 
 auto Shader::Archive::Reader::read_u32() -> Option<U32> {
   auto selected = take(sizeof(U32));
-  return selected ? Option<U32>(BinaryReader(*selected).read_u32())
-                  : Option<U32>();
+  return selected
+             ? Option<U32>(
+                   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                       *selected)
+                       .read_u32())
+             : Option<U32>();
 }
 
 auto Shader::Archive::Reader::read_u64() -> Option<U64> {
   auto selected = take(sizeof(U64));
-  return selected ? Option<U64>(BinaryReader(*selected).read_u64())
-                  : Option<U64>();
+  return selected
+             ? Option<U64>(
+                   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                       *selected)
+                       .read_u64())
+             : Option<U64>();
 }
 
 auto Shader::Archive::Reader::read_s64() -> Option<S64> {
   auto selected = take(sizeof(S64));
-  return selected ? Option<S64>(BinaryReader(*selected).read_s64())
-                  : Option<S64>();
+  return selected
+             ? Option<S64>(
+                   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                       *selected)
+                       .read_s64())
+             : Option<S64>();
 }
 
 auto Shader::Archive::Reader::read_r64() -> Option<R64> {
   auto selected = take(sizeof(R64));
-  return selected ? Option<R64>(BinaryReader(*selected).read_r64())
-                  : Option<R64>();
+  return selected
+             ? Option<R64>(
+                   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                       *selected)
+                       .read_r64())
+             : Option<R64>();
 }
 
 auto Shader::Archive::Reader::read_bytes() -> Option<View::Bytes> {
@@ -315,14 +334,15 @@ auto Shader::Archive::Reader::read_program(
   auto contract_reference = Tetrodotoxin::Language::TypeReference::create(
       arena.proxy(*contract),
       Ttx::Lexical::Anchor::create(Ttx::Lexical::Span()));
-  auto& program = Shader::Language::Program::create(
+  auto& program = Shader::Language::Program::create_restored(
       arena, restored_definition, contract_reference, monograph);
   BAIL_IF(!Library::Archive::Reader::restore_declarations(
       arena, *declarations, profile, program));
   program.complete_body();
+  BAIL_IF(!program.restore_runtime_surface());
   BAIL_IF(
-      !monograph.edit_library().get_source().bind_static(
-          program, Library::Language::Types::Composite::Category::Type) ||
+      !monograph.edit_library().get_source().retain_definition(
+          program, Library::Language::Types::Composite::Category::Type, True) ||
       !monograph.retain_program(program));
 
   for (Count index = 0; index < *binding_count; index++) {
@@ -349,6 +369,28 @@ auto Shader::Archive::Reader::read_program(
     BAIL_IF(!field);
     program.retain_shader_binding(
         *field, Render::Language::Binding::Kind(*kind));
+  }
+
+  auto uniform_count = contents.read_u32();
+  BAIL_IF(!uniform_count);
+  for (Count index = 0; index < *uniform_count; index++) {
+    auto uniform_record = contents.read_record();
+    BAIL_IF(!uniform_record || uniform_record->get_tag() != U16(Tag::Uniform));
+    Reader uniform_contents(uniform_record->get_payload(), profile);
+    auto name = uniform_contents.read_bytes();
+    BAIL_IF(!name || name->is_empty() || !uniform_contents.is_complete());
+
+    Option<Library::Language::Field&> field;
+    for (const Reference<Abstract>& declaration :
+         program.get_parameters().get_declarations()) {
+      auto candidate = declaration.get().select<Library::Language::Field>();
+      if (candidate && candidate->get_name() == *name) {
+        BAIL_IF(field);
+        field = *candidate;
+      }
+    }
+    BAIL_IF(!field);
+    program.retain_uniform(*field);
   }
   BAIL_IF(!contents.is_complete());
   return program;

@@ -175,9 +175,12 @@ The reverse dependencies are not allowed, and Shader does not depend on Vulkan.
 The build graph follows the same direction.
 
 [Graphics](graphics/README.md) is a language neutral runtime composition
-boundary rather than a Dialect. It collects exact hosted Scene state into
-stable frame submissions while Render, Shader, and the selected backend retain
-their own semantics.
+boundary rather than a Dialect. A semantic Placement2D proof derives placement,
+while Children2D and Drawable2D remain independent runtime Interfaces. Texture2D
+and `Implementation[Render::TexturedQuad2D]` let Sprite compose resources with a
+real Shader Instance without absorbing Render, Shader, or backend meaning.
+Graphics collects that exact Scene state into stable frame submissions while
+the selected backend retains its own device semantics.
 
 The [standard packages](../packages/ttx/README.md) provide ordinary Package and
 Library definitions for Memory, Math, System, and Graphics. They are linked by

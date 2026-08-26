@@ -20,6 +20,14 @@ namespace Perimortem::System {
 // while Presentation carries the narrow native handoff selected by a renderer.
 class Window {
  public:
+  // EventStatus keeps an ordinary compositor close separate from a host
+  // failure so an application can preserve its process outcome.
+  enum class EventStatus : U8 {
+    Ready,
+    Closed,
+    Failed,
+  };
+
   Window() = default;
   Window(U32 width, U32 height, const char* title);
   ~Window();
@@ -28,7 +36,8 @@ class Window {
   Window(const Window&) = delete;
   auto operator=(const Window&) -> Window& = delete;
 
-  auto poll_events() -> Bool;
+  auto poll_events() -> EventStatus;
+  auto get_event_status() const -> EventStatus;
 
   auto get_logical_width() const -> U32;
   auto get_logical_height() const -> U32;
@@ -74,6 +83,7 @@ class Window {
   U32 initial_height = 0;
   U32 scale = 1;
   Bool close_requested = False;
+  Bool failed = False;
   Bool needs_resize = False;
 };
 

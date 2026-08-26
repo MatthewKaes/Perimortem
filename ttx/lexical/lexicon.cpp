@@ -121,9 +121,13 @@ static auto validate_attribute(View::Bytes value) -> Bool {
   return True;
 }
 
-static auto validate_comment(View::Bytes value) -> Bool {
-  View::Bytes prefix = Lexicon::get_spelling(Code::Type::Comment);
+static auto validate_comment(Code::Type type, View::Bytes value) -> Bool {
+  View::Bytes prefix = Lexicon::get_spelling(type);
   BAIL_IF(!begins_with(value, prefix));
+  if (type == Code::Type::Comment && value.get_size() > prefix.get_size() &&
+      value[prefix.get_size()] == '/') {
+    return False;
+  }
 
   for (Count i = prefix.get_size(); i < value.get_size(); i++) {
     BAIL_IF(value[i] == '\n');
@@ -159,7 +163,8 @@ static auto validate_code(Code::Type type, View::Bytes value) -> Bool {
   case Code::Type::Embedded:
     return validate_range(value, type, ']');
   case Code::Type::Comment:
-    return validate_comment(value);
+  case Code::Type::RawComment:
+    return validate_comment(type, value);
   default: {
     View::Bytes fixed = Lexicon::get_spelling(type);
     return !fixed.is_empty() && value == fixed;

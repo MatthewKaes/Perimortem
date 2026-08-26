@@ -39,6 +39,7 @@
 #include "tetrodotoxin/terminal/abi/c/header.hpp"
 #include "tetrodotoxin/terminal/abi/compiler.hpp"
 #include "tetrodotoxin/terminal/abi/products.hpp"
+#include "tetrodotoxin/terminal/abi/projection.hpp"
 #include "tetrodotoxin/terminal/abi/resource_product.hpp"
 #include "tetrodotoxin/terminal/abi/symbol.hpp"
 #include "tetrodotoxin/terminal/graphics/compiler.hpp"
@@ -460,8 +461,8 @@ auto Puffer::Package::run() const -> S32 {
   auto debug = parse_debug(value(arguments, "debug"_view));
   Core::View::Bytes artifact = value(arguments, "artifact"_view);
   Core::View::Bytes spirv_target = value(arguments, "spirv-target"_view);
-  Core::View::Bytes graphics_host_route =
-      value(arguments, "graphics-host"_view);
+  Core::View::Bytes graphics_placement_route =
+      value(arguments, "graphics-placement"_view);
   if (manifest.is_empty() || identity.is_empty() || complete_path.is_empty() ||
       contract_path.is_empty() || header_path.is_empty() ||
       abi_manifest_path.is_empty() || version.is_null() || !debug ||
@@ -605,16 +606,17 @@ auto Puffer::Package::run() const -> S32 {
     return 1;
   }
 
-  Core::Option<const Ttx::Model::Type&> graphics_host;
+  Core::Option<const Ttx::Model::Type&> graphics_placement;
   Memory::Managed::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>>
       graphics_types(arena);
-  if (!graphics_host_route.is_empty()) {
-    auto selected = resolve_context_route(*root, graphics_host_route);
-    graphics_host = selected ? selected->resolve().select<Ttx::Model::Type>()
+  if (!graphics_placement_route.is_empty()) {
+    auto selected = resolve_context_route(*root, graphics_placement_route);
+    graphics_placement = selected
+                             ? selected->resolve().select<Ttx::Model::Type>()
                              : Core::Option<const Ttx::Model::Type&>();
-    if (!graphics_host) {
+    if (!graphics_placement) {
       Core::Diagnostics::Log::error(
-          "Puffer Package could not resolve its configured graphics Host."_view);
+          "Puffer Package could not resolve its configured graphics Placement2D."_view);
       return 1;
     }
     for (Core::View::Bytes route : values(arguments, "graphics-type"_view)) {
@@ -762,6 +764,21 @@ auto Puffer::Package::run() const -> S32 {
   if (units.get_size() != root->get_sources().get_size()) {
     return 2;
   }
+  Memory::Dynamic::Vector<UnitSpecification> product_units;
+  for (Core::View::Bytes specification :
+       values(arguments, "product-unit"_view)) {
+    if (split_count(specification, '|') != 2) {
+      return 2;
+    }
+    product_units.insert(
+        UnitSpecification{
+          .source = split(specification, '|', 0),
+          .object = split(specification, '|', 1),
+        });
+  }
+  if (product_units.get_size() != root->get_sources().get_size()) {
+    return 2;
+  }
   if (cpp_api && units.get_size() != 1) {
     Core::Diagnostics::Log::error(
         "Generated C++ Package publication currently needs one source member."_view);
@@ -792,10 +809,27 @@ auto Puffer::Package::run() const -> S32 {
     if (!unit_specification) {
       return 2;
     }
+    Core::Option<const UnitSpecification&> product_specification;
+    auto retained_products = product_units.get_view();
+    for (Count product_index = 0; product_index < retained_products.get_size();
+         product_index++) {
+      const UnitSpecification& candidate =
+          retained_products.get_data()[product_index];
+      if (candidate.source == declared_source) {
+        if (product_specification) {
+          return 2;
+        }
+        product_specification = candidate;
+      }
+    }
+    if (!product_specification) {
+      return 2;
+    }
 
     Core::View::Bytes member_name = declared.get_local_name();
     Core::View::Bytes source_path = unit_specification->source;
     Core::View::Bytes object_path = unit_specification->object;
+    Core::View::Bytes product_path = product_specification->object;
     auto selected = resolve_context_route(*root, member_name);
     auto member =
         selected ? selected->select<Tetrodotoxin::Language::Monograph>()
@@ -816,16 +850,86 @@ auto Puffer::Package::run() const -> S32 {
     Core::Option<Llvm::Products> cpu_products;
     Core::Option<Tetrodotoxin::Terminal::Graphics::Products> graphics_products;
     Memory::Dynamic::Bytes member_object;
+    Memory::Dynamic::Bytes product_object;
     auto shader = member->select<Shader::Language::Monograph>();
-    auto library_layer =
-        shader ? Core::Option<const Library::Language::Monograph&>()
-               : select_library(*member, *library_dialect);
+    Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Projection>
+        projections(arena);
+    Memory::Managed::Vector<
+        Ttx::Concept::Reference<const Library::Language::Model::Callable>>
+        excluded(arena);
+    Linker::Elf::Object product_builder;
+    Bool products_complete = True;
+    if (shader) {
+      Spirv::Compiler compiler;
+      for (const Ttx::Concept::Reference<Shader::Language::Program>& retained :
+           shader->get_programs()) {
+        const Shader::Language::Program& program = retained.get();
+        for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& callable :
+             program.get_callables()) {
+          auto selected_callable =
+              callable.get().select<Library::Language::Model::Callable>();
+          if (!selected_callable) {
+            return 1;
+          }
+          excluded.insert(*selected_callable);
+        }
+
+        Spirv::Request request(
+            *shader, program, errors, source_path, *source,
+            Spirv::Target::Vulkan1_0);
+        Core::Option<Spirv::Products> module;
+        compiler.compile(arena, request)
+            .visit(
+                [&](const Spirv::Products& compiled) { module = compiled; },
+                [](Spirv::Failure) {});
+        if (!module) {
+          products_complete = False;
+          break;
+        }
+
+        Tetrodotoxin::Terminal::Abi::Symbol symbol(
+            arena, program, Tetrodotoxin::Terminal::Abi::Symbol::Kind::ReadOnly,
+            unit);
+        Memory::Managed::Bytes end_symbol(arena, symbol.get_view());
+        end_symbol.concat("_end"_view);
+        if (!product_builder.add_read_only(
+                symbol.get_view(), end_symbol.get_view(),
+                module->get_module())) {
+          products_complete = False;
+          break;
+        }
+        auto projection = Tetrodotoxin::Terminal::Abi::Projection::create(
+            arena, program, symbol.get_view(), unit);
+        if (!projection) {
+          products_complete = False;
+          break;
+        }
+        projections.insert(*projection);
+
+        Memory::Managed::Bytes route(arena, member_name);
+        route.concat("::"_view);
+        route.concat(program.get_name());
+        if (!retain_export(
+                exports, route.get_view(), artifact, symbol.get_view())) {
+          return 1;
+        }
+        abi_description.concat(spirv_target);
+        abi_description.concat(symbol.get_view());
+      }
+    }
+    auto embedded = products_complete ? product_builder.build()
+                                      : Core::Option<Memory::Dynamic::Bytes>();
+    if (embedded) {
+      product_object = static_cast<Memory::Dynamic::Bytes&&>(*embedded);
+    }
+
+    auto library_layer = select_library(*member, *library_dialect);
     if (library_layer) {
       auto scene = member->select<Scene::Language::Monograph>();
-      if (scene && graphics_host) {
+      if (scene && graphics_placement) {
         Tetrodotoxin::Terminal::Graphics::Compiler graphics_compiler;
         graphics_products = graphics_compiler.compile(
-            arena, *scene, *graphics_host, graphics_types.get_view());
+            arena, *scene, *graphics_placement, graphics_types.get_view());
         if (!graphics_products) {
           Core::Diagnostics::Log::error(
               "Puffer Package could not derive the Scene graphics product."_view);
@@ -834,7 +938,8 @@ auto Puffer::Package::run() const -> S32 {
       }
       Tetrodotoxin::Terminal::Abi::Compiler interface_compiler;
       native_interface = interface_compiler.compile(
-          arena, *library_layer, unit, errors, source_path, *source);
+          arena, *library_layer, unit, errors, source_path, *source,
+          excluded.get_view(), projections.get_view());
       if (native_interface) {
         Llvm::Request request(
             *library_layer, errors, source_path, *source,
@@ -844,7 +949,8 @@ auto Puffer::Package::run() const -> S32 {
                       const Tetrodotoxin::Terminal::Graphics::Products&>(
                       *graphics_products)
                 : Core::Option<
-                      const Tetrodotoxin::Terminal::Graphics::Products&>());
+                      const Tetrodotoxin::Terminal::Graphics::Products&>(),
+            excluded.get_view());
         Llvm::Compiler compiler;
         compiler.compile(arena, request)
             .visit(
@@ -857,69 +963,31 @@ auto Puffer::Package::run() const -> S32 {
         member_object = cpu_products->get_object();
       }
     } else {
-      Linker::Elf::Object object;
-      Bool shader_complete = True;
-      if (shader) {
-        Spirv::Compiler compiler;
-        for (const Ttx::Concept::Reference<Shader::Language::Program>&
-                 retained : shader->get_programs()) {
-          const Shader::Language::Program& program = retained.get();
-          Spirv::Request request(
-              *shader, program, errors, source_path, *source,
-              Spirv::Target::Vulkan1_0);
-          Core::Option<Spirv::Products> module;
-          compiler.compile(arena, request)
-              .visit(
-                  [&](const Spirv::Products& compiled) { module = compiled; },
-                  [](Spirv::Failure) {});
-          if (!module) {
-            shader_complete = False;
-            break;
-          }
-
-          Tetrodotoxin::Terminal::Abi::Symbol symbol(
-              arena, program,
-              Tetrodotoxin::Terminal::Abi::Symbol::Kind::ReadOnly, unit);
-          Memory::Managed::Bytes end_symbol(arena, symbol.get_view());
-          end_symbol.concat("_end"_view);
-          if (!object.add_read_only(
-                  symbol.get_view(), end_symbol.get_view(),
-                  module->get_module())) {
-            shader_complete = False;
-            break;
-          }
-
-          Memory::Managed::Bytes route(arena, member_name);
-          route.concat("::"_view);
-          route.concat(program.get_name());
-          if (!retain_export(
-                  exports, route.get_view(), artifact, symbol.get_view())) {
-            return 1;
-          }
-          abi_description.concat(spirv_target);
-          abi_description.concat(symbol.get_view());
-        }
-      }
-      auto emitted = shader_complete ? object.build()
-                                     : Core::Option<Memory::Dynamic::Bytes>();
-      if (emitted) {
-        member_object = static_cast<Memory::Dynamic::Bytes&&>(*emitted);
+      Linker::Elf::Object empty_builder;
+      auto empty = empty_builder.build();
+      if (empty) {
+        member_object = static_cast<Memory::Dynamic::Bytes&&>(*empty);
       }
     }
-    if (member_object.is_empty() || !publish(object_path, member_object)) {
+    if (member_object.is_empty() || product_object.is_empty() ||
+        !publish(object_path, member_object) ||
+        !publish(product_path, product_object)) {
       report_errors(errors);
       Core::Diagnostics::Log::error(
           "Puffer Package could not emit one member product."_view);
       return 1;
     }
+
     if (native_interface) {
       combined_header.concat(native_interface->get_c_header());
     }
+
     if (cpp_api && !native_interface) {
       Core::Diagnostics::Log::error(
           "The generated C++ interface requires a Library member."_view);
       return 1;
     }
+
     if (cpp_api) {
       cpp_header = native_interface->get_cpp_header();
       cpp_source = native_interface->get_cpp_source();
@@ -963,6 +1031,7 @@ auto Puffer::Package::run() const -> S32 {
         if (existing.get_symbol() != selected.get_symbol()) {
           continue;
         }
+
         if (!(existing == selected)) {
           Core::Diagnostics::Log::error(
               "Puffer Package selected conflicting providers for one import."_view);
@@ -971,6 +1040,7 @@ auto Puffer::Package::run() const -> S32 {
         duplicate = True;
         break;
       }
+
       if (!duplicate) {
         selected_imports.insert(selected);
         abi_description.concat(selected.get_provider());
@@ -989,6 +1059,7 @@ auto Puffer::Package::run() const -> S32 {
               "Puffer Package could not create one export route."_view);
           return 1;
         }
+
         if (!retain_export(
                 exports, *route, artifact, publication.get_symbol())) {
           return 1;
@@ -1004,6 +1075,7 @@ auto Puffer::Package::run() const -> S32 {
   if (!identified_header) {
     return 1;
   }
+
   Linker::Manifest native_manifest(
       identity, version, artifact, native_target.get_view(), abi_fingerprint,
       selected_imports.get_view());
@@ -1028,11 +1100,13 @@ auto Puffer::Package::run() const -> S32 {
         "Puffer Package could not encode its Complete Archive."_view);
     return 1;
   }
+
   if (!contract) {
     Core::Diagnostics::Log::error(
         "Puffer Package could not encode its Contract Archive."_view);
     return 1;
   }
+
   if (!complete || !contract || !publish(complete_path, *complete) ||
       !publish(contract_path, *contract) ||
       !publish(header_path, identified_header->get_view()) ||

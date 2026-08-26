@@ -99,6 +99,25 @@
       }
     },
     {
+      "label": "TTX Scene Lifetime Build (Linux) [Debug]",
+      "type": "shell",
+      "command": "bazel",
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "args": [
+        "build",
+        "//apps/ttx/scene_lifetime:scene_lifetime",
+        "--config=debug",
+        "--experimental_total_worker_memory_limit_mb=4096"
+      ],
+      "group": "build",
+      "detail": "Builds the TTX Scene Lifetime application with full source debug information.",
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
       "label": "TTX Lsp Build",
       "type": "shell",
       "command": "${workspaceFolder}/extension/package.sh",

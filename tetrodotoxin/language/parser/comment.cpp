@@ -16,9 +16,9 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Language;
 
-// Comments support both `// text` and `//text` however the canonical form
-// is always `// text`. This function extracts the line text regardless of
-// form which simplifies consumers.
+// Documentation comments support both `// text` and `//text` however the
+// canonical form is always `// text`. This function extracts the line text
+// regardless of form which simplifies consumers.
 //
 // Multiple spaces past the first are preserved.
 static constexpr auto comment_line(Token comment, View::Bytes source)
@@ -37,17 +37,21 @@ static constexpr auto comment_line(Token comment, View::Bytes source)
 auto Parser::Comment::parse(Cursor& cursor) -> const Documentation& {
   // Absence is valid for nested parser positions. Document parsers enforce
   // their required opening comment before delegating here.
-  if (!cursor.matches(Code::Type::Comment)) {
+  if (!cursor.get_code().is_comment()) {
     return Documentation::get_empty();
   }
 
   Managed::Vector<View::Bytes> lines(cursor.get_arena());
-  while (cursor.matches(Code::Type::Comment)) {
-    Token comment;
-    View::Bytes line;
-    comment = cursor.consume();
-    line = comment_line(comment, cursor.get_source_text());
-    lines.insert(line);
+  while (cursor.get_code().is_comment()) {
+    Token comment = cursor.consume();
+    if (comment.get_code() == Code::Type::RawComment) {
+      continue;
+    }
+    lines.insert(comment_line(comment, cursor.get_source_text()));
+  }
+
+  if (lines.is_empty()) {
+    return Documentation::get_empty();
   }
 
   // Block and its line index share the Source arena. Each line still borrows

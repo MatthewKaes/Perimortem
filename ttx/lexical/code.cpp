@@ -163,7 +163,9 @@ auto Ttx::Lexical::Code::get_semantics() const
   case Type::Attribute:
     return "Attribute name"_view;
   case Type::Comment:
-    return "source comment"_view;
+    return "documentation comment"_view;
+  case Type::RawComment:
+    return "raw source comment"_view;
 
   // Source carried groupings
   case Type::String:

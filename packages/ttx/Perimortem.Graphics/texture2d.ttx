@@ -1,0 +1,20 @@
+/// Tetrodotoxin
+/// Copyright (c) 2023-present Matt Kaes and contributors
+//
+// A stable rendering resource derived from decoded image meaning.
+//
+dialect : Library;
+
+// Texture2D gives one Image a durable rendering identity. Graphics backends
+// realize device storage from this Object while the image and sampling meaning
+// remain independent from any Vulkan handle.
+public Texture2D : object {
+  private state image : Image;
+
+  // Creates one logical texture over the supplied immutable Image.
+  public from_image : func = [.image : Image] -> Texture2D : return new[Texture2D](
+    .image = image,
+  );
+
+  public get_image : func = [self] -> Image : return self.image;
+}

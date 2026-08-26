@@ -21,6 +21,8 @@ static auto matches_parameter(
   switch (parameter) {
   case Language::Generic::Parameters::Type:
     return argument.is<const Language::Model::Type&>();
+  case Language::Generic::Parameters::SemanticType:
+    return argument.is<Language::Generic::SemanticType>();
   case Language::Generic::Parameters::U64:
     return argument.is<::U64>();
   case Language::Generic::Parameters::S64:
@@ -72,6 +74,17 @@ auto Language::Generic::normalize_argument(
     auto type = selected.select<Language::Model::Type>();
     BAIL_IF(!type);
     return Argument(*type);
+  }
+  case Parameters::SemanticType: {
+    const Ttx::Concept::Abstract& selected = argument.visit<Ttx::Model::Alias>(
+        [](const Ttx::Model::Alias& alias) -> const Ttx::Concept::Abstract& {
+          return alias.resolve();
+        },
+        [](const Ttx::Concept::Abstract& direct)
+            -> const Ttx::Concept::Abstract& { return direct; });
+    auto type = selected.select<Ttx::Model::Type>();
+    BAIL_IF(!type);
+    return Argument(SemanticType::create(*type));
   }
   case Parameters::U64: {
     auto constant = argument.select<Constants::Unsigned>();
@@ -162,6 +175,15 @@ auto Language::Generic::materialize(
     if (type != nullptr) {
       const Ttx::Concept::Abstract& resolved = type->resolve();
       if (!resolved.is<Ttx::Concept::Invalid>() && &resolved != type) {
+        return Failure(Failure::Type::Parameter, i);
+      }
+    }
+    const SemanticType* semantic_type =
+        arguments.get_data()[i].find<SemanticType>();
+    if (semantic_type != nullptr) {
+      const Ttx::Concept::Abstract& resolved = semantic_type->get().resolve();
+      if (!resolved.is<Ttx::Concept::Invalid>() &&
+          &resolved != &semantic_type->get()) {
         return Failure(Failure::Type::Parameter, i);
       }
     }

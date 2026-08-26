@@ -7,6 +7,7 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/terminal/abi/products.hpp"
 #include "tetrodotoxin/terminal/abi/unit.hpp"
@@ -25,7 +26,11 @@ class Compiler {
       const Abi::Unit& unit,
       Ttx::Lexical::Errors& errors,
       Perimortem::Core::View::Bytes source_path,
-      Perimortem::Core::View::Bytes source_text) const
+      Perimortem::Core::View::Bytes source_text,
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<
+          const Tetrodotoxin::Library::Language::Model::Callable>> excluded =
+          {},
+      Perimortem::Core::View::Vector<Abi::Projection> projections = {}) const
       -> Perimortem::Core::Option<Products>;
 };
 

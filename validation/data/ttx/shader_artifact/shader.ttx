@@ -1,11 +1,30 @@
-// # Tetrodotoxin
-// Copyright (c) 2023-present Matt Kaes and contributors
+/// Tetrodotoxin
+/// Copyright (c) 2023-present Matt Kaes and contributors
+//
 dialect : Shader;
 
 public TestShader : shader Formats::Simple {
-  public fragment : func = [@location(0).color : Math::Vec4D] -> [@location(0).color : Math::Vec4D] {
+  public phase_milliseconds : uniform U32 = new[U32];
+
+  public fragment : func {
+    state phase_milliseconds := new[R32](parameters.phase_milliseconds);
+    state phase := phase_milliseconds / new[R32](1000.0);
     state copied : Math::Vec4D = (
-      .x = color.x + color.y,
+      .x = color.x + color.y + phase,
+      .y = color.y + color.z,
+      .z = color.z + color.w,
+      .w = color.w + color.x,
+    );
+    return (.color = copied);
+  }
+}
+
+public Float64Shader : shader Formats::Simple {
+  public time : uniform R64 = 0.0;
+
+  public fragment : func {
+    state copied : Math::Vec4D = (
+      .x = color.x + color.y + new[R32](parameters.time % 1.0),
       .y = color.y + color.z,
       .z = color.z + color.w,
       .w = color.w + color.x,

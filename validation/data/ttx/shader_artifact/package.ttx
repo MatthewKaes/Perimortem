@@ -1,7 +1,8 @@
-// # Tetrodotoxin
-// Copyright (c) 2023-present Matt Kaes and contributors
+/// Tetrodotoxin
+/// Copyright (c) 2023-present Matt Kaes and contributors
+//
 dialect : Package;
 
 resolve Math : Perimortem.Math = "1.0";
-source Formats from "render.ttx";
 source Shader from "shader.ttx";
+source Formats from "render.ttx";

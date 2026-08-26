@@ -6,6 +6,7 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/perimortem.hpp"
 
+#include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/terminal/abi/products.hpp"
 #include "tetrodotoxin/terminal/abi/unit.hpp"
@@ -31,7 +32,10 @@ class Request {
       Tetrodotoxin::Terminal::Abi::Unit unit,
       const Tetrodotoxin::Terminal::Abi::Products& native_interface,
       Perimortem::Core::Option<
-          const Tetrodotoxin::Terminal::Graphics::Products&> graphics = {})
+          const Tetrodotoxin::Terminal::Graphics::Products&> graphics = {},
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<
+          const Tetrodotoxin::Library::Language::Model::Callable>> excluded =
+          {})
       : monograph(monograph),
         errors(errors),
         source_path(source_path),
@@ -40,7 +44,8 @@ class Request {
         debug_level(debug_level),
         unit(unit.bind(monograph)),
         native_interface(native_interface),
-        graphics(graphics) {}
+        graphics(graphics),
+        excluded(excluded) {}
 
   constexpr auto get_monograph() const
       -> const Tetrodotoxin::Library::Language::Monograph& {
@@ -76,6 +81,12 @@ class Request {
     return graphics;
   }
 
+  constexpr auto get_excluded() const
+      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<
+          const Tetrodotoxin::Library::Language::Model::Callable>> {
+    return excluded;
+  }
+
  private:
   const Tetrodotoxin::Library::Language::Monograph& monograph;
   Ttx::Lexical::Errors& errors;
@@ -87,6 +98,9 @@ class Request {
   const Tetrodotoxin::Terminal::Abi::Products& native_interface;
   Perimortem::Core::Option<const Tetrodotoxin::Terminal::Graphics::Products&>
       graphics;
+  Perimortem::Core::View::Vector<Ttx::Concept::Reference<
+      const Tetrodotoxin::Library::Language::Model::Callable>>
+      excluded;
 };
 
 }  // namespace Tetrodotoxin::Terminal::Llvm

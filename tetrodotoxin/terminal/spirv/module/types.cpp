@@ -96,7 +96,10 @@ auto Module::Types::collect(const Library::Language::Model::Type& type)
 
   auto value = type.select<Library::Language::Model::Types::Value>();
   if (value) {
-    BAIL_IF(value->get_width() != 32);
+    auto real = type.select<Library::Language::Model::Types::Real>();
+    BAIL_IF(
+        real ? real->get_width() != 32 && real->get_width() != 64
+             : value->get_width() != 32);
     for (const Entry& entry : entries.get_view()) {
       auto existing =
           entry.type.get().select<Library::Language::Model::Types::Value>();
@@ -123,6 +126,17 @@ auto Module::Types::collect(const Library::Language::Model::Type& type)
   visiting.remove(visiting.get_size() - 1);
   entries.insert(Entry(type, ids.take()));
   return True;
+}
+
+auto Module::Types::requires_float64() const -> Bool {
+  for (const Entry& entry : entries.get_view()) {
+    auto real =
+        entry.type.get().select<Library::Language::Model::Types::Real>();
+    if (real && real->get_width() == 64) {
+      return True;
+    }
+  }
+  return False;
 }
 
 auto Module::Types::collect_resource(const Library::Language::Model::Type& type)
@@ -181,6 +195,17 @@ auto Module::Types::get_resource_pointer_id(
   for (const Resource& resource : resources.get_view()) {
     if (&resource.type.get() == &type) {
       return resource.pointer_id;
+    }
+  }
+  return {};
+}
+
+auto Module::Types::get_unsigned_32_id() const -> Core::Option<U32> {
+  for (const Entry& entry : entries.get_view()) {
+    auto type =
+        entry.type.get().select<Library::Language::Model::Types::Unsigned>();
+    if (type && type->get_width() == 32) {
+      return entry.id;
     }
   }
   return {};
@@ -305,7 +330,6 @@ auto Module::Types::decorate_push(
   BAIL_IF(
       !structure || !id ||
       Terminal::Spirv::Layout::get_vector_components(type));
-  assembler.decorate(*id, Assembler::SpirV::Decoration::Block);
   Count offset = 0;
   for (Count index = 0; index < structure->get_layout().get_size(); index++) {
     auto semantic = structure->get_layout().get_abstract(index);

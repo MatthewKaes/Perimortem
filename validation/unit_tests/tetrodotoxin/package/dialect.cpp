@@ -247,6 +247,53 @@ PERIMORTEM_UNIT_TEST(PackageDialect, source_statement) {
   EXPECT(errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(PackageDialect, qualified_authored_associations) {
+  static constexpr View::Bytes source =
+      "resolve Graphics : Perimortem.Graphics = \"1.0\";\n"
+      "source Shaders::Glitch from \"glitch.ttx\";"_view;
+  Package::Dialect dialect;
+  Allocator::Arena arena;
+  Errors errors;
+  Tokenizer tokenizer(arena, source, "qualified-package.ttx"_view);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
+
+  auto dependency = Package::Language::Dependency::parse(cursor);
+  auto member_source = Package::Language::Source::parse(cursor);
+  ASSERT(dependency && member_source);
+  Package::Language::Dependency dependencies[] = {*dependency};
+  Package::Language::Source sources[] = {*member_source};
+  auto root_result = Package::Language::Monograph::create_authored(
+      arena, dialect, Documentation::get_empty(), dialect, dependencies,
+      sources);
+  ASSERT(root_result);
+  auto& root = *root_result;
+  auto& dependency_root = Package::Language::Monograph::create_synthetic(
+      arena, dialect, dialect, {});
+  auto& member =
+      arena.construct<ScopeMember>(arena, dialect, "Shader member"_view);
+  const auto& retained_dependency = root.get_dependencies().get_data()[0];
+  ASSERT(
+      root.bind_dependency(retained_dependency, dependency_root, associations));
+  ASSERT(
+      root.bind_member(member_source->get_local_route(), member, associations));
+
+  const Abstract& graphics = root.resolve_context("Graphics"_view);
+  const Abstract& shaders = root.resolve_context("Shaders"_view);
+  const Abstract& glitch = shaders.resolve_context("Glitch"_view);
+  Token graphics_token = dependency->get_local_route().get_token(0);
+  Token shaders_token = member_source->get_local_route().get_token(0);
+  Token glitch_token = member_source->get_local_route().get_token(1);
+  auto selected_graphics = associations.find_at(graphics_token.get_offset());
+  auto selected_shaders = associations.find_at(shaders_token.get_offset());
+  auto selected_glitch = associations.find_at(glitch_token.get_offset());
+  ASSERT(selected_graphics && selected_shaders && selected_glitch);
+  EXPECT(&*selected_graphics == &graphics);
+  EXPECT(&*selected_shaders == &shaders);
+  EXPECT(&*selected_glitch == &glitch);
+  EXPECT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(PackageDialect, ordered_monograph) {
   Dynamic::Bytes source(
       "// Synthetic Package\n"
@@ -312,6 +359,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, canonical_inventory) {
     {"System"_view, "Perimortem.System"_view, Version(1, 0)},
   };
   const SourceDescription expected_sources[] = {
+    {"Shaders::Glitch"_view, "shaders/glitch.ttx"_view},
     {"Scenes::Splash"_view, "scenes/splash.ttx"_view},
     {"Scenes::Title"_view, "scenes/title.ttx"_view},
     {"Main"_view, "main.ttx"_view},

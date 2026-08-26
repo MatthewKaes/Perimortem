@@ -24,6 +24,7 @@
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
+#include "tetrodotoxin/library/language/types/implementation.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/object_storage.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
@@ -272,6 +273,24 @@ auto Llvm::Module::Carriers::reserve(
         program, type, Carrier{.kind = kind, .native = llvm::wrap(&native)});
   }
 
+  case Kind::Implementation: {
+    Tetrodotoxin::Terminal::Abi::Representation::Name name(
+        target->get_arena(), type,
+        Tetrodotoxin::Terminal::Abi::Representation::Name::Kind::
+            ImplementationType);
+    Core::Static::Vector<llvm::Type*, 2> members = {{
+      llvm::PointerType::getUnqual(get_context(*target)),
+      llvm::PointerType::getUnqual(get_context(*target)),
+    }};
+    llvm::StructType& native = *llvm::StructType::create(
+        get_context(*target), llvm_text(name.get_view()));
+    native.setBody(
+        llvm::ArrayRef<llvm::Type*>(members.get_data(), members.get_size()),
+        false);
+    return publish(
+        program, type, Carrier{.kind = kind, .native = llvm::wrap(&native)});
+  }
+
   case Kind::Structure: {
     Tetrodotoxin::Terminal::Abi::Representation::Name name(
         target->get_arena(), type,
@@ -411,7 +430,8 @@ auto Llvm::Module::Carriers::complete(
         element_carrier &&
         (element_carrier->value.phase == Phase::Complete ||
          element_carrier->value.kind == Kind::Object ||
-         element_carrier->value.kind == Kind::ObjectStorage));
+         element_carrier->value.kind == Kind::ObjectStorage ||
+         element_carrier->value.kind == Kind::Implementation));
     if (!carrier || !element_ready || !native || extent == 0) {
       return fail_toolchain(
           program,
@@ -443,7 +463,8 @@ auto Llvm::Module::Carriers::complete(
     auto selected = get_type(flag);
     if (element_carrier && element_carrier->value.phase == Phase::Completing &&
         element_carrier->value.kind != Kind::Object &&
-        element_carrier->value.kind != Kind::ObjectStorage) {
+        element_carrier->value.kind != Kind::ObjectStorage &&
+        element_carrier->value.kind != Kind::Implementation) {
       return fail_type(
           program, element,
           "Library Type recursively contains itself through inline target storage."_view,
@@ -454,7 +475,8 @@ auto Llvm::Module::Carriers::complete(
         element_carrier &&
         (element_carrier->value.phase == Phase::Complete ||
          element_carrier->value.kind == Kind::Object ||
-         element_carrier->value.kind == Kind::ObjectStorage));
+         element_carrier->value.kind == Kind::ObjectStorage ||
+         element_carrier->value.kind == Kind::Implementation));
     if (!carrier || !carrier->native || !element_ready || !flag_carrier ||
         flag_carrier->value.phase != Phase::Complete || !payload || !selected) {
       return fail_toolchain(
@@ -496,11 +518,13 @@ auto Llvm::Module::Carriers::complete(
     Bool recursive_value = Bool(
         value_carrier && value_carrier->value.phase == Phase::Completing &&
         value_carrier->value.kind != Kind::Object &&
-        value_carrier->value.kind != Kind::ObjectStorage);
+        value_carrier->value.kind != Kind::ObjectStorage &&
+        value_carrier->value.kind != Kind::Implementation);
     Bool recursive_error = Bool(
         error_carrier && error_carrier->value.phase == Phase::Completing &&
         error_carrier->value.kind != Kind::Object &&
-        error_carrier->value.kind != Kind::ObjectStorage);
+        error_carrier->value.kind != Kind::ObjectStorage &&
+        error_carrier->value.kind != Kind::Implementation);
     if (recursive_value || recursive_error) {
       return fail_type(
           program, type,
@@ -511,11 +535,13 @@ auto Llvm::Module::Carriers::complete(
     Bool value_ready = Bool(
         value_carrier && (value_carrier->value.phase == Phase::Complete ||
                           value_carrier->value.kind == Kind::Object ||
-                          value_carrier->value.kind == Kind::ObjectStorage));
+                          value_carrier->value.kind == Kind::ObjectStorage ||
+                          value_carrier->value.kind == Kind::Implementation));
     Bool error_ready = Bool(
         error_carrier && (error_carrier->value.phase == Phase::Complete ||
                           error_carrier->value.kind == Kind::Object ||
-                          error_carrier->value.kind == Kind::ObjectStorage));
+                          error_carrier->value.kind == Kind::ObjectStorage ||
+                          error_carrier->value.kind == Kind::Implementation));
     if (!carrier || !carrier->native || !value_ready || !error_ready ||
         !flag_carrier || flag_carrier->value.phase != Phase::Complete ||
         !native_value || !native_error || !native_flag) {
@@ -612,6 +638,19 @@ auto Llvm::Module::Carriers::complete(
     return complete_contiguous(program, type, access->get_element_type(), kind);
   }
 
+  case Kind::Implementation: {
+    auto implementation =
+        select_contract<Tetrodotoxin::Library::Language::Types::Implementation>(
+            program, type);
+    auto carrier = select_completion(program, type, kind);
+    if (!implementation || !carrier || !carrier->native) {
+      return False;
+    }
+
+    carrier->phase = Phase::Complete;
+    return True;
+  }
+
   case Kind::Structure: {
     auto structure =
         select_contract<Tetrodotoxin::Library::Language::Types::Structure>(
@@ -689,6 +728,40 @@ auto Llvm::Module::Carriers::complete_contiguous(
   return True;
 }
 
+auto Llvm::Module::Carriers::get_implementation_projection(
+    Llvm::Module::Emission& program,
+    const Ttx::Model::Type& candidate) const -> Core::Option<LLVMValueRef> {
+  auto target = get_target(program);
+  auto object =
+      candidate.select<Tetrodotoxin::Library::Language::Types::Object>();
+  if (!target || !object) {
+    return {};
+  }
+
+  Tetrodotoxin::Terminal::Abi::Symbol symbol(
+      target->get_arena(), candidate,
+      Tetrodotoxin::Terminal::Abi::Symbol::Kind::Projection,
+      target->get_unit());
+  llvm::Module& module = get_module(*target);
+  if (llvm::GlobalVariable* existing =
+          module.getNamedGlobal(llvm_text(symbol.get_view()))) {
+    return llvm::wrap(existing);
+  }
+
+  Core::Static::Vector<llvm::Type*, 3> members = {{
+    llvm::PointerType::getUnqual(get_context(*target)),
+    llvm::Type::getInt64Ty(get_context(*target)),
+    llvm::Type::getInt64Ty(get_context(*target)),
+  }};
+  llvm::StructType& projection_type = *llvm::StructType::get(
+      get_context(*target),
+      llvm::ArrayRef<llvm::Type*>(members.get_data(), members.get_size()));
+  auto* projection = new llvm::GlobalVariable(
+      module, &projection_type, true, llvm::GlobalValue::ExternalLinkage,
+      nullptr, llvm_text(symbol.get_view()));
+  return llvm::wrap(projection);
+}
+
 auto Llvm::Module::Carriers::complete_aggregate(
     Llvm::Module::Emission& program,
     const Ttx::Model::Type& type,
@@ -722,6 +795,7 @@ auto Llvm::Module::Carriers::complete_aggregate(
         field_carrier->value.phase == Phase::Completing &&
         field_carrier->value.kind != Kind::Object &&
         field_carrier->value.kind != Kind::ObjectStorage &&
+        field_carrier->value.kind != Kind::Implementation &&
         kind != Kind::Object);
     if (recursive_inline) {
       return fail_type(
@@ -901,7 +975,8 @@ auto Llvm::Module::Carriers::owns_resources(
   }
 
   const Carrier& carrier = found->value;
-  if (carrier.kind == Kind::Object || carrier.kind == Kind::ObjectStorage) {
+  if (carrier.kind == Kind::Object || carrier.kind == Kind::ObjectStorage ||
+      carrier.kind == Kind::Implementation) {
     return True;
   }
 
@@ -968,6 +1043,23 @@ auto Llvm::Module::Carriers::retain(
         get_module(*target).getOrInsertFunction(
             llvm_text(Perimortem::Abi::Core::object_retain_symbol), &signature),
         {&native_value});
+  } else if (carrier.kind == Kind::Implementation) {
+    llvm::Value& object = *builder.CreateExtractValue(&native_value, U32(0));
+    if (llvm::isa<llvm::ConstantPointerNull>(&object)) {
+      return True;
+    }
+
+    auto target = get_target(get_program(body));
+    if (!target) {
+      return False;
+    }
+    llvm::FunctionType& signature = *llvm::FunctionType::get(
+        llvm::Type::getVoidTy(get_context(*target)),
+        {llvm::PointerType::getUnqual(get_context(*target))}, false);
+    builder.CreateCall(
+        get_module(*target).getOrInsertFunction(
+            llvm_text(Perimortem::Abi::Core::object_retain_symbol), &signature),
+        {&object});
   } else if (carrier.kind == Kind::Option && carrier.element) {
     if (is_object(*carrier.element)) {
       return retain(body, *carrier.element, value);
@@ -1110,6 +1202,24 @@ auto Llvm::Module::Carriers::release(
             llvm_text(Perimortem::Abi::Core::object_release_symbol),
             &signature),
         {&native_value});
+  } else if (carrier.kind == Kind::Implementation) {
+    llvm::Value& object = *builder.CreateExtractValue(&native_value, U32(0));
+    if (llvm::isa<llvm::ConstantPointerNull>(&object)) {
+      return True;
+    }
+
+    auto target = get_target(get_program(body));
+    if (!target) {
+      return False;
+    }
+    llvm::FunctionType& signature = *llvm::FunctionType::get(
+        llvm::Type::getVoidTy(get_context(*target)),
+        {llvm::PointerType::getUnqual(get_context(*target))}, false);
+    builder.CreateCall(
+        get_module(*target).getOrInsertFunction(
+            llvm_text(Perimortem::Abi::Core::object_release_symbol),
+            &signature),
+        {&object});
   } else if (carrier.kind == Kind::Option && carrier.element) {
     if (is_object(*carrier.element)) {
       return release(body, *carrier.element, value);
@@ -1373,10 +1483,11 @@ auto Llvm::Module::Carriers::assemble(
         "LLVM Result assembly requires one explicitly selected alternative."_view);
     return {};
   } else if (
-      carrier.kind == Kind::Object || carrier.kind == Kind::ObjectStorage) {
+      carrier.kind == Kind::Object || carrier.kind == Kind::ObjectStorage ||
+      carrier.kind == Kind::Implementation) {
     fail_toolchain(
         get_program(body),
-        "LLVM cannot assemble an Object handle from inline payload values."_view);
+        "LLVM cannot assemble a reference carrier from inline payload values."_view);
     return {};
   } else if (carrier.kind == Kind::Fixed && carrier.element) {
     if (elements.get_size() != carrier.extent) {
@@ -1511,9 +1622,10 @@ auto Llvm::Module::Carriers::fit_and_assemble(
     const Ttx::Model::Pack& source,
     Core::View::Vector<LLVMValueRef> elements) const
     -> Core::Option<LLVMValueRef> {
+  auto native_body = get_body(body);
   auto found = carriers.find(&type);
   auto native = get_type(type);
-  if (!found || !native) {
+  if (!native_body || !found || !native) {
     fail_toolchain(
         get_program(body),
         "LLVM cannot fit values without a completed target carrier."_view);
@@ -1526,6 +1638,41 @@ auto Llvm::Module::Carriers::fit_and_assemble(
   }
 
   const Carrier& carrier = found->value;
+  if (carrier.kind == Kind::Implementation && elements.get_size() == 1) {
+    // Erasure keeps the supplied Object carrier intact and adds only the
+    // Projection for this accepted pair. Acquiring the Object here transfers
+    // its lifetime into the resulting Implementation value exactly once.
+    auto implementation =
+        type.select<Tetrodotoxin::Library::Language::Types::Implementation>();
+    auto semantic =
+        source.select<Tetrodotoxin::Library::Language::Model::Pack>();
+    auto candidate =
+        semantic
+            ? semantic->get_value_type(0).resolve().select<Ttx::Model::Type>()
+            : Core::Option<const Ttx::Model::Type&>();
+    auto candidate_native =
+        candidate ? get_type(*candidate) : Core::Option<LLVMTypeRef>();
+    auto projection = implementation && candidate && candidate_native &&
+                              llvm::unwrap(elements[0])->getType() ==
+                                  llvm::unwrap(*candidate_native)
+                          ? get_implementation_projection(body, *candidate)
+                          : Core::Option<LLVMValueRef>();
+    if (!projection || !candidate || !semantic ||
+        !implementation->accepts(*semantic) ||
+        !native_body->acquire(*candidate, elements[0])) {
+      return {};
+    }
+
+    llvm::IRBuilder<>& builder = get_builder(*native_body);
+    llvm::Value* aggregate = llvm::UndefValue::get(llvm::unwrap(*native));
+    aggregate =
+        builder.CreateInsertValue(aggregate, llvm::unwrap(elements[0]), U32(0));
+    aggregate =
+        builder.CreateInsertValue(aggregate, llvm::unwrap(*projection), U32(1));
+    native_body->mark_owned(type, llvm::wrap(aggregate));
+    return llvm::wrap(aggregate);
+  }
+
   if (carrier.kind == Kind::Fixed && elements.get_size() == carrier.extent) {
     return assemble(body, type, elements);
   }

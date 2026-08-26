@@ -38,7 +38,7 @@ auto Language::Dialect::interpret_source(
   // receives the same source documentation and Anchor contract. Concrete
   // grammar begins only after that shared ownership boundary.
   Token source_opening = cursor.current();
-  if (cursor.get_code() != Code::Type::Comment) {
+  if (!cursor.get_code().is_comment()) {
     cursor.require(
         Code::Type::Comment,
         "Source is missing required documentation comment. Provide at least an "
@@ -47,6 +47,13 @@ auto Language::Dialect::interpret_source(
   }
 
   const Documentation& documentation = Parser::Comment::parse(cursor);
+  if (documentation.is_empty()) {
+    cursor.create_token_error(
+        source_opening,
+        "Source is missing required documentation comment. Raw comments do "
+        "not become Documentation."_view);
+    return {};
+  }
   Token dialect_declaration = cursor.current();
   View::Bytes dialect_name = Parser::Dialect::parse(cursor);
   if (dialect_name.is_empty()) {

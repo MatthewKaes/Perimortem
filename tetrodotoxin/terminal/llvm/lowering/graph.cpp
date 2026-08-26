@@ -22,6 +22,19 @@ using namespace Perimortem;
 using namespace Tetrodotoxin::Terminal;
 using namespace Tetrodotoxin::Library::Language;
 
+static auto is_excluded(
+    const Model::Callable& callable,
+    Core::View::Vector<Ttx::Concept::Reference<const Model::Callable>> excluded)
+    -> Bool {
+  for (const Ttx::Concept::Reference<const Model::Callable>& candidate :
+       excluded) {
+    if (&candidate.get() == &callable) {
+      return True;
+    }
+  }
+  return False;
+}
+
 static auto reserve_callable(
     Llvm::Module::Program& program,
     const Model::Callable& callable) -> Bool {
@@ -104,14 +117,16 @@ static auto retain_construction_parameters(
 
 static auto reserve_type(
     Llvm::Module::Program& program,
-    const Model::Type& type) -> Bool {
+    const Model::Type& type,
+    Core::View::Vector<Ttx::Concept::Reference<const Model::Callable>> excluded)
+    -> Bool {
   BAIL_IF(!Llvm::Lowering::Types::reserve_declaration(program, type));
   auto composite = type.select<Types::Composite>();
   if (composite) {
     for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
          composite->get_types()) {
       auto nested = candidate.get().select<Model::Type>();
-      BAIL_IF(nested && !reserve_type(program, *nested));
+      BAIL_IF(nested && !reserve_type(program, *nested, excluded));
     }
     for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
          composite->get_addressables()) {
@@ -122,7 +137,9 @@ static auto reserve_type(
   for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
        type.get_callables()) {
     auto callable = candidate.get().select<Model::Callable>();
-    BAIL_IF(callable && !reserve_callable(program, *callable));
+    BAIL_IF(
+        callable && !is_excluded(*callable, excluded) &&
+        !reserve_callable(program, *callable));
   }
 
   auto structure = type.select<Types::Structure>();
@@ -153,14 +170,16 @@ static auto reserve_type(
 
 static auto complete_type(
     Llvm::Module::Program& program,
-    const Model::Type& type) -> Bool {
+    const Model::Type& type,
+    Core::View::Vector<Ttx::Concept::Reference<const Model::Callable>> excluded)
+    -> Bool {
   BAIL_IF(!Llvm::Lowering::Types::complete_declaration(program, type));
   auto composite = type.select<Types::Composite>();
   if (composite) {
     for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
          composite->get_types()) {
       auto nested = candidate.get().select<Model::Type>();
-      BAIL_IF(nested && !complete_type(program, *nested));
+      BAIL_IF(nested && !complete_type(program, *nested, excluded));
     }
     for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
          composite->get_addressables()) {
@@ -171,7 +190,9 @@ static auto complete_type(
   for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
        type.get_callables()) {
     auto callable = candidate.get().select<Model::Callable>();
-    BAIL_IF(callable && !complete_callable(program, *callable));
+    BAIL_IF(
+        callable && !is_excluded(*callable, excluded) &&
+        !complete_callable(program, *callable));
   }
   auto structure = type.select<Types::Structure>();
   if (structure && !structure->get_layout().is_empty() &&
@@ -278,7 +299,10 @@ static auto emit_structure(
   return True;
 }
 
-static auto emit_type(Llvm::Module::Program& program, const Model::Type& type)
+static auto emit_type(
+    Llvm::Module::Program& program,
+    const Model::Type& type,
+    Core::View::Vector<Ttx::Concept::Reference<const Model::Callable>> excluded)
     -> Bool {
   auto composite = type.select<Types::Composite>();
   if (composite) {
@@ -287,7 +311,7 @@ static auto emit_type(Llvm::Module::Program& program, const Model::Type& type)
       auto nested = declaration.get().select<Model::Type>();
       auto addressable = declaration.get().select<Model::Addressable>();
       auto callable = declaration.get().select<Model::Callable>();
-      if (nested && !emit_type(program, *nested)) {
+      if (nested && !emit_type(program, *nested, excluded)) {
         return False;
       }
       Core::Option<Field&> field;
@@ -301,7 +325,8 @@ static auto emit_type(Llvm::Module::Program& program, const Model::Type& type)
       if (callable) {
         function = callable->select<Function>();
       }
-      if (function && !emit_function(program, *function)) {
+      if (function && !is_excluded(*function, excluded) &&
+          !emit_function(program, *function)) {
         return False;
       }
     }
@@ -312,20 +337,22 @@ static auto emit_type(Llvm::Module::Program& program, const Model::Type& type)
 
 auto Llvm::Lowering::Graph::lower(
     Llvm::Module::Program& program,
-    const Tetrodotoxin::Library::Language::Monograph& monograph) -> Bool {
+    const Tetrodotoxin::Library::Language::Monograph& monograph,
+    Core::View::Vector<Ttx::Concept::Reference<const Model::Callable>> excluded)
+    -> Bool {
   const Tetrodotoxin::Library::Language::Types::Source& source =
       monograph.get_source();
-  if (!reserve_type(program, source)) {
+  if (!reserve_type(program, source, excluded)) {
     Perimortem::Core::Diagnostics::Log::error(
         "LLVM could not reserve the completed Library graph."_view);
     return False;
   }
-  if (!complete_type(program, source)) {
+  if (!complete_type(program, source, excluded)) {
     Perimortem::Core::Diagnostics::Log::error(
         "LLVM could not complete target facts for the Library graph."_view);
     return False;
   }
-  if (!emit_type(program, source)) {
+  if (!emit_type(program, source, excluded)) {
     Perimortem::Core::Diagnostics::Log::error(
         "LLVM could not emit the completed Library graph."_view);
     return False;

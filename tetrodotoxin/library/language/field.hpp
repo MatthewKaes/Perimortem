@@ -32,12 +32,17 @@ class Field : public Model::Addressable {
       Tetrodotoxin::Language::Definition& definition,
       Writability writability,
       Perimortem::Core::Option<TypeReference> type_reference,
-      Perimortem::Core::Option<Model::Pack&> initializer)
+      Perimortem::Core::Option<Model::Pack&> initializer,
+      Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
+          type = {},
+      Bool generated = False)
       : definition(definition),
         domain(domain),
         writability(writability),
         type_reference(type_reference),
         initializer(initializer),
+        type(type),
+        generated(generated),
         initializer_linked(!initializer) {}
 
  public:
@@ -60,6 +65,14 @@ class Field : public Model::Addressable {
       Writability writability,
       Perimortem::Core::Option<TypeReference> type_reference,
       Perimortem::Core::Option<Model::Pack&> initializer) -> Field&;
+
+  static auto create_generated(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition,
+      Writability writability,
+      const Model::Type& type) -> Field&;
+
+  auto retain_generated_type(const Model::Type& selected) -> Bool;
 
   auto link_declaration_type(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
@@ -200,6 +213,7 @@ class Field : public Model::Addressable {
   Perimortem::Core::Option<TypeReference> type_reference;
   Perimortem::Core::Option<Model::Pack&> initializer;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>> type;
+  Bool generated;
   mutable Perimortem::Core::Option<Ttx::Concept::Reference<Model::Pack>>
       constant;
   mutable ConstantState constant_state = ConstantState::Unresolved;

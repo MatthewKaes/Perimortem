@@ -26,7 +26,11 @@ REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 BINARY = os.environ.get(
     "PUFFER_BINARY",
     os.path.join(REPO_ROOT, ".bin/bin/puffer/puffer"))
+PACKAGES_ROOT = os.environ.get(
+    "PUFFER_PACKAGES_ROOT",
+    os.path.join(REPO_ROOT, "packages", "ttx"))
 POSITION_ENCODING = "utf-16" if "--utf16" in sys.argv else "utf-8"
+SCENE_ONLY = "--scene-only" in sys.argv
 RESPONSE_BUFFERS = {}
 
 
@@ -299,8 +303,7 @@ def run_test():
         [
             BINARY,
             f"--pipe={SOCKET_PATH}",
-            "--packages-root=" + os.path.join(
-                REPO_ROOT, "packages", "ttx"),
+            "--packages-root=" + PACKAGES_ROOT,
         ],
         stderr=subprocess.PIPE,
         text=True,
@@ -342,6 +345,7 @@ def run_test():
     init_resp = read_lsp_response(conn)
     caps = {}
     generic_token = None
+    raw_comment_token = None
     if init_resp:
         caps = init_resp.get("result", {}).get("capabilities", {})
         info = init_resp.get("result", {}).get("serverInfo", {})
@@ -358,8 +362,12 @@ def run_test():
         generic_types = legend.get("tokenTypes", [])
         generic_token = (generic_types.index("generic")
                          if "generic" in generic_types else None)
+        raw_comment_token = (generic_types.index("rawComment")
+                             if "rawComment" in generic_types else None)
         check(generic_token is not None,
               "semantic token legend includes Generic formulas")
+        check(raw_comment_token is not None,
+              "semantic token legend includes raw comments")
         check(bool(semantic_provider.get("full")),
               "server supports full semantic token requests")
         check(bool(caps.get("hoverProvider")),
@@ -382,6 +390,140 @@ def run_test():
         "params": {},
     }))
     time.sleep(0.1)
+
+    print("\n--- Nested Package member: Scene source session ---")
+    splash_path = os.path.join(
+        REPO_ROOT, "apps", "ttx", "scene_lifetime", "scenes", "splash.ttx")
+    with open(splash_path, "r", encoding="utf-8") as f:
+        splash_source = f.read()
+
+    splash_uri = "file://" + splash_path
+    splash_diagnostics = send_did_open(conn, splash_uri, splash_source)
+    splash_messages = (splash_diagnostics or {}).get(
+        "params", {}).get("diagnostics", [])
+    if splash_messages:
+        print("  Scene Package diagnostics:")
+        for diagnostic in splash_messages:
+            print("   ", diagnostic.get("message"))
+    check(splash_diagnostics is not None and not splash_messages,
+          "Scene member resolves its Package Resource and Graphics dependency")
+
+    title_path = os.path.join(
+        REPO_ROOT, "apps", "ttx", "scene_lifetime", "scenes", "title.ttx")
+    package_path = os.path.join(
+        REPO_ROOT, "apps", "ttx", "scene_lifetime", "package.ttx")
+    glitch_path = os.path.join(
+        REPO_ROOT, "apps", "ttx", "scene_lifetime", "shaders", "glitch.ttx")
+    with open(title_path, "r", encoding="utf-8") as f:
+        title_source = f.read()
+    with open(package_path, "r", encoding="utf-8") as f:
+        scene_package_source = f.read()
+    with open(glitch_path, "r", encoding="utf-8") as f:
+        glitch_source = f.read()
+    title_uri = "file://" + title_path
+    package_uri = "file://" + package_path
+    glitch_uri = "file://" + glitch_path
+    title_diagnostics = send_did_open(conn, title_uri, title_source)
+    title_messages = (title_diagnostics or {}).get(
+        "params", {}).get("diagnostics", [])
+    check(title_diagnostics is not None and not title_messages,
+          "Title Scene resolves its qualified Shader and Graphics Types")
+
+    graphics_route = title_source.index("Graphics::Sprite")
+    graphics_hover = send_hover(
+        conn, title_uri, title_source, "Graphics", 101, graphics_route)
+    graphics_result = graphics_hover.get("result") if graphics_hover else None
+    graphics_markdown = (
+        graphics_result.get("contents", {}).get("value", "")
+        if graphics_result else "")
+    check("Graphics : alias = Package" in graphics_markdown and
+          "Publishes the value, resource, and hosted Object Types" in
+          graphics_markdown and "Tetrodotoxin" not in graphics_markdown and
+          "Copyright" not in graphics_markdown and
+          "Type Sprite" not in graphics_markdown,
+          "qualified hover preserves the Graphics Package alias")
+    graphics_definition = send_definition(
+        conn, title_uri, title_source, "Graphics", 102, graphics_route)
+    graphics_declaration = scene_package_source.index("resolve Graphics")
+    check(matches_location(
+        graphics_definition, package_uri, scene_package_source, "Graphics",
+        graphics_declaration),
+        "qualified definition selects the Graphics Package alias")
+
+    shader_route = title_source.index(
+        "Shaders::Glitch::TexturedQuad2D::Instance")
+    shaders_hover = send_hover(
+        conn, title_uri, title_source, "Shaders", 103, shader_route)
+    shaders_result = shaders_hover.get("result") if shaders_hover else None
+    shaders_markdown = (
+        shaders_result.get("contents", {}).get("value", "")
+        if shaders_result else "")
+    check("```tetrodotoxin\nShaders\n```" in shaders_markdown and
+          "Type Instance" not in shaders_markdown,
+          "qualified hover preserves the Shaders Package scope")
+    shaders_definition = send_definition(
+        conn, title_uri, title_source, "Shaders", 104, shader_route)
+    shaders_declaration = scene_package_source.index("source Shaders::Glitch")
+    check(matches_location(
+        shaders_definition, package_uri, scene_package_source, "Shaders",
+        shaders_declaration),
+        "qualified definition selects the Shaders Package scope")
+
+    glitch_hover = send_hover(
+        conn, title_uri, title_source, "Glitch", 105, shader_route)
+    glitch_result = glitch_hover.get("result") if glitch_hover else None
+    glitch_markdown = (
+        glitch_result.get("contents", {}).get("value", "")
+        if glitch_result else "")
+    check("Glitch : alias" in glitch_markdown and
+          "Type Instance" not in glitch_markdown,
+          "qualified hover preserves the Glitch Package alias")
+    glitch_definition = send_definition(
+        conn, title_uri, title_source, "Glitch", 106, shader_route)
+    check(matches_location(
+        glitch_definition, package_uri, scene_package_source, "Glitch",
+        shaders_declaration),
+        "qualified definition selects the Glitch Package alias")
+
+    textured_hover = send_hover(
+        conn, title_uri, title_source, "TexturedQuad2D", 107, shader_route)
+    textured_result = textured_hover.get("result") if textured_hover else None
+    textured_markdown = (
+        textured_result.get("contents", {}).get("value", "")
+        if textured_result else "")
+    check("Type TexturedQuad2D" in textured_markdown and
+          "Type Instance" not in textured_markdown,
+          "qualified hover selects the app owned Shader Program")
+    textured_definition = send_definition(
+        conn, title_uri, title_source, "TexturedQuad2D", 108, shader_route)
+    textured_declaration = glitch_source.index("public TexturedQuad2D")
+    check(matches_location(
+        textured_definition, glitch_uri, glitch_source, "TexturedQuad2D",
+        textured_declaration),
+        "qualified definition selects the app owned Shader Program")
+
+    instance_hover = send_hover(
+        conn, title_uri, title_source, "Instance", 109, shader_route)
+    instance_result = instance_hover.get("result") if instance_hover else None
+    instance_markdown = (
+        instance_result.get("contents", {}).get("value", "")
+        if instance_result else "")
+    check("Type Instance" in instance_markdown,
+          "qualified hover keeps the terminal generated Instance Type")
+    if SCENE_ONLY:
+        conn.close()
+        proc.terminate()
+        proc.wait(timeout=3)
+        drain_thread.join(timeout=2)
+        server_sock.close()
+        if os.path.exists(SOCKET_PATH):
+            os.unlink(SOCKET_PATH)
+        if failures:
+            print("\nFailures:")
+            for failure in failures:
+                print(f"  - {failure}")
+            return 1
+        return 0
 
     print("\n--- Access completion: progressive Library graph ---")
     dot_source = (
@@ -817,6 +959,8 @@ def run_test():
     scene_data = (
         scene_resp.get("result", {}).get("data", []) if scene_resp else [])
     scene_tokens = semantic_token_texts(scene_source, scene_data)
+    check(("/// Tetrodotoxin", raw_comment_token) in scene_tokens,
+          "Scene gives raw comments their subdued semantic token")
     check(("signal", 7) in scene_tokens,
           "Scene highlights the Signal declaration keyword")
     check(("space_pressed", 5) in scene_tokens,

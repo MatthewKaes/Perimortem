@@ -2,7 +2,7 @@
   <img src="extension/media/logo.png" alt="Tetrodotoxin Toolchain" width="100%">
 </p>
 
-> **The common layer should be meaning, not representation.**
+> **The common layer is meaning, not representation.**
 
 Software stops feeling like one system when every domain brings its own parser,
 package format, editor support, compiler driver, and private idea of the

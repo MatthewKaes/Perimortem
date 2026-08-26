@@ -143,6 +143,9 @@ Tetrodotoxin::Terminal::Abi::Symbol::Symbol(
   case Kind::ObjectDescriptor:
     output.concat("TTX_DESC_"_view);
     break;
+  case Kind::Projection:
+    output.concat("TTX_PROJ_"_view);
+    break;
   case Kind::GraphicsChildren:
     output.concat("TTX_GFX_"_view);
     break;
@@ -150,10 +153,21 @@ Tetrodotoxin::Terminal::Abi::Symbol::Symbol(
 
   Count path_start = output.get_size();
   Bool published_identity = kind != Kind::Path;
-  if (published_identity && unit.is_package_member()) {
-    append_encoded_name(output, unit.get_package());
+  Core::View::Bytes package = unit.get_package();
+  Core::View::Bytes member = unit.get_member();
+  if (kind == Kind::Projection) {
+    auto type = semantic.select<Ttx::Model::Type>();
+    auto binding =
+        type ? unit.find_type(*type) : Core::Option<const Unit::TypeBinding&>();
+    if (binding) {
+      package = binding->get_package();
+      member = binding->get_member();
+    }
+  }
+  if (published_identity && !package.is_empty() && !member.is_empty()) {
+    append_encoded_name(output, package);
     output.concat("__"_view);
-    append_encoded_name(output, unit.get_member());
+    append_encoded_name(output, member);
     output.concat("__"_view);
     path_start = output.get_size();
   }

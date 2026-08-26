@@ -59,7 +59,7 @@ static auto parse_authored(
   Tokenizer tokenizer(lexical, source, "enumeration.ttx"_view);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
-  if (!cursor.matches(Code::Type::Comment)) {
+  if (!cursor.get_code().is_comment()) {
     return {};
   }
 

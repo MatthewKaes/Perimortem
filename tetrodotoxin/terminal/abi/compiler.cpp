@@ -128,7 +128,9 @@ static auto collect_type(
         publications,
     Ttx::Lexical::Errors& errors,
     Core::View::Bytes source_path,
-    Core::View::Bytes source_text) -> Bool {
+    Core::View::Bytes source_text,
+    Core::View::Vector<Ttx::Concept::Reference<const Model::Callable>> excluded)
+    -> Bool {
   auto composite = type.select<Types::Composite>();
   if (composite) {
     for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
@@ -136,14 +138,20 @@ static auto collect_type(
       auto nested = declaration.get().select<Model::Type>();
       if (nested && !collect_type(
                         arena, unit, *nested, exports, publications, errors,
-                        source_path, source_text)) {
+                        source_path, source_text, excluded)) {
         return False;
       }
 
       auto function = declaration.get().select<Function>();
-      if (function && (Tetrodotoxin::Terminal::Abi::is_publicly_reachable(
-                           function->get_definition()) ||
-                       requests_native_interface(*function))) {
+      Bool omitted = False;
+      for (const Ttx::Concept::Reference<const Model::Callable>& candidate :
+           excluded) {
+        omitted |= &candidate.get() == &declaration.get();
+      }
+      if (function && !omitted &&
+          (Tetrodotoxin::Terminal::Abi::is_publicly_reachable(
+               function->get_definition()) ||
+           requests_native_interface(*function))) {
         auto symbol = select_symbol(
             arena, *function, unit, errors, source_path, source_text);
         if (!symbol) {
@@ -192,14 +200,18 @@ auto Tetrodotoxin::Terminal::Abi::Compiler::compile(
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
     Ttx::Lexical::Errors& errors,
     Core::View::Bytes source_path,
-    Core::View::Bytes source_text) const
-    -> Core::Option<Tetrodotoxin::Terminal::Abi::Products> {
+    Core::View::Bytes source_text,
+    Core::View::Vector<
+        Ttx::Concept::Reference<const Library::Language::Model::Callable>>
+        excluded,
+    Core::View::Vector<Tetrodotoxin::Terminal::Abi::Projection> projections)
+    const -> Core::Option<Tetrodotoxin::Terminal::Abi::Products> {
   Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Export> exports(arena);
   Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Publication>
       publications(arena);
   if (!collect_type(
           arena, unit, monograph.get_source(), exports, publications, errors,
-          source_path, source_text)) {
+          source_path, source_text, excluded)) {
     return {};
   }
 
@@ -213,5 +225,5 @@ auto Tetrodotoxin::Terminal::Abi::Compiler::compile(
   }
   return Tetrodotoxin::Terminal::Abi::Products(
       c_header->get_view(), cpp_header->get_header(), cpp_header->get_source(),
-      exports.get_view(), publications.get_view());
+      exports.get_view(), publications.get_view(), projections);
 }

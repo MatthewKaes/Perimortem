@@ -161,15 +161,16 @@ static auto find_package(
     View::Bytes path,
     View::Bytes source) -> Option<PackageLocation> {
   Path normalized(path);
-  View::Bytes directory = normalized.get_directory();
+  Dynamic::Bytes directory(normalized.get_directory());
   View::Bytes file = normalized.get_file();
   while (!directory.is_empty()) {
-    Dynamic::Bytes manifest_path = join_path(directory, "package.ttx"_view);
+    Dynamic::Bytes manifest_path =
+        join_path(directory.get_view(), "package.ttx"_view);
     Allocator::Arena acquisition;
-    auto storage =
-        File::exists(manifest_path.get_view())
-            ? Package::Storage::open(acquisition, directory, snapshots)
-            : Option<Package::Storage>();
+    auto storage = File::exists(manifest_path.get_view())
+                       ? Package::Storage::open(
+                             acquisition, directory.get_view(), snapshots)
+                       : Option<Package::Storage>();
     Option<Package::Content&> manifest;
     if (storage) {
       storage->read("package.ttx"_view)
@@ -178,7 +179,8 @@ static auto find_package(
               [](const Package::Storage::Failure&) {});
     }
     if (manifest) {
-      Dynamic::Bytes route = relative_path(directory, normalized.get_view());
+      Dynamic::Bytes route =
+          relative_path(directory.get_view(), normalized.get_view());
       if (!route.is_empty()) {
         Dynamic::Bytes manifest_source;
         if (file == "package.ttx"_view &&
@@ -194,16 +196,19 @@ static auto find_package(
                             toolchain, manifest_path.get_view(),
                             manifest_source.get_view(), route.get_view()));
         if (claimed) {
-          return PackageLocation(directory, route.get_view());
+          return PackageLocation(directory.get_view(), route.get_view());
         }
       }
     }
 
-    Path current(directory);
+    Path current(directory.get_view());
     View::Bytes parent = current.get_directory();
-    if (parent == directory) {
+    if (parent == directory.get_view()) {
       break;
     }
+
+    // Path lends its directory view. Owning the current spelling keeps the
+    // next ascent valid after the temporary Path leaves this iteration.
     directory = parent;
   }
 

@@ -13,7 +13,9 @@
 #include "perimortem/graphics/formats/png.hpp"
 #include "perimortem/graphics/image.hpp"
 #include "perimortem/graphics/pixel.hpp"
+#include "perimortem/graphics/projection.hpp"
 #include "perimortem/graphics/sprite.hpp"
+#include "perimortem/graphics/texture_2d.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Graphics;
@@ -28,6 +30,26 @@ static auto one_pixel_image() -> Image {
   Dynamic::Vector<Pixel> pixels;
   pixels.emplace(Pixel::from_rgba(0x12, 0x34, 0x56, 0x78));
   return Image(Data::take(pixels), 1, 1);
+}
+
+static auto finalize_shader(U8*) -> void {}
+
+static const Object<>::Descriptor
+    shader_descriptor(sizeof(R32) * 4, alignof(R32), finalize_shader);
+
+alignas(U32) static constexpr U32 graphics_program[] = {0x07230203};
+
+static const Projection graphics_projection = {
+  Data::cast<const U8>(graphics_program),
+  0,
+  sizeof(R32) * 4,
+};
+
+static auto create_shader() -> Implementation {
+  Object<> object = Object<>::create(shader_descriptor);
+  auto shader = Implementation::retain(object, &graphics_projection);
+  object.release();
+  return shader ? static_cast<Implementation&&>(*shader) : Implementation();
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsObjects, image_shares_immutable_pixels) {
@@ -83,17 +105,17 @@ PERIMORTEM_UNIT_TEST(GraphicsObjects, sprite_defaults_and_aliases) {
   EXPECT_NOT(sprite.is_drawable());
   EXPECT(sprite.is_visible());
   EXPECT_EQ(sprite.get_z_index(), S64(0));
-  EXPECT_EQ(sprite.get_tone().red, R64(1.0));
-  EXPECT_EQ(sprite.get_tone().alpha, R64(1.0));
+  EXPECT(sprite.get_shader().is_empty());
 
   Image image = one_pixel_image();
-  sprite.set_image(image);
+  Texture2D texture(image);
+  sprite.set_texture(texture);
+  sprite.set_shader(create_shader());
   sprite.set_size_pixels({64, 32});
   Transform2D transform;
   transform.translation = {12.0, 34.0};
   transform.scale_x = 2.0;
   sprite.set_transform(transform);
-  sprite.set_tone({0.5, 0.75, 1.0, 0.25});
   sprite.set_z_index(7);
   ASSERT(sprite.is_drawable());
 
@@ -103,6 +125,6 @@ PERIMORTEM_UNIT_TEST(GraphicsObjects, sprite_defaults_and_aliases) {
   EXPECT_NOT(sprite.is_drawable());
   EXPECT_EQ(sprite.get_transform().translation.x, R64(12.0));
   EXPECT_EQ(sprite.get_size_pixels().width, U32(64));
-  EXPECT_EQ(sprite.get_tone().green, R64(0.75));
+  EXPECT_EQ(sprite.get_shader().get_projection(), &graphics_projection);
   EXPECT_EQ(sprite.get_object().get_reservations(), Count(2));
 }

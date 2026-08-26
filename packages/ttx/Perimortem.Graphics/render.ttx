@@ -1,14 +1,15 @@
-// # Tetrodotoxin
-// Copyright (c) 2023-present Matt Kaes and contributors
+/// Tetrodotoxin
+/// Copyright (c) 2023-present Matt Kaes and contributors
 //
-// Target neutral interface for one textured Sprite draw.
+// Target neutral interface for one textured quad draw.
 //
 dialect : Render;
 
-public Sprite : struct {
+@topology("triangle_list") @blend("alpha") @geometry("unit_quad_2d") @vertex_count(6)
+public TexturedQuad2D : struct {
   @set(0) @slot(0) @read
   public image : resource Image::Image;
-  public sprite   : push ShaderTypes::SpriteInputs;
+  public inputs   : push Inputs;
   public vertex   : stage [
     @location(0).position : Math::Vec2D,
     @location(1).texture_uv : Math::Vec2D,
@@ -16,4 +17,14 @@ public Sprite : struct {
   public fragment : stage [@location(0).texture_uv : Math::Vec2D] -> [
     @location(0).color : Math::Vec4D,
   ];
+
+  // Inputs names the exact host values consumed by this rendering contract.
+  // Shader supplies a real Library Type which the contract checks by shape and
+  // meaning without making this Render Type executable.
+  public Inputs : struct {
+    @host("transform_x")
+    public transform_x : Math::Vec4D;
+    @host("transform_y")
+    public transform_y : Math::Vec4D;
+  }
 }

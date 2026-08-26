@@ -467,7 +467,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_fixture) {
   ASSERT(interpreted && interpreted->is<Language::Monograph>());
   auto& monograph = static_cast<Language::Monograph&>(*interpreted);
   EXPECT_TEXT(
-      monograph.get_documentation().get_line(3),
+      monograph.get_documentation().get_line(1),
       "Library propagation and sum Type acceptance."_view);
 
   EXPECT(

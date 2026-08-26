@@ -21,11 +21,8 @@
 #include "puffer/lsp/semantic.hpp"
 #include "puffer/lsp/semantic_tokens.hpp"
 #include "tetrodotoxin/formatting/terminal.hpp"
+#include "tetrodotoxin/library/language/expression.hpp"
 #include "ttx/lexical/formatter.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/alias.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -349,11 +346,7 @@ auto Puffer::Lsp::definition(Documents& documents, const Rpc::Message& message)
   }
 
   const Ttx::Concept::Abstract& subject = semantic_subject(*semantic);
-  Bool definable = subject.is<Ttx::Model::Alias>() ||
-                   subject.is<Ttx::Model::Addressable>() ||
-                   subject.is<Ttx::Model::Callable>() ||
-                   subject.is<Ttx::Model::Type>();
-  if (!definable) {
+  if (subject.is<Tetrodotoxin::Library::Language::Expression>()) {
     return message.report_result(Json::Node());
   }
   auto location = documents.find_definition(uri, subject);

@@ -25,6 +25,7 @@ class Symbol {
     Address,
     ReadOnly,
     ObjectDescriptor,
+    Projection,
     GraphicsChildren,
   };
 

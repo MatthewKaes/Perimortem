@@ -28,6 +28,8 @@ static Harness TtxSpirV = {
 extern "C" {
 extern const U8 TTX_DATA_Validation_2eShader__Shader__TestShader[];
 extern const U8 TTX_DATA_Validation_2eShader__Shader__TestShader_end[];
+extern const U8 TTX_DATA_Validation_2eShader__Shader__Float64Shader[];
+extern const U8 TTX_DATA_Validation_2eShader__Shader__Float64Shader_end[];
 }
 
 PERIMORTEM_UNIT_TEST(TtxSpirV, word_emitter) {
@@ -54,31 +56,69 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, word_emitter) {
   EXPECT(Assembler::SpirV::is_valid_module(words));
 }
 
-PERIMORTEM_UNIT_TEST(TtxSpirV, independent_validator) {
-  constexpr auto path = ".bin/bin/validation/embedded_shader.spv"_view;
-  View::Bytes module(
-      TTX_DATA_Validation_2eShader__Shader__TestShader,
-      Count(
-          TTX_DATA_Validation_2eShader__Shader__TestShader_end -
-          TTX_DATA_Validation_2eShader__Shader__TestShader));
-  ASSERT(Perimortem::System::File::write(module, path));
-  static constexpr Static::Vector<View::Bytes, 3> arguments = {{
-    "--target-env"_view,
-    "vulkan1.0"_view,
-    path,
+PERIMORTEM_UNIT_TEST(TtxSpirV, unsigned_to_real_word_emitter) {
+  Dynamic::Bytes words;
+  Assembler::SpirV assembler(words);
+  assembler.convert_u_to_f(1, 2, 3);
+
+  constexpr Static::Bytes<16> expected = {{
+    0x70,
+    0x00,
+    0x04,
+    0x00,
+    0x01,
+    0x00,
+    0x00,
+    0x00,
+    0x02,
+    0x00,
+    0x00,
+    0x00,
+    0x03,
+    0x00,
+    0x00,
+    0x00,
   }};
-  Process::Request request = {
-    .executable = "/usr/bin/spirv-val"_view,
-    .arguments = arguments,
+  EXPECT_HEX(words, expected);
+}
+
+PERIMORTEM_UNIT_TEST(TtxSpirV, independent_validator) {
+  View::Bytes modules[] = {
+    View::Bytes(
+        TTX_DATA_Validation_2eShader__Shader__TestShader,
+        Count(
+            TTX_DATA_Validation_2eShader__Shader__TestShader_end -
+            TTX_DATA_Validation_2eShader__Shader__TestShader)),
+    View::Bytes(
+        TTX_DATA_Validation_2eShader__Shader__Float64Shader,
+        Count(
+            TTX_DATA_Validation_2eShader__Shader__Float64Shader_end -
+            TTX_DATA_Validation_2eShader__Shader__Float64Shader)),
   };
-  Process::Observation observation = Process::run(request);
-  EXPECT(observation.launched);
-  EXPECT_NOT(observation.timed_out);
-  EXPECT_EQ(observation.exit_status, 0);
-  EXPECT(observation.standard_output.is_empty());
-  EXPECT(observation.standard_error.is_empty());
-  EXPECT(observation.runner_error.is_empty());
-  EXPECT(Perimortem::System::File::remove(path));
+  static constexpr Static::Vector<View::Bytes, 2> paths = {{
+    ".bin/bin/validation/embedded_shader_u32.spv"_view,
+    ".bin/bin/validation/embedded_shader_r64.spv"_view,
+  }};
+  for (Count index = 0; index < 2; index++) {
+    ASSERT(Perimortem::System::File::write(modules[index], paths[index]));
+    Static::Vector<View::Bytes, 3> arguments = {{
+      "--target-env"_view,
+      "vulkan1.0"_view,
+      paths[index],
+    }};
+    Process::Request request = {
+      .executable = "/usr/bin/spirv-val"_view,
+      .arguments = arguments,
+    };
+    Process::Observation observation = Process::run(request);
+    EXPECT(observation.launched);
+    EXPECT_NOT(observation.timed_out);
+    EXPECT_EQ(observation.exit_status, 0);
+    EXPECT(observation.standard_output.is_empty());
+    EXPECT(observation.standard_error.is_empty());
+    EXPECT(observation.runner_error.is_empty());
+    EXPECT(Perimortem::System::File::remove(paths[index]));
+  }
 }
 
 PERIMORTEM_UNIT_TEST(TtxSpirV, package_locator) {
@@ -96,13 +136,20 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, package_locator) {
       [](const Tetrodotoxin::Package::Archive::Reader::Error&) {});
   ASSERT(archive);
 
-  Bool found = False;
+  Bool found_u32 = False;
+  Bool found_r64 = False;
   for (const Tetrodotoxin::Package::Archive::Export& exported :
        archive->get_exports()) {
-    found |= exported.get_semantic_route() == "Shader::TestShader"_view &&
-             exported.get_artifact_id() == "x86_64-sysv-linux"_view &&
-             exported.get_symbol_locator() ==
-                 "TTX_DATA_Validation_2eShader__Shader__TestShader"_view;
+    found_u32 |= exported.get_semantic_route() == "Shader::TestShader"_view &&
+                 exported.get_artifact_id() == "x86_64-sysv-linux"_view &&
+                 exported.get_symbol_locator() ==
+                     "TTX_DATA_Validation_2eShader__Shader__TestShader"_view;
+    found_r64 |=
+        exported.get_semantic_route() == "Shader::Float64Shader"_view &&
+        exported.get_artifact_id() == "x86_64-sysv-linux"_view &&
+        exported.get_symbol_locator() ==
+            "TTX_DATA_Validation_2eShader__Shader__Float64Shader"_view;
   }
-  EXPECT(found);
+  EXPECT(found_u32);
+  EXPECT(found_r64);
 }

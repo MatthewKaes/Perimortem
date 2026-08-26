@@ -105,6 +105,10 @@
           "generic:tetrodotoxin": {
             "foreground": "#ed868a",
             "fontStyle": ""
+          },
+          "rawComment:tetrodotoxin": {
+            "foreground": "#5c5850",
+            "fontStyle": "italic"
           }
         }
       },
@@ -120,6 +124,13 @@
             "scope": "comment.line.double-slash.tetrodotoxin",
             "settings": {
               "foreground": "#787065",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": "comment.line.raw.tetrodotoxin",
+            "settings": {
+              "foreground": "#5c5850",
               "fontStyle": "italic"
             }
           },

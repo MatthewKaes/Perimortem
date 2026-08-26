@@ -302,6 +302,13 @@ directional satisfaction or a proven two way equivalence for one explicit
 semantic question. It retains no copied declaration model and creates no graph
 object around either participant.
 
+Negotiation and runtime erasure remain separate choices. A known candidate can
+be lowered directly after its relation is proven. When a language needs one
+value to hold several accepted implementations, it defines that erased value
+explicitly and lets its ABI Terminal derive the target Projection. This combines
+structural negotiation with deliberate dynamic dispatch without making every
+Interface query allocate or carry a vtable.
+
 TTX therefore cannot answer target object layout, field offset, register,
 address space, pointer form, or calling convention questions by itself. Each
 compiler derives and validates those facts for its own Terminal. That extra work

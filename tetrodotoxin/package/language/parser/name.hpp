@@ -15,7 +15,10 @@ namespace Tetrodotoxin::Package::Language::Parser {
 // the same context chain authored by the source.
 class Name {
  public:
-  constexpr Name(Perimortem::Core::View::Bytes spelling) : spelling(spelling) {}
+  constexpr Name(
+      Perimortem::Core::View::Bytes spelling,
+      Ttx::Lexical::Token first = {})
+      : spelling(spelling), first(first) {}
 
   constexpr auto get_view() const -> Perimortem::Core::View::Bytes {
     return spelling;
@@ -24,6 +27,8 @@ class Name {
   auto get_size() const -> Count;
 
   auto get_segment(Count index) const -> Perimortem::Core::View::Bytes;
+
+  auto get_token(Count index) const -> Ttx::Lexical::Token;
 
   // Parses one local semantic route with Type access qualification.
   static auto parse_semantic(Ttx::Lexical::Cursor& cursor)
@@ -36,6 +41,7 @@ class Name {
 
  private:
   Perimortem::Core::View::Bytes spelling;
+  Ttx::Lexical::Token first;
 };
 
 }  // namespace Tetrodotoxin::Package::Language::Parser

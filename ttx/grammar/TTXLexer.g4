@@ -73,8 +73,9 @@ STAGE     : 'stage';
 RESOURCE  : 'resource';
 SHADER    : 'shader';
 
-COMMENT   : '//' ~[\r\n]*;
-ATTRIBUTE : '@' [a-zA-Z_] [a-zA-Z0-9_]*;
+RAW_COMMENT : '///' ~[\r\n]* -> channel(HIDDEN);
+COMMENT     : '//' ~[\r\n]*;
+ATTRIBUTE   : '@' [a-zA-Z_] [a-zA-Z0-9_]*;
 
 SWIZZLE     : '.[';
 VALUE_ACCESS: ':[';

@@ -3,15 +3,22 @@
 
 #include "tetrodotoxin/runtime/application/session.hpp"
 
+#include "validation/process/child.hpp"
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/object.hpp"
+
+#include "tetrodotoxin/runtime/application/runner.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin;
 
 static Validation::Harness ApplicationSession = {
   .name = "Tetrodotoxin::Runtime::Application::Session"_view,
+};
+
+static Validation::Harness ApplicationRunner = {
+  .name = "Tetrodotoxin::Runtime::Application::Runner"_view,
 };
 
 static U8 replace_signal = 0;
@@ -58,6 +65,34 @@ static auto release_second(void**) -> void {
   second_releases++;
 }
 
+PERIMORTEM_UNIT_TEST(ApplicationRunner, rejects_invalid_product) {
+  Runtime::Application::Product product = {};
+  EXPECT_EQ(tetrodotoxin_application_scene(nullptr), 1);
+  EXPECT_EQ(tetrodotoxin_application_scene(&product), 1);
+}
+
+PERIMORTEM_UNIT_TEST(ApplicationRunner, reports_window_setup_failure) {
+  static constexpr Core::View::Bytes arguments[] = {
+    "-u"_view,
+    "WAYLAND_DISPLAY"_view,
+    "-u"_view,
+    "DISPLAY"_view,
+    "-u"_view,
+    "XDG_RUNTIME_DIR"_view,
+    ".bin/bin/apps/ttx/scene_lifetime/scene_lifetime"_view,
+  };
+  Validation::Process::Request request = {
+    .executable = "/usr/bin/env"_view,
+    .arguments = arguments,
+  };
+  Validation::Process::Observation observation =
+      Validation::Process::run(request);
+  EXPECT(observation.launched);
+  EXPECT_NOT(observation.timed_out);
+  EXPECT_EQ(observation.exit_status, 1);
+  EXPECT(observation.runner_error.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(ApplicationSession, ordered_transitions) {
   first_prepares = 0;
   first_updates = 0;
@@ -94,7 +129,8 @@ PERIMORTEM_UNIT_TEST(ApplicationSession, ordered_transitions) {
   };
   U8 graphics = 0;
   const Runtime::Application::Product product = {
-    &graphics, 1, 1, scenes, 2, 0, transitions, 2, nullptr, 0, &graphics,
+    &graphics, 1,       1,       scenes,  2, 0,       transitions,
+    2,         nullptr, nullptr, nullptr, 0, nullptr, 0,
   };
 
   Runtime::Application::Session session(product);

@@ -34,6 +34,23 @@ static auto select_terminal(const Abstract& binding, View::Bytes name)
   return nested.is<Ttx::Model::Type>() ? nested : resolved;
 }
 
+static auto segment_anchor(
+    Anchor route_anchor,
+    View::Bytes route,
+    View::Bytes name) -> Anchor {
+  Token first = route_anchor.get_token();
+  if (!first || name.is_empty()) {
+    return Anchor::create(Span());
+  }
+
+  Count offset = Count(name.get_data() - route.get_data());
+  Token token(
+      U16(Count(first.get_offset()) + offset), first.get_line(),
+      U16(Count(first.get_column()) + offset), U8(name.get_size()),
+      first.get_code());
+  return Anchor::create(token, Span(token));
+}
+
 static auto resolve_route(
     View::Bytes route,
     const Abstract& context,
@@ -51,7 +68,9 @@ static auto resolve_route(
     }
 
     View::Bytes name = route.slice(start, index - start);
-    const Abstract* candidate = &selected->resolve_context(name).resolve();
+    const Abstract& queried = selected->resolve_context(name);
+    const Abstract* candidate =
+        queried.is<Ttx::Model::Type>() ? &queried : &queried.resolve();
     if (candidate->is<Invalid>()) {
       if (cursor) {
         auto report = cursor->create_report(anchor);
@@ -62,6 +81,10 @@ static auto resolve_route(
             << "Publish that Type in the selected semantic context."_view;
       }
       return {};
+    }
+    if (cursor && !terminal) {
+      cursor->get_associations().create(
+          segment_anchor(anchor, route, name), queried);
     }
     selected = candidate;
     segment++;
@@ -98,7 +121,8 @@ static auto resolve_route(
   }
 
   if (cursor) {
-    cursor->get_associations().create(anchor, *type);
+    cursor->get_associations().create(
+        segment_anchor(anchor, route, terminal_name), *type);
   }
   return *type;
 }

@@ -1,5 +1,5 @@
-// # Tetrodotoxin
-// Copyright (c) 2023-present Matt Kaes and contributors
+/// Tetrodotoxin
+/// Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Host neutral physical controls used by frame input and remapping.
 dialect : Library;

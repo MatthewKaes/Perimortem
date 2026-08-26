@@ -6,6 +6,7 @@
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/enumeration.hpp"
 #include "tetrodotoxin/library/language/constants/flag.hpp"
+#include "tetrodotoxin/library/language/constants/implementation.hpp"
 #include "tetrodotoxin/library/language/constants/object.hpp"
 #include "tetrodotoxin/library/language/constants/option.hpp"
 #include "tetrodotoxin/library/language/constants/range.hpp"
@@ -67,6 +68,13 @@ auto Llvm::Lowering::Values::lower(
   if (object) {
     return Types::prepare(execution.get_program(), object->get_type()) &&
            body.object_value(object->get_type(), *object);
+  }
+
+  auto implementation = expression.select<Constants::Implementation>();
+  if (implementation) {
+    return Types::prepare(
+               execution.get_program(), implementation->get_type()) &&
+           body.absent(implementation->get_type(), *implementation);
   }
 
   auto enumeration = expression.select<Constants::Enumeration>();

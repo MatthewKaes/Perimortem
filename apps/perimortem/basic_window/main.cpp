@@ -9,11 +9,16 @@ using namespace Perimortem;
 
 auto main() -> int {
   System::Window window(800, 600, "Perimortem Basic Window");
+  System::Window::EventStatus event_status = window.get_event_status();
+  if (event_status != System::Window::EventStatus::Ready) {
+    return event_status == System::Window::EventStatus::Failed ? 1 : 0;
+  }
   Vulkan::Renderer renderer(
       window.get_presentation(),
       window.get_logical_width() * window.get_scale(),
       window.get_logical_height() * window.get_scale());
-  while (window.poll_events()) {
+  while ((event_status = window.poll_events()) ==
+         System::Window::EventStatus::Ready) {
     if (window.get_input().is_pressed(System::Input::Key::Escape)) {
       break;
     }
@@ -35,5 +40,5 @@ auto main() -> int {
   }
 
   renderer.wait_idle();
-  return 0;
+  return event_status == System::Window::EventStatus::Failed ? 1 : 0;
 }

@@ -11,6 +11,7 @@ enum class Tag : U16 {
   Monograph = 1,
   Program,
   Binding,
+  Uniform,
   Bridge,
 };
 

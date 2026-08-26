@@ -6,6 +6,7 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/render/language/attributes.hpp"
 #include "tetrodotoxin/render/language/binding.hpp"
 #include "tetrodotoxin/render/language/stage.hpp"
@@ -75,16 +76,31 @@ class Evaluation {
 
   Ttx::Concept::Interface::Relation relation;
   View::Bytes failure;
+
+  static auto compatible_binding_type(
+      const Ttx::Model::Type& requirement,
+      const Ttx::Model::Type& candidate) -> Bool {
+    const Abstract& required = requirement.resolve();
+    const Abstract& supplied = candidate.resolve();
+    if (&required == &supplied) {
+      return True;
+    }
+
+    auto render = required.select<Render::Language::Structure>();
+    auto library = supplied.select<Library::Language::Types::Structure>();
+    return render && library &&
+           render->get_layout().fits(library->get_layout()) &&
+           library->get_layout().fits(render->get_layout());
+  }
 };
 
 static auto evaluate(const Abstract& requirement, const Abstract& candidate)
     -> Evaluation {
-  using Relation = Ttx::Concept::Interface::Relation;
   auto render = requirement.resolve().select<Render::Language::Structure>();
   auto shader = candidate.resolve().select<Shader::Language::Program>();
   if (!render || !shader) {
     return Evaluation(
-        Relation::Rejected,
+        Ttx::Concept::Interface::Relation::Rejected,
         "The restored relationship no longer selects Render and Shader owners."_view);
   }
 
@@ -95,72 +111,69 @@ static auto evaluate(const Abstract& requirement, const Abstract& candidate)
     auto required = entry.get().select<Render::Language::Stage>();
     if (!required) {
       return Evaluation(
-          Relation::Rejected,
+          Ttx::Concept::Interface::Relation::Rejected,
           "The restored Render callable is not one Stage."_view);
     }
     auto supplied = find_function(*shader, required->get_name());
     if (!supplied) {
       return Evaluation(
-          Relation::Rejected,
+          Ttx::Concept::Interface::Relation::Rejected,
           "The restored Shader is missing one required Stage Function."_view);
     }
     if (!callable_interface.accepts(*required, *supplied)) {
       return Evaluation(
-          Relation::Rejected,
+          Ttx::Concept::Interface::Relation::Rejected,
           "The restored Stage Function no longer has a compatible Signature."_view);
-    }
-    if (!Render::Language::Attributes::satisfies(
-            supplied->get_definition().get_attributes(),
-            required->get_definition().get_attributes())) {
-      return Evaluation(
-          Relation::Rejected,
-          "The restored Stage Function no longer satisfies its Render Attributes."_view);
     }
     View::Bytes parameter_failure = slot_failure(
         supplied->get_signature().get_parameters(),
         required->get_parameter_layout());
     if (!parameter_failure.is_empty()) {
-      return Evaluation(Relation::Rejected, parameter_failure);
+      return Evaluation(
+          Ttx::Concept::Interface::Relation::Rejected, parameter_failure);
     }
     View::Bytes result_failure = slot_failure(
         supplied->get_signature().get_results(), required->get_result_layout());
     if (!result_failure.is_empty()) {
-      return Evaluation(Relation::Rejected, result_failure);
+      return Evaluation(
+          Ttx::Concept::Interface::Relation::Rejected, result_failure);
     }
   }
 
-  // Binding comparison preserves exact Type identity because matching storage
-  // shape alone cannot establish one CPU and GPU relationship.
+  // A shared Type keeps exact identity. A Render Structure and its Shader
+  // implementation remain distinct Types, so this concrete Contract proves
+  // their named binding and mutually fitting Layout together.
   for (const Reference<Abstract>& entry : render->get_addressables()) {
     auto required = entry.get().select<Render::Language::Binding>();
     if (!required) {
       return Evaluation(
-          Relation::Rejected,
+          Ttx::Concept::Interface::Relation::Rejected,
           "The restored Render value is not one Binding."_view);
     }
     auto supplied = find_binding(*shader, required->get_name());
     if (!supplied) {
       return Evaluation(
-          Relation::Rejected,
+          Ttx::Concept::Interface::Relation::Rejected,
           "The restored Shader is missing one required Binding."_view);
     }
     const Library::Language::Field& field = supplied->get_field();
     auto required_definition = required->get_definition();
     if (supplied->get_kind() != required->get_kind() ||
-        &field.get_type() != &required->get_type()) {
+        !Evaluation::compatible_binding_type(
+            required->get_type(), field.get_type())) {
       return Evaluation(
-          Relation::Rejected,
+          Ttx::Concept::Interface::Relation::Rejected,
           "The restored Shader Binding no longer has its required kind and Type."_view);
     }
     if (required_definition && !Render::Language::Attributes::satisfies(
                                    field.get_definition().get_attributes(),
                                    required_definition->get_attributes())) {
       return Evaluation(
-          Relation::Rejected,
+          Ttx::Concept::Interface::Relation::Rejected,
           "The restored Shader Binding no longer satisfies its Render Attributes."_view);
     }
   }
-  return Evaluation(Relation::Satisfied);
+  return Evaluation(Ttx::Concept::Interface::Relation::Satisfied);
 }
 
 auto Shader::Language::Contract::negotiate(

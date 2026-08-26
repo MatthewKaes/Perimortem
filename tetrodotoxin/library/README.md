@@ -333,6 +333,7 @@ Fixed[U8, 64]
 View[U8]
 View[Fixed[U8, 4]]
 Access[U8]
+Implementation[Render::TexturedQuad2D]
 Range[U64]
 Option[View[U8]]
 Result[View[U8], ParseError]
@@ -342,6 +343,13 @@ Result[View[U8], ParseError]
 value known during linking. Every generated container Type requires an element
 Type with a nonempty Layout. `View` is a borrowed contiguous view.
 `Access` additionally carries the language's writable contiguous capability.
+`Implementation[Requirement]` accepts a real Library Object when that Object's
+semantic owner satisfies the exact requirement through a higher order TTX
+Interface relation. It retains that Object through one explicit erased value.
+Native Terminals derive an immutable Projection for the accepted Object and
+requirement, while code that keeps the concrete Object uses direct lowering.
+The empty Implementation value is the ordinary unconfigured state and adds no
+allocation.
 `Range` describes a lazy ascending integer sequence. `Option[T]` represents a
 value that may be absent in an otherwise nonnullable language. The Option Type
 always has a nonempty Layout. Its state either carries one exact `T` or carries
@@ -492,6 +500,7 @@ each default independently of the storage chosen by a compiler:
 * An Enumeration uses its underlying zero value even when no case names
   zero.
 * `View[T]` and `Access[T]` use empty read only and writable views respectively.
+* `Implementation[Requirement]` contains no selected Object.
 * `Range[T]` uses the empty range.
 * `Option[T]` uses the state with no payload and does not construct `T`.
 * `Result[T, E]` uses the value state containing the default of `T`.

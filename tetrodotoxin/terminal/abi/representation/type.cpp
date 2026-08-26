@@ -10,6 +10,7 @@
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
+#include "tetrodotoxin/library/language/types/implementation.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/object_storage.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
@@ -47,6 +48,9 @@ auto Tetrodotoxin::Terminal::Abi::Representation::Type::get_kind(
   }
   if (type.is<Types::Access>()) {
     return Kind::Access;
+  }
+  if (type.is<Types::Implementation>()) {
+    return Kind::Implementation;
   }
   if (type.is<Types::ObjectStorage>()) {
     return Kind::ObjectStorage;

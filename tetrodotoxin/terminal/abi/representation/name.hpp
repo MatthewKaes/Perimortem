@@ -17,6 +17,7 @@ namespace Tetrodotoxin::Terminal::Abi::Representation {
 class Name {
  public:
   enum class Kind : U8 {
+    ImplementationType,
     OptionType,
     ResultType,
     StructureType,

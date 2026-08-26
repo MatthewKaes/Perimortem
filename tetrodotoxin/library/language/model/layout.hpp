@@ -98,6 +98,24 @@ class Layout final : public Ttx::Concept::Layout {
       Ttx::Lexical::Anchor anchor,
       Bool parameters) -> Layout&;
 
+  // Shader inherits Stage signatures after neighboring Render contracts have
+  // composed. The real Function already owns this Layout, so adding generated
+  // slots here completes that one descriptor without retaining parser state or
+  // creating a second signature model.
+  auto retain_generated_slot(
+      TypeReference type_reference,
+      Perimortem::Core::View::Bytes name,
+      Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>
+          attributes = {}) -> Bool;
+
+  auto retain_generated_slot(
+      const Type& type,
+      Perimortem::Core::View::Bytes name,
+      Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>
+          attributes = {}) -> Bool;
+
+  auto retain_generated_edge(Count index, const Type& type) -> Bool;
+
   auto link_restored(
       const Ttx::Concept::Abstract& host,
       Bool parameters,

@@ -10,14 +10,14 @@ Graphics::Frame::Batch::Batch(
     Memory::Dynamic::Vector<Resource>&& resources,
     Memory::Dynamic::Bytes&& inputs,
     Transform transform,
-    Count vertex_count,
+    Size2D size_pixels,
     S64 z_index,
     Count authored_order)
     : program(program),
       resources(static_cast<Memory::Dynamic::Vector<Resource>&&>(resources)),
       inputs(static_cast<Memory::Dynamic::Bytes&&>(inputs)),
       transform(transform),
-      vertex_count(vertex_count),
+      size_pixels(size_pixels),
       z_index(z_index),
       authored_order(authored_order) {}
 

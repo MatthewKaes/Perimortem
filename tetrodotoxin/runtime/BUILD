@@ -19,6 +19,6 @@ cc_library(
         "//perimortem:platform",
         "//perimortem:system",
         "//perimortem:vulkan",
-        "//tetrodotoxin/graphics:runtime",
+        "//tetrodotoxin/graphics/runtime:runtime",
     ],
 )

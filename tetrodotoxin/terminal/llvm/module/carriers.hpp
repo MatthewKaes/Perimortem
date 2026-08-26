@@ -10,6 +10,7 @@
 #include "perimortem/memory/dynamic/vector.hpp"
 
 #include "llvm-c/Types.h"
+#include "tetrodotoxin/library/language/types/implementation.hpp"
 #include "tetrodotoxin/terminal/abi/representation/type.hpp"
 #include "tetrodotoxin/terminal/llvm/module/emission.hpp"
 #include "ttx/concept/layout.hpp"
@@ -179,6 +180,11 @@ class Carriers {
       const Ttx::Model::Type& type,
       const Ttx::Model::Type& element,
       Kind kind) const -> Bool;
+
+  auto get_implementation_projection(
+      Emission& program,
+      const Ttx::Model::Type& candidate) const
+      -> Perimortem::Core::Option<LLVMValueRef>;
 
   auto complete_aggregate(
       Emission& program,

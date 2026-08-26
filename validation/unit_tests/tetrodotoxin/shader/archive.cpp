@@ -96,6 +96,12 @@ static auto prove_profile(
   ASSERT(contract && selected_contract);
   EXPECT(&*contract == &*selected_contract);
   ASSERT(function && stage);
+  ASSERT_EQ(program->get_uniforms().get_size(), Count(1));
+  EXPECT_EQ(program->get_parameters().get_layout().get_size(), Count(1));
+  EXPECT(
+      &program->get_instance_parameters_field().get_type() ==
+      &program->get_parameters());
+  EXPECT(program->satisfies(*contract));
   EXPECT_NOT(function->get_body());
   EXPECT_EQ(function->get_signature().get_parameters().get_size(), Count(1));
   EXPECT_EQ(function->get_signature().get_results().get_size(), Count(1));

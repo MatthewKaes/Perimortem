@@ -82,6 +82,16 @@ static auto vertex_format(Count components) -> VkFormat {
   return VK_FORMAT_UNDEFINED;
 }
 
+static auto to_vk_topology(Description::Topology topology)
+    -> VkPrimitiveTopology {
+  switch (topology) {
+  case Description::Topology::TriangleList:
+    return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  }
+  Diagnostics::Log::fatal("Vulkan: Invalid primitive topology."_view);
+  return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+}
+
 auto Vulkan::ShaderProgram::create(
     VkDevice device,
     VkFormat color_format,
@@ -180,7 +190,7 @@ auto Vulkan::ShaderProgram::create(
 
   VkPipelineInputAssemblyStateCreateInfo input_assembly = {
     VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
-  input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  input_assembly.topology = to_vk_topology(render.topology);
 
   VkPipelineViewportStateCreateInfo viewport_state = {
     VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
@@ -199,13 +209,17 @@ auto Vulkan::ShaderProgram::create(
   multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
   VkPipelineColorBlendAttachmentState blend_attachment = {};
-  blend_attachment.blendEnable = VK_TRUE;
-  blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-  blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
-  blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-  blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-  blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+  switch (render.blend) {
+  case Description::Blend::Alpha:
+    blend_attachment.blendEnable = VK_TRUE;
+    blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+    blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    break;
+  }
   blend_attachment.colorWriteMask =
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;

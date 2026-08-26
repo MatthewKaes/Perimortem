@@ -28,12 +28,17 @@ class Generator {
       const Tetrodotoxin::App::Language::Monograph& app,
       Perimortem::Core::View::Bytes package,
       Perimortem::Core::View::Bytes artifact,
-      const Ttx::Model::Type& graphics_host,
+      const Ttx::Model::Type& graphics_placement,
       Perimortem::Core::View::Vector<
           Ttx::Concept::Reference<const Ttx::Model::Type>> graphics_types,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes>
-          graphics_descriptors,
-      const Tetrodotoxin::Terminal::Vulkan::Products& vulkan)
+          graphics_placements,
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes>
+          graphics_children,
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes>
+          graphics_drawables,
+      Perimortem::Core::View::Vector<Tetrodotoxin::Terminal::Vulkan::Products>
+          vulkan)
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 };
 

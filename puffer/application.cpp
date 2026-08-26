@@ -17,12 +17,16 @@
 #include "tetrodotoxin/app/language/monograph.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/types/composite.hpp"
+#include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/linker/manifest.hpp"
 #include "tetrodotoxin/package/archive/reader.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "tetrodotoxin/render/dialect.hpp"
 #include "tetrodotoxin/scene/dialect.hpp"
+#include "tetrodotoxin/scene/language/monograph.hpp"
 #include "tetrodotoxin/shader/dialect.hpp"
 #include "tetrodotoxin/shader/language/program.hpp"
 #include "tetrodotoxin/terminal/application/generator.hpp"
@@ -112,6 +116,87 @@ static auto find_program_symbol(
     if (selected && &selected->resolve() == &program) {
       BAIL_IF(symbol);
       symbol = exported.get_symbol_locator();
+    }
+  }
+  return symbol;
+}
+
+static auto retain_scene(
+    Memory::Managed::Vector<
+        Ttx::Concept::Reference<const Scene::Language::Monograph>>& scenes,
+    const Scene::Language::Monograph& scene) -> void {
+  for (const Ttx::Concept::Reference<const Scene::Language::Monograph>&
+           retained : scenes.get_view()) {
+    if (&retained.get() == &scene) {
+      return;
+    }
+  }
+  scenes.insert(scene);
+}
+
+static auto retain_program(
+    Memory::Managed::Vector<
+        Ttx::Concept::Reference<const Shader::Language::Program>>& programs,
+    const Shader::Language::Program& program) -> void {
+  for (const Ttx::Concept::Reference<const Shader::Language::Program>&
+           retained : programs.get_view()) {
+    if (&retained.get() == &program) {
+      return;
+    }
+  }
+  programs.insert(program);
+}
+
+static auto collect_programs(
+    const Library::Language::Model::Type& type,
+    Memory::Managed::Vector<
+        Ttx::Concept::Reference<const Shader::Language::Program>>& programs,
+    Memory::Managed::Vector<
+        Ttx::Concept::Reference<const Library::Language::Model::Type>>& visited)
+    -> void {
+  for (const Ttx::Concept::Reference<const Library::Language::Model::Type>&
+           retained : visited.get_view()) {
+    if (&retained.get() == &type) {
+      return;
+    }
+  }
+  visited.insert(type);
+
+  auto object = type.select<Library::Language::Types::Object>();
+  auto program = object ? object->get_definition()
+                              .get_host()
+                              .select<Shader::Language::Program>()
+                        : Core::Option<const Shader::Language::Program&>();
+  if (program && &program->get_instance() == &type) {
+    retain_program(programs, *program);
+  }
+
+  auto composite = type.select<Library::Language::Types::Composite>();
+  if (!composite) {
+    return;
+  }
+  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
+       composite->get_addressables()) {
+    auto field = declaration.get().select<Library::Language::Field>();
+    if (field) {
+      collect_programs(field->get_type(), programs, visited);
+    }
+  }
+}
+
+static auto find_program_symbol(
+    const Environment::Workspace& workspace,
+    const Package::Archive::Archive& root,
+    Core::View::Vector<Package::Archive::Archive> dependencies,
+    const Shader::Language::Program& program,
+    Core::View::Bytes artifact) -> Core::Option<Core::View::Bytes> {
+  auto symbol = find_program_symbol(workspace, root, program, artifact);
+  for (const Package::Archive::Archive& dependency : dependencies) {
+    auto selected =
+        find_program_symbol(workspace, dependency, program, artifact);
+    BAIL_IF(selected && symbol);
+    if (selected) {
+      symbol = *selected;
     }
   }
   return symbol;
@@ -245,19 +330,21 @@ auto Puffer::Application::run() const -> S32 {
     return 1;
   }
 
-  Core::View::Bytes graphics_host_route =
-      value(arguments, "graphics-host"_view);
-  Core::View::Bytes graphics_shader_route =
-      value(arguments, "graphics-shader"_view);
-  Core::Option<const Ttx::Model::Type&> graphics_host;
+  Core::View::Bytes graphics_placement_route =
+      value(arguments, "graphics-placement"_view);
+  Core::Option<const Ttx::Model::Type&> graphics_placement;
   Memory::Managed::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>>
       graphics_types(arena);
-  Core::View::Vector<Core::View::Bytes> graphics_descriptors =
-      values(arguments, "graphics-descriptor"_view);
-  if (!graphics_host_route.is_empty()) {
-    auto selected = resolve_context_route(*root, graphics_host_route);
-    graphics_host = selected ? selected->select<Ttx::Model::Type>()
-                             : Core::Option<const Ttx::Model::Type&>();
+  Core::View::Vector<Core::View::Bytes> graphics_placements =
+      values(arguments, "graphics-placement-provider"_view);
+  Core::View::Vector<Core::View::Bytes> graphics_children =
+      values(arguments, "graphics-children-provider"_view);
+  Core::View::Vector<Core::View::Bytes> graphics_drawables =
+      values(arguments, "graphics-drawable-provider"_view);
+  if (!graphics_placement_route.is_empty()) {
+    auto selected = resolve_context_route(*root, graphics_placement_route);
+    graphics_placement = selected ? selected->select<Ttx::Model::Type>()
+                                  : Core::Option<const Ttx::Model::Type&>();
     for (Core::View::Bytes route : values(arguments, "graphics-type"_view)) {
       auto type = resolve_context_route(*root, route);
       auto selected_type = type ? type->select<Ttx::Model::Type>()
@@ -268,34 +355,6 @@ auto Puffer::Application::run() const -> S32 {
         return 1;
       }
       graphics_types.insert(*selected_type);
-    }
-  }
-
-  auto selected_shader =
-      graphics_shader_route.is_empty()
-          ? Core::Option<const Ttx::Concept::Abstract&>()
-          : resolve_context_route(*root, graphics_shader_route);
-  auto graphics_shader =
-      selected_shader ? selected_shader->select<Shader::Language::Program>()
-                      : Core::Option<const Shader::Language::Program&>();
-  if (!graphics_shader_route.is_empty() && !graphics_shader) {
-    Core::Diagnostics::Log::error(
-        "Puffer Application could not resolve its configured Shader Program."_view);
-  }
-  Core::Option<Core::View::Bytes> graphics_shader_symbol;
-  if (graphics_shader) {
-    graphics_shader_symbol = find_program_symbol(
-        workspace, *root_archive, *graphics_shader, artifact);
-    for (const Package::Archive::Archive& dependency :
-         dependency_archives.get_view()) {
-      auto selected = find_program_symbol(
-          workspace, dependency, *graphics_shader, artifact);
-      if (selected) {
-        if (graphics_shader_symbol) {
-          return 1;
-        }
-        graphics_shader_symbol = *selected;
-      }
     }
   }
 
@@ -331,24 +390,73 @@ auto Puffer::Application::run() const -> S32 {
         << "();\n  return 0;\n}\n"_view;
     generated = static_cast<Memory::Dynamic::Bytes&&>(source);
   } else {
-    if (!graphics_host || graphics_types.is_empty() || !graphics_shader ||
-        !graphics_shader_symbol ||
-        graphics_descriptors.get_size() != graphics_types.get_size()) {
+    if (!graphics_placement || graphics_types.is_empty() ||
+        graphics_placements.get_size() != graphics_types.get_size() ||
+        graphics_children.get_size() != graphics_types.get_size() ||
+        graphics_drawables.get_size() != graphics_types.get_size()) {
       Core::Diagnostics::Log::error(
           "Puffer Application has an incomplete graphics product selection."_view);
       return 1;
     }
-    Terminal::Vulkan::Compiler vulkan_compiler;
-    auto vulkan = vulkan_compiler.compile(
-        arena, *graphics_shader, *graphics_shader_symbol);
-    if (!vulkan) {
-      Core::Diagnostics::Log::error(
-          "Puffer Application could not derive its Vulkan product."_view);
+    auto scene_policy = app->get_scene();
+    auto initial_scene =
+        scene_policy ? scene_policy->get_initial_scene()
+                     : Core::Option<const Scene::Language::Monograph&>();
+    if (!scene_policy || !initial_scene) {
       return 1;
     }
+    Memory::Managed::Vector<
+        Ttx::Concept::Reference<const Scene::Language::Monograph>>
+        scenes(arena);
+    retain_scene(scenes, *initial_scene);
+    for (const Ttx::Concept::Reference<App::Language::Transition>& retained :
+         scene_policy->get_transitions()) {
+      auto source = retained.get().get_source_scene();
+      auto destination = retained.get().get_destination_scene();
+      if (!source) {
+        return 1;
+      }
+      retain_scene(scenes, *source);
+      if (destination) {
+        retain_scene(scenes, *destination);
+      }
+    }
+
+    Memory::Managed::Vector<
+        Ttx::Concept::Reference<const Shader::Language::Program>>
+        programs(arena);
+    Memory::Managed::Vector<
+        Ttx::Concept::Reference<const Library::Language::Model::Type>>
+        visited(arena);
+    for (const Ttx::Concept::Reference<const Scene::Language::Monograph>&
+             scene : scenes.get_view()) {
+      collect_programs(scene.get().get_instance(), programs, visited);
+    }
+    if (programs.is_empty()) {
+      return 1;
+    }
+
+    Memory::Managed::Vector<Terminal::Vulkan::Products> vulkan(arena);
+    Terminal::Vulkan::Compiler vulkan_compiler;
+    for (const Ttx::Concept::Reference<const Shader::Language::Program>&
+             selected : programs.get_view()) {
+      auto symbol = find_program_symbol(
+          workspace, *root_archive, dependency_archives.get_view(),
+          selected.get(), artifact);
+      auto product =
+          symbol ? vulkan_compiler.compile(arena, selected.get(), *symbol)
+                 : Core::Option<Terminal::Vulkan::Products>();
+      if (!product) {
+        Core::Diagnostics::Log::error(
+            "Puffer Application could not derive one reachable Vulkan Program."_view);
+        return 1;
+      }
+      vulkan.insert(*product);
+    }
     generated = Terminal::Application::Generator::create(
-        arena, *app, root_archive->get_identity(), artifact, *graphics_host,
-        graphics_types.get_view(), graphics_descriptors, *vulkan);
+        arena, *app, root_archive->get_identity(), artifact,
+        *graphics_placement, graphics_types.get_view(), graphics_placements,
+        graphics_children, graphics_drawables, vulkan.get_view());
   }
   if (!generated || !publish(source_path, *generated)) {
     Core::Diagnostics::Log::error(

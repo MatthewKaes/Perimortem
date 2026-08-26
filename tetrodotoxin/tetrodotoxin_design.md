@@ -456,14 +456,20 @@ Graphics is not another Dialect. It defines the language neutral hosting and
 frame submission boundary between completed Scene state and a rendering
 backend. Scene keeps exact Field and Object identity, Render and Shader keep
 their semantic contracts, and target resources remain with the backend
-consumer. The ordinary Graphics Package publishes one Host requirement, and a
-higher order Interface proves that a concrete Library Object supplies its
-public state without turning Host into a base Type. A successful proof can
-derive compact runtime traversal behavior from those real Fields. Each frame
-copies draw inputs and transforms, retains its worker local resources, and
-refers to the selected compiled Program through an opaque process locator.
-SPIR V words and physical pipeline descriptions remain sibling target products
-owned by their Terminal and backend.
+consumer. The ordinary Graphics Package publishes one Placement2D requirement,
+a higher order Interface proves that a concrete Library Object supplies the
+Placement2D public state without turning Placement2D into a base Type.
+Placement2D, Children2D, and Drawable2D remain separate runtime Interfaces for
+placement, child traversal, and draw extraction.
+
+Image owns decoded pixels while Texture2D gives those pixels stable rendering
+identity. Sprite stores one explicit
+`Implementation[Render::TexturedQuad2D]`, retaining the concrete Shader
+Instance and its ABI Projection without copying parameter state into Sprite.
+Each frame copies current parameter bytes and transforms, retains its worker
+local Texture2D resources, and refers to the selected compiled Program through
+an opaque process locator. SPIR V words and physical pipeline descriptions
+remain sibling target products owned by their Terminal and backend.
 
 The standard Memory, Math, System, and Graphics surfaces are ordinary Packages.
 They use the same dependency, Library, Foreign, persistence, and native

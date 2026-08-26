@@ -261,7 +261,8 @@ auto Llvm::Module::Debug::initialize(
   llvm::StringRef source = native_text(source_text);
   llvm::SHA256 checksum;
   checksum.update(source);
-  std::string digest = llvm::toHex(checksum.final(), true);
+  llvm::SmallString<64> digest;
+  llvm::toHex(checksum.final(), true, digest);
   llvm::DIFile& native_file = *native_builder.createFile(
       path, "",
       llvm::DIFile::ChecksumInfo<llvm::StringRef>(
@@ -663,6 +664,25 @@ static auto create_debug_type(
       members.push_back(&create_member(
           program, *builder, *file, *temporary, *native_struct, 1,
           "value_selected"_view, *debug_flag));
+    } else if (*kind == Llvm::Module::Carriers::Kind::Implementation) {
+      llvm::DIType& byte =
+          *builder->createBasicType("U8", 8, llvm::dwarf::DW_ATE_unsigned);
+      llvm::DIType& count =
+          *builder->createBasicType("Count", 64, llvm::dwarf::DW_ATE_unsigned);
+      llvm::Type& object_native = *native_struct->getElementType(0);
+      llvm::Type& projection_native = *native_struct->getElementType(1);
+      llvm::DIType& object = *builder->createPointerType(
+          &byte, size_in_bits(program, object_native),
+          U32(alignment_in_bits(program, object_native)));
+      llvm::DIType& projection = *builder->createPointerType(
+          &count, size_in_bits(program, projection_native),
+          U32(alignment_in_bits(program, projection_native)));
+      members.push_back(&create_member(
+          program, *builder, *file, *temporary, *native_struct, 0,
+          "object"_view, object));
+      members.push_back(&create_member(
+          program, *builder, *file, *temporary, *native_struct, 1,
+          "projection"_view, projection));
     } else if (
         *kind == Llvm::Module::Carriers::Kind::View ||
         *kind == Llvm::Module::Carriers::Kind::Access) {

@@ -209,6 +209,12 @@ static auto write_cpp_type(
   }
 
   if (*kind ==
+      Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Implementation) {
+    output << "Perimortem::Core::Implementation"_view;
+    return True;
+  }
+
+  if (*kind ==
           Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Object ||
       *kind == Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::
                    ObjectStorage) {
@@ -219,7 +225,8 @@ static auto write_cpp_type(
   if (*kind !=
       Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Structure) {
     return fail_cxx(
-        "The first generated C++ API supports scalar, View, Object, and "
+        "The first generated C++ API supports scalar, View, Implementation, "
+        "Object, and "
         "Structure types."_view);
   }
 
@@ -824,6 +831,12 @@ static auto write_raw_argument(
     return True;
   }
   if (*kind ==
+      Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Implementation) {
+    output << "{"_view << name << ".get_object().get_payload(), "_view << name
+           << ".get_projection()}"_view;
+    return True;
+  }
+  if (*kind ==
       Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Structure) {
     output << "*reinterpret_cast<const "_view;
     if (!write_raw_type_name(arena, output, types, unit, type)) {
@@ -903,6 +916,14 @@ static auto write_adopted_result(
     }
     output << "("_view << variable << ".data, "_view << variable
            << ".size);\n"_view;
+    return True;
+  }
+  if (*kind ==
+      Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Implementation) {
+    output << "return Perimortem::Core::Implementation::adopt("
+              "Perimortem::Core::Object<>(static_cast<U8 *>("_view
+           << variable << ".object)), "_view << variable
+           << ".projection);\n"_view;
     return True;
   }
   if (*kind !=
@@ -1325,6 +1346,7 @@ auto Tetrodotoxin::Terminal::Abi::Cpp::Header::create(
 
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/access/vector.hpp"
+#include "perimortem/core/implementation.hpp"
 #include "perimortem/core/hash.hpp"
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"

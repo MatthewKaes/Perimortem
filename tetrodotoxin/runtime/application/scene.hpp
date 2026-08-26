@@ -5,7 +5,7 @@
 
 #include "perimortem/core/perimortem.hpp"
 
-#include "tetrodotoxin/graphics/compiled_descriptor.hpp"
+#include "tetrodotoxin/graphics/runtime/compiled_children_2d.hpp"
 
 namespace Tetrodotoxin::Runtime::Application {
 
@@ -24,7 +24,8 @@ struct Scene {
   Update update;
   Lifecycle release;
   Count graphics_child_count;
-  Tetrodotoxin::Graphics::CompiledDescriptor::ReadChild graphics_children;
+  Tetrodotoxin::Graphics::Runtime::CompiledChildren2D::ReadChild
+      graphics_children;
 };
 
 static_assert(__is_trivial(Scene));

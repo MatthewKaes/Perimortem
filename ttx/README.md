@@ -1,6 +1,6 @@
 # TTX
 
-> **The common layer should be meaning, not representation.**
+> **The common layer is meaning, not representation.**
 
 When a Package names a Library Type, an editor follows that name, and a Terminal
 compiles its values, all three should be talking about the same thing. TTX gives
@@ -91,6 +91,11 @@ reads the stream. TTX does not require a retained syntax tree. Another host may
 own a source model when its tools require one. Tetrodotoxin constructs
 Monographs directly from Tokens and retains no second source graph.
 
+`//` introduces Documentation that tools may present to a reader. `///`
+introduces a quieter raw comment for source metadata and other notes that
+should remain visible to maintainers without appearing in generated help.
+Formatting preserves the raw comment content as authored.
+
 ### Semantic identities
 
 Every language object that tools can query belongs to one of these TTX
@@ -170,6 +175,8 @@ machine storage requirements.
 
 ### Semantic Interface negotiation
 
+> **Structural negotiation like Zig, explicit runtime erasure like Rust.**
+
 Pack and Layout form the shared data flow projection. The Pack keeps its
 producer identity, while Layout exposes the shape that can move to a consumer.
 That projection deliberately leaves behavior and richer domain meaning behind.
@@ -187,6 +194,17 @@ and it creates no wrapper or copied graph around either participant.
 Target object layout, field offsets, registers, address spaces, pointer forms,
 and runtime storage belong to the consumer that chooses a physical
 representation.
+
+An explicit erased value can route one exact requirement to the candidate
+owner through `Abstract::satisfies`. The default is rejection. Concrete owners
+override the query only for semantic relations they can prove.
+
+Most accepted candidates remain concrete and need no runtime indirection. A
+language that needs to store several implementations through one contract makes
+that erasure explicit in its own value model. Library uses
+`Implementation[Requirement]` for Object backed values accepted by an exact
+semantic relation. The real Object remains the semantic producer, while an ABI
+Terminal derives the immutable Projection needed by the selected native target.
 
 Every concrete Type that a language allows as an ordinary value has a nonempty
 Layout and a default.

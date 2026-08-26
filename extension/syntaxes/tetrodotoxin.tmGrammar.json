@@ -72,8 +72,16 @@
       ]
     },
     "comments": {
-      "name": "comment.line.double-slash.tetrodotoxin",
-      "match": "//.*$"
+      "patterns": [
+        {
+          "name": "comment.line.raw.tetrodotoxin",
+          "match": "///.*$"
+        },
+        {
+          "name": "comment.line.double-slash.tetrodotoxin",
+          "match": "//.*$"
+        }
+      ]
     },
     "disabled": {
       "name": "comment.line.disabled.tetrodotoxin",

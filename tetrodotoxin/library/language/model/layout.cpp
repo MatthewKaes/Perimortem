@@ -85,6 +85,61 @@ auto Language::Model::Layout::create(
       [&]() -> Layout { return Layout(domain, slots, anchor, parameters); });
 }
 
+auto Language::Model::Layout::retain_generated_slot(
+    TypeReference type_reference,
+    View::Bytes name,
+    View::Vector<Tetrodotoxin::Language::Attribute> attributes) -> Bool {
+  BAIL_IF(!slots.is_empty() && is_linked());
+  for (const Slot& slot : slots.get_view()) {
+    BAIL_IF(!name.is_empty() && slot.get_name() == name);
+  }
+
+  slots.insert(Slot(type_reference, Anchor::create(Span()), name, attributes));
+  return True;
+}
+
+auto Language::Model::Layout::retain_generated_slot(
+    const Type& type,
+    View::Bytes name,
+    View::Vector<Tetrodotoxin::Language::Attribute> attributes) -> Bool {
+  BAIL_IF(type.get_layout().is_empty());
+  for (const Slot& slot : slots.get_view()) {
+    BAIL_IF(!name.is_empty() && slot.get_name() == name);
+  }
+
+  Slot slot({}, Anchor::create(Span()), name, attributes);
+  if (parameters) {
+    auto parameter = Parameter::create_authored(domain, name, type);
+    BAIL_IF(!parameter);
+    slot.edge = Reference<const Abstract>(*parameter);
+  } else {
+    slot.edge = Reference<const Abstract>(type);
+  }
+  slots.insert(slot);
+  return True;
+}
+
+auto Language::Model::Layout::retain_generated_edge(
+    Count index,
+    const Type& type) -> Bool {
+  BAIL_IF(
+      index >= slots.get_size() || slots[index].type_reference ||
+      type.get_layout().is_empty());
+  Slot& slot = slots[index];
+  if (slot.edge) {
+    auto retained = select_entry_type(slot.edge->get());
+    return retained && &*retained == &type;
+  }
+  if (parameters) {
+    auto parameter = Parameter::create_authored(domain, slot.name, type);
+    BAIL_IF(!parameter);
+    slot.edge = Reference<const Abstract>(*parameter);
+  } else {
+    slot.edge = Reference<const Abstract>(type);
+  }
+  return True;
+}
+
 auto Language::Model::Layout::link_restored(
     const Abstract& host,
     Bool parameters,
@@ -95,6 +150,11 @@ auto Language::Model::Layout::link_restored(
 
   for (Count index = 0; index < slots.get_size(); index++) {
     Slot& slot = slots[index];
+    if (!slot.type_reference && slot.edge) {
+      auto retained = select_entry_type(slot.edge->get());
+      BAIL_IF(!retained || retained->get_layout().is_empty());
+      continue;
+    }
     Option<const Type&> type;
     if (!slot.type_reference) {
       if (!parameters) {
@@ -157,6 +217,16 @@ auto Language::Model::Layout::link(
   Bool failed = False;
   for (Count i = 0; i < slots.get_size(); i++) {
     Slot& slot = slots[i];
+    if (!slot.type_reference && slot.edge) {
+      auto retained = select_entry_type(slot.edge->get());
+      if (!retained || retained->get_layout().is_empty()) {
+        cursor.create_expression_error(
+            slot.anchor,
+            "Generated Function Layout edge no longer selects a value Type."_view);
+        failed = True;
+      }
+      continue;
+    }
     Option<const Type&> type;
     if (!slot.type_reference) {
       if (!parameters) {
@@ -333,7 +403,13 @@ auto Language::Model::Layout::validate_publication(
     // Function signature merely because linking retained its identity.
     Bool reachable = slot.type_reference.visit(
         [&]() {
-          return Bool(i == 0 && slot.name == "self"_view && &*type == &host);
+          // A generated slot already retains the exact Type selected by its
+          // embedding Dialect. Authored slots still repeat their public route
+          // below, while self proves the same direct host relationship.
+          return Bool(
+              slot.edge &&
+              ((i == 0 && slot.name == "self"_view && &*type == &host) ||
+               slot.name != "self"_view));
         },
         [&](const TypeReference& reference) {
           Option<const Abstract&> selected;

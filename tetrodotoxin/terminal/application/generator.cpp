@@ -99,20 +99,33 @@ auto Terminal::Application::Generator::create(
     const App::Language::Monograph& app,
     Core::View::Bytes package,
     Core::View::Bytes artifact,
-    const Ttx::Model::Type& graphics_host,
+    const Ttx::Model::Type& graphics_placement,
     Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>>
         graphics_types,
-    Core::View::Vector<Core::View::Bytes> graphics_descriptors,
-    const Terminal::Vulkan::Products& vulkan)
+    Core::View::Vector<Core::View::Bytes> graphics_placements,
+    Core::View::Vector<Core::View::Bytes> graphics_children,
+    Core::View::Vector<Core::View::Bytes> graphics_drawables,
+    Core::View::Vector<Terminal::Vulkan::Products> vulkan)
     -> Core::Option<Memory::Dynamic::Bytes> {
   auto policy = app.get_scene();
   auto windowed = app.get_runtime().get_windowed();
   BAIL_IF(
       !policy || !windowed || package.is_empty() || artifact.is_empty() ||
-      graphics_descriptors.get_size() != graphics_types.get_size() ||
-      graphics_descriptors.is_empty());
-  for (Core::View::Bytes descriptor : graphics_descriptors) {
-    BAIL_IF(!Terminal::Abi::Symbol::validate(descriptor));
+      graphics_placements.get_size() != graphics_types.get_size() ||
+      graphics_children.get_size() != graphics_types.get_size() ||
+      graphics_drawables.get_size() != graphics_types.get_size() ||
+      vulkan.is_empty());
+  for (Count index = 0; index < graphics_types.get_size(); index++) {
+    BAIL_IF(
+        (graphics_placements[index].is_empty() &&
+         graphics_children[index].is_empty() &&
+         graphics_drawables[index].is_empty()) ||
+        (!graphics_placements[index].is_empty() &&
+         !Terminal::Abi::Symbol::validate(graphics_placements[index])) ||
+        (!graphics_children[index].is_empty() &&
+         !Terminal::Abi::Symbol::validate(graphics_children[index])) ||
+        (!graphics_drawables[index].is_empty() &&
+         !Terminal::Abi::Symbol::validate(graphics_drawables[index])));
   }
   auto initial = policy->get_initial_scene();
   BAIL_IF(!initial);
@@ -142,7 +155,7 @@ auto Terminal::Application::Generator::create(
   Terminal::Graphics::Compiler graphics_compiler;
   for (const ApplicationSceneSelection& selected : scenes.get_view()) {
     auto product = graphics_compiler.compile(
-        arena, selected.scene.get(), graphics_host, graphics_types);
+        arena, selected.scene.get(), graphics_placement, graphics_types);
     BAIL_IF(!product);
     graphics.insert(*product);
   }
@@ -156,14 +169,30 @@ auto Terminal::Application::Generator::create(
          << "#include \"perimortem/vulkan/description/program.hpp\"\n"_view
          << "#include \"tetrodotoxin/runtime/application/runner.hpp\"\n\n"_view;
 
-  Memory::Managed::Bytes shader_end(arena, vulkan.get_symbol());
-  shader_end.concat("_end"_view);
-  output << "extern \"C\" const U8 "_view << vulkan.get_symbol()
-         << "[];\nextern \"C\" const U8 "_view << shader_end.get_view()
-         << "[];\n\n"_view;
-  for (Core::View::Bytes descriptor : graphics_descriptors) {
-    output << "extern \"C\" const Tetrodotoxin::Graphics::Descriptor* "_view
-           << descriptor << "();\n"_view;
+  for (const Terminal::Vulkan::Products& product : vulkan) {
+    Memory::Managed::Bytes shader_end(arena, product.get_symbol());
+    shader_end.concat("_end"_view);
+    output << "extern \"C\" const U8 "_view << product.get_symbol()
+           << "[];\nextern \"C\" const U8 "_view << shader_end.get_view()
+           << "[];\n"_view;
+  }
+  output << "\n"_view;
+  for (Count index = 0; index < graphics_types.get_size(); index++) {
+    if (!graphics_placements[index].is_empty()) {
+      output << "extern \"C\" const "
+                "Tetrodotoxin::Graphics::Runtime::Placement2D* "_view
+             << graphics_placements[index] << "();\n"_view;
+    }
+    if (!graphics_children[index].is_empty()) {
+      output << "extern \"C\" const "
+                "Tetrodotoxin::Graphics::Runtime::Children2D* "_view
+             << graphics_children[index] << "();\n"_view;
+    }
+    if (!graphics_drawables[index].is_empty()) {
+      output << "extern \"C\" const "
+                "Tetrodotoxin::Graphics::Runtime::Drawable2D* "_view
+             << graphics_drawables[index] << "();\n"_view;
+    }
   }
   output << "\n"_view;
 
@@ -215,71 +244,118 @@ auto Terminal::Application::Generator::create(
     output << "extern \"C\" const U8 "_view << token.get_view() << ";\n"_view;
   }
 
-  output << "\nstatic const Perimortem::Vulkan::Description::Module "
-            "application_modules[] = {\n"_view;
-  for (const Terminal::Vulkan::Products::Entry& entry : vulkan.get_entries()) {
-    output << "  {Perimortem::Vulkan::Description::Stage::"_view
-           << (entry.stage == Terminal::Vulkan::Products::Stage::Vertex
-                   ? "Vertex"_view
-                   : "Pixel"_view)
-           << ", Perimortem::Core::View::Vector<U32>("
-              "Perimortem::Core::Data::cast<const U32>("_view
-           << vulkan.get_symbol() << "), Count("_view << shader_end.get_view()
-           << " - "_view << vulkan.get_symbol() << ") / sizeof(U32)), \""_view
-           << entry.name << "\"_view},\n"_view;
+  for (Count product_index = 0; product_index < vulkan.get_size();
+       product_index++) {
+    const Terminal::Vulkan::Products& product =
+        vulkan.get_data()[product_index];
+    Memory::Managed::Bytes shader_end(arena, product.get_symbol());
+    shader_end.concat("_end"_view);
+    output << "\nstatic const Perimortem::Vulkan::Description::Module "
+              "application_modules_"_view
+           << product_index << "[] = {\n"_view;
+    for (const Terminal::Vulkan::Products::Entry& entry :
+         product.get_entries()) {
+      output << "  {Perimortem::Vulkan::Description::Stage::"_view
+             << (entry.stage == Terminal::Vulkan::Products::Stage::Vertex
+                     ? "Vertex"_view
+                     : "Pixel"_view)
+             << ", Perimortem::Core::View::Vector<U32>("
+                "Perimortem::Core::Data::cast<const U32>("_view
+             << product.get_symbol() << "), Count("_view
+             << shader_end.get_view() << " - "_view << product.get_symbol()
+             << ") / sizeof(U32)), \""_view << entry.name << "\"_view},\n"_view;
+    }
+    output << "};\n\nstatic const Perimortem::Vulkan::Description::Stage "
+              "application_push_stages_"_view
+           << product_index << "[] = {\n"_view;
+    for (const Terminal::Vulkan::Products::Entry& entry :
+         product.get_entries()) {
+      output << "  Perimortem::Vulkan::Description::Stage::"_view
+             << (entry.stage == Terminal::Vulkan::Products::Stage::Vertex
+                     ? "Vertex"_view
+                     : "Pixel"_view)
+             << ",\n"_view;
+    }
+    output
+        << "};\n\nstatic const Perimortem::Vulkan::Description::HostInputRange "
+           "application_host_ranges_"_view
+        << product_index << "[] = {\n  {0, "_view << product.get_host_size()
+        << ", Perimortem::Core::View::Vector<"
+           "Perimortem::Vulkan::Description::Stage>(application_push_stages_"_view
+        << product_index << ", "_view << product.get_entries().get_size()
+        << ")},\n};\n\n"_view
+        << "static const Perimortem::Vulkan::Description::DescriptorBinding "
+           "application_descriptors_"_view
+        << product_index << "[] = {\n"_view;
+    for (const Terminal::Vulkan::Products::Descriptor& descriptor :
+         product.get_descriptors()) {
+      output
+          << "  {\""_view << descriptor.name << "\"_view, "_view
+          << descriptor.set << ", "_view << descriptor.slot
+          << ", Perimortem::Vulkan::Description::Resource::SampledTexture2D},\n"_view;
+    }
+    output << "};\n\nstatic const Perimortem::Vulkan::Description::HostField "
+              "application_host_fields_"_view
+           << product_index << "[] = {\n"_view;
+    for (const Terminal::Vulkan::Products::HostField& field :
+         product.get_host_fields()) {
+      output << "  {\""_view << field.name << "\"_view, "_view << field.offset
+             << ", "_view << field.size
+             << ", Perimortem::Vulkan::Description::HostRole::"_view;
+      switch (field.role) {
+      case Terminal::Vulkan::Products::HostRole::Parameter:
+        output << "Parameter"_view;
+        break;
+      case Terminal::Vulkan::Products::HostRole::TransformX:
+        output << "TransformX"_view;
+        break;
+      case Terminal::Vulkan::Products::HostRole::TransformY:
+        output << "TransformY"_view;
+        break;
+      }
+      output << "},\n"_view;
+    }
+    output << "};\n\nstatic const Perimortem::Vulkan::Description::VertexInput "
+              "application_vertex_inputs_"_view
+           << product_index << "[] = {\n"_view;
+    for (const Terminal::Vulkan::Products::VertexInput& input :
+         product.get_vertex_inputs()) {
+      output << "  {"_view << input.location << ", "_view << input.components
+             << ", "_view << input.offset << ", "_view << input.stride
+             << "},\n"_view;
+    }
+    output << "};\n"_view;
   }
-  output << "};\n\nstatic const Perimortem::Vulkan::Description::Stage "
-            "application_push_stages[] = {\n"_view;
-  for (const Terminal::Vulkan::Products::Entry& entry : vulkan.get_entries()) {
-    output << "  Perimortem::Vulkan::Description::Stage::"_view
-           << (entry.stage == Terminal::Vulkan::Products::Stage::Vertex
-                   ? "Vertex"_view
-                   : "Pixel"_view)
-           << ",\n"_view;
+
+  output << "\nstatic const Perimortem::Vulkan::Description::Program "
+            "application_programs[] = {\n"_view;
+  for (Count product_index = 0; product_index < vulkan.get_size();
+       product_index++) {
+    const Terminal::Vulkan::Products& product =
+        vulkan.get_data()[product_index];
+    output
+        << "  {"_view << product.get_symbol()
+        << ", Perimortem::Core::View::Vector<Perimortem::Vulkan::Description::Module>(application_modules_"_view
+        << product_index << ", "_view << product.get_entries().get_size()
+        << "), Perimortem::Core::View::Vector<Perimortem::Vulkan::Description::HostInputRange>(application_host_ranges_"_view
+        << product_index
+        << ", 1), Perimortem::Core::View::Vector<Perimortem::Vulkan::Description::DescriptorBinding>(application_descriptors_"_view
+        << product_index << ", "_view << product.get_descriptors().get_size()
+        << "), Perimortem::Core::View::Vector<Perimortem::Vulkan::Description::HostField>(application_host_fields_"_view
+        << product_index << ", "_view << product.get_host_fields().get_size()
+        << "), Perimortem::Core::View::Vector<Perimortem::Vulkan::Description::VertexInput>(application_vertex_inputs_"_view
+        << product_index << ", "_view << product.get_vertex_inputs().get_size()
+        << "), "_view << product.get_host_size() << ", "_view
+        << product.get_parameters_offset() << ", "_view
+        << product.get_parameters_size() << ", "_view
+        << product.get_vertex_count()
+        << ", Perimortem::Vulkan::Description::Topology::TriangleList, "
+           "Perimortem::Vulkan::Description::Blend::Alpha, "
+           "Perimortem::Vulkan::Description::Geometry::UnitQuad2D, "_view
+        << (product.needs_float64() ? "true"_view : "false"_view)
+        << "},\n"_view;
   }
-  output
-      << "};\n\nstatic const Perimortem::Vulkan::Description::HostInputRange "
-         "application_host_ranges[] = {\n  {0, "_view
-      << vulkan.get_host_size()
-      << ", Perimortem::Core::View::Vector<"
-         "Perimortem::Vulkan::Description::Stage>(application_push_stages, "_view
-      << vulkan.get_entries().get_size() << ")},\n};\n\n"_view
-      << "static const Perimortem::Vulkan::Description::DescriptorBinding "
-         "application_descriptors[] = {\n"_view;
-  for (const Terminal::Vulkan::Products::Descriptor& descriptor :
-       vulkan.get_descriptors()) {
-    output << "  {\""_view << descriptor.name << "\"_view, "_view
-           << descriptor.set << ", "_view << descriptor.slot << "},\n"_view;
-  }
-  output << "};\n\nstatic const Perimortem::Vulkan::Description::HostField "
-            "application_host_fields[] = {\n"_view;
-  for (const Terminal::Vulkan::Products::HostField& field :
-       vulkan.get_host_fields()) {
-    output << "  {\""_view << field.name << "\"_view, "_view << field.offset
-           << ", "_view << field.size << "},\n"_view;
-  }
-  output << "};\n\nstatic const Perimortem::Vulkan::Description::VertexInput "
-            "application_vertex_inputs[] = {\n"_view;
-  for (const Terminal::Vulkan::Products::VertexInput& input :
-       vulkan.get_vertex_inputs()) {
-    output << "  {"_view << input.location << ", "_view << input.components
-           << ", "_view << input.offset << ", "_view << input.stride
-           << "},\n"_view;
-  }
-  output
-      << "};\n\nstatic const Perimortem::Vulkan::Description::Program "
-         "application_graphics = {\n"
-         "  Perimortem::Core::View::Vector<Perimortem::Vulkan::Description::Module>(application_modules, "_view
-      << vulkan.get_entries().get_size()
-      << "),\n  "
-         "Perimortem::Core::View::Vector<Perimortem::Vulkan::Description::"
-         "HostInputRange>(application_host_ranges, 1),\n"
-         "  Perimortem::Core::View::Vector<Perimortem::Vulkan::Description::DescriptorBinding>(application_descriptors, "_view
-      << vulkan.get_descriptors().get_size()
-      << "),\n  Perimortem::Core::View::Vector<Perimortem::Vulkan::Description::HostField>(application_host_fields, "_view
-      << vulkan.get_host_fields().get_size()
-      << "),\n  Perimortem::Core::View::Vector<Perimortem::Vulkan::Description::VertexInput>(application_vertex_inputs, "_view
-      << vulkan.get_vertex_inputs().get_size() << "),\n};\n"_view;
+  output << "};\n"_view;
 
   output << "\nstatic const U8 application_title[] = {"_view;
   Core::View::Bytes title = windowed->get_title().visit(
@@ -328,11 +404,42 @@ auto Terminal::Application::Generator::create(
            << graphics_children_symbol(arena, selected.scene.get(), unit)
            << "},\n"_view;
   }
+  output
+      << "};\n\n"_view
+      << "static const Tetrodotoxin::Runtime::Application::PlacementProvider "
+         "application_placements[] = {\n"_view;
+  for (Count index = 0; index < graphics_types.get_size(); index++) {
+    output << "  "_view;
+    if (graphics_placements[index].is_empty()) {
+      output << "nullptr"_view;
+    } else {
+      output << "&"_view << graphics_placements[index];
+    }
+    output << ",\n"_view;
+  }
   output << "};\n\n"_view
-         << "static const Tetrodotoxin::Runtime::Application::Product::"
-            "GraphicsDescriptor application_graphics_descriptors[] = {\n"_view;
-  for (Core::View::Bytes descriptor : graphics_descriptors) {
-    output << "  &"_view << descriptor << ",\n"_view;
+         << "static const Tetrodotoxin::Runtime::Application::ChildrenProvider "
+            "application_children[] = {\n"_view;
+  for (Count index = 0; index < graphics_types.get_size(); index++) {
+    output << "  "_view;
+    if (graphics_children[index].is_empty()) {
+      output << "nullptr"_view;
+    } else {
+      output << "&"_view << graphics_children[index];
+    }
+    output << ",\n"_view;
+  }
+  output << "};\n\n"_view
+         << "static const Tetrodotoxin::Runtime::Application::DrawableProvider "
+            "application_drawables[] = {\n"_view;
+  for (Count index = 0; index < graphics_types.get_size(); index++) {
+    output << "  "_view;
+    if (graphics_drawables[index].is_empty()) {
+      output << "nullptr"_view;
+    } else {
+      output << "&"_view << graphics_drawables[index];
+    }
+    output << ",\n"_view;
   }
   output << "};\n\n"_view
          << "static const Tetrodotoxin::Runtime::Application::Transition "
@@ -385,18 +492,18 @@ auto Terminal::Application::Generator::create(
       []() { return U32(800); }, [](U32 v) { return v; });
   U32 height = windowed->get_height().visit(
       []() { return U32(600); }, [](U32 v) { return v; });
-  output
-      << "};\n\n"_view
-      << "static const Tetrodotoxin::Runtime::Application::Product "
-         "application_product = {application_title, "_view
-      << width << ", "_view << height << ", application_scenes, "_view
-      << scenes.get_size() << ", "_view << *initial_index
-      << ", application_transitions, "_view
-      << policy->get_transitions().get_size()
-      << ", application_graphics_descriptors, "_view
-      << graphics_descriptors.get_size()
-      << ", Perimortem::Core::Data::cast<const U8>(&application_graphics)};\n\n"_view
-      << "int main() {\n  return "
-         "tetrodotoxin_application_scene(&application_product);\n}\n"_view;
+  output << "};\n\n"_view
+         << "static const Tetrodotoxin::Runtime::Application::Product "
+            "application_product = {application_title, "_view
+         << width << ", "_view << height << ", application_scenes, "_view
+         << scenes.get_size() << ", "_view << *initial_index
+         << ", application_transitions, "_view
+         << policy->get_transitions().get_size()
+         << ", application_placements, application_children, "
+            "application_drawables, "_view
+         << graphics_types.get_size() << ", application_programs, "_view
+         << vulkan.get_size() << "};\n\n"_view
+         << "int main() {\n  return "
+            "tetrodotoxin_application_scene(&application_product);\n}\n"_view;
   return source;
 }

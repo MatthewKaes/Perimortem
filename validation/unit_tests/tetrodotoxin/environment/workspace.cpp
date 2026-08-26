@@ -193,6 +193,36 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, unknown_dialect) {
   EXPECT(&workspace.resolve_context("Unknown"_view) == &Invalid::get_invalid());
 }
 
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, raw_source_comments) {
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<WorkspaceDialect>("Trace"_view));
+  Environment::Workspace workspace(toolchain);
+
+  Errors accepted_errors;
+  auto accepted = workspace.interpret_source(
+      accepted_errors, "RawAccepted"_view, "raw-accepted.ttx"_view,
+      "/// Build metadata\n"
+      "// Visible source documentation.\n"
+      "dialect : Trace;\n"
+      "complete"_view);
+  ASSERT(accepted);
+  EXPECT_EQ(accepted->get_documentation().line_count(), Count(1));
+  EXPECT_TEXT(
+      accepted->get_documentation().get_line(0),
+      "Visible source documentation."_view);
+  EXPECT(accepted_errors.is_empty());
+
+  Errors rejected_errors;
+  auto rejected = workspace.interpret_source(
+      rejected_errors, "RawRejected"_view, "raw-rejected.ttx"_view,
+      "/// Build metadata\n"
+      "dialect : Trace;\n"
+      "complete"_view);
+  EXPECT_NOT(rejected);
+  EXPECT(contains_diagnostic(
+      rejected_errors, "Raw comments do not become Documentation"_view));
+}
+
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, publishes_sources) {
   Environment::Toolchain toolchain;
   ASSERT(toolchain.install<WorkspaceDialect>("Trace"_view));

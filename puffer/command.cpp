@@ -49,18 +49,26 @@ static auto create_config(Memory::Allocator::Arena& arena)
       "Select one logical provider for a native import."_view);
   variables.insert("unit"_view, "Compile one declared Package member."_view);
   variables.insert(
+      "product-unit"_view,
+      "Write sibling Terminal products for one Package member."_view);
+  variables.insert(
       "artifact"_view, "Select the native artifact identity."_view);
   variables.insert(
       "spirv-target"_view, "Select the SPIR V validation environment."_view);
   variables.insert(
-      "graphics-host"_view, "Select one graphics Host requirement route."_view);
+      "graphics-placement"_view,
+      "Select one graphics Placement2D requirement route."_view);
   variables.insert(
       "graphics-type"_view, "Select one hosted graphics Type route."_view);
   variables.insert(
-      "graphics-descriptor"_view,
-      "Select one native graphics Descriptor provider."_view);
+      "graphics-placement-provider"_view,
+      "Select one native graphics Placement2D provider."_view);
   variables.insert(
-      "graphics-shader"_view, "Select one graphics Shader Program route."_view);
+      "graphics-children-provider"_view,
+      "Select one native graphics Children2D provider."_view);
+  variables.insert(
+      "graphics-drawable-provider"_view,
+      "Select one native graphics Drawable2D provider."_view);
   variables.insert("app-member"_view, "Select the Package App member."_view);
   variables.insert(
       "version"_view, "Set the Package `<major>.<minor>` version."_view);

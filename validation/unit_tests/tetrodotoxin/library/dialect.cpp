@@ -407,6 +407,38 @@ PERIMORTEM_UNIT_TEST(DialectTests, missing_type_route) {
       Count(-1));
 }
 
+PERIMORTEM_UNIT_TEST(DialectTests, qualified_type_associations) {
+  static constexpr View::Bytes source =
+      "public Outer : struct {\n"
+      "  public Inner : struct { public state member : U64; }\n"
+      "}\n"
+      "private value : Outer::Inner;"_view;
+  Allocator::Arena arena;
+  EmptyRegistry registry;
+  Dialect dialect;
+  Errors errors;
+  Tokenizer tokenizer(arena, source, "qualified-type-associations.ttx"_view);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Cursor cursor(tokenizer, errors, associations);
+  auto interpreted_owner =
+      interpret_library_source(arena, dialect, cursor, registry);
+  auto interpreted = select_library_monograph(interpreted_owner);
+  ASSERT(interpreted);
+  auto& monograph = *interpreted;
+  ASSERT(monograph.link(cursor));
+
+  const Abstract& outer = monograph.resolve_context("Outer"_view);
+  const Abstract& inner = outer.resolve_context("Inner"_view);
+  Count route = Algorithm::search(source, "Outer::Inner"_view);
+  ASSERT(route != Count(-1));
+  auto selected_outer = associations.find_at(route);
+  auto selected_inner = associations.find_at(route + 7);
+  ASSERT(selected_outer && selected_inner);
+  EXPECT(&*selected_outer == &outer);
+  EXPECT(&*selected_inner == &inner);
+  EXPECT(errors.is_empty());
+}
+
 PERIMORTEM_UNIT_TEST(DialectTests, field_diagnostics) {
   static constexpr Static::Vector<View::Bytes, 6> sources = {{
     "public broken : Missing;\npublic later : func = [] -> [] {}"_view,
@@ -746,7 +778,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   ASSERT(interpreted && interpreted->is<Language::Monograph>());
   auto& monograph = static_cast<Language::Monograph&>(*interpreted);
   EXPECT_TEXT(
-      monograph.get_documentation().get_line(3),
+      monograph.get_documentation().get_line(1),
       "Library source acceptance."_view);
 
   EXPECT(&workspace.resolve_context("SourceAcceptance"_view) == &monograph);
@@ -761,8 +793,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   EXPECT_TEXT(source_anchor.get_token().caculate_text(*source), "dialect"_view);
   EXPECT_TEXT(
       source_anchor.get_span().caculate_text(*source),
-      "// # Tetrodotoxin\n"
-      "// Copyright (c) 2023-present Matt Kaes and contributors\n"
+      "/// Tetrodotoxin\n"
+      "/// Copyright (c) 2023-present Matt Kaes and contributors\n"
       "//\n"
       "// Library source acceptance.\n"
       "dialect : Library;"_view);

@@ -15,6 +15,8 @@
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/layout.hpp"
+#include "ttx/concept/reference.hpp"
+#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
@@ -26,16 +28,40 @@ class Generic : public Ttx::Concept::Abstract {
  public:
   enum class Parameters : U8 {
     Type,
+    SemanticType,
     U64,
     S64,
     Bool,
   };
 
+  // SemanticType marks the higher order Type accepted by formulas such as
+  // Implementation. Ordinary Library Type arguments keep their narrower
+  // alternative, so existing formulas cannot accept another Dialect by
+  // accident.
+  class SemanticType {
+   public:
+    static constexpr auto create(const Ttx::Model::Type& type) -> SemanticType {
+      return SemanticType(type);
+    }
+
+    constexpr auto get() const -> const Ttx::Model::Type& { return type.get(); }
+
+    constexpr auto operator==(const SemanticType& rhs) const -> Bool {
+      return &type.get() == &rhs.type.get();
+    }
+
+   private:
+    explicit constexpr SemanticType(const Ttx::Model::Type& type)
+        : type(type) {}
+
+    Ttx::Concept::Reference<const Ttx::Model::Type> type;
+  };
+
   // Semantic graph queries expose const references. Scalar arguments are
   // copied directly, while Type arguments retain their exact selected
   // identity even when its owner has not completed the Type's Layout yet.
-  using Argument =
-      Perimortem::Core::Static::Union<const Model::Type&, ::U64, ::S64, ::Bool>;
+  using Argument = Perimortem::Core::Static::
+      Union<const Model::Type&, SemanticType, ::U64, ::S64, ::Bool>;
 
   class Failure {
    public:

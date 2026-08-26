@@ -32,30 +32,20 @@ documentedShaderDeclaration
 
 shaderDeclaration
     : shaderStageDeclaration
-    | shaderValueDeclaration
+    | shaderUniformDeclaration
     | shaderBridgeDeclaration
-    | shaderTypeDeclaration
     ;
 
 shaderBridgeDeclaration
     : addressableName typeReference CALL typeReference END_STATEMENT
     ;
 
-// Definition supplies the shared declaration envelope while Library owns the
-// complete Function, Signature, and Block forms.
+// Render owns each Stage signature. Shader supplies only the executable
+// Library body selected by the matching Stage name.
 shaderStageDeclaration
-    : functionDefinition
+    : FUNC block
     ;
 
-shaderValueDeclaration
-    : fieldDefinition
-    | (PUSH | RESOURCE) typeReference
-      (ASSIGN declarationInitializer)? END_STATEMENT
-    ;
-
-// Shader admits Library Alias and Structure declarations without copying their
-// parsers or semantic Types.
-shaderTypeDeclaration
-    : ALIAS ASSIGN typeReference END_STATEMENT
-    | STRUCT structureBody
+shaderUniformDeclaration
+    : ADDRESSABLE typeReference (ASSIGN declarationInitializer)? END_STATEMENT
     ;

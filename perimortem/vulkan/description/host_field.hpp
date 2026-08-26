@@ -5,6 +5,8 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
+#include "perimortem/vulkan/description/host_role.hpp"
+
 namespace Perimortem::Vulkan::Description {
 
 // Identifies one named field in the host input layout. The offset and size are
@@ -14,6 +16,7 @@ struct HostField {
   Core::View::Bytes name;
   Count offset = 0;
   Count size = 0;
+  HostRole role = HostRole::Parameter;
 };
 
 }  // namespace Perimortem::Vulkan::Description

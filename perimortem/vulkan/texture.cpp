@@ -73,17 +73,20 @@ static auto transition_image_layout(
 auto Vulkan::Texture::create(
     const Vulkan::Context& ctx,
     const Graphics::Frame::Resource& resource,
-    Graphics::Size2D size_pixels,
     VkDescriptorSetLayout descriptor_set_layout) -> Vulkan::Texture {
   Vulkan::Texture texture;
   texture.device = ctx.get_device();
 
-  const U32 width = size_pixels.width;
-  const U32 height = size_pixels.height;
+  auto source_texture = Graphics::Texture2D::retain(resource.get_object());
+  BAIL_IF(!source_texture);
+  const Graphics::Image& image = source_texture->get_image();
+  Core::View::Vector<Graphics::Pixel> pixels = image.get_pixels();
+  const U32 width = image.get_width();
+  const U32 height = image.get_height();
   const VkDeviceSize image_size =
       VkDeviceSize(width) * height * Graphics::Pixel::get_byte_count();
   if (width == 0 || height == 0 || resource.is_empty() ||
-      resource.get_capacity() < image_size) {
+      pixels.get_size() * sizeof(Graphics::Pixel) < image_size) {
     return texture;
   }
 
@@ -119,7 +122,8 @@ auto Vulkan::Texture::create(
 
   // Pixel stores four RGBA bytes in the same order expected by
   // VK_FORMAT_R8G8B8A8_SRGB, so upload does not need a channel shuffle.
-  Core::View::Bytes source_bytes(resource.get_payload(), Count(image_size));
+  Core::View::Bytes source_bytes(
+      Core::Data::cast<const U8>(pixels.get_data()), Count(image_size));
   Core::Access::Bytes destination_bytes(
       Core::Data::cast<U8>(mapped), Count(image_size));
   auto* destination_data = destination_bytes.get_data();
@@ -197,9 +201,21 @@ auto Vulkan::Texture::create(
   VkSamplerCreateInfo sampler_info = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
   sampler_info.magFilter = VK_FILTER_LINEAR;
   sampler_info.minFilter = VK_FILTER_LINEAR;
-  sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-  sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-  sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  VkSamplerAddressMode address_mode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+  switch (image.get_addressing()) {
+  case Graphics::Image::Addressing::Zero:
+    address_mode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    break;
+  case Graphics::Image::Addressing::Clamp:
+    address_mode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    break;
+  case Graphics::Image::Addressing::Wrap:
+    address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    break;
+  }
+  sampler_info.addressModeU = address_mode;
+  sampler_info.addressModeV = address_mode;
+  sampler_info.addressModeW = address_mode;
   require_success(
       vkCreateSampler(
           ctx.get_device(), &sampler_info, nullptr, &texture.sampler),

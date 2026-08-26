@@ -7,6 +7,7 @@
 #include "tetrodotoxin/render/language/attributes.hpp"
 #include "tetrodotoxin/render/language/stage.hpp"
 #include "tetrodotoxin/shader/language/binding.hpp"
+#include "tetrodotoxin/terminal/spirv/layout.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin;
@@ -89,6 +90,7 @@ auto Module::Interface::prepare(const Shader::Language::Program& program)
 
 auto Module::Interface::prepare_bindings(
     const Shader::Language::Program& program) -> Bool {
+  Count push_index = 0;
   for (const Shader::Language::Binding& binding : program.get_bindings()) {
     const Library::Language::Field& field = binding.get_field();
     const Library::Language::Model::Type& type = field.get_type();
@@ -96,6 +98,16 @@ auto Module::Interface::prepare_bindings(
     if (binding.get_kind() == Render::Language::Binding::Kind::Push) {
       storage = Assembler::SpirV::StorageClass::PushConstant;
       BAIL_IF(!types.collect_pointer(type, storage));
+      if (push_type_id == 0) {
+        push_type_id = ids.take();
+        push_pointer_id = ids.take();
+        push_variable_id = ids.take();
+      }
+      bindings.insert(Variable(
+          field, type, field.get_name(),
+          field.get_definition().get_attributes(), storage, 0, push_index++,
+          ids.take()));
+      continue;
     } else if (
         binding.get_kind() == Render::Language::Binding::Kind::Resource) {
       storage = Assembler::SpirV::StorageClass::UniformConstant;
@@ -106,6 +118,11 @@ auto Module::Interface::prepare_bindings(
     bindings.insert(Variable(
         field, type, field.get_name(), field.get_definition().get_attributes(),
         storage, ids.take()));
+  }
+  if (push_type_id != 0) {
+    auto shared_index_type = types.get_unsigned_32_id();
+    push_index_type_id = shared_index_type ? *shared_index_type : ids.take();
+    owns_push_index_type = !shared_index_type;
   }
   return True;
 }
@@ -171,7 +188,15 @@ auto Module::Interface::emit_entry_points(Assembler::SpirV& assembler) const
 
 auto Module::Interface::emit_debug(Assembler::SpirV& assembler) const -> void {
   for (const Variable& binding : bindings.get_view()) {
-    assembler.name(binding.id, binding.name);
+    if (binding.storage == Assembler::SpirV::StorageClass::PushConstant) {
+      assembler.member_name(
+          push_type_id, U32(binding.push_index), binding.name);
+    } else {
+      assembler.name(binding.id, binding.name);
+    }
+  }
+  if (push_variable_id != 0) {
+    assembler.name(push_variable_id, "push"_view);
   }
   for (Stage* stage : stages.get_view()) {
     assembler.name(stage->id, stage->function.get().get_name());
@@ -216,9 +241,24 @@ auto Module::Interface::decorate(
 
 auto Module::Interface::emit_annotations(Assembler::SpirV& assembler) const
     -> Bool {
+  Count push_offset = 0;
+  Memory::Dynamic::Vector<const Library::Language::Model::Type*>
+      decorated_push_types;
   for (const Variable& binding : bindings.get_view()) {
     if (binding.storage == Assembler::SpirV::StorageClass::PushConstant) {
-      BAIL_IF(!types.decorate_push(assembler, binding.type.get()));
+      auto layout = Terminal::Spirv::Layout::measure(binding.type.get());
+      BAIL_IF(!layout || binding.push_index > U32(-1));
+      if (!decorated_push_types.contains(&binding.type.get())) {
+        BAIL_IF(!types.decorate_push(assembler, binding.type.get()));
+        decorated_push_types.insert(&binding.type.get());
+      }
+      Count alignment = layout->get_alignment();
+      push_offset = (push_offset + alignment - 1) / alignment * alignment;
+      BAIL_IF(push_offset > U32(-1));
+      assembler.member_decorate(
+          push_type_id, U32(binding.push_index),
+          Assembler::SpirV::Decoration::Offset, U32(push_offset));
+      push_offset += layout->get_size();
       continue;
     }
     auto set = attribute(binding.attributes, "set"_view);
@@ -234,12 +274,47 @@ auto Module::Interface::emit_annotations(Assembler::SpirV& assembler) const
     assembler.decorate(
         binding.id, Assembler::SpirV::Decoration::Binding, U32(*slot_value));
   }
+  if (push_type_id != 0) {
+    assembler.decorate(push_type_id, Assembler::SpirV::Decoration::Block);
+  }
   for (Stage* stage : stages.get_view()) {
     for (const Variable& input : stage->inputs.get_view()) {
       BAIL_IF(!decorate(assembler, input));
     }
     for (const Variable& output : stage->outputs.get_view()) {
       BAIL_IF(!decorate(assembler, output));
+    }
+  }
+  return True;
+}
+
+auto Module::Interface::emit_types(Assembler::SpirV& assembler) const -> Bool {
+  if (push_type_id == 0) {
+    return True;
+  }
+
+  Memory::Dynamic::Vector<U32> members;
+  for (const Variable& binding : bindings.get_view()) {
+    if (binding.storage != Assembler::SpirV::StorageClass::PushConstant) {
+      continue;
+    }
+    auto type_id = types.get_id(binding.type.get());
+    BAIL_IF(!type_id);
+    members.insert(*type_id);
+  }
+  BAIL_IF(members.get_size() == 0);
+
+  if (owns_push_index_type) {
+    assembler.type_int(push_index_type_id, 32, False);
+  }
+  assembler.type_struct(push_type_id, members.get_view());
+  assembler.type_pointer(
+      push_pointer_id, Assembler::SpirV::StorageClass::PushConstant,
+      push_type_id);
+  for (const Variable& binding : bindings.get_view()) {
+    if (binding.storage == Assembler::SpirV::StorageClass::PushConstant) {
+      assembler.constant(
+          push_index_type_id, binding.push_index_id, U32(binding.push_index));
     }
   }
   return True;
@@ -252,11 +327,15 @@ auto Module::Interface::emit_globals(Assembler::SpirV& assembler) const
       auto pointer = types.get_resource_pointer_id(binding.type.get());
       BAIL_IF(!pointer);
       assembler.variable(*pointer, binding.id, binding.storage);
-    } else {
-      auto pointer = types.get_pointer_id(binding.type.get(), binding.storage);
-      BAIL_IF(!pointer);
-      assembler.variable(*pointer, binding.id, binding.storage);
+    } else if (
+        binding.storage != Assembler::SpirV::StorageClass::PushConstant) {
+      return False;
     }
+  }
+  if (push_variable_id != 0) {
+    assembler.variable(
+        push_pointer_id, push_variable_id,
+        Assembler::SpirV::StorageClass::PushConstant);
   }
   for (Stage* stage : stages.get_view()) {
     for (const Variable& input : stage->inputs.get_view()) {
@@ -271,4 +350,20 @@ auto Module::Interface::emit_globals(Assembler::SpirV& assembler) const
     }
   }
   return True;
+}
+
+auto Module::Interface::get_binding_pointer(
+    const Variable& binding,
+    Assembler::SpirV& assembler) const -> Core::Option<U32> {
+  if (binding.storage != Assembler::SpirV::StorageClass::PushConstant) {
+    return binding.id;
+  }
+
+  auto pointer = types.get_pointer_id(binding.type.get(), binding.storage);
+  BAIL_IF(!pointer || binding.push_index_id == 0 || push_variable_id == 0);
+  U32 id = ids.take();
+  assembler.access_chain(
+      *pointer, id, push_variable_id,
+      Core::View::Vector<U32>(&binding.push_index_id, 1));
+  return id;
 }

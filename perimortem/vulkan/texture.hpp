@@ -22,7 +22,6 @@ class Texture {
   static auto create(
       const Context& ctx,
       const Graphics::Frame::Resource& resource,
-      Graphics::Size2D size_pixels,
       VkDescriptorSetLayout descriptor_set_layout) -> Texture;
 
   Texture() = default;

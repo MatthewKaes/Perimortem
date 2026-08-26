@@ -19,10 +19,9 @@ ttx_package(
     name = "package",
     package_name = "Tetrodotoxin.SceneLifetime",
     graphics_bindings = [
-        "Graphics::Sprite::Sprite|tetrodotoxin_graphics_sprite_descriptor",
+        "Graphics::Sprite::Sprite|tetrodotoxin_graphics_sprite_placement_2d||tetrodotoxin_graphics_sprite_drawable_2d",
     ],
-    graphics_host = "Graphics::Host::Host",
-    graphics_shader = "Graphics::Shader::SpriteProgram",
+    graphics_placement = "Graphics::Placement2D::Placement2D",
     manifest = "package.ttx",
     version = [
         1,

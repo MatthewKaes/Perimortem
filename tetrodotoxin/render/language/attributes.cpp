@@ -83,6 +83,13 @@ static auto accepts_key(
   if (key == "read"_view || key == "write"_view) {
     return placement == Render::Language::Attributes::Placement::Resource;
   }
+  if (key == "host"_view) {
+    return placement == Render::Language::Attributes::Placement::Value;
+  }
+  if (key == "topology"_view || key == "blend"_view || key == "geometry"_view ||
+      key == "vertex_count"_view) {
+    return placement == Render::Language::Attributes::Placement::Structure;
+  }
   return False;
 }
 
@@ -92,8 +99,12 @@ static auto accepts_value(const Language::Attribute& attribute) -> Bool {
     return expects_unsigned(attribute);
   }
   if (key == "builtin"_view || key == "address_space"_view ||
-      key == "capability"_view) {
+      key == "capability"_view || key == "host"_view ||
+      key == "topology"_view || key == "blend"_view || key == "geometry"_view) {
     return expects_name(attribute);
+  }
+  if (key == "vertex_count"_view) {
+    return expects_unsigned(attribute);
   }
   return (key == "read"_view || key == "write"_view) && !attribute.has_value();
 }

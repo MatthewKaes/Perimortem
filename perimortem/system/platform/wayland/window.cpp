@@ -41,7 +41,15 @@ Window::Window(U32 width, U32 height, const char* title) {
   logical_height = height;
 
   display = wl_display_connect(nullptr);
+  if (!display) {
+    failed = True;
+    return;
+  }
   registry = wl_display_get_registry(as_display(display));
+  if (!registry) {
+    failed = True;
+    return;
+  }
   static const wl_registry_listener registry_listener = {
     [](void* data, wl_registry* registry, uint32_t name, const char* interface,
        uint32_t version) {
@@ -51,11 +59,18 @@ Window::Window(U32 width, U32 height, const char* title) {
       on_registry_global_remove(data, U32(name));
     },
   };
-  wl_registry_add_listener(as_registry(registry), &registry_listener, this);
-
-  wl_display_roundtrip(as_display(display));
+  if (wl_registry_add_listener(
+          as_registry(registry), &registry_listener, this) != 0 ||
+      wl_display_roundtrip(as_display(display)) < 0 || failed || !compositor) {
+    failed = True;
+    return;
+  }
 
   surface = wl_compositor_create_surface(as_compositor(compositor));
+  if (!surface) {
+    failed = True;
+    return;
+  }
   static const wl_surface_listener surface_listener = {
     [](void*, wl_surface*, wl_output*) {},
     [](void*, wl_surface*, wl_output*) {},
@@ -64,7 +79,11 @@ Window::Window(U32 width, U32 height, const char* title) {
     },
     [](void*, wl_surface*, uint32_t) {},
   };
-  wl_surface_add_listener(as_surface(surface), &surface_listener, this);
+  if (wl_surface_add_listener(as_surface(surface), &surface_listener, this) !=
+      0) {
+    failed = True;
+    return;
+  }
 
   if (!shell.create_toplevel(
           surface, title, "perimortem",
@@ -73,50 +92,56 @@ Window::Window(U32 width, U32 height, const char* title) {
             &Window::on_shell_configure,
             &Window::on_shell_close,
           })) {
-    close_requested = True;
+    failed = True;
     return;
   }
 
   if (!input_collector.attach(surface)) {
-    close_requested = True;
+    failed = True;
     return;
   }
 
   wl_surface_commit(as_surface(surface));
-  wl_display_roundtrip(as_display(display));
+  if (wl_display_roundtrip(as_display(display)) < 0) {
+    failed = True;
+  }
 }
 
 Window::~Window() {
   destroy();
 }
 
-auto Window::poll_events() -> Bool {
-  if (!display || close_requested) {
-    return False;
+auto Window::poll_events() -> Window::EventStatus {
+  EventStatus status = get_event_status();
+  if (status != EventStatus::Ready) {
+    return status;
   }
 
   wl_display* native_display = as_display(display);
   if (wl_display_dispatch_pending(native_display) < 0) {
-    return False;
+    failed = True;
+    return EventStatus::Failed;
   }
 
   if (close_requested) {
-    return False;
+    return EventStatus::Closed;
   }
 
   while (wl_display_prepare_read(native_display) != 0) {
     if (wl_display_dispatch_pending(native_display) < 0) {
-      return False;
+      failed = True;
+      return EventStatus::Failed;
     }
 
     if (close_requested) {
-      return False;
+      return EventStatus::Closed;
     }
   }
 
   if (wl_display_flush(native_display) < 0) {
     wl_display_cancel_read(native_display);
-    return False;
+    failed = True;
+    return EventStatus::Failed;
   }
 
   pollfd display_fd = {
@@ -131,13 +156,15 @@ auto Window::poll_events() -> Bool {
   } while (poll_result < 0 && errno == EINTR);
   if (poll_result < 0) {
     wl_display_cancel_read(native_display);
-    return False;
+    failed = True;
+    return EventStatus::Failed;
   }
 
   if (poll_result > 0 && (display_fd.revents & POLLIN) != 0) {
     int events_read = wl_display_read_events(native_display);
     if (events_read < 0) {
-      return False;
+      failed = True;
+      return EventStatus::Failed;
     }
   } else {
     wl_display_cancel_read(native_display);
@@ -145,11 +172,19 @@ auto Window::poll_events() -> Bool {
 
   int events_dispatched = wl_display_dispatch_pending(native_display);
   if (events_dispatched < 0) {
-    return False;
+    failed = True;
+    return EventStatus::Failed;
   }
 
   input_snapshot = input_collector.collect(input_mapping);
-  return !close_requested;
+  return close_requested ? EventStatus::Closed : EventStatus::Ready;
+}
+
+auto Window::get_event_status() const -> Window::EventStatus {
+  if (failed || !display) {
+    return EventStatus::Failed;
+  }
+  return close_requested ? EventStatus::Closed : EventStatus::Ready;
 }
 
 auto Window::get_logical_width() const -> U32 {
@@ -253,7 +288,7 @@ auto Window::on_registry_global(
   } else if (
       Platform::Wayland::XdgShell::recognizes(interface) &&
       !window->shell.bind(registry, name)) {
-    window->close_requested = True;
+    window->failed = True;
   }
 }
 

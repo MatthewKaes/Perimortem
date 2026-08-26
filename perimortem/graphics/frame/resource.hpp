@@ -5,7 +5,7 @@
 
 #include "perimortem/core/object.hpp"
 
-#include "perimortem/graphics/image.hpp"
+#include "perimortem/graphics/texture_2d.hpp"
 
 namespace Perimortem::Graphics::Frame {
 
@@ -16,7 +16,7 @@ class Resource {
  public:
   Resource() = default;
   explicit Resource(Perimortem::Core::Object<> object);
-  static auto retain_image(const Perimortem::Graphics::Image& image)
+  static auto retain_texture(const Perimortem::Graphics::Texture2D& texture)
       -> Resource;
   Resource(const Resource& source);
   Resource(Resource&& source);
@@ -26,11 +26,10 @@ class Resource {
   auto operator=(Resource&& source) -> Resource&;
 
   constexpr auto is_empty() const -> Bool { return object.is_empty(); }
-  constexpr auto get_payload() const -> const U8* {
-    return object.get_payload();
+  constexpr auto get_object() const -> Perimortem::Core::Object<> {
+    return object;
   }
   auto get_reservations() const -> Count;
-  auto get_capacity() const -> Count;
 
  private:
   Perimortem::Core::Object<> object;

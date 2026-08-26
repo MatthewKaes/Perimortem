@@ -76,6 +76,24 @@ PERIMORTEM_UNIT_TEST(TtxLexical, division_tokens) {
   EXPECT(token_data[13].get_code() == Code::Type::Terminal);
 }
 
+PERIMORTEM_UNIT_TEST(TtxLexical, raw_comments) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(
+      arena, "/// Tetrodotoxin\n// Public documentation.\n//// metadata"_view,
+      "Test.Package"_view);
+
+  View::Vector<Token> tokens = tokenizer.get_tokens();
+  View::Bytes source = tokenizer.get_source_text();
+  ASSERT_EQ(tokens.get_size(), Count(4));
+  EXPECT(tokens[0].get_code() == Code::Type::RawComment);
+  EXPECT_TEXT(tokens[0].caculate_text(source), "/// Tetrodotoxin"_view);
+  EXPECT(tokens[1].get_code() == Code::Type::Comment);
+  EXPECT_TEXT(tokens[1].caculate_text(source), "// Public documentation."_view);
+  EXPECT(tokens[2].get_code() == Code::Type::RawComment);
+  EXPECT_TEXT(tokens[2].caculate_text(source), "//// metadata"_view);
+  EXPECT(tokens[3].get_code() == Code::Type::Terminal);
+}
+
 PERIMORTEM_UNIT_TEST(TtxLexical, propagation_operator) {
   Allocator::Arena arena;
   Tokenizer tokenizer(arena, "value?\nnext?"_view, "Test.Package"_view);
@@ -255,6 +273,9 @@ PERIMORTEM_UNIT_TEST(TtxLexical, spelling_validation) {
   EXPECT(Lexicon::validate(Token::Embedded, "$[resources/table.bin]"_view));
   EXPECT(Lexicon::validate(Token::Comment, "// text"_view));
   EXPECT_NOT(Lexicon::validate(Token::Comment, "// line\n"_view));
+  EXPECT_NOT(Lexicon::validate(Token::Comment, "/// raw text"_view));
+  EXPECT(Lexicon::validate(Token::RawComment, "/// raw text"_view));
+  EXPECT_NOT(Lexicon::validate(Token::RawComment, "// documentation"_view));
   EXPECT(Lexicon::validate(Token::TypeAccessOp, "::"_view));
   EXPECT(Lexicon::validate(Token::QuestionOp, "?"_view));
   EXPECT_NOT(Lexicon::validate(Token::QuestionOp, "!"_view));
@@ -278,6 +299,8 @@ PERIMORTEM_UNIT_TEST(TtxLexical, code_semantics) {
       "Addressable space name"_view);
   EXPECT_TEXT(
       Code(Code::Type::Hex).get_semantics(), "U64 hexadecimal literal"_view);
+  EXPECT_TEXT(
+      Code(Code::Type::RawComment).get_semantics(), "raw source comment"_view);
   EXPECT_TEXT(Code(Code::Type::Terminal).get_semantics(), "terminal Code"_view);
   EXPECT_TEXT(
       Code(Code::Type::Unknown).get_semantics(), "unknown source Code"_view);

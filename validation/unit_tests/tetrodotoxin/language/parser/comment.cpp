@@ -75,3 +75,37 @@ PERIMORTEM_UNIT_TEST(ParserCommentTests, preserves_empty) {
   EXPECT(errors.is_empty());
   EXPECT(cursor.matches(Lexical::Code::Type::Type));
 }
+
+PERIMORTEM_UNIT_TEST(ParserCommentTests, excludes_raw_comments) {
+  Allocator::Arena arena;
+  Lexical::Errors errors;
+  Lexical::Tokenizer tokenizer(
+      arena,
+      "/// Tetrodotoxin\n"
+      "/// Copyright metadata\n"
+      "// Public documentation.\n"
+      "Value"_view,
+      "<raw comments>"_view);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Lexical::Cursor cursor(tokenizer, errors, associations);
+
+  const Concept::Documentation& documentation = Parser::Comment::parse(cursor);
+  EXPECT_EQ(documentation.line_count(), Count(1));
+  EXPECT_TEXT(documentation.get_line(0), "Public documentation."_view);
+  EXPECT(errors.is_empty());
+  EXPECT(cursor.matches(Lexical::Code::Type::Type));
+}
+
+PERIMORTEM_UNIT_TEST(ParserCommentTests, raw_only_is_not_documentation) {
+  Allocator::Arena arena;
+  Lexical::Errors errors;
+  Lexical::Tokenizer tokenizer(
+      arena, "/// Build metadata\nValue"_view, "<raw only>"_view);
+  Ttx::Lexical::Associations associations(tokenizer.get_arena());
+  Lexical::Cursor cursor(tokenizer, errors, associations);
+
+  const Concept::Documentation& documentation = Parser::Comment::parse(cursor);
+  EXPECT(documentation.is_empty());
+  EXPECT(errors.is_empty());
+  EXPECT(cursor.matches(Lexical::Code::Type::Type));
+}

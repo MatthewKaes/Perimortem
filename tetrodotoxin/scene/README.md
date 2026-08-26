@@ -124,6 +124,7 @@ make that construction visible when the source benefits from it:
 ```ttx
 private state icon_top : Graphics::Sprite;
 private state icon_bottom : Graphics::Sprite = new[Graphics::Sprite];
+private state icon_shader : Graphics::Shader::DefaultTexturedQuad2D::Instance;
 ```
 
 These Fields are the real hosted objects. Scene does not build a second node
@@ -132,9 +133,15 @@ and keeps the order written in the source. The Objects exist before `prepare`,
 which configures them through ordinary Library access:
 
 ```ttx
-self.icon_top.image = image;
+self.icon_top.texture = Graphics::Texture2D -> from_image(.image = image);
+self.icon_top.shader = self.icon_shader;
 self.icon_top.transform = transform;
+self.icon_shader.parameters.tone = tone;
 ```
+
+The Sprite retains the concrete Shader Instance through
+`Implementation[Render::TexturedQuad2D]`, so the Scene can keep editing
+`icon_shader.parameters` directly while the next frame sees the same identity.
 
 Graphics follows the current Object values through these Fields. Visibility and
 transforms compose through that tree. `z_index` sets the main draw order, and a

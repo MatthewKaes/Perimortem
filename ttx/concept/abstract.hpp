@@ -141,6 +141,12 @@ class Abstract {
       const Abstract& host,
       Perimortem::Core::View::Bytes name) const -> const Abstract&;
 
+  // Explicit erased values ask the candidate owner whether it satisfies one
+  // exact semantic requirement. The answer records only the higher order
+  // relationship. Interface negotiation and every physical Projection remain
+  // with the concrete language and Terminal that understand them.
+  virtual auto satisfies(const Abstract& requirement) const -> Bool;
+
   // Returns the documentation visible at this exact Abstract. The concrete
   // object may own authored prose, expose a generated comment, forward another
   // object's documentation, or compose several sources. This query does not

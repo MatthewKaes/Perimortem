@@ -170,17 +170,18 @@ Platform event objects and window system addresses do not become part of
 ## Perimortem.Graphics
 
 `Perimortem.Graphics` supplies the concrete Library Types used by the provided
-Scene sources. Pixel, Point2D, Size2D, Tone, Transform2D, Host, Image, and
-Sprite are each real Package members, so routes such as `Graphics::Pixel` and
-`Graphics::Sprite` select their documented Type directly. These Types reuse
-`Perimortem.Math` where the semantic identity is genuinely a math value and keep
-a distinct Graphics Type where point, size, color, or image meaning matters.
+Scene sources. Pixel, Point2D, Size2D, Tone, Transform2D, Placement2D, Image,
+Texture2D, Sprite, Render contracts, and Shader Programs are real Package
+members. Routes such as `Graphics::Pixel`, `Graphics::Sprite`, and
+`Graphics::Shader::DefaultTexturedQuad2D::Instance` therefore select their
+documented identities directly.
 
-`Host` is the ordinary Library Structure that describes the public transform,
-visibility, and ordering state promised by a hosted Object. It is not a base
-class or allocated node. The Graphics Interface negotiates a concrete Object
-against this real requirement, which lets Types such as Sprite retain their
-exact identities and additional behavior.
+`Placement2D` is the ordinary Library Structure that describes the public
+transform, visibility, and ordering state promised by a placed Object. It is
+not a base class or allocated node. The Graphics Interface negotiates a
+concrete Object against this real requirement, which lets Sprite retain its
+exact identity and additional behavior. Runtime child traversal is a separate
+Children2D Interface and is not implied by placement.
 
 `Transform2D` carries translation, scale, and rotation as domain values. The
 runtime copies their composed affine result into each stable frame submission,
@@ -190,30 +191,30 @@ so later Scene mutations cannot change a frame already being presented.
 coordinates and Tone channels are `R64`. Size2D width and height are `U32`.
 Image retains one shared `Object[Pixel]` buffer, its logical pixel count, its
 dimensions, and its addressing policy. Its ordinary default is the empty image
-value. Backend textures and upload resources remain independent runtime facts.
+value. Texture2D gives an Image stable rendering identity while the backend
+keeps uploads and device images as independent runtime facts.
 
 `Pixel` is the four byte RGBA value shared by decoded Images and native codecs.
 Its transparent black default follows ordinary Structure construction.
 `from_grey`, `from_grey_alpha`, `from_rgb`, and `from_rgba` make every other
 construction explicit without relying on overloaded native constructors.
 
-`Sprite` is a nonnull Object that supports Tetrodotoxin Graphics hosting. Its
-public mutable Fields are `image`, `size_pixels`, `transform`, `tone`, `visible`,
-and `z_index`. Their Types are `Image`, `Size2D`, `Transform2D`, `Tone`, `Bool`,
-and `S64` in that order. Construction creates a valid unconfigured Sprite with
-an empty Image, zero size, identity transform, opaque white tone, visible state,
-and zero draw index. It produces no draw until it has drawable content. The one
-transform Field satisfies the Host requirement directly and avoids a second
-position authority. Those authored Field initializers determine Sprite's
-semantic default. Image, the other inline Structs, and each scalar also retain
-their own total Library defaults.
+`Sprite` is a nonnull Object with public mutable `texture`, `shader`,
+`size_pixels`, `transform`, `visible`, and `z_index` Fields. The shader Field is
+`Implementation[Render::TexturedQuad2D]`. It retains one real Shader Instance
+Object and the ABI Projection that selects its generated Program and Parameters
+byte range. Construction creates a valid unconfigured Sprite with an empty
+Shader implementation, zero size, identity transform, visible state, and zero
+draw index. It produces no draw until its texture, Shader, and size are
+configured. The transform Field satisfies Placement2D directly and avoids a
+second position authority.
 
 A Scene hosts a Sprite through the private state Field initialized with `new`.
 The Scene changes the Sprite's public Fields through ordinary Library access,
 and Graphics reads the same Object when it builds a frame. There is no second
 node tree or global Sprite registry.
 
-Hosted Fields retain authored tree order. A higher `z_index` is in front, and a
+Scene Fields retain authored tree order. A higher `z_index` is in front, and a
 later Field is in front when two indices match. Visibility and transform
 compose from host to hosted value. These are Graphics submission rules rather
 than extra Sprite identity or Scene declarations.
@@ -231,17 +232,20 @@ buffer. Image sampling is ordinary Library behavior on that value, while a
 Shader Terminal recognizes the same authored operation as a target image
 sample. Target storage remains a separate runtime fact.
 
-The Package also publishes the target neutral Sprite Render contract, its
-Library push layout, and the Shader implementation that consumes them. Package
-production validates and embeds that SPIR-V module. Application production
-then derives a Vulkan pipeline description from the restored contracts and the
-embedded symbol rather than falling back to a handwritten shader table.
+The Package also publishes the target neutral TexturedQuad2D Render contract
+and the standard DefaultTexturedQuad2D Shader. Render owns the fixed resource,
+host inputs, Stage signatures, vertex layout, topology, blend policy, geometry,
+and vertex count. DefaultTexturedQuad2D owns its Vec4D tone uniform. An
+application can publish another Shader Program against the same Graphics Render
+contract without adding that application policy to the standard Package.
 
-The application target pairs the hosted Sprite Type with its native Descriptor
-provider. That host choice stays in build configuration while the Scene graph
-retains only the real Sprite Field and the Interface proof. The shared runtime
-receives the configured provider from the generated App product rather than
-selecting Sprite in its frame loop.
+Package production compiles every Program into its own embedded SPIR V module
+and native Shader child product, including Programs authored by an application
+Package. Application production discovers every Program reached by Scene
+Instance Fields and generates one Vulkan description for each module locator.
+The application target supplies independent Placement2D, Children2D, and
+Drawable2D providers for configured runtime Types. The Scene graph retains only
+real Objects and semantic Interface proofs.
 
 ## Native and durable boundaries
 

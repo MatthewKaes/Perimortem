@@ -9,8 +9,12 @@
 #include "llvm/IR/IRBuilder.h"
 #endif
 #include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/null_terminated.hpp"
+
+#include "perimortem/memory/managed/bytes.hpp"
 
 #include "llvm-c/Core.h"
+#include "llvm-c/TargetMachine.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -130,20 +134,22 @@ auto Llvm::Module::Program::initialize() -> Bool {
   LLVMInitializeX86AsmPrinter();
 
   constexpr llvm::StringLiteral triple_name("x86_64-pc-linux-gnu");
-  std::string error;
   llvm::Triple target_triple(triple_name);
   llvm::Module& native_module = *llvm::unwrap(&module);
-  const llvm::Target* selected =
-      llvm::TargetRegistry::lookupTarget(target_triple, error);
-  if (!selected) {
-    return fail_toolchain(
-        Core::View::Bytes(
-            reinterpret_cast<const U8*>(error.data()), error.size()));
+  LLVMTargetRef selected = nullptr;
+  char* error = nullptr;
+  if (LLVMGetTargetFromTriple(triple_name.data(), &selected, &error) != 0) {
+    fail_toolchain(
+        error ? Core::NullTerminated::to_view(error)
+              : "LLVM could not select the requested target."_view);
+    LLVMDisposeMessage(error);
+    return False;
   }
 
+  const auto* selected_target = reinterpret_cast<const llvm::Target*>(selected);
   llvm::TargetOptions options;
   options.UseInitArray = true;
-  llvm::TargetMachine* machine = selected->createTargetMachine(
+  llvm::TargetMachine* machine = selected_target->createTargetMachine(
       target_triple, "x86-64", "", options, llvm::Reloc::PIC_,
       llvm::CodeModel::Small, llvm::CodeGenOptLevel::None);
   if (!machine) {
@@ -252,8 +258,10 @@ auto Llvm::Module::Program::add_publication(
     Tetrodotoxin::Terminal::Abi::Publication value) -> void {
   auto existing = native_interface.find_publication(value.get_semantic());
   if (!existing || existing->get_symbol() != value.get_symbol()) {
-    fail_toolchain(
-        "LLVM publication disagrees with the native interface Terminal."_view);
+    Memory::Managed::Bytes message(get_arena(), "LLVM publication for `"_view);
+    message.concat(value.get_semantic().get_name());
+    message.concat("` disagrees with the native interface Terminal."_view);
+    fail_toolchain(message.get_view());
   }
 }
 

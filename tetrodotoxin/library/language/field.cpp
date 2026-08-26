@@ -34,6 +34,29 @@ auto Language::Field::create(
   });
 }
 
+auto Language::Field::create_generated(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition,
+    Writability writability,
+    const Model::Type& type) -> Field& {
+  return domain.construct_from<Field>([&]() -> Field {
+    return Field(
+        domain, definition, writability, {}, {},
+        Reference<const Model::Type>(type), True);
+  });
+}
+
+auto Language::Field::retain_generated_type(const Model::Type& selected)
+    -> Bool {
+  BAIL_IF(type_reference || selected.get_layout().is_empty());
+  generated = True;
+  if (type) {
+    return &type->get() == &selected;
+  }
+  type = Reference<const Model::Type>(selected);
+  return True;
+}
+
 auto Language::Field::link_declaration_type(Cursor& cursor) -> Bool {
   if (!type_reference) {
     return True;
@@ -240,7 +263,12 @@ auto Language::Field::validate_publication(Cursor& cursor) const -> Bool {
 
   const Model::Type& host = get_host();
   Bool reachable = type_reference.visit(
-      [&]() { return host.is_externally_reachable(get_type()); },
+      [&]() {
+        // An embedding Dialect has already selected this exact generated Type
+        // edge from its public contract. Inferred Library Fields still prove
+        // ordinary reachability through their real host.
+        return Bool(generated || host.is_externally_reachable(get_type()));
+      },
       [&](const TypeReference& reference) {
         Option<const Abstract&> selected;
         reference.resolve(host).visit(

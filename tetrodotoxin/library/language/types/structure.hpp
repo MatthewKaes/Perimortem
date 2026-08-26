@@ -36,6 +36,11 @@ class Structure : public Composite {
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
+  auto create_fitted(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Model::Pack& source) const
+      -> Perimortem::Core::Option<Model::Pack&> override;
+
   constexpr auto has_initialization_provider() const -> Bool {
     return provides_initialization;
   }

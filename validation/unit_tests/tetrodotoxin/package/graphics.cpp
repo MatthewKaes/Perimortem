@@ -7,8 +7,8 @@
 #include "perimortem/system/file.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
-#include "tetrodotoxin/graphics/hosting.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/interfaces/structure.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
@@ -93,8 +93,9 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
   auto size = select_type(package, "Size2D"_view);
   auto tone = select_type(package, "Tone"_view);
   auto transform = select_type(package, "Transform2D"_view);
-  auto host = select_type(package, "Host"_view);
+  auto placement = select_type(package, "Placement2D"_view);
   auto image = select_type(package, "Image"_view);
+  auto texture = select_type(package, "Texture2D"_view);
   auto sprite = select_type(package, "Sprite"_view);
   const auto& format = package.resolve_context("Format"_view).resolve();
   auto png_member = format.resolve_context("PNG"_view)
@@ -105,8 +106,8 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
                               .select<Library::Language::Types::Composite>()
                         : Option<const Library::Language::Types::Composite&>();
   ASSERT(
-      pixel && point && size && tone && transform && host && image && sprite &&
-      png);
+      pixel && point && size && tone && transform && placement && image &&
+      texture && sprite && png);
 
   EXPECT_EQ(pixel->get_layout().get_size(), Count(4));
   EXPECT_EQ(point->get_layout().get_size(), Count(2));
@@ -123,12 +124,14 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
   EXPECT(has_callable(*image, "get_size_pixels"_view));
   EXPECT(has_callable(*image, "sample"_view));
   EXPECT(has_callable(*image, "with_addressing"_view));
+  EXPECT(has_callable(*texture, "from_image"_view));
+  EXPECT(has_callable(*texture, "get_image"_view));
 
-  Graphics::Hosting hosting;
-  EXPECT(hosting.accepts(*host, *sprite));
+  Library::Language::Interfaces::Structure hosting;
+  EXPECT(hosting.accepts(*placement, *sprite));
   EXPECT_TEXT(
-      host->get_documentation().get_line(0),
-      "Host is a requirement rather than an allocated node Type. Graphics"_view);
+      placement->get_documentation().get_line(0),
+      "Placement2D lets Graphics read the transform and frame ordering of a real"_view);
   EXPECT_TEXT(
       pixel->get_documentation().get_line(0),
       "Pixel stores one eight bit red, green, blue, and alpha sample. Fully"_view);

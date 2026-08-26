@@ -41,6 +41,14 @@ auto Shader::Language::Monograph::retain_bridge(Bridge& bridge) -> Bool {
   return True;
 }
 
+auto Shader::Language::Monograph::compose(Cursor& cursor) -> Bool {
+  Bool valid = True;
+  for (Reference<Program> program : programs.get_view()) {
+    valid &= program.get().compose_contract(cursor);
+  }
+  return valid;
+}
+
 auto Shader::Language::Monograph::link(Cursor& cursor) -> Bool {
   if (linked) {
     return True;
@@ -62,6 +70,14 @@ auto Shader::Language::Monograph::finalize(Cursor& cursor) -> Bool {
     valid &= program.get().validate_contract(cursor);
   }
   finalized = valid;
+  return valid;
+}
+
+auto Shader::Language::Monograph::compose_restored() -> Bool {
+  Bool valid = True;
+  for (Reference<Program> program : programs.get_view()) {
+    valid &= program.get().compose_contract_restored();
+  }
   return valid;
 }
 

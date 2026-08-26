@@ -99,6 +99,7 @@ cc_library(
         "core/bibliotheca.cpp",
         "core/diagnostics/log.cpp",
         "core/diagnostics/source.cpp",
+        "core/implementation.cpp",
         "core/object.cpp",
         "core/reader/binary.cpp",
         "core/reader/serial.cpp",

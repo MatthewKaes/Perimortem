@@ -1,5 +1,5 @@
-// # Tetrodotoxin
-// Copyright (c) 2023-present Matt Kaes and contributors
+/// Tetrodotoxin
+/// Copyright (c) 2023-present Matt Kaes and contributors
 //
 // Terminal input and output backed by the Perimortem runtime ABI.
 dialect : Library;

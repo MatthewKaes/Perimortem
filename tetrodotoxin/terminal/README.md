@@ -20,12 +20,11 @@ turns the Shader product into the pipeline description consumed beside each
 stable frame submission. Application composition connects those independent
 products to the App policy and selected runtime.
 
-An application target also pairs each hosted Type route with one native
-Descriptor provider. That pair belongs to build configuration because it
-chooses a runtime implementation for the current host. Graphics still proves
-the Type against the shared Host Interface, and the generated entry carries the
-selected provider beside that proof. The runtime can therefore realize Sprite
-today and another hosted Type later without learning either concrete class.
+An application target pairs each configured Type route with separate native
+Placement2D, Children2D, and Drawable2D providers. That target configuration
+follows the successful semantic Interface proofs without copying Fields. The
+shared runtime can therefore place, traverse, and draw concrete Types without
+learning their classes or combining unrelated capabilities in one descriptor.
 
 These producers share semantic identities only while the Workspace is alive.
 The CPU object, embedded SPIR-V module, Scene access function, Vulkan pipeline

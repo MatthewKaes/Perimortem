@@ -11,6 +11,7 @@
 #include "tetrodotoxin/package/language/dependency.hpp"
 #include "tetrodotoxin/package/language/source.hpp"
 #include "tetrodotoxin/package/resources.hpp"
+#include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/span.hpp"
 #include "ttx/model/alias.hpp"
 
@@ -34,7 +35,10 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
     TTX_NAME(name);
     TTX_EMPTY_DOCUMENTATION();
 
-    auto bind(const Parser::Name& route, const Ttx::Concept::Abstract& target)
+    auto bind(
+        const Parser::Name& route,
+        const Ttx::Concept::Abstract& target,
+        Perimortem::Core::Option<Ttx::Lexical::Associations&> associations)
         -> Perimortem::Core::Option<Ttx::Model::Alias&>;
 
     auto resolve_context(Perimortem::Core::View::Bytes name) const
@@ -90,11 +94,16 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   // Workspace that assembles the Package owns every referenced Monograph.
   auto bind_member(
       const Parser::Name& local_name,
-      const Tetrodotoxin::Language::Monograph& member) -> Bool;
+      const Tetrodotoxin::Language::Monograph& member,
+      Perimortem::Core::Option<Ttx::Lexical::Associations&> associations = {})
+      -> Bool;
 
   // The request must belong to this Monograph. The Package records only the
   // exact borrowed mapping selected by its Workspace.
-  auto bind_dependency(const Dependency& dependency, const Monograph& package)
+  auto bind_dependency(
+      const Dependency& dependency,
+      const Monograph& package,
+      Perimortem::Core::Option<Ttx::Lexical::Associations&> associations = {})
       -> Bool;
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const

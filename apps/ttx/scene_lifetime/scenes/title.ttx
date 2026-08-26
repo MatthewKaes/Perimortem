@@ -1,5 +1,5 @@
-// # Tetrodotoxin
-// Copyright (c) 2023-present Matt Kaes and contributors
+/// Tetrodotoxin
+/// Copyright (c) 2023-present Matt Kaes and contributors
 //
 // A title screen that publishes keyboard input as Scene Signals.
 dialect : Scene;
@@ -9,25 +9,34 @@ using System::Key;
 signal space_pressed;
 signal shift_pressed;
 private state title_card : Graphics::Sprite;
+private state title_shader : Shaders::Glitch::TexturedQuad2D::Instance;
+private state elapsed : R64 = 0.0;
 
 Scene prepare[self] -> [] {
-  state image := Graphics::Format::PNG -> decode(.bytes = $[resources/icon.png] ->
+  state image := Graphics::Format::PNG -> decode(.bytes = $[resources/logo.png] ->
       get_view())!;
-  state position : Graphics::Point2D = (.x = 200.0, .y = 250.0);
-  self.title_card.image       = image;
-  self.title_card.size_pixels = image -> get_size_pixels();
-  self.title_card.transform   = (
-    .translation              = position,
-    .scale_x                  = 1.0,
-    .scale_y                  = 1.0,
-    .rotation                 = 0.0,
+  state texture := Graphics::Texture2D -> from_image(.image = image);
+  state position : Graphics::Point2D = (.x = 100.0, .y = 220.0);
+  state display_size : Graphics::Size2D = (.width = 600, .height = 157);
+  self.elapsed = 0.0;
+  self.title_card.texture = texture;
+  self.title_card.shader = self.title_shader;
+  self.title_card.size_pixels = display_size;
+  self.title_card.transform = (
+    .translation = position,
+    .scale_x = 1.0,
+    .scale_y = 1.0,
+    .rotation = 0.0,
   );
-  self.title_card.tone        = (.red = 1.0, .green = 1.0, .blue = 1.0, .alpha =
-      1.0);
 }
 
 Scene release[self] -> [] : return;
 Scene update[self, .delta_time : R64] -> [] {
+  self.elapsed = self.elapsed + delta_time;
+
+  state phase : R64 = self.elapsed % 1.0;
+  self.title_shader.parameters.phase_milliseconds = new[U32](phase * 1000.0);
+
   state input := System::Input -> snapshot();
   if (input -> pressed(.key = space)) : emit space_pressed;
   if (input -> pressed(.key = shift)) : emit shift_pressed;

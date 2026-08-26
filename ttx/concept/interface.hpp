@@ -29,6 +29,12 @@ namespace Ttx::Concept {
 // semantic substitution. The negotiator retains no copied semantic inventory
 // and creates no graph identity, so the two Abstracts remain the only sources
 // of meaning.
+//
+// Negotiation also creates no runtime representation. A concrete language may
+// retain an accepted candidate in an explicit erased value, after which its
+// Terminal derives the Projection required by the selected ABI. Known concrete
+// candidates keep their direct representation and pay no dispatch cost merely
+// because an Interface accepted them.
 class Interface {
  public:
   enum class Relation : U8 {

@@ -39,6 +39,7 @@ enum SemanticToken : S64 {
   SemanticOperator,
   SemanticDecorator,
   SemanticGeneric,
+  SemanticRawComment,
 };
 
 static auto has_newline(View::Bytes text) -> Bool {
@@ -49,6 +50,8 @@ static auto classify_semantic_token(Code code) -> S64 {
   switch (code.get_type()) {
   case Code::Type::Comment:
     return SemanticComment;
+  case Code::Type::RawComment:
+    return SemanticRawComment;
 
   case Code::Type::String:
   case Code::Type::Embedded:
@@ -233,6 +236,7 @@ auto Lsp::semantic_legend(Allocator::Arena& arena) -> Json::Node {
          "operator"_view,
          "decorator"_view,
          "generic"_view,
+         "rawComment"_view,
        }},
       Json::Blueprint::empty_array("tokenModifiers"_view),
     }}.construct(arena);

@@ -1,5 +1,5 @@
-// # Tetrodotoxin
-// Copyright (c) 2023-present Matt Kaes and contributors
+/// Tetrodotoxin
+/// Copyright (c) 2023-present Matt Kaes and contributors
 //
 // A splash screen that fades two hosted Sprites before moving to the title.
 dialect : Scene;
@@ -11,15 +11,19 @@ signal finished;
 private state elapsed : R64 = 0.0;
 private state icon_bottom : Graphics::Sprite;
 private state icon_top : Graphics::Sprite;
+private state icon_bottom_shader : Graphics::Shader::DefaultTexturedQuad2D::Instance;
+private state icon_top_shader : Graphics::Shader::DefaultTexturedQuad2D::Instance;
 
 Scene prepare[self] -> [] {
   state image := Graphics::Format::PNG -> decode(.bytes = $[resources/icon.png] ->
       get_view())!;
+  state texture := Graphics::Texture2D -> from_image(.image = image);
   state size := image -> get_size_pixels();
   state bottom_position : Graphics::Point2D = (.x = 190.0, .y = 140.0);
   state top_position : Graphics::Point2D = (.x = 210.0, .y = 160.0);
   self.elapsed = 0.0;
-  self.icon_bottom.image = image;
+  self.icon_bottom.texture = texture;
+  self.icon_bottom.shader = self.icon_bottom_shader;
   self.icon_bottom.size_pixels = size;
   self.icon_bottom.transform = (
     .translation = bottom_position,
@@ -27,7 +31,8 @@ Scene prepare[self] -> [] {
     .scale_y = 1.0,
     .rotation = 0.0,
   );
-  self.icon_top.image = image;
+  self.icon_top.texture = texture;
+  self.icon_top.shader = self.icon_top_shader;
   self.icon_top.size_pixels = size;
   self.icon_top.transform = (
     .translation = top_position,
@@ -49,7 +54,17 @@ Scene update[self, .delta_time : R64] -> [] {
   if (self.elapsed >= fade_time + hold_time and self.elapsed < duration) : alpha =
       (duration - self.elapsed) / fade_time;
 
-  self.icon_top.tone    = (.red = 1.0, .green = 1.0, .blue = 1.0, .alpha = alpha);
-  self.icon_bottom.tone = (.red = 1.0, .green = 1.0, .blue = 1.0, .alpha = alpha);
+  self.icon_top_shader.parameters.tone    = (
+    .x                                    = new[R32](1.0),
+    .y                                    = new[R32](1.0),
+    .z                                    = new[R32](1.0),
+    .w                                    = new[R32](alpha),
+  );
+  self.icon_bottom_shader.parameters.tone = (
+    .x                                    = new[R32](1.0),
+    .y                                    = new[R32](1.0),
+    .z                                    = new[R32](1.0),
+    .w                                    = new[R32](alpha),
+  );
   if (self.elapsed >= duration) : emit finished;
 }

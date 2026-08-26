@@ -18,8 +18,15 @@ Canonical grammar reference: [Shader.g4](grammar/Shader.g4).
 dialect : Shader;
 
 public TestShader : shader Formats::Simple {
-  public fragment : func = [.color : Math::Vec4D] -> [.color : Math::Vec4D] {
-    state copied : Math::Vec4D = color;
+  public gain : uniform R32 = new[R32](1.0);
+
+  public fragment : func {
+    state copied : Math::Vec4D = (
+      .x = color.x * parameters.gain,
+      .y = color.y,
+      .z = color.z,
+      .w = color.w,
+    );
     return (.color = copied);
   }
 }
@@ -31,8 +38,9 @@ parameter and result Layouts rather than postfix Address access.
 Every Program and member begins with the same Definition envelope used by
 Library: Documentation, Attributes, visibility, modifiers, name, and `:`. The
 qualifier that follows selects Shader, Library, or relationship meaning. Shader
-therefore interprets only the contract and body after `shader`, while `func`
-delegates its complete Signature and Block to Library.
+therefore interprets only the contract after `shader`. A `uniform` creates one
+authored Field in the Program's generated Parameters Type, while `func` supplies
+only a Stage body because the complete Signature is inherited from Render.
 
 ## One meaning, three responsibilities
 
@@ -65,6 +73,17 @@ Shader Monograph
 └── exact Bridges between Library Types used across the graphics boundary
 ```
 
+Each Program owns a generated `Parameters` Structure containing its authored
+uniform Fields and a generated `Instance` Object containing one public mutable
+`parameters` Field. The concrete Instance is the CPU visible owner of runtime
+Shader state.
+
+Inherited Fields and Stage slots retain the exact Types already resolved by the
+Render owner. Shader does not replay Render's authored route spellings inside
+the application Package. Archive restoration rebuilds those generated edges
+from the restored Render contract, which lets an application implement a
+dependency owned Render interface without reexporting its internal members.
+
 The Library child is genuine because the Shader source directly authors its
 Functions and execution graph. Neighboring Library and Render sources remain
 ordinary Workspace members owned by their own transactions. A tool follows each
@@ -73,16 +92,19 @@ semantic island consistent.
 
 ## Render contracts and Stage bodies
 
-A Shader definition selects one Render interface and supplies every Stage that
-contract requires. Each Stage must fit the declared parameter and result
-Layouts and satisfy required resources, builtins, locations, address spaces,
-and capabilities.
+A Shader definition selects one Render interface and supplies one body for every
+Stage that contract requires. The generated Function inherits its complete
+parameter and result Layouts. Resources, push inputs, builtins, locations,
+address spaces, and capabilities are projected from the real Render declarations
+before body linking.
 
 Stage Functions and their bodies use the canonical Library parser and semantic
 owners. Shader decides which Library operations and Types are legal for GPU
 execution, while the SPIR V Terminal chooses their representation. Constants,
-push values, resources, and local state therefore keep one executable graph
-instead of acquiring a Render shaped or Shader shaped copy.
+inherited push values, resources, uniforms, and local state therefore keep one
+executable graph. Render declarations retain their real identities, while
+Shader creates only the deterministic Library projections required for
+execution.
 
 Stage code can use Library construction, access, Packs, operations, control Flow,
 and named swizzles. Shader validation limits that complete language where a GPU
@@ -92,6 +114,12 @@ TTX Interface negotiation connects the real Library Function to the Render Stage
 requirement. Layout fitting proves the data flow shape. Render Attributes add
 the resource, location, builtin, and capability meaning that a Layout
 deliberately leaves out.
+
+The same relation applies to nested contract Types. For example,
+`Render::TexturedQuad2D::Inputs` remains a Render Structure while
+the Program generates one related Library projection used by Stage bodies. The
+projection is not authored, is not a second contract owner, and is restored with
+the same query surface from an Archive.
 
 A similar Layout does not make two CPU, GPU, or ABI Types interchangeable. A
 managed Library Type cannot become a GPU value merely because their fields look
@@ -150,6 +178,16 @@ bodies. The generated SPIR-V is an output of compilation, not an input to the
 language model. During Package production Linker embeds each completed module
 as named read only native data, so source free application composition can use
 that product without a loose shader file beside its executable.
+
+Exact R64 flow remains R64 in SPIR V. A module that needs it declares Float64,
+64 bit constants retain both literal words, real remainder uses `OpFRem`, and
+an authored `new[R32](value)` emits `OpFConvert`. Vulkan enables Float64 only
+when the selected physical device reports support.
+
+Portable application parameters can use bounded U32 ticks instead. Their push
+bytes remain exact, and `new[R32](ticks)` emits `OpConvertUToF`. Keeping the
+bounded tick below the exact integer range of R32 avoids Float64 while leaving
+cycle interpretation with the Shader that owns the effect.
 
 Shader keeps graphics API independent marshaling and synchronization
 requirements. Vulkan later consumes the generated SPIR-V, Graphics batches,

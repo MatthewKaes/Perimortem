@@ -34,7 +34,7 @@ auto Language::Definition::parse(
     retained_attributes = *supplied_attributes;
   } else {
     while (cursor.matches(Code::Type::Attribute) ||
-           cursor.matches(Code::Type::Comment)) {
+           cursor.get_code().is_comment()) {
       if (cursor.matches(Code::Type::Attribute)) {
         Count error_count = cursor.get_error_count();
         auto parsed = Language::Attribute::parse(cursor);
@@ -46,6 +46,9 @@ auto Language::Definition::parse(
       }
 
       const Documentation& continued = Language::Parser::Comment::parse(cursor);
+      if (continued.is_empty()) {
+        continue;
+      }
       if (retained_documentation->is_empty()) {
         retained_documentation = &continued;
       } else {
@@ -129,11 +132,12 @@ auto Language::Definition::create_synthetic(
     Abstract& host,
     View::Bytes reserved_name,
     Visibility visibility,
-    Anchor anchor) -> Definition& {
+    Anchor anchor,
+    View::Vector<Attribute> attributes) -> Definition& {
   return domain.construct_from<Definition>([&]() -> Definition {
     return Definition(
-        documentation, {}, {}, visibility, {}, reserved_name, {}, {}, host,
-        anchor, True);
+        documentation, attributes, {}, visibility, {}, reserved_name, {}, {},
+        host, anchor, True);
   });
 }
 

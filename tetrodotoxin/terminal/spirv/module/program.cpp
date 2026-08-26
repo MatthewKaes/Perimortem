@@ -65,6 +65,9 @@ auto Module::Program::compile() -> Utility::Result<Products, Failure> {
   // the one module id allocator.
   assembler.begin_module(0);
   assembler.capability(Assembler::SpirV::Capability::Shader);
+  if (types.requires_float64()) {
+    assembler.capability(Assembler::SpirV::Capability::Float64);
+  }
   assembler.memory_model(
       Assembler::SpirV::AddressingModel::Logical,
       Assembler::SpirV::MemoryModel::GLSL450);
@@ -78,6 +81,11 @@ auto Module::Program::compile() -> Utility::Result<Products, Failure> {
   if (emitted && !types.emit(assembler)) {
     report_failure(
         "The selected Library Type graph has no complete SPIR V representation."_view);
+    emitted = False;
+  }
+  if (emitted && !interface.emit_types(assembler)) {
+    report_failure(
+        "The selected Shader push interface has no complete SPIR V representation."_view);
     emitted = False;
   }
   if (emitted && !constants.emit(assembler)) {

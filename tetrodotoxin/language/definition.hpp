@@ -42,7 +42,8 @@ class Definition {
       Ttx::Concept::Abstract& host,
       Perimortem::Core::View::Bytes reserved_name,
       Visibility visibility,
-      Ttx::Lexical::Anchor anchor) -> Definition&;
+      Ttx::Lexical::Anchor anchor,
+      Perimortem::Core::View::Vector<Attribute> attributes = {}) -> Definition&;
 
   static auto create_restored(
       Perimortem::Memory::Allocator::Arena& domain,

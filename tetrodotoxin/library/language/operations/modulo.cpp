@@ -5,8 +5,10 @@
 
 #include "perimortem/core/math.hpp"
 
+#include "tetrodotoxin/library/language/constants/real.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/model/types/value.hpp"
@@ -18,7 +20,7 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 
-static auto is_integer_type(const Abstract& selected) -> Bool {
+static auto is_numeric_type(const Abstract& selected) -> Bool {
   return selected.visit<Tetrodotoxin::Library::Language::Model::Types::Signed>(
       [](const Tetrodotoxin::Library::Language::Model::Types::Signed& type) {
         return type.get_size() > 0 && type.get_size() <= sizeof(S64) ? True
@@ -33,7 +35,18 @@ static auto is_integer_type(const Abstract& selected) -> Bool {
                          ? True
                          : False;
             },
-            [](const Abstract&) { return False; });
+            [](const Abstract& selected) {
+              return selected.visit<
+                  Tetrodotoxin::Library::Language::Model::Types::Real>(
+                  [](const Tetrodotoxin::Library::Language::Model::Types::Real&
+                         type) {
+                    return type.get_size() == sizeof(R32) ||
+                                   type.get_size() == sizeof(R64)
+                               ? True
+                               : False;
+                  },
+                  [](const Abstract&) { return False; });
+            });
       });
 }
 
@@ -45,11 +58,11 @@ static auto select_result_type(
   auto left_value = left_resolved.select<Language::Model::Types::Value>();
   auto right_value = right_resolved.select<Language::Model::Types::Value>();
   if (!left_value || !right_value || !left_value->is_equivalent(*right_value) ||
-      !is_integer_type(left_resolved)) {
+      !is_numeric_type(left_resolved)) {
     return Invalid::get_invalid();
   }
 
-  // Modulo keeps the authored integer Type exact. A receiving typed owner
+  // Modulo keeps the authored numeric Type exact. A receiving typed owner
   // performs any conversion before construction so every input follows it.
   return left_resolved;
 }
@@ -160,6 +173,41 @@ auto Language::Operations::Modulo::evaluate_constants(
           }
 
           return Constants::Unsigned::create_synthetic(domain, type, value);
+        },
+        [&](const Abstract&)
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
+          return Expression::Error(
+              Expression::Error::Type::InvalidOperationType, *this);
+        });
+  }
+
+  if (selected.is<Tetrodotoxin::Library::Language::Model::Types::Real>()) {
+    auto left_value = left->select<Constants::Real>();
+    auto right_value = right->select<Constants::Real>();
+    if (!left_value) {
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, authored_left);
+    }
+    if (!right_value) {
+      return Expression::Error(
+          Expression::Error::Type::InvalidConstant, authored_right);
+    }
+
+    return selected.visit<Tetrodotoxin::Library::Language::Model::Types::Real>(
+        [&](const Tetrodotoxin::Library::Language::Model::Types::Real& type)
+            -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
+          if (type.get_size() == sizeof(R32)) {
+            R32 value = __builtin_fmodf(
+                R32(left_value->get_value()), R32(right_value->get_value()));
+            return Constants::Real::create_synthetic(domain, type, R64(value));
+          }
+          if (type.get_size() == sizeof(R64)) {
+            R64 value = __builtin_fmod(
+                left_value->get_value(), right_value->get_value());
+            return Constants::Real::create_synthetic(domain, type, value);
+          }
+          return Expression::Error(
+              Expression::Error::Type::InvalidOperationType, *this);
         },
         [&](const Abstract&)
             -> Utility::Result<Core::Option<Constant&>, Expression::Error> {

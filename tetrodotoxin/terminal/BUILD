@@ -36,6 +36,7 @@ cc_library(
         "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
+        "//tetrodotoxin/shader/language",
         "//tetrodotoxin/language",
         "//ttx:concept",
         "//ttx:model",
@@ -75,7 +76,6 @@ cc_library(
     ]),
     deps = [
         "//perimortem:headless",
-        "//tetrodotoxin/graphics:hosting",
         "//tetrodotoxin/library:language",
         "//tetrodotoxin/scene/language",
         "//ttx:concept",

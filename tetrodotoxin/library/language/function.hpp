@@ -93,6 +93,7 @@ class Function : public Model::Callable {
   }
 
   constexpr auto get_signature() const -> const Signature& { return signature; }
+  constexpr auto edit_signature() -> Signature& { return signature; }
 
   // Before Signature linking publishes the receiver Addressable, registration
   // still needs the authored receiver role. This query derives it from the

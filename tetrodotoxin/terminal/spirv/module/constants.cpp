@@ -52,9 +52,17 @@ auto Module::Constants::emit(Assembler::SpirV& assembler) const -> Bool {
     }
     auto real = constant.select<Library::Language::Constants::Real>();
     if (real) {
-      R32 narrowed = R32(real->get_value());
-      U32 bits = __builtin_bit_cast(U32, narrowed);
-      assembler.constant(*type_id, entry.id, bits);
+      auto type =
+          real->get_type().select<Library::Language::Model::Types::Real>();
+      BAIL_IF(!type);
+      if (type->get_width() == 64) {
+        assembler.constant_64(
+            *type_id, entry.id, __builtin_bit_cast(U64, real->get_value()));
+      } else {
+        R32 narrowed = R32(real->get_value());
+        assembler.constant(
+            *type_id, entry.id, __builtin_bit_cast(U32, narrowed));
+      }
       continue;
     }
     auto signed_value = constant.select<Library::Language::Constants::Signed>();
