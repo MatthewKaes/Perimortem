@@ -29,11 +29,11 @@ alignas(U32) static constexpr U32 sprite_program[] = {0x07230203};
 
 struct SpriteParameters {
   R32 tone[4];
-  Object<> noise;
+  Perimortem::Graphics::Texture2D noise;
 };
 
 static auto finalize_parameters(U8* payload) -> void {
-  Data::cast<SpriteParameters>(payload)->noise.release();
+  Data::cast<SpriteParameters>(payload)->~SpriteParameters();
 }
 
 static const Object<>::Descriptor parameter_descriptor(
@@ -96,8 +96,7 @@ static auto create_blended_shader(const Perimortem::Graphics::Texture2D& noise)
   parameters->tone[1] = 1.0f;
   parameters->tone[2] = 1.0f;
   parameters->tone[3] = 1.0f;
-  parameters->noise = noise.get_object();
-  parameters->noise.retain();
+  parameters->noise = noise;
   auto implementation = Implementation::retain(instance, &blended_projection);
   instance.release();
   return implementation ? static_cast<Implementation&&>(*implementation)
@@ -186,8 +185,8 @@ PERIMORTEM_UNIT_TEST(GraphicsSprite, projects_generated_material_resources) {
   ASSERT_EQ(draw->get_resources().get_size(), Count(2));
   EXPECT_EQ(
       draw->get_resources()[0].get_object().get_payload(),
-      noise.get_object().get_payload());
+      noise.get_image().get_object().get_payload());
   EXPECT_EQ(
       draw->get_resources()[1].get_object().get_payload(),
-      sprite.get_texture().get_object().get_payload());
+      sprite.get_texture().get_image().get_object().get_payload());
 }

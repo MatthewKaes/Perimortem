@@ -12,12 +12,13 @@ public Tone : alias = source("tone.ttx")::Tone;
 public Transform2D : alias = source("transform2d.ttx")::Transform2D;
 public Placement2D : alias = source("placement2d.ttx")::Placement2D;
 public Image : alias = source("image.ttx")::Image;
+public Sampler2D : alias = source("sampler2d.ttx")::Sampler2D;
 public Texture2D : alias = source("texture2d.ttx")::Texture2D;
 public Sprite : alias = source("sprite.ttx")::Sprite;
 public DrawableUI : alias = source("sprite.ttx")::DrawableUI;
-public TexturedQuad2DMaterial : alias = source("shaders/textured_quad_2d.ttx")::Material;
+public TexturedQuad2DMaterial : alias = source("shaders/textured_2d.ttx")::Material;
 private PNGSource : alias = source("png.ttx");
-private PipelineSource : alias = source("pipelines/textured_quad_2d.ttx");
+private PipelineSource : alias = source("pipelines/textured_2d.ttx");
 
 public Format : namespace {
   public PNG : alias = PNGSource::PNG;

@@ -39,10 +39,11 @@ The generated ABI layout preserves that exact prefix for Interface projection.
 
 ## Sprite owns the quad draw
 
-`Image` owns decoded CPU pixels, and `Texture2D` gives one Image stable
-rendering identity and addressing state. A Sprite contributes the host texture,
-size, Material, and its fixed draw policy: unit-quad geometry, triangle-list
-topology, alpha blending, and six vertices.
+`Image` is the shared decoded CPU identity. `Sampler2D` is independent
+addressing and filtering policy, and inline `Texture2D` pairs the two without
+another allocation. A Sprite contributes that sampled value, size, Material,
+and its fixed draw policy: unit-quad geometry, triangle-list topology, alpha
+blending, and six vertices.
 
 Those fixed facts do not belong to the Pipeline or Shader. A frame Batch carries
 them beside the selected Program, resources, parameter bytes, transform, size,
@@ -71,10 +72,10 @@ participate in a frame without moving those concerns into Shader.
 
 ## Stable frame and backend boundary
 
-Each Batch is an immutable backend-neutral draw transaction. Resources retain
-their runtime Objects for the frame; parameters and host inputs are copied.
-Later Scene mutations therefore affect the next frame, never one already being
-presented.
+Each Batch is an immutable backend-neutral draw transaction. Sampled resources
+retain their Image Objects and copy their Sampler2D values for the frame;
+parameters and host inputs are copied. Later Scene mutations therefore affect
+the next frame, never one already being presented.
 
 The generated application product maps exact Types that satisfy `DrawableUI`
 to their runtime draw providers. Graphics follows that exact semantic proof;

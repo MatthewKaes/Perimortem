@@ -6,19 +6,17 @@
 dialect : Pipeline;
 
 public Math : alias = package(.name = "Perimortem.Math", .version = "1.0");
-private Image : alias = source("../image.ttx")::Image;
+private Texture2D : alias = source("../texture2d.ttx")::Texture2D;
 
-public image : resource read Image;
-public inputs : push Inputs;
-
-public vertex : stage [
+public image    : resource read Texture2D;
+public inputs   : push Inputs;
+public vertex   : stage [
   .position : Math::Vec2D,
   .texture_uv : Math::Vec2D,
 ] -> [
   .position : Math::Vec4D,
   .texture_uv : Math::Vec2D,
 ];
-
 public fragment : stage [
   .texture_uv : Math::Vec2D,
 ] -> [

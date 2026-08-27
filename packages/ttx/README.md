@@ -173,9 +173,9 @@ Platform event objects and window system addresses do not become part of
 ## Perimortem.Graphics
 
 `Perimortem.Graphics` supplies the concrete Library Types used by the provided
-Scene sources. Pixel, Point2D, Size2D, Tone, Transform2D, Image, Texture2D,
-DrawableUI, Sprite, the TexturedQuad2D Pipeline, and its standard Material are
-real Package members. Routes such as `Graphics::Sprite`,
+Scene sources. Pixel, Point2D, Size2D, Tone, Transform2D, Image, Sampler2D,
+Texture2D, DrawableUI, Sprite, the TexturedQuad2D Pipeline, and its standard
+Material are real Package members. Routes such as `Graphics::Sprite`,
 `Graphics::Pipeline::TexturedQuad2D`, and
 `Graphics::TexturedQuad2DMaterial` select those documented identities directly.
 
@@ -189,12 +189,13 @@ structurally by familiar names.
 runtime copies their composed affine result into each stable frame submission,
 so later Scene mutations cannot change a frame already being presented.
 
-`Point2D`, `Size2D`, `Tone`, and `Image` are inline Struct values. Point
-coordinates and Tone channels are `R64`. Size2D width and height are `U32`.
-Image retains one shared `Object[Pixel]` buffer, its logical pixel count, its
-dimensions, and its addressing policy. Its ordinary default is the empty image
-value. Texture2D gives an Image stable rendering identity while the backend
-keeps uploads and device images as independent runtime facts.
+`Point2D`, `Size2D`, and `Tone` are inline Struct values. Point coordinates and
+Tone channels are `R64`. Size2D width and height are `U32`. Image is a shared
+Object identity containing one `Object[Pixel]` buffer, its logical pixel count,
+and its dimensions. Sampler2D is an inline addressing and filtering value.
+Texture2D is the inline pair of one Image and one Sampler2D, so another sampling
+policy adds no allocation or pixel copy. The backend keeps uploads and device
+images as independent runtime facts keyed by the shared Image.
 
 `Pixel` is the four byte RGBA value shared by decoded Images and native codecs.
 Its transparent black default follows ordinary Structure construction.
@@ -226,14 +227,15 @@ retained Package bytes. The format owns decoding while Image remains the shared
 decoded value that another codec can produce as well. Absence reports malformed
 or unsupported input without turning the valid empty Image default into an
 error state.
-The exposed `image.size` is the exact read only `Size2D` value used by Sprite,
-while public `image.addressing` selects zero, clamp, or wrap sampling directly.
-Native PNG decoding is selected through the package's Foreign declarations
-and native locators rather than hidden compiler knowledge. The native boundary
-returns an optional Image value and transfers one reservation for its pixel
-buffer. Image sampling is ordinary Library behavior on that value, while a
-Shader Terminal recognizes the same authored operation as a target image
-sample. Target storage remains a separate runtime fact.
+The exposed `image.size` is the exact read-only `Size2D` value used by Sprite.
+Each Texture2D independently selects zero, clamp, or wrap addressing and linear
+or nearest filtering through its Sampler2D. Native PNG decoding is selected
+through the package's Foreign declarations and native locators rather than
+hidden compiler knowledge. The native boundary returns an optional Image and
+transfers one reservation for that shared Object. Texture2D sampling is
+ordinary Library behavior on the pair, while a Shader Terminal recognizes the
+same authored operation as target image sampling. Target storage remains a
+separate runtime fact.
 
 The Package also publishes the target-neutral TexturedQuad2D Pipeline and the
 standard TexturedQuad2D Material. Pipeline owns the required image resource,

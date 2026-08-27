@@ -16,16 +16,24 @@ private state title_material : Blend::Material;
 private state elapsed : R64 = 0.0;
 
 Scene prepare[self] -> [] {
-  state image       := Graphics::Format::PNG -> decode(.bytes = $[../resources/logo.png] ->
+  state image := Graphics::Format::PNG -> decode(.bytes = $[../resources/logo.png] ->
       get_view())!;
-  state texture     := Graphics::Texture2D -> from_image(.image = image);
+  state texture : Graphics::Texture2D = (
+    .image = image,
+    .sampler = new[Graphics::Sampler2D],
+  );
   state noise_image := Graphics::Format::PNG -> decode(.bytes = $[../resources/perlin.png] ->
       get_view())!;
-  noise_image.addressing = Graphics::Image::Addressing::wrap;
-
-  state noise_texture := Graphics::Texture2D -> from_image(.image = noise_image);
-  state position      : Graphics::Point2D = (.x = 100.0, .y = 220.0);
-  state display_size  : Graphics::Size2D = (.width = 600, .height = 157);
+  state noise_sampler : Graphics::Sampler2D = (
+    .addressing = Graphics::Sampler2D::Addressing::wrap,
+    .filtering = Graphics::Sampler2D::Filtering::linear,
+  );
+  state noise_texture : Graphics::Texture2D = (
+    .image = noise_image,
+    .sampler = noise_sampler,
+  );
+  state position : Graphics::Point2D = (.x = 100.0, .y = 220.0);
+  state display_size : Graphics::Size2D = (.width = 600, .height = 157);
   self.elapsed = 0.0;
   self.title_card.texture = texture;
   self.title_material.noise = noise_texture;

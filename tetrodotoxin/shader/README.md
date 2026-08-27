@@ -10,7 +10,7 @@ inside a second source wrapper.
 dialect : Shader;
 
 public Math : alias = package(.name = "Perimortem.Math", .version = "1.0");
-implements source("../pipelines/textured_quad_2d.ttx");
+implements source("../pipelines/textured_2d.ttx");
 
 public tone : uniform Math::Vec4D = (
   .x = new[R32](1.0),
@@ -79,14 +79,14 @@ authored uniforms. A resource with a CPU carrier also becomes a public Material
 Field:
 
 ```ttx
-public noise : resource read Graphics::Texture2D -> Graphics::Image;
+public noise : resource read Graphics::Texture2D -> Graphics::Texture2D;
 public time_milliseconds : uniform U32 = new[U32];
 ```
 
-Here Stage code samples `noise` as an Image, while CPU code configures the same
-Material with a retained Texture2D. The immutable ABI projection records the
-parameter byte range and ordered material resources. Sprite and Vulkan do not
-need shader-specific Field names.
+Here Stage code and CPU code observe the same sampled Texture2D value. Its Image
+is the retained content identity and its Sampler2D is copied policy. The
+immutable ABI projection records the parameter byte range and ordered material
+resources. Sprite and Vulkan do not need shader-specific Field names.
 
 `Program` remains a private semantic and compiler owner for executable Stages.
 It is not part of the authored or Package-facing API; consumers configure the

@@ -470,9 +470,14 @@ PERIMORTEM_UNIT_TEST(TtxLexical, source_error) {
   }
 
   View::Bytes rendered = errors.render_message(render_arena, 0);
+  View::Bytes displayed = errors.render_message(
+      render_arena, 0, "packages/example/test.ttx"_view);
 
   ASSERT_EQ(errors.get_size(), Count(1));
   EXPECT(Algorithm::search(rendered, "test.ttx"_view) != Count(-1));
+  EXPECT(
+      Algorithm::search(displayed, "packages/example/test.ttx"_view) !=
+      Count(-1));
   EXPECT(Algorithm::search(rendered, "Bad source."_view) != Count(-1));
   EXPECT(Algorithm::search(rendered, "Try again."_view) != Count(-1));
 }

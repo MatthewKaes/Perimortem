@@ -80,7 +80,7 @@ GPU targets can inspect before a representation is selected.
 A Shader selects one Pipeline source explicitly:
 
 ```ttx
-implements source("../pipelines/textured_quad_2d.ttx");
+implements source("../pipelines/textured_2d.ttx");
 ```
 
 The expression may instead end at a Package export and can use any number of

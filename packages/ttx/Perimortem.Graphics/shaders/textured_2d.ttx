@@ -6,7 +6,7 @@
 dialect : Shader;
 
 public Math : alias = package(.name = "Perimortem.Math", .version = "1.0");
-implements source("../pipelines/textured_quad_2d.ttx");
+implements source("../pipelines/textured_2d.ttx");
 
 public tone : uniform Math::Vec4D = (
   .x = new[R32](1.0),
@@ -50,7 +50,7 @@ Shader vertex[
 
 Shader fragment[.texture_uv : Math::Vec2D] -> [.color : Math::Vec4D] {
   state sampled := image -> sample(.uv = texture_uv);
-  state color : Math::Vec4D = (
+  state color   : Math::Vec4D = (
     .x = sampled.x * parameters.tone.x,
     .y = sampled.y * parameters.tone.y,
     .z = sampled.z * parameters.tone.z,

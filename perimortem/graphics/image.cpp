@@ -8,6 +8,14 @@
 
 using namespace Perimortem;
 
+extern "C" const Core::Object<>::Descriptor
+    TTX_DESC_Perimortem_2eGraphics__Image__Image __attribute__((weak));
+
+const Core::Object<>::Descriptor Graphics::Image::descriptor(
+    sizeof(Payload),
+    alignof(Payload),
+    Graphics::Image::finalize);
+
 static auto create_pixels(
     const Memory::Dynamic::Vector<Graphics::Pixel>& source,
     Count count) -> Core::Object<Graphics::Pixel> {
@@ -17,68 +25,123 @@ static auto create_pixels(
   for (Count index = 0; index < retained; index++) {
     target.get_data()[index] = source[index];
   }
+
   return pixels;
 }
 
-Graphics::Image::Image(U32 width, U32 height, Addressing addressing)
-    : pixels(Count(width) * Count(height)),
-      pixel_count(Count(width) * Count(height)),
-      size_pixels({width, height}),
-      addressing(addressing) {}
+Graphics::Image::Image() : object(Core::Object<>::create(descriptor)) {
+  new (object.get_payload(), Core::Placement::Construct) Payload();
+}
+
+Graphics::Image::Image(U32 width, U32 height) : Image() {
+  Payload& payload = get_payload();
+  payload.pixels = Core::Object<Pixel>(Count(width) * Count(height));
+  payload.pixel_count = Count(width) * Count(height);
+  payload.size_pixels = {width, height};
+}
 
 Graphics::Image::Image(
     Memory::Dynamic::Vector<Pixel>&& source,
     U32 width,
-    U32 height,
-    Addressing addressing)
-    : pixels(create_pixels(source, Count(width) * Count(height))),
-      pixel_count(Count(width) * Count(height)),
-      size_pixels({width, height}),
-      addressing(addressing) {}
+    U32 height)
+    : Image() {
+  Payload& payload = get_payload();
+  payload.pixels = create_pixels(source, Count(width) * Count(height));
+  payload.pixel_count = Count(width) * Count(height);
+  payload.size_pixels = {width, height};
+}
+
+Graphics::Image::Image(const Image& source) : object(source.object) {
+  object.retain();
+}
+
+Graphics::Image::Image(Image&& source) : object(source.object) {
+  source.object = Core::Object<>();
+}
+
+Graphics::Image::~Image() {
+  object.release();
+}
+
+auto Graphics::Image::operator=(const Image& source) -> Image& {
+  if (object.get_payload() == source.object.get_payload()) {
+    return *this;
+  }
+
+  source.object.retain();
+  object.release();
+  object = source.object;
+  return *this;
+}
+
+auto Graphics::Image::operator=(Image&& source) -> Image& {
+  if (this == &source) {
+    return *this;
+  }
+
+  object.release();
+  object = source.object;
+  source.object = Core::Object<>();
+  return *this;
+}
 
 auto Graphics::Image::get_width() const -> U32 {
-  return size_pixels.width;
+  return get_payload().size_pixels.width;
 }
 
 auto Graphics::Image::get_height() const -> U32 {
-  return size_pixels.height;
+  return get_payload().size_pixels.height;
 }
 
 auto Graphics::Image::get_size_pixels() const -> Size2D {
-  return {get_width(), get_height()};
+  return get_payload().size_pixels;
 }
 
 auto Graphics::Image::get_pixels() const -> Core::View::Vector<Pixel> {
-  return pixels.get_view().slice(0, pixel_count);
+  const Payload& payload = get_payload();
+  return payload.pixels.get_view().slice(0, payload.pixel_count);
 }
 
 auto Graphics::Image::get_pixel(S32 x, S32 y) const -> Pixel {
-  if (size_pixels.width == 0 || size_pixels.height == 0) {
+  const Payload& payload = get_payload();
+  if (x < 0 || x >= payload.size_pixels.width || y < 0 ||
+      y >= payload.size_pixels.height) {
     return Pixel();
   }
 
-  switch (addressing) {
-  case Addressing::Zero:
-    if (x < 0 || x >= size_pixels.width || y < 0 || y >= size_pixels.height) {
-      return Pixel();
-    }
-    break;
-  case Addressing::Clamp:
-    x = Core::Math::clamp(x, S32(0), S32(size_pixels.width - 1));
-    y = Core::Math::clamp(y, S32(0), S32(size_pixels.height - 1));
-    break;
-  case Addressing::Wrap:
-    x = Core::Math::wrap(x, S32(size_pixels.width));
-    y = Core::Math::wrap(y, S32(size_pixels.height));
-    break;
-  }
-
-  return pixels.get_view()
-      .get_data()[Count(y) * Count(size_pixels.width) + Count(x)];
+  return payload.pixels.get_view()
+      .get_data()[Count(y) * Count(payload.size_pixels.width) + Count(x)];
 }
 
 auto Graphics::Image::is_drawable() const -> Bool {
-  return size_pixels.width != 0 && size_pixels.height != 0 &&
-         pixel_count == Count(size_pixels.width) * Count(size_pixels.height) &&
-         pixels.get_capacity() >= pixel_count;
+  const Payload& payload = get_payload();
+  return payload.size_pixels.width != 0 && payload.size_pixels.height != 0 &&
+         payload.pixel_count ==
+             Count(payload.size_pixels.width) * payload.size_pixels.height &&
+         payload.pixels.get_capacity() >= payload.pixel_count;
+}
+
+auto Graphics::Image::retain(Core::Object<> object)
+    -> Core::Option<Image> {
+  BAIL_IF(object.is_empty());
+  const Core::Object<>::Descriptor* generated =
+      &TTX_DESC_Perimortem_2eGraphics__Image__Image;
+  const Core::Object<>::Descriptor& selected = object.get_descriptor();
+  BAIL_IF(
+      &selected != &descriptor &&
+      (generated == nullptr || &selected != generated));
+  object.retain();
+  return Image(object);
+}
+
+auto Graphics::Image::finalize(U8* payload) -> void {
+  Core::Data::cast<Payload>(payload)->~Payload();
+}
+
+auto Graphics::Image::get_payload() -> Payload& {
+  return *Core::Data::cast<Payload>(object.get_payload());
+}
+
+auto Graphics::Image::get_payload() const -> const Payload& {
+  return *Core::Data::cast<const Payload>(object.get_payload());
 }

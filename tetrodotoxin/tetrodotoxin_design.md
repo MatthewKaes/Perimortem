@@ -472,15 +472,16 @@ concrete `implementation DrawableUI` materializes those Fields once and proves
 the exact higher-order relation without copying declarations or relying on
 structural matching. Child traversal remains independent of draw capability.
 
-Image owns decoded pixels while Texture2D gives those pixels stable rendering
-identity. Sprite implements DrawableUI and stores one explicit
+Image is the shared decoded-pixel identity. Sampler2D carries independent
+addressing and filtering policy, while inline Texture2D pairs one Image and
+Sampler2D without another allocation. Sprite implements DrawableUI and stores one explicit
 `Implementation[Pipeline]`, retaining the concrete Shader Material and its ABI
 Projection without copying parameter state into Sprite. An authored Shader
 resource pairs its configured CPU carrier Type with the GPU sampling Type after
 `resource`, so the generated Material owns real resource values without making
 the Stage execute over runtime carriers. Each frame copies current parameter
 bytes and transforms, projects the ordered resource Fields from that Material,
-retains its worker-local Texture2D resources, and refers to the selected
+retains each worker-local Image identity with its copied Sampler2D value, and refers to the selected
 compiled Program through an opaque process locator.
 
 Sprite also supplies its fixed unit-quad geometry, triangle-list topology,

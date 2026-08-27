@@ -43,6 +43,7 @@
 #include "tetrodotoxin/terminal/abi/compiler.hpp"
 #include "tetrodotoxin/terminal/abi/products.hpp"
 #include "tetrodotoxin/terminal/abi/projection.hpp"
+#include "tetrodotoxin/terminal/abi/publication.hpp"
 #include "tetrodotoxin/terminal/abi/resource_product.hpp"
 #include "tetrodotoxin/terminal/abi/symbol.hpp"
 #include "tetrodotoxin/terminal/graphics/compiler.hpp"
@@ -398,6 +399,58 @@ static auto retain_library_types(
             selected.get())) {
       return False;
     }
+  }
+
+  return True;
+}
+
+// Separately compiled members already share one completed semantic graph. Bind
+// their publicly reachable Callables before lowering any member so a source
+// import never makes native linkage depend on compilation order.
+static auto retain_local_callable_bindings(
+    Memory::Allocator::Arena& arena,
+    Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Unit::Binding>&
+        bindings,
+    const Library::Language::Model::Type& type,
+    const Tetrodotoxin::Terminal::Abi::Unit& unit) -> Bool {
+  auto composite = type.select<Library::Language::Types::Composite>();
+  if (!composite) {
+    return True;
+  }
+
+  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
+       composite->get_declarations()) {
+    auto nested = declaration.get().select<Library::Language::Model::Type>();
+    if (nested &&
+        !retain_local_callable_bindings(arena, bindings, *nested, unit)) {
+      return False;
+    }
+
+    auto function = declaration.get().select<Library::Language::Function>();
+    if (!function || !Tetrodotoxin::Terminal::Abi::is_publicly_reachable(
+                         function->get_definition())) {
+      continue;
+    }
+
+    for (const Tetrodotoxin::Terminal::Abi::Unit::Binding& binding :
+         bindings.get_view()) {
+      if (&binding.get_semantic() == &*function) {
+        function = {};
+        break;
+      }
+    }
+    if (!function) {
+      continue;
+    }
+
+    Tetrodotoxin::Terminal::Abi::Symbol symbol(
+        arena, *function,
+        function->declares_self()
+            ? Tetrodotoxin::Terminal::Abi::Symbol::Kind::FunctionSelf
+            : Tetrodotoxin::Terminal::Abi::Symbol::Kind::FunctionStatic,
+        unit);
+    bindings.insert(Tetrodotoxin::Terminal::Abi::Unit::Binding(
+        *function, symbol.get_view()));
   }
 
   return True;
@@ -760,10 +813,19 @@ static auto publish(Core::View::Bytes path, Core::View::Bytes contents)
   return System::File::write(contents, path);
 }
 
-static auto report_errors(const Ttx::Lexical::Errors& errors) -> void {
+static auto report_errors(
+    const Ttx::Lexical::Errors& errors,
+    Core::View::Bytes package_root) -> void {
   Memory::Allocator::Arena arena;
   for (Count index = 0; index < errors.get_size(); index++) {
-    Core::Diagnostics::Log::error(errors.render_message(arena, index));
+    Memory::Managed::Bytes display_path(arena, package_root);
+    if (display_path.get_size() != 0 &&
+        display_path[display_path.get_size() - 1] != '/') {
+      display_path.append('/');
+    }
+    display_path.concat(errors.get_source_name(index));
+    Core::Diagnostics::Log::error(
+        errors.render_message(arena, index, display_path.get_view()));
     arena.reset();
   }
 }
@@ -1005,7 +1067,7 @@ auto Puffer::Package::run() const -> S32 {
       imported ? imported->select<Tetrodotoxin::Package::Language::Monograph>()
                : Core::Option<Tetrodotoxin::Package::Language::Monograph&>();
   if (!root) {
-    report_errors(errors);
+    report_errors(errors, package_root);
     return 1;
   }
 
@@ -1164,6 +1226,27 @@ auto Puffer::Package::run() const -> S32 {
   for (const Tetrodotoxin::Terminal::Abi::Unit::Binding& binding :
        resources->get_bindings()) {
     external.insert(binding);
+  }
+
+  for (Count source_index = 0; source_index < local_source_count;
+       source_index++) {
+    auto source = workspace.get_package_source(*root, source_index);
+    auto library = source
+                       ? select_library(
+                             source->get_monograph(), *library_dialect)
+                       : Core::Option<const Library::Language::Monograph&>();
+    if (!source || !library) {
+      continue;
+    }
+
+    Tetrodotoxin::Terminal::Abi::Unit local_unit(
+        identity, source->get_name(), artifact, {}, type_bindings.get_view());
+    if (!retain_local_callable_bindings(
+            arena, external, library->get_source(), local_unit)) {
+      Core::Diagnostics::Log::error(
+          "Puffer Package could not bind local source Callables."_view);
+      return 1;
+    }
   }
 
   if (!resources_object_path.is_empty()) {
@@ -1424,7 +1507,7 @@ auto Puffer::Package::run() const -> S32 {
     if (member_object.is_empty() || product_object.is_empty() ||
         !publish(object_path, member_object) ||
         !publish(product_path, product_object)) {
-      report_errors(errors);
+      report_errors(errors, package_root);
       Core::Diagnostics::Log::error(
           "Puffer Package could not emit one member product."_view);
       return 1;

@@ -799,9 +799,7 @@ PERIMORTEM_UNIT_TEST(SystemFileRoot, missing_member) {
   capture_next_file_log();
   auto source = (*root).read("missing"_view);
   EXPECT_NOT(source);
-  EXPECT(file_warning_contains(
-      "System::File::Root read failed. path=missing "
-      "stage=open errno="_view));
+  EXPECT_EQ(captured_file_log_size, Count(0));
 }
 
 PERIMORTEM_UNIT_TEST(SystemFileRoot, directory_member) {

@@ -75,8 +75,13 @@ class Errors {
   // Rendering remains delayed so callers can collect failures across one
   // transaction before choosing how to present them. The caller Arena owns only
   // the rendered view while the retained source snapshot stays canonical here.
-  auto render_message(Perimortem::Memory::Allocator::Arena& arena, Count index)
-      const -> Perimortem::Core::View::Bytes;
+  // A presentation owner may supply a physical display path without changing
+  // the source key used by Workspace and editor tooling.
+  auto render_message(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Count index,
+      Perimortem::Core::View::Bytes display_source_name = {}) const
+      -> Perimortem::Core::View::Bytes;
 
   constexpr auto get_message(Count index) const
       -> Perimortem::Core::View::Bytes {

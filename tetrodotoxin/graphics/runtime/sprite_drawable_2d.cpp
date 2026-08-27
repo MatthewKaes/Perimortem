@@ -55,23 +55,22 @@ auto Runtime::SpriteDrawable2D::read_draw(Object<> object, Count index)
        resource_index++) {
     const Perimortem::Graphics::Projection::Resource& projected =
         projection->resources[resource_index];
-    Perimortem::Core::Option<Perimortem::Graphics::Texture2D> texture;
+    const Perimortem::Graphics::Texture2D* texture = nullptr;
     switch (projected.source) {
     case Perimortem::Graphics::Projection::ResourceSource::HostTexture:
-      texture = Perimortem::Graphics::Texture2D::retain(
-          sprite->get_texture().get_object());
+      texture = &sprite->get_texture();
       break;
     case Perimortem::Graphics::Projection::ResourceSource::InstanceTexture:
       if (projected.offset > instance_size ||
-          sizeof(Object<>) > instance_size - projected.offset) {
+          sizeof(Perimortem::Graphics::Texture2D) >
+              instance_size - projected.offset) {
         return {};
       }
-      texture =
-          Perimortem::Graphics::Texture2D::retain(*Data::cast<const Object<>>(
-              instance.get_payload() + projected.offset));
+      texture = Data::cast<const Perimortem::Graphics::Texture2D>(
+          instance.get_payload() + projected.offset);
       break;
     }
-    if (!texture) {
+    if (texture == nullptr || !texture->is_drawable()) {
       return {};
     }
     auto retained =

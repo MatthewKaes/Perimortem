@@ -8,7 +8,7 @@
 #include "perimortem/core/math.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
-#include "perimortem/graphics/texture_2d.hpp"
+#include "perimortem/graphics/image.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem;
@@ -33,9 +33,14 @@ static auto supports_unit_quad(const Vulkan::Description::Program& description)
 }
 
 const Core::Object<>::Descriptor Vulkan::Pipelines::cache_descriptor(
-    sizeof(CacheEntry),
-    alignof(CacheEntry),
+    sizeof(TextureCacheEntry),
+    alignof(TextureCacheEntry),
     Pipelines::finalize_cache);
+
+const Core::Object<>::Descriptor Vulkan::Pipelines::image_cache_descriptor(
+    sizeof(ImageCacheEntry),
+    alignof(ImageCacheEntry),
+    Pipelines::finalize_image_cache);
 
 const Core::Object<>::Descriptor Vulkan::Pipelines::realization_descriptor(
     sizeof(Realization),
@@ -59,6 +64,10 @@ Vulkan::Pipelines::~Pipelines() {
     texture.release();
   }
   textures.clear();
+  for (Core::Object<> image : images.get_view()) {
+    image.release();
+  }
+  images.clear();
   for (Core::Object<> realization : realizations.get_view()) {
     realization.release();
   }
@@ -303,9 +312,8 @@ auto Vulkan::Pipelines::validate(
         batch.get_size_pixels().height == 0);
     for (const Perimortem::Graphics::Frame::Resource& resource :
          batch.get_resources()) {
-      auto texture =
-          Perimortem::Graphics::Texture2D::retain(resource.get_object());
-      BAIL_IF(!texture || !texture->is_drawable());
+      auto image = Perimortem::Graphics::Image::retain(resource.get_object());
+      BAIL_IF(!image || !image->is_drawable());
     }
   }
   return True;
@@ -324,7 +332,7 @@ auto Vulkan::Pipelines::record(
     BAIL_IF(realize_pipeline(batch) == nullptr);
     for (const Perimortem::Graphics::Frame::Resource& resource :
          batch.get_resources()) {
-      BAIL_IF(!realize_texture(resource));
+      BAIL_IF(!realize_image(resource) || !realize_texture(resource));
     }
   }
   for (const Perimortem::Graphics::Frame::Batch& batch : batches) {
@@ -409,13 +417,44 @@ auto Vulkan::Pipelines::make_host_inputs(
 auto Vulkan::Pipelines::find_texture(
     const Perimortem::Graphics::Frame::Resource& resource) -> Texture* {
   for (Core::Object<> object : textures.get_view()) {
-    CacheEntry& entry = get_cache_entry(object);
-    if (entry.resource.get_object().get_payload() ==
-        resource.get_object().get_payload()) {
+    TextureCacheEntry& entry = get_cache_entry(object);
+    if (entry.resource.matches(resource)) {
       return &entry.texture;
     }
   }
+
   return nullptr;
+}
+
+auto Vulkan::Pipelines::find_image(
+    const Perimortem::Graphics::Frame::Resource& resource) -> TextureImage* {
+  for (Core::Object<> object : images.get_view()) {
+    ImageCacheEntry& entry = get_image_cache_entry(object);
+    if (entry.resource.get_object().get_payload() ==
+        resource.get_object().get_payload()) {
+      return &entry.image;
+    }
+  }
+
+  return nullptr;
+}
+
+auto Vulkan::Pipelines::realize_image(
+    const Perimortem::Graphics::Frame::Resource& resource) -> TextureImage* {
+  TextureImage* retained = find_image(resource);
+  if (retained) {
+    return retained;
+  }
+
+  Core::Object<> storage = Core::Object<>::create(image_cache_descriptor);
+  new (storage.get_payload(), Core::Placement::Construct) ImageCacheEntry();
+  ImageCacheEntry& entry = get_image_cache_entry(storage);
+  entry.resource = resource;
+  entry.image = TextureImage::create(context, resource);
+  Core::Object<>& inserted =
+      images.emplace(static_cast<Core::Object<>&&>(storage));
+
+  return &get_image_cache_entry(inserted).image;
 }
 
 auto Vulkan::Pipelines::realize_texture(
@@ -425,39 +464,73 @@ auto Vulkan::Pipelines::realize_texture(
     return retained;
   }
 
+  TextureImage* image = find_image(resource);
+  BAIL_IF(image == nullptr);
   Core::Object<> storage = Core::Object<>::create(cache_descriptor);
-  new (storage.get_payload(), Core::Placement::Construct) CacheEntry();
-  CacheEntry& entry = get_cache_entry(storage);
+  new (storage.get_payload(), Core::Placement::Construct) TextureCacheEntry();
+  TextureCacheEntry& entry = get_cache_entry(storage);
   entry.resource = resource;
-  entry.texture = Texture::create(context, resource, descriptor_layout);
+  entry.texture = Texture::create(
+      context, resource, image->get_view(), descriptor_layout);
   Core::Object<>& inserted =
       textures.emplace(static_cast<Core::Object<>&&>(storage));
+
   return &get_cache_entry(inserted).texture;
 }
 
 auto Vulkan::Pipelines::sweep_textures() -> void {
   Count index = 0;
-  while (index < textures.get_size()) {
-    CacheEntry& entry = get_cache_entry(textures[index]);
-    if (entry.resource.get_reservations() == 1) {
-      textures[index].release();
-      textures.remove(index);
-    } else {
-      index++;
+  while (index < images.get_size()) {
+    ImageCacheEntry& image = get_image_cache_entry(images[index]);
+    U8* identity = image.resource.get_object().get_payload();
+    Count cached_reservations = 1;
+    for (Core::Object<> object : textures.get_view()) {
+      const TextureCacheEntry& texture = get_cache_entry(object);
+      cached_reservations +=
+          texture.resource.get_object().get_payload() == identity;
     }
+    if (image.resource.get_reservations() != cached_reservations) {
+      index++;
+      continue;
+    }
+
+    Count texture_index = 0;
+    while (texture_index < textures.get_size()) {
+      const TextureCacheEntry& texture =
+          get_cache_entry(textures[texture_index]);
+      if (texture.resource.get_object().get_payload() != identity) {
+        texture_index++;
+        continue;
+      }
+
+      textures[texture_index].release();
+      textures.remove(texture_index);
+    }
+    images[index].release();
+    images.remove(index);
   }
 }
 
+auto Vulkan::Pipelines::finalize_image_cache(U8* payload) -> void {
+  Data::cast<ImageCacheEntry>(payload)->~ImageCacheEntry();
+}
+
 auto Vulkan::Pipelines::finalize_cache(U8* payload) -> void {
-  Data::cast<CacheEntry>(payload)->~CacheEntry();
+  Data::cast<TextureCacheEntry>(payload)->~TextureCacheEntry();
 }
 
 auto Vulkan::Pipelines::finalize_realization(U8* payload) -> void {
   Data::cast<Realization>(payload)->~Realization();
 }
 
-auto Vulkan::Pipelines::get_cache_entry(Core::Object<> object) -> CacheEntry& {
-  return *Data::cast<CacheEntry>(object.get_payload());
+auto Vulkan::Pipelines::get_cache_entry(Core::Object<> object)
+    -> TextureCacheEntry& {
+  return *Data::cast<TextureCacheEntry>(object.get_payload());
+}
+
+auto Vulkan::Pipelines::get_image_cache_entry(Core::Object<> object)
+    -> ImageCacheEntry& {
+  return *Data::cast<ImageCacheEntry>(object.get_payload());
 }
 
 auto Vulkan::Pipelines::get_realization(Core::Object<> object) -> Realization& {

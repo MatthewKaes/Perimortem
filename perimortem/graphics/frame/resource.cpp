@@ -13,15 +13,18 @@ Graphics::Frame::Resource::Resource(Object<> object) : object(object) {
 auto Graphics::Frame::Resource::retain_texture(
     const Graphics::Texture2D& texture) -> Resource {
   BAIL_IF(!texture.is_drawable());
-  return Resource(texture.get_object());
+  Resource resource(texture.get_image().get_object());
+  resource.sampler = texture.get_sampler();
+  return resource;
 }
 
 Graphics::Frame::Resource::Resource(const Resource& source)
-    : object(source.object) {
+    : object(source.object), sampler(source.sampler) {
   object.retain();
 }
 
-Graphics::Frame::Resource::Resource(Resource&& source) : object(source.object) {
+Graphics::Frame::Resource::Resource(Resource&& source)
+    : object(source.object), sampler(source.sampler) {
   source.object = Object<>();
 }
 
@@ -31,12 +34,14 @@ Graphics::Frame::Resource::~Resource() {
 
 auto Graphics::Frame::Resource::operator=(const Resource& source) -> Resource& {
   if (object.get_payload() == source.object.get_payload()) {
+    sampler = source.sampler;
     return *this;
   }
 
   source.object.retain();
   object.release();
   object = source.object;
+  sampler = source.sampler;
   return *this;
 }
 
@@ -47,6 +52,7 @@ auto Graphics::Frame::Resource::operator=(Resource&& source) -> Resource& {
 
   object.release();
   object = source.object;
+  sampler = source.sampler;
   source.object = Object<>();
   return *this;
 }

@@ -90,6 +90,9 @@ class File {
     ~Root();
 
     static auto open(Core::View::Bytes location) -> Core::Option<Root>;
+    // Member reads and fingerprints are probes. Absence and I/O failure use
+    // the optional result without publishing an ambient diagnostic; the owner
+    // that requested the path supplies its authored context.
     auto read(Core::View::Bytes relative_path) const
         -> Core::Option<Memory::Dynamic::Bytes>;
     auto read_snapshot(Core::View::Bytes relative_path) const

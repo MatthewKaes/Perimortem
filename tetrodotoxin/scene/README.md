@@ -133,7 +133,10 @@ and keeps the order written in the source. The Objects exist before `prepare`,
 which configures them through ordinary Library access:
 
 ```ttx
-self.icon_top.texture = Graphics::Texture2D -> from_image(.image = image);
+self.icon_top.texture = (
+  .image = image,
+  .sampler = new[Graphics::Sampler2D],
+);
 self.icon_top.material = self.icon_material;
 self.icon_top.transform = transform;
 self.icon_material.parameters.tone = tone;

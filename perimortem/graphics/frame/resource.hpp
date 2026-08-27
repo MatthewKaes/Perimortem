@@ -5,13 +5,13 @@
 
 #include "perimortem/core/object.hpp"
 
+#include "perimortem/graphics/sampler_2d.hpp"
 #include "perimortem/graphics/texture_2d.hpp"
 
 namespace Perimortem::Graphics::Frame {
 
-// Resource keeps one worker local runtime Object alive for the immutable frame
-// that references it. The concrete Object descriptor continues to own the
-// resource's payload and destruction behavior.
+// Resource keeps one worker-local Image identity and its sampling value alive
+// for the immutable frame that references them.
 class Resource {
  public:
   Resource() = default;
@@ -29,10 +29,18 @@ class Resource {
   constexpr auto get_object() const -> Perimortem::Core::Object<> {
     return object;
   }
+  constexpr auto get_sampler() const -> Perimortem::Graphics::Sampler2D {
+    return sampler;
+  }
+  constexpr auto matches(const Resource& other) const -> Bool {
+    return object.get_payload() == other.object.get_payload() &&
+           sampler == other.sampler;
+  }
   auto get_reservations() const -> Count;
 
  private:
   Perimortem::Core::Object<> object;
+  Perimortem::Graphics::Sampler2D sampler;
 };
 
 }  // namespace Perimortem::Graphics::Frame

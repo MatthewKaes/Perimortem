@@ -6,7 +6,7 @@
 dialect : Library;
 
 private Texture2DSource : alias = source("texture2d.ttx");
-public Pipeline : alias = source("pipelines/textured_quad_2d.ttx");
+public Pipeline : alias = source("pipelines/textured_2d.ttx");
 private Size2DSource : alias = source("size2d.ttx");
 private Transform2DSource : alias = source("transform2d.ttx");
 

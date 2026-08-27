@@ -63,8 +63,8 @@ class Sprite {
   static_assert(__builtin_offsetof(Payload, visible) == 56);
   static_assert(__builtin_offsetof(Payload, z_index) == 64);
   static_assert(__builtin_offsetof(Payload, texture) == 72);
-  static_assert(__builtin_offsetof(Payload, size) == 80);
-  static_assert(sizeof(Payload) == 88);
+  static_assert(__builtin_offsetof(Payload, size) == 88);
+  static_assert(sizeof(Payload) == 96);
 
   explicit Sprite(Core::Object<> object) : object(object) {}
   static auto finalize(U8* payload) -> void;

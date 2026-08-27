@@ -170,7 +170,8 @@ static auto write_caret_gutter(Stream::Textual<Managed::Bytes>& render)
 // An index outside the retained reports produces an empty view.
 auto Errors::render_message(
     Perimortem::Memory::Allocator::Arena& arena,
-    Count index) const -> Perimortem::Core::View::Bytes {
+    Count index,
+    View::Bytes display_source_name) const -> Perimortem::Core::View::Bytes {
   Managed::Bytes message(arena);
   Stream::Textual<Managed::Bytes> render(message);
 
@@ -180,7 +181,9 @@ auto Errors::render_message(
   auto source = source_map.find(error.source_name);
   BAIL_IF(!source);
 
-  View::Bytes source_name = (*source).key;
+  View::Bytes source_name = display_source_name.is_empty()
+                                ? (*source).key
+                                : display_source_name;
   View::Bytes source_text = (*source).value;
   const Span span = error.anchor.get_span();
   const Token token = error.anchor.get_token();

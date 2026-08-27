@@ -24,10 +24,11 @@ draw inputs, transforms, retained resources, and backend-neutral fixed state.
 
 `Pipelines` realizes that generated table without changing it. It caches one
 ShaderProgram per exact locator and fixed-state selection, negotiates required device features such as
-Float64, uploads each retained Texture2D once, and records the already ordered
-draws through the selected pipeline. Host roles fill the reflected transform
-fields, while each Batch supplies the exact copied Parameters bytes expected by
-its Program. Pixel data and frame order stay with Graphics.
+Float64, uploads each retained Image identity once, realizes sampled descriptors
+from copied Sampler2D values, and records the already ordered draws through the
+selected pipeline. Host roles fill the reflected transform fields, while each
+Batch supplies the exact copied Parameters bytes expected by its Program. Pixel
+data and frame order stay with Graphics.
 
 Program descriptions and embedded words are generated products. Vulkan carries
 no checked in Shader source, SPIR V array, Shader specific push structure, or

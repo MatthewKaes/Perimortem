@@ -103,6 +103,7 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
   auto transform = select_type(package, "Transform2D"_view);
   auto placement = select_type(package, "Placement2D"_view);
   auto image = select_type(package, "Image"_view);
+  auto sampler = select_type(package, "Sampler2D"_view);
   auto texture = select_type(package, "Texture2D"_view);
   auto sprite = select_type(package, "Sprite"_view);
   const auto& format = package.resolve_context("Format"_view).resolve();
@@ -111,7 +112,7 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
                  .select<Library::Language::Types::Composite>();
   ASSERT(
       pixel && point && size && tone && transform && placement && image &&
-      texture && sprite && png);
+      sampler && texture && sprite && png);
 
   EXPECT_EQ(pixel->get_layout().get_size(), Count(4));
   EXPECT_EQ(point->get_layout().get_size(), Count(2));
@@ -124,11 +125,12 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
   EXPECT(has_callable(*pixel, "from_rgba"_view));
   EXPECT(has_callable(*png, "decode"_view));
   EXPECT(has_callable(*image, "get_pixels"_view));
-  EXPECT(has_callable(*image, "sample"_view));
   EXPECT(has_public_addressable(*image, "size"_view));
-  EXPECT(has_public_addressable(*image, "addressing"_view));
-  EXPECT(has_callable(*texture, "from_image"_view));
-  EXPECT(has_callable(*texture, "get_image"_view));
+  EXPECT(has_public_addressable(*sampler, "addressing"_view));
+  EXPECT(has_public_addressable(*sampler, "filtering"_view));
+  EXPECT(has_public_addressable(*texture, "image"_view));
+  EXPECT(has_public_addressable(*texture, "sampler"_view));
+  EXPECT(has_callable(*texture, "sample"_view));
 
   Library::Language::Interfaces::Structure hosting;
   EXPECT(hosting.accepts(*placement, *sprite));

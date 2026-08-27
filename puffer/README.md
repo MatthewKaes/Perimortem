@@ -36,6 +36,11 @@ Language compilers own their native member products and Linker owns final native
 composition. Puffer owns the build transaction that selects and coordinates
 those components.
 
+Command-line Package diagnostics present the physical Package root joined to
+the source's logical path so terminals can open the reported file directly.
+Editor sessions keep that logical path as their stable document key and let the
+LSP map it through the retained Package root.
+
 The LSP constructs one Environment Toolchain and lends it to every replacement
 Workspace. A Package session walks the selected source graph, recursively loads
 each unresolved exact Package Alias through Package Repository, detects active
@@ -168,8 +173,10 @@ while repositories that already use Bazel can keep their surrounding graph.
 A Package request is the complete source build. It imports each dependency
 through its Contract Archive, opens the root Package once, walks its reachable
 Type graph, and keeps that Workspace alive while every requested Terminal walks
-it. Library members become
-CPU objects through the
+it. Publicly reachable local Callables receive their deterministic ABI bindings
+before any member is lowered, so separately compiled sources can call one
+another without depending on compilation order. Library members become CPU
+objects through the
 [LLVM Terminal](../tetrodotoxin/terminal/llvm/README.md). Shader members become
 validated SPIR V words and Linker places those words in the Package's read only
 native data. Pipeline and other contract members contribute their durable meaning
