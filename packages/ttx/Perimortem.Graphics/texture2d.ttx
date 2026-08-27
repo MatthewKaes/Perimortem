@@ -5,7 +5,7 @@
 //
 dialect : Library;
 
-public ImageSource : alias = source("image.ttx");
+private ImageSource : alias = source("image.ttx");
 
 public Image : alias = ImageSource::Image;
 

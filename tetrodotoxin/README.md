@@ -149,9 +149,9 @@ fragment as building blocks for richer domain specific solutions:
 * [App](app/README.md) describes startup and application lifecycle.
 * [Scene](scene/README.md) describes scene state, signals, hosted graphics, and
   lifecycle roles.
-* [Render](render/README.md) declares contracts for values and stages consumed
+* [Pipeline](render/README.md) declares contracts for values and stages consumed
   by rendering.
-* [Shader](shader/README.md) defines how GPU stages implement Render contracts.
+* [Shader](shader/README.md) defines how GPU stages implement Pipeline contracts.
 * [Foreign](foreign/README.md) embeds an external ABI surface inside a source
   that supports CPU execution.
 
@@ -162,23 +162,22 @@ installed top level Dialect.
 Some Dialects build on meaning from another Dialect. Scene contains one Library
 layer because its source directly authors Library state and functions. Shader
 also contains one Library layer because its Stages directly author Library
-Types, Functions, expressions, and Flow. The outer Shader Monograph owns Render
+Types, Functions, expressions, and Flow. The outer Shader Monograph owns Pipeline
 contract selection, storage roles, and Bridges. Interface negotiation proves
-whether each real Library Function satisfies the selected Render Stage without
+whether each real Library Function satisfies the selected Pipeline Stage without
 copying either graph.
 
 Dependencies always point toward the lower level language. Scene depends on
-Library. Shader depends on Library and Render. App depends on Library and Scene.
+Library. Shader depends on Library and Pipeline. App depends on Library and Scene.
 The reverse dependencies are not allowed, and Shader does not depend on Vulkan.
 The build graph follows the same direction.
 
-[Graphics](graphics/README.md) is a language neutral runtime composition
-boundary rather than a Dialect. A semantic Placement2D proof derives placement,
-while Children2D and Drawable2D remain independent runtime Interfaces. Texture2D
-and `Implementation[Render::TexturedQuad2D]` let Sprite compose resources with a
-real Shader Instance without absorbing Render, Shader, or backend meaning.
-Graphics collects that exact Scene state into stable frame submissions while
-the selected backend retains its own device semantics.
+[Graphics](graphics/README.md) is a language-neutral runtime composition
+boundary rather than a Dialect. `DrawableUI` is a real Library Interface, and
+Sprite implements its Material, transform, visibility, and ordering state while
+retaining its own texture and size. Graphics collects that exact Scene state and
+Sprite-owned draw policy into stable frame submissions while the selected
+backend retains its own device semantics.
 
 The [standard packages](../packages/ttx/README.md) provide ordinary Package and
 Library definitions for Memory, Math, System, and Graphics. They are linked by
@@ -188,7 +187,7 @@ The repository publishes canonical grammar references for authored language
 shape and parse order. The complete source entries are
 [Package](package/grammar/Package.g4),
 [Library](library/grammar/Library.g4), [App](app/grammar/App.g4),
-[Scene](scene/grammar/Scene.g4), [Render](render/grammar/Render.g4), and
+[Scene](scene/grammar/Scene.g4), [Pipeline](render/grammar/Render.g4), and
 [Shader](shader/grammar/Shader.g4).
 [Foreign](foreign/grammar/Foreign.g4) defines an embedded fragment.
 [Tetrodotoxin](language/grammar/Tetrodotoxin.g4) contains grammar fragments
@@ -233,8 +232,8 @@ Once the Workspace is complete, tools and
 [Terminal producers](terminal/README.md) can use the same facts without
 translating the program into another language's model. The ABI Terminal defines
 the common native C representation, LLVM walks Library layers to produce CPU
-code, and the Vulkan Terminal will walk Shader, Render, and their real Library
-child to produce GPU modules and matching CPU pipeline descriptions. Package
+code, and the Vulkan Terminal walks Shader, Pipeline, and their real Library
+child to produce GPU modules and matching CPU descriptions. Package
 production asks Linker to carry those
 modules as read only native data, then Linker combines the resulting objects
 into ELF or PE programs. These finished outputs no longer need the Workspace.
@@ -310,6 +309,6 @@ payload needed to construct new Monographs.
 | Package or restore semantic programs             | [Package](package/README.md)                                                    |
 | Define reusable CPU code                         | [Library](library/README.md)                                                    |
 | Use the standard Math, System, and Graphics APIs  | [Standard packages](../packages/ttx/README.md)                                  |
-| Work with GPU stages                             | [Render](render/README.md) and [Shader](shader/README.md)                       |
+| Work with GPU stages                             | [Pipeline](render/README.md) and [Shader](shader/README.md)                     |
 | Produce native objects and executables            | [Linker](linker/README.md)                                                      |
 | Use the command line or editor application shell | [Puffer](../puffer/README.md)                                                   |

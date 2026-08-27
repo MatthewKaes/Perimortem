@@ -46,7 +46,9 @@ class RestoreContext : public Ttx::Concept::Abstract {
 
   auto resolve_context(View::Bytes name) const
       -> const Ttx::Concept::Abstract& override {
-    return source.resolve_context(name);
+    auto monograph = source.select<Tetrodotoxin::Language::Monograph>();
+    return monograph ? monograph->resolve_lexical_context(name)
+                     : source.resolve_context(name);
   }
 
  private:
@@ -190,8 +192,7 @@ PERIMORTEM_UNIT_TEST(AppDialect, selects_echo_entry) {
 
   auto& system_package =
       static_cast<Package::Language::Monograph&>(*system_imported);
-  auto system =
-      find_package_source(workspace, system_package, "TerminalSource"_view);
+  auto system = find_package_source(workspace, system_package, "Terminal"_view);
   ASSERT(system);
   auto system_interface = library_archive_dialect.encode(
       *system, Language::Persistence::Profile::Contract);

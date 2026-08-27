@@ -76,7 +76,7 @@ auto Module::Program::compile() -> Utility::Result<Products, Failure> {
   Bool emitted = interface.emit_annotations(assembler);
   if (!emitted) {
     report_failure(
-        "The selected Render interface has no valid SPIR V decoration."_view);
+        "The selected Pipeline interface has no valid SPIR V decoration."_view);
   }
   if (emitted && !types.emit(assembler)) {
     report_failure(
@@ -95,7 +95,7 @@ auto Module::Program::compile() -> Utility::Result<Products, Failure> {
   }
   if (emitted && !interface.emit_globals(assembler)) {
     report_failure(
-        "The selected Render interface could not emit its global variables."_view);
+        "The selected Pipeline interface could not emit its global variables."_view);
     emitted = False;
   }
   for (Interface::Stage* stage : interface.get_stages()) {

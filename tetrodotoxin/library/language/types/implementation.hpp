@@ -33,6 +33,18 @@ class Implementation : public Model::Type {
 
   auto validate_layout(Ttx::Lexical::Cursor& cursor) const -> Bool override;
 
+  auto resolve_type_access(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route,
+      Model::Type::Access access) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto resolve_type_call(
+      const Ttx::Concept::Abstract& host,
+      Perimortem::Core::View::Bytes route,
+      Model::Type::Access access) const
+      -> const Ttx::Concept::Abstract& override;
+
   TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_requirement() const -> const Ttx::Model::Type& {

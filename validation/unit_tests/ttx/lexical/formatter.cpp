@@ -332,7 +332,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, alignment_islands) {
       "private const extraordinarily_long_constant_name : U64 = 2;\n"
       "\n"
       "public assign : func = [] -> [] {\n"
-      "  first       = 1;\n"
+      "  first = 1;\n"
       "  longer_name = 2;\n"
       "}\n"
       "\n"
@@ -359,7 +359,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, pack_alignment_is_local) {
       "dialect : Library;\n"
       "\n"
       "public update : func = [] -> [] {\n"
-      "  self.icon_top_shader.parameters.tone    = (\n"
+      "  self.icon_top_shader.parameters.tone = (\n"
       "    .x = 1,\n"
       "    .y = 2,\n"
       "  );\n"
@@ -475,7 +475,7 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, empty_fallthrough) {
       "}\n"
       "\n"
       "public many : func = [] -> [] {\n"
-      "  first  = 1;\n"
+      "  first = 1;\n"
       "  second = 2;\n"
       "}\n"
       "\n"
@@ -534,16 +534,37 @@ PERIMORTEM_UNIT_TEST(TtxFormatter, call_spacing) {
 PERIMORTEM_UNIT_TEST(TtxFormatter, qualifier_spacing) {
   Allocator::Arena arena;
   Tokenizer tokenizer(
-      arena, "// Source.\ndialect:Render;public fragment:stage[]->[];"_view,
+      arena, "// Source.\ndialect:Pipeline;public fragment:stage[]->[];"_view,
       "Test.ttx"_view);
 
   Dynamic::Bytes formatted = Formatter(tokenizer).format();
   EXPECT_TEXT(
       formatted,
       "// Source.\n"
-      "dialect : Render;\n"
+      "dialect : Pipeline;\n"
       "\n"
       "public fragment : stage [] -> [];\n"_view);
+}
+
+PERIMORTEM_UNIT_TEST(TtxFormatter, shader_stage_order) {
+  Allocator::Arena arena;
+  Tokenizer tokenizer(
+      arena,
+      "// Source.\n"
+      "dialect:Shader;implements source(\"pipeline.ttx\");"
+      "Shader fragment[]->[]{return;}Shader vertex[]->[]{return;}"_view,
+      "Test.ttx"_view);
+
+  Dynamic::Bytes formatted = Formatter(tokenizer).format();
+  EXPECT_TEXT(
+      formatted,
+      "// Source.\n"
+      "dialect : Shader;\n"
+      "\n"
+      "implements source(\"pipeline.ttx\");\n"
+      "\n"
+      "Shader vertex[] -> [] : return;\n"
+      "Shader fragment[] -> [] : return;\n"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxFormatter, compressed_spacing) {

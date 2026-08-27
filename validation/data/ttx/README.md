@@ -13,7 +13,7 @@ program.
 | [`package_resources/`](package_resources/) | Canonical source and Resource path reuse across one Package graph |
 | [`products/`](products/) | Complete Package fixtures for native Library and Foreign integration |
 | [`oracles/`](oracles/) | Exact Scene lifecycle observations |
-| [`shader_artifact/`](shader_artifact/) | One Render contract and Shader Program compiled into an embedded GPU module |
+| [`shader_artifact/`](shader_artifact/) | One Pipeline and Shader implementation compiled into an embedded GPU module |
 
 ## Access syntax in fixtures
 
@@ -85,8 +85,8 @@ Stage Layouts, portable U32 parameter transport, optional R64 execution, and
 [`render.ttx`](shader_artifact/render.ttx) owns the matching target neutral
 contract. Package validation compiles both Programs through the Vulkan Terminal,
 links the resulting words as read only native data, and validates the linked
-bytes independently. The canonical Render model is documented in
-[Tetrodotoxin Render](../../../tetrodotoxin/render/README.md).
+bytes independently. The canonical Pipeline model is documented in
+[Tetrodotoxin Pipeline](../../../tetrodotoxin/render/README.md).
 
 See the [Library fixture reference](library/README.md),
 [Package language](../../../tetrodotoxin/package/README.md), and

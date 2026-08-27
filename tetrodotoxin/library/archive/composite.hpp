@@ -12,6 +12,8 @@
 #include "tetrodotoxin/library/archive/writer.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
+#include "tetrodotoxin/library/language/types/implemented.hpp"
+#include "tetrodotoxin/library/language/types/interface.hpp"
 #include "tetrodotoxin/library/language/types/namespace.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
@@ -39,6 +41,15 @@ auto read_structure(
     Tetrodotoxin::Language::Persistence::Profile profile)
     -> Perimortem::Core::Option<Language::Types::Structure&>;
 
+auto write(Writer& writer, const Language::Types::Interface& interface) -> Bool;
+
+auto read_interface(
+    Reader& reader,
+    Perimortem::Memory::Allocator::Arena& arena,
+    Ttx::Concept::Abstract& host,
+    Tetrodotoxin::Language::Persistence::Profile profile)
+    -> Perimortem::Core::Option<Language::Types::Interface&>;
+
 auto write(Writer& writer, const Language::Types::Namespace& selected) -> Bool;
 
 auto read_namespace(
@@ -56,6 +67,16 @@ auto read_object(
     Ttx::Concept::Abstract& host,
     Tetrodotoxin::Language::Persistence::Profile profile)
     -> Perimortem::Core::Option<Language::Types::Object&>;
+
+auto write(Writer& writer, const Language::Types::Implemented& implemented)
+    -> Bool;
+
+auto read_implemented(
+    Reader& reader,
+    Perimortem::Memory::Allocator::Arena& arena,
+    Ttx::Concept::Abstract& host,
+    Tetrodotoxin::Language::Persistence::Profile profile)
+    -> Perimortem::Core::Option<Language::Types::Implemented&>;
 
 auto write(Writer& writer, const Language::Types::Enumeration& enumeration)
     -> Bool;

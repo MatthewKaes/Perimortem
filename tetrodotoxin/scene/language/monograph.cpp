@@ -172,6 +172,24 @@ auto Scene::Language::Monograph::resolve_context(View::Bytes route) const
              : child;
 }
 
+auto Scene::Language::Monograph::resolve_lexical_context(
+    View::Bytes route) const -> const Abstract& {
+  auto signal = find_signal(route);
+  if (signal) {
+    return *signal;
+  }
+
+  const Abstract& member = instance.resolve_lexical_context(route);
+  if (!member.is<Invalid>()) {
+    return member;
+  }
+
+  const Abstract& child = library.resolve_lexical_context(route);
+  return child.is<Invalid>()
+             ? Tetrodotoxin::Language::Monograph::resolve_lexical_context(route)
+             : child;
+}
+
 auto Scene::Language::Monograph::resolve_access(
     const Abstract& host,
     View::Bytes route) const -> const Abstract& {

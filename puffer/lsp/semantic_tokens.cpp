@@ -192,7 +192,7 @@ static auto contextual_semantic_token(
       tokens[index].caculate_text(source) == "foreign"_view) {
     return SemanticKeyword;
   } else if (
-      (dialect == "Render"_view || dialect == "Shader"_view) &&
+      (dialect == "Pipeline"_view || dialect == "Shader"_view) &&
       (text == "stage"_view || text == "resource"_view || text == "push"_view ||
        text == "shader"_view || text == "bridge"_view)) {
     return SemanticKeyword;
@@ -210,7 +210,7 @@ static auto contextual_semantic_token(
       tokens[index + 1].get_code() == Code::Type::Define) {
     Token qualifier = tokens[index + 2];
     if (qualifier.get_code() == Code::Type::Func ||
-        (dialect == "Render"_view &&
+        (dialect == "Pipeline"_view &&
          qualifier.caculate_text(source) == "stage"_view)) {
       return SemanticFunction;
     }

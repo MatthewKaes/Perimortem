@@ -12,7 +12,7 @@
 namespace Tetrodotoxin::Package::Language {
 
 // Package is a restricted Library source that gives one source graph a public
-// name and version. Its common Import Aliases are ordinary source-local names;
+// name and version. Its common Import Types are ordinary source-local names;
 // Workspace owns every imported Monograph and Package owns no parallel member
 // or dependency inventory.
 class Monograph : public Tetrodotoxin::Language::Monograph {
@@ -51,6 +51,9 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
+  auto resolve_lexical_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
   constexpr auto get_root() const -> const Ttx::Concept::Abstract& override {
     return library.get_root();
   }
@@ -62,9 +65,9 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
     return library.retain_import(description, associations);
   }
 
-  constexpr auto get_imports() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<Tetrodotoxin::Language::Import>> override {
-    return library.get_imports();
+  constexpr auto get_reachable_types() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<Ttx::Model::Type>> override {
+    return library.get_reachable_types();
   }
 
   auto get_layer(const Ttx::Concept::Abstract& requested) const

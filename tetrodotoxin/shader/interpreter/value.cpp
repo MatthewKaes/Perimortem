@@ -40,6 +40,7 @@ static auto retain_value(
     Tetrodotoxin::Language::Definition& definition,
     Library::Language::Field& field,
     Render::Language::Binding::Kind kind,
+    Render::Language::Binding::Access access,
     Option<Library::Language::TypeReference> runtime_type,
     Bool accepted) -> Bool {
   Bool retained = program.retain_authored_definition(
@@ -52,7 +53,7 @@ static auto retain_value(
     retained = Bool(instance_field);
   }
   if (retained) {
-    program.retain_shader_binding(field, kind, instance_field);
+    program.retain_shader_binding(field, kind, access, instance_field);
   }
   return retained && accepted;
 }
@@ -79,7 +80,8 @@ static auto parse_library_value(
           ? Render::Language::Binding::Kind::Constant
           : Render::Language::Binding::Kind::Value;
   Bool retained = retain_value(
-      program, cursor, definition, *field, kind, {}, member->is_accepted());
+      program, cursor, definition, *field, kind,
+      Render::Language::Binding::Access::None, {}, member->is_accepted());
   if (member->needs_recovery()) {
     cursor.recover_to_scoped_statement();
   }
@@ -104,6 +106,32 @@ static auto parse_shader_value(
     return False;
   }
   Token qualifier_token = cursor.consume();
+  Render::Language::Binding::Access access =
+      Render::Language::Binding::Access::None;
+  if (qualifier == "resource"_view) {
+    Bool read = False;
+    Bool write = False;
+    while (cursor.matches(Code::Type::Addressable)) {
+      View::Bytes capability =
+          cursor.current().caculate_text(cursor.get_source_text());
+      if (capability == "read"_view && !read) {
+        read = True;
+      } else if (capability == "write"_view && !write) {
+        write = True;
+      } else {
+        break;
+      }
+      cursor.consume();
+    }
+    if (!read && !write) {
+      cursor.create_token_error(
+          "Shader resources require `read`, `write`, or both capabilities."_view);
+      return False;
+    }
+    access = read && write ? Render::Language::Binding::Access::ReadWrite
+             : read        ? Render::Language::Binding::Access::Read
+                           : Render::Language::Binding::Access::Write;
+  }
   auto type = Library::Interpreter::TypeReference::parse(program, cursor);
   if (!type) {
     cursor.create_expression_error(
@@ -124,7 +152,7 @@ static auto parse_shader_value(
   if (cursor.matches(Code::Type::Assign)) {
     if (qualifier == "resource"_view) {
       cursor.create_token_error(
-          "Shader resources are configured through their generated Instance Field."_view);
+          "Shader resources are configured through their generated Material Field."_view);
       return False;
     }
     cursor.consume();
@@ -156,7 +184,8 @@ static auto parse_shader_value(
     return False;
   }
   Bool retained = retain_value(
-      program, cursor, definition, field, kind, runtime_type, completed);
+      program, cursor, definition, field, kind, access, runtime_type,
+      completed);
   return attributes_valid && retained;
 }
 

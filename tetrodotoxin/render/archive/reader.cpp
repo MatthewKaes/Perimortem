@@ -309,11 +309,15 @@ auto Render::Archive::Reader::read_entry(
   }
   if (tag == Tag::Binding) {
     auto kind = contents.read_u8();
+    auto access = contents.read_u8();
     auto reference = contents.read_type_reference(arena);
     BAIL_IF(
         !kind || *kind > U8(Render::Language::Binding::Kind::Resource) ||
-        *kind == U8(Render::Language::Binding::Kind::Parameter) || !reference ||
-        !contents.is_complete());
+        *kind == U8(Render::Language::Binding::Kind::Parameter) || !access ||
+        *access > U8(Render::Language::Binding::Access::ReadWrite) ||
+        (*kind == U8(Render::Language::Binding::Kind::Resource)) !=
+            (*access != U8(Render::Language::Binding::Access::None)) ||
+        !reference || !contents.is_complete());
     auto selected_kind = Render::Language::Binding::Kind(*kind);
     auto placement = Render::Language::Attributes::Placement::Value;
     if (selected_kind == Render::Language::Binding::Kind::Push) {
@@ -324,7 +328,8 @@ auto Render::Archive::Reader::read_entry(
     BAIL_IF(!Render::Language::Attributes::accepts(
         definition->get_attributes(), placement));
     auto& binding = Render::Language::Binding::create_authored(
-        arena, restored_definition, selected_kind, *reference);
+        arena, restored_definition, selected_kind, *reference,
+        Render::Language::Binding::Access(*access));
     return Entry(
         binding, Category::Addressable, definition->get_visibility(),
         selected_kind == Render::Language::Binding::Kind::Value);

@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/render/language/alias.hpp"
 #include "tetrodotoxin/render/language/binding.hpp"
+#include "tetrodotoxin/render/language/monograph.hpp"
 #include "tetrodotoxin/render/language/stage.hpp"
 #include "tetrodotoxin/render/language/structure.hpp"
 #include "ttx/concept/invalid.hpp"
@@ -101,6 +102,26 @@ auto Language::Declarations::link_restored(Abstract& context) -> Bool {
 
   linked = True;
   return True;
+}
+
+auto Language::Declarations::resolve_lexical_context(
+    const Abstract& context,
+    View::Bytes name) -> const Abstract& {
+  auto monograph = context.select<Language::Monograph>();
+  if (monograph) {
+    return monograph->resolve_lexical_context(name);
+  }
+
+  auto structure = context.select<Language::Structure>();
+  if (structure) {
+    const Abstract& local = structure->resolve_local_context(name);
+    return local.is<Invalid>()
+               ? resolve_lexical_context(
+                     structure->get_definition().get_host(), name)
+               : local;
+  }
+
+  return context.resolve_context(name);
 }
 
 auto Language::Declarations::resolve(

@@ -8,6 +8,8 @@
 #include "perimortem/memory/dynamic/vector.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "tetrodotoxin/language/import.hpp"
+#include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
@@ -29,11 +31,17 @@ using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library;
 
 static auto resolve_alias(const Abstract& binding) -> const Abstract& {
-  return binding.visit<Ttx::Model::Alias>(
-      [](const Ttx::Model::Alias& alias) -> const Abstract& {
-        return alias.resolve();
+  return binding.visit<Tetrodotoxin::Language::Import>(
+      [](const Tetrodotoxin::Language::Import& import) -> const Abstract& {
+        return import.resolve();
       },
-      [](const Abstract& direct) -> const Abstract& { return direct; });
+      [](const Abstract& candidate) -> const Abstract& {
+        return candidate.visit<Ttx::Model::Alias>(
+            [](const Ttx::Model::Alias& alias) -> const Abstract& {
+              return alias.resolve();
+            },
+            [](const Abstract& direct) -> const Abstract& { return direct; });
+      });
 }
 
 auto Language::TypeReference::get_size() const -> Count {
@@ -151,6 +159,11 @@ auto Language::TypeReference::resolve_with_root(
     auto type = context.select<Language::Model::Type>();
     if (type) {
       selected = &type->resolve_lexical_context(get_root());
+    } else {
+      auto monograph = context.select<Tetrodotoxin::Language::Monograph>();
+      if (monograph) {
+        selected = &monograph->resolve_lexical_context(get_root());
+      }
     }
   }
   if (selected->is<Invalid>()) {

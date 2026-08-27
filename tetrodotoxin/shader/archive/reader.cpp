@@ -301,9 +301,6 @@ auto Shader::Archive::Reader::read_definition(Allocator::Arena& arena)
       !visibility ||
       *visibility > U8(Tetrodotoxin::Language::Visibility::Exposed));
   auto selected_visibility = Tetrodotoxin::Language::Visibility(*visibility);
-  BAIL_IF(
-      profile == Tetrodotoxin::Language::Persistence::Profile::Contract &&
-      selected_visibility == Tetrodotoxin::Language::Visibility::Private);
   return Definition(
       *documentation, *attributes, arena.proxy(*name), selected_visibility);
 }
@@ -342,7 +339,8 @@ auto Shader::Archive::Reader::read_program(
   BAIL_IF(!program.restore_runtime_surface());
   BAIL_IF(
       !monograph.edit_library().get_source().retain_definition(
-          program, Library::Language::Types::Composite::Category::Type, True) ||
+          program, Library::Language::Types::Composite::Category::Type,
+          False) ||
       !monograph.retain_program(program));
 
   for (Count index = 0; index < *binding_count; index++) {
@@ -354,9 +352,13 @@ auto Shader::Archive::Reader::read_program(
     Reader binding_contents(binding_record->get_payload(), profile);
     auto name = binding_contents.read_bytes();
     auto kind = binding_contents.read_u8();
+    auto access = binding_contents.read_u8();
     BAIL_IF(
         !name || name->is_empty() || !kind ||
-        *kind > U8(Render::Language::Binding::Kind::Resource) ||
+        *kind > U8(Render::Language::Binding::Kind::Resource) || !access ||
+        *access > U8(Render::Language::Binding::Access::ReadWrite) ||
+        (*kind == U8(Render::Language::Binding::Kind::Resource)) !=
+            (*access != U8(Render::Language::Binding::Access::None)) ||
         !binding_contents.is_complete());
     Option<Library::Language::Field&> field;
     for (const Reference<Abstract>& declaration : program.get_declarations()) {
@@ -368,7 +370,8 @@ auto Shader::Archive::Reader::read_program(
     }
     BAIL_IF(!field);
     program.retain_shader_binding(
-        *field, Render::Language::Binding::Kind(*kind));
+        *field, Render::Language::Binding::Kind(*kind),
+        Render::Language::Binding::Access(*access));
   }
 
   auto uniform_count = contents.read_u32();

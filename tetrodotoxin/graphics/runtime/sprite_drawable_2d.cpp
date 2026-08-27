@@ -28,7 +28,7 @@ auto Runtime::SpriteDrawable2D::read_draw(Object<> object, Count index)
     return {};
   }
 
-  const Implementation& implementation = sprite->get_shader();
+  const Implementation& implementation = sprite->get_material();
   const auto* projection = Data::cast<const Perimortem::Graphics::Projection>(
       implementation.get_projection());
   Object<> instance = implementation.get_object();
@@ -87,7 +87,12 @@ auto Runtime::SpriteDrawable2D::read_draw(Object<> object, Count index)
       static_cast<Perimortem::Memory::Dynamic::Vector<
           Perimortem::Graphics::Frame::Resource>&&>(resources),
       static_cast<Perimortem::Memory::Dynamic::Bytes&&>(inputs),
-      sprite->get_size_pixels(), 0);
+      sprite->get_size(),
+      Perimortem::Graphics::Frame::Pipeline(
+          Perimortem::Graphics::Frame::Pipeline::Topology::TriangleList,
+          Perimortem::Graphics::Frame::Pipeline::Blend::Alpha,
+          Perimortem::Graphics::Frame::Pipeline::Geometry::UnitQuad2D),
+      6, 0);
 }
 
 extern "C" auto tetrodotoxin_graphics_sprite_drawable_2d()

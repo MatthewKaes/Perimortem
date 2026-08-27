@@ -39,6 +39,8 @@ enum class Tag : U16 {
   ConstantObject = 28,
   ConstantResourceBytes = 29,
   Namespace = 30,
+  Interface = 31,
+  Implemented = 32,
 };
 
 }  // namespace Tetrodotoxin::Library::Archive

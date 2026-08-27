@@ -14,25 +14,28 @@ Imports belong to the common source envelope and are available to every
 Dialect:
 
 ```ttx
-public LocalName : alias = source("./local/path.ttx");
+private LocalName : alias = source("./local/path.ttx");
 public OtherName : alias =
     package(.name = "External.Package", .version = "1.0");
+public PublicType : alias = source("./implementation.ttx")::Api::PublicType;
 ```
 
-Each declaration creates one ordinary TTX Alias in the importing source. A
-source import binds that Alias to the imported Dialect's semantic root. A
-Package import binds it to the exact restored Package export root. Consumers
-then use ordinary context operations:
+Each declaration creates one contextual Import Type in the importing
+Monograph. Its locator is an external acquisition capability, while every
+following `::` is an ordinary Type-context query. Chaining can continue through
+as many published Types or namespaces as the selected interface provides.
+Consumers then use the same context operations:
 
 ```ttx
 OtherName::PublicType
 LocalName -> static_callable()
 ```
 
-The Monograph retains lifetime and source facts but never enters the authored
-route. A root that has no intrinsic authored name receives its local name from
-the importing Alias. The same source may therefore be imported under different
-local names without adding a naming protocol to Monograph.
+`private` keeps the imported Type available only to the source's lexical
+context. `public` republishes the selected interface under its local name, which
+is useful when a Package wants to forward a complete source or Package root.
+The same external root may therefore be imported under different local names
+without giving the Monograph an intrinsic authored name.
 
 Library `using` remains a separate forwarding choice:
 
@@ -58,9 +61,9 @@ manufacture the public joint surface:
 /// Example package.
 dialect : Package;
 
-public VectorSource : alias = source("vector.ttx");
+public Vector : alias = source("vector.ttx")::Vector;
 
-public Vector : alias = VectorSource::Vector;
+private VectorSource : alias = source("vector.ttx");
 
 public Dynamic : namespace {
   public Bytes : alias = VectorSource::Bytes;
@@ -68,7 +71,7 @@ public Dynamic : namespace {
 ```
 
 Package accepts no runtime Fields, Functions, or executable statements. Those
-belong to ordinary Library, Scene, Shader, App, Render, or another concrete
+belong to ordinary Library, Scene, Shader, App, Pipeline, or another concrete
 source. An empty Package body is valid when its imported root is itself the
 complete product surface, as in an application Package.
 
@@ -78,7 +81,9 @@ filesystem path or ambient repository name creates it.
 
 ## Workspace graph
 
-Workspace starts with the Package source and walks each `source(...)` Alias.
+Workspace starts with the Package source and walks the Monograph's reachable
+Types. An Import Type identifies an external acquisition edge; ordinary Types
+remain with their concrete language owner.
 Every imported file receives its own source transaction Arena, Token stream,
 Associations, diagnostics, and concrete Monograph. New source imports extend
 the same graph; a `package(...)` import terminates the local walk at one exact
@@ -153,22 +158,22 @@ compiled distribution from becoming separate Package models.
 
 ## Archive
 
-Archive Format 4 records the completed graph rather than recreating a manifest
+Archive Format 5 records the completed graph rather than recreating a manifest
 table. It contains:
 
 1. Package identity, version, and profile.
 2. One restricted Library payload for the Package export surface.
 3. One opaque payload for each source Monograph, keyed by its deterministic
    first route from the Package root rather than an intrinsic source name.
-4. Every source and Package Import edge with importer, local Alias name,
-   target, and exact Package version when applicable.
+4. Every source and Package Import Type with importer, local name, Visibility,
+   chained Type route, target, and exact Package version when applicable.
 5. The canonical Resource closure.
 6. Native artifact agreements and exported symbol routes.
 
 The older Dependency section remains readable only for Archive Formats 2 and
-3. Format 4 Package edges live exclusively in the Import graph, so restoration
-does not construct a parallel dependency scope. Workspace restores every
-member, binds the recorded Aliases to their real roots, orders the source graph,
+3. Formats 4 and 5 keep Package edges exclusively in the Type graph, so
+restoration does not construct a parallel dependency scope. Workspace restores
+every member, reacquires each recorded external Type, orders the source graph,
 and applies the same composition, linking, finalization, and publication
 barriers as authored source.
 

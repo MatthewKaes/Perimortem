@@ -9,7 +9,7 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Graphics;
 
-auto Runtime::Submission::collect(
+auto Runtime::PassUI::collect(
     Collection& collection,
     Object<> object,
     const Placement2D* placement,
@@ -44,7 +44,7 @@ auto Runtime::Submission::collect(
   return complete;
 }
 
-auto Runtime::Submission::collect_draws(
+auto Runtime::PassUI::collect_draws(
     Collection& collection,
     Object<> object,
     const Drawable2D* drawable,
@@ -64,12 +64,13 @@ auto Runtime::Submission::collect_draws(
     collection.batches.emplace(
         Perimortem::Graphics::Frame::Batch(
             draw->get_program(), draw->take_resources(), draw->take_inputs(),
-            transform, draw->get_size_pixels(), z_index, collection.order++));
+            transform, draw->get_size_pixels(), draw->get_pipeline(),
+            draw->get_vertex_count(), z_index, collection.order++));
   }
   return True;
 }
 
-auto Runtime::Submission::collect_children(
+auto Runtime::PassUI::collect_children(
     Collection& collection,
     Object<> object,
     const Children2D* children,
@@ -98,12 +99,12 @@ auto Runtime::Submission::collect_children(
   return True;
 }
 
-auto Runtime::Submission::create(
+auto Runtime::PassUI::create(
     Object<> root,
     const Children2D& root_children,
     View::Vector<const Placement2D*> placements,
     View::Vector<const Children2D*> children,
-    View::Vector<const Drawable2D*> drawables) -> Option<Submission> {
+    View::Vector<const Drawable2D*> drawables) -> Option<PassUI> {
   BAIL_IF(
       root.is_empty() || placements.is_empty() ||
       placements.get_size() != children.get_size() ||
@@ -113,7 +114,7 @@ auto Runtime::Submission::create(
       collection, root, nullptr, &root_children, nullptr,
       Perimortem::Graphics::Frame::Transform(), 0));
   Algorithm::sort(collection.batches.get_access());
-  return Submission(
+  return PassUI(
       static_cast<Dynamic::Vector<Perimortem::Graphics::Frame::Batch>&&>(
           collection.batches));
 }

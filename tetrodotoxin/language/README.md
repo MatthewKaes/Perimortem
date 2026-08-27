@@ -11,7 +11,7 @@ turns authored Tokens into a **Monograph**, the lasting semantic result that
 other languages and tools can inspect. Related Monographs live together in one
 Workspace and can refer directly to one another.
 
-Package, Library, App, Scene, Render, and Shader all use this lifecycle. Their
+Package, Library, App, Scene, Pipeline, and Shader all use this lifecycle. Their
 objects expose the TTX Types, Layouts, and relationships useful across the
 platform, while language aware tools remain free to explore their richer domain
 models. No common syntax tree has to stand in for the real program.
@@ -49,7 +49,7 @@ syntax tree node.
 Descriptor Layouts share a second small grammar block. Language reads optional
 brackets, commas, Attributes, and `.name :` prefixes, then lends each entry to
 the active Dialect. Library can create parameter and result edges with Generic
-Type routes, while Render can create contract slots with simpler Type routes.
+Type routes, while Pipeline can create contract slots with simpler Type routes.
 The punctuation is shared without turning either semantic Layout into the
 other.
 
@@ -97,9 +97,10 @@ produced root until the Workspace retains or releases it.
 
 The context local to a source during interpretation is an ordinary TTX
 Abstract. A direct source may receive the Workspace, while every source in a
-Package graph receives that Package root. Common Import Aliases remain owned by
-the source Monograph and bind real semantic roots before linking. The concrete
-Dialect decides which contextual queries those roots support.
+Package graph receives that Package root. A Monograph is itself a contextual
+Type with an empty value Layout. Its reachable Type graph includes common
+Import Types, which Environment acquires before linking. The concrete Dialect
+decides which contextual queries each acquired root supports.
 
 Package can be installed in a Tetrodotoxin Toolchain without becoming an
 implicit context for every source. A standalone Toolchain may omit the Package
@@ -134,12 +135,12 @@ Perimortem Diagnostics instead of manufacturing a source Cursor.
 
 Some languages build on the work of another language. Scene authors Library
 state and functions in one owned child. Shader also owns a Library child for its
-executable Program and Stage meaning, while selecting Render contracts through
+executable Program and Stage meaning, while selecting Pipeline contracts through
 its Workspace context. In both cases, Toolchain installs each dependency once
 and every source observes the same Dialect identity.
 
 Dependencies only point from a higher level language to a lower level one.
-Library does not depend on Scene or Shader. Render does not depend on Shader,
+Library does not depend on Scene or Shader. Pipeline does not depend on Shader,
 and Shader does not depend on Vulkan. This rule also applies to build targets.
 If two language targets need each other, the shared contract belongs in a
 lower level owner.
@@ -186,7 +187,7 @@ shape.
 A Monograph may contain a small, fixed set of child layers when the outer source
 actually authors meaning owned by that child. A Scene contains one Library
 layer. Shader also contains one Library layer because its Stage bodies directly
-author Library execution meaning. The selected Render contract remains a
+author Library execution meaning. The selected Pipeline contract remains a
 neighboring Workspace identity rather than a child.
 
 This lookup is intentionally narrow. It does not search by name, follow Aliases,
@@ -310,7 +311,7 @@ owner facts needed for those observations. Compactness is a format benefit. It
 does not define whether a Dialect is persistent.
 
 When reconstructing a Package, Workspace creates its restricted export
-Monograph, restores every member, and then binds the archived source-local Alias
+Monograph, restores every member, and then reacquires the archived external Type
 graph. Resources are reconstructed before a payload that refers to them. Scene
 and Shader pass the surrounding context to their child layers. Exact Package
 dependencies still come from the Workspace. If a child rejects its data, the

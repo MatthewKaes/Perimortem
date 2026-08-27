@@ -18,16 +18,15 @@ auto Language::Diagnostics::write_type(
                                      abstract.is<Language::Model::Addressable>()
                                  ? abstract
                                  : abstract.resolve();
-  auto type = resolved.select<Language::Model::Type>();
-  if (!type) {
-    type = resolved.visit<Language::Model::Addressable>(
-        [](const Language::Model::Addressable& addressable)
-            -> Option<const Language::Model::Type&> {
-          return addressable.get_type();
-        },
-        [](const Abstract&) -> Option<const Language::Model::Type&> {
-          return {};
-        });
+  const Language::Model::Type* type = nullptr;
+  auto direct = resolved.select<Language::Model::Type>();
+  if (direct) {
+    type = &*direct;
+  } else {
+    auto addressable = resolved.select<Language::Model::Addressable>();
+    if (addressable && !addressable->resolve().is<Invalid>()) {
+      type = &addressable->get_type();
+    }
   }
 
   if (!type) {
@@ -41,7 +40,7 @@ auto Language::Diagnostics::write_type(
     }
   }
 
-  if (!type || type->is<Invalid>()) {
+  if (type == nullptr || type->is<Invalid>()) {
     report << "<invalid>"_view;
     return;
   }

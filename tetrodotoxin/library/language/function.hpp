@@ -72,7 +72,7 @@ class Function : public Model::Callable {
 
   constexpr auto get_declaration_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
-    return definition.get_name_anchor();
+    return definition.get_declaration_anchor();
   }
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;

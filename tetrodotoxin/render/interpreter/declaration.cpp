@@ -92,21 +92,22 @@ static auto parse_stage(
     Tetrodotoxin::Language::Definition& definition) -> Bool {
   BAIL_IF(!has_supported_name(
       cursor, definition, Code::Type::Addressable,
-      "Render Stages use one addressable name."_view));
+      "Pipeline Stages use one addressable name."_view));
   BAIL_IF(!has_no_modifiers(
       cursor, definition,
-      "Render Stages do not accept evaluation modifiers."_view));
+      "Pipeline Stages do not accept evaluation modifiers."_view));
   cursor.consume();
 
   auto parameters = Interpreter::Layout::parse(cursor, True);
   BAIL_IF(!parameters);
   BAIL_IF(!cursor.require(
       Code::Type::CallOp,
-      "Render Stage requires `->` between its Layouts."_view));
+      "Pipeline Stage requires `->` between its Layouts."_view));
   auto results = Interpreter::Layout::parse(cursor, False);
   BAIL_IF(!results);
   Token closing = cursor.require(
-      Code::Type::EndStatement, "Render Stage requires one trailing `;`."_view);
+      Code::Type::EndStatement,
+      "Pipeline Stage requires one trailing `;`."_view);
   BAIL_IF(!closing);
 
   auto& stage = Language::Stage::create(
@@ -123,16 +124,17 @@ static auto parse_binding(
     View::Bytes qualifier) -> Bool {
   BAIL_IF(!has_supported_name(
       cursor, definition, Code::Type::Addressable,
-      "Render values use one addressable name."_view));
+      "Pipeline values use one addressable name."_view));
 
   Language::Binding::Kind kind = Language::Binding::Kind::Value;
+  Language::Binding::Access access = Language::Binding::Access::None;
   Language::Attributes::Placement placement =
       Language::Attributes::Placement::Value;
   auto modifiers = definition.get_modifiers();
   if (qualifier == "push"_view || qualifier == "resource"_view) {
     BAIL_IF(!has_no_modifiers(
         cursor, definition,
-        "Render push and resource values do not accept evaluation modifiers."_view));
+        "Pipeline push and resource values do not accept evaluation modifiers."_view));
     cursor.consume();
     if (qualifier == "push"_view) {
       kind = Language::Binding::Kind::Push;
@@ -140,13 +142,35 @@ static auto parse_binding(
     } else {
       kind = Language::Binding::Kind::Resource;
       placement = Language::Attributes::Placement::Resource;
+      Bool read = False;
+      Bool write = False;
+      while (cursor.matches(Code::Type::Addressable)) {
+        View::Bytes capability =
+            cursor.current().caculate_text(cursor.get_source_text());
+        if (capability == "read"_view && !read) {
+          read = True;
+        } else if (capability == "write"_view && !write) {
+          write = True;
+        } else {
+          break;
+        }
+        cursor.consume();
+      }
+      if (!read && !write) {
+        cursor.create_token_error(
+            "Pipeline resources require `read`, `write`, or both capabilities."_view);
+        return False;
+      }
+      access = read && write ? Language::Binding::Access::ReadWrite
+               : read        ? Language::Binding::Access::Read
+                             : Language::Binding::Access::Write;
     }
   } else if (!modifiers.is_empty()) {
     if (modifiers.get_size() != 1 ||
         modifiers.get_data()[0].get_code() != Code::Type::Const) {
       cursor.create_token_error(
           modifiers.get_data()[0],
-          "Render values accept only `const` evaluation."_view);
+          "Pipeline values accept only `const` evaluation."_view);
       return False;
     }
     kind = Language::Binding::Kind::Constant;
@@ -156,13 +180,13 @@ static auto parse_binding(
   BAIL_IF(!type);
   Token closing = cursor.require(
       Code::Type::EndStatement,
-      "Render value declaration requires one trailing `;`."_view);
+      "Pipeline value declaration requires one trailing `;`."_view);
   BAIL_IF(!closing);
   BAIL_IF(!Language::Attributes::validate(
       cursor, definition.get_attributes(), placement));
 
   auto& binding = Language::Binding::create_authored(
-      cursor.get_arena(), definition, kind, *type);
+      cursor.get_arena(), definition, kind, *type, access);
   BAIL_IF(!retain(
       host, binding, DeclarationCategory::Addressable,
       definition.get_visibility()));
@@ -179,17 +203,19 @@ static auto parse_alias(
     Tetrodotoxin::Language::Definition& definition) -> Bool {
   BAIL_IF(!has_supported_name(
       cursor, definition, Code::Type::Type,
-      "Render Aliases use one Type name."_view));
+      "Pipeline Aliases use one Type name."_view));
   BAIL_IF(!has_no_modifiers(
       cursor, definition,
-      "Render Aliases do not accept evaluation modifiers."_view));
+      "Pipeline Aliases do not accept evaluation modifiers."_view));
   cursor.consume();
   BAIL_IF(!cursor.require(
-      Code::Type::Assign, "Render Alias requires `=` before its target."_view));
+      Code::Type::Assign,
+      "Pipeline Alias requires `=` before its target."_view));
   auto target = Tetrodotoxin::Language::Parser::TypeReference::parse(cursor);
   BAIL_IF(!target);
   Token closing = cursor.require(
-      Code::Type::EndStatement, "Render Alias requires one trailing `;`."_view);
+      Code::Type::EndStatement,
+      "Pipeline Alias requires one trailing `;`."_view);
   BAIL_IF(!closing);
   auto& alias =
       Language::Alias::create(cursor.get_arena(), definition, *target);
@@ -204,13 +230,14 @@ static auto parse_structure(
     Tetrodotoxin::Language::Definition& definition) -> Bool {
   BAIL_IF(!has_supported_name(
       cursor, definition, Code::Type::Type,
-      "Render Structures use one Type name."_view));
+      "Pipeline Structures use one Type name."_view));
   BAIL_IF(!has_no_modifiers(
       cursor, definition,
-      "Render Structures do not accept evaluation modifiers."_view));
+      "Pipeline Structures do not accept evaluation modifiers."_view));
   cursor.consume();
   BAIL_IF(!cursor.require(
-      Code::Type::ScopeStart, "Render Structure requires one `{}` body."_view));
+      Code::Type::ScopeStart,
+      "Pipeline Structure requires one `{}` body."_view));
   auto& structure = Language::Structure::create(cursor.get_arena(), definition);
   BAIL_IF(!retain(
       host, structure, DeclarationCategory::Type, definition.get_visibility()));
@@ -227,7 +254,8 @@ static auto parse_structure(
     }
   }
   Token closing = cursor.require(
-      Code::Type::ScopeEnd, "Render Structure requires one closing `}`."_view);
+      Code::Type::ScopeEnd,
+      "Pipeline Structure requires one closing `}`."_view);
   BAIL_IF(!closing);
   return complete(cursor, definition, closing, structure);
 }

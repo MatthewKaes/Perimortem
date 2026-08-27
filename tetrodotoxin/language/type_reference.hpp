@@ -30,11 +30,24 @@ class TypeReference {
       const Ttx::Concept::Abstract& context) const
       -> Perimortem::Core::Option<const Ttx::Model::Type&>;
 
+  // A concrete declaration owner may select the first route segment through
+  // its private lexical policy, then return to ordinary public Type context
+  // queries for every explicit `::` suffix.
+  auto resolve_selected(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Abstract& selected_root) const
+      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
+
   // Archive restoration follows the same semantic route after every owner has
   // reconstructed its identities. It has no authored Cursor to report through,
   // so absence lets the persistent Dialect reject the complete transaction.
   auto resolve_restored(const Ttx::Concept::Abstract& context) const
       -> Perimortem::Core::Option<const Ttx::Model::Type&>;
+
+  auto resolve_restored_selected(const Ttx::Concept::Abstract& selected_root)
+      const -> Perimortem::Core::Option<const Ttx::Model::Type&>;
+
+  auto get_root() const -> Perimortem::Core::View::Bytes;
 
   constexpr auto get_route() const -> Perimortem::Core::View::Bytes {
     return route;

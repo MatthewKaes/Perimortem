@@ -13,6 +13,7 @@
 #include "tetrodotoxin/library/language/model/layout.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
+#include "tetrodotoxin/render/language/monograph.hpp"
 #include "tetrodotoxin/render/language/stage.hpp"
 #include "tetrodotoxin/render/language/structure.hpp"
 #include "tetrodotoxin/shader/language/binding.hpp"
@@ -48,6 +49,8 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
   auto retain_shader_binding(
       Tetrodotoxin::Library::Language::Field& field,
       Tetrodotoxin::Render::Language::Binding::Kind kind,
+      Tetrodotoxin::Render::Language::Binding::Access access =
+          Tetrodotoxin::Render::Language::Binding::Access::None,
       Perimortem::Core::Option<Tetrodotoxin::Library::Language::Field&>
           instance_field = {}) -> void;
 
@@ -58,10 +61,8 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
 
   auto retain_uniform(Tetrodotoxin::Library::Language::Field& field) -> void;
 
-  auto retain_stage(
-      Tetrodotoxin::Library::Language::Function& function,
-      Tetrodotoxin::Library::Language::Model::Layout& parameters,
-      Tetrodotoxin::Library::Language::Model::Layout& results) -> void;
+  auto retain_stage(Tetrodotoxin::Library::Language::Function& function)
+      -> void;
 
   auto compose_contract(Ttx::Lexical::Cursor& cursor) -> Bool;
   auto compose_contract_restored() -> Bool;
@@ -78,16 +79,16 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
   }
 
   constexpr auto get_contract() const -> Perimortem::Core::Option<
-      const Tetrodotoxin::Render::Language::Structure&> {
+      const Tetrodotoxin::Render::Language::Monograph&> {
     return contract_type.visit(
         []() -> Perimortem::Core::Option<
-                 const Tetrodotoxin::Render::Language::Structure&> {
+                 const Tetrodotoxin::Render::Language::Monograph&> {
           return {};
         },
         [](const Ttx::Concept::Reference<
-            const Tetrodotoxin::Render::Language::Structure>& selected)
+            const Tetrodotoxin::Render::Language::Monograph>& selected)
             -> Perimortem::Core::Option<
-                const Tetrodotoxin::Render::Language::Structure&> {
+                const Tetrodotoxin::Render::Language::Monograph&> {
           return selected.get();
         });
   }
@@ -130,15 +131,10 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
  private:
   class StageBody {
    public:
-    constexpr StageBody(
-        Tetrodotoxin::Library::Language::Function& function,
-        Tetrodotoxin::Library::Language::Model::Layout& parameters,
-        Tetrodotoxin::Library::Language::Model::Layout& results)
-        : function(function), parameters(parameters), results(results) {}
+    constexpr StageBody(Tetrodotoxin::Library::Language::Function& function)
+        : function(function) {}
 
     Ttx::Concept::Reference<Tetrodotoxin::Library::Language::Function> function;
-    Tetrodotoxin::Library::Language::Model::Layout& parameters;
-    Tetrodotoxin::Library::Language::Model::Layout& results;
   };
 
   class InheritedType {
@@ -183,9 +179,6 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
   auto project_type(const Ttx::Model::Type& requirement) const
       -> Perimortem::Core::Option<
           const Tetrodotoxin::Library::Language::Model::Type&>;
-  auto populate_stage(
-      StageBody& body,
-      const Tetrodotoxin::Render::Language::Stage& stage) -> Bool;
   auto restore_projected_structure(
       const Tetrodotoxin::Render::Language::Structure& requirement,
       Tetrodotoxin::Library::Language::Types::Composite& host) -> Bool;
@@ -215,7 +208,7 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
       Ttx::Concept::Reference<Tetrodotoxin::Library::Language::Field>>
       instance_parameters_field;
   Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Tetrodotoxin::Render::Language::Structure>>
+      Ttx::Concept::Reference<const Tetrodotoxin::Render::Language::Monograph>>
       contract_type;
   Bool composed = False;
 };

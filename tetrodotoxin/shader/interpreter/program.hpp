@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/shader/language/monograph.hpp"
+#include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Shader::Interpreter {
@@ -16,7 +17,7 @@ class Program {
   static auto parse(
       Language::Monograph& monograph,
       Ttx::Lexical::Cursor& cursor,
-      Tetrodotoxin::Language::Definition& definition) -> Bool;
+      const Ttx::Concept::Documentation& documentation) -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Shader::Interpreter

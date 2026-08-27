@@ -5,11 +5,14 @@
 //
 dialect : App;
 
-public Main : alias = source("main.ttx");
+private Main : alias = source("main.ttx");
 
 runtime = Windowed {
-  .title = "Profile Test", .icon = $[resources/icon.bin], .width = 800, .height =
-      600, .resizable = true,
+  .title = "Profile Test",
+  .icon = $[resources/icon.bin],
+  .width = 800,
+  .height = 600,
+  .resizable = true,
 }
 
 lifecycle = Program {

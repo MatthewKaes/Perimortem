@@ -5,7 +5,7 @@
 //
 dialect : Library;
 
-public Point2DSource : alias = source("point2d.ttx");
+private Point2DSource : alias = source("point2d.ttx");
 
 public Point2D : alias = Point2DSource::Point2D;
 

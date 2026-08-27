@@ -110,6 +110,7 @@ auto Module::Interface::prepare_bindings(
       continue;
     } else if (
         binding.get_kind() == Render::Language::Binding::Kind::Resource) {
+      BAIL_IF(binding.get_access() != Render::Language::Binding::Access::Read);
       storage = Assembler::SpirV::StorageClass::UniformConstant;
       BAIL_IF(!types.collect_resource(type));
     } else {
@@ -142,8 +143,7 @@ auto Module::Interface::prepare_variables(
     Stage& stage,
     const Library::Language::Model::Layout& layout,
     Assembler::SpirV::StorageClass storage) -> Bool {
-  // The Function Layout supplies exact value Types while its validated Render
-  // Attributes retain the interface location or builtin meaning.
+  Count location = 0;
   for (Count index = 0; index < layout.get_size(); index++) {
     auto semantic = layout.get_abstract(index);
     auto type = semantic
@@ -153,10 +153,15 @@ auto Module::Interface::prepare_variables(
     auto attributes = layout.get_slot_attributes(index);
     BAIL_IF(
         !semantic || !type || name.is_empty() ||
-        !Render::Language::Attributes::accepts(
-            attributes, Render::Language::Attributes::Placement::StageEntry) ||
         !types.collect_pointer(*type, storage));
-    Variable variable(*semantic, *type, name, attributes, storage, ids.take());
+    Bool builtin = Bool(
+        (storage == Assembler::SpirV::StorageClass::Output &&
+         name == "position"_view) ||
+        (storage == Assembler::SpirV::StorageClass::Input &&
+         name == "vertex_index"_view));
+    Variable variable(
+        *semantic, *type, name, attributes, storage, ids.take(), Count(-1), 0,
+        builtin ? Count(-1) : location++);
     if (storage == Assembler::SpirV::StorageClass::Input) {
       stage.inputs.insert(variable);
     } else {
@@ -212,24 +217,18 @@ auto Module::Interface::emit_debug(Assembler::SpirV& assembler) const -> void {
 auto Module::Interface::decorate(
     Assembler::SpirV& assembler,
     const Variable& variable) -> Bool {
-  auto location = attribute(variable.attributes, "location"_view);
-  auto builtin = attribute(variable.attributes, "builtin"_view);
-  BAIL_IF(Bool(location) == Bool(builtin));
-  if (location) {
-    const U64* value = location->get_value().find<U64>();
-    BAIL_IF(!value || *value > U32(-1));
+  if (variable.location != Count(-1)) {
+    BAIL_IF(variable.location > U32(-1));
     assembler.decorate(
-        variable.id, Assembler::SpirV::Decoration::Location, U32(*value));
+        variable.id, Assembler::SpirV::Decoration::Location,
+        U32(variable.location));
     return True;
   }
 
-  const Core::View::Bytes* name =
-      builtin->get_value().find<Core::View::Bytes>();
-  BAIL_IF(!name);
   Assembler::SpirV::BuiltIn selected;
-  if (*name == "position"_view) {
+  if (variable.name == "position"_view) {
     selected = Assembler::SpirV::BuiltIn::Position;
-  } else if (*name == "vertex_index"_view) {
+  } else if (variable.name == "vertex_index"_view) {
     selected = Assembler::SpirV::BuiltIn::VertexIndex;
   } else {
     return False;
@@ -242,6 +241,7 @@ auto Module::Interface::decorate(
 auto Module::Interface::emit_annotations(Assembler::SpirV& assembler) const
     -> Bool {
   Count push_offset = 0;
+  Count descriptor_slot = 0;
   Memory::Dynamic::Vector<const Library::Language::Model::Type*>
       decorated_push_types;
   for (const Variable& binding : bindings.get_view()) {
@@ -261,18 +261,13 @@ auto Module::Interface::emit_annotations(Assembler::SpirV& assembler) const
       push_offset += layout->get_size();
       continue;
     }
-    auto set = attribute(binding.attributes, "set"_view);
-    auto slot = attribute(binding.attributes, "slot"_view);
-    const U64* set_value = set ? set->get_value().find<U64>() : nullptr;
-    const U64* slot_value = slot ? slot->get_value().find<U64>() : nullptr;
-    BAIL_IF(
-        !set_value || !slot_value || *set_value > U32(-1) ||
-        *slot_value > U32(-1));
     assembler.decorate(
         binding.id, Assembler::SpirV::Decoration::DescriptorSet,
-        U32(*set_value));
+        U32(descriptor_slot));
+    BAIL_IF(descriptor_slot > U32(-1));
     assembler.decorate(
-        binding.id, Assembler::SpirV::Decoration::Binding, U32(*slot_value));
+        binding.id, Assembler::SpirV::Decoration::Binding, U32(0));
+    descriptor_slot++;
   }
   if (push_type_id != 0) {
     assembler.decorate(push_type_id, Assembler::SpirV::Decoration::Block);

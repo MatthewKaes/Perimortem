@@ -106,7 +106,7 @@ auto Environment::Workspace::interpret_source(
 
   if (monograph.is<Package::Language::Monograph>()) {
     // A Package root needs its confined path because Workspace must walk and
-    // complete every source-local Alias edge before publishing the graph.
+    // complete every external Type edge before publishing the graph.
     if (completed) {
       cursor.create_error(
           "A Package root must be completed through Workspace Package "
@@ -249,8 +249,8 @@ auto Environment::Workspace::import_package(
   }
 
   // The Package root contributes only its Library export surface and common
-  // Import Aliases. Workspace discovers the complete source graph by walking
-  // those Alias edges.
+  // Import Types. Workspace discovers the complete source graph by walking
+  // those external Type edges.
   Count root_error_count = errors.get_size();
   auto root_interpretation = Language::Dialect::interpret_source(
       toolchain.get_dialects(), root_cursor, *this);
@@ -335,58 +335,62 @@ auto Environment::Workspace::import_package(
 
   Bool parsed = parse_validity[0];
 
-  // Common Import Aliases own the new source graph. Each local locator is
+  // Common Import Types own the new source graph. Each local locator is
   // resolved relative to the importing source, while package imports terminate
-  // at one already restored exact Package product. Aliases bind the selected
-  // semantic root rather than the Monograph that retains its lifetime.
+  // at one already restored exact Package product. Each Import retains that
+  // acquisition while its ordinary Type expression selects the visible target.
   for (Count candidate_index = 0; candidate_index < candidates.get_size();
        candidate_index++) {
     Language::Monograph& importer = *candidates[candidate_index];
-    for (const Reference<Language::Import>& retained_import :
-         importer.get_imports()) {
-      Language::Import& import = retained_import.get();
-      if (!import.resolve().is<Invalid>()) {
+    for (const Reference<Ttx::Model::Type>& retained_type :
+         importer.get_reachable_types()) {
+      auto import = retained_type.get().select<Language::Import>();
+      if (!import || import->get_acquired()) {
         continue;
       }
 
-      if (import.get_kind() == Language::Import::Kind::Package) {
+      if (import->get_kind() == Language::Import::Kind::Package) {
         Option<const ImportedPackage&> selected;
         for (Count package_index = 0; package_index < packages.get_size();
              package_index++) {
           const ImportedPackage& candidate = packages[package_index];
-          if (candidate.identity == import.get_locator() &&
-              candidate.version == import.get_version()) {
+          if (candidate.identity == import->get_locator() &&
+              candidate.version == import->get_version()) {
             selected = candidate;
             break;
           }
         }
-        if (!selected || !import.bind(selected->monograph->get_root())) {
+        auto target =
+            selected
+                ? selected->monograph->get_root().select<Ttx::Model::Type>()
+                : Option<const Ttx::Model::Type&>();
+        if (!target || !import->acquire(*target)) {
           if (!selected && !pending_package_imports.get_view().contains(
                                [&](const Reference<Language::Import>& pending) {
                                  return pending.get().get_locator() ==
-                                            import.get_locator() &&
+                                            import->get_locator() &&
                                         pending.get().get_version() ==
-                                            import.get_version();
+                                            import->get_version();
                                })) {
-            pending_package_imports.emplace(import);
+            pending_package_imports.emplace(*import);
           }
           cursors[candidate_index]->create_expression_error(
-              import.get_anchor(),
+              import->get_declaration_anchor(),
               "Package Import did not select one restored exact Package."_view,
-              import.get_locator());
+              import->get_locator());
           parse_validity[candidate_index] = False;
           parsed = False;
         }
         continue;
       }
 
-      Path route(logical_routes[candidate_index], import.get_locator());
+      Path route(logical_routes[candidate_index], import->get_locator());
       View::Bytes normalized_route = route.get_view();
       if (normalized_route.is_empty() || route.is_rooted()) {
         cursors[candidate_index]->create_expression_error(
-            import.get_anchor(),
+            import->get_declaration_anchor(),
             "Source Import did not resolve to one confined relative path."_view,
-            import.get_locator());
+            import->get_locator());
         parse_validity[candidate_index] = False;
         parsed = False;
         continue;
@@ -409,7 +413,7 @@ auto Environment::Workspace::import_package(
                     },
                     [&](const Package::Storage::Failure& failure) {
                       auto report = cursors[candidate_index]->create_report(
-                          import.get_anchor());
+                          import->get_declaration_anchor());
                       append_storage_failure(
                           report, failure, "Source Import"_view);
                       return Option<Package::Content&>();
@@ -464,28 +468,31 @@ auto Environment::Workspace::import_package(
           semantic_route.concat(source_names[candidate_index]);
           semantic_route.concat("::"_view);
         }
-        semantic_route.concat(import.get_name());
+        semantic_route.concat(import->get_name());
         source_names.insert(semantic_route.get_view());
         parse_validity.insert(errors.get_size() == source_error_count);
         existing_index = candidates.get_size() - 1;
       }
 
-      if (!import.bind(candidates[*existing_index]->get_root())) {
+      auto target =
+          candidates[*existing_index]->get_root().select<Ttx::Model::Type>();
+      if (!target || !import->acquire(*target)) {
         cursors[candidate_index]->create_expression_error(
-            import.get_anchor(),
-            "Source Import Alias could not bind its selected semantic root."_view,
-            import.get_locator());
+            import->get_declaration_anchor(),
+            "Source Import Type could not acquire its semantic root."_view,
+            import->get_locator());
         parse_validity[candidate_index] = False;
         parsed = False;
       }
     }
   }
+
   // Source parsing is where Package Storage becomes authored language facts.
   // Linking receives the sealed context after that conversion, when the set of
   // semantic candidates is already fixed.
   root.get_resources().seal();
 
-  // Source Alias edges determine completion order. Parsing established every
+  // External source Types determine completion order. Parsing established every
   // identity already; this dependency-first order now lets each imported
   // source settle its generated and authored Types before an importer validates
   // those layouts. Package imports terminate at graphs restored earlier.
@@ -505,17 +512,18 @@ auto Environment::Workspace::import_package(
       return False;
     }
     source_states[index] = 1;
-    for (const Reference<Language::Import>& retained_import :
-         candidates[index]->get_imports()) {
-      const Language::Import& import = retained_import.get();
-      if (import.get_kind() != Language::Import::Kind::Source) {
+    for (const Reference<Ttx::Model::Type>& retained_type :
+         candidates[index]->get_reachable_types()) {
+      auto import = retained_type.get().select<Language::Import>();
+      if (!import || import->get_kind() != Language::Import::Kind::Source) {
         continue;
       }
-      const Abstract& target = import.resolve();
+      auto acquired = import->get_acquired();
       Option<Count> target_index;
       for (Count candidate_index = 0; candidate_index < candidates.get_size();
            candidate_index++) {
-        if (&candidates[candidate_index]->get_root() == &target) {
+        if (acquired &&
+            &candidates[candidate_index]->get_root() == &*acquired) {
           target_index = candidate_index;
           break;
         }
@@ -565,7 +573,14 @@ auto Environment::Workspace::import_package(
   for (Count ordered = 0; ordered < source_order.get_size(); ordered++) {
     Count i = source_order[ordered];
     Count source_error_count = errors.get_size();
-    Bool candidate_linked = candidates[i]->link(*cursors[i]);
+    Bool imports_resolved = True;
+    for (const Reference<Ttx::Model::Type>& retained_type :
+         candidates[i]->get_reachable_types()) {
+      auto import = retained_type.get().select<Language::Import>();
+      imports_resolved &= !import || import->validate(*cursors[i]);
+    }
+    Bool candidate_linked =
+        imports_resolved && candidates[i]->link(*cursors[i]);
     if (!candidate_linked) {
       if (parse_validity[i] && errors.get_size() == source_error_count) {
         cursors[i]->create_error(
@@ -713,37 +728,51 @@ auto Environment::Workspace::restore_package(
 
     Language::Import::Description description(
         root_transaction->proxy(archived.get_local_name()),
-        Documentation::get_empty(), Language::Visibility::Public,
+        Documentation::get_empty(), archived.get_visibility(),
         archived.get_kind(), root_transaction->proxy(archived.get_target()),
-        archived.get_version(), Anchor::create(Span()));
+        archived.get_version(), root_transaction->proxy(archived.get_route()),
+        Anchor::create(Span()), Anchor::create(Span()), Anchor::create(Span()));
     if (!importer->retain_import(description)) {
       Diagnostics::Log::error(
-          "Package restoration could not retain one Import Alias."_view);
+          "Package restoration could not retain one Import Type."_view);
       return {};
     }
-    Language::Import& import =
-        importer->get_imports()
-            .get_data()[importer->get_imports().get_size() - 1]
-            .get();
+    auto import =
+        importer->get_reachable_types()
+            .get_data()[importer->get_reachable_types().get_size() - 1]
+            .get()
+            .select<Language::Import>();
+    if (!import) {
+      Diagnostics::Log::error(
+          "Package restoration did not retain one external Type."_view);
+      return {};
+    }
 
-    const Abstract* target = nullptr;
+    const Ttx::Model::Type* target = nullptr;
     if (archived.get_kind() == Language::Import::Kind::Source) {
       auto selected = restored_members.find(archived.get_target());
       if (selected) {
-        target = &selected->value.get_root();
+        auto root_type = selected->value.get_root().select<Ttx::Model::Type>();
+        if (root_type) {
+          target = &*root_type;
+        }
       }
     } else {
       for (const ImportedPackage& candidate : packages.get_view()) {
         if (candidate.identity == archived.get_target() &&
             candidate.version == archived.get_version()) {
-          target = &candidate.monograph->get_root();
+          auto root_type =
+              candidate.monograph->get_root().select<Ttx::Model::Type>();
+          if (root_type) {
+            target = &*root_type;
+          }
           break;
         }
       }
     }
-    if (!target || !import.bind(*target)) {
+    if (!target || !import->acquire(*target)) {
       Diagnostics::Log::error(
-          "Package restoration could not bind one Import Alias target."_view);
+          "Package restoration could not acquire one external Type."_view);
       return {};
     }
   }
@@ -759,17 +788,17 @@ auto Environment::Workspace::restore_package(
     }
     BAIL_IF(restored_states[index] == 1);
     restored_states[index] = 1;
-    for (const Reference<Language::Import>& retained_import :
-         monographs[index]->get_imports()) {
-      const Language::Import& import = retained_import.get();
-      if (import.get_kind() != Language::Import::Kind::Source) {
+    for (const Reference<Ttx::Model::Type>& retained_type :
+         monographs[index]->get_reachable_types()) {
+      auto import = retained_type.get().select<Language::Import>();
+      if (!import || import->get_kind() != Language::Import::Kind::Source) {
         continue;
       }
-      const Abstract& target = import.resolve();
+      auto acquired = import->get_acquired();
       Option<Count> target_index;
       for (Count candidate = 0; candidate < monographs.get_size();
            candidate++) {
-        if (&monographs[candidate]->get_root() == &target) {
+        if (acquired && &monographs[candidate]->get_root() == &*acquired) {
           target_index = candidate;
           break;
         }
@@ -794,8 +823,13 @@ auto Environment::Workspace::restore_package(
         continue;
       }
       if (!monographs[index]->compose_restored()) {
-        Diagnostics::Log::error(
-            "Package restoration failed while composing member graphs."_view);
+        Diagnostics::Log::Message<256> message(
+            Diagnostics::Log::Level::Error, Diagnostics::Source());
+        message << "Package restoration failed while composing `"_view
+                << monographs[index]->get_name() << "` member `"_view
+                << (index == 0 ? "PackageSurface"_view
+                               : restored_member_names[index - 1])
+                << "`."_view;
         return {};
       }
     }
@@ -803,6 +837,23 @@ auto Environment::Workspace::restore_package(
 
   for (Count ordered = 0; ordered < restored_order.get_size(); ordered++) {
     Count index = restored_order[ordered];
+    for (const Reference<Ttx::Model::Type>& retained_type :
+         monographs[index]->get_reachable_types()) {
+      auto import = retained_type.get().select<Language::Import>();
+      if (import && !import->validate_restored()) {
+        Diagnostics::Log::Message<256> message(
+            Diagnostics::Log::Level::Error, Diagnostics::Source());
+        message << "Package restoration could not resolve external Type `"_view
+                << import->get_name() << "` from `"_view
+                << import->get_locator() << "`"_view;
+        if (!import->get_route().is_empty()) {
+          message << "::"_view << import->get_route();
+        }
+        message << "."_view;
+        return {};
+      }
+    }
+
     if (!monographs[index]->link_restored()) {
       Diagnostics::Log::error(
           "Package restoration failed while linking member graphs."_view);
@@ -855,6 +906,15 @@ auto Environment::Workspace::get_associations(View::Bytes diagnostic_path) const
   return {};
 }
 
+auto Environment::Workspace::get_associations(
+    View::Bytes package_root,
+    View::Bytes logical_route) const -> Option<const Associations&> {
+  const RetainedSource* source =
+      find_retained_source(package_root, logical_route);
+  return source ? Option<const Associations&>(source->associations)
+                : Option<const Associations&>();
+}
+
 auto Environment::Workspace::get_monograph(View::Bytes diagnostic_path) const
     -> Option<const Language::Monograph&> {
   for (const RetainedSource& source : retained_sources.get_view()) {
@@ -865,6 +925,15 @@ auto Environment::Workspace::get_monograph(View::Bytes diagnostic_path) const
   return {};
 }
 
+auto Environment::Workspace::get_monograph(
+    View::Bytes package_root,
+    View::Bytes logical_route) const -> Option<const Language::Monograph&> {
+  const RetainedSource* source =
+      find_retained_source(package_root, logical_route);
+  return source ? Option<const Language::Monograph&>(source->monograph)
+                : Option<const Language::Monograph&>();
+}
+
 auto Environment::Workspace::get_completed_monograph(
     View::Bytes diagnostic_path) const -> Option<const Language::Monograph&> {
   for (const RetainedSource& source : retained_sources.get_view()) {
@@ -873,6 +942,16 @@ auto Environment::Workspace::get_completed_monograph(
     }
   }
   return {};
+}
+
+auto Environment::Workspace::get_completed_monograph(
+    View::Bytes package_root,
+    View::Bytes logical_route) const -> Option<const Language::Monograph&> {
+  const RetainedSource* source =
+      find_retained_source(package_root, logical_route);
+  return source && source->completed
+             ? Option<const Language::Monograph&>(source->monograph)
+             : Option<const Language::Monograph&>();
 }
 
 auto Environment::Workspace::get_package_source_count(
@@ -912,6 +991,28 @@ auto Environment::Workspace::get_tokens(View::Bytes diagnostic_path) const
   return {};
 }
 
+auto Environment::Workspace::get_tokens(
+    View::Bytes package_root,
+    View::Bytes logical_route) const -> View::Vector<Token> {
+  const RetainedSource* source =
+      find_retained_source(package_root, logical_route);
+  return source ? source->tokens : View::Vector<Token>();
+}
+
+auto Environment::Workspace::find_retained_source(
+    View::Bytes package_root,
+    View::Bytes logical_route) const -> const RetainedSource* {
+  for (Count index = 0; index < retained_sources.get_size(); index++) {
+    const RetainedSource& source = retained_sources[index];
+    if (source.package_root == package_root &&
+        source.logical_route == logical_route) {
+      return &source;
+    }
+  }
+
+  return nullptr;
+}
+
 auto Environment::Workspace::get_associations(
     const Language::Monograph& monograph) const -> Option<const Associations&> {
   for (Count i = 0; i < retained_sources.get_size(); i++) {
@@ -944,7 +1045,7 @@ auto Environment::Workspace::find_authored_location(
                   [&](const Abstract& import_candidate) {
                     auto import = import_candidate.select<Language::Import>();
                     if (import) {
-                      declaration = import->get_anchor();
+                      declaration = import->get_declaration_anchor();
                     }
                   });
             });
@@ -997,14 +1098,8 @@ auto Environment::Workspace::find_acquired_location(
     View::Bytes logical_route,
     Count offset,
     const Abstract& semantic) const -> Option<AuthoredLocation> {
-  const RetainedSource* importer = nullptr;
-  for (const RetainedSource& source : retained_sources.get_view()) {
-    if (source.package_root == package_root &&
-        source.logical_route == logical_route) {
-      importer = &source;
-      break;
-    }
-  }
+  const RetainedSource* importer =
+      find_retained_source(package_root, logical_route);
   BAIL_IF(importer == nullptr);
 
   Token selected;
@@ -1028,10 +1123,10 @@ auto Environment::Workspace::find_acquired_location(
         (code == Code::Type::Package &&
          import->get_kind() != Language::Import::Kind::Package));
 
-    const Abstract& target = import->resolve();
-    BAIL_IF(target.is<Invalid>());
+    auto target = import->get_acquired();
+    BAIL_IF(!target);
     for (const RetainedSource& source : retained_sources.get_view()) {
-      if (&source.monograph.get_root() == &target) {
+      if (&source.monograph.get_root() == &*target) {
         return AuthoredLocation(
             source.package_root, source.diagnostic_path, source.source_text,
             Anchor::create(Span()));

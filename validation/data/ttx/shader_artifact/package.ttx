@@ -3,4 +3,5 @@
 //
 dialect : Package;
 
-public Shader : alias = source("shader.ttx");
+public TestShader : alias = source("shader.ttx")::Material;
+public Float64Shader : alias = source("float64_shader.ttx")::Material;

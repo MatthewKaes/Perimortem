@@ -134,8 +134,8 @@ When the Workspace is ready, Puffer coordinates the requested products:
 * The ABI Terminal publishes the shared C representation and language headers.
 * The LLVM Terminal consumes that agreement and compiles Library meaning into
   CPU code.
-* The Vulkan Terminal consumes Shader, Render, and Library meaning and emits
-  the SPIR-V module with its matching CPU pipeline description.
+* The Vulkan Terminal consumes Shader, Pipeline, and Library meaning and emits
+  the SPIR-V module with its matching generated CPU description.
 * Package produces a Complete or Contract Archive.
 * Linker combines native member products into libraries and platform
   executables.
@@ -166,13 +166,13 @@ while repositories that already use Bazel can keep their surrounding graph.
 ### Package and application products
 
 A Package request is the complete source build. It imports each dependency
-through its Contract Archive, opens the root Package once, walks its source-local
-Alias graph, and keeps that
-Workspace alive while every requested Terminal walks it. Library members become
+through its Contract Archive, opens the root Package once, walks its reachable
+Type graph, and keeps that Workspace alive while every requested Terminal walks
+it. Library members become
 CPU objects through the
 [LLVM Terminal](../tetrodotoxin/terminal/llvm/README.md). Shader members become
 validated SPIR V words and Linker places those words in the Package's read only
-native data. Render and other contract members contribute their durable meaning
+native data. Pipeline and other contract members contribute their durable meaning
 without manufacturing an empty LLVM program.
 
 This gives the build one natural publication barrier. If any source, Terminal,
@@ -200,9 +200,9 @@ and release interface. Object carriers are opaque one word handles. Parameters
 borrow them, results transfer one reservation, and the generated header exposes
 the generic Perimortem retain and release entries for a host that keeps a result.
 
-The build supplies Package-rooted `.ttx` candidates, while source-local Alias
-imports are the sole authority for semantic names and graph edges. Package
-coordinates those products without lowering a copied semantic graph. Compiled
+The build supplies Package-rooted `.ttx` candidates, while contextual Import
+Types are the sole authority for semantic names and external graph edges.
+Package coordinates those products without lowering a copied semantic graph. Compiled
 Shader Programs remain independent SPIR V products inside the native Package
 artifact rather than executable bodies inside its semantic Archive.
 
@@ -213,10 +213,10 @@ then links that entry with the Package and runtime native products.
 
 ## Restoring an Archive
 
-Puffer first asks Package to check the Archive, its exact Import graph, and its
-selected profile. It then creates a new Workspace with the languages named by
-the Archive. Package is restored first, each member is reconstructed, and the
-recorded source-local Aliases bind their real roots before graph completion.
+Puffer first asks Package to check the Archive, its exact external Type graph,
+and its selected profile. It then creates a new Workspace with the languages
+named by the Archive. Package is restored first, each member is reconstructed,
+and the recorded Import Types reacquire their real roots before graph completion.
 Scene and Shader pass the surrounding context to their child layers.
 
 The restored members still go through normal linking and finalization before

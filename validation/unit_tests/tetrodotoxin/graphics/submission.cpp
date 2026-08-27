@@ -203,11 +203,16 @@ auto SubmissionNode::read_draw(Core::Object<> object, Count index)
   return Drawable2D::Draw(
       Program(Core::Data::cast<const U8>(submission_program)),
       static_cast<Memory::Dynamic::Vector<Resource>&&>(resources),
-      static_cast<Memory::Dynamic::Bytes&&>(inputs), {1, 1}, -S64(index));
+      static_cast<Memory::Dynamic::Bytes&&>(inputs), {1, 1},
+      Perimortem::Graphics::Frame::Pipeline(
+          Perimortem::Graphics::Frame::Pipeline::Topology::TriangleList,
+          Perimortem::Graphics::Frame::Pipeline::Blend::Alpha,
+          Perimortem::Graphics::Frame::Pipeline::Geometry::UnitQuad2D),
+      6, -S64(index));
 }
 
-static auto submit(Core::Object<> root) -> Core::Option<Submission> {
-  return Submission::create(
+static auto submit(Core::Object<> root) -> Core::Option<PassUI> {
+  return PassUI::create(
       root, SubmissionNode::children, SubmissionNode::placements(),
       SubmissionNode::child_capabilities(), SubmissionNode::drawables());
 }
@@ -249,6 +254,16 @@ PERIMORTEM_UNIT_TEST(GraphicsSubmission, stabilizes_native_frame) {
     EXPECT_EQ(back_batch.get_transform().get_y(), R64(5.0));
     EXPECT_EQ(front_batch.get_transform().get_x(), R64(1.0));
     EXPECT_EQ(front_batch.get_transform().get_y(), R64(2.0));
+    EXPECT_EQ(back_batch.get_vertex_count(), Count(6));
+    EXPECT(
+        back_batch.get_pipeline().get_geometry() ==
+        Perimortem::Graphics::Frame::Pipeline::Geometry::UnitQuad2D);
+    EXPECT(
+        back_batch.get_pipeline().get_topology() ==
+        Perimortem::Graphics::Frame::Pipeline::Topology::TriangleList);
+    EXPECT(
+        back_batch.get_pipeline().get_blend() ==
+        Perimortem::Graphics::Frame::Pipeline::Blend::Alpha);
 
     back_node.inputs = "changed"_view;
     back_node.set_resource({});

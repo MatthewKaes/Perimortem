@@ -24,9 +24,9 @@ static Harness RenderDialect = {
 };
 
 PERIMORTEM_UNIT_TEST(RenderDialect, retained_root) {
-  static constexpr View::Bytes source = "//\ndialect : Render;"_view;
+  static constexpr View::Bytes source = "//\ndialect : Pipeline;"_view;
   Environment::Toolchain toolchain;
-  auto dialect = toolchain.install<Render::Dialect>("Render"_view);
+  auto dialect = toolchain.install<Render::Dialect>("Pipeline"_view);
   ASSERT(dialect);
   Environment::Workspace workspace(toolchain);
   Errors errors;
@@ -46,10 +46,10 @@ PERIMORTEM_UNIT_TEST(RenderDialect, retained_root) {
 PERIMORTEM_UNIT_TEST(RenderDialect, stage_contract) {
   static constexpr View::Bytes source =
       "//\n"
-      "dialect : Render;\n"
+      "dialect : Pipeline;\n"
       "public fragment : stage [] -> [];"_view;
   Environment::Toolchain toolchain;
-  ASSERT(toolchain.install<Render::Dialect>("Render"_view));
+  ASSERT(toolchain.install<Render::Dialect>("Pipeline"_view));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 
@@ -69,10 +69,10 @@ PERIMORTEM_UNIT_TEST(RenderDialect, stage_contract) {
 PERIMORTEM_UNIT_TEST(RenderDialect, stage_name_shape) {
   static constexpr View::Bytes source =
       "//\n"
-      "dialect : Render;\n"
+      "dialect : Pipeline;\n"
       "public Fragment : stage [] -> [];"_view;
   Environment::Toolchain toolchain;
-  ASSERT(toolchain.install<Render::Dialect>("Render"_view));
+  ASSERT(toolchain.install<Render::Dialect>("Pipeline"_view));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 
@@ -88,8 +88,8 @@ PERIMORTEM_UNIT_TEST(RenderDialect, structured_contract) {
       "// Shared values.\n"
       "dialect : Library;"_view;
   static constexpr View::Bytes source =
-      "// Render interface.\n"
-      "dialect : Render;\n"
+      "// Pipeline interface.\n"
+      "dialect : Pipeline;\n"
       "public Simple : struct {\n"
       "  @capability(\"fragment\")\n"
       "  public fragment : stage [\n"
@@ -98,11 +98,11 @@ PERIMORTEM_UNIT_TEST(RenderDialect, structured_contract) {
       "    @location(0).color : Values::R64,\n"
       "  ];\n"
       "  @set(0) @slot(1) @read\n"
-      "  public texture : resource Values::U64;\n"
+      "  public texture : resource read Values::U64;\n"
       "}"_view;
   Environment::Toolchain toolchain;
   ASSERT(toolchain.install<Library::Dialect>("Library"_view));
-  ASSERT(toolchain.install<Render::Dialect>("Render"_view));
+  ASSERT(toolchain.install<Render::Dialect>("Pipeline"_view));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 
@@ -130,13 +130,13 @@ PERIMORTEM_UNIT_TEST(RenderDialect, rejects_incomplete_resource_binding) {
       "// Shared values.\n"
       "dialect : Library;"_view;
   static constexpr View::Bytes source =
-      "// Invalid Render interface.\n"
-      "dialect : Render;\n"
+      "// Invalid Pipeline interface.\n"
+      "dialect : Pipeline;\n"
       "@set(0)\n"
-      "public texture : resource Values::U64;"_view;
+      "public texture : resource read Values::U64;"_view;
   Environment::Toolchain toolchain;
   ASSERT(toolchain.install<Library::Dialect>("Library"_view));
-  ASSERT(toolchain.install<Render::Dialect>("Render"_view));
+  ASSERT(toolchain.install<Render::Dialect>("Pipeline"_view));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 

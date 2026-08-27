@@ -42,7 +42,8 @@ static auto find_marker(View::Bytes line) -> Count {
     marker++;
   }
   return marker + 1 < line.get_size() && line[marker] == '/' &&
-                 line[marker + 1] == '/'
+                 line[marker + 1] == '/' &&
+                 (marker + 2 == line.get_size() || line[marker + 2] != '/')
              ? marker
              : Count(-1);
 }

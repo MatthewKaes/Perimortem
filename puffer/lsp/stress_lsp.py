@@ -58,8 +58,8 @@ def source_for(iteration):
         )
     if iteration % 3 == 1:
         return (
-            "// Stress Render.\n"
-            "dialect : Render;\n"
+            "// Stress Pipeline.\n"
+            "dialect : Pipeline;\n"
         )
     return (
         "// Stress Scene.\n"

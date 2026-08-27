@@ -152,6 +152,13 @@ static auto validate(
           "Graph Imports"_view, index, import.get_local_name(),
           "the importer, local name, or target is invalid."_view);
     }
+    if (!import.get_route().is_empty() &&
+        !Lexicon::validate(
+            Code::Type::Type, import.get_route(), semantic_name_separators)) {
+      return log_invalid_value(
+          "Graph Import routes"_view, index, import.get_route(),
+          "the chained route is not a qualified Type name."_view);
+    }
     Bool package_import =
         import.get_kind() == Tetrodotoxin::Language::Import::Kind::Package;
     if (package_import == import.get_version().is_null()) {
@@ -689,35 +696,51 @@ static auto parse_resources(
 
 static auto parse_graph_imports(
     View::Bytes payload,
-    Dynamic::Vector<Package::Archive::GraphImport>& imports) -> Bool {
+    Dynamic::Vector<Package::Archive::GraphImport>& imports,
+    U16 format) -> Bool {
   LittleReader reader(payload);
   U32 count = reader.read_u32();
+  Count minimum_record_size = format >= 5 ? 22 : 17;
   BAIL_IF(
-      !is_valid(reader) || !can_allocate_records<Package::Archive::GraphImport>(
-                               count, payload, reader.get_location(), 17));
+      !is_valid(reader) ||
+      !can_allocate_records<Package::Archive::GraphImport>(
+          count, payload, reader.get_location(), minimum_record_size));
   imports = Dynamic::Vector<Package::Archive::GraphImport>(count);
   for (U32 index = 0; index < count; index++) {
     U32 record_size = reader.read_u32();
     View::Bytes record = reader.read_bytes(record_size);
     BAIL_IF(!is_valid(reader));
+
     LittleReader entry(record);
     U8 kind = entry.read_u8();
+    U8 visibility = U8(Tetrodotoxin::Language::Visibility::Public);
+    if (format >= 5) {
+      visibility = entry.read_u8();
+    }
+
     View::Bytes importer;
     View::Bytes local_name;
     View::Bytes target;
+    View::Bytes route;
+
     Bool importer_read = read_sized_bytes(entry, importer);
     Bool local_read = read_sized_bytes(entry, local_name);
     Bool target_read = read_sized_bytes(entry, target);
     U16 major = entry.read_u16();
     U16 minor = entry.read_u16();
+    Bool route_read = format < 5 || read_sized_bytes(entry, route);
+
     BAIL_IF(
         kind > U8(Tetrodotoxin::Language::Import::Kind::Package) ||
-        !importer_read || !local_read || !target_read || !is_valid(entry) ||
-        entry.get_location() != entry.get_size());
+        visibility > U8(Tetrodotoxin::Language::Visibility::Public) ||
+        !importer_read || !local_read || !target_read || !route_read ||
+        !is_valid(entry) || entry.get_location() != entry.get_size());
     imports.emplace(
         Package::Archive::GraphImport(
-            importer, local_name, Tetrodotoxin::Language::Import::Kind(kind),
-            target, Version(major, minor)));
+            importer, local_name,
+            Tetrodotoxin::Language::Visibility(visibility),
+            Tetrodotoxin::Language::Import::Kind(kind), target,
+            Version(major, minor), route));
   }
   return reader.get_location() == reader.get_size();
 }
@@ -788,7 +811,6 @@ static auto retain_archive(
 
 auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     -> Result<Archive, Error> {
-  // Decode the complete fixed header first. Accepted input must carry the
   // Decode the shared magic and revision while leaving reserved flags clear.
   LittleReader reader(input);
   View::Bytes magic = reader.read_bytes(4);
@@ -813,10 +835,10 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   // A readable revision is the only rejection that gives callers a recovery
   // decision beyond invalid Archive bytes. Keep the exact revision in the
   // Debug record while the returned category stays small.
-  if (format != 2 && format != 3 && format != 4) {
+  if (format != 2 && format != 3 && format != 4 && format != 5) {
     Diagnostics::Log::Message<384> message(Diagnostics::Log::Level::Debug);
     message << archive_read_operation
-            << " failed. stage=header byte_offset=4 expected_format=2_3_or_4 "
+            << " failed. stage=header byte_offset=4 expected_format=2_3_4_or_5 "
                "actual_format="_view
             << format;
     return Error::UnsupportedFormat;
@@ -864,7 +886,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
   Dynamic::Vector<Package::Archive::GraphImport> imports;
   U8 expected_section = first_section;
   U8 last_section =
-      format == 4 ? U8(Archive::Sections::Imports)
+      format >= 4 ? U8(Archive::Sections::Imports)
                   : (format == 3 ? U8(Archive::Sections::Resources)
                                  : U8(Archive::Sections::ArtifactMetadata));
 
@@ -957,7 +979,7 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
       parsed = parse_resources(payload, resources);
       break;
     case Archive::Sections::Imports:
-      parsed = parse_graph_imports(payload, imports);
+      parsed = parse_graph_imports(payload, imports, format);
       break;
     default:
       parsed = False;
@@ -987,10 +1009,10 @@ auto Package::Archive::Reader::read(Allocator::Arena& arena, View::Bytes input)
     return Error::InvalidFormat;
   }
 
-  if (format == 4 && dependencies.get_size() != 0) {
+  if (format >= 4 && dependencies.get_size() != 0) {
     return reject_archive(
         "dependencies"_view, 0,
-        "Format 4 records Package edges only in the Imports section."_view);
+        "Graph formats record Package edges only in the Imports section."_view);
   }
 
   // Validate Package names, versions, uniqueness, and Export references after

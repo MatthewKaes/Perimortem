@@ -13,17 +13,17 @@ source of representation truth.
 
 The [LLVM Terminal](llvm/README.md) consumes that ABI and lowers Library
 execution into LLVM modules and CPU objects. The Vulkan Terminal begins from
-the Library execution graph hosted by Shader, follows its exact Render contract
+the Library execution graph hosted by Shader, follows its exact Pipeline contract
 and Bridge relationships, and derives both the [SPIR V module](spirv/README.md)
 and matching CPU pipeline description. Graphics compiles hosted Scene Fields
 into compact access behavior. Application composition connects those products
 to the App policy and selected runtime.
 
-An application target pairs each configured Type route with separate native
-Placement2D, Children2D, and Drawable2D providers. That target configuration
-follows the successful semantic Interface proofs without copying Fields. The
-shared runtime can therefore place, traverse, and draw concrete Types without
-learning their classes or combining unrelated capabilities in one descriptor.
+An application target pairs each configured drawable Type with its native draw
+provider. That target configuration follows the successful `DrawableUI`
+Interface proof without copying Fields. Child traversal stays an independent
+runtime capability, while each draw supplies its own backend-neutral fixed
+state beside the generated Program.
 
 These producers share semantic identities only while the Workspace is alive.
 The CPU object, embedded SPIR-V module, Scene access function, Vulkan pipeline

@@ -11,7 +11,7 @@ namespace Tetrodotoxin::Library::Language::Types {
 // retains the mandatory authored Definition through Structure while Composite
 // owns every member, lookup, Layout, and completion rule.
 class Object : public Structure {
- private:
+ protected:
   Object(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition,
@@ -47,8 +47,6 @@ class Object : public Structure {
       Model::Pack& arguments,
       Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope)
       const -> Perimortem::Core::Option<Model::Pack&> override;
-
- protected:
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Types

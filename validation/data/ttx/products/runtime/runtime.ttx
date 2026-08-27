@@ -74,6 +74,20 @@ public borrow_iteration : func = [] -> U64 {
   return total;
 }
 
+public object_iteration : func = [] -> U64 {
+  state shared := new[Counter](.value = 3);
+  state values : Fixed[Counter, 2] = (shared, shared);
+  for [.entry : Counter] in values {
+    entry -> add(1);
+    if entry.value == 4 : continue;
+  }
+  for [.entry : Counter] in values {
+    entry -> add(1);
+    break;
+  }
+  return shared.value;
+}
+
 public bytes_api : func = [] -> U64 {
   const a     : U8 = 0x[41]:[0];
   const b     : U8 = 0x[42]:[0];

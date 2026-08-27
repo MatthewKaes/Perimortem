@@ -3,11 +3,16 @@
 
 #include "tetrodotoxin/language/monograph.hpp"
 
+#include "ttx/concept/invalid.hpp"
+#include "ttx/model/layouts/fluid.hpp"
+
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
+
+static constexpr Ttx::Model::Layouts::Fluid monograph_layout;
 
 Language::Monograph::~Monograph() {}
 
@@ -20,8 +25,7 @@ Language::Monograph::Monograph(
       documentation(documentation),
       context(context),
       language(language),
-      import_lookup(domain),
-      imports(domain) {}
+      types(domain) {}
 
 auto Language::Monograph::get_layer(const Abstract& requested) const
     -> Option<const Monograph&> {
@@ -39,15 +43,15 @@ auto Language::Monograph::get_root() const -> const Abstract& {
 auto Language::Monograph::retain_import(
     const Import::Description& description,
     Option<Associations&> associations) -> Bool {
-  if (import_lookup.contains(description.get_name())) {
-    return False;
+  for (const Reference<Ttx::Model::Type>& type : types.get_view()) {
+    BAIL_IF(type.get().get_name() == description.get_name());
   }
 
   Import& import = domain.construct<Import>(domain, description);
-  import_lookup.launder(description.get_name(), import);
-  imports.insert(import);
+  types.insert(import);
   if (associations) {
-    associations->create(description.get_anchor(), import);
+    associations->create(description.get_declaration_anchor(), import);
+    associations->create(description.get_expression_anchor(), import);
   }
   return True;
 }
@@ -81,13 +85,34 @@ auto Language::Monograph::resolve_context(View::Bytes route) const
   // A base Monograph contributes no synthetic lookup surface. Concrete roots
   // answer their own names first and use this boundary only for the borrowed
   // outer context supplied by the source transaction.
-  const Abstract& imported = resolve_import(route);
+  const Abstract& imported = resolve_type(route, Visibility::Public);
   return imported.is<Invalid>() ? context.resolve_context(route) : imported;
 }
 
-auto Language::Monograph::resolve_import(View::Bytes route) const
+auto Language::Monograph::resolve_lexical_context(View::Bytes route) const
     -> const Abstract& {
-  return import_lookup.visit(
-      route, [](const Import& selected) -> const Abstract& { return selected; },
-      []() -> const Abstract& { return Invalid::get_invalid(); });
+  const Abstract& imported = resolve_type(route, Visibility::Private);
+  return imported.is<Invalid>() ? context.resolve_context(route) : imported;
+}
+
+auto Language::Monograph::resolve_type(View::Bytes route, Visibility visibility)
+    const -> const Abstract& {
+  for (const Reference<Ttx::Model::Type>& type : types.get_view()) {
+    const Ttx::Model::Type& selected = type.get();
+    if (selected.get_name() != route) {
+      continue;
+    }
+
+    auto import = selected.select<Import>();
+    if (!import || visibility == Visibility::Private ||
+        import->get_visibility() != Visibility::Private) {
+      return selected;
+    }
+  }
+
+  return Invalid::get_invalid();
+}
+
+auto Language::Monograph::get_layout() const -> const Layout& {
+  return monograph_layout;
 }

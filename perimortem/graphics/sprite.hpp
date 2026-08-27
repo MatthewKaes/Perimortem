@@ -28,10 +28,10 @@ class Sprite {
 
   auto get_texture() const -> const Texture2D&;
   auto set_texture(const Texture2D& texture) -> void;
-  auto get_shader() const -> const Core::Implementation&;
-  auto set_shader(const Core::Implementation& shader) -> void;
-  auto get_size_pixels() const -> Size2D;
-  auto set_size_pixels(Size2D size) -> void;
+  auto get_material() const -> const Core::Implementation&;
+  auto set_material(const Core::Implementation& material) -> void;
+  auto get_size() const -> Size2D;
+  auto set_size(Size2D size) -> void;
   auto get_transform() const -> Transform2D;
   auto set_transform(Transform2D transform) -> void;
   auto is_visible() const -> Bool;
@@ -51,23 +51,19 @@ class Sprite {
  private:
   class Payload {
    public:
-    Texture2D texture;
-    Core::Implementation shader;
-    Size2D size_pixels;
+    Core::Implementation material;
     Transform2D transform;
     Bool visible = True;
     S64 z_index = 0;
+    Texture2D texture;
+    Size2D size;
   };
-  static_assert(__builtin_offsetof(Payload, texture) == 0);
-  static_assert(__builtin_offsetof(Payload, shader) == sizeof(Texture2D));
-  static_assert(
-      __builtin_offsetof(Payload, size_pixels) ==
-      sizeof(Texture2D) + sizeof(Core::Implementation));
-  static_assert(
-      __builtin_offsetof(Payload, transform) ==
-      sizeof(Texture2D) + sizeof(Core::Implementation) + sizeof(Size2D));
-  static_assert(__builtin_offsetof(Payload, visible) == 72);
-  static_assert(__builtin_offsetof(Payload, z_index) == 80);
+  static_assert(__builtin_offsetof(Payload, material) == 0);
+  static_assert(__builtin_offsetof(Payload, transform) == 16);
+  static_assert(__builtin_offsetof(Payload, visible) == 56);
+  static_assert(__builtin_offsetof(Payload, z_index) == 64);
+  static_assert(__builtin_offsetof(Payload, texture) == 72);
+  static_assert(__builtin_offsetof(Payload, size) == 80);
   static_assert(sizeof(Payload) == 88);
 
   explicit Sprite(Core::Object<> object) : object(object) {}

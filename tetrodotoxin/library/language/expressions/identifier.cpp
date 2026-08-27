@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 
+#include "tetrodotoxin/language/import.hpp"
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
@@ -15,11 +16,17 @@ using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
 static auto resolve_alias(const Abstract& binding) -> const Abstract& {
-  return binding.visit<Ttx::Model::Alias>(
-      [](const Ttx::Model::Alias& alias) -> const Abstract& {
-        return alias.resolve();
+  return binding.visit<Tetrodotoxin::Language::Import>(
+      [](const Tetrodotoxin::Language::Import& import) -> const Abstract& {
+        return import.resolve();
       },
-      [](const Abstract& direct) -> const Abstract& { return direct; });
+      [](const Abstract& candidate) -> const Abstract& {
+        return candidate.visit<Ttx::Model::Alias>(
+            [](const Ttx::Model::Alias& alias) -> const Abstract& {
+              return alias.resolve();
+            },
+            [](const Abstract& direct) -> const Abstract& { return direct; });
+      });
 }
 
 auto Language::Expressions::Identifier::link(

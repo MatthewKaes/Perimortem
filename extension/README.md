@@ -29,9 +29,10 @@ an approximation based only on spelling.
   Context or Type, visibility, and Static or Self role. Call suggestions remain
   available after the trailing space in the canonical ` -> ` spelling
 * Parameter hints name fitted positional arguments at their call sites
-* Go to definition follows authored identities across Package sources and
-  dependencies, while import and embedded Resource locators open the physical
-  file acquired by the Workspace when it remains available
+* Go to definition follows authored identities through chained Import Type
+  expressions across Package sources and dependencies, while import and
+  embedded Resource locators open the physical file acquired by the Workspace
+  when it remains available
 * Diagnostics point back to exact authored Tokens and ranges
 * Source colors distinguish Types, Addressables, Callables, values, control
   flow, modifiers, and punctuation using Tetrodotoxin's own vocabulary

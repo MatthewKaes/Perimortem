@@ -287,7 +287,11 @@ static auto append_declaration(
     const Abstract& subject) -> Bool {
   auto import = subject.select<Tetrodotoxin::Language::Import>();
   if (import) {
-    output << import->get_name() << " : alias = "_view
+    output << (import->get_visibility() ==
+                       Tetrodotoxin::Language::Visibility::Private
+                   ? "private "_view
+                   : "public "_view)
+           << import->get_name() << " : alias = "_view
            << (import->get_kind() ==
                        Tetrodotoxin::Language::Import::Kind::Package
                    ? "Package"_view

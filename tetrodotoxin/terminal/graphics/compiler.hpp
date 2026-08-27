@@ -14,10 +14,9 @@
 namespace Tetrodotoxin::Terminal::Graphics {
 
 // Compiler derives one graphics runtime product after the Scene and its
-// Placement2D
-// requirement have both completed. Configured Types name the runtime behavior
-// available for this target, which keeps target selection outside the Scene
-// graph while preserving exact Type identity at the handoff.
+// DrawableUI requirement have both completed. Configured Types name the runtime
+// behavior available for this target, which keeps target selection outside the
+// Scene graph while preserving exact Type identity at the handoff.
 class Compiler {
  public:
   auto compile(

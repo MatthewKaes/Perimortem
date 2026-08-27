@@ -105,13 +105,13 @@ PERIMORTEM_UNIT_TEST(GraphicsObjects, sprite_defaults_and_aliases) {
   EXPECT_NOT(sprite.is_drawable());
   EXPECT(sprite.is_visible());
   EXPECT_EQ(sprite.get_z_index(), S64(0));
-  EXPECT(sprite.get_shader().is_empty());
+  EXPECT(sprite.get_material().is_empty());
 
   Image image = one_pixel_image();
   Texture2D texture(image);
   sprite.set_texture(texture);
-  sprite.set_shader(create_shader());
-  sprite.set_size_pixels({64, 32});
+  sprite.set_material(create_shader());
+  sprite.set_size({64, 32});
   Transform2D transform;
   transform.translation = {12.0, 34.0};
   transform.scale_x = 2.0;
@@ -124,7 +124,7 @@ PERIMORTEM_UNIT_TEST(GraphicsObjects, sprite_defaults_and_aliases) {
   EXPECT_NOT(sprite.is_visible());
   EXPECT_NOT(sprite.is_drawable());
   EXPECT_EQ(sprite.get_transform().translation.x, R64(12.0));
-  EXPECT_EQ(sprite.get_size_pixels().width, U32(64));
-  EXPECT_EQ(sprite.get_shader().get_projection(), &graphics_projection);
+  EXPECT_EQ(sprite.get_size().width, U32(64));
+  EXPECT_EQ(sprite.get_material().get_projection(), &graphics_projection);
   EXPECT_EQ(sprite.get_object().get_reservations(), Count(2));
 }

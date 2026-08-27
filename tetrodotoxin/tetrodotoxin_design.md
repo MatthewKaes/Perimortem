@@ -77,7 +77,7 @@ and one Terminal may not need these boundaries.
 ## Direct semantic construction
 
 A common AST is effective when all participating languages share a useful
-declaration and Type model. Tetrodotoxin's Package, Library, App, Scene, Render,
+declaration and Type model. Tetrodotoxin's Package, Library, App, Scene, Pipeline,
 and Shader languages do not. Their source forms have different invariants,
 lifecycles, and consumers.
 
@@ -148,12 +148,13 @@ Omitting the opening comment makes the source envelope malformed. Environment
 passes the exact Documentation to the selected Dialect and Monograph, which
 keeps authored prose attached to the semantic source it describes.
 
-A Monograph is an Abstract context rather than a universal Type or scope. One
-Dialect may expose no Types, another may expose a source root Type, and another
-may expose package members or lifecycle facts. Its contextual resolution
-behavior is part of the concrete language contract.
+A Monograph is a contextual Type with an empty value Layout, not a universal
+scope or runtime value. One Dialect may expose no nested Types, another may
+expose a source interface, and another may expose package members or lifecycle
+facts. Its contextual resolution behavior remains part of the concrete
+language contract.
 
-The common Monograph surface provides stable identity, Documentation, the Arena
+The common Monograph Type provides stable identity, Documentation, the Arena
 that owns its durable semantic graph, exact Dialect layer negotiation, and the
 link and finalize hooks required by Environment. Those hooks receive the Cursor
 for the current textual operation rather than consulting retained diagnostics.
@@ -262,7 +263,7 @@ and lifecycle in more detail.
 Library refines the host neutral TTX Type and Addressable contracts once. The
 same semantic identities and edges remain visible to other Dialects, while the
 Library refinements own scalar proofs, default construction, visibility, and
-Static and Self receiver behavior. A Render Type or another host neutral Type
+Static and Self receiver behavior. A Pipeline Type or another host neutral Type
 does not acquire CPU language behavior merely because both participate in the
 same graph.
 
@@ -334,7 +335,7 @@ composed flow. Its output Layout promises the order and applicability of those
 values without becoming another semantic identity. Library uses Packs for
 expressions, invocation arguments and results, returns, swizzles, and slices.
 It uses Layout descriptors for Types, Fields, Function parameters and results,
-and receiving declarations. Render and Shader use Layouts to agree on Stage
+and receiving declarations. Pipeline and Shader use Layouts to agree on Stage
 interfaces.
 
 A named descriptor slot uses `.name : Type`, while a named Pack slot uses
@@ -363,7 +364,7 @@ lowering is a forward operation on each real graph owner. One compiler Program
 transaction retains the target configuration graph and target facts keyed by
 the original Abstract identities. It never copies Library Types, Expressions,
 Statements, or control owners into a Terminal model. Shader lowering follows the
-same rule over its concrete GPU graph, selected Render contracts, neighboring
+same rule over its concrete GPU graph, selected Pipeline contracts, neighboring
 Library Types, and Shader owned bridge facts. Linker owns
 object modules, symbols, relocations, target encoding, and final native products.
 
@@ -386,13 +387,13 @@ implementations, loader inputs, executable format, and window surface policy.
 Linker depends on those declared target and host facts, never on LLVM as a
 semantic authority.
 
-The GPU path is parallel. Shader and Render complete target neutral GPU facts,
+The GPU path is parallel. Shader and Pipeline complete target neutral GPU facts,
 the Vulkan Terminal derives their SPIR V module and matching CPU program
 description, and Linker carries the module as read only data in the Package's
 native product. The Vulkan runtime consumes that linked artifact together with
 generated descriptors, Graphics batches, and one selected host surface. It owns
 realized resources, commands, handles, and synchronization. Those facts never
-flow downward into Shader, Render, or Library.
+flow downward into Shader, Pipeline, or Library.
 
 ## Package as a composition example
 
@@ -405,15 +406,18 @@ A Package source is a restricted Library export surface. Common source imports
 name its graph edges:
 
 ```ttx
-public Splash : alias = source("scenes/splash.ttx");
+private Splash : alias = source("scenes/splash.ttx");
 public Graphics : alias =
     package(.name = "Perimortem.Graphics", .version = "1.0");
+public Pixel : alias = source("pixel.ttx")::Pixel;
 ```
 
-Both forms create an ordinary source-local Alias. The path only locates a
-source relative to its importer, while the Alias name grants that imported
-semantic root its local route. Workspace canonicalizes equivalent paths and
-owns the imported Monographs; Package owns no second member table.
+Both locators create contextual Import Types in the source Monograph. The path
+only locates an external root, while ordinary chained `::` queries select the
+published Type interface the local name represents. Private imports remain
+lexical; public imports forward that interface to consumers. Workspace walks
+these Types, canonicalizes equivalent paths, and owns the imported Monographs;
+Package owns no second member table.
 
 An embedded resource operand asks the source Package for retained bytes:
 
@@ -448,37 +452,43 @@ owns signals, lifecycle role edges, hosted graphics relationships, frame event
 delivery, and render submission facts around that child. App owns transitions
 between Scene identities.
 
-Render declares semantic rendering interfaces. Shader owns its source grammar,
-Stage organization, legality, storage roles, and exact CPU to GPU bridge and
-marshaling relations around one real Library child. Interface negotiation proves
-that a child Library Function satisfies a selected Render Stage without copying
-either graph. SPIR V lowering consumes the completed Library execution graph
-together with those Shader and Render facts. Foreign embeds an external
+Pipeline declares semantic rendering interfaces. One Pipeline source owns one
+contract Monograph. Shader owns its source grammar, Stage organization,
+legality, storage roles, and exact CPU to GPU bridge and marshaling relations
+around one real Library child. Interface negotiation proves that a child
+Library Function satisfies a selected Pipeline Stage without copying either
+graph. SPIR V lowering consumes the completed Library execution graph together
+with those Shader and Pipeline facts. Foreign embeds an external
 ABI declaration surface inside a parent Dialect that already supports CPU
 execution.
 
 Graphics is not another Dialect. It defines the language neutral hosting and
 frame submission boundary between completed Scene state and a rendering
-backend. Scene keeps exact Field and Object identity, Render and Shader keep
+backend. Scene keeps exact Field and Object identity, Pipeline and Shader keep
 their semantic contracts, and target resources remain with the backend
-consumer. The ordinary Graphics Package publishes one Placement2D requirement,
-a higher order Interface proves that a concrete Library Object supplies the
-Placement2D public state without turning Placement2D into a base Type.
-Placement2D, Children2D, and Drawable2D remain separate runtime Interfaces for
-placement, child traversal, and draw extraction.
+consumer. The ordinary Graphics Package publishes one `DrawableUI` Library
+Interface containing Material, transform, visibility, and z-order state. A
+concrete `implementation DrawableUI` materializes those Fields once and proves
+the exact higher-order relation without copying declarations or relying on
+structural matching. Child traversal remains independent of draw capability.
 
 Image owns decoded pixels while Texture2D gives those pixels stable rendering
-identity. Sprite stores one explicit
-`Implementation[Render::TexturedQuad2D]`, retaining the concrete Shader
-Instance and its ABI Projection without copying parameter state into Sprite.
-An authored Shader resource pairs its configured CPU carrier Type with the GPU
-sampling Type after `resource`, so the generated Instance owns real material
-values without making the Stage execute over runtime carriers. Each frame
-copies current parameter bytes and transforms, projects the ordered resource
-Fields from that Instance, retains its worker local Texture2D resources, and
-refers to the selected compiled Program through an opaque process locator. The
-Vulkan Terminal owns both the SPIR V words and the matching CPU description
-derived from that completed Program.
+identity. Sprite implements DrawableUI and stores one explicit
+`Implementation[Pipeline]`, retaining the concrete Shader Material and its ABI
+Projection without copying parameter state into Sprite. An authored Shader
+resource pairs its configured CPU carrier Type with the GPU sampling Type after
+`resource`, so the generated Material owns real resource values without making
+the Stage execute over runtime carriers. Each frame copies current parameter
+bytes and transforms, projects the ordered resource Fields from that Material,
+retains its worker-local Texture2D resources, and refers to the selected
+compiled Program through an opaque process locator.
+
+Sprite also supplies its fixed unit-quad geometry, triangle-list topology,
+alpha blend, and vertex count. Those facts travel with the backend-neutral
+frame Batch instead of belonging to Pipeline or Shader. The Vulkan Terminal
+owns both the SPIR V words and matching CPU description derived from the
+completed Program, while the Vulkan runtime realizes native pipelines from a
+Program and the fixed state supplied by each draw.
 
 The standard Memory, Math, System, and Graphics surfaces are ordinary Packages.
 They use the same dependency, Library, Foreign, persistence, and native
@@ -532,8 +542,8 @@ correlation and compiled code remain separate Terminal products.
 The selected profile applies recursively to every actual embedded layer. A
 Complete Scene or Shader contains the complete query contract of its Library
 child. A Contract payload contains that child's public contract and artifact
-locators. Shader also retains its Render contract route, storage roles, bridge
-facts, and artifact locators. The neighboring Render member retains its own
+locators. Shader also retains its Pipeline contract route, storage roles, bridge
+facts, and artifact locators. The neighboring Pipeline member retains its own
 payload.
 
 A compiled Package behaves like a `foreign "TTX"` graph. Its restored owners
@@ -629,5 +639,5 @@ for a different job.
 * [Standard packages](../packages/ttx/README.md)
 * [Linker](linker/README.md)
 * [App](app/README.md), [Scene](scene/README.md),
-  [Render](render/README.md), [Shader](shader/README.md), and
+  [Pipeline](render/README.md), [Shader](shader/README.md), and
   [Foreign](foreign/README.md)

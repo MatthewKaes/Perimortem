@@ -5,12 +5,10 @@
 //
 dialect : Library;
 
-public Transform2DSource : alias = source("transform2d.ttx");
+public Transform2D : alias = source("transform2d.ttx")::Transform2D;
 
-public Transform2D : alias = Transform2DSource::Transform2D;
-
-// Placement2D lets Graphics read the transform and frame ordering of a real
-// Object without implying that the Object hosts children or contributes a draw.
+// Placement2D lets Graphics read the transform and frame ordering of a real Object
+// without implying that the Object hosts children or contributes a draw.
 public Placement2D : struct {
   public state transform : Transform2D;
   public state visible   : Bool = true;

@@ -19,9 +19,9 @@
 
 namespace Perimortem::Vulkan {
 
-// Pipelines realizes every generated Program selected by one application. It
-// caches target resources by their real Texture2D identity while frame Batches
-// keep exact program selection and parameter bytes.
+// Pipelines realizes each generated Program and draw-state pair selected by a
+// frame. It caches target resources by their real Texture2D identity while
+// frame Batches keep exact program selection, fixed state, and parameter bytes.
 class Pipelines {
  public:
   Pipelines(
@@ -52,6 +52,7 @@ class Pipelines {
   class Realization {
    public:
     const Description::Program* description = nullptr;
+    Perimortem::Graphics::Frame::Pipeline pipeline;
     ShaderProgram shader;
   };
 
@@ -62,8 +63,17 @@ class Pipelines {
   auto validate(
       Perimortem::Core::View::Vector<Perimortem::Graphics::Frame::Batch>
           batches) const -> Bool;
-  auto find_realization(const U8* locator) -> Realization*;
-  auto find_realization(const U8* locator) const -> const Realization*;
+  auto find_description(const U8* locator) const
+      -> const Description::Program*;
+  auto find_realization(
+      const U8* locator,
+      Perimortem::Graphics::Frame::Pipeline pipeline) -> Realization*;
+  auto find_realization(
+      const U8* locator,
+      Perimortem::Graphics::Frame::Pipeline pipeline) const
+      -> const Realization*;
+  auto realize_pipeline(
+      const Perimortem::Graphics::Frame::Batch& batch) -> Realization*;
   auto find_texture(const Perimortem::Graphics::Frame::Resource& resource)
       -> Texture*;
   auto realize_texture(const Perimortem::Graphics::Frame::Resource& resource)
@@ -83,6 +93,7 @@ class Pipelines {
 
   const Context& context;
   Perimortem::Core::View::Vector<Description::Program> descriptions;
+  VkFormat color_format = VK_FORMAT_UNDEFINED;
   VkDescriptorSetLayout descriptor_layout = VK_NULL_HANDLE;
   VkBuffer vertex_buffer = VK_NULL_HANDLE;
   VkDeviceMemory vertex_memory = VK_NULL_HANDLE;

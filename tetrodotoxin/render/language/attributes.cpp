@@ -139,7 +139,7 @@ auto Render::Language::Attributes::validate(
     View::Vector<Tetrodotoxin::Language::Attribute> attributes,
     Placement placement) -> Bool {
   // Attribute keys are intentionally open in the shared Definition model.
-  // Render closes only the keys it understands at this boundary, where it can
+  // Pipeline closes only the keys it understands at this boundary, where it can
   // also explain the declaration placement and value shape to the author.
   Bool valid = True;
   for (Count index = 0; index < attributes.get_size(); index++) {
@@ -148,7 +148,7 @@ auto Render::Language::Attributes::validate(
       if (attributes.get_data()[prior].get_key() == attribute.get_key()) {
         cursor.create_expression_error(
             attribute.get_anchor(),
-            "A Render declaration cannot repeat one Attribute key."_view);
+            "A Pipeline declaration cannot repeat one Attribute key."_view);
         valid = False;
       }
     }
@@ -159,17 +159,17 @@ auto Render::Language::Attributes::validate(
 
     if (!accepted) {
       auto report = cursor.create_report(attribute.get_anchor());
-      report << "Render Attribute `@"_view << key
+      report << "Pipeline Attribute `@"_view << key
              << "` does not apply to this declaration."_view;
       report.get_hint()
-          << "Move the Attribute to the Render fact that owns its meaning."_view;
+          << "Move the Attribute to the Pipeline fact that owns its meaning."_view;
       valid = False;
     } else if (!value_valid) {
       auto report = cursor.create_report(attribute.get_anchor());
-      report << "Render Attribute `@"_view << key
+      report << "Pipeline Attribute `@"_view << key
              << "` has the wrong value shape."_view;
       report.get_hint()
-          << "Use the scalar value described by the Render contract."_view;
+          << "Use the scalar value described by the Pipeline contract."_view;
       valid = False;
     }
   }
@@ -179,7 +179,7 @@ auto Render::Language::Attributes::validate(
   if (Bool(set) != Bool(slot)) {
     cursor.create_expression_error(
         set ? set->get_anchor() : slot->get_anchor(),
-        "A Render resource binding uses `@set` and `@slot` together."_view);
+        "A Pipeline resource binding uses `@set` and `@slot` together."_view);
     valid = False;
   }
 
@@ -188,7 +188,7 @@ auto Render::Language::Attributes::validate(
   if (location && builtin) {
     cursor.create_expression_error(
         builtin->get_anchor(),
-        "A Render Stage entry chooses either `@location` or `@builtin`."_view);
+        "A Pipeline Stage entry chooses either `@location` or `@builtin`."_view);
     valid = False;
   }
 

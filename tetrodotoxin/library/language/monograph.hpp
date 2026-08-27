@@ -53,6 +53,9 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto resolve_local_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract&;
 
+  auto resolve_lexical_context(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
   auto can_bind_source_type(Perimortem::Core::View::Bytes name) const -> Bool;
 
   auto retain_import(

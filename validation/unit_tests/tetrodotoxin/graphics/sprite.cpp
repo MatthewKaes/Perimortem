@@ -112,8 +112,8 @@ static auto configured_sprite() -> Perimortem::Graphics::Sprite {
   Perimortem::Graphics::Texture2D texture(image);
   Perimortem::Graphics::Sprite sprite;
   sprite.set_texture(texture);
-  sprite.set_shader(create_shader());
-  sprite.set_size_pixels({48, 32});
+  sprite.set_material(create_shader());
+  sprite.set_size({48, 32});
   Perimortem::Graphics::Transform2D transform;
   transform.translation = {4.0, 5.0};
   transform.scale_x = 2.0;
@@ -141,6 +141,16 @@ PERIMORTEM_UNIT_TEST(GraphicsSprite, projects_live_shader_parameters) {
   EXPECT_EQ(first->get_program().get_locator(), sprite_projection.program);
   EXPECT_EQ(first->get_size_pixels().width, U32(48));
   EXPECT_EQ(first->get_size_pixels().height, U32(32));
+  EXPECT_EQ(first->get_vertex_count(), Count(6));
+  EXPECT(
+      first->get_pipeline().get_geometry() ==
+      Perimortem::Graphics::Frame::Pipeline::Geometry::UnitQuad2D);
+  EXPECT(
+      first->get_pipeline().get_topology() ==
+      Perimortem::Graphics::Frame::Pipeline::Topology::TriangleList);
+  EXPECT(
+      first->get_pipeline().get_blend() ==
+      Perimortem::Graphics::Frame::Pipeline::Blend::Alpha);
   EXPECT_EQ(selected_placement->get_z_index(), S64(6));
   EXPECT_EQ(selected_placement->get_transform().get_x(), R64(4.0));
   EXPECT_EQ(selected_placement->get_transform().get_y(), R64(5.0));
@@ -150,7 +160,7 @@ PERIMORTEM_UNIT_TEST(GraphicsSprite, projects_live_shader_parameters) {
       Data::cast<const SpriteParameters>(first->get_inputs().get_data());
   EXPECT_EQ(first_parameters->tone[1], R32(0.5));
 
-  Object<> instance = sprite.get_shader().get_object();
+  Object<> instance = sprite.get_material().get_object();
   auto* live = Data::cast<SpriteParameters>(instance.get_payload());
   live->tone[1] = 0.125f;
   auto second = drawable.draw(sprite.get_object(), 0);
@@ -168,7 +178,7 @@ PERIMORTEM_UNIT_TEST(GraphicsSprite, projects_generated_material_resources) {
       Perimortem::Graphics::Pixel::from_rgba(0x40, 0x80, 0xC0, 0xFF));
   Perimortem::Graphics::Image image(Data::take(pixels), 1, 1);
   Perimortem::Graphics::Texture2D noise(image);
-  sprite.set_shader(create_blended_shader(noise));
+  sprite.set_material(create_blended_shader(noise));
 
   const Drawable2D& drawable = SpriteDrawable2D::get_runtime();
   auto draw = drawable.draw(sprite.get_object(), 0);

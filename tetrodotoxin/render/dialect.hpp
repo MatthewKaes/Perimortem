@@ -14,7 +14,7 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
   TTX_CONTRACT(Dialect, Tetrodotoxin::Language::Dialect);
 
-  Dialect(Perimortem::Core::View::Bytes name = "Render"_view)
+  Dialect(Perimortem::Core::View::Bytes name = "Pipeline"_view)
       : Tetrodotoxin::Language::Dialect(name) {}
 
   auto interpret(

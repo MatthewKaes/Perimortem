@@ -16,8 +16,10 @@ namespace Tetrodotoxin::Package::Archive {
 
 // Emits one canonical Package Archive from a validated value. Resource free
 // values preserve Format 2, while a Package that selected Resources uses
-// Format 3 and carries each route and byte value once. Writer measures the
-// complete envelope before allocation and preserves every supplied list order.
+// Format 3 and carries each route and byte value once. Format 5 carries the
+// source graph with each Import Type's Visibility and chained route. Writer
+// measures the complete envelope before allocation and preserves every
+// supplied list order.
 class Writer {
  public:
   class GraphMember {

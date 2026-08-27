@@ -4,7 +4,8 @@
 // Exercises ordered package member resource loading.
 dialect : Package;
 
-public SharedA     : alias = source("./shared_a.ttx");
+private SharedA : alias = source("./shared_a.ttx");
 public SharedAgain : alias = source("nested/../shared_a.ttx");
-public SharedB     : alias = source("shared_b.ttx");
-public SharedC     : alias = source("nested/shared_c.ttx");
+public SharedB : alias = source("shared_b.ttx");
+public SharedC : alias = source("nested/shared_c.ttx");
+public Deep : alias = source("shared_a.ttx")::Outer::Inner;

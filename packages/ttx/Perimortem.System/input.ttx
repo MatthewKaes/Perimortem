@@ -4,9 +4,8 @@
 // Immutable keyboard, pointer, and mouse input for one application frame.
 dialect : Library;
 
-public Math      : alias = package(.name = "Perimortem.Math", .version = "1.0");
-public KeySource : alias = source("key.ttx");
-
+public Math : alias = package(.name = "Perimortem.Math", .version = "1.0");
+private KeySource : alias = source("key.ttx");
 using KeySource;
 
 foreign "C" {

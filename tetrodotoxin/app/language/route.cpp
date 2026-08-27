@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/app/language/route.hpp"
 
+#include "tetrodotoxin/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 
@@ -25,8 +26,15 @@ static auto resolve_route(View::Bytes spelling, const Abstract& context)
 
     View::Bytes segment = spelling.slice(start, index - start);
     BAIL_IF(segment.is_empty());
-    const Abstract& candidate =
-        selected.get().resolve_context(segment).resolve();
+    const Abstract& queried = selected.get().visit<Language::Monograph>(
+        [&](const Language::Monograph& monograph) -> const Abstract& {
+          return start == 0 ? monograph.resolve_lexical_context(segment)
+                            : monograph.resolve_context(segment);
+        },
+        [&](const Abstract& context) -> const Abstract& {
+          return context.resolve_context(segment);
+        });
+    const Abstract& candidate = queried.resolve();
     BAIL_IF(candidate.is<Invalid>());
     selected = Reference<const Abstract>(candidate);
 

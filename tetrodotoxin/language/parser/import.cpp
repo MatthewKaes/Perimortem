@@ -21,7 +21,9 @@ auto Parser::Import::is_next(const Cursor& cursor) -> Bool {
     offset++;
   }
 
-  BAIL_IF(cursor.peek(S64(offset)).get_code() != Code::Type::Public);
+  Code::Type visibility = cursor.peek(S64(offset)).get_code().get_type();
+  BAIL_IF(
+      visibility != Code::Type::Public && visibility != Code::Type::Private);
   offset++;
   BAIL_IF(cursor.peek(S64(offset)).get_code() != Code::Type::Type);
   offset++;
@@ -129,9 +131,17 @@ static auto parse_package(
 
 auto Parser::Import::parse(Cursor& cursor, const Documentation& documentation)
     -> Option<Language::Import::Description> {
-  Token opening = cursor.require(
-      Code::Type::Public, "Imports require `public` visibility."_view);
-  BAIL_IF(!opening);
+  Token opening = cursor.current();
+  Visibility visibility = Visibility::Private;
+  if (cursor.matches(Code::Type::Public)) {
+    visibility = Visibility::Public;
+  } else if (!cursor.matches(Code::Type::Private)) {
+    cursor.create_token_error(
+        "Imports require `public` or `private` visibility."_view);
+    return {};
+  }
+  cursor.consume();
+
   Token name_token = cursor.require(
       Code::Type::Type,
       "Imports require one Type-shaped local Alias name."_view);
@@ -142,8 +152,24 @@ auto Parser::Import::parse(Cursor& cursor, const Documentation& documentation)
       Code::Type::Alias, "Imports require the `alias` qualifier."_view));
   BAIL_IF(!cursor.require(
       Code::Type::Assign,
-      "Import Aliases require `=` before their locator."_view));
+      "Import Types require `=` before their locator."_view));
 
+  View::Bytes name = name_token.caculate_text(cursor.get_source_text());
+  return parse_expression(
+      cursor, documentation, name, visibility, opening, name_token);
+}
+
+auto Parser::Import::parse_expression(
+    Cursor& cursor,
+    const Documentation& documentation,
+    View::Bytes name,
+    Visibility visibility,
+    Token opening,
+    Token name_token) -> Option<Language::Import::Description> {
+  BAIL_IF(name.is_empty());
+
+  Token expression_opening = cursor.current();
+  Token expression_closing;
   Language::Import::Kind kind = Language::Import::Kind::Source;
   View::Bytes locator;
   Version version;
@@ -151,17 +177,48 @@ auto Parser::Import::parse(Cursor& cursor, const Documentation& documentation)
     auto path = parse_source(cursor);
     BAIL_IF(!path);
     locator = *path;
+    expression_closing = cursor.peek(-1);
   } else {
     kind = Language::Import::Kind::Package;
     BAIL_IF(!parse_package(cursor, locator, version));
+    expression_closing = cursor.peek(-1);
+  }
+
+  Token route_opening;
+  Token route_closing;
+  while (cursor.matches(Code::Type::TypeAccessOp)) {
+    cursor.consume();
+    Token segment = cursor.require(
+        Code::Type::Type,
+        "Import Type access requires one Type name after `::`."_view);
+    BAIL_IF(!segment);
+    if (!route_opening) {
+      route_opening = segment;
+    }
+    route_closing = segment;
+    expression_closing = segment;
   }
 
   Token closing = cursor.require(
       Code::Type::EndStatement,
-      "Import Aliases require one terminating `;`."_view);
+      "Import Types require one terminating `;`."_view);
   BAIL_IF(!closing);
-  View::Bytes name = name_token.caculate_text(cursor.get_source_text());
+  View::Bytes route;
+  Anchor route_anchor = Anchor::create(Span());
+  if (route_opening) {
+    Count start = route_opening.get_offset();
+    Count end = Count(route_closing.get_offset()) + route_closing.get_size();
+    route = cursor.get_arena().proxy(
+        cursor.get_source_text().slice(start, end - start));
+    route_anchor =
+        Anchor::create(route_opening, Span(route_opening, route_closing));
+  }
+
   return Language::Import::Description(
-      name, documentation, Visibility::Public, kind, locator, version,
-      Anchor::create(name_token, Span(opening, closing)));
+      cursor.get_arena().proxy(name), documentation, visibility, kind, locator,
+      version, route,
+      Anchor::create(name_token ? name_token : opening, Span(opening, closing)),
+      Anchor::create(
+          expression_opening, Span(expression_opening, expression_closing)),
+      route_anchor);
 }

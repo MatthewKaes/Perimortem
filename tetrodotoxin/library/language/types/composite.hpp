@@ -50,7 +50,8 @@ class Composite : public Model::Type {
       Ttx::Concept::Abstract& binding,
       Category category,
       Bool published,
-      Bool persistent = True) -> Bool;
+      Bool persistent = True,
+      Bool prepend = False) -> Bool;
 
   auto resolve_binding(
       Perimortem::Core::View::Bytes route,
@@ -153,7 +154,7 @@ class Composite : public Model::Type {
 
   constexpr auto get_declaration_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
-    return definition.get_name_anchor();
+    return definition.get_declaration_anchor();
   }
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;

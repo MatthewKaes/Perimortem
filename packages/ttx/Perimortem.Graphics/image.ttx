@@ -6,15 +6,12 @@
 dialect : Library;
 
 public Math : alias = package(.name = "Perimortem.Math", .version = "1.0");
-public PixelSource : alias = source("pixel.ttx");
-public Size2DSource : alias = source("size2d.ttx");
-
-public Pixel  : alias = PixelSource::Pixel;
-public Size2D : alias = Size2DSource::Size2D;
+public Pixel : alias = source("pixel.ttx")::Pixel;
+public Size2D : alias = source("size2d.ttx")::Size2D;
 
 // Image is a decoded RGBA value whose immutable pixel Object is shared by value copies.
-// Its size and addressing policy give those pixels graphics meaning while Vulkan remains
-// responsible for device images and uploads.
+// Its size and addressing policy give those pixels graphics meaning while Vulkan
+// remains responsible for device images and uploads.
 public Image : struct {
   private state pixels      : Object[Pixel];
   private state pixel_count : U64;

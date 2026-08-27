@@ -363,10 +363,6 @@ auto Terminal::Application::Generator::create(
         << "), "_view << product.get_host_size() << ", "_view
         << product.get_parameters_offset() << ", "_view
         << product.get_parameters_size() << ", "_view
-        << product.get_vertex_count()
-        << ", Perimortem::Vulkan::Description::Topology::TriangleList, "
-           "Perimortem::Vulkan::Description::Blend::Alpha, "
-           "Perimortem::Vulkan::Description::Geometry::UnitQuad2D, "_view
         << (product.needs_float64() ? "true"_view : "false"_view)
         << "},\n"_view;
   }

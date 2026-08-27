@@ -38,6 +38,18 @@ auto Language::Monograph::retain_type(
   return declarations.retain_type(declaration, visibility);
 }
 
+auto Language::Monograph::retain_import(
+    const Tetrodotoxin::Language::Import::Description& description,
+    Option<Associations&> associations) -> Bool {
+  BAIL_IF(!declarations
+               .resolve_type(
+                   description.get_name(),
+                   Tetrodotoxin::Language::Visibility::Private)
+               .is<Invalid>());
+  return Tetrodotoxin::Language::Monograph::retain_import(
+      description, associations);
+}
+
 auto Language::Monograph::compose(Cursor& cursor) -> Bool {
   return declarations.link(cursor, *this);
 }
@@ -73,10 +85,13 @@ auto Language::Monograph::resolve_context(View::Bytes name) const
              : local;
 }
 
-auto Language::Monograph::resolve_local_context(View::Bytes name) const
+auto Language::Monograph::resolve_lexical_context(View::Bytes name) const
     -> const Abstract& {
-  return declarations.resolve_type(
+  const Abstract& local = declarations.resolve_type(
       name, Tetrodotoxin::Language::Visibility::Private);
+  return local.is<Invalid>()
+             ? Tetrodotoxin::Language::Monograph::resolve_lexical_context(name)
+             : local;
 }
 
 auto Language::Monograph::resolve_access(const Abstract&, View::Bytes name)

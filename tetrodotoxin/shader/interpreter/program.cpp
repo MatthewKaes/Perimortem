@@ -4,6 +4,7 @@
 #include "tetrodotoxin/shader/interpreter/program.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/language/parser/import.hpp"
 #include "tetrodotoxin/language/parser/type_reference.hpp"
 #include "tetrodotoxin/render/language/attributes.hpp"
 #include "tetrodotoxin/shader/interpreter/bridge.hpp"
@@ -16,39 +17,6 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 using namespace Tetrodotoxin::Shader;
-
-static auto has_program_shape(
-    Cursor& cursor,
-    Tetrodotoxin::Language::Definition& definition) -> Bool {
-  Token qualifier = definition.get_qualifier();
-  if (qualifier.caculate_text(cursor.get_source_text()) != "shader"_view) {
-    cursor.create_token_error(
-        qualifier,
-        "Shader Program definitions require the `shader` qualifier."_view);
-    return False;
-  }
-  if (definition.get_name_token().get_code() != Code::Type::Type) {
-    cursor.create_token_error(
-        definition.get_name_token(), "Shader Programs use one Type name."_view);
-    return False;
-  }
-  if (definition.get_visibility() !=
-      Tetrodotoxin::Language::Visibility::Public) {
-    cursor.create_token_error(
-        definition.get_visibility_token(),
-        "Shader Programs use public visibility."_view);
-    return False;
-  }
-  if (!definition.get_modifiers().is_empty() ||
-      !definition.get_attributes().is_empty()) {
-    cursor.create_expression_error(
-        definition.get_anchor(),
-        "Shader Programs do not accept modifiers or pipeline Attributes."_view,
-        "Keep fixed pipeline meaning on the selected Render contract."_view);
-    return False;
-  }
-  return True;
-}
 
 static auto begins_uniform(const Cursor& cursor) -> Bool {
   S64 offset = 0;
@@ -73,30 +41,72 @@ static auto begins_uniform(const Cursor& cursor) -> Bool {
 auto Interpreter::Program::parse(
     Shader::Language::Monograph& monograph,
     Cursor& cursor,
-    Tetrodotoxin::Language::Definition& definition) -> Bool {
-  BAIL_IF(!has_program_shape(cursor, definition));
-  Token qualifier = cursor.consume();
-  auto contract = Tetrodotoxin::Language::Parser::TypeReference::parse(cursor);
-  BAIL_IF(!contract);
-  BAIL_IF(!cursor.require(
-      Code::Type::ScopeStart, "Shader Program requires one `{}` body."_view));
+    const Documentation& documentation) -> Bool {
+  Token relationship = cursor.require(
+      Code::Type::Addressable,
+      "Shader sources begin with `implements source(...)`."_view);
+  BAIL_IF(!relationship);
+  if (relationship.caculate_text(cursor.get_source_text()) !=
+      "implements"_view) {
+    cursor.create_token_error(
+        relationship,
+        "Shader sources begin with `implements source(...)`."_view);
+    return False;
+  }
+  Option<Tetrodotoxin::Language::TypeReference> contract;
+  Anchor relationship_anchor = Anchor::create(Span());
+  if (cursor.matches(Code::Type::Source) ||
+      cursor.matches(Code::Type::Package)) {
+    auto import = Tetrodotoxin::Language::Parser::Import::parse_expression(
+        cursor, documentation, "Pipeline"_view,
+        Tetrodotoxin::Language::Visibility::Private, relationship);
+    BAIL_IF(
+        !import ||
+        !monograph.retain_import(*import, cursor.get_associations()));
+    contract = Tetrodotoxin::Language::TypeReference::create(
+        cursor.get_arena().proxy("Pipeline"_view),
+        import->get_expression_anchor());
+    relationship_anchor = import->get_declaration_anchor();
+  } else {
+    contract = Tetrodotoxin::Language::Parser::TypeReference::parse(cursor);
+    BAIL_IF(!contract);
+    Token closing = cursor.require(
+        Code::Type::EndStatement,
+        "Shader `implements` relationships require one trailing `;`."_view);
+    BAIL_IF(!closing);
+    relationship_anchor =
+        Anchor::create(relationship, Span(relationship, closing));
+  }
 
+  auto& definition = Tetrodotoxin::Language::Definition::create_synthetic(
+      cursor.get_arena(), documentation, monograph.edit_library().get_source(),
+      "Program"_view, Tetrodotoxin::Language::Visibility::Private,
+      relationship_anchor);
   auto& program = Shader::Language::Program::create_authored(
       cursor.get_arena(), definition, *contract, monograph);
   BAIL_IF(!program.initialize_runtime_surface());
+  cursor.get_associations().create(
+      relationship_anchor, program.get_parameters());
+  cursor.get_associations().create(
+      relationship_anchor, program.get_instance());
 
   // Program enters the real Library child before its body is interpreted. Its
   // generated runtime Types and authored Stage bodies then share the ordinary
   // Library completion barriers.
   BAIL_IF(!monograph.edit_library().get_source().retain_definition(
-      program, Library::Language::Types::Composite::Category::Type, True));
+      program, Library::Language::Types::Composite::Category::Type, False));
   BAIL_IF(!monograph.retain_program(program));
-  cursor.get_associations().create(definition.get_name_anchor(), program);
 
-  while (!cursor.matches(Code::Type::ScopeEnd) &&
-         !cursor.matches(Code::Type::Terminal)) {
+  while (!cursor.matches(Code::Type::Terminal)) {
     const Documentation& documentation =
         Tetrodotoxin::Language::Parser::Comment::parse(cursor);
+    if (Interpreter::Stage::is_next(cursor)) {
+      if (!Interpreter::Stage::parse(program, cursor, documentation)) {
+        cursor.recover_to_scoped_statement();
+      }
+      continue;
+    }
+
     Bool uniform = begins_uniform(cursor);
     Abstract& host = uniform ? static_cast<Abstract&>(program.edit_parameters())
                              : static_cast<Abstract&>(program);
@@ -107,9 +117,7 @@ auto Interpreter::Program::parse(
       Token member_qualifier = member_definition->get_qualifier();
       View::Bytes qualifier_name =
           member_qualifier.caculate_text(cursor.get_source_text());
-      if (member_qualifier.get_code() == Code::Type::Func) {
-        parsed = Interpreter::Stage::parse(program, cursor, *member_definition);
-      } else if (qualifier_name == "bridge"_view) {
+      if (qualifier_name == "bridge"_view) {
         parsed =
             Interpreter::Bridge::parse(monograph, cursor, *member_definition);
       } else if (qualifier_name == "uniform"_view) {
@@ -128,10 +136,6 @@ auto Interpreter::Program::parse(
       cursor.recover_to_scoped_statement();
     }
   }
-  Token closing = cursor.require(
-      Code::Type::ScopeEnd, "Shader Program requires one closing `}`."_view);
-  BAIL_IF(!closing);
-  Bool completed = definition.complete(qualifier, closing);
   program.complete_authored_body();
-  return completed;
+  return True;
 }

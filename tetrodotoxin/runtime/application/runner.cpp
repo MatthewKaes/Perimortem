@@ -126,7 +126,7 @@ auto Runtime::Application::Runner::run(const Product& product) -> int {
     }
     Tetrodotoxin::Graphics::Runtime::CompiledChildren2D scene_children(
         active_scene->graphics_child_count, active_scene->graphics_children);
-    auto submission = Tetrodotoxin::Graphics::Runtime::Submission::create(
+    auto submission = Tetrodotoxin::Graphics::Runtime::PassUI::create(
         session.get_active_object(), scene_children.get_children(),
         graphics_placements.get_view(), graphics_children.get_view(),
         graphics_drawables.get_view());

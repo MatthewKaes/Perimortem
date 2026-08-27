@@ -3,7 +3,6 @@
 
 #include "tetrodotoxin/shader/interpreter/source.hpp"
 
-#include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/shader/interpreter/program.hpp"
 
@@ -15,14 +14,13 @@ using namespace Tetrodotoxin::Shader;
 auto Interpreter::Source::parse(
     Shader::Language::Monograph& monograph,
     Cursor& cursor) -> void {
-  while (!cursor.matches(Code::Type::Terminal)) {
-    const Documentation& documentation =
-        Tetrodotoxin::Language::Parser::Comment::parse(cursor);
-    auto definition = Tetrodotoxin::Language::Definition::parse(
-        cursor, documentation, monograph.edit_library().get_source());
-    if (!definition ||
-        !Interpreter::Program::parse(monograph, cursor, *definition)) {
-      cursor.recover_to_statement();
-    }
+  const Documentation& documentation =
+      Tetrodotoxin::Language::Parser::Comment::parse(cursor);
+  if (!Interpreter::Program::parse(monograph, cursor, documentation)) {
+    cursor.recover_to_statement();
+  }
+  if (!cursor.matches(Code::Type::Terminal)) {
+    cursor.create_token_error(
+        "Shader sources declare exactly one `implements` relationship."_view);
   }
 }

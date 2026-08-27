@@ -9,6 +9,8 @@
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
+#include "tetrodotoxin/library/language/types/implementation.hpp"
+#include "tetrodotoxin/library/language/types/interface.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/object_storage.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
@@ -83,6 +85,22 @@ static auto reserve_value(
   if (access) {
     return reserve_value(program, access->get_element_type());
   }
+  auto implementation = type.select<Types::Implementation>();
+  if (implementation) {
+    auto interface =
+        implementation->get_requirement().resolve().select<Types::Interface>();
+    if (interface) {
+      for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
+           interface->get_addressables(
+               Tetrodotoxin::Language::Visibility::Public)) {
+        auto addressable = candidate.get().select<Model::Addressable>();
+        if (!addressable || !addressable->contributes_to_instance_layout() ||
+            !reserve_value(program, addressable->get_type())) {
+          return False;
+        }
+      }
+    }
+  }
   auto storage = type.select<Types::ObjectStorage>();
   if (storage) {
     return reserve_value(program, storage->get_element_type());
@@ -143,6 +161,22 @@ static auto complete_value(
   auto access = type.select<Types::Access>();
   if (access && !complete_value(program, access->get_element_type())) {
     return False;
+  }
+  auto implementation = type.select<Types::Implementation>();
+  if (implementation) {
+    auto interface =
+        implementation->get_requirement().resolve().select<Types::Interface>();
+    if (interface) {
+      for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
+           interface->get_addressables(
+               Tetrodotoxin::Language::Visibility::Public)) {
+        auto addressable = candidate.get().select<Model::Addressable>();
+        if (!addressable || !addressable->contributes_to_instance_layout() ||
+            !complete_value(program, addressable->get_type())) {
+          return False;
+        }
+      }
+    }
   }
   auto storage = type.select<Types::ObjectStorage>();
   if (storage && !complete_value(program, storage->get_element_type())) {

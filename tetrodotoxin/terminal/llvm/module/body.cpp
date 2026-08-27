@@ -373,13 +373,17 @@ auto Llvm::Module::Body::take_block_scope(const Ttx::Concept::Abstract& owner)
 auto Llvm::Module::Body::publish_loop(
     const Ttx::Concept::Abstract& owner,
     LLVMBasicBlockRef break_target,
-    LLVMBasicBlockRef continue_target) -> Bool {
-  if (find_loop(owner) || !break_target || !continue_target) {
+    LLVMBasicBlockRef continue_target,
+    Count lifetime_depth) -> Bool {
+  if (
+      find_loop(owner) || !break_target || !continue_target ||
+      lifetime_depth > get_storage_depth()) {
     return False;
   }
 
-  loops.insert(
-      LoopTargets(owner, break_target, continue_target, get_storage_depth()));
+  loops.insert(LoopTargets(
+      owner, break_target, continue_target, get_storage_depth(),
+      lifetime_depth));
   return True;
 }
 

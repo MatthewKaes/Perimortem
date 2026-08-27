@@ -4,7 +4,7 @@
 // Perimortem Memory Package.
 dialect : Package;
 
-public DynamicSource : alias = source("dynamic.ttx");
+private DynamicSource : alias = source("dynamic.ttx");
 
 public Dynamic : namespace {
   public Bytes : alias = DynamicSource::Bytes;

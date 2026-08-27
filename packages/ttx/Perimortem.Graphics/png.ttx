@@ -5,17 +5,15 @@
 //
 dialect : Library;
 
-public ImageSource : alias = source("image.ttx");
-
-public Image : alias = ImageSource::Image;
+public Image : alias = source("image.ttx")::Image;
 
 foreign "C" {
   public func perimortem_graphics_png_decode[.bytes : View[U8]] -> Option[Image];
 }
 
-// PNG names the encoded format at the native boundary. Image remains the
-// decoded graphics value, so another codec can produce the same Type without
-// adding format behavior to Image itself.
+// PNG names the encoded format at the native boundary. Image remains the decoded
+// graphics value, so another codec can produce the same Type without adding format
+// behavior to Image itself.
 public PNG : struct {
   // Decodes one PNG and reports malformed or unsupported input as absence.
   public decode : func = [.bytes : View[U8]] -> Option[

@@ -36,7 +36,7 @@ and presentation surface contracts.
 
 Application startup selects one backend. It may pass the Window's opaque
 Presentation to Vulkan, but Vulkan does not take ownership of the window or
-event loop. Graphics, Render, and Shader remain independent of the host
+event loop. Graphics, Pipeline, and Shader remain independent of the host
 platform.
 
 ## Input snapshots

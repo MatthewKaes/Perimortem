@@ -156,7 +156,7 @@
         },
         {
           "name": "keyword.other.tetrodotoxin",
-          "match": "\\b(dialect|foreign|func|self|new|object|struct|enum|alias|namespace|emit|source|package|using|stage|resource|shader|bridge|runtime|lifecycle|initial|on|replace|push|pop|exit|signal)\\b"
+          "match": "\\b(dialect|foreign|func|self|new|object|struct|interface|implementation|enum|alias|namespace|emit|source|package|using|implements|stage|resource|uniform|read|write|bridge|runtime|lifecycle|initial|on|replace|push|pop|exit|signal)\\b"
         }
       ]
     },

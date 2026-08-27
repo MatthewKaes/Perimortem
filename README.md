@@ -16,7 +16,7 @@ finished products.
 
 A package manifest can describe composition. Library source can express
 executable behavior shared by CPU and GPU Terminals. An App can choose startup
-policy. Scenes can own interactive state. Render contracts and Shaders can meet
+policy. Scenes can own interactive state. Pipelines and Shaders can meet
 around GPU work. Each language keeps the ideas that make it useful, and
 Tetrodotoxin connects the meaning they genuinely share.
 
@@ -27,7 +27,7 @@ Tetrodotoxin connects the meaning they genuinely share.
 Imagine adding a scene language to an engine without also inventing a new type
 system, package manager, language server, build driver, and shader bridge. The
 scene language should be able to own lifecycle and signals, reuse ordinary
-Library code for behavior, and meet Render and Shader around graphics. The
+Library code for behavior, and meet Pipeline and Shader around graphics. The
 editor should follow those relationships as naturally as the build does.
 
 That is the kind of composition Tetrodotoxin is designed to make practical.
@@ -45,7 +45,7 @@ The included Dialects show how that grows into a complete platform:
 * **Library** provides reusable executable code, data, and native interfaces
 * **App** describes how a finished program starts and moves through its life
 * **Scene** brings interactive state, lifecycle, signals, and graphics together
-* **Render** defines the contract shared by a program and its GPU stages
+* **Pipeline** defines the interface shared by a draw provider and GPU stages
 * **Shader** implements that contract for GPU execution
 * **Foreign** connects authored CPU code with an external ABI
 
@@ -144,7 +144,7 @@ You can start with the part closest to what you want to build:
   Dialect joins the platform
 * [Library](tetrodotoxin/library/README.md) introduces the reusable execution language
 * [App](tetrodotoxin/app/README.md), [Scene](tetrodotoxin/scene/README.md),
-  [Render](tetrodotoxin/render/README.md), and
+  [Pipeline](tetrodotoxin/render/README.md), and
   [Shader](tetrodotoxin/shader/README.md) show how an application can span
   several domains
 * [TTX](ttx/README.md) explains the shared semantic vocabulary and the

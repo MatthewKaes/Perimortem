@@ -11,7 +11,7 @@ PACKAGE_DIALECT : 'Package';
 LIBRARY_DIALECT : 'Library';
 APP_DIALECT     : 'App';
 SCENE_DIALECT   : 'Scene';
-RENDER_DIALECT  : 'Render';
+PIPELINE_DIALECT : 'Pipeline';
 SHADER_DIALECT  : 'Shader';
 
 WINDOWED_PROFILE : 'Windowed';
@@ -52,6 +52,8 @@ USING     : 'using';
 ENUM      : 'enum';
 STRUCT    : 'struct';
 OBJECT    : 'object';
+INTERFACE : 'interface';
+IMPLEMENTATION : 'implementation';
 FOREIGN   : 'foreign';
 RUNTIME   : 'runtime';
 LIFECYCLE : 'lifecycle';

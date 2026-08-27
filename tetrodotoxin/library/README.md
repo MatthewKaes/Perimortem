@@ -333,7 +333,7 @@ Fixed[U8, 64]
 View[U8]
 View[Fixed[U8, 4]]
 Access[U8]
-Implementation[Render::TexturedQuad2D]
+Implementation[Graphics::Pipeline::TexturedQuad2D]
 Range[U64]
 Option[View[U8]]
 Result[View[U8], ParseError]
@@ -655,7 +655,7 @@ real child directly. Shader Bridges retain exact Library Type edges without
 copying them.
 
 Scene and Shader remain responsible for the parts of their languages that are
-not Library code. Scene owns `emit`, while Shader owns Render contracts, storage
+not Library code. Scene owns `emit`, while Shader owns Pipeline contracts, storage
 roles, and Bridges. Expressions and ordinary statements still follow Library
 rules without making Library depend on either outer Dialect.
 
@@ -1304,7 +1304,7 @@ become another semantic model and never flow back into Library.
 The LLVM Terminal currently produces CPU objects and reviewable LLVM IR from a
 top level Library or a real Library child selected by another Dialect. The
 Vulkan Terminal walks the same Library execution graph from Shader while using
-the outer Render contracts, storage roles, and Bridges to choose GPU operations
+the outer Pipeline contracts, storage roles, and Bridges to choose GPU operations
 and their matching CPU bindings.
 
 The ABI Terminal owns the shared C representation, exported symbols, and native

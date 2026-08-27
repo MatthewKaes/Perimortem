@@ -109,7 +109,7 @@ auto Shader::Language::Monograph::finalize_restored() -> Bool {
       Diagnostics::Log::Message<256> message(
           Diagnostics::Log::Level::Error, Diagnostics::Source());
       message << "Shader Archive Program `"_view << program.get().get_name()
-              << "` no longer satisfies its restored Render contract."_view;
+              << "` no longer satisfies its restored Pipeline contract."_view;
       valid = False;
     }
   }
@@ -131,8 +131,8 @@ auto Shader::Language::Monograph::get_layer(const Abstract& requested) const
 auto Shader::Language::Monograph::resolve_context(View::Bytes route) const
     -> const Abstract& {
   for (const Reference<Program>& program : programs.get_view()) {
-    if (program.get().get_name() == route) {
-      return program.get();
+    if (route == "Material"_view) {
+      return program.get().get_instance();
     }
   }
   for (const Reference<Bridge>& bridge : bridges.get_view()) {
@@ -144,5 +144,24 @@ auto Shader::Language::Monograph::resolve_context(View::Bytes route) const
   const Abstract& child = library.resolve_context(route);
   return child.is<Invalid>()
              ? Tetrodotoxin::Language::Monograph::resolve_context(route)
+             : child;
+}
+
+auto Shader::Language::Monograph::resolve_lexical_context(
+    View::Bytes route) const -> const Abstract& {
+  for (const Reference<Program>& program : programs.get_view()) {
+    if (route == "Material"_view) {
+      return program.get().get_instance();
+    }
+  }
+  for (const Reference<Bridge>& bridge : bridges.get_view()) {
+    if (bridge.get().get_name() == route) {
+      return bridge.get();
+    }
+  }
+
+  const Abstract& child = library.resolve_lexical_context(route);
+  return child.is<Invalid>()
+             ? Tetrodotoxin::Language::Monograph::resolve_lexical_context(route)
              : child;
 }

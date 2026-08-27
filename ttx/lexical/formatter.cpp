@@ -52,7 +52,6 @@ enum class AlignmentKind : U8 {
   StaticVariable,
   InstanceVariable,
   Local,
-  Assignment,
 };
 
 struct Unit {
@@ -250,6 +249,7 @@ class State {
         is_alias = True;
       } else if (
           code == Code::Type::Struct || code == Code::Type::Object ||
+          code == Code::Type::Interface || code == Code::Type::Implementation ||
           code == Code::Type::Namespace || code == Code::Type::Enum) {
         is_type = True;
       } else if (code == Code::Type::Const) {
@@ -628,12 +628,6 @@ class State {
         return AlignmentKind::Local;
       }
 
-      if (count_top_level(unit, Code::Type::Assign) == 1 &&
-          find_top_level(unit, Code::Type::Define) == Count(-1) &&
-          find_top_level(unit, Code::Type::AddAssign) == Count(-1) &&
-          find_top_level(unit, Code::Type::SubAssign) == Count(-1)) {
-        return AlignmentKind::Assignment;
-      }
       return AlignmentKind::None;
     }
 
@@ -678,34 +672,32 @@ class State {
 
     Alignment result;
     Count define_max = 0;
-    if (kind != AlignmentKind::Assignment) {
-      for (Count index = first; index < last; index++) {
-        Count define = find_top_level(units[index], Code::Type::Define);
-        if (define == Count(-1)) {
-          return {};
-        }
-        define_max = Math::max(
-            define_max,
-            measure(
-                find_unit_start(units[index].first, units[index].last),
-                define));
+    for (Count index = first; index < last; index++) {
+      Count define = find_top_level(units[index], Code::Type::Define);
+      if (define == Count(-1)) {
+        return {};
       }
+      define_max = Math::max(
+          define_max,
+          measure(
+              find_unit_start(units[index].first, units[index].last), define));
+    }
 
-      Bool eligible = define_max + (indent * 2) + 1 <= 60;
-      for (Count index = first; eligible && index < last; index++) {
-        Count content = find_unit_start(units[index].first, units[index].last);
-        Count define = find_top_level(units[index], Code::Type::Define);
-        Count prefix = measure(content, define);
-        Count padding = define_max - prefix;
-        Count full = measure(content, units[index].last);
-        Count unaligned = full + (indent * 2);
-        eligible = padding <= 8 && (unaligned > line_limit ||
-                                    unaligned + padding <= line_limit);
-      }
+    Bool eligible = define_max + (indent * 2) + 1 <= 60;
+    for (Count index = first; eligible && index < last; index++) {
+      Count content = find_unit_start(units[index].first, units[index].last);
+      Count define = find_top_level(units[index], Code::Type::Define);
+      Count prefix = measure(content, define);
+      Count padding = define_max - prefix;
+      Count full = measure(content, units[index].last);
+      Count unaligned = full + (indent * 2);
+      eligible = padding <= 8 &&
+                 (unaligned > line_limit ||
+                  unaligned + padding <= line_limit);
+    }
 
-      if (eligible) {
-        result.define = (indent * 2) + define_max + 1;
-      }
+    if (eligible) {
+      result.define = (indent * 2) + define_max + 1;
     }
 
     Count assign_max = 0;
@@ -725,8 +717,8 @@ class State {
       assign_max = Math::max(assign_max, prefix);
     }
 
-    Bool eligible = assign_max + (indent * 2) + 1 <= 60;
-    for (Count index = first; eligible && index < last; index++) {
+    Bool assign_eligible = assign_max + (indent * 2) + 1 <= 60;
+    for (Count index = first; assign_eligible && index < last; index++) {
       Count content = find_unit_start(units[index].first, units[index].last);
       Count assign = find_top_level(units[index], Code::Type::Assign);
       Count prefix = measure(content, assign);
@@ -739,11 +731,12 @@ class State {
       Count padding = assign_max - prefix;
       Count full = measure(content, units[index].last);
       Count unaligned = full + define_padding + (indent * 2);
-      eligible = padding <= 8 &&
-                 (unaligned > line_limit || unaligned + padding <= line_limit);
+      assign_eligible =
+          padding <= 8 &&
+          (unaligned > line_limit || unaligned + padding <= line_limit);
     }
 
-    if (eligible) {
+    if (assign_eligible) {
       result.assign = (indent * 2) + assign_max + 1;
     }
     return result;
@@ -790,9 +783,36 @@ class State {
     return left_name.get_size() < right_name.get_size();
   }
 
+  auto shader_stage_rank(const Unit& unit) const -> Option<U8> {
+    Count start = find_unit_start(unit.first, unit.last);
+    if (
+        start + 1 >= unit.last ||
+        tokens[start].get_code() != Code::Type::Type ||
+        tokens[start].caculate_text(source) != "Shader"_view ||
+        tokens[start + 1].get_code() != Code::Type::Addressable) {
+      return {};
+    }
+
+    View::Bytes name = tokens[start + 1].caculate_text(source);
+    if (name == "vertex"_view) {
+      return U8(0);
+    }
+    if (name == "fragment"_view) {
+      return U8(1);
+    }
+
+    return U8(2);
+  }
+
   auto precedes(const Unit& left, const Unit& right) const -> Bool {
     if (left.section != right.section) {
       return left.section < right.section;
+    }
+
+    auto left_stage = shader_stage_rank(left);
+    auto right_stage = shader_stage_rank(right);
+    if (left_stage && right_stage && *left_stage != *right_stage) {
+      return *left_stage < *right_stage;
     }
 
     return sorts_by_name(left.section) && name_precedes(left, right);
@@ -1439,7 +1459,9 @@ class State {
         return ScopeRole::Executable;
       }
 
-      if (code == Code::Type::Struct || code == Code::Type::Object) {
+      if (code == Code::Type::Struct || code == Code::Type::Object ||
+          code == Code::Type::Interface ||
+          code == Code::Type::Implementation) {
         return ScopeRole::Instance;
       }
 

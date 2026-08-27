@@ -110,11 +110,13 @@ class Body : public Emission {
         const Ttx::Concept::Abstract& owner,
         LLVMBasicBlockRef break_target,
         LLVMBasicBlockRef continue_target,
-        Count storage_depth)
+        Count storage_depth,
+        Count lifetime_depth)
         : owner(owner),
           break_target(break_target),
           continue_target(continue_target),
-          storage_depth(storage_depth) {}
+          storage_depth(storage_depth),
+          lifetime_depth(lifetime_depth) {}
 
     constexpr auto get_owner() const -> const Ttx::Concept::Abstract& {
       return owner.get();
@@ -130,11 +132,18 @@ class Body : public Emission {
 
     constexpr auto get_storage_depth() const -> Count { return storage_depth; }
 
+    // Continue preserves storage owned by the loop input, while every path
+    // through done releases back to the surrounding lifetime depth.
+    constexpr auto get_lifetime_depth() const -> Count {
+      return lifetime_depth;
+    }
+
    private:
     Ttx::Concept::Reference<const Ttx::Concept::Abstract> owner;
     LLVMBasicBlockRef break_target;
     LLVMBasicBlockRef continue_target;
     Count storage_depth;
+    Count lifetime_depth;
   };
 
   Body(
@@ -236,7 +245,8 @@ class Body : public Emission {
   auto publish_loop(
       const Ttx::Concept::Abstract& owner,
       LLVMBasicBlockRef break_target,
-      LLVMBasicBlockRef continue_target) -> Bool;
+      LLVMBasicBlockRef continue_target,
+      Count lifetime_depth) -> Bool;
 
   auto find_loop(const Ttx::Concept::Abstract& owner) const
       -> Perimortem::Core::Option<const LoopTargets&>;

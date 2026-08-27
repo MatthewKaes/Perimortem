@@ -19,7 +19,7 @@ namespace Tetrodotoxin::Package {
 // Owns contextual resource identities for one Package Monograph. Monograph
 // construction has its source transaction Arena but not physical Package
 // Storage, so Workspace connects this owner to confined Storage while it walks
-// the source-local Alias graph.
+// the source-local Type graph.
 //
 // While connected, complete resource routes read through that one
 // Storage and cache one Arena stable Resource or Error identity. The Package

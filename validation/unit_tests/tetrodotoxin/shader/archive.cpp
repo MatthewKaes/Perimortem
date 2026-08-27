@@ -50,7 +50,7 @@ static auto prove_profile(
     Test::TestResult& result) -> void {
   Environment::Toolchain toolchain;
   auto library = toolchain.install<Library::Dialect>("Library"_view);
-  auto render = toolchain.install<Render::Dialect>("Render"_view);
+  auto render = toolchain.install<Render::Dialect>("Pipeline"_view);
   ASSERT(library && render);
   ASSERT(toolchain.install<Package::Dialect>("Package"_view, *library));
   ASSERT(toolchain.install<Shader::Dialect>("Shader"_view, *library, *render));
@@ -61,27 +61,43 @@ static auto prove_profile(
   auto package = workspace.resolve_context("ShaderProduct"_view)
                      .resolve()
                      .select<Package::Language::Monograph>();
-  auto shader_member = package ? package->resolve_context("Shader"_view)
-                                     .resolve()
-                                     .select<Shader::Language::Monograph>()
-                               : Option<const Shader::Language::Monograph&>();
-  auto format = shader_member ? shader_member->resolve_context("Formats"_view)
-                                    .resolve()
-                                    .select<Render::Language::Monograph>()
-                              : Option<const Render::Language::Monograph&>();
-  auto program = shader_member
-                     ? shader_member->resolve_context("TestShader"_view)
-                           .resolve()
-                           .select<Shader::Language::Program>()
+  Option<const Shader::Language::Monograph&> shader_member;
+  if (package) {
+    Count source_count = workspace.get_package_source_count(*package);
+    for (Count index = 0; index < source_count; index++) {
+      auto source = workspace.get_package_source(*package, index);
+      auto selected =
+          source ? source->get_monograph().select<Shader::Language::Monograph>()
+                 : Option<const Shader::Language::Monograph&>();
+      auto selected_program =
+          selected && !selected->get_programs().is_empty()
+              ? Option<const Shader::Language::Program&>(
+                    selected->get_programs().get_data()[0].get())
+              : Option<const Shader::Language::Program&>();
+      if (
+          selected_program && !selected_program->get_uniforms().is_empty() &&
+          selected_program->get_uniforms()
+                  .get_data()[0]
+                  .get()
+                  .get_definition()
+                  .get_name() == "phase_milliseconds"_view) {
+        shader_member = *selected;
+        break;
+      }
+    }
+  }
+  auto program = shader_member && !shader_member->get_programs().is_empty()
+                     ? Option<const Shader::Language::Program&>(
+                           shader_member->get_programs().get_data()[0].get())
                      : Option<const Shader::Language::Program&>();
-  ASSERT(package && format && shader_member && program);
+  auto format = program ? program->get_contract()
+                        : Option<const Render::Language::Monograph&>();
+  ASSERT(package && shader_member && program && format);
   Count format_type_count =
       shader.get_profile() == Language::Persistence::Profile::Complete ? 2 : 1;
   EXPECT_EQ(format->get_types().get_size(), format_type_count);
 
-  auto contract = format->resolve_context("Simple"_view)
-                      .resolve()
-                      .select<Render::Language::Structure>();
+  const Render::Language::Monograph& contract = *format;
   auto selected_contract = program->get_contract();
   auto function = program
                       ->resolve_type_call(
@@ -89,19 +105,18 @@ static auto prove_profile(
                           Library::Language::Model::Type::Access::Static)
                       .resolve()
                       .select<Library::Language::Function>();
-  auto stage = contract ? contract->resolve_call(*contract, "fragment"_view)
-                              .resolve()
-                              .select<Render::Language::Stage>()
-                        : Option<const Render::Language::Stage&>();
-  ASSERT(contract && selected_contract);
-  EXPECT(&*contract == &*selected_contract);
+  auto stage = contract.resolve_call(contract, "fragment"_view)
+                   .resolve()
+                   .select<Render::Language::Stage>();
+  ASSERT(selected_contract);
+  EXPECT(&contract == &*selected_contract);
   ASSERT(function && stage);
   ASSERT_EQ(program->get_uniforms().get_size(), Count(1));
   EXPECT_EQ(program->get_parameters().get_layout().get_size(), Count(1));
   EXPECT(
       &program->get_instance_parameters_field().get_type() ==
       &program->get_parameters());
-  EXPECT(program->satisfies(*contract));
+  EXPECT(program->satisfies(contract));
   EXPECT_NOT(function->get_body());
   EXPECT_EQ(function->get_signature().get_parameters().get_size(), Count(1));
   EXPECT_EQ(function->get_signature().get_results().get_size(), Count(1));
@@ -141,7 +156,7 @@ PERIMORTEM_UNIT_TEST(ShaderArchive, rejects_corrupt_payloads) {
   Package::Dialect package(library);
   Count checked = 0;
   for (const Package::Archive::Member& member : archive->get_members()) {
-    if (member.get_dialect_name() != "Render"_view &&
+    if (member.get_dialect_name() != "Pipeline"_view &&
         member.get_dialect_name() != "Shader"_view) {
       continue;
     }
@@ -150,7 +165,7 @@ PERIMORTEM_UNIT_TEST(ShaderArchive, rejects_corrupt_payloads) {
     corrupted.get_access().get_data()[0] ^= U8(0xFF);
     Allocator::Arena graph_arena;
     auto restored =
-        member.get_dialect_name() == "Render"_view
+        member.get_dialect_name() == "Pipeline"_view
             ? render.restore(
                   graph_arena, corrupted,
                   Language::Persistence::Profile::Complete,
@@ -162,5 +177,5 @@ PERIMORTEM_UNIT_TEST(ShaderArchive, rejects_corrupt_payloads) {
     EXPECT_NOT(restored);
     checked++;
   }
-  EXPECT_EQ(checked, Count(2));
+  EXPECT_EQ(checked, Count(3));
 }

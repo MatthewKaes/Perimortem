@@ -45,10 +45,7 @@ auto Shader::Archive::Writer::encode(
   BAIL_IF(!writer.write(monograph.get_documentation()));
   for (const Reference<Shader::Language::Program>& retained :
        monograph.get_programs()) {
-    const Shader::Language::Program& program = retained.get();
-    if (!writer.public_only() || program.get_definition().is_published()) {
-      BAIL_IF(!writer.write(program));
-    }
+    BAIL_IF(!writer.write(retained.get()));
   }
   for (const Reference<Shader::Language::Bridge>& retained :
        monograph.get_bridges()) {
@@ -195,6 +192,7 @@ auto Shader::Archive::Writer::write(const Shader::Language::Program& program)
     auto binding_record = begin(Tag::Binding);
     BAIL_IF(!write(binding.get_field().get_name()));
     write(U8(binding.get_kind()));
+    write(U8(binding.get_access()));
     BAIL_IF(!finish(binding_record));
   }
 

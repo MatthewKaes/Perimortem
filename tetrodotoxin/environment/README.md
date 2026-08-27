@@ -5,7 +5,7 @@ long enough to meet. Environment provides that meeting place. Its `Workspace`
 opens related sources, keeps their semantic objects alive, and gives references
 between them one clear lifetime.
 
-A Workspace can bring Package, Library, App, Scene, Render, and Shader sources
+A Workspace can bring Package, Library, App, Scene, Pipeline, and Shader sources
 together without asking any of them to become the others. TTX supplies the
 shared identities, Types, Layouts, and Callables they use to cooperate.
 
@@ -60,7 +60,7 @@ compiler, resource tool, or Archive restorer installs Package together with the
 concrete Dialects it supports before creating any Workspace.
 
 Some Dialects require another Dialect. Scene requires Library, while Shader
-requires Library and Render. Toolchain creates each dependency once and gives
+requires Library and Pipeline. Toolchain creates each dependency once and gives
 the shared instance to every language that needs it. A missing dependency is a
 configuration error, and dependency loops are rejected.
 
@@ -94,16 +94,15 @@ link every fact the current graph can support. Finalization begins only when
 interpretation and linking complete without errors. An incomplete result stays
 available to editor queries but cannot enter a Terminal, Archive writer, or
 another immutable Terminal product. A Package root enters through Package
-import so Workspace can walk its complete source-local Alias graph as one
-island.
+import so Workspace can walk its complete reachable Type graph as one island.
 
 ## Package import
 
 A Package import begins with one Package source and its confined root. Common
-imports name every local source and external Package edge:
+imports name every local source and external Package Type:
 
 ```ttx
-public Splash : alias = source("scenes/splash.ttx");
+private Splash : alias = source("scenes/splash.ttx");
 public Graphics : alias =
     package(.name = "Perimortem.Graphics", .version = "1.0");
 ```
@@ -150,7 +149,7 @@ interpret to one optional Monograph in the source Arena
 ```
 
 Workspace owns the one staged multiple source operation and the local candidate
-Arena handles. It walks common source Alias edges, retains every Monograph it
+Arena handles. It walks common external Type edges, retains every Monograph it
 can create, and links the acyclic graph dependency first. This keeps the
 strongest definitions and inferred Types available while the user edits.
 Finalization waits until every member completes interpretation and linking
@@ -170,7 +169,7 @@ for a layer instead of looking for another Workspace name.
 During Archive reconstruction, the Package Monograph is created before its
 members. Every member receives that Package context, including the real Library
 child inside Scene. Shader relationships resolve the separately restored
-Library and Render members through that same context. Language dependencies
+Library and Pipeline members through that same context. Language dependencies
 still come from the Workspace. If a real child layer cannot be restored, its
 outer member also fails.
 

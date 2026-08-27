@@ -310,28 +310,39 @@ auto Types::Composite::publish_binding(
     Abstract& binding,
     Category category,
     Bool published,
-    Bool persistent) -> Bool {
+    Bool persistent,
+    Bool prepend) -> Bool {
   // The parser or importing provider supplies the category before publication.
   // Alias resolution is deliberately absent here: delayed graph completion
   // cannot change which namespace owns the local name.
   BAIL_IF(!names.bind(binding, category, published));
   switch (category) {
   case Category::Addressable:
-    addressables.insert(binding);
+    if (prepend) {
+      addressables.prepend(binding);
+    } else {
+      addressables.insert(binding);
+    }
     if (persistent) {
       declarations.insert(binding);
     }
     if (published) {
-      published_addressables.insert(binding);
+      if (prepend) {
+        published_addressables.prepend(binding);
+      } else {
+        published_addressables.insert(binding);
+      }
     }
     return True;
   case Category::Callable:
+    BAIL_IF(prepend);
     publish_callable(domain, binding, published);
     if (persistent) {
       declarations.insert(binding);
     }
     return True;
   case Category::Type:
+    BAIL_IF(prepend);
     types.insert(binding);
     if (persistent) {
       declarations.insert(binding);

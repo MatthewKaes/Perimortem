@@ -88,8 +88,13 @@ static auto resolve_context_route(
 
     Core::View::Bytes segment = route.slice(start, index - start);
     BAIL_IF(segment.is_empty());
+    const Ttx::Concept::Abstract& context = selected.get().resolve();
+    auto monograph = context.select<Tetrodotoxin::Language::Monograph>();
+    const Ttx::Concept::Abstract& queried =
+        monograph ? monograph->resolve_lexical_context(segment)
+                  : context.resolve_context(segment);
     selected = Ttx::Concept::Reference<const Ttx::Concept::Abstract>(
-        selected.get().resolve_context(segment).resolve());
+        queried.resolve());
     BAIL_IF(selected.get().is<Ttx::Concept::Invalid>());
     if (separator) {
       index++;
@@ -107,12 +112,23 @@ static auto resolve_source_route(
     Core::View::Bytes route) -> Core::Option<const Ttx::Concept::Abstract&> {
   Core::Option<const Ttx::Concept::Abstract&> selected =
       resolve_context_route(package, route);
+  if (selected) {
+    return *selected;
+  }
+
   Count count = workspace.get_package_source_count(package);
   for (Count index = 0; index < count; index++) {
     auto source = workspace.get_package_source(package, index);
-    auto candidate = source
-                         ? resolve_context_route(source->get_monograph(), route)
-                         : Core::Option<const Ttx::Concept::Abstract&>();
+    Core::View::Bytes candidate_route = route;
+    if (source && route.get_size() > source->get_name().get_size() + 2 &&
+        route.slice(0, source->get_name().get_size()) == source->get_name() &&
+        route[source->get_name().get_size()] == ':' &&
+        route[source->get_name().get_size() + 1] == ':') {
+      candidate_route = route.slice(source->get_name().get_size() + 2);
+    }
+    auto candidate =
+        source ? resolve_context_route(source->get_monograph(), candidate_route)
+               : Core::Option<const Ttx::Concept::Abstract&>();
     if (!candidate) {
       continue;
     }
@@ -258,7 +274,7 @@ auto Puffer::Application::run() const -> S32 {
   Memory::Allocator::Arena arena;
   Environment::Toolchain toolchain;
   auto library = toolchain.install<Library::Dialect>("Library"_view);
-  auto render = toolchain.install<Render::Dialect>("Render"_view);
+  auto render = toolchain.install<Render::Dialect>("Pipeline"_view);
   if (!library || !render ||
       !toolchain.install<Package::Dialect>("Package"_view, *library) ||
       !toolchain.install<App::Dialect>("App"_view) ||

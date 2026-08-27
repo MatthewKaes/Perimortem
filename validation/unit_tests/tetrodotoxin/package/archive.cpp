@@ -199,14 +199,14 @@ PERIMORTEM_UNIT_TEST(PackageArchive, typed_read_outcomes) {
           Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes future(golden());
-  set_u16(future, 4, 5);
+  set_u16(future, 4, 6);
   auto unsupported = Package::Archive::Reader::read(arena, future);
   EXPECT(returns_read_error(
       unsupported, Package::Archive::Reader::Error::UnsupportedFormat));
   EXPECT(
       Test::error_contains(
           "Package::Archive::Reader read failed. stage=header "
-          "byte_offset=4 expected_format=2_3_or_4 actual_format=5"_view,
+          "byte_offset=4 expected_format=2_3_4_or_5 actual_format=6"_view,
           Diagnostics::Log::Level::Debug));
 
   auto accepted = Package::Archive::Reader::read(arena, golden());
@@ -401,8 +401,8 @@ PERIMORTEM_UNIT_TEST(PackageArchive, graph_import_roundtrip) {
         "PackageSurface"_view, "Root"_view, Language::Import::Kind::Source,
         "Root"_view),
     Package::Archive::GraphImport(
-        "Root"_view, "Shared"_view, Language::Import::Kind::Source,
-        "Shared"_view),
+        "Root"_view, "Shared"_view, Language::Visibility::Private,
+        Language::Import::Kind::Source, "Shared"_view, {}, "Outer::Inner"_view),
     Package::Archive::GraphImport(
         "Root"_view, "Math"_view, Language::Import::Kind::Package,
         "Perimortem.Math"_view, Version(1, 0)),
@@ -413,7 +413,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, graph_import_roundtrip) {
   auto encoded = Package::Archive::Writer::write(archive);
   ASSERT(encoded);
   ASSERT(encoded->get_size() > 6);
-  EXPECT_EQ(encoded->get_view()[4], U8(4));
+  EXPECT_EQ(encoded->get_view()[4], U8(5));
 
   Allocator::Arena arena;
   auto decoded = Package::Archive::Reader::read(arena, *encoded);
@@ -425,6 +425,11 @@ PERIMORTEM_UNIT_TEST(PackageArchive, graph_import_roundtrip) {
       restored->get_imports().get_data()[0].get_local_name(), "Root"_view);
   EXPECT_TEXT(
       restored->get_imports().get_data()[1].get_target(), "Shared"_view);
+  EXPECT(
+      restored->get_imports().get_data()[1].get_visibility() ==
+      Language::Visibility::Private);
+  EXPECT_TEXT(
+      restored->get_imports().get_data()[1].get_route(), "Outer::Inner"_view);
   EXPECT(restored->get_imports().get_data()[2].get_version() == Version(1, 0));
 
   auto repeated = Package::Archive::Writer::write(*restored);
@@ -614,7 +619,7 @@ PERIMORTEM_UNIT_TEST(PackageArchive, envelope_boundaries) {
           Diagnostics::Log::Level::Debug));
 
   Dynamic::Bytes bad_format(golden());
-  set_u16(bad_format, 4, 5);
+  set_u16(bad_format, 4, 6);
   EXPECT(
       rejects(bad_format, Package::Archive::Reader::Error::UnsupportedFormat));
 

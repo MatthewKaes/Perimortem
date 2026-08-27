@@ -28,8 +28,9 @@ class Archive {
  public:
   // Defines the section vocabulary shared by Reader and Writer. Format 2 owns
   // the first seven sections. Format 3 adds Resources. Format 4 adds the exact
-  // source-local Import graph and requires the legacy Dependencies section to
-  // be empty.
+  // source-local Import graph. Format 5 retains Import Visibility and chained
+  // Type routes. Graph formats require the legacy Dependencies section to be
+  // empty.
   enum class Sections : U8 {
     Identity = 1,
     Version,

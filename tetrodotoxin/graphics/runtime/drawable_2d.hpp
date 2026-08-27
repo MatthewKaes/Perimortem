@@ -11,6 +11,7 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
 
+#include "perimortem/graphics/frame/pipeline.hpp"
 #include "perimortem/graphics/frame/program.hpp"
 #include "perimortem/graphics/frame/resource.hpp"
 #include "perimortem/graphics/size_2d.hpp"
@@ -34,6 +35,8 @@ class Drawable2D {
             Perimortem::Graphics::Frame::Resource>&& resources,
         Perimortem::Memory::Dynamic::Bytes&& inputs,
         Perimortem::Graphics::Size2D size_pixels,
+        Perimortem::Graphics::Frame::Pipeline pipeline,
+        Count vertex_count,
         S64 z_offset)
         : program(program),
           resources(
@@ -41,6 +44,8 @@ class Drawable2D {
                   Perimortem::Graphics::Frame::Resource>&&>(resources)),
           inputs(static_cast<Perimortem::Memory::Dynamic::Bytes&&>(inputs)),
           size_pixels(size_pixels),
+          pipeline(pipeline),
+          vertex_count(vertex_count),
           z_offset(z_offset) {}
 
     constexpr auto get_program() const -> Perimortem::Graphics::Frame::Program {
@@ -56,6 +61,11 @@ class Drawable2D {
     constexpr auto get_size_pixels() const -> Perimortem::Graphics::Size2D {
       return size_pixels;
     }
+    constexpr auto get_pipeline() const
+        -> Perimortem::Graphics::Frame::Pipeline {
+      return pipeline;
+    }
+    constexpr auto get_vertex_count() const -> Count { return vertex_count; }
     constexpr auto get_z_offset() const -> S64 { return z_offset; }
     auto take_resources() -> Perimortem::Memory::Dynamic::Vector<
         Perimortem::Graphics::Frame::Resource>&& {
@@ -72,6 +82,8 @@ class Drawable2D {
         resources;
     Perimortem::Memory::Dynamic::Bytes inputs;
     Perimortem::Graphics::Size2D size_pixels;
+    Perimortem::Graphics::Frame::Pipeline pipeline;
+    Count vertex_count = 0;
     S64 z_offset = 0;
   };
 

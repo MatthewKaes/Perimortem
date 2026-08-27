@@ -11,19 +11,19 @@ while rendering stays in Vulkan.
 
 For a Tetrodotoxin application, Vulkan receives every reachable compiled SPIR V
 module, one generated Program description per module locator, and the selected
-host surface. Shader describes executable flow and custom parameters. Render
-describes resources, base host inputs, Stage interfaces, topology, blending,
-geometry, and vertex count. Vulkan creates the device objects, records commands,
-synchronizes work, and presents the result.
+host surface. Shader describes executable flow and custom parameters. Pipeline
+describes resources, base host inputs, and ordered Stage interfaces. Each frame
+draw supplies topology, blending, geometry, and vertex count. Vulkan creates the
+device objects, records commands, synchronizes work, and presents the result.
 
 The Vulkan Description records beside `ShaderProgram` are target handoff values
-derived from completed Render, Shader, and SPIR-V products. They group borrowed
+derived from completed Pipeline, Shader, and SPIR-V products. They group borrowed
 module words and physical pipeline layouts while Vulkan creates its owned
 objects. Graphics submissions carry only the selected Program locator, copied
-draw inputs, transforms, and retained resources.
+draw inputs, transforms, retained resources, and backend-neutral fixed state.
 
 `Pipelines` realizes that generated table without changing it. It caches one
-ShaderProgram per exact locator, negotiates required device features such as
+ShaderProgram per exact locator and fixed-state selection, negotiates required device features such as
 Float64, uploads each retained Texture2D once, and records the already ordered
 draws through the selected pipeline. Host roles fill the reflected transform
 fields, while each Batch supplies the exact copied Parameters bytes expected by
@@ -33,6 +33,6 @@ Program descriptions and embedded words are generated products. Vulkan carries
 no checked in Shader source, SPIR V array, Shader specific push structure, or
 handwritten Program table.
 
-These Vulkan details never become Shader, Render, Library, or Package facts.
+These Vulkan details never become Shader, Pipeline, Library, or Package facts.
 Wayland and Win32 supply different presentation surfaces through System, while
 the renderer follows the same Graphics submission contract on either host.

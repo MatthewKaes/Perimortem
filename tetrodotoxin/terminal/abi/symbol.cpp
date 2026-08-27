@@ -155,14 +155,23 @@ Tetrodotoxin::Terminal::Abi::Symbol::Symbol(
   Bool published_identity = kind != Kind::Path;
   Core::View::Bytes package = unit.get_package();
   Core::View::Bytes member = unit.get_member();
-  if (kind == Kind::Projection) {
-    auto type = semantic.select<Ttx::Model::Type>();
-    auto binding =
-        type ? unit.find_type(*type) : Core::Option<const Unit::TypeBinding&>();
-    if (binding) {
-      package = binding->get_package();
-      member = binding->get_member();
-    }
+  auto selected_type = semantic.select<Ttx::Model::Type>();
+  const Ttx::Model::Type* type = selected_type ? &*selected_type : nullptr;
+  auto function = semantic.select<Tetrodotoxin::Library::Language::Function>();
+  if (function) {
+    type = &function->get_host();
+  }
+  auto field = semantic.select<Tetrodotoxin::Library::Language::Field>();
+  if (field) {
+    auto field_host =
+        field->get_definition().get_host().select<Ttx::Model::Type>();
+    type = field_host ? &*field_host : nullptr;
+  }
+  auto binding =
+      type ? unit.find_type(*type) : Core::Option<const Unit::TypeBinding&>();
+  if (binding) {
+    package = binding->get_package();
+    member = binding->get_member();
   }
   if (published_identity && !package.is_empty() && !member.is_empty()) {
     append_encoded_name(output, package);

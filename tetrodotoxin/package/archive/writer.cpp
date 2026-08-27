@@ -94,9 +94,10 @@ static auto measure_resource_record(const Package::Archive::Resource& resource)
 
 static auto measure_graph_import_record(
     const Package::Archive::GraphImport& import) -> U64 {
-  return 1 + measure_sized_bytes(import.get_importer()) +
+  return 2 + measure_sized_bytes(import.get_importer()) +
          measure_sized_bytes(import.get_local_name()) +
-         measure_sized_bytes(import.get_target()) + 4;
+         measure_sized_bytes(import.get_target()) +
+         measure_sized_bytes(import.get_route()) + 4;
 }
 
 // Measures all seven section payloads and the complete body with unsigned 64
@@ -226,7 +227,7 @@ auto Package::Archive::Writer::write(const Archive& archive)
   writer << "TTXA"_view;
   writer << U16(
       !archive.get_imports().is_empty()
-          ? 4
+          ? 5
           : (archive.get_resources().is_empty() ? 2 : 3));
   writer << U16(
       archive.get_profile() ==
@@ -338,11 +339,13 @@ auto Package::Archive::Writer::write(const Archive& archive)
     for (const Package::Archive::GraphImport& import : graph_imports) {
       writer << U32(measure_graph_import_record(import));
       writer << U8(import.get_kind());
+      writer << U8(import.get_visibility());
       write_sized_bytes(writer, import.get_importer());
       write_sized_bytes(writer, import.get_local_name());
       write_sized_bytes(writer, import.get_target());
       writer << import.get_version().get_major();
       writer << import.get_version().get_minor();
+      write_sized_bytes(writer, import.get_route());
     }
   }
 

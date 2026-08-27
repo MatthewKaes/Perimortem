@@ -77,7 +77,7 @@ conventions here.
 
 `Terminal::Spirv` follows the same architectural boundary. A SPIR V producer
 walks the Library Functions and Flow in Shader's real child together with their
-exact Render contract and Bridge edges. It does not need a translated Library
+exact Pipeline contract and Bridge edges. It does not need a translated Library
 IR or a second body language.
 
 The CPU and GPU Terminals can choose very different instruction representations.

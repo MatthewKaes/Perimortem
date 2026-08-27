@@ -89,7 +89,7 @@ auto Types::Source::link_restored(Abstract& interpretation_context) -> Bool {
     for (const Import& import : import_routes.get_view()) {
       Option<const Abstract&> selected;
       import.get_type_reference()
-          .resolve(interpretation_context)
+          .resolve_lexical(interpretation_context)
           .visit(
               [&](const Abstract& resolved) { selected = resolved; },
               [](const TypeReference::Failure&) {});
@@ -316,6 +316,13 @@ auto Types::Source::resolve_context(View::Bytes route) const
 
   const Abstract& local = resolve_public_context(route);
   return !local.is<Invalid>() ? local : get_host().resolve_context(route);
+}
+
+auto Types::Source::resolve_lexical_context(View::Bytes route) const
+    -> const Abstract& {
+  auto monograph = get_host().select<Language::Monograph>();
+  return monograph ? monograph->resolve_lexical_context(route)
+                   : Composite::resolve_lexical_context(route);
 }
 
 auto Types::Source::resolve_public_context(View::Bytes route) const

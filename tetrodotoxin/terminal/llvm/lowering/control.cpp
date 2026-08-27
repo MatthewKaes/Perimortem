@@ -82,7 +82,8 @@ static auto begin_iteration(
     auto entry = bindings.get_abstract(0);
     auto binding = entry ? entry->select<Ttx::Model::Addressable>()
                          : Core::Option<const Ttx::Model::Addressable&>();
-    return binding && body.begin_sequence(loop, *binding, loop.get_input());
+    return binding &&
+           body.begin_sequence(loop, *binding, type, loop.get_input());
   }
   auto enumeration = type.select<Types::Enumeration>();
   BAIL_IF(!enumeration);

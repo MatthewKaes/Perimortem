@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/language/type_reference.hpp"
 
+#include "tetrodotoxin/language/import.hpp"
+#include "tetrodotoxin/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/model/alias.hpp"
 
@@ -12,11 +14,17 @@ using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 
 static auto resolve_alias(const Abstract& binding) -> const Abstract& {
-  return binding.visit<Ttx::Model::Alias>(
-      [](const Ttx::Model::Alias& alias) -> const Abstract& {
-        return alias.resolve();
+  return binding.visit<Language::Import>(
+      [](const Language::Import& import) -> const Abstract& {
+        return import.resolve();
       },
-      [](const Abstract& direct) -> const Abstract& { return direct; });
+      [](const Abstract& candidate) -> const Abstract& {
+        return candidate.visit<Ttx::Model::Alias>(
+            [](const Ttx::Model::Alias& alias) -> const Abstract& {
+              return alias.resolve();
+            },
+            [](const Abstract& direct) -> const Abstract& { return direct; });
+      });
 }
 
 static auto segment_anchor(
@@ -40,7 +48,9 @@ static auto resolve_route(
     View::Bytes route,
     const Abstract& context,
     Option<Cursor&> cursor,
-    Anchor anchor) -> Option<const Ttx::Model::Type&> {
+    Anchor anchor,
+    Option<const Abstract&> supplied_root = {})
+    -> Option<const Ttx::Model::Type&> {
   const Abstract* selected = &context;
   Count start = 0;
   Count segment = 0;
@@ -53,9 +63,26 @@ static auto resolve_route(
     }
 
     View::Bytes name = route.slice(start, index - start);
-    const Abstract& queried = selected->resolve_context(name);
+    const Abstract* queried = nullptr;
+    if (segment == 0 && supplied_root) {
+      queried = &*supplied_root;
+    } else if (segment == 0) {
+      queried = &context.visit<Language::Monograph>(
+          [&](const Language::Monograph& monograph) -> const Abstract& {
+            return monograph.resolve_lexical_context(name);
+          },
+          [&](const Abstract&) -> const Abstract& {
+            return selected->resolve_context(name);
+          });
+    } else {
+      queried = &selected->resolve_context(name);
+    }
+
+    const Abstract& represented = resolve_alias(*queried);
     const Abstract* candidate =
-        queried.is<Ttx::Model::Type>() ? &queried : &queried.resolve();
+        queried->is<Ttx::Model::Type>() && !queried->is<Language::Import>()
+            ? queried
+            : &represented;
     if (candidate->is<Invalid>()) {
       if (cursor) {
         auto report = cursor->create_report(anchor);
@@ -69,7 +96,7 @@ static auto resolve_route(
     }
     if (cursor && !terminal) {
       cursor->get_associations().create(
-          segment_anchor(anchor, route, name), queried);
+          segment_anchor(anchor, route, name), *queried);
     }
     selected = candidate;
     segment++;
@@ -117,7 +144,28 @@ auto Language::TypeReference::resolve(Cursor& cursor, const Abstract& context)
   return resolve_route(route, context, cursor, anchor);
 }
 
+auto Language::TypeReference::resolve_selected(
+    Cursor& cursor,
+    const Abstract& selected_root) const -> Option<const Ttx::Model::Type&> {
+  return resolve_route(route, selected_root, cursor, anchor, selected_root);
+}
+
 auto Language::TypeReference::resolve_restored(const Abstract& context) const
     -> Option<const Ttx::Model::Type&> {
   return resolve_route(route, context, {}, anchor);
+}
+
+auto Language::TypeReference::resolve_restored_selected(
+    const Abstract& selected_root) const -> Option<const Ttx::Model::Type&> {
+  return resolve_route(route, selected_root, {}, anchor, selected_root);
+}
+
+auto Language::TypeReference::get_root() const -> View::Bytes {
+  for (Count index = 0; index + 1 < route.get_size(); index++) {
+    if (route[index] == ':' && route[index + 1] == ':') {
+      return route.slice(0, index);
+    }
+  }
+
+  return route;
 }

@@ -72,7 +72,18 @@ class Field : public Model::Addressable {
       Writability writability,
       const Model::Type& type) -> Field&;
 
+  static auto create_generated(
+      Perimortem::Memory::Allocator::Arena& domain,
+      Tetrodotoxin::Language::Definition& definition,
+      Writability writability,
+      TypeReference type_reference) -> Field&;
+
   auto retain_generated_type(const Model::Type& selected) -> Bool;
+
+  // An Interface default is already linked by its declaration owner before a
+  // concrete implementation adopts that exact Pack. The generated Field keeps
+  // one real initializer edge without reparsing or copying the expression.
+  auto retain_generated_initializer(const Field& requirement) -> Bool;
 
   auto link_declaration_type(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
@@ -147,7 +158,7 @@ class Field : public Model::Addressable {
 
   constexpr auto get_declaration_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
-    return definition.get_name_anchor();
+    return definition.get_declaration_anchor();
   }
 
   auto resolve_context(Perimortem::Core::View::Bytes route) const

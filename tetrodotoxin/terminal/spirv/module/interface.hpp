@@ -34,7 +34,8 @@ class Interface {
         Assembler::SpirV::StorageClass storage,
         U32 id,
         Count push_index = Count(-1),
-        U32 push_index_id = 0)
+        U32 push_index_id = 0,
+        Count location = Count(-1))
         : semantic(semantic),
           type(type),
           name(name),
@@ -42,7 +43,8 @@ class Interface {
           storage(storage),
           id(id),
           push_index(push_index),
-          push_index_id(push_index_id) {}
+          push_index_id(push_index_id),
+          location(location) {}
 
     Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic;
     Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
@@ -54,6 +56,7 @@ class Interface {
     U32 id;
     Count push_index;
     U32 push_index_id;
+    Count location;
   };
 
   class Stage {

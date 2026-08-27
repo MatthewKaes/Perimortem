@@ -40,6 +40,10 @@ class Declarations {
       -> Bool;
   auto link_restored(Ttx::Concept::Abstract& context) -> Bool;
 
+  static auto resolve_lexical_context(
+      const Ttx::Concept::Abstract& context,
+      Perimortem::Core::View::Bytes name) -> const Ttx::Concept::Abstract&;
+
   auto resolve_addressable(
       Perimortem::Core::View::Bytes name,
       Tetrodotoxin::Language::Visibility visibility) const

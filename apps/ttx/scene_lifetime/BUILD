@@ -21,7 +21,7 @@ ttx_package(
     graphics_bindings = [
         "Graphics::Sprite|tetrodotoxin_graphics_sprite_placement_2d||tetrodotoxin_graphics_sprite_drawable_2d",
     ],
-    graphics_placement = "Graphics::Placement2D",
+    graphics_placement = "Graphics::DrawableUI",
     manifest = "package.ttx",
     version = [
         1,

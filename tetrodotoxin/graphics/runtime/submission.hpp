@@ -17,10 +17,10 @@
 
 namespace Tetrodotoxin::Graphics::Runtime {
 
-// Submission collects one native Object tree into a stable draw sequence. The
-// configured capability arrays stay independent and share only the Type index
+// PassUI collects DrawableUI Objects into ascending z order for one frame. The
+// configured runtime providers stay independent and share only the Type index
 // emitted by the Scene compiler.
-class Submission {
+class PassUI {
  public:
   static auto create(
       Perimortem::Core::Object<> root,
@@ -28,7 +28,7 @@ class Submission {
       Perimortem::Core::View::Vector<const Placement2D*> placements,
       Perimortem::Core::View::Vector<const Children2D*> children,
       Perimortem::Core::View::Vector<const Drawable2D*> drawables)
-      -> Perimortem::Core::Option<Submission>;
+      -> Perimortem::Core::Option<PassUI>;
 
   constexpr auto get_batches() const
       -> Perimortem::Core::View::Vector<Perimortem::Graphics::Frame::Batch> {
@@ -74,7 +74,7 @@ class Submission {
       const Perimortem::Graphics::Frame::Transform& transform,
       S64 z_index) -> Bool;
 
-  explicit Submission(
+  explicit PassUI(
       Perimortem::Memory::Dynamic::Vector<Perimortem::Graphics::Frame::Batch>&&
           batches)
       : batches(

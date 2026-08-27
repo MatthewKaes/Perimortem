@@ -4,8 +4,8 @@
 // Window and Scene stack policy for the Scene Lifetime application.
 dialect : App;
 
-public Splash : alias = source("scenes/splash.ttx");
-public Title  : alias = source("scenes/title.ttx");
+private Splash : alias = source("scenes/splash.ttx");
+private Title : alias = source("scenes/title.ttx");
 
 // Opens the native presentation used by the Scene stack.
 runtime = Windowed {

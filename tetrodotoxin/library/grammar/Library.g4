@@ -40,7 +40,8 @@ typeDefinition
     | NAMESPACE structureBody
     | ENUM BRACKET_START typeReference BRACKET_END
       SCOPE_START enumerationCase* SCOPE_END
-    | (STRUCT | OBJECT) structureBody
+    | (STRUCT | OBJECT | INTERFACE) structureBody
+    | IMPLEMENTATION typeReference structureBody
     ;
 
 enumerationCase

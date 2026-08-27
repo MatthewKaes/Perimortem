@@ -469,7 +469,7 @@ def run_test():
         graphics_declaration),
         "qualified definition selects the Graphics Package alias")
 
-    shader_route = title_source.index("Blend::TexturedQuad2D::Instance")
+    shader_route = title_source.index("Blend::Material")
 
     blend_hover = send_hover(
         conn, title_uri, title_source, "Blend", 103, shader_route)
@@ -478,11 +478,11 @@ def run_test():
         blend_result.get("contents", {}).get("value", "")
         if blend_result else "")
     check("Blend : alias" in blend_markdown and
-          "Type Instance" not in blend_markdown,
+          "Type Material" not in blend_markdown,
           "qualified hover preserves the Blend Package alias")
     blend_definition = send_definition(
         conn, title_uri, title_source, "Blend", 104, shader_route)
-    blend_declaration = title_source.index("public Blend")
+    blend_declaration = title_source.index("private Blend")
     check(matches_location(
         blend_definition, title_uri, title_source, "Blend",
         blend_declaration),
@@ -505,6 +505,45 @@ def run_test():
     check(matches_file_start(package_definition, graphics_package_uri),
           "package locator definition opens the selected Package root")
 
+    with open(os.path.join(graphics_package_root, "package.ttx"),
+              "r", encoding="utf-8") as f:
+        graphics_package_source = f.read()
+    graphics_package_diagnostics = send_did_open(
+        conn, graphics_package_uri, graphics_package_source)
+    check(graphics_package_diagnostics is not None and
+          not graphics_package_diagnostics.get(
+              "params", {}).get("diagnostics", []),
+          "Graphics Package direct Import Types publish without diagnostics")
+    pixel_expression = graphics_package_source.index(
+        'source("pixel.ttx")::Pixel')
+    pixel_segment = graphics_package_source.index(
+        "Pixel", pixel_expression + len('source("pixel.ttx")::'))
+    pixel_definition = send_definition(
+        conn, graphics_package_uri, graphics_package_source, "Pixel", 109,
+        pixel_segment)
+    pixel_hover = send_hover(
+        conn, graphics_package_uri, graphics_package_source, "Pixel", 111,
+        pixel_segment)
+    pixel_hover_result = pixel_hover.get("result") if pixel_hover else None
+    pixel_markdown = (
+        pixel_hover_result.get("contents", {}).get("value", "")
+        if pixel_hover_result else "")
+    check("Type Pixel" in pixel_markdown,
+          "chained Import hover selects the external Type")
+    pixel_uri = "file://" + os.path.join(graphics_package_root, "pixel.ttx")
+    with open(os.path.join(graphics_package_root, "pixel.ttx"),
+              "r", encoding="utf-8") as f:
+        pixel_source = f.read()
+    pixel_declaration = pixel_source.index("public Pixel")
+    pixel_matches = matches_location(
+        pixel_definition, pixel_uri, pixel_source, "Pixel",
+        pixel_declaration)
+    if not pixel_matches:
+        print("  Chained Pixel definition:", pixel_definition)
+        print("  Chained Pixel hover:", pixel_hover)
+    check(pixel_matches,
+        "chained Import definition selects the external Type")
+
     icon_uri = "file://" + os.path.join(
         REPO_ROOT, "apps", "ttx", "scene_lifetime", "resources",
         "icon.png")
@@ -513,34 +552,24 @@ def run_test():
     check(matches_file_start(icon_definition, icon_uri),
           "embedded Resource definition opens the acquired file")
 
-    textured_hover = send_hover(
-        conn, title_uri, title_source, "TexturedQuad2D", 105, shader_route)
-    textured_result = textured_hover.get("result") if textured_hover else None
-    textured_markdown = (
-        textured_result.get("contents", {}).get("value", "")
-        if textured_result else "")
-    check("Type TexturedQuad2D" in textured_markdown and
-          "Type Instance" not in textured_markdown,
-          "qualified hover selects the app owned Shader Program")
-    textured_definition = send_definition(
-        conn, title_uri, title_source, "TexturedQuad2D", 106, shader_route)
-    textured_declaration = blend_source.index("public TexturedQuad2D")
-    textured_matches = matches_location(
-        textured_definition, blend_uri, blend_source, "TexturedQuad2D",
-        textured_declaration)
-    if not textured_matches:
-        print("  TexturedQuad2D definition:", textured_definition)
-    check(textured_matches,
-        "qualified definition selects the app owned Shader Program")
-
-    instance_hover = send_hover(
-        conn, title_uri, title_source, "Instance", 109, shader_route)
-    instance_result = instance_hover.get("result") if instance_hover else None
-    instance_markdown = (
-        instance_result.get("contents", {}).get("value", "")
-        if instance_result else "")
-    check("Type Instance" in instance_markdown,
-          "qualified hover keeps the terminal generated Instance Type")
+    material_hover = send_hover(
+        conn, title_uri, title_source, "Material", 105, shader_route)
+    material_result = material_hover.get("result") if material_hover else None
+    material_markdown = (
+        material_result.get("contents", {}).get("value", "")
+        if material_result else "")
+    check("Type Material" in material_markdown,
+          "qualified hover selects the app-owned Shader Material")
+    material_definition = send_definition(
+        conn, title_uri, title_source, "Material", 106, shader_route)
+    material_declaration = blend_source.index("implements")
+    material_matches = matches_location(
+        material_definition, blend_uri, blend_source, "implements",
+        material_declaration)
+    if not material_matches:
+        print("  Material definition:", material_definition)
+    check(material_matches,
+          "generated Material definition opens its owning Shader source")
     if SCENE_ONLY:
         conn.close()
         proc.terminate()
@@ -941,13 +970,14 @@ def run_test():
     print("\n--- Semantic tokens: Shader Library execution ---")
     shader_source = (
         "dialect : Shader;\n"
-        "public Test : shader Formats::Simple {\n"
-        "  public main : func = [] -> Count {\n"
-        "    if (true) {\n"
+        "implements source(\"pipeline.ttx\");\n"
+        "Shader fragment[] -> [] {\n"
+        "  while true {\n"
+        "    if true {\n"
         "      continue;\n"
         "    }\n"
-        "    return 0;\n"
         "  }\n"
+        "  return;\n"
         "}\n"
     )
     shader_uri = "file:///semantic-shader.ttx"

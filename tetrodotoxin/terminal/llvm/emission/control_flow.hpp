@@ -132,6 +132,7 @@ class ControlFlow {
   auto begin_sequence(
       const Ttx::Concept::Abstract& owner,
       const Ttx::Model::Addressable& binding,
+      const Ttx::Model::Type& input_type,
       const Ttx::Model::Pack& input) const -> Bool;
   auto begin_enumeration(
       const Ttx::Concept::Abstract& owner,

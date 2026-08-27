@@ -56,12 +56,7 @@ static auto slot_failure(
       }
     }
     if (!selected) {
-      return "The restored Stage Layout is missing one named Render slot."_view;
-    }
-    if (!Render::Language::Attributes::satisfies(
-            supplied.get_slot_attributes(*selected),
-            requirement.get_attributes())) {
-      return "The restored Stage Layout no longer retains its required Render Attributes."_view;
+      return "The restored Stage Layout is missing one named Pipeline slot."_view;
     }
   }
   return {};
@@ -96,12 +91,12 @@ class Evaluation {
 
 static auto evaluate(const Abstract& requirement, const Abstract& candidate)
     -> Evaluation {
-  auto render = requirement.resolve().select<Render::Language::Structure>();
+  auto render = requirement.resolve().select<Render::Language::Monograph>();
   auto shader = candidate.resolve().select<Shader::Language::Program>();
   if (!render || !shader) {
     return Evaluation(
         Ttx::Concept::Interface::Relation::Rejected,
-        "The restored relationship no longer selects Render and Shader owners."_view);
+        "The restored relationship no longer selects Pipeline and Shader owners."_view);
   }
 
   // Callable negotiation establishes shared value flow first. Render then adds
@@ -112,7 +107,7 @@ static auto evaluate(const Abstract& requirement, const Abstract& candidate)
     if (!required) {
       return Evaluation(
           Ttx::Concept::Interface::Relation::Rejected,
-          "The restored Render callable is not one Stage."_view);
+          "The restored Pipeline callable is not one Stage."_view);
     }
     auto supplied = find_function(*shader, required->get_name());
     if (!supplied) {
@@ -148,7 +143,7 @@ static auto evaluate(const Abstract& requirement, const Abstract& candidate)
     if (!required) {
       return Evaluation(
           Ttx::Concept::Interface::Relation::Rejected,
-          "The restored Render value is not one Binding."_view);
+          "The restored Pipeline value is not one Binding."_view);
     }
     auto supplied = find_binding(*shader, required->get_name());
     if (!supplied) {
@@ -157,20 +152,13 @@ static auto evaluate(const Abstract& requirement, const Abstract& candidate)
           "The restored Shader is missing one required Binding."_view);
     }
     const Library::Language::Field& field = supplied->get_field();
-    auto required_definition = required->get_definition();
     if (supplied->get_kind() != required->get_kind() ||
+        supplied->get_access() != required->get_access() ||
         !Evaluation::compatible_binding_type(
             required->get_type(), field.get_type())) {
       return Evaluation(
           Ttx::Concept::Interface::Relation::Rejected,
           "The restored Shader Binding no longer has its required kind and Type."_view);
-    }
-    if (required_definition && !Render::Language::Attributes::satisfies(
-                                   field.get_definition().get_attributes(),
-                                   required_definition->get_attributes())) {
-      return Evaluation(
-          Ttx::Concept::Interface::Relation::Rejected,
-          "The restored Shader Binding no longer satisfies its Render Attributes."_view);
     }
   }
   return Evaluation(Ttx::Concept::Interface::Relation::Satisfied);
@@ -195,8 +183,8 @@ auto Shader::Language::Contract::validate(
   cursor.create_expression_error(
       program ? program->get_anchor()
               : Ttx::Lexical::Anchor::create(Ttx::Lexical::Span()),
-      "Shader Program does not satisfy its selected Render contract."_view,
-      "Match every required Stage, value, Type, and Render Attribute."_view);
+      "Shader does not satisfy its selected Pipeline contract."_view,
+      "Match every required Stage, value, and Type."_view);
   return False;
 }
 

@@ -100,7 +100,8 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_defaults) {
 
   EXPECT(linked);
   EXPECT(finalized);
-  EXPECT_NOT(monograph.is<Ttx::Model::Type>());
+  EXPECT(monograph.is<Ttx::Model::Type>());
+  EXPECT(monograph.get_layout().is_empty());
   EXPECT_NOT(unsupported);
   EXPECT_NOT(missing);
   EXPECT(successful_empty);

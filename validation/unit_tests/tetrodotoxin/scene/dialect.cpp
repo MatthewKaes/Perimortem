@@ -5,6 +5,8 @@
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
@@ -12,6 +14,7 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/scene/language/monograph.hpp"
+#include "tetrodotoxin/terminal/graphics/compiler.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/lexical/errors.hpp"
 
@@ -154,5 +157,56 @@ PERIMORTEM_UNIT_TEST(SceneDialect, library_declarations) {
              .is<Library::Language::Function>());
   EXPECT(scene.get_library().get_source().is_linked());
   EXPECT(scene.get_library().get_source().is_finalized());
+  EXPECT(errors.is_empty());
+}
+
+PERIMORTEM_UNIT_TEST(SceneDialect, expands_fixed_hosted_objects) {
+  static constexpr View::Bytes source =
+      "// Scene with a homogeneous hosted collection.\n"
+      "dialect : Scene;\n"
+      "public Drawable : interface {\n"
+      "  public state visible : Bool = true;\n"
+      "}\n"
+      "public Icon : implementation Drawable {}\n"
+      "private state icons : Fixed[Icon, 2];\n"
+      "Scene prepare[self] -> [] {}\n"
+      "Scene update[self, .delta_time : R64] -> [] {}\n"
+      "Scene release[self] -> [] {}"_view;
+  Environment::Toolchain toolchain;
+  auto library = toolchain.install<Library::Dialect>("Library"_view);
+  ASSERT(library);
+  ASSERT(toolchain.install<Scene::Dialect>("Scene"_view, *library));
+  Environment::Workspace workspace(toolchain);
+  Errors errors;
+
+  auto interpreted = workspace.interpret_source(
+      errors, "Collection"_view, "collection-scene.ttx"_view, source);
+  ASSERT(interpreted && interpreted->is<Scene::Language::Monograph>());
+  const auto& scene =
+      static_cast<const Scene::Language::Monograph&>(*interpreted);
+  auto requirement = scene.resolve_context("Drawable"_view)
+                         .resolve()
+                         .select<Ttx::Model::Type>();
+  auto icon = scene.resolve_context("Icon"_view)
+                  .resolve()
+                  .select<Ttx::Model::Type>();
+  ASSERT(requirement && icon);
+
+  Static::Vector<Reference<const Ttx::Model::Type>, 1> configured = {{*icon}};
+  Allocator::Arena arena;
+  auto products = Terminal::Graphics::Compiler().compile(
+      arena, scene, *requirement, configured);
+  ASSERT(products);
+  auto hosted = products->get_hosted();
+  ASSERT_EQ(hosted.get_size(), Count(2));
+  const auto& first = hosted.get_data()[0];
+  const auto& second = hosted.get_data()[1];
+  ASSERT(first.get_element_index());
+  ASSERT(second.get_element_index());
+  EXPECT_EQ(*first.get_element_index(), Count(0));
+  EXPECT_EQ(*second.get_element_index(), Count(1));
+  EXPECT(&first.get_field() == &second.get_field());
+  EXPECT_EQ(first.get_type_index(), Count(0));
+  EXPECT_EQ(second.get_type_index(), Count(0));
   EXPECT(errors.is_empty());
 }

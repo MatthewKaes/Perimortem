@@ -20,6 +20,18 @@ class Import {
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation)
       -> Perimortem::Core::Option<Language::Import::Description>;
+
+  // A Dialect relationship can consume the same source or Package Type
+  // expression without manufacturing an authored Alias declaration. The
+  // supplied local name remains private to that relationship owner.
+  static auto parse_expression(
+      Ttx::Lexical::Cursor& cursor,
+      const Ttx::Concept::Documentation& documentation,
+      Perimortem::Core::View::Bytes name,
+      Language::Visibility visibility,
+      Ttx::Lexical::Token opening,
+      Ttx::Lexical::Token name_token = {})
+      -> Perimortem::Core::Option<Language::Import::Description>;
 };
 
 }  // namespace Tetrodotoxin::Language::Parser

@@ -33,6 +33,11 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Ttx::Concept::Abstract& declaration,
       Tetrodotoxin::Language::Visibility visibility) -> Bool;
 
+  auto retain_import(
+      const Tetrodotoxin::Language::Import::Description& description,
+      Perimortem::Core::Option<Ttx::Lexical::Associations&> associations = {})
+      -> Bool override;
+
   auto compose(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool override;
@@ -48,8 +53,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto resolve_context(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto resolve_local_context(Perimortem::Core::View::Bytes name) const
-      -> const Ttx::Concept::Abstract&;
+  auto resolve_lexical_context(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
 
   auto resolve_access(
       const Ttx::Concept::Abstract& host,
@@ -71,7 +76,7 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
   constexpr auto is_finalized() const -> Bool { return finalized; }
 
-  TTX_NAME("Render"_view);
+  TTX_NAME("Pipeline"_view);
 
  private:
   Monograph(

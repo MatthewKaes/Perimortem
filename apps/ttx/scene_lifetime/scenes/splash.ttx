@@ -6,42 +6,39 @@ dialect : Scene;
 
 public Graphics : alias = package(.name = "Perimortem.Graphics", .version = "1.0");
 
+private Material : alias = Graphics::TexturedQuad2DMaterial;
+
 private const fade_time : R64 = 1.0;
 private const hold_time : R64 = 1.5;
 
 signal finished;
 private state elapsed : R64 = 0.0;
-private state icon_bottom : Graphics::Sprite;
-private state icon_top : Graphics::Sprite;
-private state icon_bottom_shader : Graphics::Shader::DefaultTexturedQuad2D::Instance;
-private state icon_top_shader : Graphics::Shader::DefaultTexturedQuad2D::Instance;
+private state icons : Fixed[Graphics::Sprite, 2];
+private state shared_material : Material;
 
 Scene prepare[self] -> [] {
-  state image := Graphics::Format::PNG -> decode(.bytes = $[../resources/icon.png] ->
+  state image   := Graphics::Format::PNG -> decode(.bytes = $[../resources/icon.png] ->
       get_view())!;
   state texture := Graphics::Texture2D -> from_image(.image = image);
-  state size := image.size;
-  state bottom_position : Graphics::Point2D = (.x = 190.0, .y = 140.0);
-  state top_position : Graphics::Point2D = (.x = 210.0, .y = 160.0);
+  state size    := image.size;
+  state offset  : R64 = 0.0;
   self.elapsed = 0.0;
-  self.icon_bottom.texture = texture;
-  self.icon_bottom.shader = self.icon_bottom_shader;
-  self.icon_bottom.size_pixels = size;
-  self.icon_bottom.transform = (
-    .translation = bottom_position,
-    .scale_x = 1.0,
-    .scale_y = 1.0,
-    .rotation = 0.0,
-  );
-  self.icon_top.texture = texture;
-  self.icon_top.shader = self.icon_top_shader;
-  self.icon_top.size_pixels = size;
-  self.icon_top.transform = (
-    .translation = top_position,
-    .scale_x = 1.0,
-    .scale_y = 1.0,
-    .rotation = 0.0,
-  );
+  for [.icon : Graphics::Sprite] in self.icons {
+    state position : Graphics::Point2D = (
+      .x = 190.0 + offset,
+      .y = 240.0 + offset,
+    );
+    icon.texture = texture;
+    icon.material = self.shared_material;
+    icon.size = size;
+    icon.transform = (
+      .translation = position,
+      .scale_x = 1.0,
+      .scale_y = 1.0,
+      .rotation = 0.0,
+    );
+    offset += new[R64](image.size.width);
+  }
 }
 
 Scene release[self] -> [] : return;
@@ -56,13 +53,7 @@ Scene update[self, .delta_time : R64] -> [] {
   if self.elapsed >= fade_time + hold_time and self.elapsed < duration : alpha =
       (duration - self.elapsed) / fade_time;
 
-  self.icon_top_shader.parameters.tone    = (
-    .x = new[R32](1.0),
-    .y = new[R32](1.0),
-    .z = new[R32](1.0),
-    .w = new[R32](alpha),
-  );
-  self.icon_bottom_shader.parameters.tone = (
+  self.shared_material.parameters.tone = (
     .x = new[R32](1.0),
     .y = new[R32](1.0),
     .z = new[R32](1.0),

@@ -284,7 +284,8 @@ auto Llvm::Emission::ControlFlow::begin_while(
   builder.CreateBr(&condition);
   builder.SetInsertPoint(&condition);
   return native_body.publish_loop(
-      owner, llvm::wrap(&done), llvm::wrap(&condition));
+      owner, llvm::wrap(&done), llvm::wrap(&condition),
+      native_body.get_storage_depth());
 }
 
 auto Llvm::Emission::ControlFlow::select_while(
@@ -389,6 +390,7 @@ static auto select_enumeration_name(
 auto Llvm::Emission::ControlFlow::begin_sequence(
     const Ttx::Concept::Abstract& owner,
     const Ttx::Model::Addressable& binding,
+    const Ttx::Model::Type& input_type,
     const Ttx::Model::Pack& input) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = control_select_carriers(body);
@@ -407,6 +409,7 @@ auto Llvm::Emission::ControlFlow::begin_sequence(
   Core::Option<llvm::Value&> end;
   Core::Option<llvm::Value&> data;
   Bool range = False;
+  Count lifetime_depth = native_body.get_storage_depth();
   auto array = llvm::dyn_cast<llvm::ArrayType>(native_input->getType());
   auto structure = llvm::dyn_cast<llvm::StructType>(native_input->getType());
   if (array) {
@@ -414,6 +417,10 @@ auto Llvm::Emission::ControlFlow::begin_sequence(
         native_body.create_entry_alloca(llvm::wrap(array), "for.input"_view);
     llvm::Value* storage = llvm::unwrap(storage_handle);
     builder.CreateStore(&*native_input, storage);
+    if (!native_body.acquire(input_type, llvm::wrap(&*native_input)) ||
+        !native_body.register_storage(input_type, storage_handle)) {
+      return False;
+    }
     data = *builder.CreateInBoundsGEP(
         array, storage, {builder.getInt64(0), builder.getInt64(0)});
     start = *builder.getInt64(0);
@@ -433,6 +440,12 @@ auto Llvm::Emission::ControlFlow::begin_sequence(
   }
 
   if (!start || !end || (!range && !data)) {
+    return False;
+  }
+  // A resource-owning Fixed input must outlive every iteration. Transfer that
+  // value to loop storage, then clear receiver and evaluation temporaries once
+  // in the preheader instead of emitting their cleanup inside the body.
+  if (!native_body.clear_temporary_cleanup()) {
     return False;
   }
 
@@ -484,7 +497,8 @@ auto Llvm::Emission::ControlFlow::begin_sequence(
           stepped, llvm::ConstantInt::get(start->getType(), 1)),
       index_address);
   step_builder.CreateBr(&condition);
-  return native_body.publish_loop(owner, llvm::wrap(&done), llvm::wrap(&step));
+  return native_body.publish_loop(
+      owner, llvm::wrap(&done), llvm::wrap(&step), lifetime_depth);
 }
 
 auto Llvm::Emission::ControlFlow::begin_enumeration(
@@ -516,6 +530,11 @@ auto Llvm::Emission::ControlFlow::begin_enumeration(
   }
 
   if (!value_binding || !native_value) {
+    return False;
+  }
+
+  Count lifetime_depth = native_body.get_storage_depth();
+  if (!native_body.clear_temporary_cleanup()) {
     return False;
   }
 
@@ -604,7 +623,8 @@ auto Llvm::Emission::ControlFlow::begin_enumeration(
   step_builder.CreateStore(
       step_builder.CreateAdd(stepped, step_builder.getInt64(1)), index_address);
   step_builder.CreateBr(&condition);
-  return native_body.publish_loop(owner, llvm::wrap(&done), llvm::wrap(&step));
+  return native_body.publish_loop(
+      owner, llvm::wrap(&done), llvm::wrap(&step), lifetime_depth);
 }
 
 auto Llvm::Emission::ControlFlow::end_iteration(
@@ -617,6 +637,7 @@ auto Llvm::Emission::ControlFlow::end_iteration(
 
   LLVMBasicBlockRef done = loop->get_break_target();
   LLVMBasicBlockRef step = loop->get_continue_target();
+  Count lifetime_depth = loop->get_lifetime_depth();
   llvm::IRBuilder<>& builder = control_native_builder(native_body);
   llvm::BasicBlock* current = builder.GetInsertBlock();
   if (current && !current->getTerminator()) {
@@ -628,7 +649,9 @@ auto Llvm::Emission::ControlFlow::end_iteration(
   }
 
   builder.SetInsertPoint(llvm::unwrap(done));
-  return True;
+  Bool cleaned = native_body.emit_storage_cleanup(lifetime_depth);
+  Bool resized = native_body.resize_storage(lifetime_depth);
+  return cleaned && resized;
 }
 
 auto Llvm::Emission::ControlFlow::begin_match(

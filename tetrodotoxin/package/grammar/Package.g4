@@ -1,9 +1,9 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 //
-// Canonical Package source shape. The common source envelope consumes Import
-// Aliases first; Package then accepts only Library Type definitions that form
-// its named export surface.
+// Canonical Package source shape. The common source envelope consumes external
+// Import Types first; Package then accepts only Library Type definitions that
+// form its named export surface.
 
 parser grammar Package;
 

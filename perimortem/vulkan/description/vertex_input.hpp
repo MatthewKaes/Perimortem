@@ -9,7 +9,7 @@ namespace Perimortem::Vulkan::Description {
 
 // VertexInput describes one interleaved R32 vector consumed at a Shader
 // location. Offset and stride belong to the selected Vulkan product rather
-// than the target neutral Render contract.
+// than the target-neutral Pipeline contract.
 struct VertexInput {
   Count location = 0;
   Count components = 0;

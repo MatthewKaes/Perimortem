@@ -61,20 +61,21 @@ auto Graphics::Sprite::set_texture(const Texture2D& texture) -> void {
   get_payload().texture = texture;
 }
 
-auto Graphics::Sprite::get_shader() const -> const Core::Implementation& {
-  return get_payload().shader;
+auto Graphics::Sprite::get_material() const -> const Core::Implementation& {
+  return get_payload().material;
 }
 
-auto Graphics::Sprite::set_shader(const Core::Implementation& shader) -> void {
-  get_payload().shader = shader;
+auto Graphics::Sprite::set_material(const Core::Implementation& material)
+    -> void {
+  get_payload().material = material;
 }
 
-auto Graphics::Sprite::get_size_pixels() const -> Size2D {
-  return get_payload().size_pixels;
+auto Graphics::Sprite::get_size() const -> Size2D {
+  return get_payload().size;
 }
 
-auto Graphics::Sprite::set_size_pixels(Size2D size) -> void {
-  get_payload().size_pixels = size;
+auto Graphics::Sprite::set_size(Size2D size) -> void {
+  get_payload().size = size;
 }
 
 auto Graphics::Sprite::get_transform() const -> Transform2D {
@@ -103,9 +104,9 @@ auto Graphics::Sprite::set_z_index(S64 z_index) -> void {
 
 auto Graphics::Sprite::is_drawable() const -> Bool {
   const Payload& payload = get_payload();
-  return payload.visible && payload.size_pixels.width != 0 &&
-         payload.size_pixels.height != 0 && payload.texture.is_drawable() &&
-         payload.shader.is_valid();
+  return payload.visible && payload.size.width != 0 &&
+         payload.size.height != 0 && payload.texture.is_drawable() &&
+         payload.material.is_valid();
 }
 
 auto Graphics::Sprite::retain(Core::Object<> object) -> Core::Option<Sprite> {

@@ -118,7 +118,7 @@ class Workspace : public Ttx::Concept::Abstract {
       -> Perimortem::Core::Option<Language::Monograph&>;
 
   // A Package begins with its restricted export source. Workspace follows
-  // source-local Alias imports relative to each importer and terminates at
+  // external Types relative to each importer and terminates at
   // exact Package facts already supplied by the terminal.
   auto import_package(
       Ttx::Lexical::Errors& errors,
@@ -130,8 +130,8 @@ class Workspace : public Ttx::Concept::Abstract {
       -> Perimortem::Core::Option<Language::Monograph&>;
 
   // Archive restoration rebuilds a Package from facts that have already passed
-  // archive validation, binds its recorded Alias graph, and applies the same
-  // completion order as authored sources.
+  // archive validation, reacquires its recorded Type graph, and applies the
+  // same completion order as authored sources.
   auto restore_package(
       const Package::Archive::Archive& archive,
       Perimortem::Core::View::Bytes root_semantic_name)
@@ -146,11 +146,26 @@ class Workspace : public Ttx::Concept::Abstract {
   auto get_associations(Perimortem::Core::View::Bytes diagnostic_path) const
       -> Perimortem::Core::Option<const Ttx::Lexical::Associations&>;
 
+  auto get_associations(
+      Perimortem::Core::View::Bytes package_root,
+      Perimortem::Core::View::Bytes logical_route) const
+      -> Perimortem::Core::Option<const Ttx::Lexical::Associations&>;
+
   auto get_monograph(Perimortem::Core::View::Bytes diagnostic_path) const
+      -> Perimortem::Core::Option<const Language::Monograph&>;
+
+  auto get_monograph(
+      Perimortem::Core::View::Bytes package_root,
+      Perimortem::Core::View::Bytes logical_route) const
       -> Perimortem::Core::Option<const Language::Monograph&>;
 
   auto get_completed_monograph(Perimortem::Core::View::Bytes diagnostic_path)
       const -> Perimortem::Core::Option<const Language::Monograph&>;
+
+  auto get_completed_monograph(
+      Perimortem::Core::View::Bytes package_root,
+      Perimortem::Core::View::Bytes logical_route) const
+      -> Perimortem::Core::Option<const Language::Monograph&>;
 
   auto get_package_source_count(
       const Package::Language::Monograph& package) const -> Count;
@@ -172,6 +187,11 @@ class Workspace : public Ttx::Concept::Abstract {
   // borrow the same lexical facts that built its semantic graph. That shared
   // view saves another tokenization pass and keeps source coordinates aligned.
   auto get_tokens(Perimortem::Core::View::Bytes diagnostic_path) const
+      -> Perimortem::Core::View::Vector<Ttx::Lexical::Token>;
+
+  auto get_tokens(
+      Perimortem::Core::View::Bytes package_root,
+      Perimortem::Core::View::Bytes logical_route) const
       -> Perimortem::Core::View::Vector<Ttx::Lexical::Token>;
 
   auto find_authored_location(const Ttx::Concept::Abstract& semantic) const
@@ -223,6 +243,11 @@ class Workspace : public Ttx::Concept::Abstract {
     const Ttx::Lexical::Associations& associations;
     Bool completed;
   };
+
+  auto find_retained_source(
+      Perimortem::Core::View::Bytes package_root,
+      Perimortem::Core::View::Bytes logical_route) const
+      -> const RetainedSource*;
 
   // Workspace borrows one Toolchain for its full lifetime. Monographs can then
   // keep the exact installed Dialect identities without owning another

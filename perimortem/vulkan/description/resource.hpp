@@ -8,7 +8,7 @@
 namespace Perimortem::Vulkan::Description {
 
 // Resource identifies the generated Vulkan resource realization selected by a
-// Render attachment.
+// generated Pipeline resource.
 enum class Resource : U8 {
   SampledTexture2D,
 };

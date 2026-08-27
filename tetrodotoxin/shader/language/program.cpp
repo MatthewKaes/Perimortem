@@ -62,16 +62,6 @@ static auto find_function(
   return selected;
 }
 
-static auto select_slot_type(const Render::Language::Layout::Slot& slot)
-    -> Option<const Ttx::Model::Type&> {
-  auto edge = slot.get_edge();
-  auto addressable = edge ? edge->select<Ttx::Model::Addressable>()
-                          : Option<const Ttx::Model::Addressable&>();
-  return addressable ? Option<const Ttx::Model::Type&>(addressable->get_type())
-         : edge      ? edge->select<Ttx::Model::Type>()
-                     : Option<const Ttx::Model::Type&>();
-}
-
 auto Shader::Language::Program::create_authored(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition,
@@ -97,7 +87,8 @@ auto Shader::Language::Program::initialize_runtime_surface() -> Bool {
   auto& parameters_definition =
       Tetrodotoxin::Language::Definition::create_synthetic(
           domain, Documentation::get_empty(), *this, "Parameters"_view,
-          Tetrodotoxin::Language::Visibility::Public, Anchor::create(Span()));
+          Tetrodotoxin::Language::Visibility::Public,
+          get_definition().get_anchor());
   auto& parameters_type = Library::Language::Types::Structure::create_authored(
       domain, parameters_definition);
   BAIL_IF(!retain_definition(parameters_type, Category::Type, True));
@@ -105,8 +96,9 @@ auto Shader::Language::Program::initialize_runtime_surface() -> Bool {
 
   auto& instance_definition =
       Tetrodotoxin::Language::Definition::create_synthetic(
-          domain, Documentation::get_empty(), *this, "Instance"_view,
-          Tetrodotoxin::Language::Visibility::Public, Anchor::create(Span()));
+          domain, Documentation::get_empty(), *this, "Material"_view,
+          Tetrodotoxin::Language::Visibility::Public,
+          get_definition().get_anchor());
   auto& instance_type = Library::Language::Types::Object::create_synthetic(
       domain, instance_definition);
   BAIL_IF(!retain_definition(instance_type, Category::Type, True));
@@ -146,7 +138,7 @@ auto Shader::Language::Program::restore_runtime_surface() -> Bool {
           declaration.get().select<Library::Language::Types::Structure>();
       BAIL_IF(!selected || selected->is<Library::Language::Types::Object>());
       parameters = Reference<Library::Language::Types::Structure>(*selected);
-    } else if (declaration.get().get_name() == "Instance"_view) {
+    } else if (declaration.get().get_name() == "Material"_view) {
       auto selected =
           declaration.get().select<Library::Language::Types::Object>();
       BAIL_IF(!selected);
@@ -180,11 +172,12 @@ auto Shader::Language::Program::complete_authored_body() -> void {
 auto Shader::Language::Program::retain_shader_binding(
     Library::Language::Field& field,
     Render::Language::Binding::Kind kind,
+    Render::Language::Binding::Access access,
     Option<Library::Language::Field&> instance_field) -> void {
   if (!instance_field && kind == Render::Language::Binding::Kind::Resource) {
     instance_field = find_field(instance->get(), field.get_name());
   }
-  bindings.insert(Binding(field, kind, instance_field));
+  bindings.insert(Binding(field, kind, access, instance_field));
 }
 
 auto Shader::Language::Program::retain_instance_resource(
@@ -211,10 +204,8 @@ auto Shader::Language::Program::retain_uniform(Library::Language::Field& field)
 }
 
 auto Shader::Language::Program::retain_stage(
-    Library::Language::Function& function,
-    Library::Language::Model::Layout& parameters,
-    Library::Language::Model::Layout& results) -> void {
-  stages.insert(StageBody(function, parameters, results));
+    Library::Language::Function& function) -> void {
+  stages.insert(StageBody(function));
 }
 
 auto Shader::Language::Program::project_binding(
@@ -238,7 +229,8 @@ auto Shader::Language::Program::project_binding(
       field, Library::Language::Types::Composite::Category::Addressable,
       projected_definition.is_published()));
   if (retain_role) {
-    retain_shader_binding(field, requirement.get_kind());
+    retain_shader_binding(
+        field, requirement.get_kind(), requirement.get_access());
   }
   return True;
 }
@@ -293,47 +285,19 @@ auto Shader::Language::Program::project_structure(
   return True;
 }
 
-auto Shader::Language::Program::populate_stage(
-    StageBody& body,
-    const Render::Language::Stage& stage) -> Bool {
-  auto populate = [&](Library::Language::Model::Layout& target,
-                      const Render::Language::Layout& source) -> Bool {
-    for (const Render::Language::Layout::Slot& slot : source.get_slots()) {
-      auto edge = slot.get_edge();
-      auto addressable = edge ? edge->select<Ttx::Model::Addressable>()
-                              : Option<const Ttx::Model::Addressable&>();
-      auto selected =
-          addressable ? Option<const Ttx::Model::Type&>(addressable->get_type())
-          : edge      ? edge->select<Ttx::Model::Type>()
-                      : Option<const Ttx::Model::Type&>();
-      auto projected = selected
-                           ? project_type(*selected)
-                           : Option<const Library::Language::Model::Type&>();
-      BAIL_IF(
-          !projected || !target.retain_generated_slot(
-                            *projected, domain.proxy(slot.get_name()),
-                            slot.get_attributes()));
-    }
-    return True;
-  };
-
-  return populate(body.parameters, stage.get_parameter_layout()) &&
-         populate(body.results, stage.get_result_layout());
-}
-
 auto Shader::Language::Program::project_contract(Cursor& cursor) -> Bool {
   auto selected = contract.resolve(cursor, context);
   auto render_contract = selected
-                             ? selected->select<Render::Language::Structure>()
-                             : Option<const Render::Language::Structure&>();
+                             ? selected->select<Render::Language::Monograph>()
+                             : Option<const Render::Language::Monograph&>();
   if (!render_contract) {
     cursor.create_expression_error(
         contract.get_anchor(),
-        "Shader contract route must select one Render Structure."_view);
+        "Shader relationship must select one Pipeline source."_view);
     return False;
   }
   contract_type =
-      Reference<const Render::Language::Structure>(*render_contract);
+      Reference<const Render::Language::Monograph>(*render_contract);
 
   for (const Reference<Abstract>& declaration : render_contract->get_types()) {
     auto structure = declaration.get().select<Render::Language::Structure>();
@@ -364,11 +328,10 @@ auto Shader::Language::Program::project_contract(Cursor& cursor) -> Bool {
     if (!required) {
       cursor.create_expression_error(
           body.function.get().get_anchor(),
-          "Shader Stage body has no matching Render Stage requirement."_view,
+          "Shader Stage body has no matching Pipeline Stage requirement."_view,
           "Name one executable body for each Stage selected by the contract."_view);
       return False;
     }
-    BAIL_IF(!populate_stage(body, *required));
   }
 
   complete_body();
@@ -415,13 +378,7 @@ auto Shader::Language::Program::restore_stage(
     BAIL_IF(target.get_size() != slots.get_size());
     for (Count index = 0; index < slots.get_size(); index++) {
       const Render::Language::Layout::Slot& slot = slots.get_data()[index];
-      auto selected = select_slot_type(slot);
-      auto projected = selected
-                           ? project_type(*selected)
-                           : Option<const Library::Language::Model::Type&>();
-      BAIL_IF(
-          !projected || target.get_declared_name(index) != slot.get_name() ||
-          !target.retain_generated_edge(index, *projected));
+      BAIL_IF(target.get_declared_name(index) != slot.get_name());
     }
     return True;
   };
@@ -440,14 +397,14 @@ auto Shader::Language::Program::compose_contract_restored() -> Bool {
   }
   auto selected = contract.resolve_restored(context);
   auto render_contract = selected
-                             ? selected->select<Render::Language::Structure>()
-                             : Option<const Render::Language::Structure&>();
+                             ? selected->select<Render::Language::Monograph>()
+                             : Option<const Render::Language::Monograph&>();
   BAIL_IF(!render_contract);
   if (!parameters || !instance || !parameters_field) {
     BAIL_IF(!restore_runtime_surface());
   }
   contract_type =
-      Reference<const Render::Language::Structure>(*render_contract);
+      Reference<const Render::Language::Monograph>(*render_contract);
 
   for (const Reference<Abstract>& declaration : render_contract->get_types()) {
     auto structure = declaration.get().select<Render::Language::Structure>();
@@ -461,6 +418,7 @@ auto Shader::Language::Program::compose_contract_restored() -> Bool {
       for (Count index = 0; index < bindings.get_size(); index++) {
         Binding& binding = bindings[index];
         if (binding.get_kind() == requirement->get_kind() &&
+            binding.get_access() == requirement->get_access() &&
             binding.get_field().get_name() == requirement->get_name()) {
           BAIL_IF(field);
           field = binding.edit_field();

@@ -4,6 +4,7 @@
 #include "tetrodotoxin/render/language/layout.hpp"
 
 #include "tetrodotoxin/render/language/attributes.hpp"
+#include "tetrodotoxin/render/language/declarations.hpp"
 #include "ttx/concept/invalid.hpp"
 
 using namespace Perimortem::Core;
@@ -28,7 +29,9 @@ auto Language::Layout::link(Cursor& cursor, const Abstract& context) -> Bool {
     Slot& slot = slots[index];
     valid &= Attributes::validate(
         cursor, slot.get_attributes(), Attributes::Placement::StageEntry);
-    auto selected = slot.get_type().resolve(cursor, context);
+    const Abstract& root = Declarations::resolve_lexical_context(
+        context, slot.get_type().get_root());
+    auto selected = slot.get_type().resolve_selected(cursor, root);
     if (!selected || selected->get_layout().is_empty()) {
       valid = False;
       continue;
@@ -43,7 +46,7 @@ auto Language::Layout::link(Cursor& cursor, const Abstract& context) -> Bool {
       if (!stable) {
         cursor.create_expression_error(
             slot.get_anchor(),
-            "Repeated Render Layout linking selected a different semantic edge."_view);
+            "Repeated Pipeline Layout linking selected a different semantic edge."_view);
         valid = False;
       }
       continue;
@@ -53,7 +56,7 @@ auto Language::Layout::link(Cursor& cursor, const Abstract& context) -> Bool {
       if (slot.get_name().is_empty()) {
         cursor.create_expression_error(
             slot.get_anchor(),
-            "Render Stage parameters require one name for every entry."_view);
+            "Pipeline Stage parameters require one name for every entry."_view);
         valid = False;
         continue;
       }
@@ -73,7 +76,7 @@ auto Language::Layout::link(Cursor& cursor, const Abstract& context) -> Bool {
       if (slots[prior].get_name() == slots[index].get_name()) {
         cursor.create_expression_error(
             slots[index].get_anchor(),
-            "Render Stage Layout names are unique within one side."_view);
+            "Pipeline Stage Layout names are unique within one side."_view);
         valid = False;
       }
     }
@@ -89,7 +92,9 @@ auto Language::Layout::link_restored(const Abstract& context) -> Bool {
         !Attributes::accepts(
             slot.get_attributes(), Attributes::Placement::StageEntry) ||
         slot.get_edge());
-    auto selected = slot.get_type().resolve_restored(context);
+    const Abstract& root = Declarations::resolve_lexical_context(
+        context, slot.get_type().get_root());
+    auto selected = slot.get_type().resolve_restored_selected(root);
     BAIL_IF(!selected || selected->get_layout().is_empty());
 
     if (parameters) {

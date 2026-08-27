@@ -1,14 +1,10 @@
 /// Tetrodotoxin
 /// Copyright (c) 2023-present Matt Kaes and contributors
 //
-// Publishes the exact vector Types shared by Render, Shader, and Graphics.
+// Publishes the exact vector Types shared by Pipeline, Shader, and Graphics.
 //
 dialect : Package;
 
-public Vec2DSource : alias = source("vec2d.ttx");
-public Vec3DSource : alias = source("vec3d.ttx");
-public Vec4DSource : alias = source("vec4d.ttx");
-
-public Vec2D : alias = Vec2DSource::Vec2D;
-public Vec3D : alias = Vec3DSource::Vec3D;
-public Vec4D : alias = Vec4DSource::Vec4D;
+public Vec2D : alias = source("vec2d.ttx")::Vec2D;
+public Vec3D : alias = source("vec3d.ttx")::Vec3D;
+public Vec4D : alias = source("vec4d.ttx")::Vec4D;

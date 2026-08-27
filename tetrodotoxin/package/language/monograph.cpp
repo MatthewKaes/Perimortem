@@ -85,6 +85,18 @@ auto Package::Language::Monograph::resolve_context(View::Bytes route) const
   return Tetrodotoxin::Language::Monograph::resolve_context(route);
 }
 
+auto Package::Language::Monograph::resolve_lexical_context(
+    View::Bytes route) const -> const Abstract& {
+  if (is_resource_route(route)) {
+    return resources.resolve(route.slice(2, route.get_size() - 3));
+  }
+
+  const Abstract& selected = library.resolve_lexical_context(route);
+  return selected.is<Invalid>()
+             ? Tetrodotoxin::Language::Monograph::resolve_lexical_context(route)
+             : selected;
+}
+
 auto Package::Language::Monograph::get_layer(const Abstract& requested) const
     -> Option<const Tetrodotoxin::Language::Monograph&> {
   auto outer = Tetrodotoxin::Language::Monograph::get_layer(requested);

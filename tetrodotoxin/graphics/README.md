@@ -1,118 +1,88 @@
 # Graphics
 
-A Scene describes what exists without learning how Vulkan records a command
-buffer. Graphics is the handoff between those worlds. It reads the real Objects
-owned by a completed Scene and freezes the values needed to present one frame,
-while Scene keeps interactive meaning and the backend keeps device state.
+Graphics turns completed Scene Objects into immutable frame draws without
+making Scene understand Vulkan or making the backend understand authored TTX
+Objects. It is a runtime and Terminal boundary, not another Dialect or a second
+scene graph.
 
-Graphics is not a Dialect and it does not build another scene graph. Library's
-structural Interface proves placement relationships over existing Types. Shader
-Programs separately prove that their concrete Instance Objects implement one
-exact Render contract.
+## Drawable interfaces
 
-## Independent runtime capabilities
-
-The ordinary `Perimortem.Graphics` Package publishes `Placement2D` as a Library
-Structure requirement. Its public state names transform, visibility, and draw
-order. A Sprite can satisfy that requirement while retaining its own Type,
-Fields, behavior, and lifetime.
-
-Runtime behavior stays divided by purpose:
-
-* `Placement2D` reads transform, visibility, and z index.
-* `Children2D` reads ordered child Objects and their configured Type indices.
-* `Drawable2D` extracts draws, exact Program locators, retained resources, and
-  frozen Shader parameter bytes.
-
-Sprite has Placement2D and Drawable2D. A compiled Scene root has Children2D. A
-future nonvisual container can have only Children2D, while a group can combine
-Placement2D and Children2D. Generated application tables keep the three
-provider arrays separate, so no common descriptor or runtime class registry is
-needed.
-
-## Textures, Shaders, and Sprites
-
-`Image` owns decoded CPU pixels. `Texture2D` gives one Image stable rendering
-identity and sampling meaning. A backend can cache a device image by that real
-Object while keeping target images, views, samplers, descriptors, and upload
-state inside Vulkan.
-
-Sprite stores one `Implementation[Render::TexturedQuad2D]`. The value retains a
-real Shader `Instance` Object and the immutable ABI Projection derived for that
-exact implementation. The Projection selects the generated Program and the
-byte range of the Instance's `Parameters` subobject. It contains no semantic
-graph pointer, route string, or target handle.
+The ordinary `Perimortem.Graphics` Package publishes a real Library Interface:
 
 ```ttx
-private state shader : Graphics::Shader::DefaultTexturedQuad2D::Instance;
-
-self.sprite.texture = texture;
-self.sprite.shader = self.shader;
-self.shader.parameters.tone = (
-  .x = new[R32](1.0),
-  .y = new[R32](1.0),
-  .z = new[R32](1.0),
-  .w = new[R32](alpha),
-);
+public DrawableUI : interface {
+  public state material  : Implementation[Pipeline];
+  public state transform : Transform2D;
+  public state visible   : Bool = true;
+  public state z_index   : S64;
+}
 ```
 
-The concrete Shader Instance remains the parameter and authored material
-resource owner. Frame collection copies its current parameter bytes and follows
-the generated resource projection in descriptor order. Later Scene mutations
-therefore appear in the next stable frame without copying those Fields into
-Sprite or adding shader specific resource slots to it.
+`Implementation[Pipeline]` is explicit Object-backed erasure for one exact
+higher-order Interface relation. It retains the concrete Shader Material and
+its immutable ABI projection. It does not copy declarations or rely on a
+structural naming convention.
 
-## Render and Shader agreement
+A concrete Type names the Interface it implements:
 
-`Render::TexturedQuad2D` owns the fixed image resource, base push inputs, Stage
-signatures, vertex layout, topology, blending policy, geometry, and vertex
-count. A Shader author writes only the Stage bodies and custom uniforms.
-
-Each Shader Program generates one Library `Parameters` Structure containing
-the authored uniform Fields and one `Instance` Object containing `parameters`.
-The Program inherits executable projections of the Render declarations during
-the cross Dialect composition barrier. Render remains the contract owner and
-Shader remains the executable owner.
-
-```text
-Render::TexturedQuad2D
-  fixed resources, inputs, Stages, and pipeline agreement
-
-Shader::DefaultTexturedQuad2D
-  Parameters { tone }
-  Instance { parameters }
-  executable Stage bodies
-
-Application::BlendTexturedQuad2D
-  Parameters { time_milliseconds }
-  Instance { parameters, noise }
-  executable Stage bodies
+```ttx
+public Sprite : implementation DrawableUI {
+  public state texture : Texture2D;
+  public state size    : Size2D;
+}
 ```
 
-Application composition discovers every Program reached by the Scene's concrete
-Shader Instance Types. Each generated Vulkan description carries its exact
-module locator, host layout, descriptor bindings, vertex inputs, pipeline facts,
-and device capabilities.
+The implementation materializes the Interface state once, before Sprite's own
+Fields. Sprite therefore does not redeclare `material`, `transform`, `visible`,
+or `z_index`, while ordinary access continues to select them on the Sprite.
+The generated ABI layout preserves that exact prefix for Interface projection.
 
-## Stable frame submissions
+## Sprite owns the quad draw
 
-Submission walks Children2D after the Scene update. Placement visibility removes
-a complete subtree, transforms compose through the path, and cycles reject the
-frame. Higher z indices appear in front, with authored traversal order retained
-for equal indices.
+`Image` owns decoded CPU pixels, and `Texture2D` gives one Image stable
+rendering identity and addressing state. A Sprite contributes the host texture,
+size, Material, and its fixed draw policy: unit-quad geometry, triangle-list
+topology, alpha blending, and six vertices.
 
-Each accepted draw becomes one immutable Batch. Graphics copies the current
-Shader parameter bytes and composed transform, retains the Texture2D resources
-used by that frame, and carries the exact process lifetime Program locator.
+Those fixed facts do not belong to the Pipeline or Shader. A frame Batch carries
+them beside the selected Program, resources, parameter bytes, transform, size,
+and z index. Vulkan caches a native realization by Program plus fixed draw
+state, so another drawable can select another compatible state without
+hard-coding that policy into the Shader generator.
 
-Vulkan consumes ordered Batches together with the generated Program table. It
-builds a distinct pipeline for each locator, fills target host roles, realizes
-the generated descriptor sets, caches device textures by Texture2D identity,
-and owns command recording, synchronization, and presentation. None of those
-target facts flow back into Graphics, Render, Shader, or Scene.
+The concrete Material remains the owner of authored uniforms and additional
+resources. Frame collection copies its current parameter bytes and follows the
+generated resource projection in declaration order. For example, Scene
+Lifetime's Blend Material owns its noise Texture2D while Sprite still supplies
+the primary texture required by the textured-quad Pipeline.
+
+## Passes
+
+`PassUI` gathers Objects that implement `DrawableUI`, rejects invalid cycles,
+freezes their current draw values, and sorts accepted Batches in ascending z
+order. Authored traversal order breaks equal-z ties. Visibility removes a
+complete hosted subtree, and transforms compose through that traversal.
+
+A 3D pass is a separate capability because depth-tested geometry has a
+different collection and ordering contract. It can share Material and Pipeline
+machinery without making `DrawableUI` or Sprite imply a camera or depth buffer.
+Pass ownership also leaves room for a Camera or Viewport to select which passes
+participate in a frame without moving those concerns into Shader.
+
+## Stable frame and backend boundary
+
+Each Batch is an immutable backend-neutral draw transaction. Resources retain
+their runtime Objects for the frame; parameters and host inputs are copied.
+Later Scene mutations therefore affect the next frame, never one already being
+presented.
+
+The generated application product maps exact Types that satisfy `DrawableUI`
+to their runtime draw providers. Graphics follows that exact semantic proof;
+it does not match a Type by a list of familiar Field spellings. Vulkan then
+consumes ordered Batches and generated Program descriptions, realizes textures
+and pipelines, records commands, synchronizes the device, and presents.
 
 See [Scene](../scene/README.md) for application state,
-[Render](../render/README.md) for rendering contracts,
+[Pipeline](../render/README.md) for material contracts,
 [Shader](../shader/README.md) for GPU implementations, and the
-[standard packages](../../packages/ttx/README.md) for the authored Graphics
-surface.
+[standard Packages](../../packages/ttx/README.md) for the authored surface.

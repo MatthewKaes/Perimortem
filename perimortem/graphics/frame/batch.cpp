@@ -11,6 +11,8 @@ Graphics::Frame::Batch::Batch(
     Memory::Dynamic::Bytes&& inputs,
     Transform transform,
     Size2D size_pixels,
+    Pipeline pipeline,
+    Count vertex_count,
     S64 z_index,
     Count authored_order)
     : program(program),
@@ -18,6 +20,8 @@ Graphics::Frame::Batch::Batch(
       inputs(static_cast<Memory::Dynamic::Bytes&&>(inputs)),
       transform(transform),
       size_pixels(size_pixels),
+      pipeline(pipeline),
+      vertex_count(vertex_count),
       z_index(z_index),
       authored_order(authored_order) {}
 

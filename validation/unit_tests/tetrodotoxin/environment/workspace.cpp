@@ -351,13 +351,15 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, imports_package) {
       static_cast<const Package::Language::Monograph&>(*imported);
 
   ASSERT_EQ(workspace.get_package_source_count(package), Count(3));
-  const Abstract& first = package.resolve_context("SharedA"_view).resolve();
+  const Abstract& hidden = package.resolve_context("SharedA"_view).resolve();
   const Abstract& repeated =
       package.resolve_context("SharedAgain"_view).resolve();
   const Abstract& second = package.resolve_context("SharedB"_view).resolve();
-  EXPECT(first.is<Library::Language::Types::Source>());
-  EXPECT(&first == &repeated);
+  const Abstract& deep = package.resolve_context("Deep"_view).resolve();
+  EXPECT(hidden.is<Invalid>());
+  EXPECT(repeated.is<Library::Language::Types::Source>());
   EXPECT(second.is<Library::Language::Types::Source>());
+  EXPECT(deep.is<Ttx::Model::Type>());
   EXPECT_EQ(package.get_resources().get_values().get_size(), Count(2));
   EXPECT(&workspace.resolve_context("Resources"_view) == &package);
   EXPECT(&workspace.resolve_context("SharedA"_view) == &Invalid::get_invalid());
@@ -367,6 +369,17 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, imports_package) {
   ASSERT(first_source && second_source);
   EXPECT(workspace.get_associations(first_source->get_monograph()));
   EXPECT(workspace.get_associations(second_source->get_monograph()));
+
+  auto math = workspace.import_package(
+      errors, "packages/ttx/Perimortem.Math"_view, "Math"_view,
+      "package.ttx"_view, "Perimortem.Math"_view, Version(1, 0));
+  ASSERT(math);
+  auto resources_associations = workspace.get_associations(
+      "validation/data/ttx/package_resources"_view, "package.ttx"_view);
+  auto math_associations = workspace.get_associations(
+      "packages/ttx/Perimortem.Math"_view, "package.ttx"_view);
+  ASSERT(resources_associations && math_associations);
+  EXPECT(&*resources_associations != &*math_associations);
   EXPECT(errors.is_empty());
 }
 

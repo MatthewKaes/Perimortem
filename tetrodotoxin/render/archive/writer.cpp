@@ -219,6 +219,7 @@ auto Render::Archive::Writer::write(const Abstract& declaration) -> Bool {
     auto record = begin(Tag::Binding);
     BAIL_IF(!write(*binding_definition));
     write(U8(binding->get_kind()));
+    write(U8(binding->get_access()));
     return write(*reference) && finish(record);
   }
 

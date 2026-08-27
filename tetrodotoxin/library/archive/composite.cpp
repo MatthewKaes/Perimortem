@@ -67,9 +67,19 @@ auto Archive::write_declarations(
       BAIL_IF(!Archive::write(writer, *function));
       continue;
     }
+    auto interface = declaration.select<Language::Types::Interface>();
+    auto implemented = declaration.select<Language::Types::Implemented>();
     auto structure = declaration.select<Language::Types::Structure>();
     auto name_space = declaration.select<Language::Types::Namespace>();
     auto object = declaration.select<Language::Types::Object>();
+    if (implemented) {
+      BAIL_IF(!Archive::write(writer, *implemented));
+      continue;
+    }
+    if (interface) {
+      BAIL_IF(!Archive::write(writer, *interface));
+      continue;
+    }
     if (object) {
       BAIL_IF(!Archive::write(writer, *object));
       continue;
@@ -144,6 +154,13 @@ auto Archive::read_declarations(
       category = Category::Type;
       break;
     }
+    case Tag::Interface: {
+      auto selected = read_interface(reader, arena, composite, profile);
+      BAIL_IF(!selected);
+      restored = *selected;
+      category = Category::Type;
+      break;
+    }
     case Tag::Namespace: {
       auto selected = read_namespace(reader, arena, composite, profile);
       BAIL_IF(!selected);
@@ -153,6 +170,13 @@ auto Archive::read_declarations(
     }
     case Tag::Object: {
       auto selected = read_object(reader, arena, composite, profile);
+      BAIL_IF(!selected);
+      restored = *selected;
+      category = Category::Type;
+      break;
+    }
+    case Tag::Implemented: {
+      auto selected = read_implemented(reader, arena, composite, profile);
       BAIL_IF(!selected);
       restored = *selected;
       category = Category::Type;
@@ -241,6 +265,39 @@ auto Archive::read_structure(
   return structure;
 }
 
+auto Archive::write(Writer& writer, const Language::Types::Interface& interface)
+    -> Bool {
+  auto record = writer.begin(Tag::Interface);
+  Declaration declaration(interface.get_definition());
+  Bool public_only = writer.get_profile() ==
+                     Tetrodotoxin::Language::Persistence::Profile::Contract;
+  return declaration.write(writer) &&
+         write_declarations(writer, interface, public_only) &&
+         writer.finish(record);
+}
+
+auto Archive::read_interface(
+    Reader& reader,
+    Allocator::Arena& arena,
+    Abstract& host,
+    Tetrodotoxin::Language::Persistence::Profile profile)
+    -> Option<Language::Types::Interface&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != U16(Tag::Interface) ||
+      record->is_optional());
+
+  Reader contents(record->get_payload());
+  auto declaration = Declaration::read(contents, arena);
+  BAIL_IF(!declaration);
+  auto& definition = declaration->create_definition(arena, host);
+  auto& interface =
+      Language::Types::Interface::create_restored(arena, definition);
+  BAIL_IF(!read_declarations(contents, arena, interface, profile));
+  interface.complete_body();
+  return interface;
+}
+
 auto Archive::write(Writer& writer, const Language::Types::Object& object)
     -> Bool {
   auto record = writer.begin(Tag::Object);
@@ -271,6 +328,42 @@ auto Archive::read_object(
   BAIL_IF(!read_declarations(contents, arena, object, profile));
   object.complete_body();
   return object;
+}
+
+auto Archive::write(
+    Writer& writer,
+    const Language::Types::Implemented& implemented) -> Bool {
+  auto record = writer.begin(Tag::Implemented);
+  Declaration declaration(implemented.get_definition());
+  Bool public_only = writer.get_profile() ==
+                     Tetrodotoxin::Language::Persistence::Profile::Contract;
+  return declaration.write(writer) &&
+         Archive::write(writer, implemented.get_requirement_reference()) &&
+         write_declarations(writer, implemented, public_only) &&
+         writer.finish(record);
+}
+
+auto Archive::read_implemented(
+    Reader& reader,
+    Allocator::Arena& arena,
+    Abstract& host,
+    Tetrodotoxin::Language::Persistence::Profile profile)
+    -> Option<Language::Types::Implemented&> {
+  auto record = reader.read_record();
+  BAIL_IF(
+      !record || record->get_tag() != U16(Tag::Implemented) ||
+      record->is_optional());
+
+  Reader contents(record->get_payload());
+  auto declaration = Declaration::read(contents, arena);
+  auto requirement = read_type_reference(contents, arena, host);
+  BAIL_IF(!declaration || !requirement);
+  auto& definition = declaration->create_definition(arena, host);
+  auto& implemented = Language::Types::Implemented::create_restored(
+      arena, definition, *requirement);
+  BAIL_IF(!read_declarations(contents, arena, implemented, profile));
+  implemented.complete_body();
+  return implemented;
 }
 
 auto Archive::write(

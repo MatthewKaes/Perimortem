@@ -120,6 +120,8 @@ addressableName
     | STAGE
     | RESOURCE
     | SHADER
+    | INTERFACE
+    | IMPLEMENTATION
     ;
 
 functionSignature

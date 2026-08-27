@@ -5,37 +5,24 @@
 //
 dialect : Package;
 
-public PixelSource       : alias = source("pixel.ttx");
-public Point2DSource     : alias = source("point2d.ttx");
-public Size2DSource      : alias = source("size2d.ttx");
-public ToneSource        : alias = source("tone.ttx");
-public Transform2DSource : alias = source("transform2d.ttx");
-public Placement2DSource : alias = source("placement2d.ttx");
-public ImageSource       : alias = source("image.ttx");
-public Texture2DSource   : alias = source("texture2d.ttx");
-public PNGSource         : alias = source("png.ttx");
-public SpriteSource      : alias = source("sprite.ttx");
-public RenderSource      : alias = source("render.ttx");
-public ShaderSource      : alias = source("shader.ttx");
-
-public Pixel       : alias = PixelSource::Pixel;
-public Point2D     : alias = Point2DSource::Point2D;
-public Size2D      : alias = Size2DSource::Size2D;
-public Tone        : alias = ToneSource::Tone;
-public Transform2D : alias = Transform2DSource::Transform2D;
-public Placement2D : alias = Placement2DSource::Placement2D;
-public Image       : alias = ImageSource::Image;
-public Texture2D   : alias = Texture2DSource::Texture2D;
-public Sprite      : alias = SpriteSource::Sprite;
+public Pixel : alias = source("pixel.ttx")::Pixel;
+public Point2D : alias = source("point2d.ttx")::Point2D;
+public Size2D : alias = source("size2d.ttx")::Size2D;
+public Tone : alias = source("tone.ttx")::Tone;
+public Transform2D : alias = source("transform2d.ttx")::Transform2D;
+public Placement2D : alias = source("placement2d.ttx")::Placement2D;
+public Image : alias = source("image.ttx")::Image;
+public Texture2D : alias = source("texture2d.ttx")::Texture2D;
+public Sprite : alias = source("sprite.ttx")::Sprite;
+public DrawableUI : alias = source("sprite.ttx")::DrawableUI;
+public TexturedQuad2DMaterial : alias = source("shaders/textured_quad_2d.ttx")::Material;
+private PNGSource : alias = source("png.ttx");
+private PipelineSource : alias = source("pipelines/textured_quad_2d.ttx");
 
 public Format : namespace {
   public PNG : alias = PNGSource::PNG;
 }
 
-public Render : namespace {
-  public TexturedQuad2D : alias = RenderSource::TexturedQuad2D;
-}
-
-public Shader : namespace {
-  public DefaultTexturedQuad2D : alias = ShaderSource::DefaultTexturedQuad2D;
+public Pipeline : namespace {
+  public TexturedQuad2D : alias = PipelineSource;
 }

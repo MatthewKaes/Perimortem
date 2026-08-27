@@ -124,6 +124,8 @@ class Code {
     Enum,
     Struct,
     Object,
+    Interface,
+    Implementation,
     Using,
     New,
 

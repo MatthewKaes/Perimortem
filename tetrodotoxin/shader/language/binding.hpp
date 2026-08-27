@@ -20,9 +20,14 @@ class Binding {
   constexpr Binding(
       Tetrodotoxin::Library::Language::Field& field,
       Tetrodotoxin::Render::Language::Binding::Kind kind,
+      Tetrodotoxin::Render::Language::Binding::Access access =
+          Tetrodotoxin::Render::Language::Binding::Access::None,
       Perimortem::Core::Option<Tetrodotoxin::Library::Language::Field&>
           instance_field = {})
-      : field(field), kind(kind), instance_field(instance_field) {}
+      : field(field),
+        kind(kind),
+        access(access),
+        instance_field(instance_field) {}
 
   constexpr auto get_field() const
       -> const Tetrodotoxin::Library::Language::Field& {
@@ -43,6 +48,11 @@ class Binding {
     return kind;
   }
 
+  constexpr auto get_access() const
+      -> Tetrodotoxin::Render::Language::Binding::Access {
+    return access;
+  }
+
   constexpr auto get_instance_field() const -> Perimortem::Core::Option<
       const Tetrodotoxin::Library::Language::Field&> {
     return instance_field.visit(
@@ -58,6 +68,7 @@ class Binding {
  private:
   Tetrodotoxin::Library::Language::Field& field;
   Tetrodotoxin::Render::Language::Binding::Kind kind;
+  Tetrodotoxin::Render::Language::Binding::Access access;
   Perimortem::Core::Option<Tetrodotoxin::Library::Language::Field&>
       instance_field;
 };

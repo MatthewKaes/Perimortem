@@ -6,13 +6,12 @@
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/import.hpp"
-#include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Language {
 
@@ -26,9 +25,9 @@ namespace Tetrodotoxin::Language {
 // completed semantic island to Terminal production. A fixed child Monograph is
 // appropriate only when the source directly authors meaning owned by that
 // child language, as Shader does for its executable Library body.
-class Monograph : public Ttx::Concept::Abstract {
+class Monograph : public Ttx::Model::Type {
  public:
-  TTX_CONTRACT(Monograph, Ttx::Concept::Abstract);
+  TTX_CONTRACT(Monograph, Ttx::Model::Type);
 
   virtual ~Monograph() = 0;
 
@@ -55,8 +54,8 @@ class Monograph : public Ttx::Concept::Abstract {
   virtual auto get_layer(const Ttx::Concept::Abstract& requested) const
       -> Perimortem::Core::Option<const Monograph&>;
 
-  // Environment binds source-local Import Aliases to these real roots. The
-  // root is a Dialect semantic object, never the Monograph lifetime owner.
+  // Environment acquires source-local Import Types from these real roots. The
+  // root is a Dialect semantic object retained by its Monograph lifetime owner.
   virtual auto get_root() const -> const Ttx::Concept::Abstract&;
 
   virtual auto retain_import(
@@ -64,10 +63,17 @@ class Monograph : public Ttx::Concept::Abstract {
       Perimortem::Core::Option<Ttx::Lexical::Associations&> associations = {})
       -> Bool;
 
-  virtual constexpr auto get_imports() const
-      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Import>> {
-    return imports.get_view();
+  virtual constexpr auto get_reachable_types() const
+      -> Perimortem::Core::View::Vector<
+          Ttx::Concept::Reference<Ttx::Model::Type>> {
+    return types.get_view();
   }
+
+  // Linking inside the source sees private and public imported Types. External
+  // contextual queries continue through resolve_context and observe only the
+  // public surface.
+  virtual auto resolve_lexical_context(Perimortem::Core::View::Bytes route)
+      const -> const Ttx::Concept::Abstract&;
 
   // Linking begins after every source in the transaction has established stable
   // identities. Finalization follows as a second barrier where each Monograph
@@ -86,12 +92,14 @@ class Monograph : public Ttx::Concept::Abstract {
   auto resolve_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
+  auto get_layout() const -> const Ttx::Concept::Layout& override;
+
  protected:
   // Concrete source roots can compose their owned lookup surface with common
   // imports without falling through to the outer context. This keeps a fixed
   // child layer from recursing through its owning Monograph.
-  auto resolve_import(Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract&;
+  auto resolve_type(Perimortem::Core::View::Bytes route, Visibility visibility)
+      const -> const Ttx::Concept::Abstract&;
 
   // Keeping concrete facts in the Monograph's lifetime domain lets graph edges
   // remain valid for as long as Workspace exposes the source result.
@@ -107,9 +115,8 @@ class Monograph : public Ttx::Concept::Abstract {
 
  private:
   const Ttx::Concept::Abstract& language;
-  Perimortem::Memory::Managed::Map<Perimortem::Core::View::Bytes, Import&>
-      import_lookup;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Import>> imports;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Ttx::Model::Type>>
+      types;
 };
 
 }  // namespace Tetrodotoxin::Language

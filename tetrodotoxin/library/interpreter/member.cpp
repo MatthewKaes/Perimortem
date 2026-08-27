@@ -7,6 +7,8 @@
 #include "tetrodotoxin/library/interpreter/declarations/field.hpp"
 #include "tetrodotoxin/library/interpreter/declarations/function.hpp"
 #include "tetrodotoxin/library/interpreter/types/enumeration.hpp"
+#include "tetrodotoxin/library/interpreter/types/implemented.hpp"
+#include "tetrodotoxin/library/interpreter/types/interface.hpp"
 #include "tetrodotoxin/library/interpreter/types/namespace.hpp"
 #include "tetrodotoxin/library/interpreter/types/object.hpp"
 #include "tetrodotoxin/library/interpreter/types/structure.hpp"
@@ -79,11 +81,26 @@ auto Interpreter::Member::parse(
         object->get_semantic(), Language::Types::Composite::Category::Type,
         object->get_state());
   }
+  case Code::Type::Interface: {
+    auto interface = Interpreter::Types::Interface::parse(cursor, definition);
+    BAIL_IF(!interface);
+    return Result(
+        interface->get_semantic(), Language::Types::Composite::Category::Type,
+        interface->get_state());
+  }
+  case Code::Type::Implementation: {
+    auto implemented =
+        Interpreter::Types::Implemented::parse(cursor, definition);
+    BAIL_IF(!implemented);
+    return Result(
+        implemented->get_semantic(), Language::Types::Composite::Category::Type,
+        implemented->get_state());
+  }
   default:
     cursor.create_token_error(
         qualifier,
         "Library members require a Type, `alias`, `namespace`, `enum`, "
-        "`struct`, `object`, "
+        "`struct`, `object`, `interface`, `implementation`, "
         "`func`, or inferred initializer qualifier."_view);
     return {};
   }

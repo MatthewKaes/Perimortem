@@ -13,6 +13,25 @@
 using namespace Perimortem::Core;
 using namespace Perimortem;
 
+struct UnitQuadVertex {
+  R32 position[2];
+  R32 texture_uv[2];
+};
+
+static auto supports_unit_quad(const Vulkan::Description::Program& description)
+    -> Bool {
+  auto inputs = description.vertex_inputs;
+  return Bool(
+      inputs.get_size() == 2 && inputs.get_data()[0].location == 0 &&
+      inputs.get_data()[0].components == 2 &&
+      inputs.get_data()[0].offset == 0 &&
+      inputs.get_data()[0].stride == sizeof(UnitQuadVertex) &&
+      inputs.get_data()[1].location == 1 &&
+      inputs.get_data()[1].components == 2 &&
+      inputs.get_data()[1].offset == sizeof(R32) * 2 &&
+      inputs.get_data()[1].stride == sizeof(UnitQuadVertex));
+}
+
 const Core::Object<>::Descriptor Vulkan::Pipelines::cache_descriptor(
     sizeof(CacheEntry),
     alignof(CacheEntry),
@@ -64,8 +83,6 @@ auto Vulkan::Pipelines::validate_descriptions() const -> void {
         description.parameters_offset > description.host_size ||
         description.parameters_size >
             description.host_size - description.parameters_offset ||
-        description.vertex_count == 0 ||
-        description.geometry != Description::Geometry::UnitQuad2D ||
         description.descriptors.is_empty() ||
         (description.requires_float64 && !context.supports_float64())) {
       Diagnostics::Log::fatal(
@@ -117,29 +134,11 @@ auto Vulkan::Pipelines::create_descriptor_layout() -> void {
 }
 
 auto Vulkan::Pipelines::create_vertex_buffer() -> void {
-  struct Vertex {
-    R32 position[2];
-    R32 texture_uv[2];
-  };
-  static constexpr Vertex vertices[] = {
+  static constexpr UnitQuadVertex vertices[] = {
     {{0.0f, 0.0f}, {0.0f, 0.0f}}, {{1.0f, 0.0f}, {1.0f, 0.0f}},
     {{1.0f, 1.0f}, {1.0f, 1.0f}}, {{0.0f, 0.0f}, {0.0f, 0.0f}},
     {{1.0f, 1.0f}, {1.0f, 1.0f}}, {{0.0f, 1.0f}, {0.0f, 1.0f}},
   };
-  for (const Description::Program& description : descriptions) {
-    auto inputs = description.vertex_inputs;
-    if (inputs.get_size() != 2 || inputs.get_data()[0].location != 0 ||
-        inputs.get_data()[0].components != 2 ||
-        inputs.get_data()[0].offset != 0 ||
-        inputs.get_data()[0].stride != sizeof(Vertex) ||
-        inputs.get_data()[1].location != 1 ||
-        inputs.get_data()[1].components != 2 ||
-        inputs.get_data()[1].offset != sizeof(R32) * 2 ||
-        inputs.get_data()[1].stride != sizeof(Vertex)) {
-      Diagnostics::Log::fatal(
-          "Vulkan: A generated Program has an unsupported vertex layout."_view);
-    }
-  }
 
   VkBufferCreateInfo buffer_info = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
   buffer_info.size = sizeof(vertices);
@@ -201,59 +200,105 @@ auto Vulkan::Pipelines::rebuild(VkFormat color_format) -> void {
     realization.release();
   }
   realizations.clear();
-  for (Count index = 0; index < descriptions.get_size(); index++) {
-    const Description::Program& description = descriptions.get_data()[index];
-    Count set_count = 0;
-    for (const Description::DescriptorBinding& descriptor :
-         description.descriptors) {
-      set_count = Core::Math::max(set_count, descriptor.set + 1);
-    }
-    Memory::Dynamic::Vector<VkDescriptorSetLayout> layouts;
-    for (Count set = 0; set < set_count; set++) {
-      layouts.insert(descriptor_layout);
-    }
-    Core::Object<> storage = Core::Object<>::create(realization_descriptor);
-    new (storage.get_payload(), Core::Placement::Construct) Realization();
-    Realization& realization = get_realization(storage);
-    realization.description = &description;
-    realization.shader = ShaderProgram::create(
-        context.get_device(), color_format, description, layouts.get_view());
-    realizations.emplace(static_cast<Core::Object<>&&>(storage));
-  }
+  this->color_format = color_format;
 }
 
-auto Vulkan::Pipelines::find_realization(const U8* locator) -> Realization* {
+auto Vulkan::Pipelines::find_description(const U8* locator) const
+    -> const Description::Program* {
+  for (Count index = 0; index < descriptions.get_size(); index++) {
+    const Description::Program& description = descriptions.get_data()[index];
+    if (description.locator == locator) {
+      return &description;
+    }
+  }
+
+  return nullptr;
+}
+
+auto Vulkan::Pipelines::find_realization(
+    const U8* locator,
+    Perimortem::Graphics::Frame::Pipeline pipeline) -> Realization* {
   for (Core::Object<> object : realizations.get_view()) {
     Realization& realization = get_realization(object);
-    if (realization.description->locator == locator) {
+    if (
+        realization.description->locator == locator &&
+        realization.pipeline == pipeline) {
       return &realization;
     }
   }
   return nullptr;
 }
 
-auto Vulkan::Pipelines::find_realization(const U8* locator) const
+auto Vulkan::Pipelines::find_realization(
+    const U8* locator,
+    Perimortem::Graphics::Frame::Pipeline pipeline) const
     -> const Realization* {
   for (Core::Object<> object : realizations.get_view()) {
     const Realization& realization = get_realization(object);
-    if (realization.description->locator == locator) {
+    if (
+        realization.description->locator == locator &&
+        realization.pipeline == pipeline) {
       return &realization;
     }
   }
   return nullptr;
+}
+
+auto Vulkan::Pipelines::realize_pipeline(
+    const Perimortem::Graphics::Frame::Batch& batch) -> Realization* {
+  const U8* locator = batch.get_program().get_locator();
+  Perimortem::Graphics::Frame::Pipeline pipeline = batch.get_pipeline();
+  Realization* retained = find_realization(locator, pipeline);
+  if (retained != nullptr) {
+    return retained;
+  }
+
+  const Description::Program* description = find_description(locator);
+  if (description == nullptr || color_format == VK_FORMAT_UNDEFINED) {
+    return nullptr;
+  }
+
+  Count set_count = 0;
+  for (const Description::DescriptorBinding& descriptor :
+       description->descriptors) {
+    set_count = Core::Math::max(set_count, descriptor.set + 1);
+  }
+  Memory::Dynamic::Vector<VkDescriptorSetLayout> layouts;
+  for (Count set = 0; set < set_count; set++) {
+    layouts.insert(descriptor_layout);
+  }
+
+  Core::Object<> storage = Core::Object<>::create(realization_descriptor);
+  new (storage.get_payload(), Core::Placement::Construct) Realization();
+  Realization& realization = get_realization(storage);
+  realization.description = description;
+  realization.pipeline = pipeline;
+  realization.shader = ShaderProgram::create(
+      context.get_device(), color_format, *description, pipeline,
+      layouts.get_view());
+  realizations.emplace(static_cast<Core::Object<>&&>(storage));
+  return &get_realization(realizations[realizations.get_size() - 1]);
 }
 
 auto Vulkan::Pipelines::validate(
     View::Vector<Perimortem::Graphics::Frame::Batch> batches) const -> Bool {
   for (const Perimortem::Graphics::Frame::Batch& batch : batches) {
-    const Realization* realization =
-        find_realization(batch.get_program().get_locator());
-    BAIL_IF(realization == nullptr);
-    const Description::Program& description = *realization->description;
+    const Description::Program* description =
+        find_description(batch.get_program().get_locator());
+    Perimortem::Graphics::Frame::Pipeline pipeline = batch.get_pipeline();
     BAIL_IF(
+        description == nullptr || batch.get_vertex_count() == 0 ||
+        batch.get_vertex_count() > U32(-1) ||
+        pipeline.get_geometry() !=
+            Perimortem::Graphics::Frame::Pipeline::Geometry::UnitQuad2D ||
+        pipeline.get_topology() !=
+            Perimortem::Graphics::Frame::Pipeline::Topology::TriangleList ||
+        pipeline.get_blend() !=
+            Perimortem::Graphics::Frame::Pipeline::Blend::Alpha ||
+        !supports_unit_quad(*description) ||
         batch.get_resources().get_size() !=
-            description.descriptors.get_size() ||
-        batch.get_inputs().get_size() != description.parameters_size ||
+            description->descriptors.get_size() ||
+        batch.get_inputs().get_size() != description->parameters_size ||
         batch.get_size_pixels().width == 0 ||
         batch.get_size_pixels().height == 0);
     for (const Perimortem::Graphics::Frame::Resource& resource :
@@ -276,14 +321,15 @@ auto Vulkan::Pipelines::record(
   // Resource realization finishes before command recording begins. A rejected
   // Texture or Program therefore leaves no partial draw sequence in this frame.
   for (const Perimortem::Graphics::Frame::Batch& batch : batches) {
+    BAIL_IF(realize_pipeline(batch) == nullptr);
     for (const Perimortem::Graphics::Frame::Resource& resource :
          batch.get_resources()) {
       BAIL_IF(!realize_texture(resource));
     }
   }
   for (const Perimortem::Graphics::Frame::Batch& batch : batches) {
-    Realization* realization =
-        find_realization(batch.get_program().get_locator());
+    Realization* realization = find_realization(
+        batch.get_program().get_locator(), batch.get_pipeline());
     BAIL_IF(realization == nullptr);
     Memory::Dynamic::Bytes inputs =
         make_host_inputs(*realization->description, batch, width, height);
@@ -302,8 +348,7 @@ auto Vulkan::Pipelines::record(
           realization->description->descriptors[descriptor_index].set);
     }
     realization->shader.push_constants(command_buffer, inputs.get_view());
-    realization->shader.draw(
-        command_buffer, realization->description->vertex_count);
+    realization->shader.draw(command_buffer, batch.get_vertex_count());
   }
 
   sweep_textures();

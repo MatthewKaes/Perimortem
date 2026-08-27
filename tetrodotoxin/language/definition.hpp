@@ -147,6 +147,18 @@ class Definition {
     return Ttx::Lexical::Anchor::create(Ttx::Lexical::Span(name_token));
   }
 
+  constexpr auto get_declaration_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
+    if (name_token) {
+      return get_name_anchor();
+    }
+    if (anchor.get_span()) {
+      return anchor;
+    }
+
+    return {};
+  }
+
  private:
   constexpr Definition(
       const Ttx::Concept::Documentation& documentation,

@@ -5,6 +5,7 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
+#include "tetrodotoxin/language/monograph.hpp"
 #include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
 
@@ -30,8 +31,17 @@ static auto resolve_route(const Abstract& context, View::Bytes route)
       return Invalid::get_invalid();
     }
 
-    const Abstract& candidate =
-        selected.get().resolve_context(segment).resolve();
+    const Abstract& queried =
+        selected.get().visit<Tetrodotoxin::Language::Monograph>(
+            [&](const Tetrodotoxin::Language::Monograph& monograph)
+                -> const Abstract& {
+              return start == 0 ? monograph.resolve_lexical_context(segment)
+                                : monograph.resolve_context(segment);
+            },
+            [&](const Abstract& selected_context) -> const Abstract& {
+              return selected_context.resolve_context(segment);
+            });
+    const Abstract& candidate = queried.resolve();
     if (candidate.is<Invalid>()) {
       return candidate;
     }

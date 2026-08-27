@@ -33,15 +33,6 @@ static auto attribute(
   return {};
 }
 
-static auto unsigned_attribute(
-    Core::View::Vector<Tetrodotoxin::Language::Attribute> attributes,
-    Core::View::Bytes name) -> Core::Option<Count> {
-  auto selected = attribute(attributes, name);
-  const U64* value = selected ? selected->get_value().find<U64>() : nullptr;
-  BAIL_IF(!value || *value > U64(Count(-1)));
-  return Count(*value);
-}
-
 static auto text_attribute(
     Core::View::Vector<Tetrodotoxin::Language::Attribute> attributes,
     Core::View::Bytes name) -> Core::Option<Core::View::Bytes> {
@@ -117,18 +108,6 @@ auto Terminal::Vulkan::Compiler::describe(
   auto contract = program.get_contract();
   BAIL_IF(symbol.is_empty() || !contract);
 
-  auto contract_attributes = contract->get_definition().get_attributes();
-  auto topology_name = text_attribute(contract_attributes, "topology"_view);
-  auto blend_name = text_attribute(contract_attributes, "blend"_view);
-  auto geometry_name = text_attribute(contract_attributes, "geometry"_view);
-  auto vertex_count =
-      unsigned_attribute(contract_attributes, "vertex_count"_view);
-  BAIL_IF(
-      !topology_name || *topology_name != "triangle_list"_view || !blend_name ||
-      *blend_name != "alpha"_view || !geometry_name ||
-      *geometry_name != "unit_quad_2d"_view || !vertex_count ||
-      *vertex_count == 0);
-
   Memory::Managed::Vector<Products::Entry> entries(arena);
   const Library::Language::Function* vertex = nullptr;
   for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
@@ -152,20 +131,19 @@ auto Terminal::Vulkan::Compiler::describe(
   Count parameters_offset = 0;
   Count parameters_size = 0;
   Bool requires_float64 = False;
+  Count descriptor_slot = 0;
   for (const Shader::Language::Binding& binding : program.get_bindings()) {
     const Library::Language::Field& field = binding.get_field();
-    auto attributes = field.get_definition().get_attributes();
     if (binding.get_kind() == Render::Language::Binding::Kind::Resource) {
-      auto set = unsigned_attribute(attributes, "set"_view);
-      auto slot = unsigned_attribute(attributes, "slot"_view);
-      BAIL_IF(!set || !slot);
+      BAIL_IF(binding.get_access() != Render::Language::Binding::Access::Read);
       descriptors.insert(
           Products::Descriptor{
             field.get_name(),
-            *set,
-            *slot,
+            descriptor_slot,
+            0,
             Products::Resource::SampledTexture2D,
           });
+      descriptor_slot++;
       continue;
     }
     BAIL_IF(binding.get_kind() != Render::Language::Binding::Kind::Push);
@@ -205,12 +183,10 @@ auto Terminal::Vulkan::Compiler::describe(
         field_offset = align_up(field_offset, layout->get_alignment());
         auto projected_field = addressable->select<Library::Language::Field>();
         BAIL_IF(!projected_field);
-        auto host = text_attribute(
-            projected_field->get_definition().get_attributes(), "host"_view);
         Products::HostRole role;
-        if (host && *host == "transform_x"_view) {
+        if (projected_field->get_name() == "transform_x"_view) {
           role = Products::HostRole::TransformX;
-        } else if (host && *host == "transform_y"_view) {
+        } else if (projected_field->get_name() == "transform_y"_view) {
           role = Products::HostRole::TransformY;
         } else {
           return {};
@@ -244,8 +220,6 @@ auto Terminal::Vulkan::Compiler::describe(
   Count stride = 0;
   const auto& parameters = vertex->get_signature().get_parameters();
   for (Count index = 0; index < parameters.get_size(); index++) {
-    auto location = unsigned_attribute(
-        parameters.get_slot_attributes(index), "location"_view);
     auto semantic = parameters.get_abstract(index);
     auto type = semantic
                     ? select_type(*semantic)
@@ -253,9 +227,8 @@ auto Terminal::Vulkan::Compiler::describe(
     auto components =
         type ? Terminal::Spirv::Layout::get_vector_components(*type)
              : Core::Option<Count>();
-    BAIL_IF(!location || !components);
-    vertex_inputs.insert(
-        Products::VertexInput{*location, *components, stride, 0});
+    BAIL_IF(!components);
+    vertex_inputs.insert(Products::VertexInput{index, *components, stride, 0});
     stride += *components * sizeof(R32);
   }
   for (Count index = 0; index < vertex_inputs.get_size(); index++) {
@@ -265,7 +238,5 @@ auto Terminal::Vulkan::Compiler::describe(
   return Products(
       symbol, entries.get_view(), descriptors.get_view(),
       vertex_inputs.get_view(), host_fields.get_view(), host_size,
-      parameters_offset, parameters_size, *vertex_count,
-      Products::Topology::TriangleList, Products::Blend::Alpha,
-      Products::Geometry::UnitQuad2D, requires_float64);
+      parameters_offset, parameters_size, requires_float64);
 }

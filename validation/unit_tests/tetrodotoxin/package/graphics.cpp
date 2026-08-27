@@ -86,7 +86,7 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
 
   Environment::Toolchain toolchain;
   auto library = toolchain.install<Library::Dialect>("Library"_view);
-  auto render = toolchain.install<Render::Dialect>("Render"_view);
+  auto render = toolchain.install<Render::Dialect>("Pipeline"_view);
   ASSERT(library && render);
   ASSERT(toolchain.install<Package::Dialect>("Package"_view, *library));
   ASSERT(toolchain.install<Shader::Dialect>("Shader"_view, *library, *render));
@@ -134,7 +134,7 @@ PERIMORTEM_UNIT_TEST(StandardGraphicsPackage, restores_public_api) {
   EXPECT(hosting.accepts(*placement, *sprite));
   EXPECT_TEXT(
       placement->get_documentation().get_line(0),
-      "Placement2D lets Graphics read the transform and frame ordering of a real"_view);
+      "Placement2D lets Graphics read the transform and frame ordering of a real Object"_view);
   EXPECT_TEXT(
       pixel->get_documentation().get_line(0),
       "Pixel stores one eight bit red, green, blue, and alpha sample. Fully"_view);

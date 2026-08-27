@@ -3,36 +3,19 @@
 //
 dialect : Shader;
 
-public Formats : alias = source("render.ttx");
-public Math : alias =
-    package(.name = "Perimortem.Math", .version = "1.0");
+public Math : alias = package(.name = "Perimortem.Math", .version = "1.0");
+implements source("render.ttx");
 
-public TestShader : shader Formats::Simple {
-  public phase_milliseconds : uniform U32 = new[U32];
+public phase_milliseconds : uniform U32 = new[U32];
 
-  public fragment : func {
-    state phase_milliseconds := new[R32](parameters.phase_milliseconds);
-    state phase := phase_milliseconds / new[R32](1000.0);
-    state copied : Math::Vec4D = (
-      .x = color.x + color.y + phase,
-      .y = color.y + color.z,
-      .z = color.z + color.w,
-      .w = color.w + color.x,
-    );
-    return (copied.[x, y, z], phase);
-  }
-}
-
-public Float64Shader : shader Formats::Simple {
-  public time : uniform R64 = 0.0;
-
-  public fragment : func {
-    state copied : Math::Vec4D = (
-      .x = color.x + color.y + new[R32](parameters.time % 1.0),
-      .y = color.y + color.z,
-      .z = color.z + color.w,
-      .w = color.w + color.x,
-    );
-    return (.color = copied);
-  }
+Shader fragment[.color : Math::Vec4D] -> [.color : Math::Vec4D] {
+  state phase_milliseconds := new[R32](parameters.phase_milliseconds);
+  state phase := phase_milliseconds / new[R32](1000.0);
+  state copied : Math::Vec4D = (
+    .x = color.x + color.y + phase,
+    .y = color.y + color.z,
+    .z = color.z + color.w,
+    .w = color.w + color.x,
+  );
+  return (copied.[x, y, z], phase);
 }

@@ -46,6 +46,16 @@ auto Language::Field::create_generated(
   });
 }
 
+auto Language::Field::create_generated(
+    Allocator::Arena& domain,
+    Tetrodotoxin::Language::Definition& definition,
+    Writability writability,
+    TypeReference type_reference) -> Field& {
+  return domain.construct_from<Field>([&]() -> Field {
+    return Field(domain, definition, writability, type_reference, {}, {}, True);
+  });
+}
+
 auto Language::Field::retain_generated_type(const Model::Type& selected)
     -> Bool {
   BAIL_IF(type_reference || selected.get_layout().is_empty());
@@ -54,6 +64,21 @@ auto Language::Field::retain_generated_type(const Model::Type& selected)
     return &type->get() == &selected;
   }
   type = Reference<const Model::Type>(selected);
+  return True;
+}
+
+auto Language::Field::retain_generated_initializer(const Field& requirement)
+    -> Bool {
+  BAIL_IF(!generated || initializer || !initializer_linked);
+  auto selected = requirement.get_initializer();
+  if (!selected) {
+    return True;
+  }
+
+  initializer = const_cast<Model::Pack&>(*selected);
+  if (writability == Writability::Constant) {
+    return cache_constant();
+  }
   return True;
 }
 

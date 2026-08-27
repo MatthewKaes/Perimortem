@@ -660,7 +660,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
   Dynamic::Bytes corrupt(literal_archive());
   corrupt.get_access().get_data()[0] = 'X';
   Dynamic::Bytes future(literal_archive());
-  set_u16(future, 4, 5);
+  set_u16(future, 4, 6);
 
   // Reader and Repository emit consecutive records with different owner
   // detail. The helper observes both before checking the typed caller category.
@@ -715,7 +715,7 @@ PERIMORTEM_UNIT_TEST(PackageRepository, selected_failures) {
       Version(1, 2), Package::Repository::Repository::Error::UnsupportedFormat,
       "selection_error=UnsupportedFormat requested_identity=Pkg.Core "
       "requested_version=1.2"_view,
-      "stage=header byte_offset=4 expected_format=2_3_or_4 actual_format=5"_view));
+      "stage=header byte_offset=4 expected_format=2_3_4_or_5 actual_format=6"_view));
   EXPECT(
       Test::error_contains(
           "reason=the Archive format revision is unsupported. "

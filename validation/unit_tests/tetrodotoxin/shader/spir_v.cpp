@@ -26,10 +26,10 @@ static Harness TtxSpirV = {
 };
 
 extern "C" {
-extern const U8 TTX_DATA_Validation_2eShader__Shader__TestShader[];
-extern const U8 TTX_DATA_Validation_2eShader__Shader__TestShader_end[];
-extern const U8 TTX_DATA_Validation_2eShader__Shader__Float64Shader[];
-extern const U8 TTX_DATA_Validation_2eShader__Shader__Float64Shader_end[];
+extern const U8 TTX_DATA_Validation_2eShader__TestShader__Program[];
+extern const U8 TTX_DATA_Validation_2eShader__TestShader__Program_end[];
+extern const U8 TTX_DATA_Validation_2eShader__Float64Shader__Program[];
+extern const U8 TTX_DATA_Validation_2eShader__Float64Shader__Program_end[];
 }
 
 PERIMORTEM_UNIT_TEST(TtxSpirV, word_emitter) {
@@ -85,15 +85,15 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, unsigned_to_real_word_emitter) {
 PERIMORTEM_UNIT_TEST(TtxSpirV, independent_validator) {
   View::Bytes modules[] = {
     View::Bytes(
-        TTX_DATA_Validation_2eShader__Shader__TestShader,
+        TTX_DATA_Validation_2eShader__TestShader__Program,
         Count(
-            TTX_DATA_Validation_2eShader__Shader__TestShader_end -
-            TTX_DATA_Validation_2eShader__Shader__TestShader)),
+            TTX_DATA_Validation_2eShader__TestShader__Program_end -
+            TTX_DATA_Validation_2eShader__TestShader__Program)),
     View::Bytes(
-        TTX_DATA_Validation_2eShader__Shader__Float64Shader,
+        TTX_DATA_Validation_2eShader__Float64Shader__Program,
         Count(
-            TTX_DATA_Validation_2eShader__Shader__Float64Shader_end -
-            TTX_DATA_Validation_2eShader__Shader__Float64Shader)),
+            TTX_DATA_Validation_2eShader__Float64Shader__Program_end -
+            TTX_DATA_Validation_2eShader__Float64Shader__Program)),
   };
   static constexpr Static::Vector<View::Bytes, 2> paths = {{
     ".bin/bin/validation/embedded_shader_u32.spv"_view,
@@ -140,15 +140,15 @@ PERIMORTEM_UNIT_TEST(TtxSpirV, package_locator) {
   Bool found_r64 = False;
   for (const Tetrodotoxin::Package::Archive::Export& exported :
        archive->get_exports()) {
-    found_u32 |= exported.get_semantic_route() == "Shader::TestShader"_view &&
+    found_u32 |= exported.get_semantic_route() == "TestShader::Program"_view &&
                  exported.get_artifact_id() == "x86_64-sysv-linux"_view &&
                  exported.get_symbol_locator() ==
-                     "TTX_DATA_Validation_2eShader__Shader__TestShader"_view;
+                     "TTX_DATA_Validation_2eShader__TestShader__Program"_view;
     found_r64 |=
-        exported.get_semantic_route() == "Shader::Float64Shader"_view &&
+        exported.get_semantic_route() == "Float64Shader::Program"_view &&
         exported.get_artifact_id() == "x86_64-sysv-linux"_view &&
         exported.get_symbol_locator() ==
-            "TTX_DATA_Validation_2eShader__Shader__Float64Shader"_view;
+            "TTX_DATA_Validation_2eShader__Float64Shader__Program"_view;
   }
   EXPECT(found_u32);
   EXPECT(found_r64);

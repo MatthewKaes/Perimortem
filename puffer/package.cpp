@@ -198,7 +198,46 @@ static auto append_host_path(
 static auto create_route(
     Memory::Allocator::Arena& arena,
     Core::View::Bytes member,
-    const Ttx::Concept::Abstract& semantic) -> Core::Option<Core::View::Bytes> {
+    const Ttx::Concept::Abstract& semantic,
+    const Tetrodotoxin::Terminal::Abi::Unit& unit)
+    -> Core::Option<Core::View::Bytes> {
+  const Library::Language::Model::Type* host = nullptr;
+  if (auto function = semantic.select<Library::Language::Function>()) {
+    host = &function->get_host();
+  } else if (auto field = semantic.select<Library::Language::Field>()) {
+    auto field_host = field->get_definition()
+                          .get_host()
+                          .select<Library::Language::Model::Type>();
+    if (field_host) {
+      host = &*field_host;
+    }
+  } else {
+    auto type = semantic.select<Library::Language::Model::Type>();
+    if (type) {
+      host = &*type;
+    }
+  }
+
+  auto binding =
+      host ? unit.find_type(*host)
+           : Core::Option<
+                 const Tetrodotoxin::Terminal::Abi::Unit::TypeBinding&>();
+  if (binding && binding->get_package() == unit.get_package()) {
+    Memory::Managed::Bytes output(arena, binding->get_route());
+    if (auto function = semantic.select<Library::Language::Function>()) {
+      output.concat("::"_view);
+      output.concat(function->get_name());
+      output.concat(
+          function->declares_self() ? "[self]"_view : "[static]"_view);
+    } else if (auto field = semantic.select<Library::Language::Field>()) {
+      output.concat("::"_view);
+      output.concat(field->get_name());
+      output.concat("[static]"_view);
+    }
+
+    return output.get_view();
+  }
+
   Memory::Managed::Bytes output(arena, member);
   output.concat("::"_view);
   Count start = output.get_size();
@@ -221,8 +260,13 @@ static auto resolve_context_route(
 
     Core::View::Bytes segment = route.slice(start, index - start);
     BAIL_IF(segment.is_empty());
+    const Ttx::Concept::Abstract& context = selected.get().resolve();
+    auto monograph = context.select<Tetrodotoxin::Language::Monograph>();
+    const Ttx::Concept::Abstract& queried =
+        monograph ? monograph->resolve_lexical_context(segment)
+                  : context.resolve_context(segment);
     selected = Ttx::Concept::Reference<const Ttx::Concept::Abstract>(
-        selected.get().resolve_context(segment).resolve());
+        queried.resolve());
     BAIL_IF(selected.get().is<Ttx::Concept::Invalid>());
     if (separator) {
       index++;
@@ -240,12 +284,23 @@ static auto resolve_source_route(
     Core::View::Bytes route) -> Core::Option<const Ttx::Concept::Abstract&> {
   Core::Option<const Ttx::Concept::Abstract&> selected =
       resolve_context_route(package, route);
+  if (selected) {
+    return *selected;
+  }
+
   Count count = workspace.get_package_source_count(package);
   for (Count index = 0; index < count; index++) {
     auto source = workspace.get_package_source(package, index);
-    auto candidate = source
-                         ? resolve_context_route(source->get_monograph(), route)
-                         : Core::Option<const Ttx::Concept::Abstract&>();
+    Core::View::Bytes candidate_route = route;
+    if (source && route.get_size() > source->get_name().get_size() + 2 &&
+        route.slice(0, source->get_name().get_size()) == source->get_name() &&
+        route[source->get_name().get_size()] == ':' &&
+        route[source->get_name().get_size() + 1] == ':') {
+      candidate_route = route.slice(source->get_name().get_size() + 2);
+    }
+    auto candidate =
+        source ? resolve_context_route(source->get_monograph(), candidate_route)
+               : Core::Option<const Ttx::Concept::Abstract&>();
     if (!candidate) {
       continue;
     }
@@ -438,7 +493,7 @@ static auto retain_export_type(
   }
 
   for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& nested :
-       composite->get_types()) {
+       composite->get_types(Tetrodotoxin::Language::Visibility::Public)) {
     Memory::Managed::Bytes nested_route(arena, route);
     nested_route.concat("::"_view);
     nested_route.concat(nested.get().get_name());
@@ -460,8 +515,24 @@ static auto retain_package_exports(
     const Tetrodotoxin::Package::Language::Monograph& package,
     const Ttx::Concept::Abstract& library_dialect,
     Core::View::Bytes package_name) -> Bool {
+  for (const Ttx::Concept::Reference<Ttx::Model::Type>& reachable :
+       package.get_reachable_types()) {
+    auto import = reachable.get().select<Tetrodotoxin::Language::Import>();
+    if (!import || import->get_visibility() ==
+                       Tetrodotoxin::Language::Visibility::Private) {
+      continue;
+    }
+
+    if (!retain_export_type(
+            arena, bindings, workspace, package, library_dialect, package_name,
+            import->get_name(), *import)) {
+      return False;
+    }
+  }
+
   for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& selected :
-       package.get_library().get_source().get_types()) {
+       package.get_library().get_source().get_types(
+           Tetrodotoxin::Language::Visibility::Public)) {
     if (!retain_export_type(
             arena, bindings, workspace, package, library_dialect, package_name,
             selected.get().get_name(), selected.get())) {
@@ -541,7 +612,7 @@ static auto retain_archived_export_type(
   }
 
   for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& nested :
-       composite->get_types()) {
+       composite->get_types(Tetrodotoxin::Language::Visibility::Public)) {
     Memory::Managed::Bytes nested_route(arena, route);
     nested_route.concat("::"_view);
     nested_route.concat(nested.get().get_name());
@@ -563,8 +634,24 @@ static auto retain_archived_package_exports(
     const Tetrodotoxin::Package::Language::Monograph& package,
     const Tetrodotoxin::Package::Archive::Archive& archive,
     const Ttx::Concept::Abstract& library_dialect) -> Bool {
+  for (const Ttx::Concept::Reference<Ttx::Model::Type>& reachable :
+       package.get_reachable_types()) {
+    auto import = reachable.get().select<Tetrodotoxin::Language::Import>();
+    if (!import || import->get_visibility() ==
+                       Tetrodotoxin::Language::Visibility::Private) {
+      continue;
+    }
+
+    if (!retain_archived_export_type(
+            arena, bindings, workspace, package, archive, library_dialect,
+            import->get_name(), *import)) {
+      return False;
+    }
+  }
+
   for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& selected :
-       package.get_library().get_source().get_types()) {
+       package.get_library().get_source().get_types(
+           Tetrodotoxin::Language::Visibility::Public)) {
     if (!retain_archived_export_type(
             arena, bindings, workspace, package, archive, library_dialect,
             selected.get().get_name(), selected.get())) {
@@ -772,7 +859,7 @@ auto Puffer::Package::run() const -> S32 {
 
   Environment::Toolchain toolchain;
   auto library = toolchain.install<Library::Dialect>("Library"_view);
-  auto render = toolchain.install<Render::Dialect>("Render"_view);
+  auto render = toolchain.install<Render::Dialect>("Pipeline"_view);
   if (!library || !render ||
       !toolchain.install<Tetrodotoxin::Package::Dialect>(
           "Package"_view, *library) ||
@@ -1420,7 +1507,7 @@ auto Puffer::Package::run() const -> S32 {
       for (const Tetrodotoxin::Terminal::Abi::Publication& publication :
            native_interface->get_publications()) {
         auto route =
-            create_route(arena, member_name, publication.get_semantic());
+            create_route(arena, member_name, publication.get_semantic(), unit);
         if (!route) {
           Core::Diagnostics::Log::error(
               "Puffer Package could not create one export route."_view);
@@ -1475,17 +1562,22 @@ auto Puffer::Package::run() const -> S32 {
   auto retain_graph_imports =
       [&](Core::View::Bytes importer_name,
           const Tetrodotoxin::Language::Monograph& importer) -> Bool {
-    for (const Ttx::Concept::Reference<Tetrodotoxin::Language::Import>&
-             retained : importer.get_imports()) {
-      const Tetrodotoxin::Language::Import& import = retained.get();
-      Core::View::Bytes target = import.get_locator();
-      if (import.get_kind() == Tetrodotoxin::Language::Import::Kind::Source) {
+    for (const Ttx::Concept::Reference<Ttx::Model::Type>& retained :
+         importer.get_reachable_types()) {
+      auto import = retained.get().select<Tetrodotoxin::Language::Import>();
+      if (!import) {
+        continue;
+      }
+
+      Core::View::Bytes target = import->get_locator();
+      if (import->get_kind() == Tetrodotoxin::Language::Import::Kind::Source) {
         target = {};
-        const Ttx::Concept::Abstract& selected = import.resolve();
+        auto acquired = import->get_acquired();
         for (Count source_index = 0; source_index < local_source_count;
              source_index++) {
           auto source = workspace.get_package_source(*root, source_index);
-          if (source && &source->get_monograph().get_root() == &selected) {
+          if (source && acquired &&
+              &source->get_monograph().get_root() == &*acquired) {
             target = source->get_name();
             break;
           }
@@ -1498,8 +1590,9 @@ auto Puffer::Package::run() const -> S32 {
 
       archive_imports.insert(
           Tetrodotoxin::Package::Archive::GraphImport(
-              importer_name, import.get_name(), import.get_kind(), target,
-              import.get_version()));
+              importer_name, import->get_name(), import->get_visibility(),
+              import->get_kind(), target, import->get_version(),
+              import->get_route()));
     }
 
     return True;

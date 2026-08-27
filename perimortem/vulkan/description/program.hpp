@@ -5,26 +5,22 @@
 
 #include "perimortem/core/view/vector.hpp"
 
-#include "perimortem/vulkan/description/blend.hpp"
 #include "perimortem/vulkan/description/descriptor_binding.hpp"
-#include "perimortem/vulkan/description/geometry.hpp"
 #include "perimortem/vulkan/description/host_field.hpp"
 #include "perimortem/vulkan/description/host_input_range.hpp"
 #include "perimortem/vulkan/description/module.hpp"
-#include "perimortem/vulkan/description/topology.hpp"
 #include "perimortem/vulkan/description/vertex_input.hpp"
 
 namespace Perimortem::Vulkan::Description {
 
-// A borrowed description of one Vulkan pipeline derived from completed Render,
+// A borrowed description of one Vulkan program derived from completed Pipeline,
 // Shader, and SPIR V products. Program groups target modules with their host
 // input and resource layouts, but owns none of the referenced arrays or names.
-// Those products remain alive while Vulkan creates its independently owned
-// pipeline.
+// A frame draw supplies fixed pipeline state when Vulkan realizes these stages.
 //
-// Per draw values such as vertex counts and host input bytes intentionally do
+// Per draw values such as fixed state, vertex count, and host input bytes do
 // not live here. Keeping those transactions separate prevents this target
-// description from becoming another frame or semantic model.
+// description from becoming another frame model.
 struct Program {
   const U8* locator = nullptr;
   Core::View::Vector<Module> modules;
@@ -35,10 +31,6 @@ struct Program {
   Count host_size = 0;
   Count parameters_offset = 0;
   Count parameters_size = 0;
-  Count vertex_count = 0;
-  Topology topology = Topology::TriangleList;
-  Blend blend = Blend::Alpha;
-  Geometry geometry = Geometry::UnitQuad2D;
   Bool requires_float64 = False;
 };
 

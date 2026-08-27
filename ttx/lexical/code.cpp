@@ -31,6 +31,10 @@ auto Ttx::Lexical::Code::get_semantics() const
     return "Structure definition"_view;
   case Type::Object:
     return "Object definition"_view;
+  case Type::Interface:
+    return "Interface definition"_view;
+  case Type::Implementation:
+    return "Interface implementation definition"_view;
 
   // Statement and import keywords
   case Type::Using:

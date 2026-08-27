@@ -27,33 +27,26 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, workspace_contract_and_stage) {
       "// CPU and portable values.\n"
       "dialect : Library;"_view;
   static constexpr View::Bytes render_source =
-      "// Render interface.\n"
-      "dialect : Render;\n"
-      "public Simple : struct {\n"
-      "  @capability(\"fragment\")\n"
-      "  public fragment : stage [@location(0).color : Cpu::R64] -> "
-      "[@location(0).color : Cpu::R64];\n"
-      "  @set(0) @slot(1) @read\n"
-      "  public texture : resource Cpu::U64;\n"
-      "}"_view;
+      "// Pipeline interface.\n"
+      "dialect : Pipeline;\n"
+      "public fragment : stage [.color : Cpu::R64] -> [.color : Cpu::R64];\n"
+      "public texture : resource read Cpu::U64;"_view;
   static constexpr View::Bytes shader_source =
       "// GPU implementation.\n"
       "dialect : Shader;\n"
-      "public Test : shader Formats::Simple {\n"
-      "  @set(1) @slot(0) @read\n"
-      "  public noise : resource Cpu::S64 -> Cpu::U64;\n"
-      "  public gain : uniform Cpu::R64 = 0.0;\n"
-      "  public fragment : func {\n"
-      "    state copied : Cpu::R64 = color + color + parameters.gain;\n"
-      "    return (.color = copied);\n"
-      "  }\n"
-      "  @direction(\"upload\") @marshal(\"copy\") @sync(\"submission\")\n"
-      "  public count : bridge Cpu::U64 -> U64;\n"
-      "}"_view;
+      "implements Formats;\n"
+      "public noise : resource read Cpu::S64 -> Cpu::U64;\n"
+      "public gain : uniform Cpu::R64 = 0.0;\n"
+      "Shader fragment[.color : Cpu::R64] -> [.color : Cpu::R64] {\n"
+      "  state copied : Cpu::R64 = color + color + parameters.gain;\n"
+      "  return (.color = copied);\n"
+      "}\n"
+      "@direction(\"upload\") @marshal(\"copy\") @sync(\"submission\")\n"
+      "public count : bridge Cpu::U64 -> U64;"_view;
 
   Environment::Toolchain toolchain;
   auto library = toolchain.install<Library::Dialect>("Library"_view);
-  auto render = toolchain.install<Render::Dialect>("Render"_view);
+  auto render = toolchain.install<Render::Dialect>("Pipeline"_view);
   ASSERT(library && render);
   auto shader =
       toolchain.install<Shader::Dialect>("Shader"_view, *library, *render);
@@ -130,22 +123,18 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, rejects_incomplete_contract) {
       "dialect : Library;"_view;
   static constexpr View::Bytes render_source =
       "// Required GPU surface.\n"
-      "dialect : Render;\n"
-      "public Required : struct {\n"
-      "  public fragment : stage [] -> [];\n"
-      "  @set(0) @slot(0) @read\n"
-      "  public texture : resource Cpu::U64;\n"
-      "}"_view;
+      "dialect : Pipeline;\n"
+      "public fragment : stage [] -> [];\n"
+      "public texture : resource read Cpu::U64;"_view;
   static constexpr View::Bytes shader_source =
       "// Missing required Stage body.\n"
       "dialect : Shader;\n"
-      "public Broken : shader Formats::Required {\n"
-      "  public seed : uniform Cpu::R64 = 0.0;\n"
-      "}"_view;
+      "implements Formats;\n"
+      "public seed : uniform Cpu::R64 = 0.0;"_view;
 
   Environment::Toolchain toolchain;
   auto library = toolchain.install<Library::Dialect>("Library"_view);
-  auto render = toolchain.install<Render::Dialect>("Render"_view);
+  auto render = toolchain.install<Render::Dialect>("Pipeline"_view);
   ASSERT(library && render);
   ASSERT(toolchain.install<Shader::Dialect>("Shader"_view, *library, *render));
   Environment::Workspace workspace(toolchain);

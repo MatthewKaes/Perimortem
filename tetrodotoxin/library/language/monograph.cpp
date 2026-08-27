@@ -163,13 +163,43 @@ auto Library::Language::Monograph::resolve_local_context(
   }
 
   const Abstract& imported = source.resolve_imports(route);
-  return imported.is<Invalid>() ? resolve_import(route) : imported;
+  return imported.is<Invalid>()
+             ? resolve_type(route, Tetrodotoxin::Language::Visibility::Public)
+             : imported;
+}
+
+auto Library::Language::Monograph::resolve_lexical_context(
+    View::Bytes route) const -> const Abstract& {
+  if (route == "source"_view) {
+    return source;
+  }
+
+  if (route == "foreign"_view && source.get_foreign().is_authored()) {
+    return source.get_foreign();
+  }
+
+  const Abstract& authored =
+      source.resolve_local(route, Tetrodotoxin::Language::Visibility::Private);
+  if (!authored.is<Invalid>()) {
+    return authored;
+  }
+
+  const Abstract& root = resolve_root_context(route);
+  if (!root.is<Invalid>()) {
+    return root;
+  }
+
+  const Abstract& imported = source.resolve_imports(route);
+  return imported.is<Invalid>()
+             ? Tetrodotoxin::Language::Monograph::resolve_lexical_context(route)
+             : imported;
 }
 
 auto Library::Language::Monograph::can_bind_source_type(View::Bytes name) const
     -> Bool {
   return resolve_root_context(name).is<Invalid>() &&
-         resolve_import(name).is<Invalid>();
+         resolve_type(name, Tetrodotoxin::Language::Visibility::Private)
+             .is<Invalid>();
 }
 
 auto Library::Language::Monograph::retain_import(

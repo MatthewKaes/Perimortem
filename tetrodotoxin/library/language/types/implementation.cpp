@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/types/implementation.hpp"
 
 #include "tetrodotoxin/library/language/constants/implementation.hpp"
+#include "tetrodotoxin/library/language/types/interface.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 
 using namespace Perimortem::Core;
@@ -20,7 +21,8 @@ auto Types::Implementation::accepts(const Model::Pack& source) const -> Bool {
   const Abstract& candidate = source.get_value_type(0).resolve();
   auto object = candidate.select<Types::Object>();
   return object &&
-         object->get_definition().get_host().satisfies(requirement.get());
+         (object->satisfies(requirement.get()) ||
+          object->get_definition().get_host().satisfies(requirement.get()));
 }
 
 auto Types::Implementation::validate_layout(Ttx::Lexical::Cursor& cursor) const
@@ -33,4 +35,28 @@ auto Types::Implementation::validate_layout(Ttx::Lexical::Cursor& cursor) const
       "Implementation requires one completed semantic Type."_view,
       "Complete the selected requirement before using its erased value."_view);
   return False;
+}
+
+auto Types::Implementation::resolve_type_access(
+    const Abstract& host,
+    View::Bytes route,
+    Model::Type::Access access) const -> const Abstract& {
+  auto interface = requirement.get().resolve().select<Types::Interface>();
+  if (!interface || access != Model::Type::Access::Self) {
+    return Invalid::get_invalid();
+  }
+
+  return interface->resolve_type_access(host, route, access);
+}
+
+auto Types::Implementation::resolve_type_call(
+    const Abstract& host,
+    View::Bytes route,
+    Model::Type::Access access) const -> const Abstract& {
+  auto interface = requirement.get().resolve().select<Types::Interface>();
+  if (!interface || access != Model::Type::Access::Self) {
+    return Invalid::get_invalid();
+  }
+
+  return interface->resolve_type_call(host, route, access);
 }

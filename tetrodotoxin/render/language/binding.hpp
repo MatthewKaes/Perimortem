@@ -26,13 +26,21 @@ class Binding : public Ttx::Model::Addressable {
     Parameter,
   };
 
+  enum class Access : U8 {
+    None,
+    Read,
+    Write,
+    ReadWrite,
+  };
+
   TTX_CONTRACT(Binding, Ttx::Model::Addressable);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition,
       Kind kind,
-      Tetrodotoxin::Language::TypeReference type) -> Binding&;
+      Tetrodotoxin::Language::TypeReference type,
+      Access access = Access::None) -> Binding&;
 
   static auto create_slot(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -61,6 +69,8 @@ class Binding : public Ttx::Model::Addressable {
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
   constexpr auto get_kind() const -> Kind { return kind; }
+
+  constexpr auto get_access() const -> Access { return access; }
 
   constexpr auto get_type_reference() const -> Perimortem::Core::Option<
       const Tetrodotoxin::Language::TypeReference&> {
@@ -91,6 +101,7 @@ class Binding : public Ttx::Model::Addressable {
       Perimortem::Core::View::Bytes name,
       Perimortem::Core::Option<Tetrodotoxin::Language::Definition&> definition,
       Kind kind,
+      Access access,
       Perimortem::Core::Option<Tetrodotoxin::Language::TypeReference>
           type_reference,
       Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
@@ -98,12 +109,14 @@ class Binding : public Ttx::Model::Addressable {
       : name(name),
         definition(definition),
         kind(kind),
+        access(access),
         type_reference(type_reference),
         type(type) {}
 
   Perimortem::Core::View::Bytes name;
   Perimortem::Core::Option<Tetrodotoxin::Language::Definition&> definition;
   Kind kind;
+  Access access;
   Perimortem::Core::Option<Tetrodotoxin::Language::TypeReference>
       type_reference;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>

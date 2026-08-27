@@ -306,7 +306,7 @@ Lsp::Documents::Documents(Package::Repository::Repository& selected_repository)
       library ? toolchain.install<Package::Dialect>("Package"_view, *library)
               : Option<Package::Dialect&>();
   auto app = toolchain.install<App::Dialect>("App"_view);
-  auto render = toolchain.install<Render::Dialect>("Render"_view);
+  auto render = toolchain.install<Render::Dialect>("Pipeline"_view);
   if (!package || !library || !app || !render) {
     return;
   }
@@ -575,7 +575,11 @@ auto Lsp::Documents::find_semantic(
                                 : document.logical_route.get_view();
   auto workspace = get_workspace(document);
   BAIL_IF(!workspace);
-  auto associations = workspace->get_associations(source_name);
+  auto associations = document.package_root.is_empty()
+                          ? workspace->get_associations(source_name)
+                          : workspace->get_associations(
+                                document.package_root.get_view(),
+                                document.logical_route.get_view());
   auto semantic = associations ? associations->find_at(*offset)
                                : Option<const Ttx::Concept::Abstract&>();
   BAIL_IF(!semantic);
@@ -588,7 +592,11 @@ auto Lsp::Documents::find_semantic(
       return authored;
     }
 
-    auto monograph = workspace->get_monograph(source_name);
+    auto monograph = document.package_root.is_empty()
+                         ? workspace->get_monograph(source_name)
+                         : workspace->get_monograph(
+                               document.package_root.get_view(),
+                               document.logical_route.get_view());
     if (monograph) {
       const Ttx::Concept::Abstract& candidate =
           monograph->resolve_context(identifier->get_name());
@@ -620,7 +628,11 @@ auto Lsp::Documents::get_associations(View::Bytes uri)
   View::Bytes source_name = document.package_root.is_empty()
                                 ? document.uri.get_view()
                                 : document.logical_route.get_view();
-  return workspace->get_associations(source_name);
+  return document.package_root.is_empty()
+             ? workspace->get_associations(source_name)
+             : workspace->get_associations(
+                   document.package_root.get_view(),
+                   document.logical_route.get_view());
 }
 
 auto Lsp::Documents::get_monograph(View::Bytes uri)
@@ -634,7 +646,11 @@ auto Lsp::Documents::get_monograph(View::Bytes uri)
   View::Bytes source_name = document.package_root.is_empty()
                                 ? document.uri.get_view()
                                 : document.logical_route.get_view();
-  return workspace->get_monograph(source_name);
+  return document.package_root.is_empty()
+             ? workspace->get_monograph(source_name)
+             : workspace->get_monograph(
+                   document.package_root.get_view(),
+                   document.logical_route.get_view());
 }
 
 auto Lsp::Documents::get_completed_monograph(View::Bytes uri)
@@ -648,7 +664,11 @@ auto Lsp::Documents::get_completed_monograph(View::Bytes uri)
   View::Bytes source_name = document.package_root.is_empty()
                                 ? document.uri.get_view()
                                 : document.logical_route.get_view();
-  return workspace->get_completed_monograph(source_name);
+  return document.package_root.is_empty()
+             ? workspace->get_completed_monograph(source_name)
+             : workspace->get_completed_monograph(
+                   document.package_root.get_view(),
+                   document.logical_route.get_view());
 }
 
 auto Lsp::Documents::get_tokens(View::Bytes uri)
@@ -662,7 +682,11 @@ auto Lsp::Documents::get_tokens(View::Bytes uri)
   View::Bytes source_name = document.package_root.is_empty()
                                 ? document.uri.get_view()
                                 : document.logical_route.get_view();
-  return workspace->get_tokens(source_name);
+  return document.package_root.is_empty()
+             ? workspace->get_tokens(source_name)
+             : workspace->get_tokens(
+                   document.package_root.get_view(),
+                   document.logical_route.get_view());
 }
 
 auto Lsp::Documents::find_definition(

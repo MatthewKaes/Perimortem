@@ -17,6 +17,7 @@
 #include "llvm/IR/Module.h"
 #include "perimortem/abi/core/object.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/language/types/implementation.hpp"
 #include "tetrodotoxin/terminal/llvm/emission/storage.hpp"
 #include "tetrodotoxin/terminal/llvm/module/carriers.hpp"
 #include "tetrodotoxin/terminal/llvm/module/functions.hpp"
@@ -483,7 +484,17 @@ auto Llvm::Emission::Storage::select_member(
   }
 
   Core::Option<LLVMValueRef> base;
-  if (selected->carriers.is_object(*host)) {
+  if (host->is<Tetrodotoxin::Library::Language::Types::Implementation>()) {
+    auto value = selected->body.find_value(receiver);
+    auto native_host = selected->carriers.get_type(*host);
+    if (!value || !native_host || LLVMTypeOf(*value) != *native_host) {
+      return selected->program.fail_toolchain(
+          "LLVM Interface member access requires one exact Implementation carrier."_view);
+    }
+
+    base = LLVMBuildExtractValue(
+        selected->body.get_builder(), *value, 0, "implementation.object");
+  } else if (selected->carriers.is_object(*host)) {
     auto value = selected->body.find_value(receiver);
     auto native_host = selected->carriers.get_type(*host);
     if (!value || !native_host || LLVMTypeOf(*value) != *native_host) {

@@ -82,10 +82,11 @@ static auto vertex_format(Count components) -> VkFormat {
   return VK_FORMAT_UNDEFINED;
 }
 
-static auto to_vk_topology(Description::Topology topology)
+static auto to_vk_topology(
+    Perimortem::Graphics::Frame::Pipeline::Topology topology)
     -> VkPrimitiveTopology {
   switch (topology) {
-  case Description::Topology::TriangleList:
+  case Perimortem::Graphics::Frame::Pipeline::Topology::TriangleList:
     return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
   }
   Diagnostics::Log::fatal("Vulkan: Invalid primitive topology."_view);
@@ -96,6 +97,7 @@ auto Vulkan::ShaderProgram::create(
     VkDevice device,
     VkFormat color_format,
     const Description::Program& render,
+    Perimortem::Graphics::Frame::Pipeline pipeline,
     View::Vector<VkDescriptorSetLayout> descriptor_set_layouts)
     -> Vulkan::ShaderProgram {
   const auto source_modules = render.modules;
@@ -190,7 +192,7 @@ auto Vulkan::ShaderProgram::create(
 
   VkPipelineInputAssemblyStateCreateInfo input_assembly = {
     VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
-  input_assembly.topology = to_vk_topology(render.topology);
+  input_assembly.topology = to_vk_topology(pipeline.get_topology());
 
   VkPipelineViewportStateCreateInfo viewport_state = {
     VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
@@ -209,8 +211,8 @@ auto Vulkan::ShaderProgram::create(
   multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
   VkPipelineColorBlendAttachmentState blend_attachment = {};
-  switch (render.blend) {
-  case Description::Blend::Alpha:
+  switch (pipeline.get_blend()) {
+  case Perimortem::Graphics::Frame::Pipeline::Blend::Alpha:
     blend_attachment.blendEnable = VK_TRUE;
     blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
     blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;

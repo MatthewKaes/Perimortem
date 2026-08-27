@@ -99,6 +99,10 @@ class Lexicon {
       return "struct"_view;
     case Code::Type::Object:
       return "object"_view;
+    case Code::Type::Interface:
+      return "interface"_view;
+    case Code::Type::Implementation:
+      return "implementation"_view;
 
     // Statement and import keywords
     case Code::Type::Using:
@@ -254,7 +258,7 @@ class Lexicon {
     using Entry =
         Perimortem::Utility::Pair<Perimortem::Core::View::Bytes, Code::Type>;
 
-    static constexpr Perimortem::Core::Static::Vector<Entry, 32> keywords = {{
+    static constexpr Perimortem::Core::Static::Vector<Entry, 34> keywords = {{
       Entry{get_spelling(Code::Type::And), Code::Type::And},
       {get_spelling(Code::Type::Or), Code::Type::Or},
       {get_spelling(Code::Type::If), Code::Type::If},
@@ -280,6 +284,8 @@ class Lexicon {
       {get_spelling(Code::Type::Enum), Code::Type::Enum},
       {get_spelling(Code::Type::Struct), Code::Type::Struct},
       {get_spelling(Code::Type::Object), Code::Type::Object},
+      {get_spelling(Code::Type::Interface), Code::Type::Interface},
+      {get_spelling(Code::Type::Implementation), Code::Type::Implementation},
       {get_spelling(Code::Type::Using), Code::Type::Using},
       {get_spelling(Code::Type::New), Code::Type::New},
       {get_spelling(Code::Type::Public), Code::Type::Public},

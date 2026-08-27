@@ -12,7 +12,7 @@ keeps the platform useful beyond one runtime without making `Memory`, `Math`,
 `System`, or `Graphics` appear by magic.
 
 Similar shapes do not erase meaning. A four component math vector, a color
-tone, and a Render Stage value may have matching Layouts while remaining
+tone, and a Pipeline Stage value may have matching Layouts while remaining
 different Types.
 
 ## Perimortem.Memory
@@ -80,13 +80,13 @@ without adding another TTX Callable inventory.
 ## Perimortem.Math
 
 `Perimortem.Math` supplies the concrete Library numeric and vector Types used by
-the provided Render, Shader, and Graphics contracts. `Math::Vec4D`, for example,
+the provided Pipeline, Shader, and Graphics contracts. `Math::Vec4D`, for example,
 is an inline Struct with named `x`, `y`, `z`, and `w` entries of exact
 `R32` Type.
 
 These Types are ordinary Library Structs. Their operations obey Library's exact
 Type rules, so structural coincidence does not convert a Graphics point or tone
-into a math vector. Render and Shader sources name the same Math identity when a
+into a math vector. Pipeline and Shader sources name the same Math identity when a
 Stage is meant to exchange that value.
 
 ## Perimortem.System
@@ -173,18 +173,17 @@ Platform event objects and window system addresses do not become part of
 ## Perimortem.Graphics
 
 `Perimortem.Graphics` supplies the concrete Library Types used by the provided
-Scene sources. Pixel, Point2D, Size2D, Tone, Transform2D, Placement2D, Image,
-Texture2D, Sprite, Render contracts, and Shader Programs are real Package
-members. Routes such as `Graphics::Pixel`, `Graphics::Sprite`, and
-`Graphics::Shader::DefaultTexturedQuad2D::Instance` therefore select their
-documented identities directly.
+Scene sources. Pixel, Point2D, Size2D, Tone, Transform2D, Image, Texture2D,
+DrawableUI, Sprite, the TexturedQuad2D Pipeline, and its standard Material are
+real Package members. Routes such as `Graphics::Sprite`,
+`Graphics::Pipeline::TexturedQuad2D`, and
+`Graphics::TexturedQuad2DMaterial` select those documented identities directly.
 
-`Placement2D` is the ordinary Library Structure that describes the public
-transform, visibility, and ordering state promised by a placed Object. It is
-not a base class or allocated node. The Graphics Interface negotiates a
-concrete Object against this real requirement, which lets Sprite retain its
-exact identity and additional behavior. Runtime child traversal is a separate
-Children2D Interface and is not implied by placement.
+`DrawableUI` is a real Library Interface containing `material`, `transform`,
+`visible`, and `z_index`. Sprite is an `implementation DrawableUI`, so those
+Fields are materialized once before Sprite's own `texture` and `size` Fields.
+The generated ABI uses that exact Interface prefix rather than matching Objects
+structurally by familiar names.
 
 `Transform2D` carries translation, scale, and rotation as domain values. The
 runtime copies their composed affine result into each stable frame submission,
@@ -202,17 +201,15 @@ Its transparent black default follows ordinary Structure construction.
 `from_grey`, `from_grey_alpha`, `from_rgb`, and `from_rgba` make every other
 construction explicit without relying on overloaded native constructors.
 
-`Sprite` is a nonnull Object with public mutable `texture`, `shader`,
-`size_pixels`, `transform`, `visible`, and `z_index` Fields. The shader Field is
-`Implementation[Render::TexturedQuad2D]`. It retains one real Shader Instance
-Object and the ABI Projection that selects its generated Program, Parameters
-byte range, and ordered material resources. A Shader can therefore add a
-Texture2D resource to its own Instance without adding an application specific
-Field to Sprite. Construction creates a valid unconfigured Sprite with an empty
-Shader implementation, zero size, identity transform, visible state, and zero
-draw index. It produces no draw until its texture, Shader, and size are
-configured. The transform Field satisfies Placement2D directly and avoids a
-second position authority.
+`Sprite` is a nonnull Object with public mutable `material`, `transform`,
+`visible`, `z_index`, `texture`, and `size` Fields. The material Field is
+`Implementation[Pipeline]`. It retains one real Shader Material Object and the
+ABI Projection that selects its generated Program, Parameters byte range, and
+ordered material resources. A Shader can therefore add a Texture2D resource to
+its own Material without adding an application-specific Field to Sprite.
+Construction creates an unconfigured Sprite with an empty Material, zero size,
+identity transform, visible state, and zero draw index. It contributes no draw
+until texture, Material, and size are configured.
 
 A Scene hosts a Sprite through the private state Field initialized with `new`.
 The Scene changes the Sprite's public Fields through ordinary Library access,
@@ -238,20 +235,25 @@ buffer. Image sampling is ordinary Library behavior on that value, while a
 Shader Terminal recognizes the same authored operation as a target image
 sample. Target storage remains a separate runtime fact.
 
-The Package also publishes the target neutral TexturedQuad2D Render contract
-and the standard DefaultTexturedQuad2D Shader. Render owns the fixed resource,
-host inputs, Stage signatures, vertex layout, topology, blend policy, geometry,
-and vertex count. DefaultTexturedQuad2D owns its Vec4D tone uniform. An
-application can publish another Shader Program against the same Graphics Render
-contract without adding that application policy to the standard Package.
+The Package also publishes the target-neutral TexturedQuad2D Pipeline and the
+standard TexturedQuad2D Material. Pipeline owns the required image resource,
+host inputs, and ordered Stage signatures. The standard Shader owns its Vec4D
+tone uniform. An application can publish another Shader against the same
+Pipeline without adding application policy to the standard Package.
+
+Sprite supplies its own unit-quad geometry, triangle-list topology, alpha blend,
+and vertex count when it contributes a draw. Those fixed facts travel in the
+backend-neutral frame Batch rather than becoming Pipeline or Shader metadata.
+Vulkan realizes a native pipeline from the generated Program plus that supplied
+draw state.
 
 Package production compiles every Program into its own embedded SPIR V module
 and native Shader child product, including Programs authored by an application
 Package. Application production discovers every Program reached by Scene
-Instance Fields and generates one Vulkan description for each module locator.
-The application target supplies independent Placement2D, Children2D, and
-Drawable2D providers for configured runtime Types. The Scene graph retains only
-real Objects and semantic Interface proofs.
+Material Fields and generates one Vulkan description for each module locator.
+The application target maps exact `DrawableUI` implementations to configured
+runtime draw providers. The Scene graph retains only real Objects and semantic
+Interface proofs.
 
 ## Native and durable boundaries
 

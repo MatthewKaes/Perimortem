@@ -25,7 +25,7 @@ auto Interpreter::Layout::parse(Cursor& cursor, Bool parameters)
         if (!attributes.is_empty() && !name_token) {
           entry.create_expression_error(
               attributes.get_data()[0].get_anchor(),
-              "Render Stage entry Attributes require one named entry."_view);
+              "Pipeline Stage entry Attributes require one named entry."_view);
           return False;
         }
 

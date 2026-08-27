@@ -9,25 +9,13 @@
 namespace Tetrodotoxin::Terminal::Vulkan {
 
 // Products is the source independent Vulkan description derived from one
-// completed Shader Program and its exact Render contract. Every record is a
+// completed Shader Program and its exact Pipeline contract. Every record is a
 // physical target fact and retains no semantic identity after generation.
 class Products {
  public:
   enum class Stage : U8 {
     Vertex,
     Pixel,
-  };
-
-  enum class Topology : U8 {
-    TriangleList,
-  };
-
-  enum class Blend : U8 {
-    Alpha,
-  };
-
-  enum class Geometry : U8 {
-    UnitQuad2D,
   };
 
   enum class HostRole : U8 {
@@ -75,10 +63,6 @@ class Products {
       Count host_size,
       Count parameters_offset,
       Count parameters_size,
-      Count vertex_count,
-      Topology topology,
-      Blend blend,
-      Geometry geometry,
       Bool requires_float64)
       : symbol(symbol),
         entries(entries),
@@ -88,10 +72,6 @@ class Products {
         host_size(host_size),
         parameters_offset(parameters_offset),
         parameters_size(parameters_size),
-        vertex_count(vertex_count),
-        topology(topology),
-        blend(blend),
-        geometry(geometry),
         requires_float64(requires_float64) {}
 
   constexpr auto get_symbol() const -> Perimortem::Core::View::Bytes {
@@ -119,10 +99,6 @@ class Products {
   constexpr auto get_parameters_size() const -> Count {
     return parameters_size;
   }
-  constexpr auto get_vertex_count() const -> Count { return vertex_count; }
-  constexpr auto get_topology() const -> Topology { return topology; }
-  constexpr auto get_blend() const -> Blend { return blend; }
-  constexpr auto get_geometry() const -> Geometry { return geometry; }
   constexpr auto needs_float64() const -> Bool { return requires_float64; }
 
  private:
@@ -134,10 +110,6 @@ class Products {
   Count host_size;
   Count parameters_offset;
   Count parameters_size;
-  Count vertex_count;
-  Topology topology;
-  Blend blend;
-  Geometry geometry;
   Bool requires_float64;
 };
 

@@ -51,6 +51,15 @@ class Vector {
     new (rented_block + (size++), Core::Placement::Construct) value_type(data);
   }
 
+  constexpr auto prepend(const value_type& data) -> void {
+    ensure_capacity(size + 1);
+    if (size != 0) {
+      memmove(rented_block + 1, rented_block, sizeof(value_type) * size);
+    }
+    new (rented_block, Core::Placement::Construct) value_type(data);
+    size++;
+  }
+
   constexpr auto emplace(const value_type&& data) -> value_type& {
     ensure_capacity(size + 1);
 

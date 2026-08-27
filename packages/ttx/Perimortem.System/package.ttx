@@ -4,10 +4,6 @@
 // Perimortem System Package.
 dialect : Package;
 
-public TerminalSource : alias = source("terminal.ttx");
-public KeySource      : alias = source("key.ttx");
-public InputSource    : alias = source("input.ttx");
-
-public Terminal : alias = TerminalSource::Terminal;
-public Key      : alias = KeySource::Key;
-public Input    : alias = InputSource::Input;
+public Terminal : alias = source("terminal.ttx")::Terminal;
+public Key : alias = source("key.ttx")::Key;
+public Input : alias = source("input.ttx")::Input;

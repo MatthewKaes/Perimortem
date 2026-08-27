@@ -14,20 +14,17 @@ import Library;
 
 shaderSource
     : documentation DIALECT DEFINE SHADER_DIALECT END_STATEMENT
-      (sourceImport | packageImport)* documentedShaderDefinition+ EOF
+      (sourceImport | packageImport)* shaderImplementation
+      documentedShaderDeclaration* EOF
     ;
 
-documentedShaderDefinition
-    : definition shaderDefinition
-    ;
-
-shaderDefinition
-    : SHADER typeReference SCOPE_START
-      documentedShaderDeclaration* SCOPE_END
+shaderImplementation
+    : ADDRESSABLE SOURCE PACKING_START STRING PACKING_END END_STATEMENT
     ;
 
 documentedShaderDeclaration
-    : definition shaderDeclaration
+    : documentation? shaderStageDeclaration
+    | definition shaderDeclaration
     ;
 
 shaderDeclaration
@@ -41,10 +38,10 @@ shaderBridgeDeclaration
     : addressableName typeReference CALL typeReference END_STATEMENT
     ;
 
-// Render owns each Stage signature. Shader supplies only the executable
-// Library body selected by the matching Stage name.
+// Pipeline owns the required Stage signature. Shader repeats that expected
+// Layout explicitly and supplies the executable Library body.
 shaderStageDeclaration
-    : FUNC block
+    : SHADER_DIALECT ADDRESSABLE functionSignature block
     ;
 
 shaderUniformDeclaration
@@ -53,5 +50,5 @@ shaderUniformDeclaration
 
 shaderStorageDeclaration
     : PUSH typeReference (ASSIGN declarationInitializer)? END_STATEMENT
-    | RESOURCE typeReference CALL typeReference END_STATEMENT
+    | RESOURCE ADDRESSABLE+ typeReference CALL typeReference END_STATEMENT
     ;

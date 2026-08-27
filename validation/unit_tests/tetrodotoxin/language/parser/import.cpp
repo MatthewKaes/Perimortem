@@ -24,9 +24,11 @@ static Harness ImportParser = {
 };
 
 PERIMORTEM_UNIT_TEST(ImportParser, alias_qualifier) {
-  static constexpr Static::Vector<View::Bytes, 2> accepted = {{
+  static constexpr Static::Vector<View::Bytes, 4> accepted = {{
     "public Local : alias = source(\"./local.ttx\");"_view,
     "public Math : alias = package(.name = \"Perimortem.Math\", .version = \"1.0\");"_view,
+    "private Pixel : alias = source(\"pixel.ttx\")::Pixel;"_view,
+    "public Value : alias = package(.name = \"Example.Api\", .version = \"2.1\")::Public::Value;"_view,
   }};
 
   for (Count i = 0; i < accepted.get_size(); i++) {
@@ -40,6 +42,12 @@ PERIMORTEM_UNIT_TEST(ImportParser, alias_qualifier) {
     auto imported =
         Language::Parser::Import::parse(cursor, Documentation::get_empty());
     ASSERT(imported);
+    if (i == 2) {
+      EXPECT(imported->get_visibility() == Language::Visibility::Private);
+      EXPECT_TEXT(imported->get_route(), "Pixel"_view);
+    } else if (i == 3) {
+      EXPECT_TEXT(imported->get_route(), "Public::Value"_view);
+    }
     EXPECT(cursor.matches(Code::Type::Terminal));
     EXPECT(errors.is_empty());
   }

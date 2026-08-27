@@ -207,7 +207,7 @@ class Type : public Ttx::Model::Type {
       Access access) const -> const Ttx::Concept::Abstract&;
 
   // A named Type is already the complete Static receiver. This keeps common
-  // source Import Aliases on the same semantic path as a locally authored
+  // source Import Types on the same semantic path as a locally authored
   // Type instead of requiring callers to retain or recognize its Monograph.
   auto resolve_access(
       const Ttx::Concept::Abstract& host,

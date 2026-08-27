@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/render/language/alias.hpp"
 
+#include "tetrodotoxin/render/language/declarations.hpp"
+
 using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
@@ -17,11 +19,15 @@ auto Language::Alias::create(
 }
 
 auto Language::Alias::link(Cursor& cursor, const Abstract& context) -> Bool {
-  auto selected = target.resolve(cursor, context);
+  const Abstract& root =
+      Declarations::resolve_lexical_context(context, target.get_root());
+  auto selected = target.resolve_selected(cursor, root);
   return selected && bind_target(*selected);
 }
 
 auto Language::Alias::link_restored(const Abstract& context) -> Bool {
-  auto selected = target.resolve_restored(context);
+  const Abstract& root =
+      Declarations::resolve_lexical_context(context, target.get_root());
+  auto selected = target.resolve_restored_selected(root);
   return selected && bind_target(*selected);
 }

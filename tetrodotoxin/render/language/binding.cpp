@@ -3,6 +3,8 @@
 
 #include "tetrodotoxin/render/language/binding.hpp"
 
+#include "tetrodotoxin/render/language/declarations.hpp"
+
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
@@ -12,10 +14,11 @@ auto Language::Binding::create_authored(
     Perimortem::Memory::Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition,
     Kind kind,
-    Tetrodotoxin::Language::TypeReference type) -> Binding& {
+    Tetrodotoxin::Language::TypeReference type,
+    Access access) -> Binding& {
   return domain.construct_from<Binding>([&]() {
     return Binding(
-        definition.get_name(), definition, kind, type,
+        definition.get_name(), definition, kind, access, type,
         Option<Reference<const Ttx::Model::Type>>());
   });
 }
@@ -26,7 +29,8 @@ auto Language::Binding::create_slot(
     const Ttx::Model::Type& type) -> Binding& {
   return domain.construct_from<Binding>([&]() {
     return Binding(
-        name, {}, Kind::Parameter, {}, Reference<const Ttx::Model::Type>(type));
+        name, {}, Kind::Parameter, Access::None, {},
+        Reference<const Ttx::Model::Type>(type));
   });
 }
 
@@ -36,7 +40,7 @@ auto Language::Binding::create_restored_slot(
     Tetrodotoxin::Language::TypeReference type) -> Binding& {
   return domain.construct_from<Binding>([&]() {
     return Binding(
-        name, {}, Kind::Value, type,
+        name, {}, Kind::Value, Access::None, type,
         Option<Reference<const Ttx::Model::Type>>());
   });
 }
@@ -46,7 +50,9 @@ auto Language::Binding::link(Cursor& cursor, const Abstract& context) -> Bool {
     return True;
   }
   BAIL_IF(!type_reference);
-  auto selected = type_reference->resolve(cursor, context);
+  const Abstract& root = Declarations::resolve_lexical_context(
+      context, type_reference->get_root());
+  auto selected = type_reference->resolve_selected(cursor, root);
   BAIL_IF(!selected || selected->get_layout().is_empty());
   type = Reference<const Ttx::Model::Type>(*selected);
   return True;
@@ -57,7 +63,9 @@ auto Language::Binding::link_restored(const Abstract& context) -> Bool {
     return True;
   }
   BAIL_IF(!type_reference);
-  auto selected = type_reference->resolve_restored(context);
+  const Abstract& root = Declarations::resolve_lexical_context(
+      context, type_reference->get_root());
+  auto selected = type_reference->resolve_restored_selected(root);
   BAIL_IF(!selected || selected->get_layout().is_empty());
   type = Reference<const Ttx::Model::Type>(*selected);
   return True;

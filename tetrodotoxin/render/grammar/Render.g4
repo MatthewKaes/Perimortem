@@ -1,8 +1,8 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 //
-// Canonical Render source shape. Attributes carry bindings, locations,
-// builtins, and capabilities as separate facts instead of one opaque policy.
+// Canonical Pipeline source shape. Ordered declarations carry resources,
+// host inputs, and Stage layouts without embedding target decorations.
 
 parser grammar Render;
 
@@ -13,7 +13,7 @@ options {
 import Tetrodotoxin;
 
 renderSource
-    : documentation DIALECT DEFINE RENDER_DIALECT END_STATEMENT
+    : documentation DIALECT DEFINE PIPELINE_DIALECT END_STATEMENT
       (sourceImport | packageImport)* documentedRenderDeclaration* EOF
     ;
 
@@ -38,7 +38,8 @@ renderValueDeclaration
     ;
 
 renderResourceDeclaration
-    : (PUSH | RESOURCE) typeReference END_STATEMENT
+    : PUSH typeReference END_STATEMENT
+    | RESOURCE ADDRESSABLE+ typeReference END_STATEMENT
     ;
 
 renderStageDeclaration

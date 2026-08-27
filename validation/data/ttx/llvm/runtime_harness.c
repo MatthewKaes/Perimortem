@@ -203,6 +203,8 @@ int run_runtime_integration(void) {
           UINT64_C(5) ||
       TTX_FUNC_Validation_2eRuntime__Runtime__bytes_5fapi_static() !=
           UINT64_C(777) ||
+      TTX_FUNC_Validation_2eRuntime__Runtime__object_5fiteration_static() !=
+          UINT64_C(6) ||
       TTX_FUNC_Validation_2eRuntime__Runtime__object_5fstorage_static() !=
           UINT64_C(18)) {
     return 1;

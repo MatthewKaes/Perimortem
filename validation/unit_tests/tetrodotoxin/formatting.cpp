@@ -77,3 +77,31 @@ PERIMORTEM_UNIT_TEST(FormattingTerminal, markdown_heading_boundary) {
       "//\n"_view;
   EXPECT(formatted.get_view().slice(0, header.get_size()) == header);
 }
+
+PERIMORTEM_UNIT_TEST(FormattingTerminal, raw_source_header) {
+  static constexpr View::Bytes source =
+      "/// Tetrodotoxin\n"
+      "/// Copyright (c) 2023-present Matt Kaes and contributors\n"
+      "//\n"
+      "// Describes one source while keeping its raw metadata separate.\n"
+      "//\n"
+      "dialect : Library;\n"
+      "public value : U64;\n"_view;
+  auto toolchain = create_library_toolchain();
+  Environment::Workspace workspace(*toolchain);
+  Errors errors;
+  auto monograph = workspace.interpret_source(
+      errors, "RawHeaderFormatting"_view, "raw_header.ttx"_view, source);
+  ASSERT(monograph);
+  ASSERT(errors.is_empty());
+
+  Allocator::Arena arena;
+  Tokenizer tokenizer(arena, source, "raw_header.ttx"_view);
+  Dynamic::Bytes formatted =
+      Formatting::Terminal::format(*monograph, tokenizer);
+  static constexpr View::Bytes header =
+      "/// Tetrodotoxin\n"
+      "/// Copyright (c) 2023-present Matt Kaes and contributors\n"
+      "//\n"_view;
+  EXPECT(formatted.get_view().slice(0, header.get_size()) == header);
+}

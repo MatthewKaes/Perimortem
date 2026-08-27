@@ -70,11 +70,21 @@ auto Llvm::Lowering::Graphics::lower(
     builder.CreateCondBr(&equal, &match, &next);
 
     builder.SetInsertPoint(&match);
-    llvm::Value& address = *builder.CreateStructGEP(
+    llvm::Value* address = builder.CreateStructGEP(
         llvm::unwrap(*payload_type), &object, U32(*field_index));
-    llvm::Value& child =
-        *builder.CreateLoad(llvm::unwrap(*field_type), &address);
-    builder.CreateStore(&child, &output);
+    llvm::Type* child_type = llvm::unwrap(*field_type);
+    auto element_index = selected.get_element_index();
+    if (element_index) {
+      auto* array = llvm::dyn_cast<llvm::ArrayType>(child_type);
+      BAIL_IF(array == nullptr || *element_index >= array->getNumElements());
+      address = builder.CreateInBoundsGEP(
+          array, address,
+          {builder.getInt64(0), builder.getInt64(*element_index)});
+      child_type = array->getElementType();
+    }
+
+    llvm::Value* child = builder.CreateLoad(child_type, address);
+    builder.CreateStore(child, &output);
     builder.CreateRet(
         llvm::ConstantInt::get(&count, selected.get_type_index()));
 

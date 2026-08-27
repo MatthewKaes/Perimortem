@@ -104,8 +104,8 @@ auto Language::Dialect::interpret_source(
   for (const Import::Description& import : imports.get_view()) {
     if (!interpretation->retain_import(import, cursor.get_associations())) {
       cursor.create_expression_error(
-          import.get_anchor(),
-          "Source repeats one local Import Alias name."_view,
+          import.get_declaration_anchor(),
+          "Source repeats one local Import Type name."_view,
           "Give each imported source or Package one distinct local name."_view);
     }
   }

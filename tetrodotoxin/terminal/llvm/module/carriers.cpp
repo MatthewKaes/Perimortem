@@ -25,6 +25,7 @@
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/implementation.hpp"
+#include "tetrodotoxin/library/language/types/interface.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/object_storage.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
@@ -645,6 +646,23 @@ auto Llvm::Module::Carriers::complete(
     auto carrier = select_completion(program, type, kind);
     if (!implementation || !carrier || !carrier->native) {
       return False;
+    }
+
+    auto interface =
+        implementation->get_requirement()
+            .resolve()
+            .select<Tetrodotoxin::Library::Language::Types::Interface>();
+    if (interface) {
+      auto target = get_target(program);
+      if (!target) {
+        return False;
+      }
+
+      llvm::StructType& payload =
+          *llvm::StructType::create(get_context(*target));
+      carrier->payload = llvm::wrap(&payload);
+      return complete_aggregate(
+          program, type, interface->get_state_layout(), kind);
     }
 
     carrier->phase = Phase::Complete;
@@ -1750,6 +1768,24 @@ auto Llvm::Module::Carriers::get_object_descriptor(
   auto target = get_target(program);
   if (!target) {
     return {};
+  }
+
+  auto binding = target->get_unit().find_type(type);
+  Bool imported = Bool(
+      binding && (binding->get_package() != target->get_unit().get_package() ||
+                  binding->get_member() != target->get_unit().get_member()));
+  if (imported) {
+    if (!carrier.descriptor) {
+      llvm::Type& count = *llvm::Type::getInt64Ty(get_context(*target));
+      llvm::Type& pointer = *llvm::PointerType::getUnqual(get_context(*target));
+      llvm::StructType& descriptor_type = *llvm::StructType::get(
+          get_context(*target), {&count, &count, &pointer});
+      carrier.descriptor = llvm::wrap(new llvm::GlobalVariable(
+          get_module(*target), &descriptor_type, true,
+          llvm::GlobalValue::ExternalLinkage, nullptr,
+          llvm_text(object_descriptor_name(*target, type))));
+    }
+    return carrier.descriptor;
   }
 
   if (carrier.kind == Kind::ObjectStorage) {

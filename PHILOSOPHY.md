@@ -21,7 +21,7 @@ one complete toolchain.
 ## Specialization without fragmentation
 
 A purpose-built language lets a domain speak in the concepts its users already
-understand. Scenes have signals and lifecycle. Render contracts have stages and
+understand. Scenes have signals and lifecycle. Pipeline contracts have stages and
 resources. Packages have dependencies and durable identities. Expressing those
 ideas directly makes source smaller, clearer, and easier to validate.
 
@@ -136,10 +136,10 @@ Layouts and Packs describe data flow. They can prove that values have compatible
 shape and show how one flow fits another. In doing so they deliberately leave
 richer domain meaning behind.
 
-That is not enough for every relationship. A Render contract and a Shader
+That is not enough for every relationship. A Pipeline contract and a Shader
 implementation may consume identical values while disagreeing about stages,
 resources, or behavior. Equal layout proves that the data can fit. It does not
-prove that the Shader implements the Render contract.
+prove that the Shader implements the Pipeline contract.
 
 An **Interface** carries that higher-order relationship. Two semantic objects
 can establish interchangeable behavior through a shared contract without

@@ -78,7 +78,7 @@ class Foreign final : public Ttx::Concept::Abstract {
 
     constexpr auto get_declaration_anchor() const
         -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
-      return definition.get_name_anchor();
+      return definition.get_declaration_anchor();
     }
 
     auto resolve() const -> const Ttx::Concept::Abstract& override;
@@ -155,7 +155,7 @@ class Foreign final : public Ttx::Concept::Abstract {
 
     constexpr auto get_declaration_anchor() const
         -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
-      return definition.get_name_anchor();
+      return definition.get_declaration_anchor();
     }
 
     auto resolve() const -> const Ttx::Concept::Abstract& override;
