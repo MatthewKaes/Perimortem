@@ -10,8 +10,7 @@
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/terminal/spirv/assembler/spir_v.hpp"
 #include "tetrodotoxin/terminal/spirv/module/ids.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Terminal::Spirv::Module {
 
@@ -60,10 +59,9 @@ class Types {
     constexpr Entry(
         const Tetrodotoxin::Library::Language::Model::Type& type,
         U32 id)
-        : type(type), id(id) {}
+        : type(&type), id(id) {}
 
-    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
-        type;
+    const Tetrodotoxin::Library::Language::Model::Type* type;
     U32 id;
   };
 
@@ -73,10 +71,9 @@ class Types {
         const Tetrodotoxin::Library::Language::Model::Type& type,
         Assembler::SpirV::StorageClass storage,
         U32 id)
-        : type(type), storage(storage), id(id) {}
+        : type(&type), storage(storage), id(id) {}
 
-    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
-        type;
+    const Tetrodotoxin::Library::Language::Model::Type* type;
     Assembler::SpirV::StorageClass storage;
     U32 id;
   };
@@ -89,16 +86,14 @@ class Types {
         U32 image_id,
         U32 sampled_id,
         U32 pointer_id)
-        : type(type),
-          sampled(sampled),
+        : type(&type),
+          sampled(&sampled),
           image_id(image_id),
           sampled_id(sampled_id),
           pointer_id(pointer_id) {}
 
-    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
-        type;
-    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
-        sampled;
+    const Tetrodotoxin::Library::Language::Model::Type* type;
+    const Tetrodotoxin::Library::Language::Model::Type* sampled;
     U32 image_id;
     U32 sampled_id;
     U32 pointer_id;

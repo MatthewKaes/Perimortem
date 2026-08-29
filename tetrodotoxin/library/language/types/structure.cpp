@@ -10,7 +10,6 @@
 
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
-#include "ttx/concept/reference.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -64,11 +63,10 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
     // construction local to the owner rather than a consumer category switch.
     // Authored Layout order is filled from each Field initializer before asking
     // that Field's exact Type for its default.
-    Managed::Vector<Ttx::Model::PackReference<Model::Pack>> values(arena);
+    Managed::Vector<Model::Pack*> values(arena);
     values.reset(get_layout().get_size());
-    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-         get_addressables()) {
-      auto field = candidate.get().select<Field>();
+    for (const Ttx::Concept::Abstract* candidate : get_addressables()) {
+      auto field = candidate->select<Field>();
       if (!field || field->get_writability() != Writability::Internal) {
         continue;
       }
@@ -79,13 +77,13 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
       if (initializer) {
         Model::Pack& source = const_cast<Model::Pack&>(*initializer);
         auto fitted = type->create_fitted(arena, source);
-        values.insert(fitted ? *fitted : source);
+        values.insert(fitted ? &*fitted : &source);
         continue;
       }
 
       auto value = type->create_default(arena);
       BAIL_IF(!value);
-      values.insert(*value);
+      values.insert(&*value);
     }
 
     return Expressions::Initializer::create_synthetic(

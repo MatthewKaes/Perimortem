@@ -15,7 +15,7 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/interpreter/source/import.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -181,7 +181,7 @@ PERIMORTEM_UNIT_TEST(LibraryImports, selected_fallback) {
   EXPECT(importer->resolve_concept("Hidden"_view).is<Unknown>());
   auto local_types = importer->get_source().get_types();
   ASSERT(local_types != local_types.end());
-  EXPECT_TEXT((*local_types).get().get_name(), "Local"_view);
+  EXPECT_TEXT((*local_types)->get_name(), "Local"_view);
   ++local_types;
   EXPECT(local_types == importer->get_source().get_types().end());
   EXPECT(errors.is_empty());

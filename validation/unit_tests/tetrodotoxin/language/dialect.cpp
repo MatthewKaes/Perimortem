@@ -6,10 +6,10 @@
 #include "validation/unit_test.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -41,7 +41,7 @@ class DefaultMonograph : public Language::Monograph {
 
 class SemanticContext final : public Abstract {
  public:
-  TTX_CONTRACT(Context, Abstract);
+  TTX_CONTRACT(SemanticContext, Abstract);
 
   auto get_name() const -> View::Bytes override { return "Context"_view; }
 

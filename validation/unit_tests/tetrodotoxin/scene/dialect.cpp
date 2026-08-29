@@ -15,7 +15,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/scene/language/monograph.hpp"
 #include "tetrodotoxin/terminal/graphics/compiler.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -192,7 +192,7 @@ PERIMORTEM_UNIT_TEST(SceneDialect, expands_fixed_hosted_objects) {
       scene.resolve_concept("Icon"_view).resolve().select<Ttx::Model::Type>();
   ASSERT(requirement && icon);
 
-  Static::Vector<Reference<const Ttx::Model::Type>, 1> configured = {{*icon}};
+  Static::Vector<const Ttx::Model::Type*, 1> configured = {{&*icon}};
   Allocator::Arena arena;
   auto products = Terminal::Graphics::Compiler().compile(
       arena, scene, *requirement, configured);

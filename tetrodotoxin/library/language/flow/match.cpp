@@ -4,10 +4,11 @@
 #include "tetrodotoxin/library/language/flow/match.hpp"
 
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -26,10 +27,10 @@ class Payload final : public Language::Model::Addressable {
   TTX_EMPTY_DOCUMENTATION();
 
   auto bind(const Language::Model::Type& selected) -> Bool {
-    if (type && &type->get() != &selected) {
+    if (type && *type != &selected) {
       return False;
     }
-    type = Reference<const Language::Model::Type>(selected);
+    type = &selected;
     return True;
   }
 
@@ -39,12 +40,12 @@ class Payload final : public Language::Model::Addressable {
   }
 
   auto get_type() const -> const Language::Model::Type& override {
-    return type->get();
+    return **type;
   }
 
  private:
   View::Bytes name;
-  Option<Reference<const Language::Model::Type>> type;
+  Option<const Language::Model::Type*> type;
 };
 
 class PatternContext final : public Abstract {
@@ -95,9 +96,9 @@ auto Language::Flow::Match::retain_value_case(
     Anchor anchor) -> void {
   cases.insert({
     .kind = CaseKind::Value,
-    .value = Ttx::Model::PackReference<Model::Pack>(value),
-    .body = Reference<Block>(body),
-    .payload = Reference<Model::Addressable>(payload),
+    .value = &value,
+    .body = &body,
+    .payload = &payload,
     .anchor = anchor,
     .constant = {},
   });
@@ -109,8 +110,8 @@ auto Language::Flow::Match::retain_constant_case(
     Anchor anchor) -> void {
   cases.insert({
     .kind = CaseKind::Constant,
-    .value = Ttx::Model::PackReference<Model::Pack>(value),
-    .body = Reference<Block>(body),
+    .value = &value,
+    .body = &body,
     .payload = {},
     .anchor = anchor,
     .constant = {},
@@ -121,7 +122,7 @@ auto Language::Flow::Match::complete_default(Block& body) -> Bool {
   if (default_body) {
     return False;
   }
-  default_body = Reference<Block>(body);
+  default_body = &body;
   return True;
 }
 
@@ -137,7 +138,7 @@ auto Language::Flow::Match::link(
     return True;
   }
 
-  Model::Pack& retained_input = input.get();
+  Model::Pack& retained_input = *input;
   BAIL_IF(!retained_input.link(cursor, lexical_context, access_scope));
   // Match consumes one value domain. Type selection can link for contextual
   // access but cannot lend a fabricated value merely to enter pattern flow.
@@ -181,7 +182,7 @@ auto Language::Flow::Match::link(
         continue;
       }
 
-      auto binding = entry.payload->get().select<Payload>();
+      auto binding = (**entry.payload).select<Payload>();
       const Abstract& shadowed =
           binding ? lexical_context.resolve_concept(binding->get_name())
                   : Unknown::get_unknown();
@@ -216,14 +217,11 @@ auto Language::Flow::Match::link(
       }
 
       cursor.get_associations().create(entry.anchor, *binding);
-      failed |= !entry.body.get().link(cursor);
+      failed |= !entry.body->link(cursor);
     }
 
     default_body.visit(
-        []() {},
-        [&](Reference<Block>& selected) {
-          failed |= !selected.get().link(cursor);
-        });
+        []() {}, [&](Block* selected) { failed |= !selected->link(cursor); });
     BAIL_IF(failed);
 
     complete_coverage = True;
@@ -239,7 +237,7 @@ auto Language::Flow::Match::link(
     Case& entry = cases[index];
     entry.kind = CaseKind::Constant;
 
-    Model::Pack& value = entry.value->get();
+    Model::Pack& value = **entry.value;
     Bool case_failed = !value.link(cursor, lexical_context, access_scope);
     // Cases obey the same value boundary as the input before constant folding
     // inspects any Layout or payload.
@@ -265,14 +263,12 @@ auto Language::Flow::Match::link(
 
     Option<Tetrodotoxin::Library::Language::Constant&> selected;
     if (!case_failed) {
-      Expression::fold(value).visit(
-          [&](const Option<Model::Pack&>& folded) {
-            if (folded) {
-              selected = folded->select_identity<
-                  Tetrodotoxin::Library::Language::Constant>();
-            }
-          },
-          [&](const Expression::Error&) { case_failed = True; });
+      auto folded = query_folded_pack(value);
+      if (folded) {
+        selected =
+            folded
+                ->select_identity<Tetrodotoxin::Library::Language::Constant>();
+      }
       if (!selected) {
         cursor.create_expression_error(
             value.get_anchor(),
@@ -283,7 +279,7 @@ auto Language::Flow::Match::link(
     }
 
     if (selected) {
-      if (entry.constant && &entry.constant->get() != &*selected) {
+      if (entry.constant && *entry.constant != &*selected) {
         cursor.create_expression_error(
             value.get_anchor(),
             "Library match case selected a different Tetrodotoxin::Library::Language::Constant identity."_view,
@@ -293,7 +289,7 @@ auto Language::Flow::Match::link(
 
       for (Count previous = 0; previous < index; previous++) {
         const Case& retained = cases[previous];
-        if (retained.constant && retained.constant->get() == *selected) {
+        if (retained.constant && **retained.constant == *selected) {
           cursor.create_expression_error(
               value.get_anchor(),
               "Library match cannot retain one Tetrodotoxin::Library::Language::Constant case twice."_view,
@@ -302,19 +298,15 @@ auto Language::Flow::Match::link(
           break;
         }
       }
-      entry.constant =
-          Reference<const Tetrodotoxin::Library::Language::Constant>(*selected);
+      entry.constant = &*selected;
     }
 
-    case_failed |= !entry.body.get().link(cursor);
+    case_failed |= !entry.body->link(cursor);
     failed |= case_failed;
   }
 
   default_body.visit(
-      []() {},
-      [&](Reference<Block>& selected) {
-        failed |= !selected.get().link(cursor);
-      });
+      []() {}, [&](Block* selected) { failed |= !selected->link(cursor); });
   BAIL_IF(failed);
 
   auto has_complete_flag_coverage = [&]() -> Bool {
@@ -329,7 +321,7 @@ auto Language::Flow::Match::link(
     Bool has_true = False;
     for (const Case& entry : cases.get_view()) {
       BAIL_IF(!entry.constant);
-      auto validity = flag_type->get_validity(entry.constant->get());
+      auto validity = flag_type->get_validity(**entry.constant);
       BAIL_IF(!validity);
       if (*validity) {
         has_true = True;
@@ -346,19 +338,15 @@ auto Language::Flow::Match::link(
 }
 
 auto Language::Flow::Match::finalize(Cursor& cursor) -> void {
-  input.get().finalize(cursor);
+  input->finalize(cursor);
   for (Count index = 0; index < cases.get_size(); index++) {
     Case& entry = cases[index];
     entry.value.visit(
-        []() {},
-        [&](Ttx::Model::PackReference<Model::Pack>& selected) {
-          selected.get().finalize(cursor);
-        });
-    entry.body.get().finalize(cursor);
+        []() {}, [&](Model::Pack* selected) { selected->finalize(cursor); });
+    entry.body->finalize(cursor);
   }
   default_body.visit(
-      []() {},
-      [&](Reference<Block>& selected) { selected.get().finalize(cursor); });
+      []() {}, [&](Block* selected) { selected->finalize(cursor); });
 }
 
 auto Language::Flow::Match::reaches_next_statement() const -> Bool {
@@ -367,16 +355,14 @@ auto Language::Flow::Match::reaches_next_statement() const -> Bool {
   }
 
   for (const Case& entry : cases.get_view()) {
-    if (entry.body.get().reaches_next_statement()) {
+    if (entry.body->reaches_next_statement()) {
       return True;
     }
   }
 
   return default_body.visit(
       []() { return False; },
-      [](const Reference<Block>& selected) {
-        return selected.get().reaches_next_statement();
-      });
+      [](const Block* selected) { return selected->reaches_next_statement(); });
 }
 
 auto Language::Flow::Match::get_case_constant(Count index) const
@@ -389,10 +375,9 @@ auto Language::Flow::Match::get_case_constant(Count index) const
       []() -> Option<const Tetrodotoxin::Library::Language::Constant&> {
         return {};
       },
-      [](const Reference<const Tetrodotoxin::Library::Language::Constant>&
-             selected)
+      [](const Tetrodotoxin::Library::Language::Constant* selected)
           -> Option<const Tetrodotoxin::Library::Language::Constant&> {
-        return selected.get();
+        return *selected;
       });
 }
 
@@ -413,10 +398,8 @@ auto Language::Flow::Match::get_case_payload(Count index) const
 
   return cases.get_view().get_data()[index].payload.visit(
       []() -> Option<const Language::Model::Addressable&> { return {}; },
-      [](const Reference<Language::Model::Addressable>& selected)
-          -> Option<const Language::Model::Addressable&> {
-        return selected.get();
-      });
+      [](const Language::Model::Addressable* selected)
+          -> Option<const Language::Model::Addressable&> { return *selected; });
 }
 
 auto Language::Flow::Match::get_case_body(Count index) const
@@ -425,7 +408,7 @@ auto Language::Flow::Match::get_case_body(Count index) const
     return {};
   }
 
-  return cases.get_view().get_data()[index].body.get();
+  return *cases.get_view().get_data()[index].body;
 }
 
 auto Language::Flow::Match::get_case_anchor(Count index) const

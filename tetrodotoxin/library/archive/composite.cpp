@@ -8,7 +8,6 @@
 #include "tetrodotoxin/library/language/alias.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
-#include "ttx/concept/reference.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -39,8 +38,8 @@ static auto is_published(const Abstract& declaration) -> Bool {
 auto Archive::write_declarations(
     Writer& writer,
     const Language::Types::Composite& composite) -> Bool {
-  for (const Reference<Abstract>& retained : composite.get_declarations()) {
-    const Abstract& declaration = retained.get();
+  for (const Abstract* retained : composite.get_declarations()) {
+    const Abstract& declaration = *retained;
     auto alias = declaration.select<Language::Alias>();
     if (alias) {
       BAIL_IF(!Archive::write(writer, *alias));
@@ -333,7 +332,7 @@ auto Archive::write(
   auto cases = enumeration.get_cases();
   for (Count index = 0; index < enumeration.get_case_count(); index++) {
     auto case_record = writer.begin(Tag::EnumerationCase);
-    const Ttx::Model::Alias& selected = cases.get_data()[index].get();
+    const Ttx::Model::Alias& selected = *cases.get_data()[index];
     auto value = enumeration.get_case_value(index);
     BAIL_IF(
         !writer.write(selected.get_documentation()) ||

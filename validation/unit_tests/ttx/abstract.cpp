@@ -7,15 +7,13 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "ttx/concept/constant.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/alias.hpp"
-#include "ttx/model/context.hpp"
-#include "ttx/model/documentations/block.hpp"
-#include "ttx/model/documentations/comment.hpp"
-#include "ttx/model/documentations/merged.hpp"
+#include "ttx/bootstrap/concept/constant.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
+#include "ttx/bootstrap/model/documentations/block.hpp"
+#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/bootstrap/model/documentations/merged.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem;
@@ -27,17 +25,35 @@ static Harness TtxAbstract = {
   .name = "Abstract"_view,
 };
 
+class ConceptCounter {
+ public:
+  ConceptCounter() : callable{&operations}, operations{.call = count} {}
+
+  ttx_named_abstract_callable callable;
+  Count size = 0;
+
+ private:
+  static auto count(
+      ttx_named_abstract_callable* callable,
+      perimortem_bytes,
+      const ttx_abstract*) -> void {
+    reinterpret_cast<ConceptCounter*>(callable)->size++;
+  }
+
+  ttx_named_abstract_callable_operations operations;
+};
+
 PERIMORTEM_UNIT_TEST(TtxAbstract, unknown_is_provisional) {
-  Memory::Allocator::Arena arena;
-  Ttx::Model::Context context(arena);
   const Unknown& unknown = Unknown::get_unknown();
+  ConceptCounter concepts;
 
   EXPECT_TEXT(unknown.get_name(), "Unknown"_view);
   EXPECT(&unknown == &Unknown::get_unknown());
   EXPECT(&unknown.resolve() == &unknown);
   EXPECT(&unknown.get_type() == &unknown);
   EXPECT(&unknown.resolve_concept("Anything::Else"_view) == &unknown);
-  EXPECT(unknown.get_concepts(context).get_layout().is_empty());
+  ttx_abstract_visit_concepts(unknown.get_abi(), &concepts.callable);
+  EXPECT(concepts.size == 0);
   EXPECT(unknown.get_documentation().is_empty());
   EXPECT_NOT(unknown.is<Constant>());
 }
@@ -49,7 +65,8 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, none_is_axiomatic) {
   EXPECT(none.is<Constant>());
   EXPECT(&none.resolve() == &none);
   EXPECT(&none.get_type() == &none);
-  EXPECT(&none.resolve_concept("Anything"_view) == &none);
+  EXPECT(&none.resolve_concept("fold"_view) == &none);
+  EXPECT(&none.resolve_concept("Anything"_view) == &Unknown::get_unknown());
 }
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, contract_visit) {
@@ -68,24 +85,18 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, contract_visit) {
   EXPECT(rejected);
 }
 
-PERIMORTEM_UNIT_TEST(TtxAbstract, reference_cv) {
+PERIMORTEM_UNIT_TEST(TtxAbstract, contract_cv) {
   const Unknown& invalid = Unknown::get_unknown();
   Alias alias("Failure"_view, invalid);
-  Reference<Alias> mutable_reference(alias);
-  Reference<const Alias> read_reference(alias);
   Abstract& mutable_selected = alias;
   const Abstract& read_selected = alias;
   auto mutable_alias = mutable_selected.select<Alias>();
   auto read_alias = read_selected.select<Alias>();
   auto rejected_alias = invalid.select<Alias>();
 
-  static_assert(__is_same(decltype(mutable_reference.get()), Alias&));
-  static_assert(__is_same(decltype(read_reference.get()), const Alias&));
   static_assert(__is_same(decltype(mutable_alias), Option<Alias&>));
   static_assert(__is_same(decltype(read_alias), Option<const Alias&>));
 
-  EXPECT(&mutable_reference.get() == &alias);
-  EXPECT(&read_reference.get() == &alias);
   EXPECT(mutable_alias && &*mutable_alias == &alias);
   EXPECT(read_alias && &*read_alias == &alias);
   EXPECT_NOT(rejected_alias);

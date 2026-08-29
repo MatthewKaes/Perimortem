@@ -108,9 +108,7 @@ class Source : public Composite {
 
   Foreign foreign;
   Perimortem::Memory::Managed::Vector<Import> import_routes;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-      imports;
+  Perimortem::Memory::Managed::Vector<const Ttx::Concept::Abstract*> imports;
   Bool imports_linked = False;
 };
 

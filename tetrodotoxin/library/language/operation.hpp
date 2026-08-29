@@ -15,7 +15,6 @@
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
@@ -29,6 +28,11 @@ class Operation : public Expression {
   TTX_CONTRACT(Operation, Expression);
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
+
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   auto get_documentation() const
       -> const Ttx::Concept::Documentation& override {
@@ -45,16 +49,15 @@ class Operation : public Expression {
 
   // Operations retain their exact authored scalar input order. Consumers visit
   // those real Pack flows without reconstructing another input model.
-  constexpr auto get_inputs() const -> Perimortem::Core::View::Vector<
-      Ttx::Model::PackReference<Model::Pack>> {
+  constexpr auto get_inputs() const
+      -> Perimortem::Core::View::Vector<Model::Pack*> {
     return inputs.get_view();
   }
 
  protected:
   Operation(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Vector<Ttx::Model::PackReference<Model::Pack>>
-          inputs,
+      Perimortem::Core::View::Vector<Model::Pack*> inputs,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 
   // Current Operations are scalar: Parser proves that each operand Pack is
@@ -82,16 +85,15 @@ class Operation : public Expression {
   virtual auto select_type(const Ttx::Concept::Abstract& context) const
       -> Perimortem::Core::Option<const Model::Type&> = 0;
 
-  auto evaluate() -> Perimortem::Utility::Result<
-      Perimortem::Core::Option<Model::Pack&>,
-      Expression::Error> override;
+  auto evaluate_fold() -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Model::Pack&>, Expression::Error>;
 
  private:
   Perimortem::Memory::Allocator::Arena& domain;
-  Perimortem::Memory::Managed::Vector<Ttx::Model::PackReference<Model::Pack>>
-      inputs;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
-      result_type;
+  Perimortem::Memory::Managed::Vector<Model::Pack*> inputs;
+  Perimortem::Memory::Managed::Vector<const ttx_abstract*> folded_inputs;
+  const ttx_abstract* folded_result = nullptr;
+  Perimortem::Core::Option<const Model::Type*> result_type;
 };
 
 }  // namespace Tetrodotoxin::Library::Language
@@ -135,8 +137,8 @@ class Operation : public Expression {
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)                \
       : Operation(                                                          \
             domain,                                                         \
-            Perimortem::Core::Static::Vector<                               \
-                Ttx::Model::PackReference<Model::Pack>, 2>{{left, right}},  \
+            Perimortem::Core::Static::Vector<Model::Pack*, 2>{              \
+              {&left, &right}},                                             \
             anchor) {}
 
 #define TTX_UNARY_OP(type)                                                   \
@@ -159,6 +161,5 @@ class Operation : public Expression {
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)                 \
       : Operation(                                                           \
             domain,                                                          \
-            Perimortem::Core::Static::Vector<                                \
-                Ttx::Model::PackReference<Model::Pack>, 1>{{operand}},       \
+            Perimortem::Core::Static::Vector<Model::Pack*, 1>{{&operand}},   \
             anchor) {}

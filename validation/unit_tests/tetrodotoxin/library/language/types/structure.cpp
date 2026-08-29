@@ -21,12 +21,12 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -187,7 +187,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   const auto& source_type = monograph.get_source();
   auto types = source_type.get_types();
   ASSERT(types != types.end());
-  const Abstract& hidden = (*types).get();
+  const Abstract& hidden = **types;
   const Abstract& packet_identity = monograph.resolve_concept("Packet"_view);
   const Abstract& selected_identity =
       monograph.resolve_concept("Selected"_view);
@@ -219,19 +219,17 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   ASSERT(type_bindings != type_bindings.end());
   ++type_bindings;
   ASSERT(type_bindings != type_bindings.end());
-  ASSERT((*type_bindings).get().is<Alias>());
+  ASSERT((**type_bindings).is<Alias>());
   EXPECT(
-      &(*type_bindings).get().resolve() ==
-      &monograph.resolve_concept("Bool"_view));
+      &(**type_bindings).resolve() == &monograph.resolve_concept("Bool"_view));
 
   EXPECT(&selected_identity.resolve() == &hidden);
   auto fields = packet.get_addressables();
   ASSERT(fields != fields.end());
-  const auto& hidden_field =
-      static_cast<const Language::Field&>((*fields).get());
+  const auto& hidden_field = static_cast<const Language::Field&>(**fields);
   ++fields;
   ASSERT(fields != fields.end());
-  const auto& flag_field = static_cast<const Language::Field&>((*fields).get());
+  const auto& flag_field = static_cast<const Language::Field&>(**fields);
   EXPECT(&hidden_field.get_type() == &hidden);
   EXPECT(&flag_field.get_type() == &monograph.resolve_concept("Bool"_view));
   EXPECT(errors.is_empty());
@@ -271,13 +269,13 @@ PERIMORTEM_UNIT_TEST(StructureTests, contextual_routes) {
 
   auto fields = outer.get_addressables();
   ASSERT(fields != fields.end());
-  const auto& direct = static_cast<const Language::Field&>((*fields).get());
+  const auto& direct = static_cast<const Language::Field&>(**fields);
   ++fields;
   ASSERT(fields != fields.end());
-  const auto& redirected = static_cast<const Language::Field&>((*fields).get());
+  const auto& redirected = static_cast<const Language::Field&>(**fields);
   ++fields;
   ASSERT(fields != fields.end());
-  const auto& qualified = static_cast<const Language::Field&>((*fields).get());
+  const auto& qualified = static_cast<const Language::Field&>(**fields);
   EXPECT(&direct.get_type() == &visible.resolve());
   EXPECT(&redirected.get_type() == &visible.resolve());
   EXPECT(&qualified.get_type() == &leaf);
@@ -319,32 +317,25 @@ PERIMORTEM_UNIT_TEST(StructureTests, access_axes) {
 
   auto field = fields.begin();
   ASSERT(field != fields.end());
-  const auto& ordinary_public =
-      static_cast<const Language::Field&>((*field).get());
+  const auto& ordinary_public = static_cast<const Language::Field&>(**field);
   ++field;
   ASSERT(field != fields.end());
-  const auto& ordinary_private =
-      static_cast<const Language::Field&>((*field).get());
+  const auto& ordinary_private = static_cast<const Language::Field&>(**field);
   ++field;
   ASSERT(field != fields.end());
-  const auto& state_public =
-      static_cast<const Language::Field&>((*field).get());
+  const auto& state_public = static_cast<const Language::Field&>(**field);
   ++field;
   ASSERT(field != fields.end());
-  const auto& state_exposed =
-      static_cast<const Language::Field&>((*field).get());
+  const auto& state_exposed = static_cast<const Language::Field&>(**field);
   ++field;
   ASSERT(field != fields.end());
-  const auto& state_private =
-      static_cast<const Language::Field&>((*field).get());
+  const auto& state_private = static_cast<const Language::Field&>(**field);
   ++field;
   ASSERT(field != fields.end());
-  const auto& const_public =
-      static_cast<const Language::Field&>((*field).get());
+  const auto& const_public = static_cast<const Language::Field&>(**field);
   ++field;
   ASSERT(field != fields.end());
-  const auto& const_private =
-      static_cast<const Language::Field&>((*field).get());
+  const auto& const_private = static_cast<const Language::Field&>(**field);
   EXPECT(ordinary_public.get_writability() == Language::Writability::Full);
   EXPECT(ordinary_private.get_writability() == Language::Writability::Full);
   EXPECT(state_public.get_writability() == Language::Writability::Internal);
@@ -517,10 +508,10 @@ PERIMORTEM_UNIT_TEST(StructureTests, field_access) {
   auto fields = packet.get_addressables();
   auto callables = packet.get_callables();
   ASSERT(fields != fields.end());
-  const Abstract& field_identity = (*fields).get();
+  const Abstract& field_identity = **fields;
   ASSERT(callables != callables.end());
-  ASSERT((*callables).get().is<Language::Function>());
-  const auto& read = static_cast<const Language::Function&>((*callables).get());
+  ASSERT((**callables).is<Language::Function>());
+  const auto& read = static_cast<const Language::Function&>(**callables);
   auto returned = find_return(read);
   ASSERT(returned);
   EXPECT_TEXT(
@@ -608,20 +599,20 @@ PERIMORTEM_UNIT_TEST(StructureTests, static_empty_types) {
   EXPECT(empty.get_layout().is_empty());
   auto empty_callables = empty.get_callables();
   ASSERT(empty_callables != empty_callables.end());
-  EXPECT_TEXT((*empty_callables).get().get_name(), "create"_view);
+  EXPECT_TEXT((**empty_callables).get_name(), "create"_view);
   ++empty_callables;
   EXPECT(empty_callables == empty.get_callables().end());
 
   auto callables = monograph->get_source().get_callables();
   ASSERT(callables != callables.end());
-  ASSERT((*callables).get().is<Language::Function>());
+  ASSERT((**callables).is<Language::Function>());
   const auto& first_empty_result =
-      static_cast<const Language::Function&>((*callables).get());
+      static_cast<const Language::Function&>(**callables);
   ++callables;
   ASSERT(callables != monograph->get_source().get_callables().end());
-  ASSERT((*callables).get().is<Language::Function>());
+  ASSERT((**callables).is<Language::Function>());
   const auto& empty_result =
-      static_cast<const Language::Function&>((*callables).get());
+      static_cast<const Language::Function&>(**callables);
   ++callables;
   EXPECT(callables == monograph->get_source().get_callables().end());
   EXPECT(first_empty_result.get_results().is_empty());
@@ -688,17 +679,15 @@ PERIMORTEM_UNIT_TEST(StructureTests, private_surface) {
   auto types = source_type.get_types();
   auto source_callables = source_type.get_callables();
   ASSERT(types != types.end());
-  ASSERT((*types).get().is<Language::Types::Structure>());
-  const auto& hidden =
-      static_cast<const Language::Types::Structure&>((*types).get());
+  ASSERT((**types).is<Language::Types::Structure>());
+  const auto& hidden = static_cast<const Language::Types::Structure&>(**types);
   const Abstract& packet_identity = monograph->resolve_concept("Packet"_view);
   ASSERT(packet_identity.is<Language::Types::Structure>());
   const auto& packet =
       static_cast<const Language::Types::Structure&>(packet_identity);
   ASSERT(source_callables != source_callables.end());
-  ASSERT((*source_callables).get().is<Language::Function>());
-  const auto& root =
-      static_cast<const Language::Function&>((*source_callables).get());
+  ASSERT((**source_callables).is<Language::Function>());
+  const auto& root = static_cast<const Language::Function&>(**source_callables);
   EXPECT(&monograph->resolve_concept("Hidden"_view) == &Unknown::get_unknown());
   EXPECT(&monograph->resolve_concept("root"_view) == &Unknown::get_unknown());
   EXPECT(&root.resolve_concept("Hidden"_view) == &hidden);
@@ -708,9 +697,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, private_surface) {
   auto callables = packet.get_callables();
   ASSERT(fields != fields.end());
   ASSERT(callables != callables.end());
-  ASSERT((*callables).get().is<Language::Function>());
-  const auto& reveal =
-      static_cast<const Language::Function&>((*callables).get());
+  ASSERT((**callables).is<Language::Function>());
+  const auto& reveal = static_cast<const Language::Function&>(**callables);
   EXPECT(&reveal.resolve_concept("hidden"_view) == &Unknown::get_unknown());
   EXPECT(&reveal.resolve_concept("Hidden"_view) == &hidden);
   EXPECT(errors.is_empty());
@@ -738,16 +726,13 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
   const auto& packet = static_cast<const Language::Types::Structure&>(selected);
   auto authored_fields = packet.get_addressables();
   ASSERT(authored_fields != authored_fields.end());
-  const auto& exact =
-      static_cast<const Language::Field&>((*authored_fields).get());
+  const auto& exact = static_cast<const Language::Field&>(**authored_fields);
   ++authored_fields;
   ASSERT(authored_fields != authored_fields.end());
-  const auto& copy =
-      static_cast<const Language::Field&>((*authored_fields).get());
+  const auto& copy = static_cast<const Language::Field&>(**authored_fields);
   ++authored_fields;
   ASSERT(authored_fields != authored_fields.end());
-  const auto& narrow =
-      static_cast<const Language::Field&>((*authored_fields).get());
+  const auto& narrow = static_cast<const Language::Field&>(**authored_fields);
   auto exact_initializer = exact.get_initializer();
   auto copy_initializer = copy.get_initializer();
   auto narrow_initializer = narrow.get_initializer();
@@ -800,9 +785,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_fields) {
   auto types = source_type.get_types();
   auto type = types.begin();
   ASSERT(type != types.end());
-  ASSERT((*type).get().is<Language::Types::Structure>());
-  const auto& packet =
-      static_cast<const Language::Types::Structure&>((*type).get());
+  ASSERT((**type).is<Language::Types::Structure>());
+  const auto& packet = static_cast<const Language::Types::Structure&>(**type);
   ++type;
   EXPECT(type == types.end());
 
@@ -815,21 +799,18 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_fields) {
   auto packet_fields = packet.get_addressables();
   auto source_field = source_fields.begin();
   ASSERT(source_field != source_fields.end());
-  const auto& root = static_cast<const Language::Field&>((*source_field).get());
+  const auto& root = static_cast<const Language::Field&>(**source_field);
   ++source_field;
   ASSERT(source_field != source_fields.end());
-  const auto& root_copy =
-      static_cast<const Language::Field&>((*source_field).get());
+  const auto& root_copy = static_cast<const Language::Field&>(**source_field);
   ++source_field;
   EXPECT(source_field == source_fields.end());
   auto packet_field = packet_fields.begin();
   ASSERT(packet_field != packet_fields.end());
-  const auto& scalar =
-      static_cast<const Language::Field&>((*packet_field).get());
+  const auto& scalar = static_cast<const Language::Field&>(**packet_field);
   ++packet_field;
   ASSERT(packet_field != packet_fields.end());
-  const auto& scalar_copy =
-      static_cast<const Language::Field&>((*packet_field).get());
+  const auto& scalar_copy = static_cast<const Language::Field&>(**packet_field);
   ++packet_field;
   EXPECT(packet_field == packet_fields.end());
   EXPECT(&root_copy.get_type() == &root.get_type());
@@ -854,7 +835,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_fields) {
   ASSERT(retained_source_field != retained_source_fields.end());
   ++retained_source_field;
   ASSERT(retained_source_field != retained_source_fields.end());
-  EXPECT(&(*retained_source_field).get() == source_identity);
+  EXPECT(&**retained_source_field == source_identity);
   ++retained_source_field;
   EXPECT(retained_source_field == retained_source_fields.end());
   auto retained_packet_fields = packet.get_addressables();
@@ -862,7 +843,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_fields) {
   ASSERT(retained_packet_field != retained_packet_fields.end());
   ++retained_packet_field;
   ASSERT(retained_packet_field != retained_packet_fields.end());
-  EXPECT(&(*retained_packet_field).get() == nested_identity);
+  EXPECT(&**retained_packet_field == nested_identity);
   ++retained_packet_field;
   EXPECT(retained_packet_field == retained_packet_fields.end());
   ASSERT(monograph.finalize(cursor));
@@ -894,7 +875,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inference_rollback) {
     auto fields = source_type.get_addressables();
     auto field = fields.begin();
     ASSERT(field != fields.end());
-    const auto* identity = &static_cast<const Language::Field&>((*field).get());
+    const auto* identity = &static_cast<const Language::Field&>(**field);
     ++field;
     EXPECT(field == fields.end());
     EXPECT(&identity->resolve() == &Unknown::get_unknown());
@@ -902,7 +883,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inference_rollback) {
     auto retained_fields = source_type.get_addressables();
     auto retained_field = retained_fields.begin();
     ASSERT(retained_field != retained_fields.end());
-    EXPECT(&(*retained_field).get() == identity);
+    EXPECT(&**retained_field == identity);
     ++retained_field;
     EXPECT(retained_field == retained_fields.end());
     EXPECT_NOT(errors.is_empty());
@@ -963,16 +944,15 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch) {
     auto types = source_type.get_types();
     auto type = types.begin();
     ASSERT(type != types.end());
-    ASSERT((*type).get().is<Language::Types::Structure>());
-    const auto& packet =
-        static_cast<const Language::Types::Structure&>((*type).get());
+    ASSERT((**type).is<Language::Types::Structure>());
+    const auto& packet = static_cast<const Language::Types::Structure&>(**type);
     ++type;
     EXPECT(type == types.end());
     auto authored_fields = packet.get_addressables();
     auto authored_field_selection = authored_fields.begin();
     ASSERT(authored_field_selection != authored_fields.end());
     const auto& authored_field =
-        static_cast<const Language::Field&>((*authored_field_selection).get());
+        static_cast<const Language::Field&>(**authored_field_selection);
     ++authored_field_selection;
     EXPECT(authored_field_selection == authored_fields.end());
     auto authored_initializer = authored_field.get_initializer();
@@ -987,7 +967,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch) {
     auto field_selection = fields.begin();
     ASSERT(field_selection != fields.end());
     const auto& retained_field =
-        static_cast<const Language::Field&>((*field_selection).get());
+        static_cast<const Language::Field&>(**field_selection);
     ++field_selection;
     EXPECT(field_selection == fields.end());
     auto retained_initializer = retained_field.get_initializer();

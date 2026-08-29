@@ -21,13 +21,14 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/language/model/fold_call.h"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -173,23 +174,21 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_aliases) {
   ASSERT_EQ(cases.get_size(), Count(5));
   Static::Vector<S64, 5> expected = {{-128, 0, 127, 127, 127}};
   for (Count i = 0; i < cases.get_size(); i++) {
-    const Abstract& resolved = cases.get_data()[i].get().resolve();
+    const Abstract& resolved = cases.get_data()[i]->resolve();
     ASSERT(resolved.is<Language::Constants::Enumeration>());
     const auto& constant =
         static_cast<const Language::Constants::Enumeration&>(resolved);
     EXPECT(&constant.get_type() == &offset);
     EXPECT_EQ(S64(constant.get_value()), expected[i]);
   }
-  EXPECT(&cases.get_data()[2].get() != &cases.get_data()[4].get());
-  EXPECT(
-      &cases.get_data()[2].get().resolve() !=
-      &cases.get_data()[4].get().resolve());
+  EXPECT(cases.get_data()[2] != cases.get_data()[4]);
+  EXPECT(&cases.get_data()[2]->resolve() != &cases.get_data()[4]->resolve());
 
   Count generated = 0;
   Option<const Language::Model::Callable&> name_callable;
-  for (const Reference<Abstract>& binding :
+  for (const Abstract* binding :
        offset.get_callables(Tetrodotoxin::Language::Visibility::Public)) {
-    auto callable = binding.get().select<Language::Model::Callable>();
+    auto callable = binding->select<Language::Model::Callable>();
     ASSERT(callable);
     if (callable->get_name() == "get_name"_view) {
       EXPECT(callable->declares_self());
@@ -205,7 +204,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_aliases) {
   ASSERT(size.is<Builtin::Enum::Size>());
   auto size_addressable = size.select<Language::Model::Addressable>();
   ASSERT(size_addressable);
-  auto size_constant = size_addressable->get_constant();
+  auto size_constant = folded_pack(*size_addressable);
   ASSERT(
       size_constant &&
       size_constant->is_identity<Language::Constants::Unsigned>());
@@ -221,10 +220,18 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_aliases) {
           folded_domain, offset, U64(127));
   Language::Model::Pack& empty =
       Language::Model::Pack::create_empty(folded_domain);
-  auto folded = name_callable->fold_call(folded_domain, duplicate, empty);
-  ASSERT(folded && folded->is_identity<Language::Constants::Bytes>());
+  ttx_library_fold_call_view foldable;
+  ASSERT(ttx_library_fold_call_prove(name_callable->get_abi(), &foldable));
+  const Abstract& answer = Abstract::from_abi(ttx_library_fold_call(
+      &foldable,
+      static_cast<const Tetrodotoxin::Library::Language::Model::Pack&>(
+          duplicate)
+          .get_abi(),
+      empty.get_abi()));
+  auto folded_name = Language::Model::Pack::from(answer);
+  ASSERT(folded_name && folded_name->is_identity<Language::Constants::Bytes>());
   EXPECT_TEXT(
-      static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
+      static_cast<const Language::Constants::Bytes&>(*folded_name).get_value(),
       "high"_view);
   EXPECT(errors.is_empty());
 }
@@ -263,14 +270,14 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, binary_boundaries) {
   ASSERT_EQ(signed_cases.get_size(), Count(2));
   for (Count i = 0; i < unsigned_cases.get_size(); i++) {
     const auto& constant = static_cast<const Language::Constants::Enumeration&>(
-        unsigned_cases.get_data()[i].get().resolve());
+        unsigned_cases.get_data()[i]->resolve());
     EXPECT(&constant.get_type() == &unsigned_edge);
     EXPECT_EQ(constant.get_value(), U64(-1));
   }
   const auto& low = static_cast<const Language::Constants::Enumeration&>(
-      signed_cases.get_data()[0].get().resolve());
+      signed_cases.get_data()[0]->resolve());
   const auto& high = static_cast<const Language::Constants::Enumeration&>(
-      signed_cases.get_data()[1].get().resolve());
+      signed_cases.get_data()[1]->resolve());
   EXPECT(&low.get_type() == &signed_edge);
   EXPECT(&high.get_type() == &signed_edge);
   EXPECT_EQ(S64(low.get_value()), S64(-9223372036854775807LL - 1));
@@ -342,13 +349,13 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, declaration_order) {
   ASSERT(second.is<Language::Types::Enumeration>());
   auto types = source_type.get_types();
   ASSERT(types != types.end());
-  EXPECT_TEXT((*types).get().get_name(), "Hidden"_view);
+  EXPECT_TEXT((**types).get_name(), "Hidden"_view);
   ++types;
   ASSERT(types != types.end());
-  EXPECT(&(*types).get() == &first);
+  EXPECT(&**types == &first);
   ++types;
   ASSERT(types != types.end());
-  EXPECT(&(*types).get() == &second);
+  EXPECT(&**types == &second);
   EXPECT(&monograph->resolve_concept("Hidden"_view) == &Unknown::get_unknown());
   EXPECT(errors.is_empty());
 }

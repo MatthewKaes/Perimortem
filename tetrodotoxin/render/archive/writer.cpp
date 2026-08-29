@@ -235,14 +235,14 @@ auto Render::Archive::Writer::write(
   auto record = begin(Tag::Structure);
   BAIL_IF(!write(structure.get_definition()));
 
-  for (const Reference<Abstract>& declaration : structure.get_types()) {
-    BAIL_IF(!write(declaration.get()));
+  for (const Abstract* declaration : structure.get_types()) {
+    BAIL_IF(!write(*declaration));
   }
-  for (const Reference<Abstract>& declaration : structure.get_addressables()) {
-    BAIL_IF(!write(declaration.get()));
+  for (const Abstract* declaration : structure.get_addressables()) {
+    BAIL_IF(!write(*declaration));
   }
-  for (const Reference<Abstract>& declaration : structure.get_callables()) {
-    BAIL_IF(!write(declaration.get()));
+  for (const Abstract* declaration : structure.get_callables()) {
+    BAIL_IF(!write(*declaration));
   }
 
   return finish(record);
@@ -252,14 +252,14 @@ auto Render::Archive::Writer::write(
     const Render::Language::Monograph& monograph) -> Bool {
   auto record = begin(Tag::Monograph);
   BAIL_IF(!write(monograph.get_documentation()));
-  for (const Reference<Abstract>& declaration : monograph.get_types()) {
-    BAIL_IF(!write(declaration.get()));
+  for (const Abstract* declaration : monograph.get_types()) {
+    BAIL_IF(!write(*declaration));
   }
-  for (const Reference<Abstract>& declaration : monograph.get_addressables()) {
-    BAIL_IF(!write(declaration.get()));
+  for (const Abstract* declaration : monograph.get_addressables()) {
+    BAIL_IF(!write(*declaration));
   }
-  for (const Reference<Abstract>& declaration : monograph.get_callables()) {
-    BAIL_IF(!write(declaration.get()));
+  for (const Abstract* declaration : monograph.get_callables()) {
+    BAIL_IF(!write(*declaration));
   }
   return finish(record);
 }

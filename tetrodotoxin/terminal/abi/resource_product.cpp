@@ -21,9 +21,8 @@ auto Terminal::Abi::ResourceProduct::compile(
   Linker::Elf::Object object;
   Memory::Managed::Vector<Unit::Binding> bindings(arena);
   Unit unit(package, "resources"_view, artifact);
-  for (const Ttx::Concept::Reference<Package::Resource>& retained :
-       resources.get_values()) {
-    const Package::Resource& resource = retained.get();
+  for (const Package::Resource* retained : resources.get_values()) {
+    const Package::Resource& resource = *retained;
     Symbol symbol(arena, resource, Symbol::Kind::ReadOnly, unit);
     Memory::Managed::Bytes end_symbol(arena, symbol.get_view());
     end_symbol.concat("_end"_view);

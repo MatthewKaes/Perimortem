@@ -14,7 +14,6 @@
 #include "tetrodotoxin/terminal/spirv/assembler/spir_v.hpp"
 #include "tetrodotoxin/terminal/spirv/module/ids.hpp"
 #include "tetrodotoxin/terminal/spirv/module/types.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Terminal::Spirv::Module {
 
@@ -36,8 +35,8 @@ class Interface {
         Count push_index = Count(-1),
         U32 push_index_id = 0,
         Count location = Count(-1))
-        : semantic(semantic),
-          type(type),
+        : semantic(&semantic),
+          type(&type),
           name(name),
           attributes(attributes),
           storage(storage),
@@ -46,9 +45,8 @@ class Interface {
           push_index_id(push_index_id),
           location(location) {}
 
-    Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic;
-    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
-        type;
+    const Ttx::Concept::Abstract* semantic;
+    const Tetrodotoxin::Library::Language::Model::Type* type;
     Perimortem::Core::View::Bytes name;
     Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>
         attributes;
@@ -66,14 +64,13 @@ class Interface {
         const Tetrodotoxin::Library::Language::Function& function,
         Assembler::SpirV::ExecutionModel model,
         U32 id)
-        : function(function),
+        : function(&function),
           model(model),
           id(id),
           inputs(arena),
           outputs(arena) {}
 
-    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Function>
-        function;
+    const Tetrodotoxin::Library::Language::Function* function;
     Assembler::SpirV::ExecutionModel model;
     U32 id;
     Perimortem::Memory::Managed::Vector<Variable> inputs;

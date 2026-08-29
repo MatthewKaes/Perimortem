@@ -3,8 +3,8 @@
 
 #include "tetrodotoxin/render/language/structure.hpp"
 
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -40,7 +40,7 @@ auto Language::Structure::retain_type(
 
 auto Language::Structure::retain_instance(Ttx::Model::Addressable& value)
     -> void {
-  instances.insert(value);
+  instances.insert(&value);
 }
 
 auto Language::Structure::link(Cursor& cursor) -> Bool {
@@ -72,8 +72,9 @@ auto Language::Structure::resolve_concept(View::Bytes name) const
              : local;
 }
 
-auto Language::Structure::get_concepts(Context& context) const -> const Pack& {
-  return declarations.get_concepts(context);
+auto Language::Structure::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  declarations.visit_concepts(visitor);
 }
 
 auto Language::Structure::resolve_local_context(View::Bytes name) const
@@ -93,13 +94,13 @@ auto Language::Structure::InstanceLayout::get_size() const -> Count {
 auto Language::Structure::InstanceLayout::get_abstract(Count index) const
     -> Option<const Abstract&> {
   BAIL_IF(index >= owner.instances.get_size());
-  return owner.instances.at(index).get();
+  return *owner.instances.at(index);
 }
 
 auto Language::Structure::InstanceLayout::get_name(Count index) const
     -> Option<View::Bytes> {
   BAIL_IF(index >= owner.instances.get_size());
-  return owner.instances.at(index).get().get_name();
+  return owner.instances.at(index)->get_name();
 }
 
 auto Language::Structure::InstanceLayout::fits_entry(

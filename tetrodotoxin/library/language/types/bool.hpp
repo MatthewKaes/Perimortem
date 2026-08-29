@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "ttx/model/documentations/comment.hpp"
+#include "ttx/bootstrap/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -24,9 +24,6 @@ class Boolean : public Model::Types::Flag {
       -> Perimortem::Core::Option<const Model::Type&> override {
     return *this;
   }
-
-  auto fold_propagation(Model::Pack& source) const -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Model::Pack&>, Bool> override;
 
   constexpr auto get_width() const -> Count override { return 1; }
   constexpr auto get_size() const -> Count override { return sizeof(::Bool); }

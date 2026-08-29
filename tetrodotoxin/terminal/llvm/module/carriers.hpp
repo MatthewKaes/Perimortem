@@ -10,14 +10,13 @@
 #include "perimortem/memory/dynamic/vector.hpp"
 
 #include "llvm-c/Types.h"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/types/implementation.hpp"
 #include "tetrodotoxin/terminal/abi/representation/type.hpp"
 #include "tetrodotoxin/terminal/llvm/module/emission.hpp"
-#include "ttx/concept/layout.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/pack.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/concept/layout.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Module {
 
@@ -210,9 +209,8 @@ class Carriers {
 
   auto owns_resources(
       const Ttx::Model::Type& type,
-      Perimortem::Memory::Dynamic::Vector<
-          Ttx::Concept::Reference<const Ttx::Model::Type>>& active) const
-      -> Bool;
+      Perimortem::Memory::Dynamic::Vector<const Ttx::Model::Type*>& active)
+      const -> Bool;
 
   mutable Perimortem::Memory::Dynamic::Map<const Ttx::Model::Type*, Carrier>
       carriers;

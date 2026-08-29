@@ -215,12 +215,10 @@ auto Interpreter::Source::Foreign::parse(
       Code::Type::ScopeStart,
       "Foreign blocks require `{` before their declarations."_view));
 
-  Memory::Managed::Vector<Ttx::Concept::Reference<Language::Foreign::State>>
-      states(cursor.get_arena());
-  Memory::Managed::Vector<Ttx::Concept::Reference<Language::Foreign::Function>>
-      functions(cursor.get_arena());
-  Memory::Managed::Vector<Ttx::Concept::Reference<Abstract>> declarations(
+  Memory::Managed::Vector<Language::Foreign::State*> states(cursor.get_arena());
+  Memory::Managed::Vector<Language::Foreign::Function*> functions(
       cursor.get_arena());
+  Memory::Managed::Vector<Abstract*> declarations(cursor.get_arena());
   while (!cursor.matches(Code::Type::ScopeEnd)) {
     if (cursor.matches(Code::Type::Terminal)) {
       cursor.create_token_error(
@@ -244,15 +242,15 @@ auto Interpreter::Source::Foreign::parse(
       BAIL_IF(!state);
       Core::Option<const Language::Foreign::State&> duplicate;
       for (const auto& retained : host.get_states()) {
-        if (retained.get().get_name() == state->get_name()) {
-          duplicate = retained.get();
+        if (retained->get_name() == state->get_name()) {
+          duplicate = *retained;
           break;
         }
       }
       if (!duplicate) {
         for (const auto& retained : states.get_view()) {
-          if (retained.get().get_name() == state->get_name()) {
-            duplicate = retained.get();
+          if (retained->get_name() == state->get_name()) {
+            duplicate = *retained;
             break;
           }
         }
@@ -266,8 +264,8 @@ auto Interpreter::Source::Foreign::parse(
         return False;
       }
       if (!duplicate) {
-        states.insert(*state);
-        declarations.insert(*state);
+        states.insert(&*state);
+        declarations.insert(&*state);
       }
       continue;
     }
@@ -277,15 +275,15 @@ auto Interpreter::Source::Foreign::parse(
       BAIL_IF(!function);
       Core::Option<const Language::Foreign::Function&> duplicate;
       for (const auto& retained : host.get_functions()) {
-        if (retained.get().get_name() == function->get_name()) {
-          duplicate = retained.get();
+        if (retained->get_name() == function->get_name()) {
+          duplicate = *retained;
           break;
         }
       }
       if (!duplicate) {
         for (const auto& retained : functions.get_view()) {
-          if (retained.get().get_name() == function->get_name()) {
-            duplicate = retained.get();
+          if (retained->get_name() == function->get_name()) {
+            duplicate = *retained;
             break;
           }
         }
@@ -299,8 +297,8 @@ auto Interpreter::Source::Foreign::parse(
         return False;
       }
       if (!duplicate) {
-        functions.insert(*function);
-        declarations.insert(*function);
+        functions.insert(&*function);
+        declarations.insert(&*function);
       }
       continue;
     }
@@ -319,11 +317,11 @@ auto Interpreter::Source::Foreign::parse(
       functions.get_view(), declarations.get_view()));
   for (const auto& state : states.get_view()) {
     cursor.get_associations().create(
-        state.get().get_definition().get_name_anchor(), state.get());
+        state->get_definition().get_name_anchor(), *state);
   }
   for (const auto& function : functions.get_view()) {
     cursor.get_associations().create(
-        function.get().get_definition().get_name_anchor(), function.get());
+        function->get_definition().get_name_anchor(), *function);
   }
   return True;
 }

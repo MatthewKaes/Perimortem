@@ -10,8 +10,7 @@
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/interpreter/parsed.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Interpreter {
@@ -30,10 +29,10 @@ class Member {
         Ttx::Concept::Abstract& semantic,
         Language::Types::Composite::Category category,
         ParseState state)
-        : semantic(semantic), category(category), state(state) {}
+        : semantic(&semantic), category(category), state(state) {}
 
     constexpr auto get_semantic() const -> Ttx::Concept::Abstract& {
-      return semantic.get();
+      return *semantic;
     }
 
     constexpr auto get_category() const
@@ -50,7 +49,7 @@ class Member {
     }
 
    private:
-    Ttx::Concept::Reference<Ttx::Concept::Abstract> semantic;
+    Ttx::Concept::Abstract* semantic;
     Language::Types::Composite::Category category;
     ParseState state;
   };

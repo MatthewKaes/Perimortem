@@ -12,8 +12,8 @@
 
 #include "tetrodotoxin/library/language/generics/fixed.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -50,7 +50,7 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, direct_contract) {
       }));
   EXPECT_NOT(layout.get_abstract(4));
   EXPECT_NOT(fixed.get_documentation().is_empty());
-  EXPECT(&fixed.resolve_concept("member"_view) == &None::get_none());
+  EXPECT(&fixed.resolve_concept("member"_view) == &Unknown::get_unknown());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryFixed, formula_construction) {

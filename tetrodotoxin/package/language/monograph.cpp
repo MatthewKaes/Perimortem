@@ -3,10 +3,10 @@
 
 #include "tetrodotoxin/package/language/monograph.hpp"
 
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -42,8 +42,7 @@ auto Package::Language::Monograph::create_synthetic(
     Perimortem::System::Version version,
     Abstract& context,
     const Abstract& library_language,
-    View::Vector<Reference<Package::Resource>> restored_resources)
-    -> Monograph& {
+    View::Vector<Package::Resource*> restored_resources) -> Monograph& {
   Monograph& monograph = arena.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
         arena, language, Documentation::get_empty(), Anchor::create(Span()),
@@ -61,7 +60,7 @@ Package::Language::Monograph::Monograph(
     Perimortem::System::Version version,
     Abstract& context,
     const Abstract& library_language,
-    View::Vector<Reference<Package::Resource>> restored_resources,
+    View::Vector<Package::Resource*> restored_resources,
     Bool resources_sealed)
     : Tetrodotoxin::Language::Monograph(
           arena,
@@ -97,16 +96,9 @@ auto Package::Language::Monograph::resolve_concept(View::Bytes route) const
   return library.get_source().resolve_public_context(route);
 }
 
-auto Package::Language::Monograph::get_concepts(Context& context) const
-    -> const Pack& {
-  const Perimortem::Core::Static::Vector<Reference<const Abstract>, 1>
-      concepts = {{library.get_source()}};
-  const Perimortem::Core::Static::Vector<View::Bytes, 1> names = {{
-    "static"_view,
-  }};
-  Ttx::Model::Layouts::Fluid values(concepts);
-  Ttx::Model::Layouts::Named named(values, names);
-  return context.pack(named);
+auto Package::Language::Monograph::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  visit_concept(visitor, "static"_view, library.get_source());
 }
 
 auto Package::Language::Monograph::retain_import(
@@ -114,9 +106,7 @@ auto Package::Language::Monograph::retain_import(
     Option<Associations&> associations) -> Bool {
   BAIL_IF(!library.retain_import(description, associations));
   Tetrodotoxin::Language::Import& import =
-      library.get_imports()
-          .get_data()[library.get_imports().get_size() - 1]
-          .get();
+      *library.get_imports().get_data()[library.get_imports().get_size() - 1];
   Bool published = description.get_visibility() !=
                    Tetrodotoxin::Language::Visibility::Private;
   return library.get_source().bind_static(

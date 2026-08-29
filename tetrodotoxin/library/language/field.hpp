@@ -13,7 +13,6 @@
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/writability.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -33,8 +32,7 @@ class Field : public Model::Addressable {
       Writability writability,
       Perimortem::Core::Option<TypeReference> type_reference,
       Perimortem::Core::Option<Model::Pack&> initializer,
-      Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
-          type = {},
+      Perimortem::Core::Option<const Model::Type*> type = {},
       Bool generated = False)
       : definition(definition),
         domain(domain),
@@ -151,6 +149,8 @@ class Field : public Model::Addressable {
 
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
@@ -184,23 +184,12 @@ class Field : public Model::Addressable {
 
   auto get_initializer() const -> Perimortem::Core::Option<const Model::Pack&>;
 
-  // Const Fields are declaration owned compile time values. They never denote
-  // per instance storage, regardless of which valid receiver selects them.
-  auto get_constant() const -> Perimortem::Core::Option<Model::Pack&> override;
-
   constexpr auto is_linked() const -> Bool {
     return Bool(type) && initializer_linked;
   }
 
  private:
-  enum class ConstantState : U8 {
-    Unresolved,
-    Folding,
-    Folded,
-    Failed,
-  };
-
-  auto cache_constant() const -> Bool;
+  auto resolve_fold() const -> const Ttx::Concept::Abstract&;
 
   auto validate_publication(Ttx::Lexical::Cursor& cursor) const -> Bool;
 
@@ -209,11 +198,10 @@ class Field : public Model::Addressable {
   Writability writability;
   Perimortem::Core::Option<TypeReference> type_reference;
   Perimortem::Core::Option<Model::Pack&> initializer;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>> type;
+  Perimortem::Core::Option<const Model::Type*> type;
   Bool generated;
-  mutable Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>>
-      constant;
-  mutable ConstantState constant_state = ConstantState::Unresolved;
+  mutable const ttx_abstract* folded_input = nullptr;
+  mutable const ttx_abstract* folded_result = nullptr;
   Bool initializer_linked;
 };
 

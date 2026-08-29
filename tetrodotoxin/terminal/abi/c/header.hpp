@@ -28,8 +28,8 @@ class Header {
       const Tetrodotoxin::Terminal::Abi::Unit& unit,
       Perimortem::Core::View::Vector<Tetrodotoxin::Terminal::Abi::Export>
           exports,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<
-          const Tetrodotoxin::Library::Language::Model::Type>> roots = {})
+      Perimortem::Core::View::Vector<
+          const Tetrodotoxin::Library::Language::Model::Type*> roots = {})
       -> Perimortem::Core::Option<Header>;
 
   static auto identify(

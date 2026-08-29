@@ -4,7 +4,9 @@
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -19,24 +21,22 @@ auto Language::Expressions::Initializer::create_authored(
   return Expression::create_authored<Initializer>(
       domain, anchor,
       [&](Core::Option<Ttx::Lexical::Anchor> source) -> Initializer {
-        return Initializer(target_reference, arguments, source);
+        return Initializer(domain, target_reference, arguments, source);
       });
 }
 
 auto Language::Expressions::Initializer::create_synthetic(
     Memory::Allocator::Arena& domain,
     const Language::Model::Type& type,
-    Core::View::Vector<Ttx::Model::PackReference<Model::Pack>> values)
-    -> Initializer& {
+    Core::View::Vector<Model::Pack*> values) -> Initializer& {
   auto& arguments = Model::Pack::create_empty(domain);
   auto& completed = Model::Pack::create_group(domain, values);
   Initializer& initializer = Expression::create_synthetic<Initializer>(
       domain, [&](Core::Option<Ttx::Lexical::Anchor> source) -> Initializer {
-        return Initializer({}, arguments, source);
+        return Initializer(domain, {}, arguments, source);
       });
-  initializer.expected_type = Reference<const Language::Model::Type>(type);
-  initializer.completed_values =
-      Ttx::Model::PackReference<Model::Pack>(completed);
+  initializer.expected_type = &type;
+  initializer.completed_values = &completed;
   return initializer;
 }
 
@@ -46,31 +46,34 @@ auto Language::Expressions::Initializer::create_provider(
     Language::Model::Pack& arguments) -> Initializer& {
   Initializer& initializer = Expression::create_synthetic<Initializer>(
       domain, [&](Core::Option<Ttx::Lexical::Anchor> source) -> Initializer {
-        return Initializer({}, arguments, source);
+        return Initializer(domain, {}, arguments, source);
       });
-  initializer.expected_type = Reference<const Language::Model::Type>(type);
+  initializer.expected_type = &type;
   initializer.provider = True;
   return initializer;
 }
 
 Language::Expressions::Initializer::Initializer(
+    Memory::Allocator::Arena& domain,
     Core::Option<TypeReference> target_reference,
     Language::Model::Pack& arguments,
     Core::Option<Ttx::Lexical::Anchor> anchor)
     : Expression(anchor),
+      domain(domain),
       target_reference(target_reference),
       arguments(arguments) {}
 
 auto Language::Expressions::Initializer::get_type() const -> const Abstract& {
   return expected_type.visit(
       []() -> const Abstract& { return Unknown::get_unknown(); },
-      [](const Reference<const Language::Model::Type>& selected)
-          -> const Abstract& { return selected.get(); });
+      [](const Language::Model::Type* selected) -> const Abstract& {
+        return *selected;
+      });
 }
 
 auto Language::Expressions::Initializer::fits(
     const Ttx::Model::Type& target) const -> Bool {
-  return expected_type && &expected_type->get() == &target;
+  return expected_type && *expected_type == &target;
 }
 
 auto Language::Expressions::Initializer::finalize(Ttx::Lexical::Cursor& cursor)
@@ -80,10 +83,7 @@ auto Language::Expressions::Initializer::finalize(Ttx::Lexical::Cursor& cursor)
   // expression inventory exists beside the Pack's canonical Layout.
   arguments.finalize(cursor);
   completed_values.visit(
-      []() {},
-      [&](Ttx::Model::PackReference<Model::Pack>& values) {
-        values.get().finalize(cursor);
-      });
+      []() {}, [&](Model::Pack* values) { values->finalize(cursor); });
   Expression::finalize(cursor);
 }
 
@@ -91,35 +91,45 @@ auto Language::Expressions::Initializer::get_completed_values() const
     -> Core::Option<const Model::Pack&> {
   return completed_values.visit(
       []() -> Core::Option<const Model::Pack&> { return {}; },
-      [](const Ttx::Model::PackReference<Model::Pack>& selected)
-          -> Core::Option<const Model::Pack&> { return selected.get(); });
+      [](Model::Pack* selected) -> Core::Option<const Model::Pack&> {
+        return *selected;
+      });
 }
 
-auto Language::Expressions::Initializer::evaluate()
+auto Language::Expressions::Initializer::resolve_concept(
+    Core::View::Bytes name) const -> const Abstract& {
+  if (name != "fold"_view) {
+    return Expression::resolve_concept(name);
+  }
+  return const_cast<Initializer&>(*this).evaluate_fold().visit(
+      [](const Core::Option<Model::Pack&>& result) -> const Abstract& {
+        return fold_answer(result);
+      },
+      [](const Expression::Error&) -> const Abstract& {
+        return Ttx::Concept::None::get_none();
+      });
+}
+
+auto Language::Expressions::Initializer::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Expression::visit_concepts(visitor);
+  visit_concept(visitor, "fold"_view, resolve_concept("fold"_view));
+}
+
+auto Language::Expressions::Initializer::evaluate_fold()
     -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
   return completed_values.visit(
       []() -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
         return Core::Option<Model::Pack&>();
       },
-      [&](Ttx::Model::PackReference<Model::Pack>& selected)
+      [&](Model::Pack* selected)
           -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
-        Core::Option<Model::Pack&> representation(selected.get());
-        if (!selected.get().select_identity<Constant>()) {
-          Expression::fold(selected.get())
-              .visit(
-                  [&](const Core::Option<Model::Pack&>& folded) {
-                    if (folded) {
-                      representation = *folded;
-                    }
-                  },
-                  [](const Expression::Error&) {});
-        }
-        auto constant =
-            representation
-                ->select_identity<Tetrodotoxin::Library::Language::Constant>();
-        return constant && expected_type &&
-                       &constant->get_type().resolve() ==
-                           &expected_type->get().resolve()
+        auto representation = query_folded_pack(domain, *selected);
+        auto identity = representation ? representation->get_identity()
+                                       : Core::Option<const Abstract&>();
+        return identity && Ttx::Concept::Constant::prove(*identity) &&
+                       expected_type &&
+                       representation->fits_into(**expected_type)
                    ? representation
                    : Core::Option<Model::Pack&>();
       });
@@ -135,8 +145,7 @@ auto Language::Expressions::Initializer::link(
   }
 
   if (expected_type && completed_values) {
-    BAIL_IF(
-        !completed_values->get().link(cursor, lexical_context, access_scope));
+    BAIL_IF(!(*completed_values)->link(cursor, lexical_context, access_scope));
     return Expression::link(cursor, lexical_context, access_scope);
   }
 
@@ -159,7 +168,7 @@ auto Language::Expressions::Initializer::link(
   }
 
   if (expected_type) {
-    if (&expected_type->get() == &*target) {
+    if (*expected_type == &*target) {
       return True;
     }
 
@@ -189,7 +198,7 @@ auto Language::Expressions::Initializer::link(
       return False;
     }
 
-    Ttx::Model::PackReference<Model::Pack> completed(*value);
+    Model::Pack* completed = &*value;
     auto aggregate = value->select_identity<Initializer>();
     if (aggregate && !aggregate->get_anchor()) {
       auto aggregate_values = aggregate->get_completed_values();
@@ -197,14 +206,13 @@ auto Language::Expressions::Initializer::link(
         // A local aggregate exposes the completed Field values owned by Type.
         // A restored aggregate instead remains the real provider Initializer
         // so lowering can invoke its provider without inventing those Fields.
-        completed = Ttx::Model::PackReference<Model::Pack>(
-            const_cast<Model::Pack&>(*aggregate_values));
+        completed = &const_cast<Model::Pack&>(*aggregate_values);
       }
     }
 
-    expected_type = Reference<const Language::Model::Type>(*target);
+    expected_type = &*target;
     completed_values = completed;
-    BAIL_IF(!completed.get().link(cursor, lexical_context, access_scope));
+    BAIL_IF(!completed->link(cursor, lexical_context, access_scope));
     return Expression::link(cursor, lexical_context, access_scope);
   }
 
@@ -220,7 +228,7 @@ auto Language::Expressions::Initializer::link(
     return False;
   }
 
-  expected_type = Reference<const Language::Model::Type>(*target);
-  completed_values = Ttx::Model::PackReference<Model::Pack>(*completed);
+  expected_type = &*target;
+  completed_values = &*completed;
   return True;
 }

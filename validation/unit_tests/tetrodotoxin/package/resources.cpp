@@ -20,8 +20,8 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -202,7 +202,7 @@ PERIMORTEM_UNIT_TEST(PackageResources, identity_and_seal) {
   EXPECT_TEXT(other_resource.get_value(), first_resource.get_value());
   EXPECT(&first != &other);
   ASSERT_EQ(resources.get_values().get_size(), Count(3));
-  EXPECT(&resources.get_values().get_data()[0].get() == &first);
+  EXPECT(resources.get_values().get_data()[0] == &first);
 
   resources.seal();
   EXPECT_NOT(resources.connect(*storage));

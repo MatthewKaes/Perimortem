@@ -97,8 +97,11 @@ auto Library::Archive::write(
 
   Bool include_constant =
       field.get_writability() == Library::Language::Writability::Constant;
-  auto folded = include_constant ? field.get_constant()
-                                 : Option<Library::Language::Model::Pack&>();
+  Option<const Library::Language::Model::Pack&> folded;
+  if (include_constant) {
+    const Abstract& answer = field.resolve_concept("fold"_view);
+    folded = Library::Language::Model::Pack::from(answer);
+  }
   writer.write(U8(include_constant ? 1 : 0));
   BAIL_IF(include_constant && (!folded || !write_folded(writer, *folded)));
   return writer.finish(record);

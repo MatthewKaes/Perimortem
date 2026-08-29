@@ -13,7 +13,6 @@
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/writability.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -56,14 +55,18 @@ class Local : public Model::Addressable {
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   constexpr auto get_linked_type() const
       -> Perimortem::Core::Option<const Model::Type&> {
     return type.visit(
         []() -> Perimortem::Core::Option<const Model::Type&> { return {}; },
-        [](const Ttx::Concept::Reference<const Model::Type>& selected)
+        [](const Model::Type* selected)
             -> Perimortem::Core::Option<const Model::Type&> {
-          return selected.get();
+          return *selected;
         });
   }
 
@@ -95,18 +98,9 @@ class Local : public Model::Addressable {
         });
   }
 
-  auto get_constant() const -> Perimortem::Core::Option<Model::Pack&> override;
-
  private:
-  enum class ConstantState : U8 {
-    Unresolved,
-    Folding,
-    Folded,
-    Failed,
-  };
-
   auto link_constant(Ttx::Lexical::Cursor& cursor) const -> Bool;
-  auto cache_constant() const -> Bool;
+  auto resolve_fold() const -> const Ttx::Concept::Abstract&;
 
   constexpr Local(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -134,10 +128,9 @@ class Local : public Model::Addressable {
   Writability writability;
   Perimortem::Core::Option<TypeReference> type_reference;
   Perimortem::Core::Option<Model::Pack&> initializer;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>> type;
-  mutable Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>>
-      constant;
-  mutable ConstantState constant_state = ConstantState::Unresolved;
+  Perimortem::Core::Option<const Model::Type*> type;
+  mutable const ttx_abstract* folded_input = nullptr;
+  mutable const ttx_abstract* folded_result = nullptr;
   Ttx::Lexical::Anchor anchor;
   Bool initializer_linked;
 };

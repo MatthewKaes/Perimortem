@@ -8,9 +8,8 @@
 #include "tetrodotoxin/app/language/route.hpp"
 #include "tetrodotoxin/app/language/transition.hpp"
 #include "tetrodotoxin/scene/language/monograph.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/documentation.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/documentation.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -27,16 +26,14 @@ class Scene : public Ttx::Concept::Abstract {
       Perimortem::Memory::Allocator::Arena& arena,
       const Ttx::Concept::Documentation& documentation,
       Route initial,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Transition>>
-          transitions,
+      Perimortem::Core::View::Vector<Transition*> transitions,
       Ttx::Lexical::Anchor anchor) -> Scene&;
 
   static auto create_restored(
       Perimortem::Memory::Allocator::Arena& arena,
       const Ttx::Concept::Documentation& documentation,
       Route initial,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Transition>>
-          transitions) -> Scene&;
+      Perimortem::Core::View::Vector<Transition*> transitions) -> Scene&;
 
   auto link(Ttx::Lexical::Cursor& cursor, const Ttx::Concept::Abstract& context)
       -> Bool;
@@ -50,11 +47,10 @@ class Scene : public Ttx::Concept::Abstract {
                  const Tetrodotoxin::Scene::Language::Monograph&> {
           return {};
         },
-        [](const Ttx::Concept::Reference<
-            const Tetrodotoxin::Scene::Language::Monograph>& selected)
+        [](const Tetrodotoxin::Scene::Language::Monograph* selected)
             -> Perimortem::Core::Option<
                 const Tetrodotoxin::Scene::Language::Monograph&> {
-          return selected.get();
+          return *selected;
         });
   }
   constexpr auto get_transitions() const { return transitions; }
@@ -69,8 +65,7 @@ class Scene : public Ttx::Concept::Abstract {
   constexpr Scene(
       const Ttx::Concept::Documentation& documentation,
       Route initial,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Transition>>
-          transitions,
+      Perimortem::Core::View::Vector<Transition*> transitions,
       Ttx::Lexical::Anchor anchor)
       : documentation(documentation),
         initial(initial),
@@ -79,11 +74,9 @@ class Scene : public Ttx::Concept::Abstract {
 
   const Ttx::Concept::Documentation& documentation;
   Route initial;
-  Perimortem::Core::View::Vector<Ttx::Concept::Reference<Transition>>
-      transitions;
+  Perimortem::Core::View::Vector<Transition*> transitions;
   Ttx::Lexical::Anchor anchor;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Tetrodotoxin::Scene::Language::Monograph>>
+  Perimortem::Core::Option<const Tetrodotoxin::Scene::Language::Monograph*>
       initial_scene;
 };
 

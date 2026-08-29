@@ -31,13 +31,25 @@
 #include "tetrodotoxin/library/language/types/option.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
 #include "tetrodotoxin/library/language/types/result.hpp"
-#include "ttx/concept/documentation.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/documentation.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
+
+auto Language::Model::Pack::from_abi(const ttx_pack* pack) -> const Pack& {
+  return *reinterpret_cast<const Abi*>(pack)->owner;
+}
+
+auto Language::Model::Pack::layout_abi(const ttx_pack* pack)
+    -> const ttx_layout* {
+  return from_abi(pack).get_layout().get_abi();
+}
+
+const ttx_pack_operations Language::Model::Pack::abi_operations = {
+  .layout = layout_abi,
+};
 
 auto Language::Model::Pack::from(Abstract& identity) -> Core::Option<Pack&> {
   auto expression = identity.select<Language::Expression>();
@@ -109,8 +121,7 @@ class Group final : public Language::Model::Pack {
 
   Group(
       Memory::Allocator::Arena& domain,
-      Core::View::Vector<Ttx::Model::PackReference<Language::Model::Pack>>
-          source_entries,
+      Core::View::Vector<Language::Model::Pack*> source_entries,
       Core::View::Vector<Core::View::Bytes> source_names,
       Core::Option<Ttx::Lexical::Anchor> anchor,
       Bool linked = False)
@@ -120,8 +131,7 @@ class Group final : public Language::Model::Pack {
         layout(*this),
         linked(linked) {
     entries.reset(source_entries.get_size());
-    for (const Ttx::Model::PackReference<Language::Model::Pack>& entry :
-         source_entries) {
+    for (Language::Model::Pack* entry : source_entries) {
       entries.insert(entry);
     }
 
@@ -136,18 +146,16 @@ class Group final : public Language::Model::Pack {
       const Abstract& lexical_context,
       Core::Option<const Abstract&> access_scope) -> Bool override {
     Bool failed = False;
-    for (Ttx::Model::PackReference<Language::Model::Pack> entry :
-         entries.get_view()) {
-      failed |= !entry.get().link(cursor, lexical_context, access_scope);
+    for (Language::Model::Pack* entry : entries.get_view()) {
+      failed |= !entry->link(cursor, lexical_context, access_scope);
     }
     BAIL_IF(failed);
 
     // Type selection links here so a following access can query that identity.
     // A group is a value consumer, so it rejects the same result before Layout
     // observation turns the missing value output into a process failure.
-    for (Ttx::Model::PackReference<Language::Model::Pack> entry :
-         entries.get_view()) {
-      if (!entry.get().is_complete()) {
+    for (Language::Model::Pack* entry : entries.get_view()) {
+      if (!entry->is_complete()) {
         cursor.create_expression_error(
             anchor, "Library Pack entry did not produce value flow."_view,
             "Use a Type result only as an access receiver."_view);
@@ -156,9 +164,8 @@ class Group final : public Language::Model::Pack {
     }
 
     if (!names.is_empty()) {
-      for (Ttx::Model::PackReference<Language::Model::Pack> entry :
-           entries.get_view()) {
-        if (entry.get().get_layout().get_size() != 1) {
+      for (Language::Model::Pack* entry : entries.get_view()) {
+        if (entry->get_layout().get_size() != 1) {
           cursor.create_expression_error(
               anchor,
               "A named Library Pack entry must produce exactly one value."_view,
@@ -179,10 +186,9 @@ class Group final : public Language::Model::Pack {
       return True;
     }
 
-    for (Ttx::Model::PackReference<Language::Model::Pack> entry :
-         entries.get_view()) {
-      BAIL_IF(!entry.get().link_restored(lexical_context, access_scope));
-      BAIL_IF(!entry.get().is_complete());
+    for (Language::Model::Pack* entry : entries.get_view()) {
+      BAIL_IF(!entry->link_restored(lexical_context, access_scope));
+      BAIL_IF(!entry->is_complete());
     }
     linked = True;
     return True;
@@ -197,7 +203,7 @@ class Group final : public Language::Model::Pack {
     if (!selected) {
       return Unknown::get_unknown();
     }
-    return entries.at(selected->entry).get().get_value_type(selected->value);
+    return entries.at(selected->entry)->get_value_type(selected->value);
   }
 
   auto is_complete() const -> Bool override { return linked; }
@@ -211,19 +217,17 @@ class Group final : public Language::Model::Pack {
   }
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override {
-    for (Ttx::Model::PackReference<Language::Model::Pack> entry :
-         entries.get_view()) {
-      entry.get().finalize(cursor);
+    for (Language::Model::Pack* entry : entries.get_view()) {
+      entry->finalize(cursor);
     }
   }
 
-  constexpr auto get_entries() const -> Core::View::Vector<
-      Ttx::Model::PackReference<Language::Model::Pack>> override {
+  constexpr auto get_entries() const
+      -> Core::View::Vector<Language::Model::Pack*> override {
     return entries;
   }
 
-  Memory::Managed::Vector<Ttx::Model::PackReference<Language::Model::Pack>>
-      entries;
+  Memory::Managed::Vector<Language::Model::Pack*> entries;
   Memory::Managed::Vector<Core::View::Bytes> names;
   Core::Option<Ttx::Lexical::Anchor> anchor;
   Layout layout;
@@ -236,9 +240,8 @@ auto Group::Layout::get_size() const -> Count {
   }
 
   Count size = 0;
-  for (Ttx::Model::PackReference<Language::Model::Pack> entry :
-       group.entries.get_view()) {
-    size += entry.get().get_layout().get_size();
+  for (Language::Model::Pack* entry : group.entries.get_view()) {
+    size += entry->get_layout().get_size();
   }
   return size;
 }
@@ -251,7 +254,7 @@ auto Group::Layout::select(Count index) const -> Core::Option<Selection> {
 
   Count offset = 0;
   for (Count entry = 0; entry < group.entries.get_size(); entry++) {
-    Count size = group.entries.at(entry).get().get_layout().get_size();
+    Count size = group.entries.at(entry)->get_layout().get_size();
     if (index < offset + size) {
       return Selection{entry, index - offset};
     }
@@ -265,8 +268,7 @@ auto Group::Layout::get_abstract(Count index) const
   auto selected = select(index);
   BAIL_IF(!selected);
   return group.entries.at(selected->entry)
-      .get()
-      .get_layout()
+      ->get_layout()
       .get_abstract(selected->value);
 }
 
@@ -305,8 +307,7 @@ auto Group::Layout::fits_entry(
   }
 
   return group.entries.at(selected->entry)
-      .get()
-      .fits_entry(target, selected->value, target_index);
+      ->fits_entry(target, selected->value, target_index);
 }
 
 auto Group::Layout::fits_at(
@@ -374,8 +375,7 @@ auto Group::Layout::get_fitted_at(
     return Errors::IncompatibleFit;
   }
   return group.entries.at(selected->entry)
-      .get()
-      .get_layout()
+      ->get_layout()
       .get_abstract(selected->value)
       .visit(
           []() -> Utility::Result<const Abstract&, Errors> {
@@ -563,13 +563,13 @@ auto Language::Model::Pack::create_empty(
     Memory::Allocator::Arena& domain,
     Core::Option<Ttx::Lexical::Anchor> anchor) -> Pack& {
   return domain.construct<Group>(
-      domain, Core::View::Vector<Ttx::Model::PackReference<Pack>>(),
+      domain, Core::View::Vector<Pack*>(),
       Core::View::Vector<Core::View::Bytes>(), anchor);
 }
 
 auto Language::Model::Pack::create_group(
     Memory::Allocator::Arena& domain,
-    Core::View::Vector<Ttx::Model::PackReference<Pack>> entries,
+    Core::View::Vector<Pack*> entries,
     Core::View::Vector<Core::View::Bytes> names,
     Core::Option<Ttx::Lexical::Anchor> anchor) -> Pack& {
   return domain.construct<Group>(domain, entries, names, anchor);
@@ -577,7 +577,7 @@ auto Language::Model::Pack::create_group(
 
 auto Language::Model::Pack::create_folded(
     Memory::Allocator::Arena& domain,
-    Core::View::Vector<Ttx::Model::PackReference<Pack>> entries) -> Pack& {
+    Core::View::Vector<Pack*> entries) -> Pack& {
   auto aggregate = Language::Constants::Aggregate::create(domain, entries);
   return aggregate ? static_cast<Pack&>(*aggregate)
                    : create_completed(domain, entries);
@@ -585,7 +585,7 @@ auto Language::Model::Pack::create_folded(
 
 auto Language::Model::Pack::create_completed(
     Memory::Allocator::Arena& domain,
-    Core::View::Vector<Ttx::Model::PackReference<Pack>> entries,
+    Core::View::Vector<Pack*> entries,
     Core::View::Vector<Core::View::Bytes> names) -> Pack& {
   return domain.construct<Group>(
       domain, entries, names, Core::Option<Ttx::Lexical::Anchor>(), True);

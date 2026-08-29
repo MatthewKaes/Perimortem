@@ -12,7 +12,7 @@
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/model/types/value.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -69,8 +69,8 @@ TTX_BINARY_OP(Multiply);
 auto Language::Operations::Multiply::select_type(const Ttx::Concept::Abstract&)
     const -> Core::Option<const Language::Model::Type&> {
   auto inputs = get_inputs();
-  const Model::Pack& left = inputs.get_data()[0].get();
-  const Model::Pack& right = inputs.get_data()[1].get();
+  const Model::Pack& left = *inputs.get_data()[0];
+  const Model::Pack& right = *inputs.get_data()[1];
   return select_result_type(left, right).select<Language::Model::Type>();
 }
 
@@ -81,8 +81,8 @@ auto Language::Operations::Multiply::evaluate_constants(
         Expression::Error> {
   const Abstract& selected = get_type().resolve();
   auto inputs = get_inputs();
-  Model::Pack& authored_left = inputs.get_data()[0].get();
-  Model::Pack& authored_right = inputs.get_data()[1].get();
+  Model::Pack& authored_left = *inputs.get_data()[0];
+  Model::Pack& authored_right = *inputs.get_data()[1];
   auto left = get_folded_input(0);
   auto right = get_folded_input(1);
   if (!left || !right) {

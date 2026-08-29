@@ -10,7 +10,7 @@
 #include "tetrodotoxin/render/language/attributes.hpp"
 #include "tetrodotoxin/render/language/binding.hpp"
 #include "tetrodotoxin/render/language/stage.hpp"
-#include "ttx/model/interfaces/callable.hpp"
+#include "ttx/model/interfaces/callable.h"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -20,8 +20,8 @@ using namespace Tetrodotoxin::Shader;
 static auto find_function(
     const Shader::Language::Program& program,
     View::Bytes name) -> Option<const Library::Language::Function&> {
-  for (const Reference<Abstract>& candidate : program.get_callables()) {
-    auto function = candidate.get().select<Library::Language::Function>();
+  for (const Abstract* candidate : program.get_callables()) {
+    auto function = candidate->select<Library::Language::Function>();
     if (function && function->get_name() == name) {
       return *function;
     }
@@ -65,11 +65,11 @@ static auto slot_failure(
 class Evaluation {
  public:
   constexpr Evaluation(
-      Ttx::Concept::Interface::Relation relation,
+      ttx_interface_relation relation,
       View::Bytes failure = {})
       : relation(relation), failure(failure) {}
 
-  Ttx::Concept::Interface::Relation relation;
+  ttx_interface_relation relation;
   View::Bytes failure;
 
   static auto compatible_binding_type(
@@ -98,60 +98,58 @@ static auto evaluate(const Abstract& requirement, const Abstract& candidate)
   auto shader = candidate.resolve().select<Shader::Language::Program>();
   if (!render || !shader) {
     return Evaluation(
-        Ttx::Concept::Interface::Relation::Rejected,
+        TTX_INTERFACE_REJECTED,
         "The restored relationship no longer selects Pipeline and Shader owners."_view);
   }
 
   // Callable negotiation establishes shared value flow first. Render then adds
   // Stage and slot policy that Layout fitting deliberately omits.
-  Ttx::Model::Interfaces::Callable callable_interface;
-  for (const Reference<Abstract>& entry : render->get_callables()) {
-    auto required = entry.get().select<Render::Language::Stage>();
+  for (const Abstract* entry : render->get_callables()) {
+    auto required = entry->select<Render::Language::Stage>();
     if (!required) {
       return Evaluation(
-          Ttx::Concept::Interface::Relation::Rejected,
+          TTX_INTERFACE_REJECTED,
           "The restored Pipeline callable is not one Stage."_view);
     }
     auto supplied = find_function(*shader, required->get_name());
     if (!supplied) {
       return Evaluation(
-          Ttx::Concept::Interface::Relation::Rejected,
+          TTX_INTERFACE_REJECTED,
           "The restored Shader is missing one required Stage Function."_view);
     }
-    if (!callable_interface.accepts(*required, *supplied)) {
+    if (ttx_callable_negotiate(required->get_abi(), supplied->get_abi()) ==
+        TTX_INTERFACE_REJECTED) {
       return Evaluation(
-          Ttx::Concept::Interface::Relation::Rejected,
+          TTX_INTERFACE_REJECTED,
           "The restored Stage Function no longer has a compatible Signature."_view);
     }
     View::Bytes parameter_failure = slot_failure(
         supplied->get_signature().get_parameters(),
         required->get_parameter_layout());
     if (!parameter_failure.is_empty()) {
-      return Evaluation(
-          Ttx::Concept::Interface::Relation::Rejected, parameter_failure);
+      return Evaluation(TTX_INTERFACE_REJECTED, parameter_failure);
     }
     View::Bytes result_failure = slot_failure(
         supplied->get_signature().get_results(), required->get_result_layout());
     if (!result_failure.is_empty()) {
-      return Evaluation(
-          Ttx::Concept::Interface::Relation::Rejected, result_failure);
+      return Evaluation(TTX_INTERFACE_REJECTED, result_failure);
     }
   }
 
   // A shared Type keeps exact identity. A Render Structure and its Shader
   // implementation remain distinct Types, so this concrete Contract proves
   // their named binding and mutually fitting Layout together.
-  for (const Reference<Abstract>& entry : render->get_addressables()) {
-    auto required = entry.get().select<Render::Language::Binding>();
+  for (const Abstract* entry : render->get_addressables()) {
+    auto required = entry->select<Render::Language::Binding>();
     if (!required) {
       return Evaluation(
-          Ttx::Concept::Interface::Relation::Rejected,
+          TTX_INTERFACE_REJECTED,
           "The restored Pipeline value is not one Binding."_view);
     }
     auto supplied = find_binding(*shader, required->get_name());
     if (!supplied) {
       return Evaluation(
-          Ttx::Concept::Interface::Relation::Rejected,
+          TTX_INTERFACE_REJECTED,
           "The restored Shader is missing one required Binding."_view);
     }
     const Library::Language::Field& field = supplied->get_field();
@@ -160,16 +158,16 @@ static auto evaluate(const Abstract& requirement, const Abstract& candidate)
         !Evaluation::compatible_binding_type(
             required->get_type(), field.get_type())) {
       return Evaluation(
-          Ttx::Concept::Interface::Relation::Rejected,
+          TTX_INTERFACE_REJECTED,
           "The restored Shader Binding no longer has its required kind and Type."_view);
     }
   }
-  return Evaluation(Ttx::Concept::Interface::Relation::Satisfied);
+  return Evaluation(TTX_INTERFACE_SATISFIED);
 }
 
 auto Shader::Language::Contract::negotiate(
     const Abstract& requirement,
-    const Abstract& candidate) const -> Relation {
+    const Abstract& candidate) const -> ttx_interface_relation {
   return evaluate(requirement, candidate).relation;
 }
 
@@ -177,8 +175,8 @@ auto Shader::Language::Contract::validate(
     Ttx::Lexical::Cursor& cursor,
     const Abstract& requirement,
     const Abstract& candidate) const -> Bool {
-  Relation relation = negotiate(requirement, candidate);
-  if (relation != Relation::Rejected) {
+  ttx_interface_relation relation = negotiate(requirement, candidate);
+  if (relation != TTX_INTERFACE_REJECTED) {
     return True;
   }
 
@@ -195,7 +193,7 @@ auto Shader::Language::Contract::validate_restored(
     const Abstract& requirement,
     const Abstract& candidate) const -> Bool {
   Evaluation evaluation = evaluate(requirement, candidate);
-  if (evaluation.relation != Relation::Rejected) {
+  if (evaluation.relation != TTX_INTERFACE_REJECTED) {
     return True;
   }
   Diagnostics::Log::error(evaluation.failure);

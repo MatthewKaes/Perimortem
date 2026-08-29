@@ -7,9 +7,8 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/type_reference.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/addressable.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
 
 namespace Tetrodotoxin::Render::Language {
 
@@ -103,8 +102,7 @@ class Binding : public Ttx::Model::Addressable {
       Access access,
       Perimortem::Core::Option<Tetrodotoxin::Language::TypeReference>
           type_reference,
-      Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
-          type)
+      Perimortem::Core::Option<const Ttx::Model::Type*> type)
       : name(name),
         definition(definition),
         kind(kind),
@@ -118,8 +116,7 @@ class Binding : public Ttx::Model::Addressable {
   Access access;
   Perimortem::Core::Option<Tetrodotoxin::Language::TypeReference>
       type_reference;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
-      type;
+  Perimortem::Core::Option<const Ttx::Model::Type*> type;
 };
 
 }  // namespace Tetrodotoxin::Render::Language

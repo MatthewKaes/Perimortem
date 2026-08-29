@@ -10,7 +10,6 @@
 
 #include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
@@ -61,20 +60,17 @@ class Bytes : public Tetrodotoxin::Library::Language::Constant {
 
   auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   constexpr auto get_resource() const
       -> Perimortem::Core::Option<const Tetrodotoxin::Language::Resource&> {
     return resource.visit(
         []() -> Perimortem::Core::Option<
                  const Tetrodotoxin::Language::Resource&> { return {}; },
-        [](const Ttx::Concept::Reference<
-            const Tetrodotoxin::Language::Resource>& selected)
+        [](const Tetrodotoxin::Language::Resource* selected)
             -> Perimortem::Core::Option<
-                const Tetrodotoxin::Language::Resource&> {
-          return selected.get();
-        });
+                const Tetrodotoxin::Language::Resource&> { return *selected; });
   }
 
   constexpr auto equals(const Tetrodotoxin::Library::Language::Constant& rhs)
@@ -100,13 +96,12 @@ class Bytes : public Tetrodotoxin::Library::Language::Constant {
         type(type),
         value(value),
         resource(resource.visit(
-            []() -> Perimortem::Core::Option<Ttx::Concept::Reference<
-                     const Tetrodotoxin::Language::Resource>> { return {}; },
+            []() -> Perimortem::Core::Option<
+                     const Tetrodotoxin::Language::Resource*> { return {}; },
             [](const Tetrodotoxin::Language::Resource& selected)
-                -> Perimortem::Core::Option<Ttx::Concept::Reference<
-                    const Tetrodotoxin::Language::Resource>> {
-              return Ttx::Concept::Reference<
-                  const Tetrodotoxin::Language::Resource>(selected);
+                -> Perimortem::Core::Option<
+                    const Tetrodotoxin::Language::Resource*> {
+              return &selected;
             })),
         name(domain, "$["_view) {
     static constexpr U8 digits[] = "0123456789ABCDEF";
@@ -123,9 +118,7 @@ class Bytes : public Tetrodotoxin::Library::Language::Constant {
 
   const Model::Type& type;
   Value value;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Tetrodotoxin::Language::Resource>>
-      resource;
+  Perimortem::Core::Option<const Tetrodotoxin::Language::Resource*> resource;
   Perimortem::Memory::Managed::Bytes name;
 };
 

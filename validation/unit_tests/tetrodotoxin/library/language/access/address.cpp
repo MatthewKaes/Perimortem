@@ -13,7 +13,7 @@
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -104,10 +104,10 @@ PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage) {
   auto fields = data.get_addressables();
   auto field = fields.begin();
   ASSERT(field != fields.end());
-  const Ttx::Concept::Abstract& static_identity = (*field).get();
+  const Ttx::Concept::Abstract& static_identity = **field;
   ++field;
   ASSERT(field != fields.end());
-  const Ttx::Concept::Abstract& state_identity = (*field).get();
+  const Ttx::Concept::Abstract& state_identity = **field;
   auto layout_state = data.get_layout().get_abstract(0);
   ASSERT(layout_state);
   EXPECT(&*layout_state == &state_identity);

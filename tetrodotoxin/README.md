@@ -30,7 +30,7 @@ domain aware tools can still ask richer questions of the original language
 object.
 
 Tetrodotoxin calls this **raising**. Several real language models participate in
-one linked semantic Workspace through [TTX](../ttx/README.md), then independent
+one live semantic Workspace through [TTX](../ttx/README.md), then independent
 producers derive native code, GPU modules, Archives, editor data, and other
 finished products. The common layer stays focused on meaning instead of asking
 every language to adopt one representation.
@@ -57,8 +57,8 @@ over the whole platform:
 
 * A **Dialect** owns its grammar and complete domain meaning.
 * **TTX** owns only semantic questions genuinely shared across domains.
-* **Workspace** owns lifetime, cross Dialect linking, completion, and
-  publication.
+* **Workspace** owns lifetime, current source and Package authorities,
+  repeatable validation, and publication.
 * A **Terminal producer** owns one independent output through lowering,
   projection, serialization, linking, or another product specific operation.
 
@@ -120,9 +120,10 @@ once to own those CPU language rules without creating a second semantic
 identity or imposing them on another Dialect's Types.
 
 Together, these objects form the live program in a Workspace. Each Dialect
-contributes objects from its own language. Linking and finalization connect them
-and answer routes that could not be resolved while the source was still being
-read. An object that has already been returned never changes identity.
+contributes objects from its own language. References retain their stable host
+and ask it again whenever a consumer needs the selected concept. Source
+replacement changes the authority's current answer without replacing unrelated
+graphs or turning a provisional route into a cached fact.
 
 Library, for instance, expresses the three questions through Access operators:
 
@@ -180,8 +181,8 @@ Sprite-owned draw policy into stable frame submissions while the selected
 backend retains its own device semantics.
 
 The [standard packages](../packages/ttx/README.md) provide ordinary Package and
-Library definitions for Memory, Math, System, and Graphics. They are linked by
-authored Package dependencies and do not become compiler builtins.
+Library definitions for Memory, Math, System, and Graphics. Authored Package
+routes connect them without making those definitions compiler builtins.
 
 The repository publishes canonical grammar references for authored language
 shape and parse order. The complete source entries are
@@ -210,9 +211,9 @@ source bytes
 -> direct Cursor, Associations, Documentation, Anchor, and context inputs
 -> optional Monograph in the source Arena
 -> retain the Monograph, Tokens, Associations, and diagnostics when present
--> link as much retained meaning as the current source can establish
--> finalize only a complete error free semantic island
--> admit only the completed Monograph to Terminal production
+-> answer graph questions from the current source authorities
+-> validate the current island without mutating it
+-> admit only an accepted complete Monograph to Terminal production
 ```
 
 A Dialect can return a Monograph even when the current edit produced errors.
@@ -223,8 +224,8 @@ releases the local Arena because no semantic root exists to own it.
 A Package root supplies a restricted Library export surface and common Alias
 imports. Workspace walks those source-local edges, canonicalizes relative paths,
 and retains each Monograph that could be created. Each retained member may
-contribute the meaning it can establish for tooling, but finalization begins
-only when the complete island links without errors.
+contribute the meaning it can establish for tooling, but immutable production
+begins only when the complete island validates without errors.
 LLVM, SPIR-V, Archives, and other Terminal products remain gated on the whole
 island completing.
 

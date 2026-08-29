@@ -4,9 +4,8 @@
 #include "tetrodotoxin/app/language/route.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -15,7 +14,7 @@ using namespace Tetrodotoxin;
 
 static auto resolve_route(View::Bytes spelling, const Abstract& context)
     -> Option<const Abstract&> {
-  Reference<const Abstract> selected(context);
+  const Abstract* selected = &context;
   Count start = 0;
   for (Count index = 0; index <= spelling.get_size(); index++) {
     Bool terminal = index == spelling.get_size();
@@ -27,7 +26,7 @@ static auto resolve_route(View::Bytes spelling, const Abstract& context)
 
     View::Bytes segment = spelling.slice(start, index - start);
     BAIL_IF(segment.is_empty());
-    const Abstract& queried = selected.get().visit<Language::Monograph>(
+    const Abstract& queried = selected->visit<Language::Monograph>(
         [&](const Language::Monograph& monograph) -> const Abstract& {
           return start == 0 ? monograph.resolve_lexical_context(segment)
                             : monograph.resolve_concept(segment);
@@ -37,14 +36,14 @@ static auto resolve_route(View::Bytes spelling, const Abstract& context)
         });
     const Abstract& candidate = queried.resolve();
     BAIL_IF(candidate.is<Unknown>() || candidate.is<None>());
-    selected = Reference<const Abstract>(candidate);
+    selected = &candidate;
 
     if (separator) {
       index++;
       start = index + 1;
     }
   }
-  return selected.get();
+  return *selected;
 }
 
 auto App::Language::Route::create_restored(

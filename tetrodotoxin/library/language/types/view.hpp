@@ -4,8 +4,8 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/documentations/comment.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 

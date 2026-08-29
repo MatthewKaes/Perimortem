@@ -38,23 +38,19 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Perimortem::Core::Option<Ttx::Lexical::Associations&> associations = {})
       -> Bool override;
 
-  auto compose(Ttx::Lexical::Cursor& cursor) -> Bool override;
-
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
   auto link_restored() -> Bool override;
 
-  auto compose_restored() -> Bool override;
-
   auto finalize_restored() -> Bool override;
 
   auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   auto resolve_lexical_context(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;

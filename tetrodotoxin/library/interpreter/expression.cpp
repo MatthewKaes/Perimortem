@@ -17,9 +17,8 @@
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/access/unwrap.hpp"
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -213,7 +212,7 @@ static auto parse_expression(
   BAIL_IF(!primary);
   associate_pack(cursor, *primary);
 
-  Ttx::Model::PackReference<Library::Language::Model::Pack> parsed(*primary);
+  Library::Language::Model::Pack* parsed = &*primary;
   Span parsed_span(start, cursor.peek(-1));
 
   // Postfix Access binds to the complete receiver before binary grammar. Each
@@ -222,13 +221,12 @@ static auto parse_expression(
   while (True) {
     if (cursor.matches(Code::Type::SwizzleOp)) {
       auto selected = Library::Interpreter::Access::Swizzle::parse(
-          context, cursor, parsed.get(), parsed_span);
+          context, cursor, *parsed, parsed_span);
       BAIL_IF(!selected);
 
-      parsed =
-          Ttx::Model::PackReference<Library::Language::Model::Pack>(*selected);
+      parsed = &*selected;
       parsed_span = Span(start, cursor.peek(-1));
-      associate_pack(cursor, parsed.get());
+      associate_pack(cursor, *parsed);
       continue;
     }
 
@@ -237,7 +235,7 @@ static auto parse_expression(
       break;
     }
 
-    if (!parsed.get().get_identity()) {
+    if (!parsed->get_identity()) {
       cursor.create_expression_error(
           Anchor::create(cursor.current(), parsed_span, Span(cursor.current())),
           "Library postfix access requires one scalar receiver Pack."_view,
@@ -246,30 +244,28 @@ static auto parse_expression(
       return {};
     }
 
-    auto selected = parse_postfix(postfix, context, cursor, parsed.get());
+    auto selected = parse_postfix(postfix, context, cursor, *parsed);
     BAIL_IF(!selected);
 
-    parsed =
-        Ttx::Model::PackReference<Library::Language::Model::Pack>(*selected);
+    parsed = &*selected;
     parsed_span = Span(start, cursor.peek(-1));
-    associate_pack(cursor, parsed.get());
+    associate_pack(cursor, *parsed);
   }
 
   while (True) {
     Code::Type binary = cursor.get_code().get_type();
     Count precedence = get_precedence(binary);
     if (precedence == 0 || precedence < minimum_precedence) {
-      return parsed.get();
+      return *parsed;
     }
 
     auto selected = Library::Interpreter::Operation::parse_binary(
-        binary, context, cursor, parsed.get(), parsed_span);
+        binary, context, cursor, *parsed, parsed_span);
     BAIL_IF(!selected);
 
-    parsed =
-        Ttx::Model::PackReference<Library::Language::Model::Pack>(*selected);
+    parsed = &*selected;
     parsed_span = Span(start, cursor.peek(-1));
-    associate_pack(cursor, parsed.get());
+    associate_pack(cursor, *parsed);
   }
 }
 

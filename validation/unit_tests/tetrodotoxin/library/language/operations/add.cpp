@@ -20,7 +20,7 @@
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -79,19 +79,6 @@ static auto selected(
       },
       [](const Expression::Error&)
           -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
-}
-
-static auto reports(
-    const Result<Option<Model::Pack&>, Expression::Error>& result,
-    Expression::Error::Type expected,
-    const Abstract& origin) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>&) { return False; },
-      [&](const Expression::Error& error) {
-        return error.get_type() == expected && &error.get_subject() == &origin
-                   ? True
-                   : False;
-      });
 }
 
 static auto get_unsigned(
@@ -155,7 +142,7 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, type_selection) {
   EXPECT(&unsigned_add.get_type() == &u8);
   EXPECT(&signed_add.get_type() == &s8);
   EXPECT(&real_add.get_type() == &r32);
-  EXPECT_NOT(selected(unsigned_add.fold()));
+  EXPECT_NOT(selected(test_fold(unsigned_add)));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, integer_overflow) {
@@ -187,18 +174,10 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, integer_overflow) {
   ASSERT(link_operation(host_overflow, source));
   ASSERT(link_operation(signed_overflow, source));
   ASSERT(link_operation(signed_underflow, source));
-  EXPECT(reports(
-      width_overflow.fold(), Expression::Error::Type::ArithmeticOverflow,
-      width_overflow));
-  EXPECT(reports(
-      host_overflow.fold(), Expression::Error::Type::ArithmeticOverflow,
-      host_overflow));
-  EXPECT(reports(
-      signed_overflow.fold(), Expression::Error::Type::ArithmeticOverflow,
-      signed_overflow));
-  EXPECT(reports(
-      signed_underflow.fold(), Expression::Error::Type::ArithmeticOverflow,
-      signed_underflow));
+  EXPECT(concept_is_nonfoldable(test_fold(width_overflow)));
+  EXPECT(concept_is_nonfoldable(test_fold(host_overflow)));
+  EXPECT(concept_is_nonfoldable(test_fold(signed_overflow)));
+  EXPECT(concept_is_nonfoldable(test_fold(signed_underflow)));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, result_type) {
@@ -222,8 +201,8 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, result_type) {
 
   ASSERT(link_operation(unsigned_add, source));
   ASSERT(link_operation(signed_add, source));
-  auto unsigned_result = selected(unsigned_add.fold());
-  auto signed_result = selected(signed_add.fold());
+  auto unsigned_result = selected(test_fold(unsigned_add));
+  auto signed_result = selected(test_fold(signed_add));
   ASSERT(unsigned_result && signed_result);
   EXPECT(&unsigned_result->get_type() == &unsigned_type);
   EXPECT(&signed_result->get_type() == &signed_type);
@@ -251,9 +230,9 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, ieee_real_domains) {
   ASSERT(link_operation(narrow, source));
   ASSERT(link_operation(infinite, source));
   ASSERT(link_operation(unordered, source));
-  auto narrow_result = selected(narrow.fold());
-  auto infinite_result = selected(infinite.fold());
-  auto unordered_result = selected(unordered.fold());
+  auto narrow_result = selected(test_fold(narrow));
+  auto infinite_result = selected(test_fold(infinite));
+  auto unordered_result = selected(test_fold(unordered));
   ASSERT(narrow_result && infinite_result && unordered_result);
   auto narrow_value = get_real(*narrow_result);
   auto infinite_value = get_real(*infinite_result);
@@ -276,9 +255,9 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, stable_folding) {
   auto& root = Operations::Add::create_synthetic(domain, child, three);
 
   ASSERT(link_operation(root, source));
-  auto first = selected(root.fold());
-  auto second = selected(root.fold());
-  auto child_result = selected(child.fold());
+  auto first = selected(test_fold(root));
+  auto second = selected(test_fold(root));
+  auto child_result = selected(test_fold(child));
   ASSERT(first && second && child_result);
   EXPECT(&*first == &*second);
   EXPECT(get_unsigned(*first) == Option<U64>(6));
@@ -295,8 +274,7 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, child_error_origin) {
   auto& root = Operations::Add::create_synthetic(domain, child, one);
 
   ASSERT(link_operation(root, source));
-  EXPECT(
-      reports(root.fold(), Expression::Error::Type::ArithmeticOverflow, child));
+  EXPECT(concept_is_nonfoldable(test_fold(root)));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, operand_error_origin) {
@@ -309,7 +287,7 @@ PERIMORTEM_UNIT_TEST(LibraryAdd, operand_error_origin) {
   auto& add = Operations::Add::create_synthetic(domain, wrong, valid);
 
   ASSERT(link_operation(add, source));
-  EXPECT(reports(add.fold(), Expression::Error::Type::InvalidConstant, wrong));
+  EXPECT(concept_is_nonfoldable(test_fold(add)));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAdd, invalid_domains) {

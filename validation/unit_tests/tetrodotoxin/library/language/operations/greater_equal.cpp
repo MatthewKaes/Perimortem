@@ -24,7 +24,7 @@
 #include "tetrodotoxin/library/language/types/s8.hpp"
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -89,10 +89,7 @@ class GreaterEqualFoldInput : public Operation {
       Tetrodotoxin::Library::Language::Constant& result,
       const Model::Type& type,
       Bool fails = False)
-      : Operation(
-            domain,
-            Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1>{{input}},
-            {}),
+      : Operation(domain, Static::Vector<Model::Pack*, 1>{{&input}}, {}),
         result(result),
         type(type),
         fails(fails) {}
@@ -147,19 +144,6 @@ static auto selected(
           -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
 }
 
-static auto reports(
-    const Result<Option<Model::Pack&>, Expression::Error>& result,
-    Expression::Error::Type expected,
-    const Abstract& origin) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>&) { return False; },
-      [&](const Expression::Error& error) {
-        return error.get_type() == expected && &error.get_subject() == &origin
-                   ? True
-                   : False;
-      });
-}
-
 PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, type_selection) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
@@ -212,7 +196,7 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, type_selection) {
   EXPECT(!link_operation(flags, source));
   EXPECT(!link_operation(byte_values, source));
 
-  auto retained = selected(unsigned_exact.fold());
+  auto retained = selected(test_fold(unsigned_exact));
 
   EXPECT(&signed_exact.get_type() == &resolve_library_flag(source));
   EXPECT(&unsigned_exact.get_type() == &resolve_library_flag(source));
@@ -260,12 +244,12 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, integer_endpoints) {
   EXPECT(link_operation(unsigned_false, source));
   EXPECT(link_operation(unsigned_equal, source));
 
-  auto signed_yes = selected(signed_true.fold());
-  auto signed_no = selected(signed_false.fold());
-  auto signed_same = selected(signed_equal.fold());
-  auto unsigned_yes = selected(unsigned_true.fold());
-  auto unsigned_no = selected(unsigned_false.fold());
-  auto unsigned_same = selected(unsigned_equal.fold());
+  auto signed_yes = selected(test_fold(signed_true));
+  auto signed_no = selected(test_fold(signed_false));
+  auto signed_same = selected(test_fold(signed_equal));
+  auto unsigned_yes = selected(test_fold(unsigned_true));
+  auto unsigned_no = selected(test_fold(unsigned_false));
+  auto unsigned_same = selected(test_fold(unsigned_equal));
 
   ASSERT(
       signed_yes && signed_no && signed_same && unsigned_yes && unsigned_no &&
@@ -323,14 +307,14 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, ieee_domains) {
   EXPECT(link_operation(zero_forward, source));
   EXPECT(link_operation(zero_reverse, source));
 
-  auto narrow_result = selected(narrow.fold());
-  auto wide_result = selected(wide.fold());
-  auto positive_result = selected(positive_infinite.fold());
-  auto negative_result = selected(negative_infinite.fold());
-  auto left_nan = selected(left_unordered.fold());
-  auto right_nan = selected(right_unordered.fold());
-  auto forward = selected(zero_forward.fold());
-  auto reverse = selected(zero_reverse.fold());
+  auto narrow_result = selected(test_fold(narrow));
+  auto wide_result = selected(test_fold(wide));
+  auto positive_result = selected(test_fold(positive_infinite));
+  auto negative_result = selected(test_fold(negative_infinite));
+  auto left_nan = selected(test_fold(left_unordered));
+  auto right_nan = selected(test_fold(right_unordered));
+  auto forward = selected(test_fold(zero_forward));
+  auto reverse = selected(test_fold(zero_reverse));
 
   ASSERT(
       narrow_result && wide_result && positive_result && negative_result &&
@@ -367,15 +351,14 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, atomic_provenance) {
   EXPECT(link_operation(greater_equal, source));
   EXPECT(link_operation(failure, source));
 
-  auto first = selected(greater_equal.fold());
-  auto second = selected(greater_equal.fold());
+  auto first = selected(test_fold(greater_equal));
+  auto second = selected(test_fold(greater_equal));
 
   ASSERT(first && second);
   EXPECT(&*first == &*second);
   EXPECT(first->is_identity<Constants::True>());
   EXPECT(child.get_evaluations() == 1);
-  EXPECT(reports(
-      failure.fold(), Expression::Error::Type::InvalidConstant, failing));
+  EXPECT(concept_is_nonfoldable(test_fold(failure)));
 
   const auto& parser_type = resolve_library_unsigned(source, "U64"_view);
   Errors success_errors;
@@ -411,7 +394,7 @@ PERIMORTEM_UNIT_TEST(LibraryGreaterEqual, atomic_provenance) {
   EXPECT(parsed->link(success_cursor, source));
 
   auto parsed_fold = parsed->visit<Operation>(
-      [&](Operation& operation) { return selected(operation.fold()); },
+      [&](Operation& operation) { return selected(test_fold(operation)); },
       [](Abstract&) -> Option<Tetrodotoxin::Library::Language::Constant&> {
         return {};
       });

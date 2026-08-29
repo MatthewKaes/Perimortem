@@ -983,15 +983,13 @@ auto Llvm::Module::Carriers::zero(
 
 auto Llvm::Module::Carriers::owns_resources(const Ttx::Model::Type& type) const
     -> Bool {
-  Memory::Dynamic::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>>
-      active;
+  Memory::Dynamic::Vector<const Ttx::Model::Type*> active;
   return owns_resources(type, active);
 }
 
 auto Llvm::Module::Carriers::owns_resources(
     const Ttx::Model::Type& type,
-    Memory::Dynamic::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>>&
-        active) const -> Bool {
+    Memory::Dynamic::Vector<const Ttx::Model::Type*>& active) const -> Bool {
   auto found = carriers.find(&type);
   if (!found) {
     return False;
@@ -1003,7 +1001,7 @@ auto Llvm::Module::Carriers::owns_resources(
     return True;
   }
 
-  Ttx::Concept::Reference<const Ttx::Model::Type> retained(type);
+  const Ttx::Model::Type* retained = &type;
   if (active.contains(retained)) {
     return False;
   }

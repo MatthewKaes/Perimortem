@@ -22,7 +22,7 @@
 #include "tetrodotoxin/library/language/types/s8.hpp"
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -87,10 +87,7 @@ class ModuloFoldInput : public Operation {
       Tetrodotoxin::Library::Language::Constant& result,
       const Model::Type& type,
       Bool fails = False)
-      : Operation(
-            domain,
-            Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1>{{input}},
-            {}),
+      : Operation(domain, Static::Vector<Model::Pack*, 1>{{&input}}, {}),
         result(result),
         type(type),
         fails(fails) {}
@@ -143,19 +140,6 @@ static auto selected(
       },
       [](const Expression::Error&)
           -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
-}
-
-static auto reports(
-    const Result<Option<Model::Pack&>, Expression::Error>& result,
-    Expression::Error::Type expected,
-    const Abstract& origin) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>&) { return False; },
-      [&](const Expression::Error& error) {
-        return error.get_type() == expected && &error.get_subject() == &origin
-                   ? True
-                   : False;
-      });
 }
 
 template <typename constant_type, typename value_type>
@@ -226,8 +210,8 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection) {
   EXPECT(!link_operation(flags, source));
   EXPECT(!link_operation(byte_values, source));
 
-  auto retained = selected(unsigned_exact.fold());
-  auto real_retained = selected(real_values.fold());
+  auto retained = selected(test_fold(unsigned_exact));
+  auto real_retained = selected(test_fold(real_values));
 
   EXPECT(&signed_exact.get_type() == &s8);
   EXPECT(&unsigned_exact.get_type() == &u8);
@@ -323,16 +307,16 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, integer_remainders) {
   EXPECT(link_operation(unsigned_zero_divisor, source));
   EXPECT(link_operation(unsigned_width, source));
 
-  auto positive_fold = selected(positive_result.fold());
-  auto negative_fold = selected(negative_dividend.fold());
-  auto negative_divisor_fold = selected(negative_divisor.fold());
-  auto both_negative_fold = selected(both_negative.fold());
-  auto zero_fold = selected(zero_result.fold());
-  auto one_fold = selected(one_result.fold());
-  auto minimum_fold = selected(minimum_result.fold());
-  auto unsigned_fold = selected(unsigned_result.fold());
-  auto unsigned_zero_fold = selected(unsigned_zero_result.fold());
-  auto unsigned_endpoint_fold = selected(unsigned_endpoint.fold());
+  auto positive_fold = selected(test_fold(positive_result));
+  auto negative_fold = selected(test_fold(negative_dividend));
+  auto negative_divisor_fold = selected(test_fold(negative_divisor));
+  auto both_negative_fold = selected(test_fold(both_negative));
+  auto zero_fold = selected(test_fold(zero_result));
+  auto one_fold = selected(test_fold(one_result));
+  auto minimum_fold = selected(test_fold(minimum_result));
+  auto unsigned_fold = selected(test_fold(unsigned_result));
+  auto unsigned_zero_fold = selected(test_fold(unsigned_zero_result));
+  auto unsigned_endpoint_fold = selected(test_fold(unsigned_endpoint));
 
   ASSERT(
       positive_fold && negative_fold && negative_divisor_fold &&
@@ -350,21 +334,11 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, integer_remainders) {
   EXPECT(value_is<Constants::Unsigned>(*unsigned_endpoint_fold, U64(0)));
   EXPECT(&positive_fold->get_type() == &signed_type);
   EXPECT(&unsigned_fold->get_type() == &unsigned_type);
-  EXPECT(reports(
-      zero_divisor.fold(), Expression::Error::Type::DivisionByZero,
-      zero_divisor));
-  EXPECT(reports(
-      unsigned_zero_divisor.fold(), Expression::Error::Type::DivisionByZero,
-      unsigned_zero_divisor));
-  EXPECT(reports(
-      endpoint_overflow.fold(), Expression::Error::Type::ArithmeticOverflow,
-      endpoint_overflow));
-  EXPECT(reports(
-      signed_width.fold(), Expression::Error::Type::ArithmeticOverflow,
-      signed_width));
-  EXPECT(reports(
-      unsigned_width.fold(), Expression::Error::Type::ArithmeticOverflow,
-      unsigned_width));
+  EXPECT(concept_is_nonfoldable(test_fold(zero_divisor)));
+  EXPECT(concept_is_nonfoldable(test_fold(unsigned_zero_divisor)));
+  EXPECT(concept_is_nonfoldable(test_fold(endpoint_overflow)));
+  EXPECT(concept_is_nonfoldable(test_fold(signed_width)));
+  EXPECT(concept_is_nonfoldable(test_fold(unsigned_width)));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModulo, atomic_provenance) {
@@ -388,15 +362,14 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, atomic_provenance) {
   EXPECT(link_operation(modulo, source));
   EXPECT(link_operation(failure, source));
 
-  auto first = selected(modulo.fold());
-  auto second = selected(modulo.fold());
+  auto first = selected(test_fold(modulo));
+  auto second = selected(test_fold(modulo));
 
   ASSERT(first && second);
   EXPECT(&*first == &*second);
   EXPECT(value_is<Constants::Unsigned>(*first, U64(3)));
   EXPECT(child.get_evaluations() == 1);
-  EXPECT(reports(
-      failure.fold(), Expression::Error::Type::InvalidConstant, failing));
+  EXPECT(concept_is_nonfoldable(test_fold(failure)));
 
   const auto& parser_type = resolve_library_signed(source, "S64"_view);
   Errors success_errors;
@@ -434,7 +407,7 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, atomic_provenance) {
   EXPECT(parsed->link(success_cursor, source));
 
   auto parsed_fold = parsed->visit<Operation>(
-      [&](Operation& operation) { return selected(operation.fold()); },
+      [&](Operation& operation) { return selected(test_fold(operation)); },
       [](Abstract&) -> Option<Tetrodotoxin::Library::Language::Constant&> {
         return {};
       });

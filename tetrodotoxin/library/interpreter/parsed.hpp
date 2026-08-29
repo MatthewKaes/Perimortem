@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ttx/concept/reference.hpp"
+#include "perimortem/core/perimortem.hpp"
 
 namespace Tetrodotoxin::Library::Interpreter {
 
@@ -23,11 +23,9 @@ template <typename semantic_type>
 class Parsed {
  public:
   constexpr Parsed(semantic_type& semantic, ParseState state)
-      : semantic(semantic), state(state) {}
+      : semantic(&semantic), state(state) {}
 
-  constexpr auto get_semantic() const -> semantic_type& {
-    return semantic.get();
-  }
+  constexpr auto get_semantic() const -> semantic_type& { return *semantic; }
 
   constexpr auto get_state() const -> ParseState { return state; }
 
@@ -40,7 +38,7 @@ class Parsed {
   }
 
  private:
-  Ttx::Concept::Reference<semantic_type> semantic;
+  semantic_type* semantic;
   ParseState state;
 };
 

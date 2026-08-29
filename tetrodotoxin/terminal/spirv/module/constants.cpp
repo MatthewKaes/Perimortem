@@ -17,7 +17,7 @@ using namespace Tetrodotoxin::Terminal::Spirv;
 auto Module::Constants::get_id(
     const Library::Language::Constant& constant) const -> Core::Option<U32> {
   for (const Entry& entry : entries.get_view()) {
-    if (&entry.constant.get() == &constant) {
+    if (entry.constant == &constant) {
       return entry.id;
     }
   }
@@ -41,7 +41,7 @@ auto Module::Constants::collect(const Library::Language::Constant& constant)
 
 auto Module::Constants::emit(Assembler::SpirV& assembler) const -> Bool {
   for (const Entry& entry : entries.get_view()) {
-    const Library::Language::Constant& constant = entry.constant.get();
+    const Library::Language::Constant& constant = *entry.constant;
     auto type_id = types.get_id(constant.get_type());
     BAIL_IF(!type_id);
 

@@ -4,8 +4,10 @@
 #include "tetrodotoxin/library/language/access/unwrap.hpp"
 
 #include "tetrodotoxin/library/language/constants/option.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -56,30 +58,50 @@ auto Language::Access::Unwrap::link(
     return False;
   }
 
-  if (element_type && &element_type->get() != &option->get_element_type()) {
+  if (element_type && *element_type != &option->get_element_type()) {
     cursor.create_expression_error(
         get_anchor(), "Option unwrap selected a different element Type."_view,
         "Repeat linking with the same completed Option identity."_view);
     return False;
   }
 
-  element_type =
-      Reference<const Language::Model::Type>(option->get_element_type());
+  element_type = &option->get_element_type();
   // Absence uses the element Type's ordinary default protocol. Retaining that
   // Pack here makes later folding independent from mutable declaration state
   // without teaching Unwrap how any concrete Type constructs its value.
   auto selected_fallback =
       option->get_element_type().create_default(cursor.get_arena());
   BAIL_IF(!selected_fallback);
-  fallback = Ttx::Model::PackReference<Model::Pack>(*selected_fallback);
+  fallback = &*selected_fallback;
   return Expression::link(cursor, lexical_context, access_scope);
 }
 
 auto Language::Access::Unwrap::get_type() const -> const Abstract& {
   return element_type.visit(
       []() -> const Abstract& { return Unknown::get_unknown(); },
-      [](const Reference<const Language::Model::Type>& selected)
-          -> const Abstract& { return selected.get(); });
+      [](const Language::Model::Type* selected) -> const Abstract& {
+        return *selected;
+      });
+}
+
+auto Language::Access::Unwrap::resolve_concept(Core::View::Bytes name) const
+    -> const Abstract& {
+  if (name != "fold"_view) {
+    return Expression::resolve_concept(name);
+  }
+  return const_cast<Unwrap&>(*this).evaluate_fold().visit(
+      [](const Core::Option<Model::Pack&>& result) -> const Abstract& {
+        return fold_answer(result);
+      },
+      [](const Expression::Error&) -> const Abstract& {
+        return Ttx::Concept::None::get_none();
+      });
+}
+
+auto Language::Access::Unwrap::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Expression::visit_concepts(visitor);
+  visit_concept(visitor, "fold"_view, resolve_concept("fold"_view));
 }
 
 auto Language::Access::Unwrap::finalize(Cursor& cursor) -> void {
@@ -87,17 +109,9 @@ auto Language::Access::Unwrap::finalize(Cursor& cursor) -> void {
   Expression::finalize(cursor);
 }
 
-auto Language::Access::Unwrap::evaluate()
+auto Language::Access::Unwrap::evaluate_fold()
     -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
-  Core::Option<Model::Pack&> folded;
-  Core::Option<Expression::Error> error;
-  Expression::fold(receiver).visit(
-      [&](const Core::Option<Model::Pack&>& selected) { folded = selected; },
-      [&](const Expression::Error& selected) { error = selected; });
-  if (error) {
-    return *error;
-  }
-
+  auto folded = query_folded_pack(receiver);
   if (!folded) {
     return Core::Option<Model::Pack&>{};
   }
@@ -116,7 +130,7 @@ auto Language::Access::Unwrap::evaluate()
     return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
   }
 
-  Model::Pack& selected_fallback = fallback->get();
+  Model::Pack& selected_fallback = **fallback;
   // A dynamic default remains valid authored flow but cannot become a folded
   // result. Every entry must prove Constant before this operation publishes it.
   const Layout& layout = selected_fallback.get_layout();

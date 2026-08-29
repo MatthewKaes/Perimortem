@@ -5,7 +5,8 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "ttx/concept/constant.hpp"
+#include "tetrodotoxin/language/product.h"
+#include "ttx/bootstrap/concept/constant.hpp"
 
 namespace Tetrodotoxin::Language {
 
@@ -28,14 +29,20 @@ class Product : public Ttx::Concept::Constant {
     return value;
   }
 
+  auto negotiate_interface(const ttx_abstract* requirement) const
+      -> ttx_interface override;
+
  private:
   constexpr Product(
       Perimortem::Core::View::Bytes name,
       Perimortem::Core::View::Bytes value)
       : name(name), value(value) {}
 
+  static auto value_abi(const ttx_abstract* identity) -> perimortem_bytes;
+
   Perimortem::Core::View::Bytes name;
   Perimortem::Core::View::Bytes value;
+  static const tetrodotoxin_product_operations product_operations;
 };
 
 }  // namespace Tetrodotoxin::Language

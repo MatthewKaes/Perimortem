@@ -5,9 +5,9 @@
 
 #include "tetrodotoxin/language/import.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/alias.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;

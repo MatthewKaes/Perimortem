@@ -26,9 +26,9 @@ auto Module::Program::compile() -> Utility::Result<Products, Failure> {
     return Failure::ToolchainFailed;
   }
   Bool selected = False;
-  for (const Ttx::Concept::Reference<Shader::Language::Program>& program :
+  for (const Shader::Language::Program* program :
        request.get_monograph().get_programs()) {
-    selected |= &program.get() == &request.get_program();
+    selected |= program == &request.get_program();
   }
   if (!selected) {
     return Failure::ToolchainFailed;
@@ -42,9 +42,9 @@ auto Module::Program::compile() -> Utility::Result<Products, Failure> {
   for (Interface::Stage* stage : interface.get_stages()) {
     prepared &= body.prepare(*stage);
   }
-  for (const Ttx::Concept::Reference<Shader::Language::Bridge>& bridge :
+  for (const Shader::Language::Bridge* bridge :
        request.get_monograph().get_bridges()) {
-    auto gpu = bridge.get().get_gpu_type();
+    auto gpu = bridge->get_gpu_type();
     auto library_type =
         gpu ? gpu->select<Library::Language::Model::Type>()
             : Core::Option<const Library::Language::Model::Type&>();
@@ -105,8 +105,8 @@ auto Module::Program::compile() -> Utility::Result<Products, Failure> {
         if (request.get_errors().get_size() == stage_error_count) {
           Ttx::Lexical::Errors::Report report(
               request.get_errors(), request.get_source_path(),
-              request.get_source_text(), stage->function.get().get_anchor());
-          report << "Shader Stage `"_view << stage->function.get().get_name()
+              request.get_source_text(), stage->function->get_anchor());
+          report << "Shader Stage `"_view << stage->function->get_name()
                  << "` could not emit a complete SPIR V body."_view;
           report.get_hint()
               << "Use executable Library meaning admitted by the SPIR V target."_view;

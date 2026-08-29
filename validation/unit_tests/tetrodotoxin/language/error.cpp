@@ -10,9 +10,9 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/resource.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -97,10 +97,10 @@ PERIMORTEM_UNIT_TEST(LanguageError, context_rejection) {
     View::Bytes(binary_route, sizeof(binary_route)),
   };
   ContextError error(TestCause::Unreadable, "resources/table.bin"_view);
-  const None& none = None::get_none();
+  const Unknown& unknown = Unknown::get_unknown();
 
   for (View::Bytes route : routes) {
-    EXPECT(&error.resolve_concept(route) == &none);
+    EXPECT(&error.resolve_concept(route) == &unknown);
   }
 }
 

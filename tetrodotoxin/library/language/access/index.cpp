@@ -5,10 +5,11 @@
 
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -37,14 +38,8 @@ static auto is_integer(const Language::Model::Pack& pack) -> Bool {
 
 static auto get_range_count(Language::Model::Pack& pack)
     -> Core::Option<Count> {
-  Core::Option<Language::Model::Pack&> folded;
-  Core::Option<Language::Expression::Error> fold_error;
-  Language::Expression::fold(pack).visit(
-      [&](const Core::Option<Language::Model::Pack&>& selected) {
-        folded = selected;
-      },
-      [&](const Language::Expression::Error& error) { fold_error = error; });
-  BAIL_IF(fold_error || !folded);
+  auto folded = Language::query_folded_pack(pack);
+  BAIL_IF(!folded);
 
   auto scalar = folded->select_identity<Language::Constant>();
   BAIL_IF(!scalar);
@@ -91,14 +86,14 @@ auto Language::Access::Index::link_target(
   BAIL_IF(!receiver.link(cursor, lexical_context, access_scope));
   BAIL_IF(!first.link(cursor, lexical_context, access_scope));
   if (count) {
-    BAIL_IF(!count->get().link(cursor, lexical_context, access_scope));
+    BAIL_IF(!(*count)->link(cursor, lexical_context, access_scope));
   }
 
   // Index links both Expressions before reading their output domains. The
   // element Type is reference metadata only, so this owner never performs
   // bounds checks, default selection, or ordinary value materialization.
   auto access = select_access(receiver.get_type());
-  if (!access || !is_integer(first) || (count && !is_integer(count->get()))) {
+  if (!access || !is_integer(first) || (count && !is_integer(**count))) {
     cursor.create_expression_error(
         get_anchor(),
         "Index access rejects the linked receiver or operand Types."_view,
@@ -107,7 +102,7 @@ auto Language::Access::Index::link_target(
   }
 
   const Language::Model::Type& selected = access->get_element_type();
-  if (element_type && &element_type->get() != &selected) {
+  if (element_type && *element_type != &selected) {
     cursor.create_expression_error(
         get_anchor(),
         "Index access cannot change its referenced element Type."_view,
@@ -115,13 +110,13 @@ auto Language::Access::Index::link_target(
     return False;
   }
 
-  element_type = Reference<const Language::Model::Type>(selected);
+  element_type = &selected;
 
   if (count) {
-    auto selected_count = ::get_range_count(count->get());
+    auto selected_count = ::get_range_count(**count);
     if (!selected_count) {
       cursor.create_expression_error(
-          count->get().get_anchor(),
+          (*count)->get_anchor(),
           "Index range count did not fold to a supported nonnegative integer."_view,
           "Use one integer Constant representable as Count."_view);
       return False;
@@ -156,15 +151,16 @@ auto Language::Access::Index::finalize(Cursor& cursor) -> void {
   receiver.finalize(cursor);
   first.finalize(cursor);
   if (count) {
-    count->get().finalize(cursor);
+    (*count)->finalize(cursor);
   }
 }
 
 auto Language::Access::Index::get_element_type() const -> const Abstract& {
   return element_type.visit(
       []() -> const Abstract& { return Unknown::get_unknown(); },
-      [](const Reference<const Language::Model::Type>& selected)
-          -> const Abstract& { return selected.get(); });
+      [](const Language::Model::Type* selected) -> const Abstract& {
+        return *selected;
+      });
 }
 
 auto Language::Access::Index::get_type() const -> const Abstract& {
@@ -177,10 +173,8 @@ auto Language::Access::Index::get_write_type(const Language::Model::Type&) const
   BAIL_IF(count);
   return element_type.visit(
       []() -> Core::Option<const Language::Model::Type&> { return {}; },
-      [](const Reference<const Language::Model::Type>& selected)
-          -> Core::Option<const Language::Model::Type&> {
-        return selected.get();
-      });
+      [](const Language::Model::Type* selected)
+          -> Core::Option<const Language::Model::Type&> { return *selected; });
 }
 
 auto Language::Access::Index::resolve() const -> const Abstract& {
@@ -198,7 +192,7 @@ auto Language::Access::Index::accepts_write(
     const Language::Model::Pack& source,
     const Language::Model::Type&) const -> Bool {
   BAIL_IF(!element_type);
-  const Language::Model::Type& element = element_type->get();
+  const Language::Model::Type& element = **element_type;
   if (!count) {
     return source.fits_into(element);
   }

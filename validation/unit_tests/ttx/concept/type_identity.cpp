@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "ttx/concept/type_identity.hpp"
+#include "ttx/bootstrap/concept/type_identity.hpp"
 
 #include "validation/unit_test.hpp"
 

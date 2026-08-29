@@ -17,7 +17,7 @@
 #include "tetrodotoxin/library/language/alias.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
-#include "ttx/concept/documentation.hpp"
+#include "ttx/bootstrap/concept/documentation.hpp"
 
 namespace Tetrodotoxin::Library::Archive {
 

@@ -4,7 +4,7 @@
 #include "tetrodotoxin/scene/language/emission.hpp"
 
 #include "tetrodotoxin/scene/language/monograph.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

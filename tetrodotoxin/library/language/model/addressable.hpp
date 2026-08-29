@@ -4,8 +4,8 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/type.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/addressable.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model {
 
@@ -59,13 +59,6 @@ class Addressable : public Ttx::Model::Addressable {
   // Mutation is declaration authority rather than a property inferred from
   // concrete storage classes. Neutral and computed Addressables are read only.
   virtual auto permits_write_from(const Type&) const -> Bool { return False; }
-
-  // Constant flow is owned by the declaration that can prove it. Expressions
-  // ask the selected Addressable instead of enumerating Field and Local, while
-  // runtime storage and foreign bindings retain the neutral absence.
-  virtual auto get_constant() const -> Perimortem::Core::Option<Pack&> {
-    return {};
-  }
 
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override {

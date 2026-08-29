@@ -9,7 +9,6 @@
 
 #include "tetrodotoxin/shader/language/program.hpp"
 #include "tetrodotoxin/terminal/abi/unit.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Terminal::Abi {
 
@@ -26,7 +25,7 @@ class Projection {
 
   constexpr auto get_program() const
       -> const Tetrodotoxin::Shader::Language::Program& {
-    return program.get();
+    return *program;
   }
 
   constexpr auto get_module_symbol() const -> Perimortem::Core::View::Bytes {
@@ -42,10 +41,9 @@ class Projection {
       const Tetrodotoxin::Shader::Language::Program& program,
       Perimortem::Core::View::Bytes module_symbol,
       Perimortem::Core::View::Bytes symbol)
-      : program(program), module_symbol(module_symbol), symbol(symbol) {}
+      : program(&program), module_symbol(module_symbol), symbol(symbol) {}
 
-  Ttx::Concept::Reference<const Tetrodotoxin::Shader::Language::Program>
-      program;
+  const Tetrodotoxin::Shader::Language::Program* program;
   Perimortem::Core::View::Bytes module_symbol;
   Perimortem::Core::View::Bytes symbol;
 };

@@ -7,7 +7,7 @@
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Interpreter {

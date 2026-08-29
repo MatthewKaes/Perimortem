@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
@@ -40,6 +41,22 @@ class Flag : public Tetrodotoxin::Library::Language::Constant {
   }
 
   virtual constexpr auto get_value() const -> Value { return value; }
+
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override {
+    if (name == "propagate"_view) {
+      return value ? static_cast<const Ttx::Concept::Abstract&>(*this)
+                   : static_cast<const Ttx::Concept::Abstract&>(
+                         Ttx::Concept::None::get_none());
+    }
+    return Constant::resolve_concept(name);
+  }
+
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override {
+    Constant::visit_concepts(visitor);
+    visit_concept(visitor, "propagate"_view, resolve_concept("propagate"_view));
+  }
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return value ? "true"_view : "false"_view;

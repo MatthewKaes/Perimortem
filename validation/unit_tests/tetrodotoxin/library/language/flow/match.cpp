@@ -4,6 +4,7 @@
 #include "tetrodotoxin/library/language/flow/match.hpp"
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 #include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
@@ -19,10 +20,10 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library;
@@ -49,10 +50,9 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
 static auto find_function(
     const Language::Types::Composite& composite,
     View::Bytes name) -> Option<const Language::Function&> {
-  for (const Reference<Abstract>& binding : composite.get_callables()) {
-    if (binding.get().get_name() == name &&
-        binding.get().is<Language::Function>()) {
-      return static_cast<const Language::Function&>(binding.get());
+  for (const Abstract* binding : composite.get_callables()) {
+    if (binding->get_name() == name && binding->is<Language::Function>()) {
+      return static_cast<const Language::Function&>(*binding);
     }
   }
 
@@ -175,8 +175,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, folded_default) {
   EXPECT_NOT(match.reaches_next_statement());
 
   Option<Language::Model::Pack&> input_folded;
-  Language::Expression::fold(
-      const_cast<Language::Model::Pack&>(match.get_input()))
+  test_fold(const_cast<Language::Model::Pack&>(match.get_input()))
       .visit(
           [&](const Option<Language::Model::Pack&>& selected) {
             input_folded = selected;

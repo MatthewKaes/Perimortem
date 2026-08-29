@@ -11,7 +11,6 @@
 #include "tetrodotoxin/terminal/spirv/assembler/spir_v.hpp"
 #include "tetrodotoxin/terminal/spirv/module/ids.hpp"
 #include "tetrodotoxin/terminal/spirv/module/types.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Terminal::Spirv::Module {
 
@@ -34,10 +33,9 @@ class Constants {
     constexpr Entry(
         const Tetrodotoxin::Library::Language::Constant& constant,
         U32 id)
-        : constant(constant), id(id) {}
+        : constant(&constant), id(id) {}
 
-    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Constant>
-        constant;
+    const Tetrodotoxin::Library::Language::Constant* constant;
     U32 id;
   };
 

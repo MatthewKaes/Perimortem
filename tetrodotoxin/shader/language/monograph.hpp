@@ -9,7 +9,6 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/shader/language/bridge.hpp"
 #include "tetrodotoxin/shader/language/program.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Shader::Language {
 
@@ -31,11 +30,9 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto retain_program(Program& program) -> Bool;
   auto retain_bridge(Bridge& bridge) -> Bool;
 
-  auto compose(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
 
-  auto compose_restored() -> Bool override;
   auto link_restored() -> Bool override;
   auto finalize_restored() -> Bool override;
 
@@ -57,17 +54,17 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   }
 
   constexpr auto get_imports() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<Tetrodotoxin::Language::Import>> override {
+      Tetrodotoxin::Language::Import*> override {
     return library.get_imports();
   }
 
   constexpr auto get_programs() const
-      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Program>> {
+      -> Perimortem::Core::View::Vector<Program*> {
     return programs;
   }
 
   constexpr auto get_bridges() const
-      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Bridge>> {
+      -> Perimortem::Core::View::Vector<Bridge*> {
     return bridges;
   }
 
@@ -101,9 +98,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
         bridges(domain) {}
 
   Tetrodotoxin::Library::Language::Monograph& library;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Program>>
-      programs;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Bridge>> bridges;
+  Perimortem::Memory::Managed::Vector<Program*> programs;
+  Perimortem::Memory::Managed::Vector<Bridge*> bridges;
   Bool linked = False;
   Bool finalized = False;
 };

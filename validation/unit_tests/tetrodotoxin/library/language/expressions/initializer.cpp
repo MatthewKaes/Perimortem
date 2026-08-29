@@ -22,7 +22,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -252,7 +252,7 @@ PERIMORTEM_UNIT_TEST(InitializerTests, private_arguments) {
       owner.resolve_concept("Builder"_view));
   auto fields = builder.get_addressables();
   ASSERT(fields != fields.end());
-  const auto& value = static_cast<const Language::Field&>((*fields).get());
+  const auto& value = static_cast<const Language::Field&>(**fields);
   auto initializer = value.get_initializer();
   ASSERT(
       initializer &&
@@ -306,9 +306,9 @@ PERIMORTEM_UNIT_TEST(InitializerTests, explicit_scalar_conversion) {
       monograph->get_source().resolve_concept("narrow_unsigned"_view));
   const auto& real_field = static_cast<const Language::Field&>(
       monograph->get_source().resolve_concept("rounded_real"_view));
-  auto signed_value = signed_field.get_constant();
-  auto unsigned_value = unsigned_field.get_constant();
-  auto real_value = real_field.get_constant();
+  auto signed_value = folded_pack(signed_field);
+  auto unsigned_value = folded_pack(unsigned_field);
+  auto real_value = folded_pack(real_field);
   ASSERT(signed_value && unsigned_value && real_value);
   auto selected_signed =
       signed_value->select_identity<Language::Constants::Signed>();

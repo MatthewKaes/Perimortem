@@ -11,12 +11,11 @@
 #include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/model/layouts/addressable.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/layouts/addressable.hpp"
-#include "ttx/model/layouts/named.hpp"
 
 namespace Tetrodotoxin::Library::Language::Flow {
 
@@ -66,15 +65,15 @@ class RangeLoop : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes route,
       Count offset) const -> const Ttx::Concept::Abstract&;
 
-  constexpr auto get_input() const -> const Model::Pack& { return input.get(); }
+  constexpr auto get_input() const -> const Model::Pack& { return *input; }
 
   constexpr auto get_input_type() const
       -> Perimortem::Core::Option<const Model::Type&> {
     return input_type.visit(
         []() -> Perimortem::Core::Option<const Model::Type&> { return {}; },
-        [](const Ttx::Concept::Reference<const Model::Type>& selected)
+        [](const Model::Type* selected)
             -> Perimortem::Core::Option<const Model::Type&> {
-          return selected.get();
+          return *selected;
         });
   }
 
@@ -82,7 +81,7 @@ class RangeLoop : public Ttx::Concept::Abstract {
     return *binding_layout;
   }
 
-  constexpr auto get_body() const -> const Block& { return body->get(); }
+  constexpr auto get_body() const -> const Block& { return **body; }
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
 
@@ -97,17 +96,14 @@ class RangeLoop : public Ttx::Concept::Abstract {
   Perimortem::Memory::Allocator::Arena& domain;
   Block& lexical_context;
   Perimortem::Memory::Managed::Vector<AuthoredBinding> authored_bindings;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Model::Layouts::Addressable>>
+  Perimortem::Memory::Managed::Vector<Ttx::Model::Layouts::Addressable*>
       bindings;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
+  Perimortem::Memory::Managed::Vector<const Ttx::Concept::Abstract*>
       binding_entries;
   Perimortem::Core::Option<Ttx::Model::Layouts::Named> binding_layout;
-  Ttx::Model::PackReference<Model::Pack> input;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Block>> body;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
-      input_type;
+  Model::Pack* input;
+  Perimortem::Core::Option<Block*> body;
+  Perimortem::Core::Option<const Model::Type*> input_type;
   Ttx::Lexical::Anchor anchor;
   Bool linked = False;
 };

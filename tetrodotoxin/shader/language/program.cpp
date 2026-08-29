@@ -22,9 +22,8 @@ static auto find_structure(
     Library::Language::Types::Composite& host,
     View::Bytes name) -> Option<Library::Language::Types::Structure&> {
   Option<Library::Language::Types::Structure&> selected;
-  for (const Reference<Abstract>& declaration : host.get_types()) {
-    auto candidate =
-        declaration.get().select<Library::Language::Types::Structure>();
+  for (Abstract* declaration : host.get_types()) {
+    auto candidate = declaration->select<Library::Language::Types::Structure>();
     if (candidate && !candidate->is<Library::Language::Types::Object>() &&
         candidate->get_name() == name) {
       BAIL_IF(selected);
@@ -38,8 +37,8 @@ static auto find_field(
     Library::Language::Types::Composite& host,
     View::Bytes name) -> Option<Library::Language::Field&> {
   Option<Library::Language::Field&> selected;
-  for (const Reference<Abstract>& declaration : host.get_addressables()) {
-    auto candidate = declaration.get().select<Library::Language::Field>();
+  for (Abstract* declaration : host.get_addressables()) {
+    auto candidate = declaration->select<Library::Language::Field>();
     if (candidate && candidate->get_name() == name) {
       BAIL_IF(selected);
       selected = *candidate;
@@ -52,8 +51,8 @@ static auto find_function(
     Library::Language::Types::Composite& host,
     View::Bytes name) -> Option<Library::Language::Function&> {
   Option<Library::Language::Function&> selected;
-  for (const Reference<Abstract>& declaration : host.get_callables()) {
-    auto candidate = declaration.get().select<Library::Language::Function>();
+  for (Abstract* declaration : host.get_callables()) {
+    auto candidate = declaration->select<Library::Language::Function>();
     if (candidate && candidate->get_name() == name) {
       BAIL_IF(selected);
       selected = *candidate;
@@ -92,7 +91,7 @@ auto Shader::Language::Program::initialize_runtime_surface() -> Bool {
   auto& parameters_type = Library::Language::Types::Structure::create_authored(
       domain, parameters_definition);
   BAIL_IF(!retain_definition(parameters_type, Category::Type, True));
-  parameters = Reference<Library::Language::Types::Structure>(parameters_type);
+  parameters = &parameters_type;
 
   auto& instance_definition =
       Tetrodotoxin::Language::Definition::create_synthetic(
@@ -102,7 +101,7 @@ auto Shader::Language::Program::initialize_runtime_surface() -> Bool {
   auto& instance_type = Library::Language::Types::Object::create_synthetic(
       domain, instance_definition);
   BAIL_IF(!retain_definition(instance_type, Category::Type, True));
-  instance = Reference<Library::Language::Types::Object>(instance_type);
+  instance = &instance_type;
 
   auto& program_field_definition =
       Tetrodotoxin::Language::Definition::create_synthetic(
@@ -112,7 +111,7 @@ auto Shader::Language::Program::initialize_runtime_surface() -> Bool {
       domain, program_field_definition, Library::Language::Writability::Full,
       make_reference(domain, "Parameters"_view), {});
   BAIL_IF(!retain_definition(program_field, Category::Addressable, True));
-  parameters_field = Reference<Library::Language::Field>(program_field);
+  parameters_field = &program_field;
 
   auto& instance_field_definition =
       Tetrodotoxin::Language::Definition::create_synthetic(
@@ -124,48 +123,45 @@ auto Shader::Language::Program::initialize_runtime_surface() -> Bool {
       make_reference(domain, "Parameters"_view), {});
   BAIL_IF(!instance_type.retain_definition(
       instance_field, Category::Addressable, True));
-  instance_parameters_field =
-      Reference<Library::Language::Field>(instance_field);
+  instance_parameters_field = &instance_field;
   return True;
 }
 
 auto Shader::Language::Program::restore_runtime_surface() -> Bool {
   BAIL_IF(
       parameters || instance || parameters_field || instance_parameters_field);
-  for (const Reference<Abstract>& declaration : get_declarations()) {
-    if (declaration.get().get_name() == "Parameters"_view) {
+  for (Abstract* declaration : get_declarations()) {
+    if (declaration->get_name() == "Parameters"_view) {
       auto selected =
-          declaration.get().select<Library::Language::Types::Structure>();
+          declaration->select<Library::Language::Types::Structure>();
       BAIL_IF(!selected || selected->is<Library::Language::Types::Object>());
-      parameters = Reference<Library::Language::Types::Structure>(*selected);
-    } else if (declaration.get().get_name() == "Material"_view) {
-      auto selected =
-          declaration.get().select<Library::Language::Types::Object>();
+      parameters = &*selected;
+    } else if (declaration->get_name() == "Material"_view) {
+      auto selected = declaration->select<Library::Language::Types::Object>();
       BAIL_IF(!selected);
-      instance = Reference<Library::Language::Types::Object>(*selected);
-    } else if (declaration.get().get_name() == "parameters"_view) {
-      auto selected = declaration.get().select<Library::Language::Field>();
+      instance = &*selected;
+    } else if (declaration->get_name() == "parameters"_view) {
+      auto selected = declaration->select<Library::Language::Field>();
       BAIL_IF(!selected);
-      parameters_field = Reference<Library::Language::Field>(*selected);
+      parameters_field = &*selected;
     }
   }
   BAIL_IF(!parameters || !instance || !parameters_field);
 
   Count instance_parameters = 0;
-  for (const Reference<Abstract>& declaration :
-       instance->get().get_declarations()) {
-    auto field = declaration.get().select<Library::Language::Field>();
+  for (Abstract* declaration : (**instance).get_declarations()) {
+    auto field = declaration->select<Library::Language::Field>();
     if (field && field->get_name() == "parameters"_view) {
       instance_parameters++;
-      instance_parameters_field = Reference<Library::Language::Field>(*field);
+      instance_parameters_field = &*field;
     }
   }
   return instance_parameters == 1 && instance_parameters_field;
 }
 
 auto Shader::Language::Program::complete_authored_body() -> void {
-  parameters->get().complete_body();
-  instance->get().complete_body();
+  (**parameters).complete_body();
+  (**instance).complete_body();
   complete_body();
 }
 
@@ -175,7 +171,7 @@ auto Shader::Language::Program::retain_shader_binding(
     Render::Language::Binding::Access access,
     Option<Library::Language::Field&> instance_field) -> void {
   if (!instance_field && kind == Render::Language::Binding::Kind::Resource) {
-    instance_field = find_field(instance->get(), field.get_name());
+    instance_field = find_field(**instance, field.get_name());
   }
   bindings.insert(Binding(field, kind, access, instance_field));
 }
@@ -186,21 +182,23 @@ auto Shader::Language::Program::retain_instance_resource(
     -> Option<Library::Language::Field&> {
   const Tetrodotoxin::Language::Definition& authored = field.get_definition();
   auto& definition = Tetrodotoxin::Language::Definition::create_synthetic(
-      domain, authored.get_documentation(), instance->get(),
+      domain, authored.get_documentation(), **instance,
       domain.proxy(field.get_name()), authored.get_visibility(),
       Anchor::create(Span()), authored.get_attributes());
   auto& runtime_field = Library::Language::Field::create(
       domain, definition, Library::Language::Writability::Internal,
       runtime_type, {});
-  BAIL_IF(!instance->get().retain_definition(
-      runtime_field, Library::Language::Types::Composite::Category::Addressable,
-      definition.is_published()));
+  BAIL_IF(!(**instance)
+               .retain_definition(
+                   runtime_field,
+                   Library::Language::Types::Composite::Category::Addressable,
+                   definition.is_published()));
   return runtime_field;
 }
 
 auto Shader::Language::Program::retain_uniform(Library::Language::Field& field)
     -> void {
-  uniforms.insert(field);
+  uniforms.insert(&field);
 }
 
 auto Shader::Language::Program::retain_stage(
@@ -246,8 +244,8 @@ auto Shader::Language::Program::project_type(const Abstract& requirement) const
   auto render = exact->select<Render::Language::Structure>();
   BAIL_IF(!render);
   for (const InheritedType& inherited : inherited_types.get_view()) {
-    if (&inherited.requirement.get() == &*render) {
-      return inherited.implementation.get();
+    if (&*inherited.requirement == &*render) {
+      return *inherited.implementation;
     }
   }
   return {};
@@ -268,13 +266,12 @@ auto Shader::Language::Program::project_structure(
       definition.is_published()));
   inherited_types.insert(InheritedType(requirement, projected));
 
-  for (const Reference<Abstract>& declaration : requirement.get_types()) {
-    auto nested = declaration.get().select<Render::Language::Structure>();
+  for (Abstract* declaration : requirement.get_types()) {
+    auto nested = declaration->select<Render::Language::Structure>();
     BAIL_IF(!nested || !project_structure(*nested, projected));
   }
-  for (const Reference<Abstract>& declaration :
-       requirement.get_addressables()) {
-    auto binding = declaration.get().select<Render::Language::Binding>();
+  for (Abstract* declaration : requirement.get_addressables()) {
+    auto binding = declaration->select<Render::Language::Binding>();
     BAIL_IF(
         !binding ||
         binding->get_kind() != Render::Language::Binding::Kind::Value ||
@@ -297,38 +294,35 @@ auto Shader::Language::Program::project_contract(Cursor& cursor) -> Bool {
         "Shader relationship must select one Pipeline source."_view);
     return False;
   }
-  contract_type =
-      Reference<const Render::Language::Monograph>(*render_contract);
+  contract_type = &*render_contract;
 
-  for (const Reference<Abstract>& declaration : render_contract->get_types()) {
-    auto structure = declaration.get().select<Render::Language::Structure>();
+  for (Abstract* declaration : render_contract->get_types()) {
+    auto structure = declaration->select<Render::Language::Structure>();
     BAIL_IF(!structure || !project_structure(*structure, *this));
   }
-  for (const Reference<Abstract>& declaration :
-       render_contract->get_addressables()) {
-    auto binding = declaration.get().select<Render::Language::Binding>();
+  for (Abstract* declaration : render_contract->get_addressables()) {
+    auto binding = declaration->select<Render::Language::Binding>();
     BAIL_IF(
         !binding ||
         !project_binding(
             *binding, *this, Library::Language::Writability::Full, True));
   }
   retain_shader_binding(
-      parameters_field->get(), Render::Language::Binding::Kind::Push);
+      **parameters_field, Render::Language::Binding::Kind::Push);
 
   for (Count stage_index = 0; stage_index < stages.get_size(); stage_index++) {
     StageBody& body = stages[stage_index];
     Option<const Render::Language::Stage&> required;
-    for (const Reference<Abstract>& declaration :
-         render_contract->get_callables()) {
-      auto stage = declaration.get().select<Render::Language::Stage>();
-      if (stage && stage->get_name() == body.function.get().get_name()) {
+    for (Abstract* declaration : render_contract->get_callables()) {
+      auto stage = declaration->select<Render::Language::Stage>();
+      if (stage && stage->get_name() == body.function->get_name()) {
         BAIL_IF(required);
         required = *stage;
       }
     }
     if (!required) {
       cursor.create_expression_error(
-          body.function.get().get_anchor(),
+          body.function->get_anchor(),
           "Shader Stage body has no matching Pipeline Stage requirement."_view,
           "Name one executable body for each Stage selected by the contract."_view);
       return False;
@@ -351,13 +345,12 @@ auto Shader::Language::Program::restore_projected_structure(
   BAIL_IF(!projected);
   inherited_types.insert(InheritedType(requirement, *projected));
 
-  for (const Reference<Abstract>& declaration : requirement.get_types()) {
-    auto nested = declaration.get().select<Render::Language::Structure>();
+  for (Abstract* declaration : requirement.get_types()) {
+    auto nested = declaration->select<Render::Language::Structure>();
     BAIL_IF(!nested || !restore_projected_structure(*nested, *projected));
   }
-  for (const Reference<Abstract>& declaration :
-       requirement.get_addressables()) {
-    auto binding = declaration.get().select<Render::Language::Binding>();
+  for (Abstract* declaration : requirement.get_addressables()) {
+    auto binding = declaration->select<Render::Language::Binding>();
     auto field = binding ? find_field(*projected, binding->get_name())
                          : Option<Library::Language::Field&>();
     auto type = binding ? project_type(binding->get_type())
@@ -404,16 +397,14 @@ auto Shader::Language::Program::compose_contract_restored() -> Bool {
   if (!parameters || !instance || !parameters_field) {
     BAIL_IF(!restore_runtime_surface());
   }
-  contract_type =
-      Reference<const Render::Language::Monograph>(*render_contract);
+  contract_type = &*render_contract;
 
-  for (const Reference<Abstract>& declaration : render_contract->get_types()) {
-    auto structure = declaration.get().select<Render::Language::Structure>();
+  for (Abstract* declaration : render_contract->get_types()) {
+    auto structure = declaration->select<Render::Language::Structure>();
     BAIL_IF(!structure || !restore_projected_structure(*structure, *this));
   }
-  for (const Reference<Abstract>& declaration :
-       render_contract->get_addressables()) {
-    auto requirement = declaration.get().select<Render::Language::Binding>();
+  for (Abstract* declaration : render_contract->get_addressables()) {
+    auto requirement = declaration->select<Render::Language::Binding>();
     Option<Library::Language::Field&> field;
     if (requirement) {
       for (Count index = 0; index < bindings.get_size(); index++) {
@@ -432,9 +423,8 @@ auto Shader::Language::Program::compose_contract_restored() -> Bool {
         !requirement || !field || !type ||
         !field->retain_generated_type(*type));
   }
-  for (const Reference<Abstract>& declaration :
-       render_contract->get_callables()) {
-    auto stage = declaration.get().select<Render::Language::Stage>();
+  for (Abstract* declaration : render_contract->get_callables()) {
+    auto stage = declaration->select<Render::Language::Stage>();
     auto function = stage ? find_function(*this, stage->get_name())
                           : Option<Library::Language::Function&>();
     BAIL_IF(!stage || !function || !restore_stage(*function, *stage));
@@ -446,17 +436,17 @@ auto Shader::Language::Program::compose_contract_restored() -> Bool {
 auto Shader::Language::Program::validate_contract(Cursor& cursor) -> Bool {
   BAIL_IF(!contract_type);
   Contract negotiator;
-  return negotiator.validate(cursor, contract_type->get(), *this);
+  return negotiator.validate(cursor, **contract_type, *this);
 }
 
 auto Shader::Language::Program::validate_contract_restored() -> Bool {
   BAIL_IF(!contract_type);
   Contract negotiator;
-  return negotiator.validate_restored(contract_type->get(), *this);
+  return negotiator.validate_restored(**contract_type, *this);
 }
 
 auto Shader::Language::Program::satisfies(const Abstract& requirement) const
     -> Bool {
   return contract_type &&
-         &contract_type->get().resolve() == &requirement.resolve();
+         &(**contract_type).resolve() == &requirement.resolve();
 }

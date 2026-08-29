@@ -18,7 +18,7 @@ using namespace Perimortem;
 using namespace Tetrodotoxin;
 
 struct ApplicationSceneSelection {
-  Ttx::Concept::Reference<const Scene::Language::Monograph> scene;
+  const Scene::Language::Monograph* scene;
   Core::View::Bytes route;
 };
 
@@ -26,7 +26,7 @@ static auto find_scene(
     Core::View::Vector<ApplicationSceneSelection> scenes,
     const Scene::Language::Monograph& scene) -> Core::Option<Count> {
   for (Count index = 0; index < scenes.get_size(); index++) {
-    if (&scenes.get_data()[index].scene.get() == &scene) {
+    if (scenes.get_data()[index].scene == &scene) {
       return index;
     }
   }
@@ -41,7 +41,7 @@ static auto retain_scene(
   if (selected) {
     return scenes[*selected].route == route;
   }
-  scenes.insert(ApplicationSceneSelection{scene, route});
+  scenes.insert(ApplicationSceneSelection{&scene, route});
   return True;
 }
 
@@ -114,8 +114,7 @@ auto Terminal::Application::Generator::create(
     Core::View::Bytes artifact,
     Core::View::Vector<MemberBinding> members,
     const Ttx::Model::Type& graphics_placement,
-    Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>>
-        graphics_types,
+    Core::View::Vector<const Ttx::Model::Type*> graphics_types,
     Core::View::Vector<Core::View::Bytes> graphics_placements,
     Core::View::Vector<Core::View::Bytes> graphics_children,
     Core::View::Vector<Core::View::Bytes> graphics_drawables,
@@ -148,9 +147,8 @@ auto Terminal::Application::Generator::create(
 
   Memory::Managed::Vector<ApplicationSceneSelection> scenes(arena);
   BAIL_IF(!retain_scene(scenes, *initial, *initial_route));
-  for (const Ttx::Concept::Reference<App::Language::Transition>& retained :
-       policy->get_transitions()) {
-    const App::Language::Transition& transition = retained.get();
+  for (const App::Language::Transition* retained : policy->get_transitions()) {
+    const App::Language::Transition& transition = *retained;
     auto source = transition.get_source_scene();
     auto source_route = source ? find_member_route(members, *source)
                                : Core::Option<Core::View::Bytes>();
@@ -170,7 +168,7 @@ auto Terminal::Application::Generator::create(
   Terminal::Graphics::Compiler graphics_compiler;
   for (const ApplicationSceneSelection& selected : scenes.get_view()) {
     auto product = graphics_compiler.compile(
-        arena, selected.scene.get(), graphics_placement, graphics_types);
+        arena, *selected.scene, graphics_placement, graphics_types);
     BAIL_IF(!product);
     graphics.insert(*product);
   }
@@ -214,20 +212,20 @@ auto Terminal::Application::Generator::create(
   for (const ApplicationSceneSelection& selected : scenes.get_view()) {
     Terminal::Abi::Unit unit(package, selected.route, artifact);
     Terminal::Abi::Symbol construction(
-        arena, selected.scene.get().get_instance(),
+        arena, selected.scene->get_instance(),
         Terminal::Abi::Symbol::Kind::Construction, unit);
     write_symbol_declaration(
         output, "void*"_view, construction.get_view(), "void"_view);
     auto prepare = lifecycle_symbol(
-        arena, selected.scene.get(), Scene::Language::Lifecycle::Prepare, unit);
+        arena, *selected.scene, Scene::Language::Lifecycle::Prepare, unit);
     auto pause = lifecycle_symbol(
-        arena, selected.scene.get(), Scene::Language::Lifecycle::Pause, unit);
+        arena, *selected.scene, Scene::Language::Lifecycle::Pause, unit);
     auto resume = lifecycle_symbol(
-        arena, selected.scene.get(), Scene::Language::Lifecycle::Resume, unit);
+        arena, *selected.scene, Scene::Language::Lifecycle::Resume, unit);
     auto update = lifecycle_symbol(
-        arena, selected.scene.get(), Scene::Language::Lifecycle::Update, unit);
+        arena, *selected.scene, Scene::Language::Lifecycle::Update, unit);
     auto release = lifecycle_symbol(
-        arena, selected.scene.get(), Scene::Language::Lifecycle::Release, unit);
+        arena, *selected.scene, Scene::Language::Lifecycle::Release, unit);
     BAIL_IF(!prepare || !update || !release);
     write_symbol_declaration(output, "void"_view, *prepare, "void**"_view);
     if (pause) {
@@ -241,13 +239,12 @@ auto Terminal::Application::Generator::create(
     write_symbol_declaration(output, "void"_view, *release, "void**"_view);
     write_symbol_declaration(
         output, "Count"_view,
-        graphics_children_symbol(arena, selected.scene.get(), unit),
+        graphics_children_symbol(arena, *selected.scene, unit),
         "void*, Count, void**"_view);
   }
 
-  for (const Ttx::Concept::Reference<App::Language::Transition>& retained :
-       policy->get_transitions()) {
-    const App::Language::Transition& transition = retained.get();
+  for (const App::Language::Transition* retained : policy->get_transitions()) {
+    const App::Language::Transition& transition = *retained;
     auto source_scene = transition.get_source_scene();
     auto signal = transition.get_signal();
     BAIL_IF(!source_scene || !signal);
@@ -381,38 +378,38 @@ auto Terminal::Application::Generator::create(
   for (const ApplicationSceneSelection& selected : scenes.get_view()) {
     Terminal::Abi::Unit unit(package, selected.route, artifact);
     Terminal::Abi::Symbol construction(
-        arena, selected.scene.get().get_instance(),
+        arena, selected.scene->get_instance(),
         Terminal::Abi::Symbol::Kind::Construction, unit);
     output << "  {&"_view << construction.get_view() << ", "_view;
     write_callback(
-        output, lifecycle_symbol(
-                    arena, selected.scene.get(),
-                    Scene::Language::Lifecycle::Prepare, unit));
+        output,
+        lifecycle_symbol(
+            arena, *selected.scene, Scene::Language::Lifecycle::Prepare, unit));
     output << ", "_view;
     write_callback(
-        output, lifecycle_symbol(
-                    arena, selected.scene.get(),
-                    Scene::Language::Lifecycle::Pause, unit));
+        output,
+        lifecycle_symbol(
+            arena, *selected.scene, Scene::Language::Lifecycle::Pause, unit));
     output << ", "_view;
     write_callback(
-        output, lifecycle_symbol(
-                    arena, selected.scene.get(),
-                    Scene::Language::Lifecycle::Resume, unit));
+        output,
+        lifecycle_symbol(
+            arena, *selected.scene, Scene::Language::Lifecycle::Resume, unit));
     output << ", "_view;
     write_callback(
-        output, lifecycle_symbol(
-                    arena, selected.scene.get(),
-                    Scene::Language::Lifecycle::Update, unit));
+        output,
+        lifecycle_symbol(
+            arena, *selected.scene, Scene::Language::Lifecycle::Update, unit));
     output << ", "_view;
     write_callback(
-        output, lifecycle_symbol(
-                    arena, selected.scene.get(),
-                    Scene::Language::Lifecycle::Release, unit));
-    auto scene_index = find_scene(scenes.get_view(), selected.scene.get());
+        output,
+        lifecycle_symbol(
+            arena, *selected.scene, Scene::Language::Lifecycle::Release, unit));
+    auto scene_index = find_scene(scenes.get_view(), *selected.scene);
     BAIL_IF(!scene_index);
     output << ", "_view << graphics[*scene_index].get_hosted().get_size()
            << ", &"_view
-           << graphics_children_symbol(arena, selected.scene.get(), unit)
+           << graphics_children_symbol(arena, *selected.scene, unit)
            << "},\n"_view;
   }
   output
@@ -455,9 +452,8 @@ auto Terminal::Application::Generator::create(
   output << "};\n\n"_view
          << "static const Tetrodotoxin::Runtime::Application::Transition "
             "application_transitions[] = {\n"_view;
-  for (const Ttx::Concept::Reference<App::Language::Transition>& retained :
-       policy->get_transitions()) {
-    const App::Language::Transition& transition = retained.get();
+  for (const App::Language::Transition* retained : policy->get_transitions()) {
+    const App::Language::Transition& transition = *retained;
     auto source_scene = transition.get_source_scene();
     auto signal = transition.get_signal();
     BAIL_IF(!source_scene || !signal);

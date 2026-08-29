@@ -5,9 +5,9 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/concept/none.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -20,23 +20,16 @@ auto Constants::Bytes::resolve_concept(Core::View::Bytes name) const
   }
   return resource.visit(
       []() -> const Abstract& { return None::get_none(); },
-      [](const Reference<const Tetrodotoxin::Language::Resource>& selected)
-          -> const Abstract& { return selected.get(); });
+      [](const Tetrodotoxin::Language::Resource* selected) -> const Abstract& {
+        return *selected;
+      });
 }
 
-auto Constants::Bytes::get_concepts(Ttx::Concept::Context& context) const
-    -> const Ttx::Concept::Pack& {
+auto Constants::Bytes::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Tetrodotoxin::Library::Language::Constant::visit_concepts(visitor);
   auto selected = get_resource();
-  if (!selected) {
-    return Tetrodotoxin::Library::Language::Constant::get_concepts(context);
+  if (selected) {
+    visit_concept(visitor, "resource"_view, *selected);
   }
-  Core::Static::Vector<Reference<const Abstract>, 1> values = {{
-    *selected,
-  }};
-  Ttx::Model::Layouts::Fluid fluid(values);
-  static constexpr Core::Static::Vector<Core::View::Bytes, 1> names = {{
-    "resource"_view,
-  }};
-  Ttx::Model::Layouts::Named named(fluid, names);
-  return context.pack(named);
 }

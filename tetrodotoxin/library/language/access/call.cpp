@@ -6,9 +6,13 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/model/fold_call.h"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/constant.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -343,12 +347,12 @@ auto Language::Access::Call::link(
     return False;
   }
 
-  if (callable && &callable->get() != &*selected) {
+  if (callable && *callable != &*selected) {
     auto report = cursor.create_report(get_anchor());
     report << "Internal semantic error: invocation '"_view << name
            << "' changed Callable identity from '"_view
-           << callable->get().get_name() << "' to '"_view
-           << selected->get_name() << "'."_view;
+           << (**callable).get_name() << "' to '"_view << selected->get_name()
+           << "'."_view;
     report.get_hint()
         << "The source is valid; report this unstable linking result."_view;
     return False;
@@ -372,7 +376,7 @@ auto Language::Access::Call::link(
 
   const Ttx::Concept::Layout& retained_output =
       create_layout(domain, *this, *selected);
-  callable = Reference<const Language::Model::Callable>(*selected);
+  callable = &*selected;
   output = retained_output;
   auto source_anchor = get_anchor();
   if (source_anchor) {
@@ -435,7 +439,7 @@ auto Language::Access::Call::link_restored(
   }
   BAIL_IF(!fits || !fit_inputs(*selected, input_layout));
 
-  callable = Reference<const Language::Model::Callable>(*selected);
+  callable = &*selected;
   output = create_layout(domain, *this, *selected);
   return True;
 }
@@ -443,18 +447,16 @@ auto Language::Access::Call::link_restored(
 auto Language::Access::Call::get_documentation() const -> const Documentation& {
   return callable.visit(
       []() -> const Documentation& { return Documentation::get_empty(); },
-      [](const Reference<const Language::Model::Callable>& selected)
-          -> const Documentation& {
-        return selected.get().get_documentation();
+      [](const Language::Model::Callable* selected) -> const Documentation& {
+        return selected->get_documentation();
       });
 }
 
 auto Language::Access::Call::get_result() const -> const Abstract& {
   return callable.visit(
       [this]() -> const Abstract& { return *this; },
-      [this](const Reference<const Language::Model::Callable>& selected)
-          -> const Abstract& {
-        auto self = selected.get().get_self_result();
+      [this](const Language::Model::Callable* selected) -> const Abstract& {
+        auto self = selected->get_self_result();
         return self ? static_cast<const Abstract&>(*self)
                     : static_cast<const Abstract&>(*this);
       });
@@ -464,7 +466,7 @@ auto Language::Access::Call::get_type() const -> const Abstract& {
   if (!callable) {
     return Unknown::get_unknown();
   }
-  const Ttx::Concept::Layout& results = callable->get().get_results();
+  const Ttx::Concept::Layout& results = (**callable).get_results();
   if (results.get_size() != 1) {
     return Unknown::get_unknown();
   }
@@ -485,7 +487,7 @@ auto Language::Access::Call::get_value_type(Count index) const
   if (!callable) {
     return Unknown::get_unknown();
   }
-  const Ttx::Concept::Layout& results = callable->get().get_results();
+  const Ttx::Concept::Layout& results = (**callable).get_results();
   auto result = results.get_abstract(index);
   if (!result) {
     return Unknown::get_unknown();
@@ -578,41 +580,66 @@ auto Language::Access::Call::fit_inputs(
   return True;
 }
 
-auto Language::Access::Call::evaluate()
+auto Language::Access::Call::resolve_concept(Core::View::Bytes query) const
+    -> const Abstract& {
+  if (query != "fold"_view) {
+    return Expression::resolve_concept(query);
+  }
+  return const_cast<Call&>(*this).evaluate_fold().visit(
+      [](const Core::Option<Model::Pack&>& result) -> const Abstract& {
+        return fold_answer(result);
+      },
+      [](const Expression::Error&) -> const Abstract& {
+        return Ttx::Concept::None::get_none();
+      });
+}
+
+auto Language::Access::Call::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Expression::visit_concepts(visitor);
+  visit_concept(visitor, "fold"_view, resolve_concept("fold"_view));
+}
+
+auto Language::Access::Call::evaluate_fold()
     -> Utility::Result<Core::Option<Language::Model::Pack&>, Error> {
   auto selected = get_callable();
   if (!selected) {
     return Core::Option<Language::Model::Pack&>();
   }
 
-  Core::Option<const Language::Model::Pack&> folded_receiver;
-  if (!selected->declares_self()) {
-    return selected->fold_call(domain, folded_receiver, arguments);
+  ttx_library_fold_call_view foldable;
+  if (!ttx_library_fold_call_prove(selected->get_abi(), &foldable)) {
+    return Core::Option<Language::Model::Pack&>();
   }
 
-  return Expression::fold(receiver).visit(
-      [&](const Core::Option<Language::Model::Pack&>& value)
-          -> Utility::Result<Core::Option<Language::Model::Pack&>, Error> {
-        if (!value) {
-          return Core::Option<Language::Model::Pack&>();
-        }
+  Core::Option<const Language::Model::Pack&> folded_receiver;
+  if (selected->declares_self()) {
+    auto value = query_folded_pack(receiver);
+    if (!value) {
+      return Core::Option<Language::Model::Pack&>();
+    }
+    folded_receiver = *value;
+  }
 
-        folded_receiver = *value;
-        return selected->fold_call(domain, folded_receiver, arguments);
-      },
-      [](const Error& error)
-          -> Utility::Result<Core::Option<Language::Model::Pack&>, Error> {
-        return error;
-      });
+  const ttx_abstract* answer = ttx_library_fold_call(
+      &foldable, folded_receiver ? folded_receiver->get_abi() : nullptr,
+      arguments.get_abi());
+  const Abstract& result = Abstract::from_abi(answer);
+  if (!Ttx::Concept::Constant::prove(result)) {
+    return Core::Option<Language::Model::Pack&>();
+  }
+  auto pack = Model::Pack::from(const_cast<Abstract&>(result));
+  return pack ? Core::Option<Model::Pack&>(*pack)
+              : Core::Option<Model::Pack&>();
 }
 
 auto Language::Access::Call::get_callable() const
     -> Core::Option<const Language::Model::Callable&> {
   return callable.visit(
       []() -> Core::Option<const Language::Model::Callable&> { return {}; },
-      [](const Reference<const Language::Model::Callable>& selected)
+      [](const Language::Model::Callable* selected)
           -> Core::Option<const Language::Model::Callable&> {
-        return selected.get();
+        return *selected;
       });
 }
 

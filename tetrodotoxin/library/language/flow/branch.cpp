@@ -30,9 +30,9 @@ auto Language::Flow::Branch::create_authored(
 
 auto Language::Flow::Branch::complete_body(Block& selected) -> Bool {
   if (body) {
-    return &body->get() == &selected;
+    return *body == &selected;
   }
-  body = Reference<Block>(selected);
+  body = &selected;
   return True;
 }
 
@@ -57,7 +57,7 @@ auto Language::Flow::Branch::link(
   }
   BAIL_IF(!body);
 
-  Model::Pack& retained_condition = condition.get();
+  Model::Pack& retained_condition = *condition;
   BAIL_IF(!retained_condition.link(cursor, lexical_context, access_scope));
   // Branch observes value flow rather than the exact identities used by
   // postfix access. Prove that distinction before selecting the leading Flag.
@@ -75,7 +75,7 @@ auto Language::Flow::Branch::link(
     return False;
   }
 
-  Bool failed = !body->get().link(cursor);
+  Bool failed = !(*body)->link(cursor);
   alternate.visit(
       []() {},
       [&](Statement& selected) {
@@ -88,10 +88,8 @@ auto Language::Flow::Branch::link(
 }
 
 auto Language::Flow::Branch::finalize(Cursor& cursor) -> void {
-  condition.get().finalize(cursor);
-  body.visit(
-      []() {},
-      [&](Reference<Block>& selected) { selected.get().finalize(cursor); });
+  condition->finalize(cursor);
+  body.visit([]() {}, [&](Block* selected) { selected->finalize(cursor); });
   alternate.visit(
       []() {}, [&](Statement& selected) { selected.finalize(cursor); });
 }
@@ -101,5 +99,5 @@ auto Language::Flow::Branch::reaches_next_statement() const -> Bool {
     return True;
   }
 
-  return body->get().reaches_next_statement() || alternate->reaches_next();
+  return (*body)->reaches_next_statement() || alternate->reaches_next();
 }

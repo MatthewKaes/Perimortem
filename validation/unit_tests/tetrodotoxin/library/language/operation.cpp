@@ -15,7 +15,7 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -52,7 +52,7 @@ class TestOperation : public Operation {
       Allocator::Arena& domain,
       View::Bytes name,
       const Model::Type& type,
-      View::Vector<Ttx::Model::PackReference<Model::Pack>> inputs,
+      View::Vector<Model::Pack*> inputs,
       Tetrodotoxin::Library::Language::Constant& result,
       Bool fails = False,
       Bool skips_after_first = False)
@@ -70,8 +70,7 @@ class TestOperation : public Operation {
   auto get_evaluations() const -> Count { return evaluations; }
   auto input_is(Count index, const Model::Pack& expected) const -> Bool {
     auto inputs = get_inputs();
-    return index < inputs.get_size() &&
-           &inputs.get_data()[index].get() == &expected;
+    return index < inputs.get_size() && inputs.get_data()[index] == &expected;
   }
   auto input_missing(Count index) const -> Bool {
     return index >= get_inputs().get_size();
@@ -129,29 +128,6 @@ static auto selects(
       [](const Expression::Error&) { return False; });
 }
 
-static auto reports(
-    const Result<Option<Model::Pack&>, Expression::Error>& result,
-    Expression::Error::Type expected,
-    const Abstract& expression) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>&) { return False; },
-      [&](const Expression::Error& selected) {
-        return selected.get_type() == expected &&
-                       &selected.get_subject() == &expression
-                   ? True
-                   : False;
-      });
-}
-
-static auto is_dynamic(
-    const Result<Option<Model::Pack&>, Expression::Error>& result) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>& selected) {
-        return !selected ? True : False;
-      },
-      [](const Expression::Error&) { return False; });
-}
-
 PERIMORTEM_UNIT_TEST(LibraryOperation, dynamic_inputs) {
   Allocator::Arena domain;
   Tetrodotoxin::Library::Dialect producer;
@@ -159,8 +135,7 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, dynamic_inputs) {
   Types::U64 type;
   OperationExpression ordinary("ordinary"_view, type);
   auto& constant = Constants::Unsigned::create_synthetic(domain, type, 1);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 2> inputs = {
-    {ordinary, constant}};
+  Static::Vector<Model::Pack*, 2> inputs = {{&ordinary, &constant}};
   TestOperation operation(domain, "partial"_view, type, inputs, constant);
 
   EXPECT(operation.get_type().resolve().is<Unknown>());
@@ -168,11 +143,11 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, dynamic_inputs) {
   EXPECT(link_operation(operation, source));
   EXPECT(&operation.get_type() == &type);
 
-  auto first = operation.fold();
-  auto second = operation.fold();
+  auto first = test_fold(operation);
+  auto second = test_fold(operation);
 
-  EXPECT(is_dynamic(first));
-  EXPECT(is_dynamic(second));
+  EXPECT(concept_is_nonfoldable(first));
+  EXPECT(concept_is_nonfoldable(second));
   EXPECT(operation.input_is(0, ordinary));
   EXPECT(operation.input_is(1, constant));
   EXPECT(operation.input_missing(2));
@@ -187,23 +162,21 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, partial_fold) {
   OperationExpression ordinary("ordinary"_view, type);
   auto& input = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& folded = Constants::Unsigned::create_synthetic(domain, type, 2);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1> child_inputs = {
-    {input}};
+  Static::Vector<Model::Pack*, 1> child_inputs = {{&input}};
   TestOperation child(domain, "child"_view, type, child_inputs, folded);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 2> parent_inputs = {
-    {child, ordinary}};
+  Static::Vector<Model::Pack*, 2> parent_inputs = {{&child, &ordinary}};
   TestOperation parent(domain, "parent"_view, type, parent_inputs, folded);
 
   EXPECT(parent.get_type().resolve().is<Unknown>());
   EXPECT(link_operation(parent, source));
   EXPECT(&parent.get_type() == &type);
 
-  auto first = parent.fold();
-  auto second = parent.fold();
+  auto first = test_fold(parent);
+  auto second = test_fold(parent);
 
-  EXPECT(is_dynamic(first));
-  EXPECT(is_dynamic(second));
-  EXPECT(selects(child.fold(), folded));
+  EXPECT(concept_is_nonfoldable(first));
+  EXPECT(concept_is_nonfoldable(second));
+  EXPECT(selects(test_fold(child), folded));
   EXPECT(child.get_evaluations() == 1);
   EXPECT(parent.get_evaluations() == 0);
 }
@@ -216,9 +189,9 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, stable_result) {
   auto& first_input = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& second_input = Constants::Unsigned::create_synthetic(domain, type, 2);
   auto& folded = Constants::Unsigned::create_synthetic(domain, type, 3);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 2> inputs = {{
-    first_input,
-    second_input,
+  Static::Vector<Model::Pack*, 2> inputs = {{
+    &first_input,
+    &second_input,
   }};
   TestOperation operation(domain, "sum"_view, type, inputs, folded);
 
@@ -226,8 +199,8 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, stable_result) {
   EXPECT(link_operation(operation, source));
   EXPECT(&operation.get_type() == &type);
 
-  auto first = operation.fold();
-  auto second = operation.fold();
+  auto first = test_fold(operation);
+  auto second = test_fold(operation);
 
   EXPECT(selects(first, folded));
   EXPECT(selects(second, folded));
@@ -241,25 +214,25 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, child_failure) {
   Types::U64 type;
   OperationExpression ordinary("ordinary"_view, type);
   auto& input = Constants::Unsigned::create_synthetic(domain, type, 1);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1> child_inputs = {
-    {input}};
+  Static::Vector<Model::Pack*, 1> child_inputs = {{&input}};
   TestOperation child(domain, "child"_view, type, child_inputs, input, True);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 2> parent_inputs = {
-    {child, ordinary}};
+  Static::Vector<Model::Pack*, 2> parent_inputs = {{&child, &ordinary}};
   TestOperation parent(domain, "parent"_view, type, parent_inputs, input);
 
   EXPECT(parent.get_type().resolve().is<Unknown>());
   EXPECT(link_operation(parent, source));
   EXPECT(&parent.get_type() == &type);
 
-  auto direct = child.fold();
-  auto folding = parent.fold();
-  auto repeated = parent.fold();
+  auto direct = test_fold(child);
+  auto folding = test_fold(parent);
+  auto repeated = test_fold(parent);
 
-  EXPECT(reports(direct, Expression::Error::Type::InvalidConstant, child));
-  EXPECT(reports(folding, Expression::Error::Type::InvalidConstant, child));
-  EXPECT(reports(repeated, Expression::Error::Type::InvalidConstant, child));
-  EXPECT(child.get_evaluations() == 1);
+  EXPECT(concept_is_nonfoldable(direct));
+  EXPECT(concept_is_nonfoldable(folding));
+  EXPECT(concept_is_nonfoldable(repeated));
+  // An answer outside Constant is never cached. Each query reaches the child
+  // again.
+  EXPECT(child.get_evaluations() == 3);
   EXPECT(parent.get_evaluations() == 0);
 }
 
@@ -272,7 +245,7 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, changed_result) {
   auto& input = Constants::Unsigned::create_synthetic(domain, expected_type, 1);
   auto& changed =
       Constants::Unsigned::create_synthetic(domain, changed_type, 1);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1> inputs = {{input}};
+  Static::Vector<Model::Pack*, 1> inputs = {{&input}};
   TestOperation operation(
       domain, "changed"_view, expected_type, inputs, changed);
 
@@ -280,10 +253,9 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, changed_result) {
   EXPECT(link_operation(operation, source));
   EXPECT(&operation.get_type() == &expected_type);
 
-  auto folded = operation.fold();
+  auto folded = test_fold(operation);
 
-  EXPECT(
-      reports(folded, Expression::Error::Type::ResultTypeMismatch, operation));
+  EXPECT(concept_is_nonfoldable(folded));
   EXPECT(operation.get_evaluations() == 1);
 }
 
@@ -294,15 +266,15 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, retryable_query) {
   Types::U64 type;
   auto& input = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& folded = Constants::Unsigned::create_synthetic(domain, type, 2);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1> inputs = {{input}};
+  Static::Vector<Model::Pack*, 1> inputs = {{&input}};
   TestOperation operation(domain, "retry"_view, type, inputs, folded);
 
-  auto before = operation.fold();
-  EXPECT(is_dynamic(before));
+  auto before = test_fold(operation);
+  EXPECT(concept_is_nonfoldable(before));
   EXPECT(operation.get_evaluations() == 0);
 
   ASSERT(link_operation(operation, source));
-  auto after = operation.fold();
+  auto after = test_fold(operation);
   EXPECT(selects(after, folded));
   EXPECT(operation.get_evaluations() == 1);
 }
@@ -315,34 +287,29 @@ PERIMORTEM_UNIT_TEST(LibraryOperation, reachability) {
   OperationExpression dynamic("dynamic"_view, type);
   auto& input = Constants::Unsigned::create_synthetic(domain, type, 1);
   auto& folded = Constants::Unsigned::create_synthetic(domain, type, 2);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1> child_inputs = {
-    {input}};
+  Static::Vector<Model::Pack*, 1> child_inputs = {{&input}};
   TestOperation failing(
       domain, "failing"_view, type, child_inputs, folded, True);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 2> inputs = {
-    {dynamic, failing}};
+  Static::Vector<Model::Pack*, 2> inputs = {{&dynamic, &failing}};
   TestOperation parent(
       domain, "parent"_view, type, inputs, folded, False, True);
 
   ASSERT(link_operation(parent, source));
-  auto folded_result = parent.fold();
+  auto folded_result = test_fold(parent);
 
-  EXPECT(reports(
-      folded_result, Expression::Error::Type::InvalidConstant, failing));
+  EXPECT(concept_is_nonfoldable(folded_result));
   EXPECT(failing.get_evaluations() == 1);
 
   auto& first = Constants::Unsigned::create_synthetic(domain, type, 1);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1> skipped_inputs = {
-    {first}};
+  Static::Vector<Model::Pack*, 1> skipped_inputs = {{&first}};
   TestOperation unreachable(
       domain, "unreachable"_view, type, skipped_inputs, folded, True);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 2> skipping_inputs = {
-    {first, unreachable}};
+  Static::Vector<Model::Pack*, 2> skipping_inputs = {{&first, &unreachable}};
   TestOperation skipping(
       domain, "skipping"_view, type, skipping_inputs, folded, False, True);
 
   ASSERT(link_operation(skipping, source));
-  auto skipped_result = skipping.fold();
+  auto skipped_result = test_fold(skipping);
 
   EXPECT(selects(skipped_result, folded));
   EXPECT(unreachable.get_evaluations() == 0);

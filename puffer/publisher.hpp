@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/pack.h"
 
 namespace Puffer {
 
@@ -17,7 +17,7 @@ class Publisher {
   constexpr explicit Publisher(Perimortem::Core::View::Bytes root)
       : root(root) {}
 
-  auto publish(const Ttx::Concept::Pack& products) const -> Bool;
+  auto publish(const ttx_pack* products) const -> Bool;
 
  private:
   Perimortem::Core::View::Bytes root;

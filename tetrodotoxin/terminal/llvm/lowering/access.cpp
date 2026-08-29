@@ -55,15 +55,13 @@ static auto lower_initializer(
   if (initializer.uses_provider()) {
     auto structure = type->select<Types::Structure>();
     BAIL_IF(!structure || !execution.lower(initializer.get_arguments()));
-    Memory::Dynamic::Vector<
-        Ttx::Concept::Reference<const Ttx::Model::Addressable>>
-        parameters;
-    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
+    Memory::Dynamic::Vector<const Ttx::Model::Addressable*> parameters;
+    for (const Ttx::Concept::Abstract* candidate :
          structure->get_addressables()) {
-      auto field = candidate.get().select<Field>();
+      auto field = candidate->select<Field>();
       if (field && field->get_writability() == Writability::Internal &&
           field->get_definition().is_published()) {
-        parameters.insert(*field);
+        parameters.insert(&*field);
       }
     }
     return execution.get_invocation().construct_provider(
@@ -114,11 +112,17 @@ static auto lower_call(
 
   auto builtin = Llvm::Lowering::Builtins::lower(
       execution, *callable, call, inputs.get_view(), receiver_source);
-  Core::Option<const Ttx::Model::Pack&> generic_receiver =
-      receiver_source.visit(
-          []() -> Core::Option<const Ttx::Model::Pack&> { return {}; },
+  Core::Option<const Tetrodotoxin::Library::Language::Model::Pack&>
+      generic_receiver = receiver_source.visit(
+          []() -> Core::Option<
+                   const Tetrodotoxin::Library::Language::Model::Pack&> {
+            return {};
+          },
           [](const Tetrodotoxin::Library::Language::Model::Pack& source)
-              -> Core::Option<const Ttx::Model::Pack&> { return source; });
+              -> Core::Option<
+                  const Tetrodotoxin::Library::Language::Model::Pack&> {
+            return source;
+          });
   return builtin ? *builtin
                  : execution.get_invocation().invoke(
                        call, *callable, inputs.get_view(), generic_receiver);
@@ -247,9 +251,9 @@ auto Llvm::Lowering::Access::lower(
   if (swizzle) {
     BAIL_IF(!execution.lower(swizzle->get_receiver()));
     Memory::Dynamic::Vector<LLVMValueRef> selected;
-    for (const Ttx::Concept::Reference<const Ttx::Concept::Abstract>&
-             projection : swizzle->get_projections()) {
-      auto pack = Model::Pack::from(projection.get());
+    for (const Ttx::Concept::Abstract* projection :
+         swizzle->get_projections()) {
+      auto pack = Model::Pack::from(*projection);
       BAIL_IF(!pack || !execution.lower(*pack));
       auto value = execution.get_body().find_value(*pack);
       BAIL_IF(!value);

@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/app/language/transition.hpp"
 
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -75,11 +75,10 @@ auto App::Language::Transition::link(Cursor& cursor, const Abstract& context)
       (action == Action::Replace || action == Action::Push) !=
       bool(selected_destination));
 
-  source_scene = Reference<const Scene::Language::Monograph>(*selected_source);
-  signal = Reference<const Scene::Language::Signal>(*selected_signal);
+  source_scene = &*selected_source;
+  signal = &*selected_signal;
   if (selected_destination) {
-    destination_scene =
-        Reference<const Scene::Language::Monograph>(*selected_destination);
+    destination_scene = &*selected_destination;
   }
   cursor.get_associations().create(signal_anchor, *selected_signal);
   return True;
@@ -98,11 +97,10 @@ auto App::Language::Transition::link_restored(const Abstract& context) -> Bool {
   BAIL_IF(
       (action == Action::Replace || action == Action::Push) !=
       bool(selected_destination));
-  source_scene = Reference<const Scene::Language::Monograph>(*selected_source);
-  signal = Reference<const Scene::Language::Signal>(*selected_signal);
+  source_scene = &*selected_source;
+  signal = &*selected_signal;
   if (selected_destination) {
-    destination_scene =
-        Reference<const Scene::Language::Monograph>(*selected_destination);
+    destination_scene = &*selected_destination;
   }
   return True;
 }

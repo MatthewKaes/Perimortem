@@ -33,7 +33,8 @@ static auto lower_local(
     if (!body.has_full_debug()) {
       return True;
     }
-    auto value = local.get_constant();
+    const Ttx::Concept::Abstract& answer = local.resolve_concept("fold"_view);
+    auto value = Model::Pack::from(const_cast<Ttx::Concept::Abstract&>(answer));
     return value && execution.lower(*value) &&
            body.constant_local(local, *value, local.get_anchor());
   }

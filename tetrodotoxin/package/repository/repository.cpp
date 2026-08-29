@@ -46,12 +46,51 @@ static auto coordinate_root(
 
 auto Package::Repository::Repository::create(
     Memory::Allocator::Arena& arena,
-    Core::View::Bytes root) -> Core::Option<Repository> {
-  auto normalized = System::Path::normalize(arena, root);
+    Core::View::Bytes terminal_root,
+    Core::Option<Core::View::Bytes> package_root) -> Core::Option<Repository> {
+  auto normalized = System::Path::normalize(arena, terminal_root);
   BAIL_IF(
       !normalized || normalized->is_empty() ||
       !System::Path(*normalized).is_rooted());
-  return Repository(arena, *normalized);
+  Core::Option<Core::View::Bytes> normalized_package;
+  if (package_root) {
+    auto selected = System::Path::normalize(arena, *package_root);
+    BAIL_IF(
+        !selected || selected->is_empty() ||
+        !System::Path(*selected).is_rooted());
+    normalized_package = *selected;
+  }
+  return Repository(arena, *normalized, normalized_package);
+}
+
+static auto select_coordinate_root(
+    Memory::Allocator::Arena& arena,
+    Core::View::Bytes terminal_root,
+    Core::Option<Core::View::Bytes> package_root,
+    Core::View::Bytes identity,
+    System::Version version,
+    Core::View::Bytes file) -> Core::View::Bytes {
+  Core::View::Bytes roots[2] = {
+    terminal_root,
+    package_root ? *package_root : Core::View::Bytes(),
+  };
+  for (Core::View::Bytes root : roots) {
+    if (root.is_empty()) {
+      continue;
+    }
+    Core::View::Bytes selected =
+        coordinate_root(arena, root, identity, version);
+    if (selected.is_empty()) {
+      continue;
+    }
+    Memory::Managed::Bytes path(arena, selected);
+    path.append('/');
+    path.concat(file);
+    if (System::File::exists(path.get_view())) {
+      return selected;
+    }
+  }
+  return {};
 }
 
 auto Package::Repository::Repository::select_source(
@@ -66,13 +105,10 @@ auto Package::Repository::Repository::select_source(
     }
   }
 
-  Core::View::Bytes selected = coordinate_root(arena, root, identity, version);
+  Core::View::Bytes selected = select_coordinate_root(
+      arena, terminal_root, package_root, identity, version,
+      "package.ttx"_view);
   if (selected.is_empty()) {
-    return Error::Unreadable;
-  }
-  Memory::Managed::Bytes package(arena, selected);
-  package.concat("/package.ttx"_view);
-  if (!System::File::exists(package.get_view())) {
     return Error::NotDeclared;
   }
   Core::View::Bytes retained = arena.proxy(selected);
@@ -95,15 +131,17 @@ auto Package::Repository::Repository::select_archive(
     }
   }
 
-  Core::View::Bytes selected = coordinate_root(arena, root, identity, version);
+  Core::View::Bytes selected = select_coordinate_root(
+      arena, terminal_root, package_root, identity, version,
+      "package.ttxp"_view);
   if (selected.is_empty()) {
-    return Error::Unreadable;
+    return Error::NotDeclared;
   }
   Memory::Managed::Bytes product(arena, selected);
   product.concat("/package.ttxp"_view);
   auto bytes = System::File::read(arena, product.get_view());
   if (!bytes) {
-    return Error::NotDeclared;
+    return Error::Unreadable;
   }
 
   return Package::Archive::Reader::read(arena, *bytes)

@@ -7,9 +7,9 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -25,66 +25,53 @@ auto Language::Model::Type::initialize_authorities(
     return;
   }
 
-  static_authority = Core::Option<Reference<Language::Types::Static>>(
-      Reference<Language::Types::Static>(
-          domain.construct<Language::Types::Static>(domain)));
-  instance_authority = Core::Option<Reference<Language::Types::Instance>>(
-      Reference<Language::Types::Instance>(
-          domain.construct<Language::Types::Instance>(domain)));
+  static_authority = Core::Option<Language::Types::Static*>(
+      &domain.construct<Language::Types::Static>(domain));
+  instance_authority = Core::Option<Language::Types::Instance*>(
+      &domain.construct<Language::Types::Instance>(domain));
 }
 
 auto Language::Model::Type::edit_static_authority()
     -> Language::Types::Static& {
-  return static_authority->get();
+  return **static_authority;
 }
 
 auto Language::Model::Type::edit_instance_authority()
     -> Language::Types::Instance& {
-  return instance_authority->get();
+  return **instance_authority;
 }
 
 auto Language::Model::Type::get_static_authority() const
     -> const Language::Types::Static& {
-  return static_authority->get();
+  return **static_authority;
 }
 
 auto Language::Model::Type::get_instance_authority() const
     -> const Language::Types::Instance& {
-  return instance_authority->get();
+  return **instance_authority;
 }
 
 auto Language::Model::Type::resolve_concept(Core::View::Bytes route) const
     -> const Abstract& {
   if (route == "static"_view) {
-    return static_authority
-               ? static_cast<const Abstract&>(static_authority->get())
-               : static_cast<const Abstract&>(None::get_none());
+    return static_authority ? static_cast<const Abstract&>(**static_authority)
+                            : static_cast<const Abstract&>(None::get_none());
   }
   if (route == "instance"_view) {
     return instance_authority
-               ? static_cast<const Abstract&>(instance_authority->get())
+               ? static_cast<const Abstract&>(**instance_authority)
                : static_cast<const Abstract&>(None::get_none());
   }
   return Ttx::Model::Type::resolve_concept(route);
 }
 
-auto Language::Model::Type::get_concepts(Ttx::Concept::Context& context) const
-    -> const Ttx::Concept::Pack& {
+auto Language::Model::Type::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
   if (!static_authority) {
-    return Ttx::Model::Type::get_concepts(context);
+    return;
   }
-
-  const Core::Static::Vector<Reference<const Abstract>, 2> concepts = {{
-    static_authority->get(),
-    instance_authority->get(),
-  }};
-  const Core::Static::Vector<Core::View::Bytes, 2> names = {{
-    "static"_view,
-    "instance"_view,
-  }};
-  Ttx::Model::Layouts::Fluid values(concepts);
-  Ttx::Model::Layouts::Named named(values, names);
-  return context.pack(named);
+  visit_concept(visitor, "static"_view, **static_authority);
+  visit_concept(visitor, "instance"_view, **instance_authority);
 }
 
 auto Language::Model::Type::get_callable_bindings(
@@ -110,14 +97,13 @@ auto Language::Model::Type::can_publish_callable(
 
   Bool self = callable->declares_self();
   const Bool route_available =
-      self ? (!instance_authority ||
-              instance_authority->get().can_bind(candidate))
-           : (!static_authority || static_authority->get().can_bind(candidate));
+      self ? (!instance_authority || (**instance_authority).can_bind(candidate))
+           : (!static_authority || (**static_authority).can_bind(candidate));
   BAIL_IF(!route_available);
-  for (const Reference<Abstract>& retained : get_callables()) {
-    auto existing = retained.get().select<Language::Model::Callable>();
-    if (&retained.get() == &candidate ||
-        (retained.get().get_name() == candidate.get_name() && existing &&
+  for (const Abstract* retained : get_callables()) {
+    auto existing = retained->select<Language::Model::Callable>();
+    if (retained == &candidate ||
+        (retained->get_name() == candidate.get_name() && existing &&
          existing->declares_self() == self)) {
       return False;
     }
@@ -137,8 +123,8 @@ auto Language::Model::Type::publish_callable(
 
   if (!callables) {
     initialize_authorities(domain);
-    callables = Memory::Managed::Vector<Reference<Abstract>>(domain);
-    published_callables = Memory::Managed::Vector<Reference<Abstract>>(domain);
+    callables = Memory::Managed::Vector<Abstract*>(domain);
+    published_callables = Memory::Managed::Vector<Abstract*>(domain);
   }
 
   auto selected = callable.select<Language::Model::Callable>();
@@ -154,8 +140,8 @@ auto Language::Model::Type::publish_callable(
         "Library Type cannot publish an occupied Callable concept."_view);
   }
 
-  callables->insert(callable);
+  callables->insert(&callable);
   if (published) {
-    published_callables->insert(callable);
+    published_callables->insert(&callable);
   }
 }

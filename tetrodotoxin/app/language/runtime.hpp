@@ -8,8 +8,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/resource.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 namespace Tetrodotoxin::App::Language {
@@ -31,9 +30,7 @@ class Runtime : public Ttx::Concept::Abstract {
     constexpr Windowed(
         Perimortem::Core::Option<Perimortem::Core::View::Bytes> title,
         Perimortem::Core::Option<Perimortem::Core::View::Bytes> icon_route,
-        Perimortem::Core::Option<
-            Ttx::Concept::Reference<const Tetrodotoxin::Language::Resource>>
-            icon,
+        Perimortem::Core::Option<const Tetrodotoxin::Language::Resource*> icon,
         Perimortem::Core::Option<U32> width,
         Perimortem::Core::Option<U32> height,
         Perimortem::Core::Option<Bool> resizable)
@@ -59,11 +56,10 @@ class Runtime : public Ttx::Concept::Abstract {
       return icon.visit(
           []() -> Perimortem::Core::Option<
                    const Tetrodotoxin::Language::Resource&> { return {}; },
-          [](const Ttx::Concept::Reference<
-              const Tetrodotoxin::Language::Resource>& selected)
+          [](const Tetrodotoxin::Language::Resource* selected)
               -> Perimortem::Core::Option<
                   const Tetrodotoxin::Language::Resource&> {
-            return selected.get();
+            return *selected;
           });
     }
 
@@ -82,9 +78,7 @@ class Runtime : public Ttx::Concept::Abstract {
    private:
     Perimortem::Core::Option<Perimortem::Core::View::Bytes> title;
     Perimortem::Core::Option<Perimortem::Core::View::Bytes> icon_route;
-    Perimortem::Core::Option<
-        Ttx::Concept::Reference<const Tetrodotoxin::Language::Resource>>
-        icon;
+    Perimortem::Core::Option<const Tetrodotoxin::Language::Resource*> icon;
     Perimortem::Core::Option<U32> width;
     Perimortem::Core::Option<U32> height;
     Perimortem::Core::Option<Bool> resizable;

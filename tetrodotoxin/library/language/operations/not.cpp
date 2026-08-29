@@ -6,7 +6,7 @@
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -39,7 +39,7 @@ TTX_UNARY_OP(Not);
 
 auto Language::Operations::Not::select_type(const Ttx::Concept::Abstract&) const
     -> Core::Option<const Language::Model::Type&> {
-  const Model::Pack& operand = get_inputs().get_data()[0].get();
+  const Model::Pack& operand = *get_inputs().get_data()[0];
   return select_result_type(operand).select<Language::Model::Type>();
 }
 
@@ -48,7 +48,7 @@ auto Language::Operations::Not::evaluate_constants(
     -> Utility::Result<
         Core::Option<Tetrodotoxin::Library::Language::Constant&>,
         Expression::Error> {
-  Model::Pack& authored_operand = get_inputs().get_data()[0].get();
+  Model::Pack& authored_operand = *get_inputs().get_data()[0];
   auto operand = get_folded_input(0);
   if (!operand) {
     return Expression::Error(Expression::Error::Type::InvalidInput, *this);

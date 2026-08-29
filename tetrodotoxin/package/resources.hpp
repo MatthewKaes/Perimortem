@@ -12,7 +12,6 @@
 #include "tetrodotoxin/language/error.hpp"
 #include "tetrodotoxin/package/resource.hpp"
 #include "tetrodotoxin/package/storage.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Package {
 
@@ -42,8 +41,7 @@ class Resources {
  public:
   Resources(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Resource>>
-          restored = {},
+      Perimortem::Core::View::Vector<Resource*> restored = {},
       Bool sealed = False);
 
   auto connect(Storage& storage) -> Bool;
@@ -53,7 +51,7 @@ class Resources {
       -> const Ttx::Concept::Abstract&;
 
   constexpr auto get_values() const
-      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Resource>> {
+      -> Perimortem::Core::View::Vector<Resource*> {
     return values;
   }
 
@@ -66,7 +64,7 @@ class Resources {
   Perimortem::Memory::Managed::
       Map<Perimortem::Core::View::Bytes, Tetrodotoxin::Language::Error&>
           error_cache;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Resource>> values;
+  Perimortem::Memory::Managed::Vector<Resource*> values;
 };
 
 }  // namespace Tetrodotoxin::Package

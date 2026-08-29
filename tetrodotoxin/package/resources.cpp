@@ -7,8 +7,8 @@
 
 #include "perimortem/system/path.hpp"
 
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -68,7 +68,7 @@ static auto construct_error(
 
 Package::Resources::Resources(
     Allocator::Arena& domain,
-    View::Vector<Reference<Package::Resource>> restored,
+    View::Vector<Package::Resource*> restored,
     Bool sealed)
     : domain(domain),
       storage(nullptr),
@@ -76,11 +76,11 @@ Package::Resources::Resources(
       resource_cache(domain),
       error_cache(domain),
       values(domain) {
-  for (const Reference<Package::Resource>& retained : restored) {
-    Package::Resource& resource = retained.get();
+  for (Package::Resource* retained : restored) {
+    Package::Resource& resource = *retained;
     if (!resource_cache.contains(resource.get_route())) {
       resource_cache.launder(resource.get_route(), resource);
-      values.insert(resource);
+      values.insert(&resource);
     }
   }
 }
@@ -143,7 +143,7 @@ auto Package::Resources::resolve(View::Bytes logical_route) -> const Abstract& {
         Package::Resource& retained = Package::Resource::create(
             domain, retained_key, content.get_contents());
         resource_cache.launder(retained_key, retained);
-        values.insert(retained);
+        values.insert(&retained);
         return retained;
       },
       [&](const Package::Storage::Failure& failure) -> const Abstract& {

@@ -9,8 +9,8 @@
 #include "tetrodotoxin/library/archive/composite.hpp"
 #include "tetrodotoxin/library/archive/reference.hpp"
 #include "tetrodotoxin/library/archive/source.hpp"
+#include "ttx/bootstrap/model/documentations/block.hpp"
 #include "ttx/lexical/anchor.hpp"
-#include "ttx/model/documentations/block.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

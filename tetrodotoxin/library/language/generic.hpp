@@ -13,10 +13,9 @@
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/layout.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/layout.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
@@ -44,17 +43,17 @@ class Generic : public Ttx::Concept::Abstract {
       return SemanticType(type);
     }
 
-    constexpr auto get() const -> const Ttx::Model::Type& { return type.get(); }
+    constexpr auto get() const -> const Ttx::Model::Type& { return *type; }
 
     constexpr auto operator==(const SemanticType& rhs) const -> Bool {
-      return &type.get() == &rhs.type.get();
+      return type == rhs.type;
     }
 
    private:
     explicit constexpr SemanticType(const Ttx::Model::Type& type)
-        : type(type) {}
+        : type(&type) {}
 
-    Ttx::Concept::Reference<const Ttx::Model::Type> type;
+    const Ttx::Model::Type* type;
   };
 
   // Semantic graph queries expose const references. Scalar arguments are

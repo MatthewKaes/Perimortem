@@ -15,7 +15,6 @@
 #include "tetrodotoxin/scene/language/emission.hpp"
 #include "tetrodotoxin/scene/language/lifecycle.hpp"
 #include "tetrodotoxin/scene/language/signal.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Scene::Language {
 
@@ -106,7 +105,7 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   }
 
   constexpr auto get_imports() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<Tetrodotoxin::Language::Import>> override {
+      Tetrodotoxin::Language::Import*> override {
     return library.get_imports();
   }
 
@@ -139,9 +138,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
   Tetrodotoxin::Library::Language::Monograph& library;
   Tetrodotoxin::Library::Language::Types::Object& instance;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Signal>> signals;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Emission>>
-      emissions;
+  Perimortem::Memory::Managed::Vector<Signal*> signals;
+  Perimortem::Memory::Managed::Vector<Emission*> emissions;
   Perimortem::Core::Static::Vector<
       Perimortem::Core::Option<Tetrodotoxin::Library::Language::Function&>,
       5>

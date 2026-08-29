@@ -5,15 +5,15 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/alias.hpp"
-#include "ttx/model/layouts/composite.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
-#include "ttx/model/layouts/ranged.hpp"
-#include "ttx/model/layouts/value.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
+#include "ttx/bootstrap/model/layouts/composite.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/bootstrap/model/layouts/ranged.hpp"
+#include "ttx/bootstrap/model/layouts/value.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Utility;
@@ -151,7 +151,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, value_terminal) {
 PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
   LayoutType real("R32"_view);
   LayoutType bits("U32"_view);
-  const Static::Vector<Reference<const Abstract>, 2> values = {{real, bits}};
+  const Static::Vector<const Abstract*, 2> values = {{&real, &bits}};
   Fluid layout(values);
 
   EXPECT_EQ(layout.get_size(), Count(2));
@@ -165,12 +165,11 @@ PERIMORTEM_UNIT_TEST(TtxLayout, staged_identity) {
   StagedType second;
   LayoutField first_field("first"_view, first);
   LayoutField second_field("second"_view, second);
-  const Static::Vector<Reference<const Abstract>, 1> first_type = {{first}};
-  const Static::Vector<Reference<const Abstract>, 1> second_type = {{second}};
-  const Static::Vector<Reference<const Abstract>, 1> first_addressable = {
-    {first_field}};
-  const Static::Vector<Reference<const Abstract>, 1> second_addressable = {
-    {second_field}};
+  const Static::Vector<const Abstract*, 1> first_type = {{&first}};
+  const Static::Vector<const Abstract*, 1> second_type = {{&second}};
+  const Static::Vector<const Abstract*, 1> first_addressable = {{&first_field}};
+  const Static::Vector<const Abstract*, 1> second_addressable = {
+    {&second_field}};
   Fluid fluid_first(first_type);
   Fluid fluid_same(first_type);
   Fluid fluid_second(second_type);
@@ -192,7 +191,7 @@ PERIMORTEM_UNIT_TEST(TtxLayout, named_fields) {
   LayoutType bits("U32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
-  const Static::Vector<Reference<const Abstract>, 2> fields = {{x, y}};
+  const Static::Vector<const Abstract*, 2> fields = {{&x, &y}};
   Named layout(fields);
 
   EXPECT_EQ(layout.get_size(), Count(2));
@@ -234,11 +233,11 @@ PERIMORTEM_UNIT_TEST(TtxLayout, composite_components) {
   Alias second("second"_view, byte);
   Alias third("third"_view, byte);
   Alias fourth("fourth"_view, byte);
-  const Static::Vector<Reference<const Abstract>, 4> values = {{
-    first,
-    second,
-    third,
-    fourth,
+  const Static::Vector<const Abstract*, 4> values = {{
+    &first,
+    &second,
+    &third,
+    &fourth,
   }};
   Ranged prefix(byte, 32);
   Fluid suffix(values);
@@ -270,9 +269,8 @@ PERIMORTEM_UNIT_TEST(TtxLayout, composite_fitting) {
   LayoutField y("y"_view, bits);
   Alias named_x("x"_view, real);
   Alias named_y("y"_view, bits);
-  const Static::Vector<Reference<const Abstract>, 2> fields = {{x, y}};
-  const Static::Vector<Reference<const Abstract>, 2> values = {
-    {named_y, named_x}};
+  const Static::Vector<const Abstract*, 2> fields = {{&x, &y}};
+  const Static::Vector<const Abstract*, 2> values = {{&named_y, &named_x}};
   Ranged source_prefix(byte, 2);
   Ranged target_prefix(byte, 2);
   Named source_suffix(values);
@@ -292,13 +290,10 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
   LayoutField y("y"_view, bits);
   Alias named_x("x"_view, real);
   Alias named_y("y"_view, bits);
-  const Static::Vector<Reference<const Abstract>, 2> fields = {{x, y}};
-  const Static::Vector<Reference<const Abstract>, 2> positional = {
-    {real, bits}};
-  const Static::Vector<Reference<const Abstract>, 2> reordered = {
-    {named_y, named_x}};
-  const Static::Vector<Reference<const Abstract>, 2> lexical_values = {
-    {bits, real}};
+  const Static::Vector<const Abstract*, 2> fields = {{&x, &y}};
+  const Static::Vector<const Abstract*, 2> positional = {{&real, &bits}};
+  const Static::Vector<const Abstract*, 2> reordered = {{&named_y, &named_x}};
+  const Static::Vector<const Abstract*, 2> lexical_values = {{&bits, &real}};
   const Static::Vector<View::Bytes, 2> lexical_names = {{"y"_view, "x"_view}};
   Named target(fields);
   Fluid fluid(positional);
@@ -324,8 +319,8 @@ PERIMORTEM_UNIT_TEST(TtxLayout, alias_fitting) {
   LayoutType real("R32"_view);
   LayoutField x("x"_view, real);
   Alias alias("x"_view, x);
-  const Static::Vector<Reference<const Abstract>, 1> aliases = {{alias}};
-  const Static::Vector<Reference<const Abstract>, 1> fields = {{x}};
+  const Static::Vector<const Abstract*, 1> aliases = {{&alias}};
+  const Static::Vector<const Abstract*, 1> fields = {{&x}};
   Fluid fluid_source(aliases);
   Fluid fluid_target(fields);
   Named named_source(aliases);
@@ -347,11 +342,9 @@ PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
   Alias first("x"_view, real);
   Alias duplicate("x"_view, bits);
   Alias unnamed({}, real);
-  const Static::Vector<Reference<const Abstract>, 2> fields = {{x, y}};
-  const Static::Vector<Reference<const Abstract>, 2> values = {
-    {first, duplicate}};
-  const Static::Vector<Reference<const Abstract>, 2> empty_names = {
-    {first, unnamed}};
+  const Static::Vector<const Abstract*, 2> fields = {{&x, &y}};
+  const Static::Vector<const Abstract*, 2> values = {{&first, &duplicate}};
+  const Static::Vector<const Abstract*, 2> empty_names = {{&first, &unnamed}};
   Named target(fields);
   Named named(values);
   Named nameless(empty_names);
@@ -367,10 +360,9 @@ PERIMORTEM_UNIT_TEST(TtxLayout, named_shape) {
   LayoutType real("R32"_view);
   LayoutField first_x("x"_view, real);
   LayoutField second_x("x"_view, real);
-  const Static::Vector<Reference<const Abstract>, 1> first_fields = {{first_x}};
-  const Static::Vector<Reference<const Abstract>, 1> same_fields = {{first_x}};
-  const Static::Vector<Reference<const Abstract>, 1> other_fields = {
-    {second_x}};
+  const Static::Vector<const Abstract*, 1> first_fields = {{&first_x}};
+  const Static::Vector<const Abstract*, 1> same_fields = {{&first_x}};
+  const Static::Vector<const Abstract*, 1> other_fields = {{&second_x}};
   Named first(first_fields);
   Named same(same_fields);
   Named other(other_fields);

@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/app/language/scene.hpp"
 
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -15,7 +15,7 @@ auto App::Language::Scene::create_authored(
     Allocator::Arena& arena,
     const Documentation& documentation,
     Route initial,
-    View::Vector<Reference<Transition>> transitions,
+    View::Vector<Transition*> transitions,
     Anchor anchor) -> Scene& {
   return arena.construct_from<Scene>([&]() -> Scene {
     return Scene(documentation, initial, transitions, anchor);
@@ -26,7 +26,7 @@ auto App::Language::Scene::create_restored(
     Allocator::Arena& arena,
     const Documentation& documentation,
     Route initial,
-    View::Vector<Reference<Transition>> transitions) -> Scene& {
+    View::Vector<Transition*> transitions) -> Scene& {
   return create_authored(
       arena, documentation, initial, transitions, Anchor::create(Span()));
 }
@@ -42,12 +42,11 @@ auto App::Language::Scene::link(Cursor& cursor, const Abstract& context)
         initial.get_anchor(), "App initial route must select a Scene."_view);
     return False;
   }
-  initial_scene =
-      Reference<const Tetrodotoxin::Scene::Language::Monograph>(*scene);
+  initial_scene = &*scene;
 
   Bool valid = True;
-  for (const Reference<Transition>& transition : transitions) {
-    valid &= transition.get().link(cursor, context);
+  for (Transition* transition : transitions) {
+    valid &= transition->link(cursor, context);
   }
   return valid;
 }
@@ -58,10 +57,9 @@ auto App::Language::Scene::link_restored(const Abstract& context) -> Bool {
       selected ? selected->select<Tetrodotoxin::Scene::Language::Monograph>()
                : Option<const Tetrodotoxin::Scene::Language::Monograph&>();
   BAIL_IF(!scene);
-  initial_scene =
-      Reference<const Tetrodotoxin::Scene::Language::Monograph>(*scene);
-  for (const Reference<Transition>& transition : transitions) {
-    BAIL_IF(!transition.get().link_restored(context));
+  initial_scene = &*scene;
+  for (Transition* transition : transitions) {
+    BAIL_IF(!transition->link_restored(context));
   }
   return True;
 }

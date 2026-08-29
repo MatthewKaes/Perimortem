@@ -67,19 +67,11 @@ PERIMORTEM_UNIT_TEST(StructureInterface, negotiates_real_library_types) {
   const Abstract& inline_value = monograph->resolve_concept("InlineValue"_view);
   Library::Language::Interfaces::Structure hosting;
 
+  EXPECT(hosting.negotiate(requirement, requirement) == TTX_INTERFACE_REJECTED);
+  EXPECT(hosting.negotiate(requirement, sprite) == TTX_INTERFACE_SATISFIED);
+  EXPECT(hosting.negotiate(requirement, wrong_type) == TTX_INTERFACE_REJECTED);
   EXPECT(
-      hosting.negotiate(requirement, requirement) ==
-      Ttx::Concept::Interface::Relation::Rejected);
+      hosting.negotiate(requirement, hidden_state) == TTX_INTERFACE_REJECTED);
   EXPECT(
-      hosting.negotiate(requirement, sprite) ==
-      Ttx::Concept::Interface::Relation::Satisfied);
-  EXPECT(
-      hosting.negotiate(requirement, wrong_type) ==
-      Ttx::Concept::Interface::Relation::Rejected);
-  EXPECT(
-      hosting.negotiate(requirement, hidden_state) ==
-      Ttx::Concept::Interface::Relation::Rejected);
-  EXPECT(
-      hosting.negotiate(requirement, inline_value) ==
-      Ttx::Concept::Interface::Relation::Rejected);
+      hosting.negotiate(requirement, inline_value) == TTX_INTERFACE_REJECTED);
 }

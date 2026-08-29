@@ -23,9 +23,9 @@ cc_library(
         "//perimortem:headless",
         "//tetrodotoxin/library",
         "//tetrodotoxin/language",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
-        "//ttx:model",
+        "//ttx:bootstrap_model",
     ],
 )
 
@@ -91,7 +91,7 @@ cc_library(
         ":package",
         "//perimortem:headless",
         "//tetrodotoxin/language",
-        "//ttx:concept",
-        "//ttx:model",
+        "//ttx:bootstrap_concept",
+        "//ttx:bootstrap_model",
     ],
 )

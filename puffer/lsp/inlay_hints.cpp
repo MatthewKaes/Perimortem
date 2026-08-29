@@ -10,7 +10,7 @@
 
 #include "perimortem/serialization/json/blueprint.hpp"
 
-#include "ttx/model/callable.hpp"
+#include "ttx/model/callable.h"
 
 using namespace Perimortem;
 using namespace Puffer;
@@ -104,6 +104,25 @@ static auto collect_arguments(
   return False;
 }
 
+class ParameterVisitor {
+ public:
+  explicit ParameterVisitor(
+      Memory::Managed::Vector<const ttx_abstract*>& entries)
+      : callable{&operations}, operations{.call = retain}, entries(entries) {}
+
+  ttx_abstract_callable callable;
+
+ private:
+  static auto retain(ttx_abstract_callable* callable, const ttx_abstract* entry)
+      -> void {
+    auto& self = *reinterpret_cast<ParameterVisitor*>(callable);
+    self.entries.insert(entry);
+  }
+
+  ttx_abstract_callable_operations operations;
+  Memory::Managed::Vector<const ttx_abstract*>& entries;
+};
+
 auto Puffer::Lsp::inlay_hints_for(
     Memory::Allocator::Arena& arena,
     Core::View::Bytes source,
@@ -117,8 +136,8 @@ auto Puffer::Lsp::inlay_hints_for(
   // parameter authority; the lexical span contributes only argument positions.
   for (const Ttx::Lexical::Associations::Entry& association :
        associations.get_entries()) {
-    auto callable = association.get_semantic().select<Ttx::Model::Callable>();
-    if (!callable) {
+    ttx_callable_view callable;
+    if (!ttx_callable_prove(association.get_semantic().get_abi(), &callable)) {
       continue;
     }
 
@@ -127,12 +146,16 @@ auto Puffer::Lsp::inlay_hints_for(
         arguments.is_empty()) {
       continue;
     }
-    const Ttx::Concept::Layout& parameters = callable->get_parameters();
-    Count parameter_start = parameters.get_name(0).visit(
-        []() { return Count(0); },
-        [](Core::View::Bytes name) {
-          return name == "self"_view ? Count(1) : Count(0);
-        });
+    Memory::Managed::Vector<const ttx_abstract*> parameters(arena);
+    ParameterVisitor visitor(parameters);
+    ttx_layout_visit(ttx_callable_parameters(&callable), &visitor.callable);
+    Count parameter_start =
+        !parameters.is_empty() &&
+                Core::View::Bytes(
+                    ttx_abstract_name(parameters.at(0)).data,
+                    ttx_abstract_name(parameters.at(0)).size) == "self"_view
+            ? Count(1)
+            : Count(0);
     Count parameter_count = parameters.get_size() - parameter_start;
     Count mapping_count = parameter_count == arguments.get_size()
                               ? parameter_count
@@ -142,8 +165,10 @@ auto Puffer::Lsp::inlay_hints_for(
       if (source[offset] == '.') {
         continue;
       }
-      auto parameter_name = parameters.get_name(parameter_start + index);
-      if (!parameter_name || parameter_name->is_empty()) {
+      perimortem_bytes name =
+          ttx_abstract_name(parameters.at(parameter_start + index));
+      Core::View::Bytes parameter_name(name.data, name.size);
+      if (parameter_name.is_empty()) {
         continue;
       }
       auto position = encoding.locate(source, offset);
@@ -153,7 +178,7 @@ auto Puffer::Lsp::inlay_hints_for(
       }
 
       Memory::Managed::Bytes label(arena, "."_view);
-      label.concat(*parameter_name);
+      label.concat(parameter_name);
       label.concat(" ="_view);
       hints.insert(
           Serialization::Json::Blueprint{

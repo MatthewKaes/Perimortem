@@ -6,9 +6,11 @@
 #include "tetrodotoxin/library/language/constants/real.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -61,7 +63,7 @@ auto Language::Expressions::Conversion::link(
     Ttx::Lexical::Cursor& cursor,
     const Ttx::Concept::Abstract&,
     Core::Option<const Ttx::Concept::Abstract&>) -> Bool {
-  if (accepts(target.get(), source.get())) {
+  if (accepts(*target, *source)) {
     return True;
   }
   cursor.create_expression_error(
@@ -74,40 +76,53 @@ auto Language::Expressions::Conversion::link(
 auto Language::Expressions::Conversion::link_restored(
     const Ttx::Concept::Abstract&,
     Core::Option<const Ttx::Concept::Abstract&>) -> Bool {
-  return accepts(target.get(), source.get());
+  return accepts(*target, *source);
 }
 
 auto Language::Expressions::Conversion::finalize(Ttx::Lexical::Cursor& cursor)
     -> void {
-  source.get().finalize(cursor);
+  source->finalize(cursor);
   Expression::finalize(cursor);
 }
 
 static auto folded_constant(Language::Model::Pack& source)
     -> Core::Option<const Language::Constant&> {
-  auto folded = Language::Expression::fold(source);
-  Core::Option<Language::Model::Pack&> value;
-  folded.visit(
-      [&](const Core::Option<Language::Model::Pack&>& selected) {
-        value = selected;
-      },
-      [](const Language::Expression::Error&) {});
+  auto value = Language::query_folded_pack(source);
   BAIL_IF(!value);
   auto selected = value->get_layout().get_abstract(0);
   return selected ? selected->select<Language::Constant>()
                   : Core::Option<const Language::Constant&>();
 }
 
-auto Language::Expressions::Conversion::evaluate()
+auto Language::Expressions::Conversion::resolve_concept(
+    Core::View::Bytes name) const -> const Ttx::Concept::Abstract& {
+  if (name != "fold"_view) {
+    return Expression::resolve_concept(name);
+  }
+  return const_cast<Conversion&>(*this).evaluate_fold().visit(
+      [](const Core::Option<Model::Pack&>& result)
+          -> const Ttx::Concept::Abstract& { return fold_answer(result); },
+      [](const Expression::Error&) -> const Ttx::Concept::Abstract& {
+        return Ttx::Concept::None::get_none();
+      });
+}
+
+auto Language::Expressions::Conversion::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Expression::visit_concepts(visitor);
+  visit_concept(visitor, "fold"_view, resolve_concept("fold"_view));
+}
+
+auto Language::Expressions::Conversion::evaluate_fold()
     -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
-  auto constant = folded_constant(source.get());
+  auto constant = folded_constant(*source);
   if (!constant) {
     return Core::Option<Model::Pack&>();
   }
 
-  auto target_unsigned = target.get().select<Model::Types::Unsigned>();
-  auto target_signed = target.get().select<Model::Types::Signed>();
-  auto target_real = target.get().select<Model::Types::Real>();
+  auto target_unsigned = target->select<Model::Types::Unsigned>();
+  auto target_signed = target->select<Model::Types::Signed>();
+  auto target_real = target->select<Model::Types::Real>();
   auto source_unsigned = constant->select<Constants::Unsigned>();
   auto source_signed = constant->select<Constants::Signed>();
   auto source_real = constant->select<Constants::Real>();

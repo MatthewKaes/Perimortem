@@ -3,12 +3,12 @@
 
 #include "validation/unit_test.hpp"
 
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/interfaces/callable.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/model/interfaces/callable.h"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -58,8 +58,8 @@ class InterfaceCallable final : public Callable {
 PERIMORTEM_UNIT_TEST(InterfaceTests, callable_negotiation) {
   InterfaceType value("Value"_view);
   InterfaceType other("Other"_view);
-  Reference<const Abstract> value_entry(value);
-  Reference<const Abstract> other_entry(other);
+  const Abstract* value_entry = &value;
+  const Abstract* other_entry = &other;
   Layouts::Fluid value_layout({&value_entry, 1});
   Layouts::Fluid other_layout({&other_entry, 1});
   Layouts::Fluid empty;
@@ -76,22 +76,23 @@ PERIMORTEM_UNIT_TEST(InterfaceTests, callable_negotiation) {
       "DirectionalRequirement"_view, empty, named_value);
   InterfaceCallable directional_candidate(
       "DirectionalCandidate"_view, empty, value_layout);
-  Interfaces::Callable interface;
-
   EXPECT(
-      interface.negotiate(requirement, equivalent) ==
-      Interface::Relation::Equivalent);
+      ttx_callable_negotiate(requirement.get_abi(), equivalent.get_abi()) ==
+      TTX_INTERFACE_EQUIVALENT);
   EXPECT(
-      interface.negotiate(requirement, wrong_input) ==
-      Interface::Relation::Rejected);
+      ttx_callable_negotiate(requirement.get_abi(), wrong_input.get_abi()) ==
+      TTX_INTERFACE_REJECTED);
   EXPECT(
-      interface.negotiate(requirement, wrong_result) ==
-      Interface::Relation::Rejected);
+      ttx_callable_negotiate(requirement.get_abi(), wrong_result.get_abi()) ==
+      TTX_INTERFACE_REJECTED);
   EXPECT(
-      interface.negotiate(requirement, empty_result) ==
-      Interface::Relation::Rejected);
+      ttx_callable_negotiate(requirement.get_abi(), empty_result.get_abi()) ==
+      TTX_INTERFACE_REJECTED);
   EXPECT(
-      interface.negotiate(directional_requirement, directional_candidate) ==
-      Interface::Relation::Satisfied);
-  EXPECT_NOT(interface.accepts(requirement, value));
+      ttx_callable_negotiate(
+          directional_requirement.get_abi(), directional_candidate.get_abi()) ==
+      TTX_INTERFACE_SATISFIED);
+  EXPECT(
+      ttx_callable_negotiate(requirement.get_abi(), value.get_abi()) ==
+      TTX_INTERFACE_REJECTED);
 }

@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/shader/language/monograph.hpp"
-#include "ttx/concept/documentation.hpp"
+#include "ttx/bootstrap/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Shader::Interpreter {

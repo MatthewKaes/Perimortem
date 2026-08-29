@@ -5,8 +5,8 @@
 
 #include "validation/unit_test.hpp"
 
-#include "ttx/concept/none.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin;
@@ -60,10 +60,10 @@ PERIMORTEM_UNIT_TEST(LanguageResource, context_rejection) {
     View::Bytes(binary_route, sizeof(binary_route)),
   };
   BorrowedResource resource("value"_view);
-  const None& none = None::get_none();
+  const Unknown& unknown = Unknown::get_unknown();
 
   for (View::Bytes route : routes) {
-    EXPECT(&resource.resolve_concept(route) == &none);
+    EXPECT(&resource.resolve_concept(route) == &unknown);
   }
 }
 

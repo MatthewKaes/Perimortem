@@ -4,8 +4,8 @@
 #include "tetrodotoxin/library/language/foreign.hpp"
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/documentations/merged.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/documentations/merged.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -25,9 +25,9 @@ Library::Language::Foreign::Foreign(Allocator::Arena& domain, Abstract& parent)
 auto Library::Language::Foreign::retain_block(
     const Documentation& block_documentation,
     View::Bytes selected_abi,
-    View::Vector<Reference<State>> selected_states,
-    View::Vector<Reference<Function>> selected_functions,
-    View::Vector<Reference<Abstract>> selected_declarations) -> Bool {
+    View::Vector<State*> selected_states,
+    View::Vector<Function*> selected_functions,
+    View::Vector<Abstract*> selected_declarations) -> Bool {
   if (stage != Stage::Authored || selected_abi.is_empty() ||
       (abi && *abi != selected_abi)) {
     return False;
@@ -37,17 +37,17 @@ auto Library::Language::Foreign::retain_block(
   if (!abi) {
     abi = selected_abi;
   }
-  for (const Reference<State>& state : selected_states) {
-    BAIL_IF(!static_authority.bind(
-        state.get(), state.get().get_definition().is_published()));
+  for (State* state : selected_states) {
+    BAIL_IF(
+        !static_authority.bind(*state, state->get_definition().is_published()));
     states.insert(state);
   }
-  for (const Reference<Function>& function : selected_functions) {
+  for (Function* function : selected_functions) {
     BAIL_IF(!static_authority.bind(
-        function.get(), function.get().get_definition().is_published()));
+        *function, function->get_definition().is_published()));
     functions.insert(function);
   }
-  for (const Reference<Abstract>& declaration : selected_declarations) {
+  for (Abstract* declaration : selected_declarations) {
     declarations.insert(declaration);
   }
   return True;
@@ -62,8 +62,8 @@ auto Library::Language::Foreign::link_types(Cursor& cursor) -> Bool {
   // External State Types close before signatures because Functions may name
   // them through the same Source lexical context.
   Bool failed = False;
-  for (const Reference<State>& state : states.get_view()) {
-    failed |= !state.get().link(cursor);
+  for (State* state : states.get_view()) {
+    failed |= !state->link(cursor);
   }
   BAIL_IF(failed);
 
@@ -81,8 +81,8 @@ auto Library::Language::Foreign::link_callables(Cursor& cursor) -> Bool {
   BAIL_IF(stage != Stage::TypesLinked);
 
   Bool failed = False;
-  for (const Reference<Function>& function : functions.get_view()) {
-    failed |= !function.get().link(cursor);
+  for (Function* function : functions.get_view()) {
+    failed |= !function->link(cursor);
   }
   BAIL_IF(failed);
 
@@ -105,13 +105,13 @@ auto Library::Language::Foreign::link_restored() -> Bool {
   }
   BAIL_IF(stage != Stage::Authored);
 
-  for (const Reference<State>& state : states.get_view()) {
-    BAIL_IF(!state.get().link_restored_declaration_type());
+  for (State* state : states.get_view()) {
+    BAIL_IF(!state->link_restored_declaration_type());
   }
   stage = Stage::TypesLinked;
 
-  for (const Reference<Function>& function : functions.get_view()) {
-    BAIL_IF(!function.get().link_restored_declaration_signature());
+  for (Function* function : functions.get_view()) {
+    BAIL_IF(!function->link_restored_declaration_signature());
   }
   stage = Stage::CallablesLinked;
   return True;

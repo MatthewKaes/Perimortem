@@ -6,7 +6,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
-#include "ttx/model/documentations/merged.hpp"
+#include "ttx/bootstrap/model/documentations/merged.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

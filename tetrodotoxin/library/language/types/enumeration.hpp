@@ -12,10 +12,9 @@
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/alias.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -111,8 +110,8 @@ class Enumeration : public Model::Type {
     return storage_reference;
   }
 
-  auto get_cases() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Alias>>;
+  auto get_cases() const
+      -> Perimortem::Core::View::Vector<const Ttx::Model::Alias*>;
 
   constexpr auto get_case_count() const -> Count {
     return source_cases.get_size();
@@ -140,13 +139,9 @@ class Enumeration : public Model::Type {
   Perimortem::Memory::Allocator::Arena& domain;
   TypeReference storage_reference;
   Perimortem::Memory::Managed::Vector<Case> source_cases;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
-      storage_type;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Alias>>
-      cases;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Addressable>>
-      generated_size;
+  Perimortem::Core::Option<const Model::Type*> storage_type;
+  Perimortem::Memory::Managed::Vector<const Ttx::Model::Alias*> cases;
+  Perimortem::Core::Option<const Model::Addressable*> generated_size;
   Stage stage = Stage::Authored;
 };
 

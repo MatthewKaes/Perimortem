@@ -7,7 +7,6 @@
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/model/types/value.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Library::Language::Expressions {
 
@@ -33,12 +32,10 @@ class Conversion : public Expression {
   TTX_EMPTY_DOCUMENTATION();
 
   constexpr auto get_type() const -> const Model::Types::Value& override {
-    return target.get();
+    return *target;
   }
 
-  constexpr auto get_source() const -> const Model::Pack& {
-    return source.get();
-  }
+  constexpr auto get_source() const -> const Model::Pack& { return *source; }
 
   auto link(
       Ttx::Lexical::Cursor& cursor,
@@ -52,22 +49,23 @@ class Conversion : public Expression {
       -> Bool override;
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
-
- protected:
-  auto evaluate() -> Perimortem::Utility::Result<
-      Perimortem::Core::Option<Model::Pack&>,
-      Expression::Error> override;
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
  private:
+  auto evaluate_fold() -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Model::Pack&>, Expression::Error>;
   constexpr Conversion(
       Perimortem::Memory::Allocator::Arena& arena,
       const Model::Types::Value& target,
       Model::Pack& source)
-      : Expression({}), arena(arena), target(target), source(source) {}
+      : Expression({}), arena(arena), target(&target), source(&source) {}
 
   Perimortem::Memory::Allocator::Arena& arena;
-  Ttx::Concept::Reference<const Model::Types::Value> target;
-  Ttx::Model::PackReference<Model::Pack> source;
+  const Model::Types::Value* target;
+  Model::Pack* source;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Expressions

@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -29,8 +29,8 @@ auto Language::Access::Address::create_synthetic(
     Memory::Allocator::Arena& domain,
     Model::Pack& receiver,
     const Language::Model::Addressable& selected) -> Address& {
-  Core::Option<Reference<const Language::Model::Addressable>> addressable{
-    Reference<const Language::Model::Addressable>(selected),
+  Core::Option<const Language::Model::Addressable*> addressable{
+    &selected,
   };
   return Expression::create_synthetic<Address>(
       domain, [&](auto source) -> Address {
@@ -97,17 +97,17 @@ auto Language::Access::Address::link(
     }
   }
 
-  if (addressable && &addressable->get() != &*selected) {
+  if (addressable && *addressable != &*selected) {
     auto report = cursor.create_report(source_anchor);
     report << "Internal semantic error: field access '"_view << name
-           << "' changed identity from '"_view << addressable->get().get_name()
+           << "' changed identity from '"_view << (**addressable).get_name()
            << "' to '"_view << selected->get_name() << "'."_view;
     report.get_hint()
         << "The source is valid; report this unstable linking result."_view;
     return False;
   }
 
-  addressable = Reference<const Language::Model::Addressable>(*selected);
+  addressable = &*selected;
   if (source_anchor) {
     cursor.get_associations().create(*source_anchor, *selected);
   }
@@ -118,24 +118,40 @@ auto Language::Access::Address::get_documentation() const
     -> const Documentation& {
   return addressable.visit(
       []() -> const Documentation& { return Documentation::get_empty(); },
-      [](const Reference<const Language::Model::Addressable>& selected)
-          -> const Documentation& {
-        return selected.get().get_documentation();
+      [](const Language::Model::Addressable* selected) -> const Documentation& {
+        return selected->get_documentation();
       });
 }
 
 auto Language::Access::Address::get_type() const -> const Abstract& {
   return addressable.visit(
       []() -> const Abstract& { return Unknown::get_unknown(); },
-      [](const Reference<const Language::Model::Addressable>& selected)
-          -> const Abstract& { return selected.get().get_type(); });
+      [](const Language::Model::Addressable* selected) -> const Abstract& {
+        return selected->get_type();
+      });
 }
 
 auto Language::Access::Address::get_result() const -> const Abstract& {
   return addressable.visit(
       []() -> const Abstract& { return Unknown::get_unknown(); },
-      [](const Reference<const Language::Model::Addressable>& selected)
-          -> const Abstract& { return selected.get(); });
+      [](const Language::Model::Addressable* selected) -> const Abstract& {
+        return *selected;
+      });
+}
+
+auto Language::Access::Address::resolve_concept(Core::View::Bytes query) const
+    -> const Abstract& {
+  if (query != "fold"_view) {
+    return Expression::resolve_concept(query);
+  }
+  const Abstract& selected = get_result();
+  return selected.is<Unknown>() ? selected : selected.resolve_concept(query);
+}
+
+auto Language::Access::Address::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Expression::visit_concepts(visitor);
+  visit_concept(visitor, "fold"_view, resolve_concept("fold"_view));
 }
 
 auto Language::Access::Address::finalize(Cursor& cursor) -> void {

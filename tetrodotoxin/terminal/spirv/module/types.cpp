@@ -25,9 +25,8 @@ Module::Types::Types(Ids& ids)
 
 static auto sample_result(const Library::Language::Model::Type& type)
     -> Core::Option<const Library::Language::Model::Type&> {
-  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-       type.get_callables()) {
-    auto function = candidate.get().select<Library::Language::Function>();
+  for (const Ttx::Concept::Abstract* candidate : type.get_callables()) {
+    auto function = candidate->select<Library::Language::Function>();
     if (!function) {
       continue;
     }
@@ -55,7 +54,7 @@ static auto sample_result(const Library::Language::Model::Type& type)
 auto Module::Types::find_resource(const Library::Language::Model::Type& type)
     const -> Core::Option<const Resource&> {
   for (const Resource& resource : resources.get_view()) {
-    if (&resource.type.get() == &type) {
+    if (resource.type == &type) {
       return resource;
     }
   }
@@ -78,7 +77,7 @@ auto Module::Types::get_id(const Library::Language::Model::Type& type) const
     return resource->sampled_id;
   }
   for (const Entry& entry : entries.get_view()) {
-    if (&entry.type.get() == &type) {
+    if (entry.type == &type) {
       return entry.id;
     }
   }
@@ -102,7 +101,7 @@ auto Module::Types::collect(const Library::Language::Model::Type& type)
              : value->get_width() != 32);
     for (const Entry& entry : entries.get_view()) {
       auto existing =
-          entry.type.get().select<Library::Language::Model::Types::Value>();
+          entry.type->select<Library::Language::Model::Types::Value>();
       if (existing && value->is_equivalent(*existing)) {
         entries.insert(Entry(type, entry.id));
         return True;
@@ -130,8 +129,7 @@ auto Module::Types::collect(const Library::Language::Model::Type& type)
 
 auto Module::Types::requires_float64() const -> Bool {
   for (const Entry& entry : entries.get_view()) {
-    auto real =
-        entry.type.get().select<Library::Language::Model::Types::Real>();
+    auto real = entry.type->select<Library::Language::Model::Types::Real>();
     if (real && real->get_width() == 64) {
       return True;
     }
@@ -183,7 +181,7 @@ auto Module::Types::get_pointer_id(
     const Library::Language::Model::Type& type,
     Assembler::SpirV::StorageClass storage) const -> Core::Option<U32> {
   for (const Pointer& pointer : pointers.get_view()) {
-    if (&pointer.type.get() == &type && pointer.storage == storage) {
+    if (pointer.type == &type && pointer.storage == storage) {
       return pointer.id;
     }
   }
@@ -193,7 +191,7 @@ auto Module::Types::get_pointer_id(
 auto Module::Types::get_resource_pointer_id(
     const Library::Language::Model::Type& type) const -> Core::Option<U32> {
   for (const Resource& resource : resources.get_view()) {
-    if (&resource.type.get() == &type) {
+    if (resource.type == &type) {
       return resource.pointer_id;
     }
   }
@@ -202,8 +200,7 @@ auto Module::Types::get_resource_pointer_id(
 
 auto Module::Types::get_unsigned_32_id() const -> Core::Option<U32> {
   for (const Entry& entry : entries.get_view()) {
-    auto type =
-        entry.type.get().select<Library::Language::Model::Types::Unsigned>();
+    auto type = entry.type->select<Library::Language::Model::Types::Unsigned>();
     if (type && type->get_width() == 32) {
       return entry.id;
     }
@@ -224,7 +221,7 @@ auto Module::Types::emit(Assembler::SpirV& assembler) const -> Bool {
     if (emitted_id) {
       continue;
     }
-    const Library::Language::Model::Type& type = entry.type.get();
+    const Library::Language::Model::Type& type = *entry.type;
     if (type.is<Library::Language::Model::Types::Flag>()) {
       assembler.type_bool(entry.id);
       continue;
@@ -295,7 +292,7 @@ auto Module::Types::emit(Assembler::SpirV& assembler) const -> Bool {
 
   for (const Resource& resource : resources.get_view()) {
     auto sampled =
-        resource.sampled.get().select<Library::Language::Types::Structure>();
+        resource.sampled->select<Library::Language::Types::Structure>();
     BAIL_IF(!sampled);
     auto component_semantic = sampled->get_layout().get_abstract(0);
     auto component =
@@ -314,7 +311,7 @@ auto Module::Types::emit(Assembler::SpirV& assembler) const -> Bool {
   }
 
   for (const Pointer& pointer : pointers.get_view()) {
-    auto type_id = get_id(pointer.type.get());
+    auto type_id = get_id(*pointer.type);
     BAIL_IF(!type_id);
     assembler.type_pointer(pointer.id, pointer.storage, *type_id);
   }

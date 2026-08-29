@@ -17,7 +17,7 @@ cc_library(
         "//tetrodotoxin/app/interpreter",
         "//tetrodotoxin/app/language",
         "//tetrodotoxin/language",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
     ],
 )

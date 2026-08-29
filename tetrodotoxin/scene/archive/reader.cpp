@@ -11,8 +11,8 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/scene/language/signal.hpp"
+#include "ttx/bootstrap/model/documentations/block.hpp"
 #include "ttx/lexical/anchor.hpp"
-#include "ttx/model/documentations/block.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -45,10 +45,8 @@ auto Scene::Archive::Reader::restore(
       Library::Archive::Reader::read(arena, *child_payload, library, context);
   BAIL_IF(!child);
   Option<Library::Language::Types::Object&> instance;
-  for (const Reference<Abstract>& declaration :
-       child->get_source().get_declarations()) {
-    auto candidate =
-        declaration.get().select<Library::Language::Types::Object>();
+  for (Abstract* declaration : child->get_source().get_declarations()) {
+    auto candidate = declaration->select<Library::Language::Types::Object>();
     if (candidate && candidate->get_name() == "Scene"_view) {
       BAIL_IF(instance);
       instance = *candidate;
@@ -91,9 +89,8 @@ auto Scene::Archive::Reader::restore(
         name->is_empty());
 
     Option<Library::Language::Function&> function;
-    for (const Reference<Abstract>& declaration :
-         instance->get_declarations()) {
-      auto candidate = declaration.get().select<Library::Language::Function>();
+    for (Abstract* declaration : instance->get_declarations()) {
+      auto candidate = declaration->select<Library::Language::Function>();
       if (candidate && candidate->get_name() == *name) {
         BAIL_IF(function);
         function = *candidate;

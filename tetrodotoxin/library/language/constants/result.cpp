@@ -4,6 +4,8 @@
 #include "tetrodotoxin/library/language/constants/result.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -39,7 +41,7 @@ Constants::Result::Result(
     : Constant(anchor),
       type(type),
       kind(kind),
-      payload(payload),
+      payload(&payload),
       name(
           domain,
           kind == Types::Result::Kind::Value ? "value"_view : "error"_view) {
@@ -107,10 +109,7 @@ auto Constants::Result::create_fitted(
 
   Model::Pack* payload = &source;
   if (!source.select_identity<Constant>()) {
-    Core::Option<Model::Pack&> folded;
-    Expression::fold(source).visit(
-        [&](const Core::Option<Model::Pack&>& selected) { folded = selected; },
-        [](const Expression::Error&) {});
+    auto folded = query_folded_pack(source);
     BAIL_IF(!folded);
     payload = &*folded;
   }
@@ -127,10 +126,27 @@ auto Constants::Result::create_fitted(
                : create_error(domain, type, *payload);
 }
 
+auto Constants::Result::resolve_concept(Core::View::Bytes name) const
+    -> const Ttx::Concept::Abstract& {
+  if (name != "propagate"_view) {
+    return Constant::resolve_concept(name);
+  }
+  return kind == Types::Result::Kind::Value
+             ? query_fold(*payload)
+             : static_cast<const Ttx::Concept::Abstract&>(
+                   Ttx::Concept::None::get_none());
+}
+
+auto Constants::Result::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Constant::visit_concepts(visitor);
+  visit_concept(visitor, "propagate"_view, resolve_concept("propagate"_view));
+}
+
 auto Constants::Result::equals(const Constant& rhs) const -> Bool {
   auto selected = rhs.select<Constants::Result>();
   return selected && has_same_type(rhs) && kind == selected->kind &&
-                 have_equal_values(payload.get(), selected->payload.get())
+                 have_equal_values(*payload, *selected->payload)
              ? True
              : False;
 }

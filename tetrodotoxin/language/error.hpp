@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 namespace Tetrodotoxin::Language {

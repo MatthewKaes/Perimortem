@@ -23,10 +23,10 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -88,10 +88,9 @@ static auto interpret(
 static auto find_field(
     const Language::Types::Composite& composite,
     View::Bytes name) -> Option<const Language::Field&> {
-  for (const Reference<Abstract>& binding : composite.get_addressables()) {
-    if (binding.get().get_name() == name &&
-        binding.get().is<Language::Field>()) {
-      return static_cast<const Language::Field&>(binding.get());
+  for (const Abstract* binding : composite.get_addressables()) {
+    if (binding->get_name() == name && binding->is<Language::Field>()) {
+      return static_cast<const Language::Field&>(*binding);
     }
   }
 

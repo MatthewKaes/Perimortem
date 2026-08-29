@@ -13,7 +13,6 @@
 #include "perimortem/system/path.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "puffer/dependencies.hpp"
 #include "puffer/publisher.hpp"
 #include "tetrodotoxin/app/dialect.hpp"
 #include "tetrodotoxin/environment/toolchain.hpp"
@@ -30,11 +29,31 @@
 #include "tetrodotoxin/terminal/graph_text.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/context.hpp"
-#include "ttx/model/layouts/fluid.hpp"
+#include "ttx/model/context.h"
+#include "ttx/model/layouts/fluid.h"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin;
+
+class AbstractAppender {
+ public:
+  explicit AbstractAppender(
+      Memory::Managed::Vector<const ttx_abstract*>& values)
+      : callable{&operations}, operations{.call = append}, values(values) {}
+
+  ttx_abstract_callable callable;
+
+ private:
+  static auto append(
+      ttx_abstract_callable* callable,
+      const ttx_abstract* abstract) -> void {
+    auto& self = *reinterpret_cast<AbstractAppender*>(callable);
+    self.values.insert(abstract);
+  }
+
+  ttx_abstract_callable_operations operations;
+  Memory::Managed::Vector<const ttx_abstract*>& values;
+};
 
 static auto write_error(Core::View::Bytes message) -> void {
   fwrite(message.get_data(), 1, CppSize(message.get_size()), stderr);
@@ -93,9 +112,7 @@ static auto append_cxx_products(
     Ttx::Lexical::Errors& errors,
     Core::View::Bytes source_path,
     Core::View::Bytes source_text,
-    Memory::Managed::Vector<
-        Ttx::Concept::Reference<const Ttx::Concept::Abstract>>& products)
-    -> Bool {
+    Memory::Managed::Vector<const ttx_abstract*>& products) -> Bool {
   auto package = monograph.select<Package::Language::Monograph>();
   BAIL_IF(!package);
 
@@ -111,15 +128,18 @@ static auto append_cxx_products(
   products.insert(
       Language::Product::create(
           arena, product_path(arena, *package, "api.h"_view),
-          generated->get_c_header()));
+          generated->get_c_header())
+          .get_abi());
   products.insert(
       Language::Product::create(
           arena, product_path(arena, *package, "api.hpp"_view),
-          generated->get_cpp_header()));
+          generated->get_cpp_header())
+          .get_abi());
   products.insert(
       Language::Product::create(
           arena, product_path(arena, *package, "api.cpp"_view),
-          generated->get_cpp_source()));
+          generated->get_cpp_source())
+          .get_abi());
   return True;
 }
 
@@ -138,7 +158,7 @@ auto Puffer::Source::run() const -> S32 {
 
   Memory::Allocator::Arena products;
   Ttx::Lexical::Errors errors;
-  Environment::Workspace workspace(toolchain);
+  Environment::Workspace workspace(toolchain, {}, &repository);
   const Language::Monograph* monograph = nullptr;
   Bool completed = False;
   if (is_package_source(contents->get_view(), source)) {
@@ -148,16 +168,6 @@ auto Puffer::Source::run() const -> S32 {
       root = "."_view;
     }
     Core::View::Bytes route = source_path.get_file();
-    Dependencies dependencies(
-        products, terminal_repository, package_repository);
-    if (!dependencies.discover(toolchain, root, source, route)) {
-      write_error("puffer: Package dependency could not be acquired"_view);
-      return 1;
-    }
-    if (!dependencies.restore(workspace)) {
-      write_error("puffer: Package dependency could not be restored"_view);
-      return 1;
-    }
     auto imported = workspace.import_package(errors, root, source, route);
     if (imported) {
       monograph = &*imported;
@@ -188,8 +198,8 @@ auto Puffer::Source::run() const -> S32 {
   }
   if (dump_graph) {
     const Language::Product& product = Terminal::GraphText::write(
-        products, source, monograph->get_language(), monograph->get_root(),
-        workspace);
+        products, source, monograph->get_language().get_abi(),
+        monograph->get_root().get_abi(), workspace.get_abi());
     fwrite(
         product.get_value().get_data(), 1,
         CppSize(product.get_value().get_size()), stdout);
@@ -199,10 +209,9 @@ auto Puffer::Source::run() const -> S32 {
     return 1;
   }
   auto dialect = monograph->get_language().select<Language::Dialect>();
-  auto produced = dialect ? dialect->produce(products, workspace, *monograph)
-                          : Core::Option<const Ttx::Concept::Pack&>();
-  Memory::Managed::Vector<Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-      publications(products);
+  const ttx_pack* produced =
+      dialect ? dialect->produce(products, workspace, *monograph) : nullptr;
+  Memory::Managed::Vector<const ttx_abstract*> publications(products);
   if (generate_cxx && !append_cxx_products(
                           products, *monograph, errors, source,
                           contents->get_view(), publications)) {
@@ -210,22 +219,41 @@ auto Puffer::Source::run() const -> S32 {
     write_error("puffer: selected graph does not support C++ generation"_view);
     return 1;
   }
-  if (!produced) {
+  if (produced == nullptr) {
     write_error("puffer: selected Dialect could not publish its product"_view);
     return 1;
   }
-  const Ttx::Concept::Layout& defaults = produced->get_layout();
-  for (Count index = 0; index < defaults.get_size(); index++) {
-    auto product = defaults.get_abstract(index);
-    if (!product) {
-      write_error("puffer: selected Dialect produced an invalid product"_view);
-      return 1;
-    }
-    publications.insert(*product);
+  AbstractAppender appender(publications);
+  ttx_layout_visit(ttx_pack_layout(produced), &appender.callable);
+  ttx_fluid_layout layout;
+  ttx_model_pack context_packs[1];
+  ttx_fluid_layout context_layouts[1];
+  ttx_named_layout context_named_layouts[1];
+  Memory::Managed::Vector<const ttx_abstract*> context_entries(products);
+  for (Count index = 0; index < publications.get_size(); index++) {
+    context_entries.insert(nullptr);
   }
-  Ttx::Model::Layouts::Fluid layout(publications.get_view());
-  Ttx::Model::Context publication_context(products);
-  if (!Publisher(terminal_root).publish(publication_context.pack(layout))) {
+  ttx_model_context context;
+  ttx_fluid_layout_initialize(
+      &layout, publications.get_view().get_data(), publications.get_size());
+  ttx_model_context_initialize(
+      &context,
+      ttx_model_context_storage{
+        .packs = context_packs,
+        .layouts = context_layouts,
+        .named_layouts = context_named_layouts,
+        .entries = context_entries.is_empty() ? nullptr : &context_entries[0],
+        .names = nullptr,
+        .name_bytes = nullptr,
+        .pack_capacity = 1,
+        .entry_capacity = publications.get_size(),
+        .name_capacity = 0,
+        .name_byte_capacity = 0,
+      });
+  const ttx_pack* publication =
+      ttx_context_pack(&context.context, &layout.layout);
+  if (publication == nullptr ||
+      !Publisher(terminal_root).publish(publication)) {
     write_error("puffer: product publication failed"_view);
     return 1;
   }

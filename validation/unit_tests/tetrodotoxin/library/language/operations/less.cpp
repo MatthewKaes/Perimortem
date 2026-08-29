@@ -22,7 +22,7 @@
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -134,7 +134,7 @@ PERIMORTEM_UNIT_TEST(LibraryLess, type_selection) {
   EXPECT(!link_operation(byte_values, source));
   EXPECT(!link_operation(invalid, source));
 
-  auto exact_result = selected(exact.fold());
+  auto exact_result = selected(test_fold(exact));
 
   EXPECT(&exact.get_type() == &resolve_library_flag(source));
   EXPECT(mixed_left.get_type().resolve().is<Unknown>());
@@ -172,10 +172,10 @@ PERIMORTEM_UNIT_TEST(LibraryLess, integer_ordering) {
   EXPECT(link_operation(signed_true, source));
   EXPECT(link_operation(signed_false, source));
 
-  auto unsigned_yes = selected(unsigned_true.fold());
-  auto unsigned_no = selected(unsigned_false.fold());
-  auto signed_yes = selected(signed_true.fold());
-  auto signed_no = selected(signed_false.fold());
+  auto unsigned_yes = selected(test_fold(unsigned_true));
+  auto unsigned_no = selected(test_fold(unsigned_false));
+  auto signed_yes = selected(test_fold(signed_true));
+  auto signed_no = selected(test_fold(signed_false));
 
   ASSERT(unsigned_yes && unsigned_no && signed_yes && signed_no);
   EXPECT(unsigned_yes->is_identity<Constants::True>());
@@ -208,9 +208,9 @@ PERIMORTEM_UNIT_TEST(LibraryLess, ieee_ordering) {
   EXPECT(link_operation(infinite, source));
   EXPECT(link_operation(unordered, source));
 
-  auto narrow_result = selected(narrow.fold());
-  auto infinite_result = selected(infinite.fold());
-  auto unordered_result = selected(unordered.fold());
+  auto narrow_result = selected(test_fold(narrow));
+  auto infinite_result = selected(test_fold(infinite));
+  auto unordered_result = selected(test_fold(unordered));
 
   ASSERT(narrow_result && infinite_result && unordered_result);
   EXPECT(narrow_result->is_identity<Constants::True>());
@@ -233,9 +233,9 @@ PERIMORTEM_UNIT_TEST(LibraryLess, stable_folding) {
   EXPECT(link_operation(less, source));
   EXPECT(&less.get_type() == &resolve_library_flag(source));
 
-  auto first = selected(less.fold());
-  auto second = selected(less.fold());
-  auto child_result = selected(child.fold());
+  auto first = selected(test_fold(less));
+  auto second = selected(test_fold(less));
+  auto child_result = selected(test_fold(child));
 
   ASSERT(first && second && child_result);
   EXPECT(&*first == &*second);

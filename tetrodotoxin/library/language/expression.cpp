@@ -3,16 +3,10 @@
 
 #include "tetrodotoxin/library/language/expression.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
-#include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/concept/constant.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -29,38 +23,6 @@ static auto select_value_type(const Abstract& candidate)
   auto type = select_output_type(candidate);
   BAIL_IF(!type || type->get_layout().is_empty());
   return *type;
-}
-
-static auto select_layout_type(const Abstract& candidate)
-    -> Option<const Language::Model::Type&> {
-  auto type = candidate.select<Language::Model::Type>();
-  if (type) {
-    return *type;
-  }
-
-  const Abstract& resolved = candidate.resolve();
-  auto addressable = resolved.select<Ttx::Model::Addressable>();
-  return addressable ? addressable->get_type().select<Language::Model::Type>()
-                     : resolved.select<Language::Model::Type>();
-}
-
-static auto has_exact_representation(
-    const Language::Model::Pack& representation,
-    const Language::Model::Type& type) -> Bool {
-  const Layout& required = type.get_layout();
-  const Layout& supplied = representation.get_layout();
-  BAIL_IF(required.get_size() != supplied.get_size());
-
-  for (Count index = 0; index < required.get_size(); index++) {
-    auto required_entry = required.get_abstract(index);
-    BAIL_IF(!required_entry);
-    auto required_type = select_layout_type(*required_entry);
-    auto supplied_type =
-        select_layout_type(representation.get_value_type(index));
-    BAIL_IF(
-        !required_type || !supplied_type || &*required_type != &*supplied_type);
-  }
-  return True;
 }
 
 static constexpr Ttx::Model::Layouts::Fluid empty_expression_layout;
@@ -97,35 +59,12 @@ auto Language::Expression::resolve_concept(View::Bytes name) const
   if (name == "expression"_view) {
     return *this;
   }
-  if (name != "folded"_view) {
-    return Abstract::resolve_concept(name);
-  }
-
-  return folded.visit(
-      []() -> const Abstract& { return Unknown::get_unknown(); },
-      [](const Language::Model::Pack& representation) -> const Abstract& {
-        auto identity = representation.get_identity();
-        return identity && identity->is<Ttx::Concept::Constant>()
-                   ? *identity
-                   : static_cast<const Abstract&>(None::get_none());
-      },
-      [](const Error&) -> const Abstract& { return None::get_none(); });
+  return Abstract::resolve_concept(name);
 }
 
-auto Language::Expression::get_concepts(Context& context) const
-    -> const Ttx::Concept::Pack& {
-  const Perimortem::Core::Static::Vector<Reference<const Abstract>, 2>
-      concepts = {{
-        *this,
-        resolve_concept("folded"_view),
-      }};
-  const Perimortem::Core::Static::Vector<View::Bytes, 2> names = {{
-    "expression"_view,
-    "folded"_view,
-  }};
-  Ttx::Model::Layouts::Fluid values(concepts);
-  Ttx::Model::Layouts::Named named(values, names);
-  return context.pack(named);
+auto Language::Expression::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  visit_concept(visitor, "expression"_view, *this);
 }
 
 auto Language::Expression::get_value_type(Count index) const
@@ -141,9 +80,7 @@ auto Language::Expression::get_value_type(Count index) const
           });
 }
 
-auto Language::Expression::finalize(Ttx::Lexical::Cursor&) -> void {
-  fold();
-}
+auto Language::Expression::finalize(Ttx::Lexical::Cursor&) -> void {}
 
 auto Language::Expression::link(
     Ttx::Lexical::Cursor& cursor,
@@ -185,108 +122,6 @@ auto Language::Expression::Error::get_name() const -> View::Bytes {
   }
 
   return "unknown fold failure"_view;
-}
-
-auto Language::Expression::fold() -> Perimortem::Utility::
-    Result<Perimortem::Core::Option<Language::Model::Pack&>, Error> {
-  if (!folded.is_null()) {
-    return folded.visit(
-        []() -> Perimortem::Utility::Result<
-                 Perimortem::Core::Option<Language::Model::Pack&>, Error> {
-          return Perimortem::Core::Option<Language::Model::Pack&>{};
-        },
-        [](Language::Model::Pack& representation)
-            -> Perimortem::Utility::Result<
-                Perimortem::Core::Option<Language::Model::Pack&>, Error> {
-          return representation;
-        },
-        [](const Error& error)
-            -> Perimortem::Utility::Result<
-                Perimortem::Core::Option<Language::Model::Pack&>, Error> {
-          return error;
-        });
-  }
-
-  if (&resolve() == &Unknown::get_unknown()) {
-    return Perimortem::Core::Option<Language::Model::Pack&>{};
-  }
-
-  auto result = evaluate();
-  return result.visit(
-      [&](const Perimortem::Core::Option<Language::Model::Pack&>& selected)
-          -> Perimortem::Utility::Result<
-              Perimortem::Core::Option<Language::Model::Pack&>, Error> {
-        if (!selected) {
-          return Perimortem::Core::Option<Language::Model::Pack&>{};
-        }
-
-        Language::Model::Pack& representation = *selected;
-        const Layout& representation_layout = representation.get_layout();
-        Bool constants = True;
-        for (Count index = 0; index < representation_layout.get_size();
-             index++) {
-          auto entry = representation_layout.get_abstract(index);
-          constants &= Bool(
-              entry && entry->is<Tetrodotoxin::Library::Language::Constant>());
-        }
-
-        if (!constants) {
-          Error error(Error::Type::InvalidConstant, *this);
-          folded = error;
-          return error;
-        }
-
-        const Layout& source_layout = get_layout();
-        Bool exact_shape = False;
-        if (source_layout.get_size() == 1) {
-          auto expression_type =
-              get_type().resolve().select<Language::Model::Type>();
-          if (expression_type && representation_layout.get_size() == 1) {
-            const Abstract& result_type = representation.get_type().resolve();
-            exact_shape = result_type.is<Language::Model::Type>() &&
-                          &*expression_type == &result_type;
-          } else if (expression_type) {
-            exact_shape =
-                has_exact_representation(representation, *expression_type);
-          }
-        } else if (
-            source_layout.get_size() == representation_layout.get_size()) {
-          // The authored Layout owns the output promise. A folded Pack may
-          // replace a repeated producer (such as one Slice identity) with its
-          // concrete Tetrodotoxin::Library::Language::Constant entries, so the
-          // reverse fit is not meaningful: it would ask those Constants to
-          // reproduce the source owner.
-          exact_shape = source_layout.fits(representation_layout);
-        }
-
-        if (!exact_shape) {
-          Error error(Error::Type::ResultTypeMismatch, *this);
-          folded = error;
-          return error;
-        }
-
-        folded = representation;
-        return Perimortem::Core::Option<Language::Model::Pack&>(representation);
-      },
-      [&](const Error& error)
-          -> Perimortem::Utility::Result<
-              Perimortem::Core::Option<Language::Model::Pack&>, Error> {
-        folded = error;
-        return error;
-      });
-}
-
-auto Language::Expression::fold(Language::Model::Pack& pack) -> Perimortem::
-    Utility::Result<Perimortem::Core::Option<Language::Model::Pack&>, Error> {
-  if (pack.select_identity<Language::Constant>()) {
-    return Perimortem::Core::Option<Language::Model::Pack&>(pack);
-  }
-  auto expression = pack.select_identity<Expression>();
-  return expression
-             ? expression->fold()
-             : Perimortem::Utility::Result<
-                   Perimortem::Core::Option<Language::Model::Pack&>, Error>(
-                   Perimortem::Core::Option<Language::Model::Pack&>());
 }
 
 auto Language::Expression::get_write_type(
@@ -369,52 +204,4 @@ auto Language::Expression::accepts_write(
     const Language::Model::Type& access_scope) const -> Bool {
   auto target_type = get_write_type(access_scope);
   return target_type && source.fits_into(*target_type);
-}
-
-auto Language::Expression::get_folded()
-    -> Perimortem::Core::Option<Language::Model::Pack&> {
-  return folded.visit(
-      []() -> Perimortem::Core::Option<Language::Model::Pack&> { return {}; },
-      [](Language::Model::Pack& representation)
-          -> Perimortem::Core::Option<Language::Model::Pack&> {
-        return representation;
-      },
-      [](const Error&) -> Perimortem::Core::Option<Language::Model::Pack&> {
-        return {};
-      });
-}
-
-auto Language::Expression::get_folded() const
-    -> Perimortem::Core::Option<const Language::Model::Pack&> {
-  return folded.visit(
-      []() -> Perimortem::Core::Option<const Language::Model::Pack&> {
-        return {};
-      },
-      [](const Language::Model::Pack& representation)
-          -> Perimortem::Core::Option<const Language::Model::Pack&> {
-        return representation;
-      },
-      [](const Error&)
-          -> Perimortem::Core::Option<const Language::Model::Pack&> {
-        return {};
-      });
-}
-
-auto Language::Expression::evaluate() -> Perimortem::Utility::
-    Result<Perimortem::Core::Option<Language::Model::Pack&>, Error> {
-  if (is<Tetrodotoxin::Library::Language::Constant>()) {
-    return static_cast<Language::Model::Pack&>(*this);
-  }
-
-  const Abstract& result = get_result();
-  auto constant =
-      result.resolve().select<Tetrodotoxin::Library::Language::Constant>();
-  if (constant) {
-    return static_cast<Language::Model::Pack&>(
-        const_cast<Tetrodotoxin::Library::Language::Constant&>(*constant));
-  }
-
-  auto addressable = result.resolve().select<Language::Model::Addressable>();
-  return addressable ? addressable->get_constant()
-                     : Option<Language::Model::Pack&>();
 }

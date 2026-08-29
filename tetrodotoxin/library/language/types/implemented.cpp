@@ -50,7 +50,7 @@ auto Types::Implemented::bind_authored_requirement(Ttx::Lexical::Cursor& cursor)
     return False;
   }
 
-  requirement = Reference<const Interface>(*interface);
+  requirement = &*interface;
   return materialize_fields();
 }
 
@@ -66,7 +66,7 @@ auto Types::Implemented::resolve_restored_requirement() -> Bool {
       },
       [](const TypeReference::Failure&) {});
   BAIL_IF(!selected);
-  requirement = Reference<const Interface>(*selected);
+  requirement = &*selected;
   return True;
 }
 
@@ -76,20 +76,20 @@ auto Types::Implemented::materialize_fields() -> Bool {
   }
   BAIL_IF(!requirement);
 
-  Managed::Vector<Reference<Abstract>> requirements(get_domain());
-  for (const Reference<Abstract>& declaration :
-       requirement->get().get_addressables(
-           Tetrodotoxin::Language::Visibility::Public)) {
+  Managed::Vector<Abstract*> requirements(get_domain());
+  for (Abstract* declaration :
+       (**requirement)
+           .get_addressables(Tetrodotoxin::Language::Visibility::Public)) {
     requirements.insert(declaration);
   }
   for (Count index = requirements.get_size(); index != 0; index--) {
-    const Reference<Abstract>& declaration = requirements[index - 1];
-    auto required = declaration.get().select<Field>();
+    Abstract* declaration = requirements[index - 1];
+    auto required = declaration->select<Field>();
     BAIL_IF(!required);
 
     Field* supplied = nullptr;
-    for (const Reference<Abstract>& retained : get_addressables()) {
-      auto candidate = retained.get().select<Field>();
+    for (Abstract* retained : get_addressables()) {
+      auto candidate = retained->select<Field>();
       if (candidate && candidate->get_name() == required->get_name()) {
         BAIL_IF(supplied);
         supplied = &*candidate;
@@ -120,7 +120,7 @@ auto Types::Implemented::materialize_fields() -> Bool {
 
 auto Types::Implemented::link_fields(Ttx::Lexical::Cursor& cursor) -> Bool {
   BAIL_IF(!requirement || !body_complete);
-  Interface& selected = const_cast<Interface&>(requirement->get());
+  Interface& selected = const_cast<Interface&>(**requirement);
   BAIL_IF(!selected.link_fields(cursor));
   complete_field_layout();
   return Object::link_fields(cursor);
@@ -129,11 +129,11 @@ auto Types::Implemented::link_fields(Ttx::Lexical::Cursor& cursor) -> Bool {
 auto Types::Implemented::link_initializers(Ttx::Lexical::Cursor& cursor)
     -> Bool {
   BAIL_IF(!requirement);
-  Interface& selected = const_cast<Interface&>(requirement->get());
+  Interface& selected = const_cast<Interface&>(**requirement);
   BAIL_IF(!selected.link_initializers(cursor));
   for (GeneratedField generated : generated_fields.get_view()) {
-    BAIL_IF(!generated.implementation.get().retain_generated_initializer(
-        generated.requirement.get()));
+    BAIL_IF(!generated.implementation->retain_generated_initializer(
+        *generated.requirement));
   }
   return Object::link_initializers(cursor);
 }
@@ -141,7 +141,7 @@ auto Types::Implemented::link_initializers(Ttx::Lexical::Cursor& cursor)
 auto Types::Implemented::finalize(Ttx::Lexical::Cursor& cursor) -> Bool {
   BAIL_IF(!Object::finalize(cursor) || !requirement);
   Interfaces::Structure relation;
-  if (!relation.accepts(requirement->get(), *this)) {
+  if (relation.negotiate(**requirement, *this) == TTX_INTERFACE_REJECTED) {
     cursor.create_expression_error(
         get_anchor(),
         "Library Object does not satisfy its authored Interface."_view,
@@ -153,7 +153,7 @@ auto Types::Implemented::finalize(Ttx::Lexical::Cursor& cursor) -> Bool {
 
 auto Types::Implemented::link_restored_fields() -> Bool {
   BAIL_IF(!resolve_restored_requirement());
-  Interface& selected = const_cast<Interface&>(requirement->get());
+  Interface& selected = const_cast<Interface&>(**requirement);
   BAIL_IF(!selected.link_restored_fields() || !materialize_fields());
   complete_field_layout();
   return Object::link_restored_fields();
@@ -161,11 +161,11 @@ auto Types::Implemented::link_restored_fields() -> Bool {
 
 auto Types::Implemented::link_restored_initializers() -> Bool {
   BAIL_IF(!requirement);
-  Interface& selected = const_cast<Interface&>(requirement->get());
+  Interface& selected = const_cast<Interface&>(**requirement);
   BAIL_IF(!selected.link_restored_initializers());
   for (GeneratedField generated : generated_fields.get_view()) {
-    BAIL_IF(!generated.implementation.get().retain_generated_initializer(
-        generated.requirement.get()));
+    BAIL_IF(!generated.implementation->retain_generated_initializer(
+        *generated.requirement));
   }
   return Object::link_restored_initializers();
 }
@@ -173,9 +173,11 @@ auto Types::Implemented::link_restored_initializers() -> Bool {
 auto Types::Implemented::finalize_restored() -> Bool {
   BAIL_IF(!Object::finalize_restored() || !requirement);
   Interfaces::Structure relation;
-  return relation.accepts(requirement->get(), *this);
+  return relation.negotiate(**requirement, *this) != TTX_INTERFACE_REJECTED
+             ? True
+             : False;
 }
 
 auto Types::Implemented::satisfies(const Abstract& selected) const -> Bool {
-  return requirement && &requirement->get().resolve() == &selected.resolve();
+  return requirement && &(**requirement).resolve() == &selected.resolve();
 }

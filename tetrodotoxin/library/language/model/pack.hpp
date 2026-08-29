@@ -8,12 +8,11 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/concept/pack.h"
 #include "ttx/lexical/anchor.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/pack.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model {
 
@@ -27,8 +26,16 @@ namespace Tetrodotoxin::Library::Language::Model {
 // observation is total even while a Pack is incomplete. Only resolving itself
 // admits that Layout as produced flow, where empty output means zero values
 // rather than an incomplete sentinel.
-class Pack : public Ttx::Model::Pack {
+class Pack {
  public:
+  virtual ~Pack() = default;
+
+  virtual constexpr auto get_layout() const -> const Ttx::Concept::Layout& = 0;
+
+  constexpr auto get_abi() const -> const ttx_pack* { return &abi.pack; }
+
+  static auto from_abi(const ttx_pack* pack) -> const Pack&;
+
   static auto from(Ttx::Concept::Abstract& identity)
       -> Perimortem::Core::Option<Pack&>;
   static auto from(const Ttx::Concept::Abstract& identity)
@@ -131,7 +138,7 @@ class Pack : public Ttx::Model::Pack {
   // describe evaluation. Terminal producers use this query only after proving
   // that the Pack is not an Expression.
   virtual constexpr auto get_entries() const
-      -> Perimortem::Core::View::Vector<Ttx::Model::PackReference<Pack>> {
+      -> Perimortem::Core::View::Vector<Pack*> {
     return {};
   }
 
@@ -145,7 +152,7 @@ class Pack : public Ttx::Model::Pack {
   // children remain the only value identities and evaluation edges.
   static auto create_group(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Vector<Ttx::Model::PackReference<Pack>> entries,
+      Perimortem::Core::View::Vector<Pack*> entries,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names = {},
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor = {}) -> Pack&;
 
@@ -154,20 +161,35 @@ class Pack : public Ttx::Model::Pack {
   // immediately observable through the ordinary Pack contract.
   static auto create_folded(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Vector<Ttx::Model::PackReference<Pack>> entries)
-      -> Pack&;
+      Perimortem::Core::View::Vector<Pack*> entries) -> Pack&;
 
   // Generated execution owners may compose an already linked named Pack.
   // Unlike authored groups, every supplied entry is already a completed graph
   // edge and no lexical pass may replace it.
   static auto create_completed(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Vector<Ttx::Model::PackReference<Pack>> entries,
+      Perimortem::Core::View::Vector<Pack*> entries,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names = {})
       -> Pack&;
 
  protected:
-  constexpr Pack() = default;
+  constexpr Pack() : abi{{&abi_operations}, this} {}
+
+  Pack(const Pack&) = delete;
+  Pack(Pack&&) = delete;
+  auto operator=(const Pack&) -> Pack& = delete;
+  auto operator=(Pack&&) -> Pack& = delete;
+
+ private:
+  struct Abi {
+    ttx_pack pack;
+    const Pack* owner;
+  };
+
+  static auto layout_abi(const ttx_pack* pack) -> const ttx_layout*;
+  static const ttx_pack_operations abi_operations;
+
+  Abi abi;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Model

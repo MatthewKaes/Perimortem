@@ -257,12 +257,11 @@ auto Archive::read_folded(
       names.insert(arena.proxy(*name));
     }
 
-    Memory::Managed::Vector<Ttx::Model::PackReference<Language::Model::Pack>>
-        entries(arena);
+    Memory::Managed::Vector<Language::Model::Pack*> entries(arena);
     for (Count index = 0; index < *count; index++) {
       auto entry = read_folded(contents, arena, lexical_context);
       BAIL_IF(!entry);
-      entries.insert(*entry);
+      entries.insert(&*entry);
     }
     BAIL_IF(!contents.is_complete());
     return Language::Model::Pack::create_completed(

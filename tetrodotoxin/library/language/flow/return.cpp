@@ -16,7 +16,7 @@ auto Language::Flow::Return::create_authored(
     Anchor anchor,
     Model::Pack& pack) -> Return& {
   return domain.construct_from<Return>(
-      [&]() -> Return { return Return(anchor, pack); });
+      [&]() -> Return { return Return(anchor, &pack); });
 }
 
 auto Language::Flow::Return::link(
@@ -28,7 +28,7 @@ auto Language::Flow::Return::link(
     return True;
   }
 
-  Model::Pack& selected = pack.get();
+  Model::Pack& selected = *pack;
   BAIL_IF(!selected.link(cursor, lexical_context, access_scope));
   // Return owns produced flow, not contextual identity traversal. Reject a
   // selected Type before result fitting asks it for a value Layout.
@@ -57,5 +57,5 @@ auto Language::Flow::Return::link(
 }
 
 auto Language::Flow::Return::finalize(Cursor& cursor) -> void {
-  pack.get().finalize(cursor);
+  pack->finalize(cursor);
 }

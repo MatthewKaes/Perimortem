@@ -5,7 +5,9 @@
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/flow/scope.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -40,7 +42,7 @@ auto Language::Access::Propagate::link(
   }
 
   auto scope = lexical_context.select<Flow::Scope>();
-  if (receiver_type && &receiver_type->get() != &*selected_type) {
+  if (receiver_type && *receiver_type != &*selected_type) {
     cursor.create_expression_error(
         get_anchor(), "Postfix `?` selected a different receiver Type."_view,
         "Repeat linking with the same completed receiver identity."_view);
@@ -49,7 +51,7 @@ auto Language::Access::Propagate::link(
 
   auto propagated_error = selected_type->get_propagated_error_type();
   if (propagated_error) {
-    if (error_type && &error_type->get() != &*propagated_error) {
+    if (error_type && *error_type != &*propagated_error) {
       cursor.create_expression_error(
           get_anchor(),
           "Postfix `?` selected a different propagated error Type."_view,
@@ -61,9 +63,8 @@ auto Language::Access::Propagate::link(
       ErrorEscape& created = Expression::create_synthetic<ErrorEscape>(
           cursor.get_arena(),
           [&](Core::Option<Anchor>) { return ErrorEscape(*propagated_error); });
-      escape = Ttx::Model::PackReference<Model::Pack>(created);
-      error_type =
-          Ttx::Concept::Reference<const Model::Type>(*propagated_error);
+      escape = &created;
+      error_type = &*propagated_error;
     }
   } else if (error_type) {
     cursor.create_expression_error(
@@ -72,7 +73,7 @@ auto Language::Access::Propagate::link(
     return False;
   }
 
-  Model::Pack& selected_escape = escape.get();
+  Model::Pack& selected_escape = *escape;
   BAIL_IF(!selected_escape.link(cursor, lexical_context, access_scope));
   if (!scope || !selected_escape.fits(scope->get_function_results())) {
     auto report = cursor.create_report(get_anchor());
@@ -98,7 +99,7 @@ auto Language::Access::Propagate::link(
     return False;
   }
 
-  if (continuation_type && &continuation_type->get() != &*propagated) {
+  if (continuation_type && *continuation_type != &*propagated) {
     cursor.create_expression_error(
         get_anchor(),
         "Postfix `?` selected a different continuation Type."_view,
@@ -106,56 +107,59 @@ auto Language::Access::Propagate::link(
     return False;
   }
 
-  receiver_type = Reference<const Language::Model::Type>(*selected_type);
-  continuation_type = Reference<const Language::Model::Type>(*propagated);
+  receiver_type = &*selected_type;
+  continuation_type = &*propagated;
   return Expression::link(cursor, lexical_context, access_scope);
 }
 
 auto Language::Access::Propagate::get_type() const -> const Abstract& {
   return continuation_type.visit(
       []() -> const Abstract& { return Unknown::get_unknown(); },
-      [](const Reference<const Language::Model::Type>& selected)
-          -> const Abstract& { return selected.get(); });
+      [](const Language::Model::Type* selected) -> const Abstract& {
+        return *selected;
+      });
+}
+
+auto Language::Access::Propagate::resolve_concept(Core::View::Bytes name) const
+    -> const Abstract& {
+  if (name != "fold"_view) {
+    return Expression::resolve_concept(name);
+  }
+  return const_cast<Propagate&>(*this).evaluate_fold().visit(
+      [](const Core::Option<Model::Pack&>& result) -> const Abstract& {
+        return fold_answer(result);
+      },
+      [](const Expression::Error&) -> const Abstract& {
+        return Ttx::Concept::None::get_none();
+      });
+}
+
+auto Language::Access::Propagate::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Expression::visit_concepts(visitor);
+  visit_concept(visitor, "fold"_view, resolve_concept("fold"_view));
 }
 
 auto Language::Access::Propagate::finalize(Cursor& cursor) -> void {
   receiver.finalize(cursor);
-  escape.get().finalize(cursor);
+  escape->finalize(cursor);
   Expression::finalize(cursor);
 }
 
-auto Language::Access::Propagate::evaluate()
+auto Language::Access::Propagate::evaluate_fold()
     -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
-  Core::Option<Model::Pack&> folded;
-  Core::Option<Expression::Error> error;
-  Expression::fold(receiver).visit(
-      [&](const Core::Option<Model::Pack&>& selected) { folded = selected; },
-      [&](const Expression::Error& selected) { error = selected; });
-  if (error) {
-    return *error;
-  }
-  if (!folded) {
+  const Abstract& folded = query_fold(receiver);
+  if (!Ttx::Concept::Constant::prove(folded)) {
     return Core::Option<Model::Pack&>{};
   }
-
-  auto selected_type = receiver_type.visit(
-      []() -> Core::Option<const Language::Model::Type&> { return {}; },
-      [](const Reference<const Language::Model::Type>& selected)
-          -> Core::Option<const Language::Model::Type&> {
-        return selected.get();
-      });
-  if (!selected_type) {
+  const Abstract& propagated = folded.resolve_concept("propagate"_view);
+  if (&propagated == &Ttx::Concept::None::get_none()) {
+    return Core::Option<Model::Pack&>{};
+  }
+  if (!Ttx::Concept::Constant::prove(propagated)) {
     return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
   }
-
-  return selected_type->fold_propagation(*folded).visit(
-      [](const Core::Option<Model::Pack&>& propagated)
-          -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
-        return propagated;
-      },
-      [&](Bool)
-          -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
-        return Expression::Error(
-            Expression::Error::Type::InvalidConstant, *this);
-      });
+  auto pack = Model::Pack::from(const_cast<Abstract&>(propagated));
+  return pack ? Core::Option<Model::Pack&>(*pack)
+              : Core::Option<Model::Pack&>();
 }

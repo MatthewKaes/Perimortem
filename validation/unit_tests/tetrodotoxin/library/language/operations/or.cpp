@@ -16,7 +16,7 @@
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/s8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -66,10 +66,7 @@ class OrFoldInput : public Operation {
       Model::Pack& input,
       Tetrodotoxin::Library::Language::Constant& result,
       Bool fails = False)
-      : Operation(
-            domain,
-            Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1>{{input}},
-            {}),
+      : Operation(domain, Static::Vector<Model::Pack*, 1>{{&input}}, {}),
         result(result),
         fails(fails) {}
 
@@ -120,26 +117,6 @@ static auto selected(
       },
       [](const Expression::Error&)
           -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
-}
-
-static auto reports(
-    const Result<Option<Model::Pack&>, Expression::Error>& result,
-    Expression::Error::Type expected,
-    const Abstract& origin) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>&) { return False; },
-      [&](const Expression::Error& error) {
-        return error.get_type() == expected && &error.get_subject() == &origin
-                   ? True
-                   : False;
-      });
-}
-
-static auto is_dynamic(
-    const Result<Option<Model::Pack&>, Expression::Error>& result) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>& folded) { return !folded ? True : False; },
-      [](const Expression::Error&) { return False; });
 }
 
 static auto matches_anchor(
@@ -194,8 +171,8 @@ PERIMORTEM_UNIT_TEST(LibraryOr, exact_type_and_edges) {
 
   EXPECT(&canonical.get_type() == &resolve_library_flag(source));
   EXPECT(&distinct_pair.get_type() == &distinct_bool);
-  EXPECT(is_dynamic(canonical.fold()));
-  EXPECT(is_dynamic(distinct_pair.fold()));
+  EXPECT(concept_is_nonfoldable(test_fold(canonical)));
+  EXPECT(concept_is_nonfoldable(test_fold(distinct_pair)));
   EXPECT(distinct_left.get_type().resolve().is<Unknown>());
   EXPECT(distinct_right.get_type().resolve().is<Unknown>());
   EXPECT(signed_operation.get_type().resolve().is<Unknown>());
@@ -223,11 +200,11 @@ PERIMORTEM_UNIT_TEST(LibraryOr, truth_table) {
   EXPECT(link_operation(false_true, source));
   EXPECT(link_operation(false_false, source));
 
-  auto both = selected(true_true.fold());
-  auto left = selected(true_false.fold());
-  auto right = selected(false_true.fold());
-  auto neither = selected(false_false.fold());
-  auto repeated = selected(false_false.fold());
+  auto both = selected(test_fold(true_true));
+  auto left = selected(test_fold(true_false));
+  auto right = selected(test_fold(false_true));
+  auto neither = selected(test_fold(false_false));
+  auto repeated = selected(test_fold(false_false));
 
   ASSERT(both && left && right && neither && repeated);
   EXPECT(both->is_identity<Constants::True>());
@@ -262,18 +239,14 @@ PERIMORTEM_UNIT_TEST(LibraryOr, ordered_reachability) {
   EXPECT(link_operation(reached, source));
   EXPECT(link_operation(dynamic_left, source));
 
-  auto skipped_result = selected(skipped.fold());
+  auto skipped_result = selected(test_fold(skipped));
 
   ASSERT(skipped_result);
   EXPECT(skipped_result->is_identity<Constants::True>());
   EXPECT(skipped_failure.get_evaluations() == 0);
-  EXPECT(reports(
-      reached.fold(), Expression::Error::Type::InvalidConstant,
-      reached_failure));
+  EXPECT(concept_is_nonfoldable(test_fold(reached)));
   EXPECT(reached_failure.get_evaluations() == 1);
-  EXPECT(reports(
-      dynamic_left.fold(), Expression::Error::Type::InvalidConstant,
-      dynamic_failure));
+  EXPECT(concept_is_nonfoldable(test_fold(dynamic_left)));
   EXPECT(dynamic_failure.get_evaluations() == 1);
 }
 

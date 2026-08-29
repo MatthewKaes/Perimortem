@@ -7,12 +7,11 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Shader::Language {
 
@@ -93,9 +92,9 @@ class Bridge : public Ttx::Concept::Abstract {
         []() -> Perimortem::Core::Option<const Ttx::Model::Type&> {
           return {};
         },
-        [](const Ttx::Concept::Reference<const Ttx::Model::Type>& selected)
+        [](const Ttx::Model::Type* selected)
             -> Perimortem::Core::Option<const Ttx::Model::Type&> {
-          return selected.get();
+          return *selected;
         });
   }
 
@@ -105,9 +104,9 @@ class Bridge : public Ttx::Concept::Abstract {
         []() -> Perimortem::Core::Option<const Ttx::Model::Type&> {
           return {};
         },
-        [](const Ttx::Concept::Reference<const Ttx::Model::Type>& selected)
+        [](const Ttx::Model::Type* selected)
             -> Perimortem::Core::Option<const Ttx::Model::Type&> {
-          return selected.get();
+          return *selected;
         });
   }
 
@@ -132,10 +131,8 @@ class Bridge : public Ttx::Concept::Abstract {
   Direction direction;
   Marshaling marshaling;
   Synchronization synchronization;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
-      cpu_type;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
-      gpu_type;
+  Perimortem::Core::Option<const Ttx::Model::Type*> cpu_type;
+  Perimortem::Core::Option<const Ttx::Model::Type*> gpu_type;
 };
 
 }  // namespace Tetrodotoxin::Shader::Language

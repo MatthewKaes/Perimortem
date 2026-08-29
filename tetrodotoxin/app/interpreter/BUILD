@@ -15,7 +15,7 @@ cc_library(
         "//perimortem:headless",
         "//tetrodotoxin/app/language",
         "//tetrodotoxin/language",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
     ],
 )

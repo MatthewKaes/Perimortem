@@ -4,7 +4,7 @@
 #include "tetrodotoxin/shader/language/bridge.hpp"
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -56,8 +56,8 @@ auto Shader::Language::Bridge::link(Cursor& cursor, const Abstract& context)
     return False;
   }
 
-  cpu_type = Reference<const Ttx::Model::Type>(*library_type);
-  gpu_type = Reference<const Ttx::Model::Type>(*shader_type);
+  cpu_type = &*library_type;
+  gpu_type = &*shader_type;
   return True;
 }
 
@@ -79,8 +79,8 @@ auto Shader::Language::Bridge::link_restored(const Abstract& context) -> Bool {
       (marshaling == Marshaling::Identity &&
        (!library_type->get_layout().fits(shader_type->get_layout()) ||
         !shader_type->get_layout().fits(library_type->get_layout()))));
-  cpu_type = Reference<const Ttx::Model::Type>(*library_type);
-  gpu_type = Reference<const Ttx::Model::Type>(*shader_type);
+  cpu_type = &*library_type;
+  gpu_type = &*shader_type;
   return True;
 }
 

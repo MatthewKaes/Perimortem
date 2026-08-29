@@ -155,10 +155,10 @@ facts. Its contextual resolution behavior remains part of the concrete
 language contract.
 
 The common Monograph Type provides stable identity, Documentation, the Arena
-that owns its durable semantic graph, exact Dialect layer negotiation, and the
-link and finalize hooks required by Environment. Those hooks receive the Cursor
-for the current textual operation rather than consulting retained diagnostics.
-A Monograph answers
+that owns its durable semantic graph, exact Dialect layer negotiation, and one
+repeatable read only validation operation. Validation receives the Cursor for
+the current textual operation rather than consulting retained diagnostics. A
+Monograph answers
 `get_layer(requested_dialect)` only for itself or one fixed child built from
 that exact installed Dialect identity. This is capability negotiation rather
 than contextual name resolution: it follows no Alias, consults no registry,
@@ -167,8 +167,8 @@ and creates no wrapper.
 A plain source Monograph is one layer. A composite Dialect may own a fixed set
 of child Monographs when those children are the real semantic owners of facts
 used by the outer language. Only the outer Monograph is retained as the Package
-member. It drives child linking and finalization with the operation's Cursor and
-owns their payload framing. This is enough for a Workspace to retain
+member. It validates each child through the same operation Cursor and owns their
+payload framing. This is enough for a Workspace to retain
 heterogeneous sources without flattening them into one member inventory or
 permitting arbitrary Dialect nesting.
 
@@ -199,10 +199,10 @@ Workspace retains one source record containing the Arena owner, outer
 Monograph, and immutable Associations index whenever interpretation establishes
 that root. Comments, Attributes, Tokens, semantic facts, and association edges
 can therefore borrow the retained source directly. Reports written to the
-Cursor during that operation keep the source from publishing, but Workspace
-still attempts linking so independent and earlier facts can settle for editor
-queries. Completion decides whether a Terminal may consume the result. There is
-no second graph Arena or defensive source copy phase.
+Cursor during that operation keep the source from publishing, while independent
+and earlier facts remain available through live queries. Repeatable validation
+decides whether a Terminal may consume the result. There is no second graph
+Arena, semantic linking phase, or defensive source copy phase.
 
 Installed Dialect dependencies form a strict directed acyclic graph. The host
 constructing a Toolchain injects each exact dependency instance. An outer
@@ -213,16 +213,14 @@ path, and Bazel dependency direction must describe this same graph. A special
 build carveout needed only to break a Dialect cycle is evidence that a contract
 has been assigned to the wrong owner.
 
-One direct source has four semantic stages:
+One direct source has three semantic stages:
 
 1. The selected Dialect constructs one optional Monograph in the source
    transaction Arena and writes any source reports through the Cursor.
 2. Workspace retains the Monograph and its lexical evidence when present.
-3. Linking attempts to resolve every contextual route the retained graph can
-   currently answer. Earlier declarations and independent branches can settle
-   even when another source form remains incomplete.
-4. Finalization runs only when interpretation and linking completed without
-   errors, and performs language work that requires the complete linked island.
+3. Repeatable validation asks the current graph queries whether the source is
+   complete enough for immutable Terminal production. It retains no selected
+   answer and changes no semantic identity.
 
 Workspace performs these stages synchronously with the one source Cursor. An
 incomplete Monograph remains queryable as the author's current source state,
@@ -234,18 +232,17 @@ Package supplies one restricted Library export surface. Common Alias imports in
 each source name local source or exact Package edges. Workspace owns the
 candidate Arena handles, operation Cursors, durable Associations indexes, path
 canonicalization, and source graph walk. It retains every Monograph it can
-create, links the acyclic graph dependency first, and finalizes only after every
-member completes interpretation and linking without errors. A Package import
-must already be completed in the same Workspace.
+create and validates the complete current query graph before publication. A
+Package import is one immutable authority already supplied to that Workspace.
 
 This model gives immutable consumers a clear starting point. A compiler,
 Archive writer, or other Terminal producer begins after completion. Only code
 inside an active Package transaction may observe a route that is not settled
-yet, and it must ask that question again during linking or finalization.
+yet, and every later observation asks the owning authority again.
 
-Authored parsing, linking, and finalization report textual failures through the
-operation Cursor. The outer Monograph and every fixed child receive the matching
-source Cursor explicitly during completion. Later tools recover the immutable
+Authored parsing and validation report textual failures through the operation
+Cursor. The outer Monograph and every fixed child receive the matching source
+Cursor explicitly. Later tools recover the immutable
 Associations index from Workspace using the completed outer Monograph. A
 compiler receives the exact source path and bytes with the caller owned
 textual error sink for its own source attributed reports. No completed consumer
@@ -283,17 +280,16 @@ enter Pack flow, but it retains the exact selected identity for another access.
 
 Postfix `::` is consequently a Library access Expression. Its receiver must
 produce an exact Type result, and the access produces the selected Type as its
-own result. Declaration positions instead retain a type reference with no
-identity. It contains one contextual route with an optional Generic argument
-Layout. A Type entry may itself be another type reference, so materialization
-can be nested. Without an argument Layout, the route must resolve to a Library
-Type. With one, the route must resolve to a Generic formula that materializes
-the exact Library Type during linking. An explicit empty Layout applies a
-formula with no arguments. It is distinct from an omitted Layout. The route can
-cross Alias, Package, Monograph, source root, Type, or another Abstract context
-after the relevant Type inventory exists. Only its terminal result must prove
-the Library Type protocol. A declaration reference never becomes an Expression
-or pretends its intermediate contexts are Types.
+own result. Declaration positions build `Language::Reference` identities. Each
+Reference retains one stable host Abstract and one authored segment, then asks
+that host for the segment whenever it resolves. A qualified spelling is a
+chain of those References rather than one owner selecting an entire route.
+Generic arguments remain an optional recursive Layout beside the terminal
+Reference. Absence requires the terminal answer to prove a Library Type, while
+an authored empty Layout applies a zero parameter Generic formula. Only the
+Generic owns canonical materialization. A declaration Reference never becomes
+an Expression, caches its selected answer, or pretends its intermediate
+contexts are Types.
 
 A Structure may expose a Field, Callable, and nested Type with the same
 spelling because the authored operator already identifies the query domain.
@@ -390,7 +386,7 @@ semantic authority.
 The GPU path is parallel. Shader and Pipeline complete target neutral GPU facts,
 the Vulkan Terminal derives their SPIR V module and matching CPU program
 description, and Linker carries the module as read only data in the Package's
-native product. The Vulkan runtime consumes that linked artifact together with
+native product. The Vulkan runtime consumes that packaged artifact together with
 generated descriptors, Graphics batches, and one selected host surface. It owns
 realized resources, commands, handles, and synchronization. Those facts never
 flow downward into Shader, Pipeline, or Library.
@@ -568,9 +564,8 @@ validated Package Archive
 -> Package creates and reserves its reconstructed context
 -> each outer Dialect receives its payload and that exact context
 -> each Dialect returns one optional Monograph from its reconstruction Arena
--> Package links every Monograph
--> Package finalizes every Monograph
--> Workspace retains the Arenas and publishes the completed Package root
+-> Package validates every Monograph against the reconstructed authorities
+-> Workspace retains the Arenas and publishes the accepted Package root
 ```
 
 The restored Workspace contains new process objects that reproduce every public

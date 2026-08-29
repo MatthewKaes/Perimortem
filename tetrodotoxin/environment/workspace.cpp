@@ -18,11 +18,11 @@
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/resource.hpp"
 #include "tetrodotoxin/package/storage.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -56,17 +56,51 @@ static auto append_storage_failure(
 
 Environment::Workspace::Workspace(
     Toolchain& selected_toolchain,
-    Option<Dynamic::Record<Package::Snapshots>> selected_snapshots)
+    Option<Dynamic::Record<Package::Snapshots>> selected_snapshots,
+    Package::Repository::Repository* selected_repository)
     : toolchain(selected_toolchain),
+      repository(selected_repository),
       snapshots(selected_snapshots),
       arena(),
       retained_sources(),
       package_members(arena),
       retained_monographs(),
       packages(arena),
-      pending_package_imports() {}
+      active_packages() {}
 
 Environment::Workspace::~Workspace() = default;
+
+auto Environment::Workspace::restore_coordinate(
+    View::Bytes identity,
+    Version version) -> Bool {
+  for (const ImportedPackage& imported : packages.get_view()) {
+    if (imported.identity == identity) {
+      return imported.version == version;
+    }
+  }
+  BAIL_IF(repository == nullptr);
+  for (const ActivePackage& active : active_packages.get_view()) {
+    BAIL_IF(active.identity == identity);
+  }
+
+  Option<const Package::Archive::Archive&> selected;
+  repository->select_archive(identity, version)
+      .visit(
+          [&](const Package::Archive::Archive& archive) { selected = archive; },
+          [](Package::Repository::Repository::Error) {});
+  BAIL_IF(!selected);
+
+  active_packages.insert(ActivePackage{identity, version});
+  Bool complete = True;
+  for (const Package::Archive::GraphImport& import : selected->get_imports()) {
+    if (import.get_kind() == Language::Import::Kind::Package) {
+      complete &= restore_coordinate(import.get_target(), import.get_version());
+    }
+  }
+  active_packages.remove(active_packages.get_size() - 1);
+  BAIL_IF(!complete);
+  return Bool(restore_package(*selected, identity));
+}
 
 auto Environment::Workspace::interpret_source(
     Errors& errors,
@@ -135,12 +169,11 @@ auto Environment::Workspace::interpret_source(
     .completed = False,
   });
 
-  // Linking can still enrich a retained graph after interpretation reports an
-  // incomplete source form. The earlier report keeps publication closed while
-  // editor queries gain any Types and declaration edges that did settle.
+  // Validation can still enrich a retained graph after interpretation reports
+  // an incomplete source form. The earlier report keeps publication closed
+  // while editor queries gain any Types and declaration edges that did settle.
   source_error_count = errors.get_size();
-  Bool composed = monograph.compose(cursor);
-  Bool linked = composed && monograph.link(cursor);
+  Bool linked = monograph.link(cursor);
   if (!linked && completed && errors.get_size() == source_error_count) {
     cursor.create_error(
         "Source linking failed without a more specific diagnostic."_view);
@@ -158,8 +191,7 @@ auto Environment::Workspace::interpret_source(
     }
   }
 
-  retained_monographs.insert(
-      retained_name, Ttx::Concept::Reference<Language::Monograph>(monograph));
+  retained_monographs.insert(retained_name, &monograph);
   retained_sources[retained_index].completed = completed;
   return completed ? Option<Language::Monograph&>(monograph)
                    : Option<Language::Monograph&>();
@@ -311,9 +343,7 @@ auto Environment::Workspace::import_package(
         });
       }
     }
-    retained_monographs.insert(
-        arena.proxy(root_semantic_name),
-        Ttx::Concept::Reference<Language::Monograph>(root));
+    retained_monographs.insert(arena.proxy(root_semantic_name), &root);
     retained = True;
   };
 
@@ -336,9 +366,8 @@ auto Environment::Workspace::import_package(
   for (Count candidate_index = 0; candidate_index < candidates.get_size();
        candidate_index++) {
     Language::Monograph& importer = *candidates[candidate_index];
-    for (const Reference<Language::Import>& retained_type :
-         importer.get_imports()) {
-      Language::Import& import = retained_type.get();
+    for (Language::Import* retained_type : importer.get_imports()) {
+      Language::Import& import = *retained_type;
       if (import.get_acquired()) {
         continue;
       }
@@ -354,20 +383,21 @@ auto Environment::Workspace::import_package(
             break;
           }
         }
+        if (!selected &&
+            restore_coordinate(import.get_locator(), import.get_version())) {
+          for (const ImportedPackage& candidate : packages.get_view()) {
+            if (candidate.identity == import.get_locator() &&
+                candidate.version == import.get_version()) {
+              selected = candidate;
+              break;
+            }
+          }
+        }
         auto target =
             selected
                 ? selected->monograph->get_root().select<Ttx::Model::Type>()
                 : Option<const Ttx::Model::Type&>();
         if (!target || !import.acquire(*target)) {
-          if (!selected && !pending_package_imports.get_view().contains(
-                               [&](const Reference<Language::Import>& pending) {
-                                 return pending.get().get_locator() ==
-                                            import.get_locator() &&
-                                        pending.get().get_version() ==
-                                            import.get_version();
-                               })) {
-            pending_package_imports.emplace(import);
-          }
           cursors[candidate_index]->create_expression_error(
               import.get_declaration_anchor(),
               "Package Import did not select one restored exact Package."_view,
@@ -506,9 +536,8 @@ auto Environment::Workspace::import_package(
       return False;
     }
     source_states[index] = 1;
-    for (const Reference<Language::Import>& retained_type :
-         candidates[index]->get_imports()) {
-      Language::Import& import = retained_type.get();
+    for (Language::Import* retained_type : candidates[index]->get_imports()) {
+      Language::Import& import = *retained_type;
       if (import.get_kind() != Language::Import::Kind::Source) {
         continue;
       }
@@ -536,41 +565,16 @@ auto Environment::Workspace::import_package(
     }
   }
 
-  // Composition follows installed Dialect order after every member identity is
-  // present. Dependency Dialects can publish inherited declarations before an
-  // unrelated Library consumer links, so Package source order never chooses
-  // the available semantic surface.
-  Bool composed = parsed;
-  for (const Reference<Language::Dialect>& dialect : toolchain.get_dialects()) {
-    for (Count i = 0; i < candidates.get_size(); i++) {
-      if (&candidates[i]->get_language() != &dialect.get()) {
-        continue;
-      }
-
-      Count source_error_count = errors.get_size();
-      Bool candidate_composed = candidates[i]->compose(*cursors[i]);
-      if (!candidate_composed) {
-        if (parse_validity[i] && errors.get_size() == source_error_count) {
-          cursors[i]->create_error(
-              "Package source composition failed without a more specific "
-              "diagnostic."_view);
-        }
-        composed = False;
-      }
-    }
-  }
-
-  // Ordinary linking still visits every retained candidate so tooling keeps
+  // Validation visits every retained candidate so tooling keeps
   // the strongest graph it can observe. Publication remains closed when any
-  // earlier composition or parse step failed.
-  Bool linked = composed;
+  // earlier parse step failed.
+  Bool linked = parsed;
   for (Count ordered = 0; ordered < source_order.get_size(); ordered++) {
     Count i = source_order[ordered];
     Count source_error_count = errors.get_size();
     Bool imports_resolved = True;
-    for (const Reference<Language::Import>& retained_type :
-         candidates[i]->get_imports()) {
-      imports_resolved &= retained_type.get().validate(*cursors[i]);
+    for (Language::Import* retained_type : candidates[i]->get_imports()) {
+      imports_resolved &= retained_type->validate(*cursors[i]);
     }
     Bool candidate_linked =
         imports_resolved && candidates[i]->link(*cursors[i]);
@@ -642,11 +646,10 @@ auto Environment::Workspace::restore_package(
         "Package restoration requires the installed Package Dialect."_view);
     return {};
   }
-  Managed::Vector<Reference<Package::Resource>> resources(*root_transaction);
+  Managed::Vector<Package::Resource*> resources(*root_transaction);
   for (const Package::Archive::Resource& archived : archive.get_resources()) {
-    resources.insert(
-        Package::Resource::create(
-            *root_transaction, archived.get_route(), archived.get_value()));
+    resources.insert(&Package::Resource::create(
+        *root_transaction, archived.get_route(), archived.get_value()));
   }
   Package::Language::Monograph& root =
       Package::Language::Monograph::create_synthetic(
@@ -731,9 +734,8 @@ auto Environment::Workspace::restore_package(
       return {};
     }
     Language::Import& import =
-        importer->get_imports()
-            .get_data()[importer->get_imports().get_size() - 1]
-            .get();
+        *importer->get_imports()
+             .get_data()[importer->get_imports().get_size() - 1];
 
     const Ttx::Model::Type* target = nullptr;
     if (archived.get_kind() == Language::Import::Kind::Source) {
@@ -775,9 +777,8 @@ auto Environment::Workspace::restore_package(
     }
     BAIL_IF(restored_states[index] == 1);
     restored_states[index] = 1;
-    for (const Reference<Language::Import>& retained_type :
-         monographs[index]->get_imports()) {
-      Language::Import& import = retained_type.get();
+    for (Language::Import* retained_type : monographs[index]->get_imports()) {
+      Language::Import& import = *retained_type;
       if (import.get_kind() != Language::Import::Kind::Source) {
         continue;
       }
@@ -804,29 +805,10 @@ auto Environment::Workspace::restore_package(
     }
   }
 
-  for (const Reference<Language::Dialect>& dialect : toolchain.get_dialects()) {
-    for (Count index = 0; index < monographs.get_size(); index++) {
-      if (&monographs[index]->get_language() != &dialect.get()) {
-        continue;
-      }
-      if (!monographs[index]->compose_restored()) {
-        Diagnostics::Log::Message<256> message(
-            Diagnostics::Log::Level::Error, Diagnostics::Source());
-        message << "Package restoration failed while composing `"_view
-                << monographs[index]->get_name() << "` member `"_view
-                << (index == 0 ? "PackageSurface"_view
-                               : restored_member_names[index - 1])
-                << "`."_view;
-        return {};
-      }
-    }
-  }
-
   for (Count ordered = 0; ordered < restored_order.get_size(); ordered++) {
     Count index = restored_order[ordered];
-    for (const Reference<Language::Import>& retained_type :
-         monographs[index]->get_imports()) {
-      Language::Import& import = retained_type.get();
+    for (Language::Import* retained_type : monographs[index]->get_imports()) {
+      Language::Import& import = *retained_type;
       if (!import.validate_restored()) {
         Diagnostics::Log::Message<256> message(
             Diagnostics::Log::Level::Error, Diagnostics::Source());
@@ -876,8 +858,7 @@ auto Environment::Workspace::restore_package(
     .monograph = &root,
   });
   View::Bytes retained_name = arena.proxy(root_semantic_name);
-  retained_monographs.insert(
-      retained_name, Ttx::Concept::Reference<Language::Monograph>(root));
+  retained_monographs.insert(retained_name, &root);
   return root;
 }
 
@@ -1140,9 +1121,7 @@ auto Environment::Workspace::find_acquired_location(
   BAIL_IF(owner == nullptr);
 
   Bool retained = owner->get_resources().get_values().contains(
-      [&](const Reference<Package::Resource>& candidate) {
-        return &candidate.get() == &*resource;
-      });
+      [&](Package::Resource* candidate) { return candidate == &*resource; });
   BAIL_IF(!retained);
   return AuthoredLocation(
       importer->package_root, resource->get_route(), {},
@@ -1165,30 +1144,21 @@ auto Environment::Workspace::resolve_concept(View::Bytes route) const
     -> const Abstract& {
   return retained_monographs.visit(
       route,
-      [](const Reference<Language::Monograph>& selected) -> const Abstract& {
-        return selected.get();
+      [](Language::Monograph* selected) -> const Abstract& {
+        return *selected;
       },
       []() -> const Abstract& { return Unknown::get_unknown(); });
 }
 
-auto Environment::Workspace::get_concepts(Context& context) const
-    -> const Pack& {
-  Count size = retained_monographs.get_size() + package_members.get_size();
-  Dynamic::Vector<Reference<const Abstract>> monographs(size);
-  Dynamic::Vector<View::Bytes> names(size);
+auto Environment::Workspace::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
   for (Count index = 0; index < retained_monographs.get_size(); index++) {
     const auto* entry = retained_monographs.get_entry(index);
     if (entry != nullptr) {
-      names.insert(entry->key);
-      monographs.insert(entry->value.get());
+      visit_concept(visitor, entry->key, *entry->value);
     }
   }
   for (const PackageMember& member : package_members.get_view()) {
-    names.insert(member.name);
-    monographs.insert(*member.monograph);
+    visit_concept(visitor, member.name, *member.monograph);
   }
-
-  Ttx::Model::Layouts::Fluid values(monographs.get_view());
-  Ttx::Model::Layouts::Named named(values, names.get_view());
-  return context.pack(named);
 }

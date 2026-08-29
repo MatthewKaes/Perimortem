@@ -7,7 +7,10 @@
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
+#include "ttx/bootstrap/concept/constant.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -33,7 +36,7 @@ auto Language::Flow::Local::create_authored(
 
 auto Language::Flow::Local::get_type() const -> const Abstract& {
   if (type) {
-    return type->get();
+    return **type;
   }
   if (!type_reference) {
     return Unknown::get_unknown();
@@ -74,7 +77,7 @@ auto Language::Flow::Local::link(
           "Choose a Type with one value leaf or remove the Local."_view);
       return False;
     }
-    if (type && &type->get() != &*selected_type) {
+    if (type && *type != &*selected_type) {
       cursor.create_expression_error(
           type_reference->get_anchor(),
           "Local Type linking selected a different semantic identity."_view,
@@ -82,7 +85,7 @@ auto Language::Flow::Local::link(
       return False;
     }
 
-    type = Reference<const Language::Model::Type>(*selected_type);
+    type = &*selected_type;
   }
 
   auto selected_initializer = initializer.visit(
@@ -145,20 +148,20 @@ auto Language::Flow::Local::link(
       return False;
     }
 
-    type = Reference<const Language::Model::Type>(*inferred_type);
+    type = &*inferred_type;
     BAIL_IF(!link_constant(cursor));
     initializer_linked = True;
     return True;
   }
 
-  if (!selected_initializer->fits_into(type->get())) {
+  if (!selected_initializer->fits_into(**type)) {
     auto report = cursor.create_report(anchor);
     report << "Initializer for Local '"_view << name
-           << "' does not fit declared Type '"_view << type->get().get_name()
+           << "' does not fit declared Type '"_view << (**type).get_name()
            << "'.\nSource produces: "_view;
     Language::Diagnostics::write_pack(report, *selected_initializer);
     report << "\nTarget accepts: "_view;
-    Language::Diagnostics::write_layout(report, type->get().get_layout());
+    Language::Diagnostics::write_layout(report, (**type).get_layout());
     report.get_hint()
         << "Change the initializer or declare the exact Type it produces."_view;
     return False;
@@ -192,19 +195,22 @@ auto Language::Flow::Local::finalize(Cursor& cursor) -> void {
       []() {}, [&](Model::Pack& selected) { selected.finalize(cursor); });
 }
 
-auto Language::Flow::Local::get_constant() const -> Core::Option<Model::Pack&> {
-  if (writability != Writability::Constant || !cache_constant()) {
-    return {};
-  }
+auto Language::Flow::Local::resolve_concept(Core::View::Bytes query) const
+    -> const Abstract& {
+  return query == "fold"_view ? resolve_fold()
+                              : Model::Addressable::resolve_concept(query);
+}
 
-  return constant.visit(
-      []() -> Core::Option<Model::Pack&> { return {}; },
-      [](const Ttx::Model::PackReference<Model::Pack>& selected)
-          -> Core::Option<Model::Pack&> { return selected.get(); });
+auto Language::Flow::Local::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Model::Addressable::visit_concepts(visitor);
+  visit_concept(visitor, "fold"_view, resolve_fold());
 }
 
 auto Language::Flow::Local::link_constant(Cursor& cursor) const -> Bool {
-  if (writability != Writability::Constant || cache_constant()) {
+  const Abstract& answer = resolve_fold();
+  if (writability != Writability::Constant ||
+      (&answer != &None::get_none() && Ttx::Concept::Constant::prove(answer))) {
     return True;
   }
 
@@ -215,56 +221,41 @@ auto Language::Flow::Local::link_constant(Cursor& cursor) const -> Bool {
   return False;
 }
 
-auto Language::Flow::Local::cache_constant() const -> Bool {
-  // A const Local may recurse through another const query while its Expression
-  // folds. State records that cycle without manufacturing a partial value.
-  if (constant_state == ConstantState::Folded) {
-    return True;
+auto Language::Flow::Local::resolve_fold() const -> const Abstract& {
+  if (writability != Writability::Constant) {
+    return None::get_none();
   }
-  if (constant_state == ConstantState::Folding ||
-      constant_state == ConstantState::Failed) {
-    return False;
-  }
-
-  constant_state = ConstantState::Folding;
-  auto local_type = get_type().select<Model::Type>();
-  BAIL_IF(!local_type);
-  // Target owned fitting runs before ordinary folding because the receiving
-  // Type may construct a value whose Layout differs from the authored source.
-  auto fitted = initializer.visit(
-      []() -> Core::Option<Model::Pack&> { return {}; },
-      [&](Model::Pack& source) {
-        return local_type->create_fitted(domain, source);
-      });
-  if (fitted) {
-    constant = Ttx::Model::PackReference<Model::Pack>(*fitted);
-    constant_state = ConstantState::Folded;
-    return True;
-  }
-
   auto source = initializer.visit(
-      []() -> Core::Option<Model::Pack&> { return {}; },
-      [](Model::Pack& selected) -> Core::Option<Model::Pack&> {
+      []() -> Core::Option<const Model::Pack&> { return {}; },
+      [](const Model::Pack& selected) -> Core::Option<const Model::Pack&> {
         return selected;
       });
   if (!source) {
-    constant_state = ConstantState::Failed;
-    return False;
+    return Unknown::get_unknown();
   }
-
-  Expression::fold(*source).visit(
-      [&](const Core::Option<Model::Pack&>& folded) {
-        // Dynamic absence may become constant after another declaration closes,
-        // so it returns to Unresolved rather than poisoning future attempts.
-        if (!folded) {
-          constant_state = ConstantState::Unresolved;
-          return;
-        }
-        constant = Ttx::Model::PackReference<Model::Pack>(*folded);
-        constant_state = ConstantState::Folded;
-      },
-      [&](const Expression::Error&) {
-        constant_state = ConstantState::Failed;
-      });
-  return constant_state == ConstantState::Folded;
+  if (source->get_layout().is_empty() && folded_input && folded_result) {
+    return Abstract::from_abi(folded_result);
+  }
+  auto input_pack =
+      query_folded_pack(domain, const_cast<Model::Pack&>(*source));
+  if (!input_pack) {
+    return query_fold(*source);
+  }
+  const Abstract& input = *input_pack->get_identity();
+  if (folded_input == input.get_abi() && folded_result) {
+    return Abstract::from_abi(folded_result);
+  }
+  auto local_type = get_type().select<Model::Type>();
+  if (!local_type) {
+    return None::get_none();
+  }
+  auto fitted = local_type->create_fitted(domain, *input_pack);
+  const Abstract& result =
+      fitted ? fold_answer(Core::Option<Model::Pack&>(*fitted)) : input;
+  if (!Ttx::Concept::Constant::prove(result)) {
+    return None::get_none();
+  }
+  folded_input = input.get_abi();
+  folded_result = result.get_abi();
+  return result;
 }

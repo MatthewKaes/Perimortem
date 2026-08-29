@@ -17,6 +17,11 @@ TTX is not another source language and it is not the representation every
 language eventually becomes. It is the small place where independently owned
 meaning can meet.
 
+The public graph and model contracts are C17 typed handles and immutable
+operation tables. C++ Dialects currently use the explicit `ttx/bootstrap/`
+bridge while moving onto those handles; that bootstrap surface is not a second
+TTX contract and may not introduce semantics absent from the C ABI.
+
 [Tetrodotoxin](../tetrodotoxin/README.md) brings those objects together in one
 Workspace. TTX remains small enough to be used by another host, but its clearest
 role in this repository is the semantic foundation shared by the complete
@@ -112,7 +117,7 @@ Abstract
 └── Callable
 ```
 
-`Layout`, `Pack`, `Context`, `Interface`, `Documentation`, and `Reference`
+`Layout`, `Pack`, `Context`, `Interface`, and `Documentation`
 describe, negotiate, or connect those objects without becoming separate
 language objects themselves.
 
@@ -123,10 +128,11 @@ name and Documentation while resolving to another identity. `Unknown` is a
 provisional answer, `Constant` is an immutable axiomatic fact, and `None` proves
 completed absence.
 
-A Reference points to the object created by its owner. Equal names, structures,
-and Layouts do not make two objects the same Type. This distinction lets
-Packages, languages, editors, and compilers share one fact instead of keeping
-several copies synchronized.
+A typed C handle points to the object created by its owner. TTX adds no
+Reference wrapper, lease, or lifetime token. Equal names, structures, and
+Layouts do not make two objects the same Type. This distinction lets Packages,
+languages, editors, and compilers share one fact instead of keeping several
+copies synchronized.
 
 ### Packs and semantic Layout
 
@@ -156,14 +162,14 @@ named Pack slots use `.name = value` because they supply value flow. Concrete
 languages decide where either delimiter may be omitted without ambiguity.
 Omitting a delimiter does not change the semantic Pack or Layout.
 
-A Layout describes an ordered shape and how supplied values fit it. TTX provides
-five common forms:
+A Layout describes a shape through synchronous visitation and how supplied
+values fit it. Order is semantic only when its concrete owner promises ordered
+value flow. TTX provides five common forms:
 
 * `Value` is an identity free Layout containing one atomic Type.
 * `Fluid` describes and fits ordered positional entries.
-* `Named` retains uniquely named slots and fits them by name. A slot can borrow
-  a name independently while fitted queries still return the exact source
-  identity.
+* `Named` wraps one complete Layout, retains uniquely named slots, exposes a
+  typed name aware visitor, and owns reordering during fitting.
 * `Ranged` describes one entry repeated over a fixed interval.
 * `Composite` joins complete descriptors without flattening them.
 

@@ -37,7 +37,10 @@ cc_library(
 cc_library(
     name = "abi_core",
     srcs = glob(["abi/core/*.cpp"]) + ["abi/log.cpp"],
-    hdrs = glob(["abi/core/*.hpp"]),
+    hdrs = glob([
+        "abi/c/*.h",
+        "abi/core/*.hpp",
+    ]),
     copts = ["-Wreturn-type-c-linkage"],
     includes = ["."],
     deps = [

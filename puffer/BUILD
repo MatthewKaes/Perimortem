@@ -22,20 +22,7 @@ cc_library(
     deps = [
         "//perimortem:headless",
         "//tetrodotoxin/language",
-        "//ttx:concept",
-    ],
-)
-
-cc_library(
-    name = "dependencies",
-    srcs = ["dependencies.cpp"],
-    hdrs = ["dependencies.hpp"],
-    deps = [
-        "//perimortem:headless",
-        "//tetrodotoxin:environment",
-        "//tetrodotoxin:package",
-        "//tetrodotoxin/language",
-        "//ttx",
+        "//ttx:bootstrap_concept",
     ],
 )
 
@@ -54,7 +41,6 @@ cc_library(
         exclude = ["lsp/position_encoding.hpp"],
     ),
     deps = [
-        ":dependencies",
         ":position_encoding",
         "//perimortem:headless",
         "//tetrodotoxin:environment",
@@ -66,7 +52,7 @@ cc_library(
         "//tetrodotoxin/scene",
         "//tetrodotoxin/shader",
         "//tetrodotoxin/terminal:graph_text",
-        "//ttx",
+        "//ttx:bootstrap",
     ],
 )
 
@@ -80,7 +66,6 @@ cc_binary(
         "source.hpp",
     ],
     deps = [
-        ":dependencies",
         ":lsp",
         ":publisher",
         "//perimortem:headless",
@@ -92,6 +77,6 @@ cc_binary(
         "//tetrodotoxin/scene",
         "//tetrodotoxin/shader",
         "//tetrodotoxin/terminal:abi",
-        "//ttx",
+        "//ttx:bootstrap",
     ],
 )

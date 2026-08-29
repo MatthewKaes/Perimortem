@@ -14,10 +14,9 @@
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/types/instance.hpp"
 #include "tetrodotoxin/library/language/types/static.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/layouts/named.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -166,8 +165,8 @@ class Composite : public Model::Type {
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   virtual auto resolve_public_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract&;
@@ -235,21 +234,12 @@ class Composite : public Model::Type {
   Perimortem::Memory::Allocator::Arena& domain;
   Static& static_authority;
   Instance& instance_authority;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      addressables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*> addressables;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*>
       published_addressables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      types;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      published_types;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      declarations;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*> types;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*> published_types;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*> declarations;
   Perimortem::Core::Option<const Ttx::Model::Layouts::Named&> layout;
   Stage stage = Stage::Authored;
 };

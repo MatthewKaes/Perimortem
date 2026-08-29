@@ -5,8 +5,8 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -27,36 +27,32 @@ auto Shader::Language::Monograph::create(
 }
 
 auto Shader::Language::Monograph::retain_program(Program& program) -> Bool {
-  for (const Reference<Program>& retained : programs.get_view()) {
-    BAIL_IF(retained.get().get_name() == program.get_name());
+  for (const Program* retained : programs.get_view()) {
+    BAIL_IF(retained->get_name() == program.get_name());
   }
-  programs.insert(program);
+  programs.insert(&program);
   return True;
 }
 
 auto Shader::Language::Monograph::retain_bridge(Bridge& bridge) -> Bool {
-  for (const Reference<Bridge>& retained : bridges.get_view()) {
-    BAIL_IF(retained.get().get_name() == bridge.get_name());
+  for (const Bridge* retained : bridges.get_view()) {
+    BAIL_IF(retained->get_name() == bridge.get_name());
   }
-  bridges.insert(bridge);
+  bridges.insert(&bridge);
   return True;
-}
-
-auto Shader::Language::Monograph::compose(Cursor& cursor) -> Bool {
-  Bool valid = True;
-  for (Reference<Program> program : programs.get_view()) {
-    valid &= program.get().compose_contract(cursor);
-  }
-  return valid;
 }
 
 auto Shader::Language::Monograph::link(Cursor& cursor) -> Bool {
   if (linked) {
     return True;
   }
-  Bool valid = library.link(cursor);
-  for (Reference<Bridge> bridge : bridges.get_view()) {
-    valid &= bridge.get().link(cursor, *this);
+  Bool valid = True;
+  for (Program* program : programs.get_view()) {
+    valid &= program->compose_contract(cursor);
+  }
+  valid &= library.link(cursor);
+  for (Bridge* bridge : bridges.get_view()) {
+    valid &= bridge->link(cursor, *this);
   }
   linked = valid;
   return valid;
@@ -67,18 +63,10 @@ auto Shader::Language::Monograph::finalize(Cursor& cursor) -> Bool {
     return True;
   }
   Bool valid = library.finalize(cursor);
-  for (Reference<Program> program : programs.get_view()) {
-    valid &= program.get().validate_contract(cursor);
+  for (Program* program : programs.get_view()) {
+    valid &= program->validate_contract(cursor);
   }
   finalized = valid;
-  return valid;
-}
-
-auto Shader::Language::Monograph::compose_restored() -> Bool {
-  Bool valid = True;
-  for (Reference<Program> program : programs.get_view()) {
-    valid &= program.get().compose_contract_restored();
-  }
   return valid;
 }
 
@@ -87,9 +75,13 @@ auto Shader::Language::Monograph::link_restored() -> Bool {
     return True;
   }
 
-  Bool valid = library.link_restored();
-  for (Reference<Bridge> bridge : bridges.get_view()) {
-    valid &= bridge.get().link_restored(*this);
+  Bool valid = True;
+  for (Program* program : programs.get_view()) {
+    valid &= program->compose_contract_restored();
+  }
+  valid &= library.link_restored();
+  for (Bridge* bridge : bridges.get_view()) {
+    valid &= bridge->link_restored(*this);
   }
   linked = valid;
   return valid;
@@ -105,11 +97,11 @@ auto Shader::Language::Monograph::finalize_restored() -> Bool {
     Diagnostics::Log::error(
         "Shader Archive could not finalize its restored Library child."_view);
   }
-  for (Reference<Program> program : programs.get_view()) {
-    if (!program.get().validate_contract_restored()) {
+  for (Program* program : programs.get_view()) {
+    if (!program->validate_contract_restored()) {
       Diagnostics::Log::Message<256> message(
           Diagnostics::Log::Level::Error, Diagnostics::Source());
-      message << "Shader Archive Program `"_view << program.get().get_name()
+      message << "Shader Archive Program `"_view << program->get_name()
               << "` no longer satisfies its restored Pipeline contract."_view;
       valid = False;
     }
@@ -137,14 +129,14 @@ auto Shader::Language::Monograph::resolve_concept(View::Bytes route) const
   if (route == "instance"_view) {
     return None::get_none();
   }
-  for (const Reference<Program>& program : programs.get_view()) {
+  for (const Program* program : programs.get_view()) {
     if (route == "Material"_view) {
-      return program.get().get_instance();
+      return program->get_instance();
     }
   }
-  for (const Reference<Bridge>& bridge : bridges.get_view()) {
-    if (bridge.get().get_name() == route) {
-      return bridge.get();
+  for (const Bridge* bridge : bridges.get_view()) {
+    if (bridge->get_name() == route) {
+      return *bridge;
     }
   }
 
@@ -156,14 +148,14 @@ auto Shader::Language::Monograph::resolve_concept(View::Bytes route) const
 
 auto Shader::Language::Monograph::resolve_lexical_context(
     View::Bytes route) const -> const Abstract& {
-  for (const Reference<Program>& program : programs.get_view()) {
+  for (const Program* program : programs.get_view()) {
     if (route == "Material"_view) {
-      return program.get().get_instance();
+      return program->get_instance();
     }
   }
-  for (const Reference<Bridge>& bridge : bridges.get_view()) {
-    if (bridge.get().get_name() == route) {
-      return bridge.get();
+  for (const Bridge* bridge : bridges.get_view()) {
+    if (bridge->get_name() == route) {
+      return *bridge;
     }
   }
 

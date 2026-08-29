@@ -6,7 +6,6 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
@@ -33,21 +32,20 @@ class Propagate : public Expression {
   TTX_EMPTY_DOCUMENTATION();
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
   constexpr auto get_receiver() const -> const Model::Pack& { return receiver; }
 
-  constexpr auto get_escape() const -> const Model::Pack& {
-    return escape.get();
-  }
-
- protected:
-  auto evaluate() -> Perimortem::Utility::Result<
-      Perimortem::Core::Option<Model::Pack&>,
-      Expression::Error> override;
+  constexpr auto get_escape() const -> const Model::Pack& { return *escape; }
 
  private:
+  auto evaluate_fold() -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Model::Pack&>, Expression::Error>;
   class ErrorEscape : public Expression {
    public:
     TTX_CONTRACT(ErrorEscape, Expression);
@@ -71,16 +69,13 @@ class Propagate : public Expression {
       Model::Pack& receiver,
       Model::Pack& empty_escape,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Expression(anchor), receiver(receiver), escape(empty_escape) {}
+      : Expression(anchor), receiver(receiver), escape(&empty_escape) {}
 
   Model::Pack& receiver;
-  Ttx::Model::PackReference<Model::Pack> escape;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
-      receiver_type;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
-      continuation_type;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
-      error_type;
+  Model::Pack* escape;
+  Perimortem::Core::Option<const Model::Type*> receiver_type;
+  Perimortem::Core::Option<const Model::Type*> continuation_type;
+  Perimortem::Core::Option<const Model::Type*> error_type;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

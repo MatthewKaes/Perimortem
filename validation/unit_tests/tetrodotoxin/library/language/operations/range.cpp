@@ -13,7 +13,7 @@
 #include "tetrodotoxin/library/language/types/s8.hpp"
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -47,7 +47,7 @@ class RangeExpression : public Expression {
 };
 
 static auto fold_is_dynamic(Operations::Range& range) -> Bool {
-  return range.fold().visit(
+  return test_fold(range).visit(
       [](const Option<Model::Pack&>& selected) { return Bool(!selected); },
       [](const Expression::Error&) { return False; });
 }

@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/library/language/operations/assignment.hpp"
 
-#include "ttx/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;

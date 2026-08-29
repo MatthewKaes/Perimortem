@@ -10,34 +10,129 @@
 
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "ttx/concept/constant.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/alias.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/context.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/concept/alias.h"
+#include "ttx/concept/constant.h"
+#include "ttx/concept/none.h"
+#include "ttx/concept/unknown.h"
+#include "ttx/model/addressable.h"
+#include "ttx/model/callable.h"
+#include "ttx/model/layouts/named.h"
+#include "ttx/model/type.h"
 
 using namespace Perimortem;
-using namespace Ttx::Concept;
 
 class GraphConceptEdge {
  public:
-  constexpr GraphConceptEdge(Core::View::Bytes name, const Abstract& target)
+  constexpr GraphConceptEdge(Core::View::Bytes name, const ttx_abstract* target)
       : name(name), target(target) {}
 
   Core::View::Bytes name;
-  Reference<const Abstract> target;
+  const ttx_abstract* target;
+};
+
+class GraphLayoutEntry {
+ public:
+  constexpr GraphLayoutEntry(Core::View::Bytes name, const ttx_abstract* target)
+      : name(name), target(target) {}
+
+  Core::View::Bytes name;
+  const ttx_abstract* target;
 };
 
 class GraphNode {
  public:
-  constexpr explicit GraphNode(const Abstract& abstract) : abstract(abstract) {}
+  constexpr explicit GraphNode(const ttx_abstract* abstract)
+      : abstract(abstract) {}
 
-  Reference<const Abstract> abstract;
+  const ttx_abstract* abstract;
   Memory::Dynamic::Vector<GraphConceptEdge> concepts;
 };
+
+class GraphConceptVisitor {
+ public:
+  explicit GraphConceptVisitor(Memory::Dynamic::Vector<GraphConceptEdge>& edges)
+      : callable{&operations}, operations{.call = call}, edges(edges) {}
+
+  ttx_named_abstract_callable callable;
+
+ private:
+  static auto call(
+      ttx_named_abstract_callable* callable,
+      perimortem_bytes name,
+      const ttx_abstract* target) -> void {
+    auto& self = *reinterpret_cast<GraphConceptVisitor*>(callable);
+    self.edges.emplace(
+        GraphConceptEdge(Core::View::Bytes(name.data, name.size), target));
+  }
+
+  ttx_named_abstract_callable_operations operations;
+  Memory::Dynamic::Vector<GraphConceptEdge>& edges;
+};
+
+class GraphLayoutVisitor {
+ public:
+  explicit GraphLayoutVisitor(
+      Memory::Dynamic::Vector<GraphLayoutEntry>& entries)
+      : callable{&operations}, operations{.call = call}, entries(entries) {}
+
+  ttx_abstract_callable callable;
+
+ private:
+  static auto call(ttx_abstract_callable* callable, const ttx_abstract* entry)
+      -> void {
+    auto& self = *reinterpret_cast<GraphLayoutVisitor*>(callable);
+    self.entries.emplace(GraphLayoutEntry({}, entry));
+  }
+
+  ttx_abstract_callable_operations operations;
+  Memory::Dynamic::Vector<GraphLayoutEntry>& entries;
+};
+
+class GraphNamedLayoutVisitor {
+ public:
+  explicit GraphNamedLayoutVisitor(
+      Memory::Dynamic::Vector<GraphLayoutEntry>& entries)
+      : callable{&operations}, operations{.call = call}, entries(entries) {}
+
+  ttx_named_abstract_callable callable;
+
+ private:
+  static auto call(
+      ttx_named_abstract_callable* callable,
+      perimortem_bytes name,
+      const ttx_abstract* entry) -> void {
+    auto& self = *reinterpret_cast<GraphNamedLayoutVisitor*>(callable);
+    self.entries.emplace(
+        GraphLayoutEntry(Core::View::Bytes(name.data, name.size), entry));
+  }
+
+  ttx_named_abstract_callable_operations operations;
+  Memory::Dynamic::Vector<GraphLayoutEntry>& entries;
+};
+
+class GraphDocumentationVisitor {
+ public:
+  explicit GraphDocumentationVisitor(
+      Memory::Dynamic::Vector<Core::View::Bytes>& lines)
+      : callable{&operations}, operations{.call = call}, lines(lines) {}
+
+  ttx_bytes_callable callable;
+
+ private:
+  static auto call(ttx_bytes_callable* callable, perimortem_bytes line)
+      -> void {
+    auto& self = *reinterpret_cast<GraphDocumentationVisitor*>(callable);
+    self.lines.emplace(Core::View::Bytes(line.data, line.size));
+  }
+
+  ttx_bytes_callable_operations operations;
+  Memory::Dynamic::Vector<Core::View::Bytes>& lines;
+};
+
+static auto bytes(const ttx_abstract* abstract) -> Core::View::Bytes {
+  perimortem_bytes name = ttx_abstract_name(abstract);
+  return Core::View::Bytes(name.data, name.size);
+}
 
 static auto compare_bytes(Core::View::Bytes left, Core::View::Bytes right)
     -> S32 {
@@ -55,9 +150,9 @@ static auto compare_bytes(Core::View::Bytes left, Core::View::Bytes right)
 
 static auto find_node(
     Core::View::Vector<GraphNode> nodes,
-    const Abstract& abstract) -> Core::Option<Count> {
+    const ttx_abstract* abstract) -> Core::Option<Count> {
   for (Count index = 0; index < nodes.get_size(); index++) {
-    if (&nodes.get_data()[index].abstract.get() == &abstract) {
+    if (nodes.get_data()[index].abstract == abstract) {
       return index;
     }
   }
@@ -66,7 +161,7 @@ static auto find_node(
 
 static auto retain_node(
     Memory::Dynamic::Vector<GraphNode>& nodes,
-    const Abstract& abstract) -> Count {
+    const ttx_abstract* abstract) -> Count {
   auto existing = find_node(nodes.get_view(), abstract);
   if (existing) {
     return *existing;
@@ -85,8 +180,7 @@ static auto sort_concepts(Memory::Dynamic::Vector<GraphConceptEdge>& edges)
       const GraphConceptEdge& right = edges[selected];
       S32 order = compare_bytes(left.name, right.name);
       if (order == 0) {
-        order = compare_bytes(
-            left.target.get().get_name(), right.target.get().get_name());
+        order = compare_bytes(bytes(left.target), bytes(right.target));
       }
       if (order <= 0) {
         break;
@@ -97,56 +191,56 @@ static auto sort_concepts(Memory::Dynamic::Vector<GraphConceptEdge>& edges)
   }
 }
 
+static auto collect_layout(
+    const ttx_layout* layout,
+    Memory::Dynamic::Vector<GraphLayoutEntry>& entries) -> void {
+  ttx_named_layout_view named;
+  if (ttx_named_layout_prove(layout, &named)) {
+    GraphNamedLayoutVisitor visitor(entries);
+    ttx_named_layout_visit(&named, &visitor.callable);
+    return;
+  }
+  GraphLayoutVisitor visitor(entries);
+  ttx_layout_visit(layout, &visitor.callable);
+}
+
 static auto retain_layout(
     Memory::Dynamic::Vector<GraphNode>& nodes,
-    const Layout& layout) -> void {
-  for (Count index = 0; index < layout.get_size(); index++) {
-    auto selected = layout.get_abstract(index);
-    if (selected) {
-      retain_node(nodes, *selected);
-    }
+    const ttx_layout* layout) -> void {
+  Memory::Dynamic::Vector<GraphLayoutEntry> entries;
+  collect_layout(layout, entries);
+  for (const GraphLayoutEntry& entry : entries.get_view()) {
+    retain_node(nodes, entry.target);
   }
 }
 
-static auto explore(
-    Memory::Allocator::Arena& arena,
-    Memory::Dynamic::Vector<GraphNode>& nodes) -> void {
-  Ttx::Model::Context context(arena);
+static auto explore(Memory::Dynamic::Vector<GraphNode>& nodes) -> void {
   for (Count index = 0; index < nodes.get_size(); index++) {
-    const Abstract& abstract = nodes[index].abstract.get();
-    const Abstract& resolved = abstract.resolve();
+    const ttx_abstract* abstract = nodes[index].abstract;
+    const ttx_abstract* resolved = ttx_abstract_resolve(abstract);
+    ttx_unknown_view unknown;
     retain_node(nodes, resolved);
     retain_node(
-        nodes, resolved.is<Unknown>()
-                   ? static_cast<const Abstract&>(Unknown::get_unknown())
-                   : abstract.get_type());
+        nodes, ttx_unknown_prove(resolved, &unknown)
+                   ? ttx_unknown()
+                   : ttx_abstract_type(abstract));
 
     Memory::Dynamic::Vector<GraphConceptEdge> discovered;
-    const Pack& concepts = abstract.get_concepts(context);
-    const Layout& layout = concepts.get_layout();
-    for (Count entry = 0; entry < layout.get_size(); entry++) {
-      auto target = layout.get_abstract(entry);
-      if (!target) {
-        continue;
-      }
-      Core::View::Bytes name = layout.get_name(entry).visit(
-          [&]() { return target->get_name(); },
-          [](Core::View::Bytes selected) { return selected; });
-      discovered.emplace(GraphConceptEdge(name, *target));
-    }
+    GraphConceptVisitor visitor(discovered);
+    ttx_abstract_visit_concepts(abstract, &visitor.callable);
     sort_concepts(discovered);
     for (const GraphConceptEdge& edge : discovered.get_view()) {
-      retain_node(nodes, edge.target.get());
+      retain_node(nodes, edge.target);
     }
 
-    auto type = abstract.select<Ttx::Model::Type>();
-    if (type) {
-      retain_layout(nodes, type->get_layout());
+    ttx_type_view type;
+    if (ttx_type_prove(abstract, &type)) {
+      retain_layout(nodes, ttx_type_layout(&type));
     }
-    auto callable = abstract.select<Ttx::Model::Callable>();
-    if (callable) {
-      retain_layout(nodes, callable->get_parameters());
-      retain_layout(nodes, callable->get_results());
+    ttx_callable_view callable;
+    if (ttx_callable_prove(abstract, &callable)) {
+      retain_layout(nodes, ttx_callable_parameters(&callable));
+      retain_layout(nodes, ttx_callable_results(&callable));
     }
     nodes[index].concepts =
         static_cast<Memory::Dynamic::Vector<GraphConceptEdge>&&>(discovered);
@@ -167,53 +261,59 @@ static auto write_bytes(Memory::Dynamic::Bytes& output, Core::View::Bytes value)
 static auto write_id(
     Serialization::Stream::Textual<Memory::Dynamic::Bytes>& output,
     Core::View::Vector<GraphNode> nodes,
-    const Abstract& abstract) -> void {
+    const ttx_abstract* abstract) -> void {
   output << U64(*find_node(nodes, abstract));
 }
 
 static auto write_layout(
-    Memory::Dynamic::Bytes& bytes,
+    Memory::Dynamic::Bytes& bytes_output,
     Serialization::Stream::Textual<Memory::Dynamic::Bytes>& output,
     Core::View::Vector<GraphNode> nodes,
     Core::View::Bytes role,
-    const Layout& layout) -> void {
-  output << "  layout "_view << role << " "_view << U64(layout.get_size())
+    const ttx_layout* layout) -> void {
+  Memory::Dynamic::Vector<GraphLayoutEntry> entries;
+  collect_layout(layout, entries);
+  output << "  layout "_view << role << " "_view << U64(entries.get_size())
          << "\n"_view;
-  for (Count index = 0; index < layout.get_size(); index++) {
+  for (const GraphLayoutEntry& entry : entries.get_view()) {
     output << "    entry "_view;
-    auto name = layout.get_name(index);
-    write_bytes(bytes, name ? *name : Core::View::Bytes());
+    write_bytes(bytes_output, entry.name);
     output << " "_view;
-    layout.get_abstract(index).visit(
-        [&]() { output << "none"_view; },
-        [&](const Abstract& selected) { write_id(output, nodes, selected); });
+    write_id(output, nodes, entry.target);
     output << "\n"_view;
   }
 }
 
 static auto write_contracts(
     Serialization::Stream::Textual<Memory::Dynamic::Bytes>& output,
-    const Abstract& abstract) -> void {
+    const ttx_abstract* abstract) -> void {
   output << "  contracts abstract"_view;
-  if (abstract.is<Constant>()) {
+  ttx_constant_view constant;
+  if (ttx_constant_prove(abstract, &constant)) {
     output << " constant"_view;
   }
-  if (abstract.is<Ttx::Model::Alias>()) {
+  ttx_alias_view alias;
+  if (ttx_alias_prove(abstract, &alias)) {
     output << " alias"_view;
   }
-  if (abstract.is<Ttx::Model::Type>()) {
+  ttx_type_view type;
+  if (ttx_type_prove(abstract, &type)) {
     output << " type"_view;
   }
-  if (abstract.is<Ttx::Model::Addressable>()) {
+  ttx_addressable_view addressable;
+  if (ttx_addressable_prove(abstract, &addressable)) {
     output << " addressable"_view;
   }
-  if (abstract.is<Ttx::Model::Callable>()) {
+  ttx_callable_view callable;
+  if (ttx_callable_prove(abstract, &callable)) {
     output << " callable"_view;
   }
-  if (abstract.is<Unknown>()) {
+  ttx_unknown_view unknown;
+  if (ttx_unknown_prove(abstract, &unknown)) {
     output << " unknown"_view;
   }
-  if (abstract.is<None>()) {
+  ttx_none_view none;
+  if (ttx_none_prove(abstract, &none)) {
     output << " none"_view;
   }
   output << "\n"_view;
@@ -221,13 +321,13 @@ static auto write_contracts(
 
 static auto serialize(
     Core::View::Bytes source,
-    const Abstract& dialect,
-    const Abstract& root,
+    const ttx_abstract* dialect,
+    const ttx_abstract* root,
     Core::View::Vector<GraphNode> nodes) -> Memory::Dynamic::Bytes {
-  Memory::Dynamic::Bytes bytes;
-  Serialization::Stream::Textual<Memory::Dynamic::Bytes> output(bytes);
+  Memory::Dynamic::Bytes bytes_output;
+  Serialization::Stream::Textual<Memory::Dynamic::Bytes> output(bytes_output);
   output << "ttx.graph 1\nsource "_view;
-  write_bytes(bytes, source);
+  write_bytes(bytes_output, source);
   output << "\ndialect "_view;
   write_id(output, nodes, dialect);
   output << "\nroot "_view;
@@ -236,63 +336,71 @@ static auto serialize(
 
   for (Count id = 0; id < nodes.get_size(); id++) {
     const GraphNode& node = nodes.get_data()[id];
-    const Abstract& abstract = node.abstract.get();
+    const ttx_abstract* abstract = node.abstract;
     output << "node "_view << U64(id) << "\n  name "_view;
-    write_bytes(bytes, abstract.get_name());
+    write_bytes(bytes_output, bytes(abstract));
     output << "\n"_view;
     write_contracts(output, abstract);
     output << "  resolve "_view;
-    write_id(output, nodes, abstract.resolve());
+    write_id(output, nodes, ttx_abstract_resolve(abstract));
     output << "\n  type "_view;
-    const Abstract& resolved = abstract.resolve();
+    const ttx_abstract* resolved = ttx_abstract_resolve(abstract);
+    ttx_unknown_view unknown;
     write_id(
         output, nodes,
-        resolved.is<Unknown>()
-            ? static_cast<const Abstract&>(Unknown::get_unknown())
-            : abstract.get_type());
-    output << "\n  documentation "_view
-           << U64(abstract.get_documentation().line_count()) << "\n"_view;
-    for (Count line = 0; line < abstract.get_documentation().line_count();
-         line++) {
+        ttx_unknown_prove(resolved, &unknown) ? ttx_unknown()
+                                              : ttx_abstract_type(abstract));
+
+    Memory::Dynamic::Vector<Core::View::Bytes> documentation;
+    GraphDocumentationVisitor documentation_visitor(documentation);
+    ttx_documentation_visit(
+        ttx_abstract_documentation(abstract), &documentation_visitor.callable);
+    output << "\n  documentation "_view << U64(documentation.get_size())
+           << "\n"_view;
+    for (Core::View::Bytes line : documentation.get_view()) {
       output << "    line "_view;
-      write_bytes(bytes, abstract.get_documentation().get_line(line));
+      write_bytes(bytes_output, line);
       output << "\n"_view;
     }
+
     output << "  concepts "_view << U64(node.concepts.get_size()) << "\n"_view;
     for (const GraphConceptEdge& edge : node.concepts.get_view()) {
       output << "    concept "_view;
-      write_bytes(bytes, edge.name);
+      write_bytes(bytes_output, edge.name);
       output << " "_view;
-      write_id(output, nodes, edge.target.get());
+      write_id(output, nodes, edge.target);
       output << "\n"_view;
     }
-    auto type = abstract.select<Ttx::Model::Type>();
-    if (type) {
-      write_layout(bytes, output, nodes, "type"_view, type->get_layout());
+    ttx_type_view type;
+    if (ttx_type_prove(abstract, &type)) {
+      write_layout(
+          bytes_output, output, nodes, "type"_view, ttx_type_layout(&type));
     }
-    auto callable = abstract.select<Ttx::Model::Callable>();
-    if (callable) {
+    ttx_callable_view callable;
+    if (ttx_callable_prove(abstract, &callable)) {
       write_layout(
-          bytes, output, nodes, "parameters"_view, callable->get_parameters());
+          bytes_output, output, nodes, "parameters"_view,
+          ttx_callable_parameters(&callable));
       write_layout(
-          bytes, output, nodes, "results"_view, callable->get_results());
+          bytes_output, output, nodes, "results"_view,
+          ttx_callable_results(&callable));
     }
     output << "end\n"_view;
   }
-  return bytes;
+  return bytes_output;
 }
 
 auto Tetrodotoxin::Terminal::GraphText::write(
     Memory::Allocator::Arena& arena,
     Core::View::Bytes source,
-    const Abstract& dialect,
-    const Abstract& root,
-    const Abstract& graph) -> const Tetrodotoxin::Language::Product& {
+    const ttx_abstract* dialect,
+    const ttx_abstract* root,
+    const ttx_abstract* graph) -> const Tetrodotoxin::Language::Product& {
   Memory::Dynamic::Vector<GraphNode> nodes;
   retain_node(nodes, graph);
   retain_node(nodes, dialect);
   retain_node(nodes, root);
-  explore(arena, nodes);
+  explore(nodes);
   Memory::Dynamic::Bytes text =
       serialize(source, dialect, root, nodes.get_view());
   return Tetrodotoxin::Language::Product::create(

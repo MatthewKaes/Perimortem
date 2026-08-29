@@ -37,9 +37,8 @@ using Llvm::Emission::Storage;
 static auto lower_inputs(
     const Llvm::Lowering::Execution& execution,
     const Operation& operation) -> Bool {
-  for (const Ttx::Model::PackReference<Model::Pack>& input :
-       operation.get_inputs()) {
-    if (!execution.lower(input.get())) {
+  for (const Model::Pack* input : operation.get_inputs()) {
+    if (!execution.lower(*input)) {
       return False;
     }
   }
@@ -56,8 +55,7 @@ static auto lower_arithmetic(
       inputs.get_size() != 2 || !carrier ||
       !lower_inputs(execution, operation));
   return execution.get_computation().arithmetic(
-      kind, *carrier, operation, inputs.get_data()[0].get(),
-      inputs.get_data()[1].get());
+      kind, *carrier, operation, *inputs.get_data()[0], *inputs.get_data()[1]);
 }
 
 static auto lower_comparison(
@@ -67,15 +65,15 @@ static auto lower_comparison(
     Bool admits_bytes) -> Bool {
   auto inputs = operation.get_inputs();
   BAIL_IF(inputs.get_size() != 2);
-  const Model::Pack& left = inputs.get_data()[0].get();
+  const Model::Pack& left = *inputs.get_data()[0];
   auto carrier = left.get_type().resolve().select<Ttx::Model::Type>();
   BAIL_IF(!carrier || !lower_inputs(execution, operation));
   if (admits_bytes && carrier->is<Types::View>()) {
     return execution.get_computation().compare_bytes(
-        kind, operation, left, inputs.get_data()[1].get());
+        kind, operation, left, *inputs.get_data()[1]);
   }
   return execution.get_computation().compare(
-      kind, *carrier, operation, left, inputs.get_data()[1].get());
+      kind, *carrier, operation, left, *inputs.get_data()[1]);
 }
 
 auto Llvm::Lowering::Operations::lower(
@@ -137,9 +135,9 @@ auto Llvm::Lowering::Operations::lower(
     auto inputs = negate->get_inputs();
     auto carrier = negate->get_type().resolve().select<Ttx::Model::Type>();
     return inputs.get_size() == 1 && carrier &&
-           execution.lower(inputs.get_data()[0].get()) &&
+           execution.lower(*inputs.get_data()[0]) &&
            execution.get_computation().negate(
-               *carrier, *negate, inputs.get_data()[0].get());
+               *carrier, *negate, *inputs.get_data()[0]);
   }
 
   auto equal =
@@ -187,10 +185,9 @@ auto Llvm::Lowering::Operations::lower(
       expression.select<Tetrodotoxin::Library::Language::Operations::Not>();
   if (logical_not) {
     auto inputs = logical_not->get_inputs();
-    return inputs.get_size() == 1 &&
-           execution.lower(inputs.get_data()[0].get()) &&
+    return inputs.get_size() == 1 && execution.lower(*inputs.get_data()[0]) &&
            execution.get_states().logical_not(
-               *logical_not, inputs.get_data()[0].get());
+               *logical_not, *inputs.get_data()[0]);
   }
 
   auto logical_and =
@@ -202,15 +199,13 @@ auto Llvm::Lowering::Operations::lower(
         logical_and ? static_cast<const Operation&>(*logical_and)
                     : static_cast<const Operation&>(*logical_or);
     auto inputs = operation.get_inputs();
-    BAIL_IF(
-        inputs.get_size() != 2 || !execution.lower(inputs.get_data()[0].get()));
+    BAIL_IF(inputs.get_size() != 2 || !execution.lower(*inputs.get_data()[0]));
     auto state = execution.get_states().begin_logic(
         logical_and ? States::Logical::And : States::Logical::Or,
-        inputs.get_data()[0].get());
-    return state && execution.lower(inputs.get_data()[1].get()) &&
+        *inputs.get_data()[0]);
+    return state && execution.lower(*inputs.get_data()[1]) &&
            execution.get_states().end_logic(
-               *state, operation, inputs.get_data()[0].get(),
-               inputs.get_data()[1].get());
+               *state, operation, *inputs.get_data()[0], *inputs.get_data()[1]);
   }
 
   auto range =
@@ -222,8 +217,7 @@ auto Llvm::Lowering::Operations::lower(
            Types::prepare(execution.get_program(), *carrier) &&
            lower_inputs(execution, *range) &&
            execution.get_storage().range(
-               *carrier, *range, inputs.get_data()[0].get(),
-               inputs.get_data()[1].get());
+               *carrier, *range, *inputs.get_data()[0], *inputs.get_data()[1]);
   }
 
   auto assignment =

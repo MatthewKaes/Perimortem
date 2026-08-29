@@ -16,9 +16,8 @@
 #include "tetrodotoxin/library/language/signature.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/types/static.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -111,7 +110,7 @@ class Foreign final : public Ttx::Concept::Abstract {
     Tetrodotoxin::Language::Definition& definition;
     TypeReference type_reference;
     Perimortem::Core::View::Bytes abi;
-    Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>> type;
+    Perimortem::Core::Option<const Model::Type*> type;
   };
 
   // Function is one bodyless external Callable. Target owners consume the
@@ -216,11 +215,9 @@ class Foreign final : public Ttx::Concept::Abstract {
   auto retain_block(
       const Ttx::Concept::Documentation& block_documentation,
       Perimortem::Core::View::Bytes selected_abi,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<State>> states,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Function>>
-          functions,
-      Perimortem::Core::View::Vector<
-          Ttx::Concept::Reference<Ttx::Concept::Abstract>> declarations)
+      Perimortem::Core::View::Vector<State*> states,
+      Perimortem::Core::View::Vector<Function*> functions,
+      Perimortem::Core::View::Vector<Ttx::Concept::Abstract*> declarations)
       -> Bool;
 
   auto link_types(Ttx::Lexical::Cursor& cursor) -> Bool;
@@ -260,12 +257,9 @@ class Foreign final : public Ttx::Concept::Abstract {
   Types::Static& static_authority;
   const Ttx::Concept::Documentation* documentation;
   Perimortem::Core::Option<Perimortem::Core::View::Bytes> abi;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<State>> states;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Function>>
-      functions;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      declarations;
+  Perimortem::Memory::Managed::Vector<State*> states;
+  Perimortem::Memory::Managed::Vector<Function*> functions;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*> declarations;
   Stage stage = Stage::Authored;
 };
 

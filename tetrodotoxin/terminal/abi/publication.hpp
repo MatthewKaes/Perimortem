@@ -6,8 +6,7 @@
 #include "perimortem/core/view/bytes.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Terminal::Abi {
 
@@ -25,10 +24,10 @@ class Publication {
   constexpr Publication(
       const Ttx::Concept::Abstract& semantic,
       Perimortem::Core::View::Bytes symbol)
-      : semantic(semantic), symbol(symbol) {}
+      : semantic(&semantic), symbol(symbol) {}
 
   constexpr auto get_semantic() const -> const Ttx::Concept::Abstract& {
-    return semantic.get();
+    return *semantic;
   }
 
   constexpr auto get_symbol() const -> Perimortem::Core::View::Bytes {
@@ -36,7 +35,7 @@ class Publication {
   }
 
  private:
-  Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic;
+  const Ttx::Concept::Abstract* semantic;
   Perimortem::Core::View::Bytes symbol;
 };
 

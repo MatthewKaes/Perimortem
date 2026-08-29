@@ -45,19 +45,17 @@ static auto get_target(Llvm::Module::Emission& program)
 static auto is_local_definition(
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
     const Tetrodotoxin::Language::Definition& definition) -> Bool {
-  Ttx::Concept::Reference<const Ttx::Concept::Abstract> current(
-      definition.get_host());
+  const Ttx::Concept::Abstract* current = &definition.get_host();
   while (true) {
     auto source =
-        current.get().select<Tetrodotoxin::Library::Language::Types::Source>();
+        current->select<Tetrodotoxin::Library::Language::Types::Source>();
     if (source) {
       return unit.owns(source->get_host());
     }
     auto composite =
-        current.get()
-            .select<Tetrodotoxin::Library::Language::Types::Composite>();
+        current->select<Tetrodotoxin::Library::Language::Types::Composite>();
     BAIL_IF(!composite);
-    current = composite->get_definition().get_host();
+    current = &composite->get_definition().get_host();
   }
 }
 
@@ -220,7 +218,7 @@ auto Llvm::Module::Globals::reserve_foreign(
   auto reserved =
       reserve(program, addressable, Record(True, abi, symbol, writable));
   if (reserved && *reserved) {
-    foreign_addressables.insert(addressable);
+    foreign_addressables.insert(&addressable);
     auto target = get_target(program);
     if (!target ||
         !target->add_import(
@@ -412,7 +410,6 @@ auto Llvm::Module::Globals::permits_foreign_write(
 }
 
 auto Llvm::Module::Globals::get_foreign_addressables() const
-    -> Core::View::Vector<
-        Ttx::Concept::Reference<const Ttx::Model::Addressable>> {
+    -> Core::View::Vector<const Ttx::Model::Addressable*> {
   return foreign_addressables.get_view();
 }

@@ -24,11 +24,9 @@ using namespace Tetrodotoxin::Library::Language;
 
 static auto is_excluded(
     const Model::Callable& callable,
-    Core::View::Vector<Ttx::Concept::Reference<const Model::Callable>> excluded)
-    -> Bool {
-  for (const Ttx::Concept::Reference<const Model::Callable>& candidate :
-       excluded) {
-    if (&candidate.get() == &callable) {
+    Core::View::Vector<const Model::Callable*> excluded) -> Bool {
+  for (const Model::Callable* candidate : excluded) {
+    if (candidate == &callable) {
       return True;
     }
   }
@@ -102,15 +100,13 @@ static auto complete_addressable(
 
 static auto retain_construction_parameters(
     const Types::Structure& structure,
-    Memory::Dynamic::Vector<
-        Ttx::Concept::Reference<const Ttx::Model::Addressable>>& parameters)
+    Memory::Dynamic::Vector<const Ttx::Model::Addressable*>& parameters)
     -> void {
-  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-       structure.get_addressables()) {
-    auto field = candidate.get().select<Field>();
+  for (const Ttx::Concept::Abstract* candidate : structure.get_addressables()) {
+    auto field = candidate->select<Field>();
     if (field && field->get_writability() == Writability::Internal &&
         field->get_definition().is_published()) {
-      parameters.insert(*field);
+      parameters.insert(&*field);
     }
   }
 }
@@ -118,25 +114,22 @@ static auto retain_construction_parameters(
 static auto reserve_type(
     Llvm::Module::Program& program,
     const Model::Type& type,
-    Core::View::Vector<Ttx::Concept::Reference<const Model::Callable>> excluded)
-    -> Bool {
+    Core::View::Vector<const Model::Callable*> excluded) -> Bool {
   BAIL_IF(!Llvm::Lowering::Types::reserve_declaration(program, type));
   auto composite = type.select<Types::Composite>();
   if (composite) {
-    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-         composite->get_types()) {
-      auto nested = candidate.get().select<Model::Type>();
+    for (const Ttx::Concept::Abstract* candidate : composite->get_types()) {
+      auto nested = candidate->select<Model::Type>();
       BAIL_IF(nested && !reserve_type(program, *nested, excluded));
     }
-    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
+    for (const Ttx::Concept::Abstract* candidate :
          composite->get_addressables()) {
-      auto addressable = candidate.get().select<Model::Addressable>();
+      auto addressable = candidate->select<Model::Addressable>();
       BAIL_IF(addressable && !reserve_addressable(program, *addressable));
     }
   }
-  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-       type.get_callables()) {
-    auto callable = candidate.get().select<Model::Callable>();
+  for (const Ttx::Concept::Abstract* candidate : type.get_callables()) {
+    auto callable = candidate->select<Model::Callable>();
     BAIL_IF(
         callable && !is_excluded(*callable, excluded) &&
         !reserve_callable(program, *callable));
@@ -145,9 +138,7 @@ static auto reserve_type(
   auto structure = type.select<Types::Structure>();
   if (structure && !structure->get_layout().is_empty() &&
       structure->is_externally_reachable(*structure)) {
-    Memory::Dynamic::Vector<
-        Ttx::Concept::Reference<const Ttx::Model::Addressable>>
-        parameters;
+    Memory::Dynamic::Vector<const Ttx::Model::Addressable*> parameters;
     retain_construction_parameters(*structure, parameters);
     BAIL_IF(!program.get_functions().reserve_construction(
         program, *structure, structure->has_initialization_provider(),
@@ -156,13 +147,12 @@ static auto reserve_type(
 
   auto source = type.select<Types::Source>();
   if (source) {
-    for (const Ttx::Concept::Reference<Foreign::State>& state :
-         source->get_foreign().get_states()) {
-      BAIL_IF(!reserve_addressable(program, state.get()));
+    for (const Foreign::State* state : source->get_foreign().get_states()) {
+      BAIL_IF(!reserve_addressable(program, *state));
     }
-    for (const Ttx::Concept::Reference<Foreign::Function>& function :
+    for (const Foreign::Function* function :
          source->get_foreign().get_functions()) {
-      BAIL_IF(!reserve_callable(program, function.get()));
+      BAIL_IF(!reserve_callable(program, *function));
     }
   }
   return True;
@@ -171,25 +161,22 @@ static auto reserve_type(
 static auto complete_type(
     Llvm::Module::Program& program,
     const Model::Type& type,
-    Core::View::Vector<Ttx::Concept::Reference<const Model::Callable>> excluded)
-    -> Bool {
+    Core::View::Vector<const Model::Callable*> excluded) -> Bool {
   BAIL_IF(!Llvm::Lowering::Types::complete_declaration(program, type));
   auto composite = type.select<Types::Composite>();
   if (composite) {
-    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-         composite->get_types()) {
-      auto nested = candidate.get().select<Model::Type>();
+    for (const Ttx::Concept::Abstract* candidate : composite->get_types()) {
+      auto nested = candidate->select<Model::Type>();
       BAIL_IF(nested && !complete_type(program, *nested, excluded));
     }
-    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
+    for (const Ttx::Concept::Abstract* candidate :
          composite->get_addressables()) {
-      auto addressable = candidate.get().select<Model::Addressable>();
+      auto addressable = candidate->select<Model::Addressable>();
       BAIL_IF(addressable && !complete_addressable(program, *addressable));
     }
   }
-  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-       type.get_callables()) {
-    auto callable = candidate.get().select<Model::Callable>();
+  for (const Ttx::Concept::Abstract* candidate : type.get_callables()) {
+    auto callable = candidate->select<Model::Callable>();
     BAIL_IF(
         callable && !is_excluded(*callable, excluded) &&
         !complete_callable(program, *callable));
@@ -202,13 +189,12 @@ static auto complete_type(
   }
   auto source = type.select<Types::Source>();
   if (source) {
-    for (const Ttx::Concept::Reference<Foreign::State>& state :
-         source->get_foreign().get_states()) {
-      BAIL_IF(!complete_addressable(program, state.get()));
+    for (const Foreign::State* state : source->get_foreign().get_states()) {
+      BAIL_IF(!complete_addressable(program, *state));
     }
-    for (const Ttx::Concept::Reference<Foreign::Function>& function :
+    for (const Foreign::Function* function :
          source->get_foreign().get_functions()) {
-      BAIL_IF(!complete_callable(program, function.get()));
+      BAIL_IF(!complete_callable(program, *function));
     }
   }
   return True;
@@ -272,9 +258,8 @@ static auto emit_structure(
     return True;
   }
   Memory::Dynamic::Vector<Llvm::Module::Functions::ConstructionField> fields;
-  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-       structure.get_addressables()) {
-    auto field = candidate.get().select<Field>();
+  for (const Ttx::Concept::Abstract* candidate : structure.get_addressables()) {
+    auto field = candidate->select<Field>();
     if (!field || field->get_writability() != Writability::Internal) {
       continue;
     }
@@ -306,26 +291,25 @@ static auto emit_structure(
 static auto emit_type(
     Llvm::Module::Program& program,
     const Model::Type& type,
-    Core::View::Vector<Ttx::Concept::Reference<const Model::Callable>> excluded)
-    -> Bool {
+    Core::View::Vector<const Model::Callable*> excluded) -> Bool {
   auto composite = type.select<Types::Composite>();
   if (composite) {
-    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
+    for (const Ttx::Concept::Abstract* declaration :
          composite->get_declarations()) {
-      auto nested = declaration.get().select<Model::Type>();
-      auto addressable = declaration.get().select<Model::Addressable>();
-      auto callable = declaration.get().select<Model::Callable>();
+      auto nested = declaration->select<Model::Type>();
+      auto addressable = declaration->select<Model::Addressable>();
+      auto callable = declaration->select<Model::Callable>();
       if (nested && !emit_type(program, *nested, excluded)) {
         return False;
       }
-      Core::Option<Field&> field;
+      Core::Option<const Field&> field;
       if (addressable) {
         field = addressable->select<Field>();
       }
       if (field && !emit_field(program, *field)) {
         return False;
       }
-      Core::Option<Function&> function;
+      Core::Option<const Function&> function;
       if (callable) {
         function = callable->select<Function>();
       }
@@ -342,8 +326,7 @@ static auto emit_type(
 auto Llvm::Lowering::Graph::lower(
     Llvm::Module::Program& program,
     const Tetrodotoxin::Library::Language::Monograph& monograph,
-    Core::View::Vector<Ttx::Concept::Reference<const Model::Callable>> excluded)
-    -> Bool {
+    Core::View::Vector<const Model::Callable*> excluded) -> Bool {
   const Tetrodotoxin::Library::Language::Types::Source& source =
       monograph.get_source();
   if (!reserve_type(program, source, excluded)) {

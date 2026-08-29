@@ -22,10 +22,36 @@
 #include "perimortem/system/path.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
+#include "tetrodotoxin/language/product.h"
 #include "tetrodotoxin/language/product.hpp"
-#include "ttx/concept/reference.hpp"
 
 using namespace Perimortem;
+
+class ProductVisitor {
+ public:
+  explicit ProductVisitor(
+      Memory::Dynamic::Vector<tetrodotoxin_product_view>& products)
+      : callable{&operations}, operations{.call = retain}, products(products) {}
+
+  ttx_abstract_callable callable;
+  Bool valid = True;
+
+ private:
+  static auto retain(
+      ttx_abstract_callable* callable,
+      const ttx_abstract* abstract) -> void {
+    auto& self = *reinterpret_cast<ProductVisitor*>(callable);
+    tetrodotoxin_product_view product;
+    if (tetrodotoxin_product_prove(abstract, &product)) {
+      self.products.insert(product);
+    } else {
+      self.valid = False;
+    }
+  }
+
+  ttx_abstract_callable_operations operations;
+  Memory::Dynamic::Vector<tetrodotoxin_product_view>& products;
+};
 using namespace Perimortem::Core;
 
 static auto join(Core::View::Bytes root, Core::View::Bytes relative)
@@ -139,33 +165,38 @@ static auto commit(Core::View::Bytes stage, Core::View::Bytes target) -> Bool {
   return True;
 }
 
-auto Puffer::Publisher::publish(const Ttx::Concept::Pack& products) const
-    -> Bool {
-  const Ttx::Concept::Layout& layout = products.get_layout();
-  BAIL_IF(layout.is_empty());
+static auto product_name(const tetrodotoxin_product_view& product)
+    -> Core::View::Bytes {
+  perimortem_bytes name = ttx_abstract_name(product.identity);
+  return Core::View::Bytes(name.data, name.size);
+}
 
+static auto product_value(const tetrodotoxin_product_view& product)
+    -> Core::View::Bytes {
+  perimortem_bytes value = tetrodotoxin_product_value(&product);
+  return Core::View::Bytes(value.data, value.size);
+}
+
+auto Puffer::Publisher::publish(const ttx_pack* products) const -> Bool {
   Core::Option<Core::View::Bytes> product_coordinate;
-  Memory::Dynamic::Vector<
-      Ttx::Concept::Reference<const Tetrodotoxin::Language::Product>>
-      retained;
-  for (Count index = 0; index < layout.get_size(); index++) {
-    auto abstract = layout.get_abstract(index);
-    auto product = abstract
-                       ? abstract->select<Tetrodotoxin::Language::Product>()
-                       : Core::Option<const Tetrodotoxin::Language::Product&>();
-    BAIL_IF(!product || !is_relative_product(product->get_name()));
+  Memory::Dynamic::Vector<tetrodotoxin_product_view> retained;
+  ProductVisitor visitor(retained);
+  ttx_layout_visit(ttx_pack_layout(products), &visitor.callable);
+  BAIL_IF(!visitor.valid || retained.get_size() == 0);
+  for (const tetrodotoxin_product_view& product : retained.get_view()) {
+    Core::View::Bytes name = product_name(product);
+    BAIL_IF(!is_relative_product(name));
     Memory::Allocator::Arena arena;
-    auto normalized = System::Path::normalize(arena, product->get_name());
-    auto selected_coordinate = coordinate(product->get_name());
+    auto normalized = System::Path::normalize(arena, name);
+    auto selected_coordinate = coordinate(name);
     BAIL_IF(
-        !normalized || *normalized != product->get_name() ||
-        !selected_coordinate ||
+        !normalized || *normalized != name || !selected_coordinate ||
         (product_coordinate && *product_coordinate != *selected_coordinate));
     product_coordinate = *selected_coordinate;
-    for (const auto& prior : retained.get_view()) {
-      BAIL_IF(prior.get().get_name() == product->get_name());
+    for (const tetrodotoxin_product_view& prior : retained.get_view()) {
+      BAIL_IF(
+          prior.identity != product.identity && product_name(prior) == name);
     }
-    retained.emplace(*product);
   }
 
   Memory::Dynamic::Bytes target = join(root, *product_coordinate);
@@ -190,13 +221,12 @@ auto Puffer::Publisher::publish(const Ttx::Concept::Pack& products) const
     return False;
   }
 
-  for (const auto& selected : retained.get_view()) {
-    const Tetrodotoxin::Language::Product& product = selected.get();
-    Core::View::Bytes relative =
-        product.get_name().slice(product_coordinate->get_size() + 1);
+  for (const tetrodotoxin_product_view& product : retained.get_view()) {
+    Core::View::Bytes name = product_name(product);
+    Core::View::Bytes relative = name.slice(product_coordinate->get_size() + 1);
     Memory::Dynamic::Bytes destination = join(stage.get_view(), relative);
     if (!create_directories(destination.get_view()) ||
-        !System::File::write(product.get_value(), destination.get_view())) {
+        !System::File::write(product_value(product), destination.get_view())) {
       remove_tree(stage.get_view());
       return False;
     }

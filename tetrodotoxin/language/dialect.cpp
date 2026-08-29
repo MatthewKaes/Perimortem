@@ -6,7 +6,7 @@
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/language/parser/dialect.hpp"
 #include "tetrodotoxin/language/parser/import.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -19,10 +19,10 @@ Language::Dialect::Dialect(View::Bytes name) : name(name) {}
 Language::Dialect::~Dialect() {}
 
 auto Language::Dialect::find_installed(
-    View::Vector<Reference<Dialect>> installed,
+    View::Vector<Dialect*> installed,
     View::Bytes name) -> Option<Dialect&> {
   for (Count i = 0; i < installed.get_size(); i++) {
-    Dialect& dialect = installed.get_data()[i].get();
+    Dialect& dialect = *installed.get_data()[i];
     if (dialect.get_name() == name) {
       return dialect;
     }
@@ -32,7 +32,7 @@ auto Language::Dialect::find_installed(
 }
 
 auto Language::Dialect::interpret_source(
-    View::Vector<Reference<Dialect>> installed,
+    View::Vector<Dialect*> installed,
     Cursor& cursor,
     Abstract& context) -> Option<Monograph&> {
   // The common envelope is consumed before protocol dispatch so every Dialect
@@ -80,7 +80,7 @@ auto Language::Dialect::interpret_source(
         if (i != 0) {
           hint << ", "_view;
         }
-        hint << installed.get_data()[i].get().get_name();
+        hint << installed.get_data()[i]->get_name();
       }
     }
     hint << "."_view;
@@ -128,8 +128,8 @@ auto Language::Dialect::restore(
 auto Language::Dialect::produce(
     Allocator::Arena&,
     const Abstract&,
-    const Monograph&) const -> Option<const Pack&> {
-  return {};
+    const Monograph&) const -> const ttx_pack* {
+  return nullptr;
 }
 
 auto Language::Dialect::resolve_concept(View::Bytes route) const

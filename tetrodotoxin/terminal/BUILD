@@ -14,8 +14,8 @@ cc_library(
     deps = [
         "//perimortem:headless",
         "//tetrodotoxin/language",
-        "//ttx:concept",
-        "//ttx:model",
+        "//ttx:bootstrap_concept",
+        "//ttx:bootstrap_model",
     ],
 )
 
@@ -30,8 +30,8 @@ cc_library(
         "//perimortem:headless",
         "//tetrodotoxin/app/language",
         "//tetrodotoxin/scene/language",
-        "//ttx:concept",
-        "//ttx:model",
+        "//ttx:bootstrap_concept",
+        "//ttx:bootstrap_model",
     ],
 )
 
@@ -50,8 +50,8 @@ cc_library(
         "//tetrodotoxin:package",
         "//tetrodotoxin/shader/language",
         "//tetrodotoxin/language",
-        "//ttx:concept",
-        "//ttx:model",
+        "//ttx:bootstrap_concept",
+        "//ttx:bootstrap_model",
     ],
 )
 
@@ -72,9 +72,9 @@ cc_library(
         "//tetrodotoxin/language",
         "//tetrodotoxin/scene/language",
         "//toolchain/llvm:sdk",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
-        "//ttx:model",
+        "//ttx:bootstrap_model",
     ],
 )
 
@@ -90,8 +90,8 @@ cc_library(
         "//perimortem:headless",
         "//tetrodotoxin/library:language",
         "//tetrodotoxin/scene/language",
-        "//ttx:concept",
-        "//ttx:model",
+        "//ttx:bootstrap_concept",
+        "//ttx:bootstrap_model",
     ],
 )
 
@@ -109,9 +109,9 @@ cc_library(
         "//tetrodotoxin/language",
         "//tetrodotoxin/render/language",
         "//tetrodotoxin/shader/language",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
-        "//ttx:model",
+        "//ttx:bootstrap_model",
     ],
 )
 
@@ -129,7 +129,7 @@ cc_library(
         "//tetrodotoxin/library:language",
         "//tetrodotoxin/render/language",
         "//tetrodotoxin/shader/language",
-        "//ttx:concept",
-        "//ttx:model",
+        "//ttx:bootstrap_concept",
+        "//ttx:bootstrap_model",
     ],
 )

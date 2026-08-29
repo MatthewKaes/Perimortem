@@ -18,7 +18,7 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/package/repository/repository.hpp"
 #include "tetrodotoxin/package/snapshots.hpp"
-#include "ttx/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/token.hpp"
 

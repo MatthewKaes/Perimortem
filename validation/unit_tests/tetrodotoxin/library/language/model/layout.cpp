@@ -13,9 +13,9 @@
 #include "tetrodotoxin/library/interpreter/layout.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/layouts/addressable.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/layouts/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

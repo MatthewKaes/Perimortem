@@ -12,9 +12,7 @@
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/emission.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/pack.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Module {
 
@@ -54,8 +52,8 @@ class Globals {
   auto permits_foreign_write(const Ttx::Model::Addressable& addressable) const
       -> Bool;
 
-  auto get_foreign_addressables() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Addressable>>;
+  auto get_foreign_addressables() const
+      -> Perimortem::Core::View::Vector<const Ttx::Model::Addressable*>;
 
  private:
   class Record {
@@ -101,8 +99,7 @@ class Globals {
   mutable Perimortem::Memory::Dynamic::
       Map<const Ttx::Model::Addressable*, Record>
           records;
-  mutable Perimortem::Memory::Dynamic::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Addressable>>
+  mutable Perimortem::Memory::Dynamic::Vector<const Ttx::Model::Addressable*>
       foreign_addressables;
 };
 

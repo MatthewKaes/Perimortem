@@ -41,13 +41,13 @@ auto Interpreter::Execution::Branch::parse(
       cursor.get_arena(), kind, *condition,
       Anchor::create(opening, Span(opening, cursor.peek(-1))));
 
-  Option<Reference<const Abstract>> enclosing_loop;
+  Option<const Abstract*> enclosing_loop;
   if (kind == Language::Flow::Branch::Kind::While) {
-    enclosing_loop = Reference<const Abstract>(result);
+    enclosing_loop = &result;
   } else {
     auto inherited = lexical_context.get_enclosing_loop();
     if (inherited) {
-      enclosing_loop = Reference<const Abstract>(*inherited);
+      enclosing_loop = &*inherited;
     }
   }
 

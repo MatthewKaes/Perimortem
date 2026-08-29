@@ -11,7 +11,7 @@
 
 #include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
-#include "ttx/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 

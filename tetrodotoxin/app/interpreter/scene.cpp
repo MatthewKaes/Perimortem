@@ -89,8 +89,7 @@ auto App::Interpreter::Scene::parse(
       Code::Type::EndStatement,
       "App initial Scene requires one terminating `;`."_view));
 
-  Managed::Vector<Reference<Language::Transition>> transitions(
-      cursor.get_arena());
+  Managed::Vector<Language::Transition*> transitions(cursor.get_arena());
   while (!cursor.matches(Code::Type::ScopeEnd) &&
          !cursor.matches(Code::Type::Terminal)) {
     const Documentation& transition_documentation =
@@ -123,11 +122,10 @@ auto App::Interpreter::Scene::parse(
     BAIL_IF(!closing);
 
     View::Bytes signal_name = signal.caculate_text(cursor.get_source_text());
-    for (const Reference<Language::Transition>& retained :
-         transitions.get_view()) {
-      if (retained.get().get_source_route().get_spelling() ==
+    for (const Language::Transition* retained : transitions.get_view()) {
+      if (retained->get_source_route().get_spelling() ==
               source->get_spelling() &&
-          retained.get().get_signal_name() == signal_name) {
+          retained->get_signal_name() == signal_name) {
         cursor.create_token_error(
             signal, "App Scene lifecycle already maps this exact Signal."_view);
         return {};
@@ -143,7 +141,7 @@ auto App::Interpreter::Scene::parse(
         transition);
     cursor.get_associations().create(
         Anchor::create(action->token, Span(action->token)), transition);
-    transitions.insert(transition);
+    transitions.insert(&transition);
   }
 
   Token closing = cursor.require(

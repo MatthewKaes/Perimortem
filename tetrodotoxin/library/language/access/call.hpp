@@ -12,7 +12,6 @@
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
@@ -53,6 +52,10 @@ class Call : public Expression {
   TTX_NAME(name);
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
   auto get_result() const -> const Ttx::Concept::Abstract& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_value_type(Count index) const
@@ -91,14 +94,14 @@ class Call : public Expression {
         const Language::Model::Pack& source,
         Count offset,
         Count size)
-        : parameter(parameter), source(source), offset(offset), size(size) {}
+        : parameter(&parameter), source(&source), offset(offset), size(size) {}
 
     constexpr auto get_parameter() const -> const Ttx::Model::Addressable& {
-      return parameter.get();
+      return *parameter;
     }
 
     constexpr auto get_source() const -> const Language::Model::Pack& {
-      return source.get();
+      return *source;
     }
 
     constexpr auto get_offset() const -> Count { return offset; }
@@ -106,8 +109,8 @@ class Call : public Expression {
     constexpr auto get_size() const -> Count { return size; }
 
    private:
-    Ttx::Concept::Reference<const Ttx::Model::Addressable> parameter;
-    Ttx::Model::PackReference<const Language::Model::Pack> source;
+    const Ttx::Model::Addressable* parameter;
+    const Language::Model::Pack* source;
     Count offset;
     Count size;
   };
@@ -134,16 +137,15 @@ class Call : public Expression {
       const Model::Callable& selected,
       Perimortem::Core::Option<const Ttx::Concept::Layout&> inputs) -> Bool;
 
-  auto evaluate() -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Model::Pack&>, Error> override;
+  auto evaluate_fold() -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Model::Pack&>, Error>;
 
   Perimortem::Memory::Allocator::Arena& domain;
   Model::Pack& receiver;
   Ttx::Lexical::Token name_token;
   Perimortem::Core::View::Bytes name;
   Language::Model::Pack& arguments;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Callable>>
-      callable;
+  Perimortem::Core::Option<const Model::Callable*> callable;
   Perimortem::Core::Option<const Ttx::Concept::Layout&> input_layout;
   Perimortem::Core::Option<const Ttx::Concept::Layout&> output;
   Perimortem::Memory::Managed::Vector<Input> fitted_inputs;

@@ -9,9 +9,9 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/import.hpp"
-#include "ttx/concept/documentation.hpp"
+#include "ttx/bootstrap/concept/documentation.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Language {
 
@@ -64,7 +64,7 @@ class Monograph : public Ttx::Model::Type {
       -> Bool;
 
   virtual constexpr auto get_imports() const
-      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Import>> {
+      -> Perimortem::Core::View::Vector<Import*> {
     return imports.get_view();
   }
 
@@ -74,17 +74,15 @@ class Monograph : public Ttx::Model::Type {
   virtual auto resolve_lexical_context(Perimortem::Core::View::Bytes route)
       const -> const Ttx::Concept::Abstract&;
 
-  // Linking begins after every source in the transaction has established stable
-  // identities. Finalization follows as a second barrier where each Monograph
-  // can validate edges that may cross into another source.
-  virtual auto compose(Ttx::Lexical::Cursor& cursor) -> Bool;
+  // Validation begins after every source in the transaction has established
+  // stable identities. The final barrier checks edges that cross another
+  // source.
   virtual auto link(Ttx::Lexical::Cursor& cursor) -> Bool;
   virtual auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool;
 
   // Restored graphs cross the same Package barriers even though they have no
   // source Cursor. A persistent Dialect reports rejection through process
   // Diagnostics while these operations preserve the authored transaction order.
-  virtual auto compose_restored() -> Bool;
   virtual auto link_restored() -> Bool;
   virtual auto finalize_restored() -> Bool;
 
@@ -114,7 +112,7 @@ class Monograph : public Ttx::Model::Type {
 
  private:
   const Ttx::Concept::Abstract& language;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Import>> imports;
+  Perimortem::Memory::Managed::Vector<Import*> imports;
 };
 
 }  // namespace Tetrodotoxin::Language

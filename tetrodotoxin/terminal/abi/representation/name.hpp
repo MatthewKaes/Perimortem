@@ -7,7 +7,7 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "ttx/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Terminal::Abi::Representation {
 

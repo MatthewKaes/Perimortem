@@ -1,17 +1,16 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/layouts/named.hpp"
-#include "ttx/model/layouts/termination.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/bootstrap/model/layouts/termination.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -81,7 +80,7 @@ class AtomicType final : public Type {
 class RecursiveType final : public Type {
  public:
   RecursiveType()
-      : field("next"_view, *this), fields{{field}}, layout(fields) {}
+      : field("next"_view, *this), fields{{&field}}, layout(fields) {}
 
   TTX_CONTRACT(RecursiveType, Type);
   TTX_NAME("Recursive"_view);
@@ -91,7 +90,7 @@ class RecursiveType final : public Type {
 
  private:
   TypeField field;
-  Static::Vector<Reference<const Abstract>, 1> fields;
+  Static::Vector<const Abstract*, 1> fields;
   Named layout;
 };
 
@@ -116,7 +115,7 @@ PERIMORTEM_UNIT_TEST(TtxType, type_fields) {
   real.complete();
   TypeField x("x"_view, real);
   TypeField y("y"_view, real);
-  const Static::Vector<Reference<const Abstract>, 2> fields = {{x, y}};
+  const Static::Vector<const Abstract*, 2> fields = {{&x, &y}};
   ResolvingType point("Point"_view, Named(fields));
 
   EXPECT(&point.resolve() == &Unknown::get_unknown());
@@ -148,7 +147,7 @@ PERIMORTEM_UNIT_TEST(TtxType, layout_termination) {
   ResolvingType empty("Empty"_view);
   empty.complete();
   TypeField value("value"_view, atomic);
-  const Static::Vector<Reference<const Abstract>, 1> fields = {{value}};
+  const Static::Vector<const Abstract*, 1> fields = {{&value}};
   ResolvingType aggregate("Aggregate"_view, Named(fields));
   aggregate.complete();
   RecursiveType recursive;

@@ -11,8 +11,8 @@
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -40,12 +40,12 @@ auto Types::Fixed::create_default(Allocator::Arena& arena) const
     -> Option<Model::Pack&> {
   BAIL_IF(get_extent() == 0 || get_extent() > U64(Count(-1)));
 
-  Managed::Vector<Ttx::Model::PackReference<Model::Pack>> values(arena);
+  Managed::Vector<Model::Pack*> values(arena);
   values.reset(Count(get_extent()));
   for (Count index = 0; index < Count(get_extent()); index++) {
     auto value = get_element_type().create_default(arena);
     BAIL_IF(!value);
-    values.insert(*value);
+    values.insert(&*value);
   }
 
   return Expressions::Initializer::create_synthetic(
@@ -62,13 +62,9 @@ static auto fold_output(Model::Pack& source, Count index)
     return *direct;
   }
 
-  auto expression = const_cast<Abstract&>(*producer).select<Expression>();
-  BAIL_IF(!expression);
-
-  Option<Model::Pack&> folded;
-  expression->fold().visit(
-      [&](const Option<Model::Pack&>& selected) { folded = selected; },
-      [](const Expression::Error&) {});
+  auto producer_pack = Model::Pack::from(const_cast<Abstract&>(*producer));
+  BAIL_IF(!producer_pack);
+  auto folded = query_folded_pack(*producer_pack);
   BAIL_IF(!folded);
 
   Count selected_index = 0;
@@ -86,16 +82,15 @@ static auto fold_output(Model::Pack& source, Count index)
 static auto create_bytes(
     Allocator::Arena& arena,
     const Types::Fixed& type,
-    View::Vector<Ttx::Model::PackReference<Model::Pack>> values)
-    -> Option<Model::Pack&> {
+    View::Vector<Model::Pack*> values) -> Option<Model::Pack&> {
   auto element =
       type.get_element_type().resolve().select<Model::Types::Unsigned>();
   BAIL_IF(!element || element->get_size() != 1);
 
   auto storage = arena.allocate(values.get_size());
   Count index = 0;
-  for (const Ttx::Model::PackReference<Model::Pack>& selected : values) {
-    auto value = selected.get().select_identity<Constants::Unsigned>();
+  for (Model::Pack* selected : values) {
+    auto value = selected->select_identity<Constants::Unsigned>();
     BAIL_IF(!value || value->get_value() > U64(U8(-1)));
     storage.get_data()[index] = U8(value->get_value());
     index++;
@@ -109,12 +104,12 @@ auto Types::Fixed::create_fitted(Allocator::Arena& arena, Model::Pack& source)
     const -> Option<Model::Pack&> {
   BAIL_IF(!source.fits(*this));
 
-  Managed::Vector<Ttx::Model::PackReference<Model::Pack>> values(arena);
+  Managed::Vector<Model::Pack*> values(arena);
   values.reset(Count(get_extent()));
   for (Count index = 0; index < Count(get_extent()); index++) {
     auto value = fold_output(source, index);
     BAIL_IF(!value);
-    values.insert(*value);
+    values.insert(&*value);
   }
 
   auto element = get_element_type().resolve().select<Model::Types::Unsigned>();

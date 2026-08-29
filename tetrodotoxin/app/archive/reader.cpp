@@ -14,7 +14,7 @@
 #include "tetrodotoxin/app/language/scene.hpp"
 #include "tetrodotoxin/app/language/transition.hpp"
 #include "tetrodotoxin/language/resource.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 using namespace Perimortem::Core;
@@ -115,7 +115,7 @@ auto App::Archive::Reader::read(
   BAIL_IF(
       !initial || initial->is_empty() || !valid_reader() ||
       transition_count > payload.get_size());
-  Managed::Vector<Reference<App::Language::Transition>> transitions(arena);
+  Managed::Vector<App::Language::Transition*> transitions(arena);
   for (Count index = 0; index < transition_count; index++) {
     auto source = read_bytes();
     auto signal = read_bytes();
@@ -142,7 +142,7 @@ auto App::Archive::Reader::read(
         arena, documentation,
         App::Language::Route::create_restored(arena, *source), *signal, action,
         destination);
-    transitions.insert(transition);
+    transitions.insert(&transition);
   }
   BAIL_IF(!valid_reader() || reader.get_location() != payload.get_size());
   auto& scene = App::Language::Scene::create_restored(

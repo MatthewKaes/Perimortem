@@ -6,7 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/model/layout.hpp"
-#include "ttx/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Interpreter {

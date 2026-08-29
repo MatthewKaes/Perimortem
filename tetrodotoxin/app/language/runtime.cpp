@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/app/language/runtime.hpp"
 
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -29,9 +29,9 @@ auto Language::Runtime::create_windowed(
     Option<U32> width,
     Option<U32> height,
     Option<Bool> resizable) -> Runtime& {
-  Option<Reference<const Tetrodotoxin::Language::Resource>> icon_reference;
+  Option<const Tetrodotoxin::Language::Resource*> icon_reference;
   if (icon) {
-    icon_reference = Reference<const Tetrodotoxin::Language::Resource>(*icon);
+    icon_reference = &*icon;
   }
 
   auto& settings = arena.construct<Windowed>(

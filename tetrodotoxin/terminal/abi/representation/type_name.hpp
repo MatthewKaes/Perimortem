@@ -9,8 +9,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/terminal/abi/unit.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 namespace Tetrodotoxin::Terminal::Abi::Representation {
 
@@ -27,9 +26,7 @@ class TypeName {
       Perimortem::Core::View::Bytes inherited_member = {})
       -> Perimortem::Core::Option<TypeName>;
 
-  constexpr auto get_type() const -> const Ttx::Model::Type& {
-    return type.get();
-  }
+  constexpr auto get_type() const -> const Ttx::Model::Type& { return *type; }
 
   constexpr auto get_value() const -> Perimortem::Core::View::Bytes {
     return value;
@@ -49,9 +46,9 @@ class TypeName {
       Perimortem::Core::View::Bytes value,
       Perimortem::Core::View::Bytes package,
       Perimortem::Core::View::Bytes member)
-      : type(type), value(value), package(package), member(member) {}
+      : type(&type), value(value), package(package), member(member) {}
 
-  Ttx::Concept::Reference<const Ttx::Model::Type> type;
+  const Ttx::Model::Type* type;
   Perimortem::Core::View::Bytes value;
   Perimortem::Core::View::Bytes package;
   Perimortem::Core::View::Bytes member;

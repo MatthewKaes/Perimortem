@@ -9,7 +9,7 @@
 
 #include "tetrodotoxin/scene/language/monograph.hpp"
 #include "tetrodotoxin/terminal/graphics/products.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 namespace Tetrodotoxin::Terminal::Graphics {
 
@@ -23,8 +23,7 @@ class Compiler {
       Perimortem::Memory::Allocator::Arena& arena,
       const Tetrodotoxin::Scene::Language::Monograph& scene,
       const Ttx::Model::Type& requirement,
-      Perimortem::Core::View::Vector<
-          Ttx::Concept::Reference<const Ttx::Model::Type>> configured) const
+      Perimortem::Core::View::Vector<const Ttx::Model::Type*> configured) const
       -> Perimortem::Core::Option<Products>;
 };
 

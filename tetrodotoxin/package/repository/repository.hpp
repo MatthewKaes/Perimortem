@@ -16,9 +16,10 @@
 
 namespace Tetrodotoxin::Package::Repository {
 
-// Repository maps one exact Package coordinate to either its authored source
-// root or its one complete product. It owns no declared inventory, target ABI,
-// native cache, provider mapping, or build-tool artifact policy.
+// Repository resolves one exact Package coordinate from the writable Terminal
+// root first and an optional read only Package root second. It owns no declared
+// inventory, target ABI, native cache, provider mapping, or build tool artifact
+// policy.
 class Repository {
  public:
   enum class Error : U8 {
@@ -32,7 +33,8 @@ class Repository {
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Bytes root)
+      Perimortem::Core::View::Bytes terminal_root,
+      Perimortem::Core::Option<Perimortem::Core::View::Bytes> package_root = {})
       -> Perimortem::Core::Option<Repository>;
 
   auto select_source(
@@ -61,11 +63,17 @@ class Repository {
 
   Repository(
       Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Bytes root)
-      : arena(arena), root(root), sources(arena), archives(arena) {}
+      Perimortem::Core::View::Bytes terminal_root,
+      Perimortem::Core::Option<Perimortem::Core::View::Bytes> package_root)
+      : arena(arena),
+        terminal_root(terminal_root),
+        package_root(package_root),
+        sources(arena),
+        archives(arena) {}
 
   Perimortem::Memory::Allocator::Arena& arena;
-  Perimortem::Core::View::Bytes root;
+  Perimortem::Core::View::Bytes terminal_root;
+  Perimortem::Core::Option<Perimortem::Core::View::Bytes> package_root;
   Perimortem::Memory::Managed::Vector<Source> sources;
   Perimortem::Memory::Managed::Vector<Archive::Archive> archives;
 };

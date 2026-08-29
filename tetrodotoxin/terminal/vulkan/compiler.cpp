@@ -111,9 +111,8 @@ auto Terminal::Vulkan::Compiler::describe(
 
   Memory::Managed::Vector<Products::Entry> entries(arena);
   const Library::Language::Function* vertex = nullptr;
-  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-       program.get_callables()) {
-    auto function = candidate.get().select<Library::Language::Function>();
+  for (const Ttx::Concept::Abstract* candidate : program.get_callables()) {
+    auto function = candidate->select<Library::Language::Function>();
     auto stage =
         function ? stage_of(*function) : Core::Option<Products::Stage>();
     BAIL_IF(!function || !stage);

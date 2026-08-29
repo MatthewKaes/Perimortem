@@ -18,7 +18,7 @@
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
 #include "tetrodotoxin/library/language/operations/subtract_assignment.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -47,10 +47,9 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
 static auto find_function(
     const Language::Types::Composite& composite,
     View::Bytes name) -> Option<const Language::Function&> {
-  for (const Reference<Abstract>& binding : composite.get_callables()) {
-    if (binding.get().get_name() == name &&
-        binding.get().is<Language::Function>()) {
-      return static_cast<const Language::Function&>(binding.get());
+  for (const Abstract* binding : composite.get_callables()) {
+    if (binding->get_name() == name && binding->is<Language::Function>()) {
+      return static_cast<const Language::Function&>(*binding);
     }
   }
 

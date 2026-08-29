@@ -5,8 +5,8 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/model/documentations/block.hpp"
-#include "ttx/model/documentations/comment.hpp"
+#include "ttx/bootstrap/model/documentations/block.hpp"
+#include "ttx/bootstrap/model/documentations/comment.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;

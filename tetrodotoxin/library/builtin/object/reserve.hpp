@@ -6,12 +6,11 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/documentations/comment.hpp"
-#include "ttx/model/layouts/addressable.hpp"
-#include "ttx/model/layouts/named.hpp"
-#include "ttx/model/layouts/ranged.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/bootstrap/model/layouts/addressable.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/bootstrap/model/layouts/ranged.hpp"
 
 namespace Tetrodotoxin::Library::Builtin::Object {
 
@@ -49,9 +48,8 @@ class Reserve : public Language::Model::Callable {
       Ttx::Model::Layouts::Addressable& count,
       const Language::Model::Type& result);
 
-  Perimortem::Core::Static::
-      Vector<Ttx::Concept::Reference<const Ttx::Concept::Abstract>, 2>
-          parameter_entries;
+  Perimortem::Core::Static::Vector<const Ttx::Concept::Abstract*, 2>
+      parameter_entries;
   Ttx::Model::Layouts::Named parameters;
   Ttx::Model::Layouts::Ranged results;
   static constexpr Ttx::Model::Documentations::Comment documentation{

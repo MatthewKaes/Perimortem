@@ -6,9 +6,8 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
 
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -31,8 +30,8 @@ class Static : public Ttx::Concept::Abstract {
       -> const Ttx::Concept::Abstract&;
   auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   constexpr auto complete() -> void { completed = True; }
 
@@ -40,37 +39,10 @@ class Static : public Ttx::Concept::Abstract {
   class Binding {
    public:
     constexpr Binding(Ttx::Concept::Abstract& semantic, Bool published)
-        : semantic(semantic), published(published) {}
+        : semantic(&semantic), published(published) {}
 
-    Ttx::Concept::Reference<Ttx::Concept::Abstract> semantic;
+    Ttx::Concept::Abstract* semantic;
     Bool published;
-  };
-
-  class Surface : public Ttx::Concept::Layout {
-   public:
-    constexpr explicit Surface(const Static& owner) : owner(owner) {}
-
-    auto get_size() const -> Count override;
-    auto get_abstract(Count index) const
-        -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> override;
-    auto get_name(Count index) const
-        -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> override;
-    auto fits_entry(
-        const Ttx::Concept::Layout& target,
-        Count source_index,
-        Count target_index) const -> Bool override;
-    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
-        -> Bool override;
-    auto get_fitted_at(
-        const Ttx::Concept::Layout& target,
-        Count target_offset,
-        Count target_index) const -> Perimortem::Utility::
-        Result<const Ttx::Concept::Abstract&, Errors> override;
-
-   private:
-    auto select(Count index) const -> const Binding*;
-
-    const Static& owner;
   };
 
   Perimortem::Memory::Managed::Map<Perimortem::Core::View::Bytes, Binding>

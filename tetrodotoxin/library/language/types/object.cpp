@@ -8,8 +8,8 @@
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -49,11 +49,10 @@ static auto select_accessible_field(
 static auto select_supplied(
     const Field& field,
     Model::Pack& arguments,
-    View::Vector<Reference<const Abstract>> fitted_fields)
-    -> Option<const Model::Pack&> {
+    View::Vector<const Abstract*> fitted_fields) -> Option<const Model::Pack&> {
   const Layout& inputs = arguments.get_layout();
   for (Count index = 0; index < fitted_fields.get_size(); index++) {
-    if (&fitted_fields.get_data()[index].get() == &field) {
+    if (fitted_fields.get_data()[index] == &field) {
       return inputs.get_abstract(index).visit(
           []() -> Option<const Model::Pack&> { return {}; },
           [](const Abstract& selected) { return Model::Pack::from(selected); });
@@ -64,8 +63,8 @@ static auto select_supplied(
 
 static auto fit_supplied_fields(
     Model::Pack& arguments,
-    View::Vector<Reference<const Abstract>> accessible_fields,
-    Managed::Vector<Reference<const Abstract>>& fitted_fields) -> Bool {
+    View::Vector<const Abstract*> accessible_fields,
+    Managed::Vector<const Abstract*>& fitted_fields) -> Bool {
   const Layout& inputs = arguments.get_layout();
   fitted_fields.reset(inputs.get_size());
 
@@ -77,7 +76,7 @@ static auto fit_supplied_fields(
     Count matches = 0;
     for (Count field_index = 0; field_index < accessible_fields.get_size();
          field_index++) {
-      if (accessible_fields.get_data()[field_index].get().get_name() ==
+      if (accessible_fields.get_data()[field_index]->get_name() ==
           *input_name) {
         selected = field_index;
         matches++;
@@ -132,15 +131,15 @@ auto Types::Object::create_supplied(
     Option<const Abstract&> access_scope,
     Option<Anchor> anchor) const -> Option<Model::Pack&> {
   Allocator::Arena& arena = cursor.get_arena();
-  Managed::Vector<Reference<const Abstract>> accessible_fields(arena);
-  for (const Reference<Abstract>& selected : get_addressables()) {
-    auto selected_field = select_accessible_field(selected.get(), access_scope);
+  Managed::Vector<const Abstract*> accessible_fields(arena);
+  for (const Abstract* selected : get_addressables()) {
+    auto selected_field = select_accessible_field(*selected, access_scope);
     if (selected_field) {
-      accessible_fields.insert(*selected_field);
+      accessible_fields.insert(&*selected_field);
     }
   }
 
-  Managed::Vector<Reference<const Abstract>> fitted_fields(arena);
+  Managed::Vector<const Abstract*> fitted_fields(arena);
   // Inputs retain evaluation order, while this fitted Field sequence records
   // which declaration owns each named value. The Pack performs the final fit
   // so receiving Types can admit semantic conversions such as Option payloads.
@@ -161,10 +160,10 @@ auto Types::Object::create_supplied(
   // A fitted supplied value wins, then the declaration initializer, then the
   // exact Field Type default. Const and Static facts never enter this inventory
   // and therefore cannot become construction inputs by accident.
-  Managed::Vector<Ttx::Model::PackReference<Model::Pack>> values(arena);
+  Managed::Vector<Model::Pack*> values(arena);
   values.reset(get_layout().get_size());
-  for (const Reference<Abstract>& selected : get_addressables()) {
-    auto field = selected.get().select<Field>();
+  for (const Abstract* selected : get_addressables()) {
+    auto field = selected->select<Field>();
     if (!field || field->get_writability() != Writability::Internal) {
       continue;
     }
@@ -172,13 +171,13 @@ auto Types::Object::create_supplied(
     auto supplied =
         select_supplied(*field, arguments, fitted_fields.get_view());
     if (supplied) {
-      values.insert(const_cast<Model::Pack&>(*supplied));
+      values.insert(&const_cast<Model::Pack&>(*supplied));
       continue;
     }
 
     auto authored = field->get_initializer();
     if (authored) {
-      values.insert(const_cast<Model::Pack&>(*authored));
+      values.insert(&const_cast<Model::Pack&>(*authored));
       continue;
     }
 
@@ -193,7 +192,7 @@ auto Types::Object::create_supplied(
           "exact Field value."_view);
       return {};
     }
-    values.insert(*fallback);
+    values.insert(&*fallback);
   }
 
   return Model::Pack::create_group(arena, values.get_view());
@@ -203,14 +202,14 @@ auto Types::Object::create_supplied_restored(
     Allocator::Arena& arena,
     Model::Pack& arguments,
     Option<const Abstract&> access_scope) const -> Option<Model::Pack&> {
-  Managed::Vector<Reference<const Abstract>> accessible_fields(arena);
-  for (const Reference<Abstract>& selected : get_addressables()) {
-    auto field = select_accessible_field(selected.get(), access_scope);
+  Managed::Vector<const Abstract*> accessible_fields(arena);
+  for (const Abstract* selected : get_addressables()) {
+    auto field = select_accessible_field(*selected, access_scope);
     if (field) {
-      accessible_fields.insert(*field);
+      accessible_fields.insert(&*field);
     }
   }
-  Managed::Vector<Reference<const Abstract>> fitted_fields(arena);
+  Managed::Vector<const Abstract*> fitted_fields(arena);
   BAIL_IF(!fit_supplied_fields(
       arguments, accessible_fields.get_view(), fitted_fields));
 
@@ -218,10 +217,10 @@ auto Types::Object::create_supplied_restored(
     return Expressions::Initializer::create_provider(arena, *this, arguments);
   }
 
-  Managed::Vector<Ttx::Model::PackReference<Model::Pack>> values(arena);
+  Managed::Vector<Model::Pack*> values(arena);
   values.reset(get_layout().get_size());
-  for (const Reference<Abstract>& selected : get_addressables()) {
-    auto field = selected.get().select<Field>();
+  for (const Abstract* selected : get_addressables()) {
+    auto field = selected->select<Field>();
     if (!field || field->get_writability() != Writability::Internal) {
       continue;
     }
@@ -229,19 +228,19 @@ auto Types::Object::create_supplied_restored(
     auto supplied =
         select_supplied(*field, arguments, fitted_fields.get_view());
     if (supplied) {
-      values.insert(const_cast<Model::Pack&>(*supplied));
+      values.insert(&const_cast<Model::Pack&>(*supplied));
       continue;
     }
     auto authored = field->get_initializer();
     if (authored) {
-      values.insert(const_cast<Model::Pack&>(*authored));
+      values.insert(&const_cast<Model::Pack&>(*authored));
       continue;
     }
     auto field_type = field->get_type().select<Model::Type>();
     auto fallback =
         field_type ? field_type->create_default(arena) : Option<Model::Pack&>();
     BAIL_IF(!fallback);
-    values.insert(*fallback);
+    values.insert(&*fallback);
   }
   return Model::Pack::create_group(arena, values.get_view());
 }

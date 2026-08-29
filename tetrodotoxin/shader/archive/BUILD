@@ -17,8 +17,8 @@ cc_library(
         "//tetrodotoxin/language",
         "//tetrodotoxin/render/language",
         "//tetrodotoxin/shader/language",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
-        "//ttx:model",
+        "//ttx:bootstrap_model",
     ],
 )

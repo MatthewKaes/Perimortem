@@ -7,13 +7,13 @@
 #include "perimortem/core/option.hpp"
 
 #include "llvm-c/Types.h"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
-#include "ttx/concept/layout.hpp"
+#include "ttx/bootstrap/concept/layout.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/anchor.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/pack.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Emission {
 
@@ -51,29 +51,30 @@ class Computation {
   auto arithmetic(
       Arithmetic operation,
       const Ttx::Model::Type& carrier,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& left,
-      const Ttx::Model::Pack& right) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& left,
+      const Tetrodotoxin::Library::Language::Model::Pack& right) const -> Bool;
   auto negate(
       const Ttx::Model::Type& carrier,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& operand) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& operand) const
+      -> Bool;
   auto convert(
       const Ttx::Model::Type& source_carrier,
       const Ttx::Model::Type& target_carrier,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& source) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& source) const -> Bool;
   auto compare(
       Comparison operation,
       const Ttx::Model::Type& carrier,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& left,
-      const Ttx::Model::Pack& right) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& left,
+      const Tetrodotoxin::Library::Language::Model::Pack& right) const -> Bool;
   auto compare_bytes(
       Comparison operation,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& left,
-      const Ttx::Model::Pack& right) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& left,
+      const Tetrodotoxin::Library::Language::Model::Pack& right) const -> Bool;
 
  private:
   Module::Body& body;

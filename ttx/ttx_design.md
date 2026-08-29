@@ -131,8 +131,8 @@ Abstract
 └── Callable
 ```
 
-`Documentation`, `Layout`, `Pack`, `Context`, `Interface`, and `Reference` are
-supporting values.
+`Documentation`, `Layout`, `Pack`, `Context`, and `Interface` are supporting
+values.
 They describe, negotiate, or connect identities without acquiring another
 semantic identity. Complete
 declaration structure, source provenance, visibility, and publication remain
@@ -160,30 +160,24 @@ a wrapper, clone, registry entry, or second identity. A consumer that needs
 source or declaration facts proves the concrete owner and inspects the complete
 value retained there rather than asking every Abstract for a shared fragment.
 
-## Reference and graph lifetime
+## Handles and graph lifetime
 
-A Reference is a nonnull borrowed edge to one exact semantic object. It remains
-valid for the lifetime established by the graph owner and carries no absent
-state.
+Every edge borrows one exact typed C handle from the graph owner. TTX defines no
+Reference wrapper, lease, lifetime token, or cacheable identity. A handle
+preserves the exact object it receives and carries no absent state. Alias owns
+the only shared represented identity traversal, and `resolve()` is the sole
+operation that follows that edge.
 
-A Reference preserves the exact object it receives. Alias hides its immediate
-Reference and `resolve()` is the only operation that follows Alias edges.
-Proving a Type or reaching the Type of an Addressable remains an explicit
-operation performed by the consumer whose contract requires it.
-
-The graph owner guarantees the lifetime of every borrowed identity. A process
-address may serve as local identity while that owner keeps the object stable.
-Its meaning ends with that graph lifetime.
+The graph owner guarantees each handle lifetime. The handle address may serve
+as local identity while that owner keeps the object stable, but its meaning ends
+with the graph lifetime. A concrete same lifetime inventory stores typed handles
+directly instead of laundering them through another semantic category.
 
 This avoids copying a semantic object into every context that retains it and
-avoids treating a pointer, spelling, or structural hash as a durable identity.
-The tradeoff is that callers must respect one clear graph lifetime. A Reference
-cannot serve as a persistent handle after its owner is gone.
-
-When a Terminal supports later reconstruction, its format records the owner
-facts needed to build a new graph. Reconstruction creates new live objects
-under a new owner. It does not revive old References or promise equal process
-addresses.
+avoids treating a spelling or structural hash as durable identity. The cost is
+one explicit lifetime boundary. When a Terminal supports reconstruction, its
+format records owner facts that create a fresh graph. It does not revive old
+handle values or promise equal process addresses.
 
 ## Owner directed contextual resolution
 
@@ -225,9 +219,10 @@ it. An incomplete total query returns the shared `Unknown` object. Completion
 may make that unanswered query valid, while every successful identity remains
 stable. Completed absence returns the axiomatic `None` Constant.
 
-Concept exploration produces fresh Pack snapshots in a caller-owned Context.
-The snapshot may omit incomplete questions or carry Unknown explicitly. It has
-no stable order and no identity to stage or replace.
+Concept exploration synchronously visits the currently advertised names and
+exact Abstract handles. A visit may omit incomplete questions or carry Unknown
+explicitly. It has no stable order, Pack, Context, or identity to stage or
+replace.
 
 This supports recursive declarations and source groups without adding an
 Incomplete Layout or a universal publication bit to every Abstract. The
@@ -268,9 +263,10 @@ descriptor uses `.name : Type`. A named value uses `.name = expression`. A
 concrete language may omit a delimiter where its grammar remains unambiguous,
 but the semantic direction does not change.
 
-A Layout retains an ordered view of exact Abstract identities and answers
-whether one shape fits another. Fitting is directional because a Pack's source
-Layout supplies the values required by a target Layout.
+A Layout visits exact Abstract identities and answers whether one shape fits
+another. Fitting is directional because a Pack's source Layout supplies the
+values required by a target Layout. Only a concrete value flow owner such as a
+Callable signature or Fluid sequence promises visitation order.
 
 `Value` is the terminal one entry descriptor for one exact atomic Type. `Fluid`
 describes positional entries and compares them in order. `Named` describes
@@ -279,11 +275,12 @@ fitting rule for each match. A slot may borrow a name independently while
 retaining the exact source Abstract. `Ranged` describes one entry across a fixed
 interval. `Composite` preserves two complete child Layouts.
 
-Successful fitting returns the original source edge that supplies a target
-position. The concrete producer remains the value-flow owner. Its Pack Layout
-retains order, borrowed slot names, and applicability without copying Types,
-Documentation, defaults, or storage facts into a generic member record. A decorator or
-composition delegates entry fitting to the source Layout that owns each edge.
+The concrete producer remains the value flow owner after fitting. Its Pack
+Layout retains any owner promised order, names, and applicability without
+copying Types, Documentation, defaults, or storage facts into a generic member
+record. A decorator or composition delegates fitting to the concrete Layout
+that owns the shape. Generic callers receive no index, fitted map, or optional
+base entry name.
 
 Keeping Layout semantic lets the same graph feed a CPU compiler, GPU compiler,
 interpreter, editor, and archive writer without letting the first Terminal fix
@@ -366,7 +363,7 @@ product hierarchy. Each concrete producer retains ownership of its format. A
 linker object and a semantic archive are both Terminal products, but their
 different purposes do not create a generic product model.
 
-No live Abstract identity or Reference crosses this boundary. A Terminal may
+No live Abstract handle crosses this boundary. A Terminal may
 encode facts chosen by its owner, but its bytes or text are not semantic
 objects. A later process that needs semantic meaning validates the format
 defined by its producer and asks a concrete graph owner to construct a new

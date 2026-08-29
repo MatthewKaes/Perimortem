@@ -2,7 +2,7 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/foreign.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -52,7 +52,7 @@ auto Language::Foreign::State::link(Cursor& cursor) -> Bool {
     return False;
   }
 
-  if (type && &type->get() != &*selected_type) {
+  if (type && *type != &*selected_type) {
     cursor.create_expression_error(
         type_reference.get_anchor(),
         "Foreign State cannot change its linked Type identity."_view,
@@ -60,7 +60,7 @@ auto Language::Foreign::State::link(Cursor& cursor) -> Bool {
     return False;
   }
 
-  type = Reference<const Language::Model::Type>(*selected_type);
+  type = &*selected_type;
   return True;
 }
 
@@ -72,13 +72,13 @@ auto Language::Foreign::State::link_restored_declaration_type() -> Bool {
       },
       [](const TypeReference::Failure&) {});
   BAIL_IF(!selected_type || selected_type->get_layout().is_empty());
-  type = Reference<const Model::Type>(*selected_type);
+  type = &*selected_type;
   return True;
 }
 
 auto Language::Foreign::State::get_type() const -> const Abstract& {
   if (type) {
-    return type->get();
+    return **type;
   }
 
   Option<const Abstract&> selected;

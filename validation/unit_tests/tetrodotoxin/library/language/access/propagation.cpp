@@ -2,6 +2,7 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "validation/unit_test.hpp"
+#include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
 #include "validation/unit_tests/tetrodotoxin/library/workspace.hpp"
 
 #include "perimortem/core/static/vector.hpp"
@@ -31,7 +32,7 @@
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
 #include "tetrodotoxin/library/language/types/result.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -62,10 +63,9 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
 static auto find_field(
     const Language::Types::Composite& composite,
     View::Bytes name) -> Option<const Language::Field&> {
-  for (const Reference<Abstract>& candidate : composite.get_addressables()) {
-    if (candidate.get().get_name() == name &&
-        candidate.get().is<Language::Field>()) {
-      return static_cast<const Language::Field&>(candidate.get());
+  for (const Abstract* candidate : composite.get_addressables()) {
+    if (candidate->get_name() == name && candidate->is<Language::Field>()) {
+      return static_cast<const Language::Field&>(*candidate);
     }
   }
 
@@ -75,10 +75,9 @@ static auto find_field(
 static auto find_function(
     const Language::Types::Composite& composite,
     View::Bytes name) -> Option<const Language::Function&> {
-  for (const Reference<Abstract>& candidate : composite.get_callables()) {
-    if (candidate.get().get_name() == name &&
-        candidate.get().is<Language::Function>()) {
-      return static_cast<const Language::Function&>(candidate.get());
+  for (const Abstract* candidate : composite.get_callables()) {
+    if (candidate->get_name() == name && candidate->is<Language::Function>()) {
+      return static_cast<const Language::Function&>(*candidate);
     }
   }
 
@@ -162,8 +161,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, receiving_type_fit) {
 
   Allocator::Arena fitted_arena;
   auto& empty = Language::Model::Pack::create_folded(
-      fitted_arena,
-      View::Vector<Ttx::Model::PackReference<Language::Model::Pack>>());
+      fitted_arena, View::Vector<Language::Model::Pack*>());
   auto& value = Language::Constants::Unsigned::create_synthetic(
       fitted_arena, *element, U64(7));
 
@@ -222,10 +220,10 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, target_unwrap) {
   ASSERT(fallback && selected);
   ASSERT(absent_call && present_call);
 
-  auto absent_constant = absent->get_constant();
-  auto present_constant = present->get_constant();
-  auto absent_copy_constant = absent_copy->get_constant();
-  auto present_copy_constant = present_copy->get_constant();
+  auto absent_constant = folded_pack(*absent);
+  auto present_constant = folded_pack(*present);
+  auto absent_copy_constant = folded_pack(*absent_copy);
+  auto present_copy_constant = folded_pack(*present_copy);
   ASSERT(absent_constant && present_constant);
   ASSERT(absent_copy_constant && present_copy_constant);
   EXPECT(&*absent_copy_constant == &*absent_constant);
@@ -244,8 +242,8 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, target_unwrap) {
   ASSERT(payload_value);
   EXPECT_EQ(payload_value->get_value(), U64(7));
 
-  auto fallback_constant = fallback->get_constant();
-  auto selected_constant = selected->get_constant();
+  auto fallback_constant = folded_pack(*fallback);
+  auto selected_constant = folded_pack(*selected);
   ASSERT(fallback_constant && selected_constant);
   auto fallback_value = select_unsigned(*fallback_constant);
   auto selected_value = select_unsigned(*selected_constant);
@@ -347,12 +345,13 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, edge_folding) {
 
   Bool dynamic_fold_succeeded = False;
   Option<Language::Model::Pack&> dynamic_folded;
-  pass_propagate->fold().visit(
-      [&](const Option<Language::Model::Pack&>& selected) {
-        dynamic_fold_succeeded = True;
-        dynamic_folded = selected;
-      },
-      [](const Language::Expression::Error&) {});
+  test_fold(*pass_propagate)
+      .visit(
+          [&](const Option<Language::Model::Pack&>& selected) {
+            dynamic_fold_succeeded = True;
+            dynamic_folded = selected;
+          },
+          [](const Language::Expression::Error&) {});
   EXPECT(dynamic_fold_succeeded);
   EXPECT_NOT(dynamic_folded);
 
@@ -391,12 +390,13 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, edge_folding) {
 
   Bool present_fold_succeeded = False;
   Option<Language::Model::Pack&> present_folded;
-  present_propagate->fold().visit(
-      [&](const Option<Language::Model::Pack&>& selected) {
-        present_fold_succeeded = True;
-        present_folded = selected;
-      },
-      [](const Language::Expression::Error&) {});
+  test_fold(*present_propagate)
+      .visit(
+          [&](const Option<Language::Model::Pack&>& selected) {
+            present_fold_succeeded = True;
+            present_folded = selected;
+          },
+          [](const Language::Expression::Error&) {});
   ASSERT(present_fold_succeeded && present_folded);
   auto present_value = select_unsigned(*present_folded);
   ASSERT(present_value);
@@ -404,12 +404,13 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, edge_folding) {
 
   Bool absent_fold_succeeded = False;
   Option<Language::Model::Pack&> absent_folded;
-  absent_propagate->fold().visit(
-      [&](const Option<Language::Model::Pack&>& selected) {
-        absent_fold_succeeded = True;
-        absent_folded = selected;
-      },
-      [](const Language::Expression::Error&) {});
+  test_fold(*absent_propagate)
+      .visit(
+          [&](const Option<Language::Model::Pack&>& selected) {
+            absent_fold_succeeded = True;
+            absent_folded = selected;
+          },
+          [](const Language::Expression::Error&) {});
   EXPECT(absent_fold_succeeded);
   EXPECT_NOT(absent_folded);
   EXPECT(absent_propagate->get_escape().get_layout().is_empty());
@@ -440,7 +441,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, edge_folding) {
 
   Bool chain_fold_succeeded = False;
   Option<Language::Model::Pack&> chain_folded;
-  unwrap->fold().visit(
+  test_fold(*unwrap).visit(
       [&](const Option<Language::Model::Pack&>& selected) {
         chain_fold_succeeded = True;
         chain_folded = selected;
@@ -503,8 +504,8 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_fixture) {
   ASSERT(absent_session && first_session && second_session);
   ASSERT(failed && succeeded && default_result_field);
 
-  auto absent_constant = absent->get_constant();
-  auto present_constant = present->get_constant();
+  auto absent_constant = folded_pack(*absent);
+  auto present_constant = folded_pack(*present);
   auto absent_option = absent_constant.visit(
       []() -> Option<Language::Constants::Option&> { return {}; },
       [](Language::Model::Pack& value) {
@@ -525,8 +526,8 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_fixture) {
   ASSERT(present_value);
   EXPECT_EQ(present_value->get_value(), U64(7));
 
-  auto defaulted_constant = defaulted->get_constant();
-  auto selected_constant = selected->get_constant();
+  auto defaulted_constant = folded_pack(*defaulted);
+  auto selected_constant = folded_pack(*selected);
   ASSERT(defaulted_constant && selected_constant);
   auto defaulted_value = select_unsigned(*defaulted_constant);
   auto selected_value = select_unsigned(*selected_constant);
@@ -534,9 +535,9 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_fixture) {
   EXPECT_EQ(defaulted_value->get_value(), U64(0));
   EXPECT_EQ(selected_value->get_value(), U64(7));
 
-  auto failed_constant = failed->get_constant();
-  auto succeeded_constant = succeeded->get_constant();
-  auto authored_default_constant = default_result_field->get_constant();
+  auto failed_constant = folded_pack(*failed);
+  auto succeeded_constant = folded_pack(*succeeded);
+  auto authored_default_constant = folded_pack(*default_result_field);
   auto failed_result = failed_constant.visit(
       []() -> Option<Language::Constants::Result&> { return {}; },
       [](Language::Model::Pack& value) {
@@ -577,7 +578,7 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_fixture) {
   ASSERT(default_result_value);
   EXPECT_EQ(default_result_value->get_value(), U64(0));
 
-  auto absent_session_constant = absent_session->get_constant();
+  auto absent_session_constant = folded_pack(*absent_session);
   auto session_option = absent_session_constant.visit(
       []() -> Option<Language::Constants::Option&> { return {}; },
       [](Language::Model::Pack& value) {

@@ -6,7 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/field.hpp"
-#include "ttx/concept/interface.hpp"
+#include "ttx/concept/interface.h"
 
 namespace Tetrodotoxin::Library::Language::Interfaces {
 
@@ -14,11 +14,11 @@ namespace Tetrodotoxin::Library::Language::Interfaces {
 // Public state names and Types form the useful structural promise here. The
 // Object keeps its identity and any additional state, while callers can reuse
 // the same selected Fields when they later derive a physical Projection.
-class Structure : public Ttx::Concept::Interface {
+class Structure {
  public:
   auto negotiate(
       const Ttx::Concept::Abstract& requirement,
-      const Ttx::Concept::Abstract& candidate) const -> Relation override;
+      const Ttx::Concept::Abstract& candidate) const -> ttx_interface_relation;
 
   auto select_field(
       const Tetrodotoxin::Library::Language::Field& requirement,

@@ -11,12 +11,11 @@
 
 #include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/concept/layout.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/layout.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model {
 
@@ -81,9 +80,7 @@ class Layout final : public Ttx::Concept::Layout {
     Perimortem::Core::View::Bytes name;
     Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>
         attributes;
-    Perimortem::Core::Option<
-        Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-        edge;
+    Perimortem::Core::Option<const Ttx::Concept::Abstract*> edge;
   };
 
   static auto create_authored(

@@ -11,7 +11,6 @@
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Expressions {
@@ -36,8 +35,7 @@ class Initializer : public Expression {
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
       const Model::Type& type,
-      Perimortem::Core::View::Vector<Ttx::Model::PackReference<Model::Pack>>
-          values) -> Initializer&;
+      Perimortem::Core::View::Vector<Model::Pack*> values) -> Initializer&;
 
   // A restored Interface aggregate delegates construction to its provider's
   // native Type operation. The Initializer remains the produced Pack identity.
@@ -70,6 +68,10 @@ class Initializer : public Expression {
       -> Bool override;
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   auto get_completed_values() const
       -> Perimortem::Core::Option<const Model::Pack&>;
@@ -80,23 +82,20 @@ class Initializer : public Expression {
 
   constexpr auto uses_provider() const -> Bool { return provider; }
 
- protected:
-  auto evaluate() -> Perimortem::Utility::Result<
-      Perimortem::Core::Option<Model::Pack&>,
-      Expression::Error> override;
-
  private:
+  auto evaluate_fold() -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Model::Pack&>, Expression::Error>;
   Initializer(
+      Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Core::Option<TypeReference> target_reference,
       Model::Pack& arguments,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 
+  Perimortem::Memory::Allocator::Arena& domain;
   Perimortem::Core::Option<TypeReference> target_reference;
   Model::Pack& arguments;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
-      expected_type;
-  Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>>
-      completed_values;
+  Perimortem::Core::Option<const Model::Type*> expected_type;
+  Perimortem::Core::Option<Model::Pack*> completed_values;
   Bool provider = False;
 };
 

@@ -16,7 +16,7 @@
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/s8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -99,7 +99,7 @@ PERIMORTEM_UNIT_TEST(LibraryNot, type_selection) {
   EXPECT(!link_operation(signed_not, source));
   EXPECT(!link_operation(invalid_not, source));
 
-  auto canonical_result = selected(canonical_not.fold());
+  auto canonical_result = selected(test_fold(canonical_not));
 
   EXPECT_NOT(canonical_result);
   EXPECT(&canonical_not.get_type() == &resolve_library_flag(source));
@@ -118,8 +118,7 @@ PERIMORTEM_UNIT_TEST(LibraryNot, flag_protocol) {
   auto& active = Constants::True::create_synthetic(domain, protocol);
   auto& inactive = Constants::False::create_synthetic(domain, protocol);
   auto& other_active = Constants::True::create_synthetic(domain, other_storage);
-  Static::Vector<Ttx::Model::PackReference<Model::Pack>, 2> entries{
-    {active, inactive}};
+  Static::Vector<Model::Pack*, 2> entries{{&active, &inactive}};
   auto& folded = Model::Pack::create_folded(domain, entries);
   auto active_validity = protocol.get_validity(folded);
   auto inactive_validity = protocol.get_validity(inactive);
@@ -131,7 +130,7 @@ PERIMORTEM_UNIT_TEST(LibraryNot, flag_protocol) {
   EXPECT_NOT(protocol.get_validity(other_active));
   ASSERT(link_operation(inverse, source));
 
-  auto inverse_value = selected(inverse.fold());
+  auto inverse_value = selected(test_fold(inverse));
   ASSERT(inverse_value);
   auto inverse_validity = protocol.get_validity(*inverse_value);
   ASSERT(inverse_validity);
@@ -164,10 +163,10 @@ PERIMORTEM_UNIT_TEST(LibraryNot, canonical_folding) {
   EXPECT(link_operation(complete_true_not, source));
   EXPECT(link_operation(complete_false_not, source));
 
-  auto true_result = selected(true_not.fold());
-  auto false_result = selected(false_not.fold());
-  auto complete_true_result = selected(complete_true_not.fold());
-  auto complete_false_result = selected(complete_false_not.fold());
+  auto true_result = selected(test_fold(true_not));
+  auto false_result = selected(test_fold(false_not));
+  auto complete_true_result = selected(test_fold(complete_true_not));
+  auto complete_false_result = selected(test_fold(complete_false_not));
 
   ASSERT(
       true_result && false_result && complete_true_result &&
@@ -193,8 +192,8 @@ PERIMORTEM_UNIT_TEST(LibraryNot, stable_folding) {
   EXPECT(link_operation(parent, source));
   EXPECT(link_operation(parent, source));
 
-  auto parent_result = selected(parent.fold());
-  auto repeated_result = selected(parent.fold());
+  auto parent_result = selected(test_fold(parent));
+  auto repeated_result = selected(test_fold(parent));
 
   ASSERT(parent_result && repeated_result);
   EXPECT(parent_result->is_identity<Constants::True>());

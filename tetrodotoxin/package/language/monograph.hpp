@@ -28,8 +28,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Perimortem::System::Version version,
       Ttx::Concept::Abstract& context,
       const Ttx::Concept::Abstract& library_language,
-      Perimortem::Core::View::Vector<
-          Ttx::Concept::Reference<Tetrodotoxin::Package::Resource>> resources,
+      Perimortem::Core::View::Vector<Tetrodotoxin::Package::Resource*>
+          resources,
       Bool resources_sealed);
 
  public:
@@ -52,15 +52,14 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Perimortem::System::Version version,
       Ttx::Concept::Abstract& context,
       const Ttx::Concept::Abstract& library_language,
-      Perimortem::Core::View::Vector<
-          Ttx::Concept::Reference<Tetrodotoxin::Package::Resource>> resources =
-          {}) -> Monograph&;
+      Perimortem::Core::View::Vector<Tetrodotoxin::Package::Resource*>
+          resources = {}) -> Monograph&;
 
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   auto resolve_lexical_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
@@ -75,7 +74,7 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       -> Bool override;
 
   constexpr auto get_imports() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<Tetrodotoxin::Language::Import>> override {
+      Tetrodotoxin::Language::Import*> override {
     return library.get_imports();
   }
 

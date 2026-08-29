@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
 
-#include "ttx/model/addressable.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;

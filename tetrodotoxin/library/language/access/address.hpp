@@ -9,7 +9,6 @@
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
@@ -44,6 +43,10 @@ class Address : public Expression {
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_result() const -> const Ttx::Concept::Abstract& override;
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
   constexpr auto get_receiver() const -> const Model::Pack& { return receiver; }
@@ -57,8 +60,7 @@ class Address : public Expression {
       Model::Pack& receiver,
       Ttx::Lexical::Token name_token,
       Perimortem::Core::View::Bytes name,
-      Perimortem::Core::Option<
-          Ttx::Concept::Reference<const Model::Addressable>> addressable,
+      Perimortem::Core::Option<const Model::Addressable*> addressable,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor),
         receiver(receiver),
@@ -69,8 +71,7 @@ class Address : public Expression {
   Model::Pack& receiver;
   Ttx::Lexical::Token name_token;
   Perimortem::Core::View::Bytes name;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Addressable>>
-      addressable;
+  Perimortem::Core::Option<const Model::Addressable*> addressable;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

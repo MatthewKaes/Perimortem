@@ -14,9 +14,9 @@
 #include "tetrodotoxin/app/language/transition.hpp"
 #include "tetrodotoxin/library/language/generic.hpp"
 #include "tetrodotoxin/scene/language/signal.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
 #include "ttx/lexical/lexicon.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/callable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

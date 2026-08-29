@@ -6,12 +6,12 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/documentations/comment.hpp"
-#include "ttx/model/layouts/addressable.hpp"
-#include "ttx/model/layouts/named.hpp"
-#include "ttx/model/layouts/ranged.hpp"
+#include "tetrodotoxin/library/language/model/fold_call.h"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/bootstrap/model/layouts/addressable.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/bootstrap/model/layouts/ranged.hpp"
 
 namespace Tetrodotoxin::Library::Builtin::View {
 
@@ -40,25 +40,33 @@ class Slice : public Language::Model::Callable {
     return results;
   }
 
-  auto fold_call(
-      Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::Option<const Language::Model::Pack&> receiver,
-      const Language::Model::Pack& arguments) const
-      -> Perimortem::Core::Option<Language::Model::Pack&> override;
+  auto negotiate_interface(const ttx_abstract* requirement) const
+      -> ttx_interface override;
 
  private:
   Slice(
+      Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Model::Layouts::Addressable& self,
       Ttx::Model::Layouts::Addressable& start,
       Ttx::Model::Layouts::Addressable& count,
       const Language::Model::Type& result);
 
-  Perimortem::Core::Static::
-      Vector<Ttx::Concept::Reference<const Ttx::Concept::Abstract>, 3>
-          parameter_entries;
+  static auto fold_abi(
+      const ttx_abstract* callable,
+      const ttx_pack* receiver,
+      const ttx_pack* arguments) -> const ttx_abstract*;
+  auto fold(
+      Perimortem::Core::Option<const Language::Model::Pack&> receiver,
+      const Language::Model::Pack& arguments) const
+      -> Perimortem::Core::Option<Language::Model::Pack&>;
+
+  Perimortem::Memory::Allocator::Arena& domain;
+  Perimortem::Core::Static::Vector<const Ttx::Concept::Abstract*, 3>
+      parameter_entries;
   Ttx::Model::Layouts::Named parameters;
   Ttx::Model::Layouts::Ranged results;
   const Language::Model::Type& result_type;
+  static const ttx_library_fold_call_operations fold_operations;
 
   static constexpr Ttx::Model::Documentations::Comment documentation{
     "Borrows the available part of a requested contiguous interval."_view,

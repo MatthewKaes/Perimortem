@@ -19,9 +19,9 @@
 #include "tetrodotoxin/package/archive/writer.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "ttx/lexical/lexicon.hpp"
-#include "ttx/model/context.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
+#include "ttx/model/context.h"
+#include "ttx/model/layouts/named.h"
+#include "ttx/model/layouts/value.h"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -32,21 +32,44 @@ using namespace Tetrodotoxin;
 class SelectedMember {
  public:
   constexpr SelectedMember(View::Bytes name, const Language::Monograph& value)
-      : name(name), value(value) {}
+      : name(name), value(&value) {}
 
   View::Bytes name;
-  Reference<const Language::Monograph> value;
+  const Language::Monograph* value;
 };
 
-static auto find_monograph(const Pack& graph, const Abstract& root)
-    -> Option<const Language::Monograph&> {
-  const Layout& concepts = graph.get_layout();
-  for (Count index = 0; index < concepts.get_size(); index++) {
-    auto selected = concepts.get_abstract(index);
-    auto monograph = selected ? selected->select<Language::Monograph>()
-                              : Option<const Language::Monograph&>();
-    if (monograph && &monograph->get_root() == &root) {
-      return *monograph;
+class MonographVisitor {
+ public:
+  explicit MonographVisitor(
+      Managed::Vector<const Language::Monograph*>& monographs)
+      : callable{&operations},
+        operations{.call = call},
+        monographs(monographs) {}
+
+  ttx_named_abstract_callable callable;
+
+ private:
+  static auto call(
+      ttx_named_abstract_callable* callable,
+      perimortem_bytes,
+      const ttx_abstract* abstract) -> void {
+    auto& self = *reinterpret_cast<MonographVisitor*>(callable);
+    auto monograph = Abstract::from_abi(abstract).select<Language::Monograph>();
+    if (monograph) {
+      self.monographs.insert(&*monograph);
+    }
+  }
+
+  ttx_named_abstract_callable_operations operations;
+  Managed::Vector<const Language::Monograph*>& monographs;
+};
+
+static auto find_monograph(
+    View::Vector<const Language::Monograph*> graph,
+    const Abstract& root) -> Option<const Language::Monograph&> {
+  for (const Language::Monograph* retained : graph) {
+    if (&retained->get_root() == &root) {
+      return *retained;
     }
   }
   return {};
@@ -56,7 +79,7 @@ static auto find_member(
     View::Vector<SelectedMember> members,
     const Language::Monograph& monograph) -> Option<const SelectedMember&> {
   for (const SelectedMember& selected : members) {
-    if (&selected.value.get() == &monograph) {
+    if (selected.value == &monograph) {
       return selected;
     }
   }
@@ -77,12 +100,12 @@ static auto append_route(
 
 static auto retain_members(
     Allocator::Arena& arena,
-    const Pack& graph,
+    View::Vector<const Language::Monograph*> graph,
     const Language::Monograph& importer,
     View::Bytes importer_name,
     Managed::Vector<SelectedMember>& members) -> Bool {
-  for (const Reference<Language::Import>& retained : importer.get_imports()) {
-    const Language::Import& import = retained.get();
+  for (const Language::Import* retained : importer.get_imports()) {
+    const Language::Import& import = *retained;
     if (import.get_kind() != Language::Import::Kind::Source) {
       continue;
     }
@@ -110,15 +133,15 @@ static auto retain_imports(
     View::Bytes importer_name,
     View::Vector<SelectedMember> members,
     Managed::Vector<Package::Archive::GraphImport>& imports) -> Bool {
-  for (const Reference<Language::Import>& retained : importer.get_imports()) {
-    const Language::Import& import = retained.get();
+  for (const Language::Import* retained : importer.get_imports()) {
+    const Language::Import& import = *retained;
     View::Bytes target = import.get_locator();
     if (import.get_kind() == Language::Import::Kind::Source) {
       auto acquired = import.get_acquired();
       BAIL_IF(!acquired);
       target = {};
       for (const SelectedMember& member : members) {
-        if (&member.value.get().get_root() == &*acquired) {
+        if (&member.value->get_root() == &*acquired) {
           target = member.name;
           break;
         }
@@ -272,42 +295,45 @@ auto Package::Dialect::produce(
     Allocator::Arena& arena,
     const Abstract& graph,
     const Tetrodotoxin::Language::Monograph& monograph) const
-    -> Option<const Pack&> {
+    -> const ttx_pack* {
   auto package = monograph.select<Language::Monograph>();
   if (!package || &package->resolve() != &*package) {
     Perimortem::Core::Diagnostics::Log::error(
         "Package production requires one completed Package Monograph."_view);
-    return {};
+    return nullptr;
   }
 
-  Ttx::Model::Context graph_context(arena);
-  const Pack& graph_snapshot = graph.get_concepts(graph_context);
+  Managed::Vector<const Tetrodotoxin::Language::Monograph*> graph_monographs(
+      arena);
+  MonographVisitor graph_visitor(graph_monographs);
+  ttx_abstract_visit_concepts(graph.get_abi(), &graph_visitor.callable);
   Managed::Vector<SelectedMember> members(arena);
   if (!retain_members(
-          arena, graph_snapshot, *package, "PackageSurface"_view, members)) {
+          arena, graph_monographs.get_view(), *package, "PackageSurface"_view,
+          members)) {
     Perimortem::Core::Diagnostics::Log::error(
         "Package production could not discover its source graph."_view);
-    return {};
+    return nullptr;
   }
 
   Managed::Vector<Archive::Writer::GraphMember> archive_members(arena);
   Managed::Vector<Archive::GraphImport> imports(arena);
   for (const SelectedMember& selected : members.get_view()) {
     archive_members.insert(
-        Archive::Writer::GraphMember(selected.name, selected.value.get()));
+        Archive::Writer::GraphMember(selected.name, *selected.value));
   }
   if (!retain_imports(
           *package, "PackageSurface"_view, members.get_view(), imports)) {
     Perimortem::Core::Diagnostics::Log::error(
         "Package production could not retain its root imports."_view);
-    return {};
+    return nullptr;
   }
   for (const SelectedMember& selected : members.get_view()) {
     if (!retain_imports(
-            selected.value.get(), selected.name, members.get_view(), imports)) {
+            *selected.value, selected.name, members.get_view(), imports)) {
       Perimortem::Core::Diagnostics::Log::error(
           "Package production could not retain a member import."_view);
-      return {};
+      return nullptr;
     }
   }
 
@@ -317,7 +343,7 @@ auto Package::Dialect::produce(
   if (!archive) {
     Perimortem::Core::Diagnostics::Log::error(
         "Package production could not encode its completed source graph."_view);
-    return {};
+    return nullptr;
   }
 
   Managed::Bytes path(arena);
@@ -328,10 +354,34 @@ auto Package::Dialect::produce(
   Tetrodotoxin::Language::Product& product =
       Tetrodotoxin::Language::Product::create(
           arena, path.get_view(), archive->get_view());
-  const Static::Vector<Reference<const Abstract>, 1> products = {{
-    product,
-  }};
-  Ttx::Model::Layouts::Named product_layout(products);
-  Ttx::Model::Context product_context(arena);
-  return product_context.pack(product_layout);
+  ttx_value_layout product_value_layout;
+  ttx_named_layout product_layout;
+  perimortem_bytes product_name = {
+    .data = path.get_view().get_data(),
+    .size = path.get_view().get_size(),
+  };
+  ttx_value_layout_initialize(&product_value_layout, product.get_abi());
+  ttx_named_layout_initialize(
+      &product_layout, &product_value_layout.layout, &product_name, 1);
+  auto product_packs = arena.reserve<ttx_model_pack>(1);
+  auto product_layouts = arena.reserve<ttx_fluid_layout>(1);
+  auto product_named_layouts = arena.reserve<ttx_named_layout>(1);
+  auto product_entries = arena.reserve<const ttx_abstract*>(1);
+  auto product_names = arena.reserve<perimortem_bytes>(1);
+  auto name_storage = arena.allocate(path.get_size());
+  ttx_model_context product_context;
+  ttx_model_context_initialize(
+      &product_context, ttx_model_context_storage{
+                          .packs = product_packs.get_data(),
+                          .layouts = product_layouts.get_data(),
+                          .named_layouts = product_named_layouts.get_data(),
+                          .entries = product_entries.get_data(),
+                          .names = product_names.get_data(),
+                          .name_bytes = name_storage.get_data(),
+                          .pack_capacity = 1,
+                          .entry_capacity = 1,
+                          .name_capacity = 1,
+                          .name_byte_capacity = path.get_size(),
+                        });
+  return ttx_context_pack(&product_context.context, &product_layout.layout);
 }

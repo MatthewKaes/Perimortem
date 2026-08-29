@@ -9,12 +9,11 @@
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
-#include "ttx/concept/layout.hpp"
+#include "ttx/bootstrap/concept/layout.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/anchor.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/pack.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Emission {
 

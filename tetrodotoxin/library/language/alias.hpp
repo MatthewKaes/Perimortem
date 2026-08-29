@@ -9,8 +9,8 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/alias.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 

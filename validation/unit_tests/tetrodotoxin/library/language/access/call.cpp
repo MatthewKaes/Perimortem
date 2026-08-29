@@ -27,8 +27,8 @@
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -102,9 +102,9 @@ static auto find_type_callable(
     type = answer.resolve().select<Language::Model::Type>();
   }
   BAIL_IF(!type);
-  for (const Reference<Abstract>& binding : type->get_callables(visibility)) {
-    auto callable = binding.get().resolve().select<Language::Model::Callable>();
-    if (binding.get().get_name() == name && callable) {
+  for (const Abstract* binding : type->get_callables(visibility)) {
+    auto callable = binding->resolve().select<Language::Model::Callable>();
+    if (binding->get_name() == name && callable) {
       return *callable;
     }
   }
@@ -136,11 +136,10 @@ PERIMORTEM_UNIT_TEST(CallTests, builtin_callables) {
   ASSERT(monograph);
 
   Option<const Language::Function&> run;
-  for (const Reference<Abstract>& callable :
-       monograph->get_source().get_callables()) {
-    if (callable.get().get_name() == "run"_view &&
-        callable.get().is<Language::Function>()) {
-      run = static_cast<const Language::Function&>(callable.get());
+  for (const Abstract* callable : monograph->get_source().get_callables()) {
+    if (callable->get_name() == "run"_view &&
+        callable->is<Language::Function>()) {
+      run = static_cast<const Language::Function&>(*callable);
       break;
     }
   }
@@ -270,11 +269,10 @@ PERIMORTEM_UNIT_TEST(CallTests, borrow_operations) {
   ASSERT(monograph);
 
   Option<const Language::Function&> run;
-  for (const Reference<Abstract>& callable :
-       monograph->get_source().get_callables()) {
-    if (callable.get().get_name() == "run"_view &&
-        callable.get().is<Language::Function>()) {
-      run = static_cast<const Language::Function&>(callable.get());
+  for (const Abstract* callable : monograph->get_source().get_callables()) {
+    if (callable->get_name() == "run"_view &&
+        callable->is<Language::Function>()) {
+      run = static_cast<const Language::Function&>(*callable);
       break;
     }
   }
@@ -293,7 +291,7 @@ PERIMORTEM_UNIT_TEST(CallTests, borrow_operations) {
              .resolve()
              .is<Language::Types::Fixed>());
   EXPECT(get_view->get_callable()->is<Builtin::Fixed::View>());
-  auto folded = label.get_constant();
+  auto folded = folded_pack(label);
   ASSERT(folded && folded->is_identity<Language::Constants::Bytes>());
   EXPECT_TEXT(
       static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
@@ -301,7 +299,7 @@ PERIMORTEM_UNIT_TEST(CallTests, borrow_operations) {
 
   const auto& label_tail = static_cast<const Language::Flow::Local&>(
       statements.get_data()[3].get_root());
-  folded = label_tail.get_constant();
+  folded = folded_pack(label_tail);
   ASSERT(folded && folded->is_identity<Language::Constants::Bytes>());
   EXPECT_TEXT(
       static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
@@ -326,11 +324,10 @@ PERIMORTEM_UNIT_TEST(CallTests, folded_bytes_borrow) {
   ASSERT(monograph);
 
   Option<const Language::Function&> run;
-  for (const Reference<Abstract>& callable :
-       monograph->get_source().get_callables()) {
-    if (callable.get().get_name() == "run"_view &&
-        callable.get().is<Language::Function>()) {
-      run = static_cast<const Language::Function&>(callable.get());
+  for (const Abstract* callable : monograph->get_source().get_callables()) {
+    if (callable->get_name() == "run"_view &&
+        callable->is<Language::Function>()) {
+      run = static_cast<const Language::Function&>(*callable);
       break;
     }
   }
@@ -340,7 +337,7 @@ PERIMORTEM_UNIT_TEST(CallTests, folded_bytes_borrow) {
 
   const auto& repack = static_cast<const Language::Flow::Local&>(
       statements.get_data()[0].get_root());
-  auto folded = repack.get_constant();
+  auto folded = folded_pack(repack);
   ASSERT(folded && folded->is_identity<Language::Constants::Bytes>());
   EXPECT_TEXT(
       static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
@@ -348,7 +345,7 @@ PERIMORTEM_UNIT_TEST(CallTests, folded_bytes_borrow) {
 
   const auto& viewed = static_cast<const Language::Flow::Local&>(
       statements.get_data()[1].get_root());
-  folded = viewed.get_constant();
+  folded = folded_pack(viewed);
   ASSERT(folded && folded->is_identity<Language::Constants::Bytes>());
   EXPECT_TEXT(
       static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
@@ -372,7 +369,7 @@ static auto find_field(
     View::Bytes name) -> Option<const Language::Field&> {
   auto fields = composite.get_addressables();
   for (auto field = fields.begin(); field != fields.end(); ++field) {
-    const Abstract& candidate = (*field).get();
+    const Abstract& candidate = **field;
     if (candidate.get_name() == name && candidate.is<Language::Field>()) {
       return static_cast<const Language::Field&>(candidate);
     }
@@ -387,7 +384,7 @@ static auto find_function(
   auto callables = composite.get_callables();
   for (auto callable = callables.begin(); callable != callables.end();
        ++callable) {
-    const Abstract& candidate = (*callable).get();
+    const Abstract& candidate = **callable;
     if (candidate.get_name() == name && candidate.is<Language::Function>()) {
       return static_cast<const Language::Function&>(candidate);
     }
@@ -459,7 +456,7 @@ PERIMORTEM_UNIT_TEST(CallTests, call_selection) {
   ASSERT(self);
   const Abstract& u64 = monograph->resolve_concept("U64"_view);
   const Abstract& boolean = monograph->resolve_concept("Bool"_view);
-  EXPECT(&self->resolve_concept("Packet"_view) == &None::get_none());
+  EXPECT(&self->resolve_concept("Packet"_view) == &Unknown::get_unknown());
   EXPECT(
       &self->get_type()
            .resolve_concept("instance"_view)

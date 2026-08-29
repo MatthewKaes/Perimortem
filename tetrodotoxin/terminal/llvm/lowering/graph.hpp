@@ -18,8 +18,8 @@ class Graph {
   static auto lower(
       Module::Program& program,
       const Tetrodotoxin::Library::Language::Monograph& monograph,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<
-          const Tetrodotoxin::Library::Language::Model::Callable>> excluded =
+      Perimortem::Core::View::Vector<
+          const Tetrodotoxin::Library::Language::Model::Callable*> excluded =
           {}) -> Bool;
 
   static auto prepare(

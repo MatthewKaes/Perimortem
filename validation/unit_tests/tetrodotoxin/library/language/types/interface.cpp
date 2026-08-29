@@ -80,18 +80,15 @@ PERIMORTEM_UNIT_TEST(InterfaceTypes, materializes_implementation_surface) {
   auto fields = sprite.get_addressables();
   ASSERT(fields != fields.end());
   const auto& visible =
-      static_cast<const Tetrodotoxin::Library::Language::Field&>(
-          (*fields).get());
+      static_cast<const Tetrodotoxin::Library::Language::Field&>(**fields);
   ++fields;
   ASSERT(fields != fields.end());
   const auto& z_index =
-      static_cast<const Tetrodotoxin::Library::Language::Field&>(
-          (*fields).get());
+      static_cast<const Tetrodotoxin::Library::Language::Field&>(**fields);
   ++fields;
   ASSERT(fields != fields.end());
   const auto& texture =
-      static_cast<const Tetrodotoxin::Library::Language::Field&>(
-          (*fields).get());
+      static_cast<const Tetrodotoxin::Library::Language::Field&>(**fields);
   ++fields;
   EXPECT(fields == sprite.get_addressables().end());
   EXPECT_TEXT(visible.get_name(), "visible"_view);
@@ -107,7 +104,7 @@ PERIMORTEM_UNIT_TEST(InterfaceTypes, materializes_implementation_surface) {
   ASSERT(holder_fields != holder_fields.end());
   const auto& drawable =
       static_cast<const Tetrodotoxin::Library::Language::Field&>(
-          (*holder_fields).get());
+          **holder_fields);
   ASSERT(drawable.get_type()
              .is<Tetrodotoxin::Library::Language::Types::Implementation>());
   const auto& erased = static_cast<

@@ -11,7 +11,6 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/dialect.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Environment {
 
@@ -43,15 +42,15 @@ class Toolchain {
     Perimortem::Core::View::Bytes retained_name = arena.proxy(name);
     auto& dialect =
         arena.construct<TargetDialect>(retained_name, dependencies...);
-    dialects.insert(dialect);
+    dialects.insert(&dialect);
     return dialect;
   }
 
   auto find(Perimortem::Core::View::Bytes name) const
       -> Perimortem::Core::Option<Language::Dialect&>;
 
-  constexpr auto get_dialects() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<Language::Dialect>> {
+  constexpr auto get_dialects() const
+      -> Perimortem::Core::View::Vector<Language::Dialect*> {
     return dialects;
   }
 
@@ -60,9 +59,7 @@ class Toolchain {
   auto contains(const Language::Dialect& dialect) const -> Bool;
 
   Perimortem::Memory::Allocator::Arena arena;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Language::Dialect>>
-      dialects;
+  Perimortem::Memory::Managed::Vector<Language::Dialect*> dialects;
 };
 
 }  // namespace Tetrodotoxin::Environment

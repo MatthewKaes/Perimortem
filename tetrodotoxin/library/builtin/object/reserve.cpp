@@ -12,10 +12,10 @@ using namespace Tetrodotoxin::Library;
 static auto create_entries(
     Ttx::Model::Layouts::Addressable& self,
     Ttx::Model::Layouts::Addressable& count)
-    -> Core::Static::Vector<Reference<const Abstract>, 2> {
-  const Core::Static::Vector<Reference<const Abstract>, 2> entries = {{
-    Reference<const Abstract>(self),
-    Reference<const Abstract>(count),
+    -> Core::Static::Vector<const Abstract*, 2> {
+  const Core::Static::Vector<const Abstract*, 2> entries = {{
+    &self,
+    &count,
   }};
   return entries;
 }

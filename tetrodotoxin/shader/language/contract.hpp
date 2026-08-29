@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/shader/language/program.hpp"
-#include "ttx/concept/interface.hpp"
+#include "ttx/concept/interface.h"
 
 namespace Tetrodotoxin::Shader::Language {
 
@@ -12,11 +12,11 @@ namespace Tetrodotoxin::Shader::Language {
 // Render Structure. Callable Layouts provide data flow evidence while Render
 // Attributes and Shader binding relationships restore the policy that Layout
 // intentionally omits. Neither side is copied into the other language.
-class Contract : public Ttx::Concept::Interface {
+class Contract {
  public:
   auto negotiate(
       const Ttx::Concept::Abstract& requirement,
-      const Ttx::Concept::Abstract& candidate) const -> Relation override;
+      const Ttx::Concept::Abstract& candidate) const -> ttx_interface_relation;
 
   auto validate(
       Ttx::Lexical::Cursor& cursor,

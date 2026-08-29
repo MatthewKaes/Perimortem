@@ -6,7 +6,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/product.hpp"
-#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/abstract.h"
 
 namespace Tetrodotoxin::Terminal {
 
@@ -18,10 +18,9 @@ class GraphText {
   static auto write(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes source,
-      const Ttx::Concept::Abstract& dialect,
-      const Ttx::Concept::Abstract& root,
-      const Ttx::Concept::Abstract& graph)
-      -> const Tetrodotoxin::Language::Product&;
+      const ttx_abstract* dialect,
+      const ttx_abstract* root,
+      const ttx_abstract* graph) -> const Tetrodotoxin::Language::Product&;
 };
 
 }  // namespace Tetrodotoxin::Terminal

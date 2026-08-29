@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/terminal/llvm/lowering/execution.hpp"
 
+#include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/terminal/llvm/lowering/access.hpp"
 #include "tetrodotoxin/terminal/llvm/lowering/control.hpp"
 #include "tetrodotoxin/terminal/llvm/lowering/operations.hpp"
@@ -16,7 +17,7 @@ auto Llvm::Lowering::Execution::lower(
   auto expression =
       pack.select_identity<Tetrodotoxin::Library::Language::Expression>();
   if (expression) {
-    auto folded = expression->get_folded();
+    auto folded = Tetrodotoxin::Library::Language::query_folded_pack(pack);
     if (folded && &*folded != &pack) {
       return lower(*folded) && storage.alias(pack, *folded);
     }
@@ -30,10 +31,9 @@ auto Llvm::Lowering::Execution::lower(
     return Access::lower(*this, *expression);
   }
 
-  for (const Ttx::Model::PackReference<
-           Tetrodotoxin::Library::Language::Model::Pack>& entry :
+  for (const Tetrodotoxin::Library::Language::Model::Pack* entry :
        pack.get_entries()) {
-    if (!lower(entry.get())) {
+    if (!lower(*entry)) {
       return False;
     }
   }

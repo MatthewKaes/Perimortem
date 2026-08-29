@@ -7,7 +7,6 @@
 
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/types/result.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
@@ -42,9 +41,12 @@ class Result : public Tetrodotoxin::Library::Language::Constant {
   auto get_name() const -> Perimortem::Core::View::Bytes override {
     return name.get_view();
   }
-  constexpr auto get_payload() const -> const Model::Pack& {
-    return payload.get();
-  }
+  constexpr auto get_payload() const -> const Model::Pack& { return *payload; }
+
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   auto equals(const Tetrodotoxin::Library::Language::Constant& rhs) const
       -> Bool override;
@@ -65,7 +67,7 @@ class Result : public Tetrodotoxin::Library::Language::Constant {
 
   const Types::Result& type;
   Types::Result::Kind kind;
-  Ttx::Model::PackReference<Model::Pack> payload;
+  Model::Pack* payload;
   Perimortem::Memory::Managed::Bytes name;
 };
 

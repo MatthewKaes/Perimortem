@@ -70,7 +70,6 @@ PERIMORTEM_UNIT_TEST(PackageDialect, type_surface) {
   Tokenizer tokenizer(arena, source, "package.ttx"_view);
   Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations, "package.ttx"_view);
-  ASSERT(monograph->compose(cursor));
   ASSERT(monograph->link(cursor));
   ASSERT(monograph->finalize(cursor));
 
@@ -96,7 +95,6 @@ PERIMORTEM_UNIT_TEST(PackageDialect, empty_surface) {
   Tokenizer tokenizer(arena, source, "package.ttx"_view);
   Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations, "package.ttx"_view);
-  EXPECT(monograph->compose(cursor));
   EXPECT(monograph->link(cursor));
   EXPECT(monograph->finalize(cursor));
   EXPECT(errors.is_empty());

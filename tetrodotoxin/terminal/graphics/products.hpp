@@ -3,12 +3,11 @@
 
 #pragma once
 
-#include "perimortem/core/option.hpp"
 #include "perimortem/core/view/vector.hpp"
+#include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/scene/language/monograph.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Terminal::Graphics {
 
@@ -25,13 +24,11 @@ class Products {
         const Tetrodotoxin::Library::Language::Field& field,
         Count type_index,
         Perimortem::Core::Option<Count> element_index = {})
-        : field(field),
-          type_index(type_index),
-          element_index(element_index) {}
+        : field(&field), type_index(type_index), element_index(element_index) {}
 
     constexpr auto get_field() const
         -> const Tetrodotoxin::Library::Language::Field& {
-      return field.get();
+      return *field;
     }
 
     constexpr auto get_type_index() const -> Count { return type_index; }
@@ -42,7 +39,7 @@ class Products {
     }
 
    private:
-    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Field> field;
+    const Tetrodotoxin::Library::Language::Field* field;
     Count type_index;
     Perimortem::Core::Option<Count> element_index;
   };
@@ -50,11 +47,11 @@ class Products {
   constexpr Products(
       const Tetrodotoxin::Scene::Language::Monograph& scene,
       Perimortem::Core::View::Vector<Hosted> hosted)
-      : scene(scene), hosted(hosted) {}
+      : scene(&scene), hosted(hosted) {}
 
   constexpr auto get_scene() const
       -> const Tetrodotoxin::Scene::Language::Monograph& {
-    return scene.get();
+    return *scene;
   }
 
   constexpr auto get_hosted() const -> Perimortem::Core::View::Vector<Hosted> {
@@ -62,7 +59,7 @@ class Products {
   }
 
  private:
-  Ttx::Concept::Reference<const Tetrodotoxin::Scene::Language::Monograph> scene;
+  const Tetrodotoxin::Scene::Language::Monograph* scene;
   Perimortem::Core::View::Vector<Hosted> hosted;
 };
 

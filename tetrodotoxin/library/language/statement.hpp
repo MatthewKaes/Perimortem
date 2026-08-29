@@ -8,9 +8,8 @@
 
 #include "tetrodotoxin/library/language/flow/scope.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/concept/documentation.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/documentation.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 

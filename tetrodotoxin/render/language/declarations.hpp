@@ -8,7 +8,6 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/visibility.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Render::Language {
@@ -45,8 +44,7 @@ class Declarations {
     return authority;
   }
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack&;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const -> void;
 
   static auto resolve_lexical_context(
       const Ttx::Concept::Abstract& context,
@@ -81,21 +79,20 @@ class Declarations {
 
     auto resolve_concept(Perimortem::Core::View::Bytes name) const
         -> const Ttx::Concept::Abstract& override;
-    auto get_concepts(Ttx::Concept::Context& context) const
-        -> const Ttx::Concept::Pack& override;
+    auto visit_concepts(ttx_named_abstract_callable* visitor) const
+        -> void override;
 
    private:
     const Declarations& owner;
   };
 
   auto retain(
-      Perimortem::Memory::Managed::Vector<
-          Ttx::Concept::Reference<Ttx::Concept::Abstract>>& declarations,
+      Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*>&
+          declarations,
       Ttx::Concept::Abstract& declaration,
       Tetrodotoxin::Language::Visibility visibility) -> Bool;
   auto resolve(
-      Perimortem::Core::View::Vector<
-          Ttx::Concept::Reference<Ttx::Concept::Abstract>> declarations,
+      Perimortem::Core::View::Vector<Ttx::Concept::Abstract*> declarations,
       Perimortem::Core::View::Bytes name,
       Tetrodotoxin::Language::Visibility visibility) const
       -> const Ttx::Concept::Abstract&;
@@ -103,15 +100,9 @@ class Declarations {
   Authority authority;
   Perimortem::Memory::Managed::Map<const Ttx::Concept::Abstract*, Bool>
       published;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      addressables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      callables;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>
-      types;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*> addressables;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*> callables;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*> types;
   Bool linked = False;
 };
 

@@ -6,9 +6,9 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/layouts/addressable.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/layouts/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -112,9 +112,9 @@ auto Language::Model::Layout::retain_generated_slot(
     auto parameter =
         Ttx::Model::Layouts::Addressable::create_authored(domain, name, type);
     BAIL_IF(!parameter);
-    slot.edge = Reference<const Abstract>(*parameter);
+    slot.edge = &*parameter;
   } else {
-    slot.edge = Reference<const Abstract>(type);
+    slot.edge = &type;
   }
   slots.insert(slot);
   return True;
@@ -128,16 +128,16 @@ auto Language::Model::Layout::retain_generated_edge(
       type.get_layout().is_empty());
   Slot& slot = slots[index];
   if (slot.edge) {
-    auto retained = select_entry_type(slot.edge->get());
+    auto retained = select_entry_type((**slot.edge));
     return retained && &*retained == &type;
   }
   if (parameters) {
     auto parameter = Ttx::Model::Layouts::Addressable::create_authored(
         domain, slot.name, type);
     BAIL_IF(!parameter);
-    slot.edge = Reference<const Abstract>(*parameter);
+    slot.edge = &*parameter;
   } else {
-    slot.edge = Reference<const Abstract>(type);
+    slot.edge = &type;
   }
   return True;
 }
@@ -153,7 +153,7 @@ auto Language::Model::Layout::link_restored(
   for (Count index = 0; index < slots.get_size(); index++) {
     Slot& slot = slots[index];
     if (!slot.type_reference && slot.edge) {
-      auto retained = select_entry_type(slot.edge->get());
+      auto retained = select_entry_type((**slot.edge));
       BAIL_IF(!retained || retained->get_layout().is_empty());
       continue;
     }
@@ -164,9 +164,9 @@ auto Language::Model::Layout::link_restored(
             index != 0 || slots.get_size() != 1 || slot.name != "self"_view ||
             !self);
         if (slot.edge) {
-          BAIL_IF(&slot.edge->get() != &*self);
+          BAIL_IF(&(**slot.edge) != &*self);
         } else {
-          slot.edge = Reference<const Abstract>(*self);
+          slot.edge = &*self;
         }
         continue;
       }
@@ -186,9 +186,9 @@ auto Language::Model::Layout::link_restored(
       auto parameter = Ttx::Model::Layouts::Addressable::create_authored(
           domain, slot.name, *type);
       BAIL_IF(!parameter);
-      slot.edge = Reference<const Abstract>(*parameter);
+      slot.edge = &*parameter;
     } else {
-      slot.edge = Reference<const Abstract>(*type);
+      slot.edge = &*type;
     }
   }
 
@@ -221,7 +221,7 @@ auto Language::Model::Layout::link(
   for (Count i = 0; i < slots.get_size(); i++) {
     Slot& slot = slots[i];
     if (!slot.type_reference && slot.edge) {
-      auto retained = select_entry_type(slot.edge->get());
+      auto retained = select_entry_type((**slot.edge));
       if (!retained || retained->get_layout().is_empty()) {
         cursor.create_expression_error(
             slot.anchor,
@@ -243,14 +243,14 @@ auto Language::Model::Layout::link(
           continue;
         }
 
-        if (slot.edge && &slot.edge->get() != &*self) {
+        if (slot.edge && &(**slot.edge) != &*self) {
           cursor.create_expression_error(
               slot.anchor,
               "Repeated `[self]` result linking selected a different receiver."_view,
               "Preserve the Function's original self Addressable identity."_view);
           failed = True;
         } else if (!slot.edge) {
-          slot.edge = Reference<const Abstract>(*self);
+          slot.edge = &*self;
         }
         continue;
       }
@@ -309,7 +309,7 @@ auto Language::Model::Layout::link(
       // Repeated phase entry may observe the same identity but must never move
       // an already published slot to a newly selected Type.
       if (slot.edge) {
-        if (&slot.edge->get() != &*type) {
+        if (&(**slot.edge) != &*type) {
           cursor.create_expression_error(
               slot.get_type_anchor(),
               "Repeated Layout linking selected a different Type identity."_view,
@@ -317,14 +317,13 @@ auto Language::Model::Layout::link(
           failed = True;
         }
       } else {
-        slot.edge = Reference<const Abstract>(*type);
+        slot.edge = &*type;
       }
       continue;
     }
 
     if (slot.edge) {
-      auto parameter =
-          slot.edge->get().select<Ttx::Model::Layouts::Addressable>();
+      auto parameter = (**slot.edge).select<Ttx::Model::Layouts::Addressable>();
       if (!parameter || &parameter->get_type() != &*type) {
         cursor.create_expression_error(
             slot.get_type_anchor(),
@@ -345,7 +344,7 @@ auto Language::Model::Layout::link(
       failed = True;
       continue;
     }
-    slot.edge = Reference<const Abstract>(*parameter);
+    slot.edge = &*parameter;
     cursor.get_associations().create(slot.anchor, *parameter);
   }
 
@@ -361,7 +360,7 @@ auto Language::Model::Layout::resolve_named(
       continue;
     }
     if (slot.edge) {
-      return slot.edge->get();
+      return (**slot.edge);
     }
     if (!parameters || !host || !slot.type_reference) {
       return Unknown::get_unknown();
@@ -379,7 +378,7 @@ auto Language::Model::Layout::resolve_named(
     if (!parameter) {
       return Unknown::get_unknown();
     }
-    slot.edge = Reference<const Abstract>(*parameter);
+    slot.edge = &*parameter;
     return *parameter;
   }
 
@@ -409,7 +408,7 @@ auto Language::Model::Layout::validate_publication(
   Bool valid = True;
   for (Count i = 0; i < slots.get_size(); i++) {
     const Slot& slot = slots.at(i);
-    auto type = select_entry_type(slot.edge->get());
+    auto type = select_entry_type((**slot.edge));
     if (!type) {
       cursor.create_expression_error(
           slot.get_type_anchor(),
@@ -492,7 +491,7 @@ auto Language::Model::Layout::get_abstract(Count index) const
     -> Option<const Abstract&> {
   auto slot = get_slot(index);
   BAIL_IF(!slot || !slot->edge);
-  return slot->edge->get();
+  return (**slot->edge);
 }
 
 auto Language::Model::Layout::get_name(Count index) const

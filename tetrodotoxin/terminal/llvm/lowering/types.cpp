@@ -96,10 +96,10 @@ static auto reserve_value(
     auto interface =
         implementation->get_requirement().resolve().select<Types::Interface>();
     if (interface) {
-      for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
+      for (const Ttx::Concept::Abstract* candidate :
            interface->get_addressables(
                Tetrodotoxin::Language::Visibility::Public)) {
-        auto addressable = candidate.get().select<Model::Addressable>();
+        auto addressable = candidate->select<Model::Addressable>();
         if (!addressable || !addressable->contributes_to_instance_layout() ||
             !reserve_value(program, addressable->get_type())) {
           return False;
@@ -113,9 +113,9 @@ static auto reserve_value(
   }
   auto composite = type.select<Types::Composite>();
   if (composite) {
-    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
+    for (const Ttx::Concept::Abstract* candidate :
          composite->get_addressables()) {
-      auto addressable = candidate.get().select<Model::Addressable>();
+      auto addressable = candidate->select<Model::Addressable>();
       if (addressable && addressable->contributes_to_instance_layout() &&
           !reserve_value(program, addressable->get_type())) {
         return False;
@@ -179,10 +179,10 @@ static auto complete_value(
     auto interface =
         implementation->get_requirement().resolve().select<Types::Interface>();
     if (interface) {
-      for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
+      for (const Ttx::Concept::Abstract* candidate :
            interface->get_addressables(
                Tetrodotoxin::Language::Visibility::Public)) {
-        auto addressable = candidate.get().select<Model::Addressable>();
+        auto addressable = candidate->select<Model::Addressable>();
         if (!addressable || !addressable->contributes_to_instance_layout() ||
             !complete_value(program, addressable->get_type())) {
           return False;
@@ -196,9 +196,9 @@ static auto complete_value(
   }
   auto composite = type.select<Types::Composite>();
   if (composite) {
-    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
+    for (const Ttx::Concept::Abstract* candidate :
          composite->get_addressables()) {
-      auto addressable = candidate.get().select<Model::Addressable>();
+      auto addressable = candidate->select<Model::Addressable>();
       if (addressable && addressable->contributes_to_instance_layout() &&
           !complete_value(program, addressable->get_type())) {
         return False;
@@ -302,7 +302,7 @@ auto Llvm::Lowering::Types::complete_declaration(
   BAIL_IF(!storage);
   for (Count index = 0; index < enumeration->get_case_count(); index++) {
     const Ttx::Model::Alias& alias =
-        enumeration->get_cases().get_data()[index].get();
+        *enumeration->get_cases().get_data()[index];
     auto value = enumeration->get_case_value(index);
     BAIL_IF(!value);
     Bool completed = storage->is<Model::Types::Signed>()

@@ -17,19 +17,6 @@ auto Types::Result::create_default(Memory::Allocator::Arena& arena) const
                  : Core::Option<Model::Pack&>();
 }
 
-auto Types::Result::fold_propagation(Model::Pack& source) const
-    -> Utility::Result<Core::Option<Model::Pack&>, Bool> {
-  auto selected = Constants::Result::select(source);
-  if (!selected || &selected->get_type() != this) {
-    return False;
-  }
-
-  return selected->get_kind() == Kind::Value
-             ? Core::Option<Model::Pack&>(
-                   const_cast<Model::Pack&>(selected->get_payload()))
-             : Core::Option<Model::Pack&>();
-}
-
 auto Types::Result::accepts(const Model::Pack& source) const -> Bool {
   if (source.fits(*this)) {
     return True;

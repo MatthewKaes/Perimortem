@@ -6,10 +6,10 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/option.hpp"
 
-#include "ttx/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Language {
 

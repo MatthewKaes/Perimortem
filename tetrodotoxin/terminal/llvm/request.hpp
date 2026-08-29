@@ -33,8 +33,8 @@ class Request {
       const Tetrodotoxin::Terminal::Abi::Products& native_interface,
       Perimortem::Core::Option<
           const Tetrodotoxin::Terminal::Graphics::Products&> graphics = {},
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<
-          const Tetrodotoxin::Library::Language::Model::Callable>> excluded =
+      Perimortem::Core::View::Vector<
+          const Tetrodotoxin::Library::Language::Model::Callable*> excluded =
           {})
       : monograph(monograph),
         errors(errors),
@@ -81,9 +81,8 @@ class Request {
     return graphics;
   }
 
-  constexpr auto get_excluded() const
-      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<
-          const Tetrodotoxin::Library::Language::Model::Callable>> {
+  constexpr auto get_excluded() const -> Perimortem::Core::View::Vector<
+      const Tetrodotoxin::Library::Language::Model::Callable*> {
     return excluded;
   }
 
@@ -98,8 +97,8 @@ class Request {
   const Tetrodotoxin::Terminal::Abi::Products& native_interface;
   Perimortem::Core::Option<const Tetrodotoxin::Terminal::Graphics::Products&>
       graphics;
-  Perimortem::Core::View::Vector<Ttx::Concept::Reference<
-      const Tetrodotoxin::Library::Language::Model::Callable>>
+  Perimortem::Core::View::Vector<
+      const Tetrodotoxin::Library::Language::Model::Callable*>
       excluded;
 };
 

@@ -6,7 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/model/callable.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model {
 
@@ -43,15 +43,6 @@ class Callable : public Ttx::Model::Callable {
   }
 
   virtual auto link_restored_declaration_signature() -> Bool { return True; }
-
-  // Generated semantic operations may expose an immutable result without
-  // changing ordinary invocation. Absence keeps the Call dynamic.
-  virtual auto fold_call(
-      Perimortem::Memory::Allocator::Arena&,
-      Perimortem::Core::Option<const Model::Pack&>,
-      const Model::Pack&) const -> Perimortem::Core::Option<Model::Pack&> {
-    return {};
-  }
 
   virtual constexpr auto get_declaration_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {

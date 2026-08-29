@@ -8,9 +8,9 @@
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/alias.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;

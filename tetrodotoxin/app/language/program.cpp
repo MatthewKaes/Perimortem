@@ -6,9 +6,8 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -17,7 +16,7 @@ using namespace Tetrodotoxin::App;
 
 static auto resolve_route(const Abstract& context, View::Bytes route)
     -> const Abstract& {
-  Reference<const Abstract> selected(context);
+  const Abstract* selected = &context;
   Count start = 0;
   for (Count index = 0; index <= route.get_size(); index++) {
     Bool terminal = index == route.get_size();
@@ -33,7 +32,7 @@ static auto resolve_route(const Abstract& context, View::Bytes route)
     }
 
     const Abstract& queried =
-        selected.get().visit<Tetrodotoxin::Language::Monograph>(
+        selected->visit<Tetrodotoxin::Language::Monograph>(
             [&](const Tetrodotoxin::Language::Monograph& monograph)
                 -> const Abstract& {
               return start == 0 ? monograph.resolve_lexical_context(segment)
@@ -46,7 +45,7 @@ static auto resolve_route(const Abstract& context, View::Bytes route)
     if (candidate.is<Unknown>() || candidate.is<None>()) {
       return candidate;
     }
-    selected = Reference<const Abstract>(candidate);
+    selected = &candidate;
 
     if (separator) {
       index++;
@@ -54,7 +53,7 @@ static auto resolve_route(const Abstract& context, View::Bytes route)
     }
   }
 
-  return selected.get();
+  return *selected;
 }
 
 static auto select_entry(
@@ -131,7 +130,7 @@ auto Language::Program::link(Cursor& cursor, Abstract& context) -> Bool {
     return False;
   }
 
-  entry = Reference<const Ttx::Model::Callable>(*callable);
+  entry = &*callable;
   cursor.get_associations().create(selection_anchor, *callable);
   return True;
 }
@@ -144,7 +143,7 @@ auto Language::Program::link_restored(Abstract& context) -> Bool {
     return False;
   }
 
-  entry = Reference<const Ttx::Model::Callable>(*callable);
+  entry = &*callable;
   return True;
 }
 

@@ -143,7 +143,7 @@ auto Llvm::Module::Debug::publish_scope(
   }
 
   scopes.insert(&type, metadata);
-  scope_types.insert(type);
+  scope_types.insert(&type);
   return True;
 }
 
@@ -160,7 +160,7 @@ auto Llvm::Module::Debug::replace_scope(
 }
 
 auto Llvm::Module::Debug::get_scope_types() const
-    -> Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>> {
+    -> Core::View::Vector<const Ttx::Model::Type*> {
   return scope_types.get_view();
 }
 
@@ -1362,9 +1362,8 @@ auto Llvm::Module::Debug::finalize(Llvm::Module::Emission& program) -> Bool {
     return True;
   }
 
-  for (const Ttx::Concept::Reference<const Ttx::Model::Type>& retained :
-       get_scope_types()) {
-    const Ttx::Model::Type& type = retained.get();
+  for (const Ttx::Model::Type* retained : get_scope_types()) {
+    const Ttx::Model::Type& type = *retained;
     auto kind = selected->get_carriers().get_kind(type);
     Bool source = type.get_name() == "<source>"_view;
 

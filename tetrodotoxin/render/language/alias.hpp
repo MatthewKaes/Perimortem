@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/type_reference.hpp"
-#include "ttx/model/alias.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
 
 namespace Tetrodotoxin::Render::Language {
 

@@ -5,8 +5,8 @@
 
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -14,15 +14,14 @@ using namespace Tetrodotoxin::Library;
 
 auto Language::Constants::Aggregate::create(
     Memory::Allocator::Arena& arena,
-    Core::View::Vector<Ttx::Model::PackReference<Language::Model::Pack>> values,
+    Core::View::Vector<Language::Model::Pack*> values,
     Core::View::Vector<Core::View::Bytes> names) -> Core::Option<Aggregate&> {
   BAIL_IF(!names.is_empty() && names.get_size() != values.get_size());
-  for (const Ttx::Model::PackReference<Language::Model::Pack>& value : values) {
-    auto identity = value.get().get_identity();
+  for (Language::Model::Pack* value : values) {
+    auto identity = value->get_identity();
     BAIL_IF(
-        !value.get().is_complete() ||
-        value.get().get_layout().get_size() != 1 || !identity ||
-        !identity->is<Ttx::Concept::Constant>());
+        !value->is_complete() || value->get_layout().get_size() != 1 ||
+        !identity || !identity->is<Ttx::Concept::Constant>());
   }
   return arena.construct_from<Aggregate>(
       [&]() -> Aggregate { return Aggregate(arena, values, names); });
@@ -30,11 +29,11 @@ auto Language::Constants::Aggregate::create(
 
 Language::Constants::Aggregate::Aggregate(
     Memory::Allocator::Arena& arena,
-    Core::View::Vector<Ttx::Model::PackReference<Language::Model::Pack>> source,
+    Core::View::Vector<Language::Model::Pack*> source,
     Core::View::Vector<Core::View::Bytes> source_names)
     : values(arena), names(arena), name(arena), layout(*this) {
   values.reset(source.get_size());
-  for (const Ttx::Model::PackReference<Language::Model::Pack>& value : source) {
+  for (Language::Model::Pack* value : source) {
     values.insert(value);
   }
   names.reset(source_names.get_size());
@@ -51,7 +50,7 @@ Language::Constants::Aggregate::Aggregate(
     if (!names.is_empty()) {
       output << "."_view << names.at(index) << " = "_view;
     }
-    output << values.at(index).get().get_identity()->get_name();
+    output << values.at(index)->get_identity()->get_name();
   }
   output << "]"_view;
 }
@@ -62,7 +61,7 @@ auto Language::Constants::Aggregate::get_name() const -> Core::View::Bytes {
 
 auto Language::Constants::Aggregate::get_type() const -> const Abstract& {
   return values.get_size() == 1
-             ? values.at(0).get().get_type()
+             ? values.at(0)->get_type()
              : static_cast<const Abstract&>(None::get_none());
 }
 
@@ -83,7 +82,7 @@ auto Language::Constants::Aggregate::get_layout() const
 auto Language::Constants::Aggregate::get_value_type(Count index) const
     -> const Abstract& {
   return index < values.get_size()
-             ? values.at(index).get().get_value_type(0)
+             ? values.at(index)->get_value_type(0)
              : static_cast<const Abstract&>(Unknown::get_unknown());
 }
 
@@ -113,7 +112,7 @@ auto Language::Constants::Aggregate::Layout::get_size() const -> Count {
 auto Language::Constants::Aggregate::Layout::get_abstract(Count index) const
     -> Core::Option<const Abstract&> {
   BAIL_IF(index >= get_size());
-  return aggregate.values.at(index).get().get_identity();
+  return aggregate.values.at(index)->get_identity();
 }
 
 auto Language::Constants::Aggregate::Layout::get_name(Count index) const
@@ -127,9 +126,7 @@ auto Language::Constants::Aggregate::Layout::fits_entry(
     Count source_index,
     Count target_index) const -> Bool {
   BAIL_IF(source_index >= get_size());
-  return aggregate.values.at(source_index)
-      .get()
-      .fits_entry(target, 0, target_index);
+  return aggregate.values.at(source_index)->fits_entry(target, 0, target_index);
 }
 
 auto Language::Constants::Aggregate::Layout::fits_at(

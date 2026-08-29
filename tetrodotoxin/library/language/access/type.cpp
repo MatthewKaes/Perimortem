@@ -6,11 +6,10 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/context.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -68,14 +67,14 @@ auto Language::Access::Type::link(
     return False;
   }
 
-  if (selected && &selected->get() != &result) {
+  if (selected && *selected != &result) {
     cursor.create_expression_error(
         get_anchor(), "Type access cannot change its selected result."_view,
         "Keep one exact Type bound to this authored Token."_view);
     return False;
   }
 
-  selected = Reference<const Abstract>(result);
+  selected = &result;
   auto source_anchor = get_anchor();
   if (source_anchor) {
     cursor.get_associations().create(*source_anchor, result);
@@ -86,16 +85,16 @@ auto Language::Access::Type::link(
 auto Language::Access::Type::get_documentation() const -> const Documentation& {
   return selected.visit(
       []() -> const Documentation& { return Documentation::get_empty(); },
-      [](const Reference<const Abstract>& selected) -> const Documentation& {
-        return selected.get().get_documentation();
+      [](const Abstract* selected) -> const Documentation& {
+        return selected->get_documentation();
       });
 }
 
 auto Language::Access::Type::get_type() const -> const Abstract& {
   return selected.visit(
       []() -> const Abstract& { return Unknown::get_unknown(); },
-      [](const Reference<const Abstract>& selected) -> const Abstract& {
-        auto pack = Language::Model::Pack::from(selected.get().resolve());
+      [](const Abstract* selected) -> const Abstract& {
+        auto pack = Language::Model::Pack::from(selected->resolve());
         return pack ? pack->get_type()
                     : static_cast<const Abstract&>(Unknown::get_unknown());
       });
@@ -104,14 +103,13 @@ auto Language::Access::Type::get_type() const -> const Abstract& {
 auto Language::Access::Type::get_result() const -> const Abstract& {
   return selected.visit(
       []() -> const Abstract& { return Unknown::get_unknown(); },
-      [](const Reference<const Abstract>& selected) -> const Abstract& {
-        return selected.get();
-      });
+      [](const Abstract* selected) -> const Abstract& { return *selected; });
 }
 
 auto Language::Access::Type::resolve_concept(Core::View::Bytes route) const
     -> const Abstract& {
-  if (route != "static"_view && route != "instance"_view) {
+  if (route != "fold"_view && route != "static"_view &&
+      route != "instance"_view) {
     return Expression::resolve_concept(route);
   }
 
@@ -121,28 +119,17 @@ auto Language::Access::Type::resolve_concept(Core::View::Bytes route) const
              : selected.resolve_concept(route);
 }
 
-auto Language::Access::Type::get_concepts(Ttx::Concept::Context& context) const
-    -> const Ttx::Concept::Pack& {
-  const Core::Static::Vector<Reference<const Abstract>, 4> concepts = {{
-    *this,
-    Expression::resolve_concept("folded"_view),
-    resolve_concept("instance"_view),
-    resolve_concept("static"_view),
-  }};
-  const Core::Static::Vector<Core::View::Bytes, 4> names = {{
-    "expression"_view,
-    "folded"_view,
-    "instance"_view,
-    "static"_view,
-  }};
-  Ttx::Model::Layouts::Fluid values(concepts);
-  Ttx::Model::Layouts::Named named(values, names);
-  return context.pack(named);
+auto Language::Access::Type::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  visit_concept(visitor, "expression"_view, *this);
+  visit_concept(visitor, "fold"_view, resolve_concept("fold"_view));
+  visit_concept(visitor, "instance"_view, resolve_concept("instance"_view));
+  visit_concept(visitor, "static"_view, resolve_concept("static"_view));
 }
 
 auto Language::Access::Type::resolve_authored() const -> const Abstract& {
   if (selected) {
-    return selected->get();
+    return **selected;
   }
 
   const Abstract& receiver_result = resolve_receiver(receiver);

@@ -3,9 +3,9 @@
 
 #include "tetrodotoxin/library/language/alias.hpp"
 
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/documentations/merged.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/documentations/merged.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

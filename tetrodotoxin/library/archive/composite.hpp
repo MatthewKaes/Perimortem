@@ -16,7 +16,7 @@
 #include "tetrodotoxin/library/language/types/namespace.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Library::Archive {
 

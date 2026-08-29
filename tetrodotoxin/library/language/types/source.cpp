@@ -9,8 +9,8 @@
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -161,21 +161,20 @@ auto Types::Source::retain_import_context(const Abstract& imported) -> Bool {
   const Abstract& context = imported.resolve();
   BAIL_IF(context.is<Unknown>() || context.is<None>() || &context == this);
 
-  if (imports.get_view().contains(
-          [&](const Reference<const Abstract>& retained) -> Bool {
-            return &retained.get() == &context;
-          })) {
+  if (imports.get_view().contains([&](const Abstract* retained) -> Bool {
+        return retained == &context;
+      })) {
     return True;
   }
 
   auto has_conflict = [&](auto bindings) -> Bool {
-    for (const Reference<Abstract>& binding : bindings) {
+    for (const Abstract* binding : bindings) {
       const Abstract& visible = context.visit<Composite>(
           [&](const Composite& composite) -> const Abstract& {
-            return composite.resolve_public_context(binding.get().get_name());
+            return composite.resolve_public_context(binding->get_name());
           },
           [&](const Abstract& selected) -> const Abstract& {
-            return selected.resolve_concept(binding.get().get_name());
+            return selected.resolve_concept(binding->get_name());
           });
       if (!visible.is<Unknown>() && !visible.is<None>()) {
         return True;
@@ -187,7 +186,7 @@ auto Types::Source::retain_import_context(const Abstract& imported) -> Bool {
       has_conflict(get_addressables()) || has_conflict(get_types()) ||
       has_conflict(get_callables()));
 
-  imports.insert(context);
+  imports.insert(&context);
   return True;
 }
 
@@ -356,8 +355,8 @@ auto Types::Source::resolve_imports(View::Bytes route) const
   // repeated answers only when they resolve to the same identity. Distinct
   // provider identities make the query ambiguous and therefore Unknown.
   Option<const Abstract&> selected;
-  for (const Reference<const Abstract>& retained : imports.get_view()) {
-    const Abstract& context = retained.get();
+  for (const Abstract* retained : imports.get_view()) {
+    const Abstract& context = *retained;
     const Abstract& candidate = context.visit<Composite>(
         [&](const Composite& composite) -> const Abstract& {
           return composite.resolve_public_context(route);

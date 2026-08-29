@@ -4,8 +4,8 @@
 #include "tetrodotoxin/library/language/flow/block.hpp"
 
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -18,7 +18,7 @@ auto Language::Flow::Block::create_authored(
     const Abstract& lexical_context,
     Language::Model::Callable& function,
     const Language::Model::Type& access_scope,
-    Option<Reference<const Abstract>> enclosing_loop) -> Block& {
+    Option<const Abstract*> enclosing_loop) -> Block& {
   return domain.construct_from<Block>([&]() -> Block {
     return Block(
         domain, lexical_context, function, access_scope, enclosing_loop);

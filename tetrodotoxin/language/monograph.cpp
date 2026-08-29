@@ -3,8 +3,8 @@
 
 #include "tetrodotoxin/language/monograph.hpp"
 
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -43,20 +43,16 @@ auto Language::Monograph::get_root() const -> const Abstract& {
 auto Language::Monograph::retain_import(
     const Import::Description& description,
     Option<Associations&> associations) -> Bool {
-  for (const Reference<Import>& import : imports.get_view()) {
-    BAIL_IF(import.get().get_name() == description.get_name());
+  for (const Import* import : imports.get_view()) {
+    BAIL_IF(import->get_name() == description.get_name());
   }
 
   Import& import = domain.construct<Import>(domain, description);
-  imports.insert(import);
+  imports.insert(&import);
   if (associations) {
     associations->create(description.get_declaration_anchor(), import);
     associations->create(description.get_expression_anchor(), import);
   }
-  return True;
-}
-
-auto Language::Monograph::compose(Cursor&) -> Bool {
   return True;
 }
 
@@ -65,10 +61,6 @@ auto Language::Monograph::link(Cursor&) -> Bool {
 }
 
 auto Language::Monograph::finalize(Cursor&) -> Bool {
-  return True;
-}
-
-auto Language::Monograph::compose_restored() -> Bool {
   return True;
 }
 
@@ -97,8 +89,8 @@ auto Language::Monograph::resolve_lexical_context(View::Bytes route) const
 
 auto Language::Monograph::resolve_type(View::Bytes route, Visibility visibility)
     const -> const Abstract& {
-  for (const Reference<Import>& retained : imports.get_view()) {
-    const Import& selected = retained.get();
+  for (const Import* retained : imports.get_view()) {
+    const Import& selected = *retained;
     if (selected.get_name() != route) {
       continue;
     }

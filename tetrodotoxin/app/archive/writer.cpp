@@ -77,9 +77,8 @@ auto App::Archive::Writer::write(
   BAIL_IF(scene->get_transitions().get_size() > U32(-1));
   Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(output)
       << U32(scene->get_transitions().get_size());
-  for (const Reference<App::Language::Transition>& retained :
-       scene->get_transitions()) {
-    const App::Language::Transition& transition = retained.get();
+  for (const App::Language::Transition* retained : scene->get_transitions()) {
+    const App::Language::Transition& transition = *retained;
     BAIL_IF(
         !write_bytes(output, transition.get_source_route().get_spelling()) ||
         !write_bytes(output, transition.get_signal_name()));

@@ -13,12 +13,11 @@
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/terminal/llvm/module/emission.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/anchor.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Module {
 
@@ -95,8 +94,8 @@ class Debug {
   auto replace_scope(const Ttx::Model::Type& type, LLVMMetadataRef metadata)
       -> Bool;
 
-  auto get_scope_types() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Type>>;
+  auto get_scope_types() const
+      -> Perimortem::Core::View::Vector<const Ttx::Model::Type*>;
 
   auto publish_member(const Ttx::Model::Type& type, LLVMMetadataRef metadata)
       -> Bool;
@@ -175,9 +174,7 @@ class Debug {
       enumerators;
   Perimortem::Memory::Dynamic::Map<const Ttx::Model::Type*, LLVMMetadataRef>
       scopes;
-  Perimortem::Memory::Dynamic::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Type>>
-      scope_types;
+  Perimortem::Memory::Dynamic::Vector<const Ttx::Model::Type*> scope_types;
   Perimortem::Memory::Dynamic::Map<
       const Ttx::Model::Type*,
       Perimortem::Memory::Dynamic::Vector<LLVMMetadataRef>>

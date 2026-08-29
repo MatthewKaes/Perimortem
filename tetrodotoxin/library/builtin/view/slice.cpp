@@ -6,6 +6,8 @@
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
+#include "ttx/bootstrap/concept/constant.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -15,21 +17,23 @@ static auto create_parameter_entries(
     Ttx::Model::Layouts::Addressable& self,
     Ttx::Model::Layouts::Addressable& start,
     Ttx::Model::Layouts::Addressable& count)
-    -> Core::Static::Vector<Reference<const Abstract>, 3> {
-  const Core::Static::Vector<Reference<const Abstract>, 3> entries = {{
-    Reference<const Abstract>(self),
-    Reference<const Abstract>(start),
-    Reference<const Abstract>(count),
+    -> Core::Static::Vector<const Abstract*, 3> {
+  const Core::Static::Vector<const Abstract*, 3> entries = {{
+    &self,
+    &start,
+    &count,
   }};
   return entries;
 }
 
 Builtin::View::Slice::Slice(
+    Memory::Allocator::Arena& domain,
     Ttx::Model::Layouts::Addressable& self,
     Ttx::Model::Layouts::Addressable& start,
     Ttx::Model::Layouts::Addressable& count,
     const Language::Model::Type& result)
-    : parameter_entries(create_parameter_entries(self, start, count)),
+    : domain(domain),
+      parameter_entries(create_parameter_entries(self, start, count)),
       parameters(parameter_entries.get_view()),
       results(result, 1),
       result_type(result) {}
@@ -49,11 +53,12 @@ auto Builtin::View::Slice::create(
       Ttx::Model::Layouts::Addressable::create_synthetic(
           domain, "count"_view, count);
   return domain.construct_from<Slice>(
-      [&]() -> Slice { return Slice(self, start, size, result); });
+      [&]() -> Slice { return Slice(domain, self, start, size, result); });
 }
 
-static auto select_unsigned(const Ttx::Model::Pack& values, Count index)
-    -> Core::Option<U64> {
+static auto select_unsigned(
+    const Tetrodotoxin::Library::Language::Model::Pack& values,
+    Count index) -> Core::Option<U64> {
   auto producer = values.get_layout().get_abstract(index);
   BAIL_IF(!producer);
   auto constant = producer->select<Language::Constants::Unsigned>();
@@ -64,16 +69,9 @@ static auto select_unsigned(const Ttx::Model::Pack& values, Count index)
   // The argument Pack retains its authored producer identity. Following that
   // producer through ordinary folding keeps const Locals usable without
   // copying their values into the Callable.
-  auto expression =
-      const_cast<Abstract&>(*producer).select<Language::Expression>();
-  BAIL_IF(!expression);
-
-  Core::Option<Language::Model::Pack&> folded;
-  expression->fold().visit(
-      [&](const Core::Option<Language::Model::Pack&>& selected) {
-        folded = selected;
-      },
-      [](const Language::Expression::Error&) {});
+  auto source = Language::Model::Pack::from(const_cast<Abstract&>(*producer));
+  BAIL_IF(!source);
+  auto folded = Language::query_folded_pack(*source);
   BAIL_IF(!folded);
 
   auto selected = folded->get_layout().get_abstract(0);
@@ -83,8 +81,7 @@ static auto select_unsigned(const Ttx::Model::Pack& values, Count index)
                   : Core::Option<U64>();
 }
 
-auto Builtin::View::Slice::fold_call(
-    Memory::Allocator::Arena& domain,
+auto Builtin::View::Slice::fold(
     Core::Option<const Language::Model::Pack&> receiver,
     const Language::Model::Pack& arguments) const
     -> Core::Option<Language::Model::Pack&> {
@@ -101,4 +98,35 @@ auto Builtin::View::Slice::fold_call(
       bytes->get_value().slice(Count(*start), Count(*count));
   return Language::Constants::Bytes::create_synthetic(
       domain, result_type, selected);
+}
+
+auto Builtin::View::Slice::fold_abi(
+    const ttx_abstract* callable,
+    const ttx_pack* receiver,
+    const ttx_pack* arguments) -> const ttx_abstract* {
+  const auto& selected =
+      static_cast<const Slice&>(Ttx::Concept::Abstract::from_abi(callable));
+  auto source = receiver ? Core::Option<const Language::Model::Pack&>(
+                               Language::Model::Pack::from_abi(receiver))
+                         : Core::Option<const Language::Model::Pack&>();
+  const auto& inputs = Language::Model::Pack::from_abi(arguments);
+  auto result = selected.fold(source, inputs);
+  auto identity = result ? result->get_identity()
+                         : Core::Option<const Ttx::Concept::Abstract&>();
+  return identity && Ttx::Concept::Constant::prove(*identity)
+             ? identity->get_abi()
+             : ttx_none();
+}
+
+const ttx_library_fold_call_operations Builtin::View::Slice::fold_operations = {
+  .interface = {.negotiate = ttx_library_fold_call_relation},
+  .fold = fold_abi,
+};
+
+auto Builtin::View::Slice::negotiate_interface(
+    const ttx_abstract* requirement) const -> ttx_interface {
+  return requirement == ttx_library_fold_call_requirement()
+             ? ttx_interface_satisfied(
+                   requirement, get_abi(), &fold_operations.interface)
+             : Language::Model::Callable::negotiate_interface(requirement);
 }

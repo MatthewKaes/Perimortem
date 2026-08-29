@@ -72,10 +72,12 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, workspace_contract_and_stage) {
   EXPECT_NOT(monograph.get_layer(*render));
   ASSERT_EQ(monograph.get_programs().get_size(), Count(1));
   ASSERT_EQ(monograph.get_bridges().get_size(), Count(1));
-  const auto& program = monograph.get_programs().get_data()[0].get();
+  const auto& program = *monograph.get_programs().get_data()[0];
   EXPECT(program.get_contract());
   Shader::Language::Contract negotiator;
-  EXPECT(negotiator.accepts(*program.get_contract(), program));
+  EXPECT(
+      negotiator.negotiate(*program.get_contract(), program) !=
+      TTX_INTERFACE_REJECTED);
   EXPECT(program.resolve_concept("static"_view)
              .resolve_concept("fragment"_view)
              .resolve()
@@ -104,8 +106,8 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, workspace_contract_and_stage) {
   ASSERT_EQ(program.get_uniforms().get_size(), Count(1));
   EXPECT_EQ(program.get_parameters().get_layout().get_size(), Count(1));
   EXPECT(program.satisfies(*program.get_contract()));
-  EXPECT(monograph.get_bridges().get_data()[0].get().get_cpu_type());
-  EXPECT(monograph.get_bridges().get_data()[0].get().get_gpu_type());
+  EXPECT(monograph.get_bridges().get_data()[0]->get_cpu_type());
+  EXPECT(monograph.get_bridges().get_data()[0]->get_gpu_type());
   EXPECT(render_errors.is_empty());
   EXPECT(shader_errors.is_empty());
 }

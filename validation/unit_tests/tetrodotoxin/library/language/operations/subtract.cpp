@@ -22,7 +22,7 @@
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -81,19 +81,6 @@ static auto selected(
       },
       [](const Expression::Error&)
           -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
-}
-
-static auto reports(
-    const Result<Option<Model::Pack&>, Expression::Error>& result,
-    Expression::Error::Type expected,
-    const Abstract& origin) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>&) { return False; },
-      [&](const Expression::Error& error) {
-        return error.get_type() == expected && &error.get_subject() == &origin
-                   ? True
-                   : False;
-      });
 }
 
 static auto get_unsigned(
@@ -179,7 +166,7 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, type_selection) {
   EXPECT(!link_operation(byte_values, source));
   EXPECT(!link_operation(invalid, source));
 
-  auto exact_result = selected(exact.fold());
+  auto exact_result = selected(test_fold(exact));
 
   EXPECT(&exact.get_type() == &u8);
   EXPECT(mixed_left.get_type().resolve().is<Unknown>());
@@ -243,13 +230,13 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, integer_widths) {
   EXPECT(link_operation(signed_overflow, source));
   EXPECT(link_operation(signed_underflow, source));
 
-  auto unsigned_value = selected(unsigned_success.fold());
-  auto signed_value = selected(signed_difference.fold());
-  auto upper_value = selected(upper_endpoint.fold());
-  auto lower_value = selected(lower_endpoint.fold());
-  auto unsigned_error = unsigned_underflow.fold();
-  auto overflow_error = signed_overflow.fold();
-  auto underflow_error = signed_underflow.fold();
+  auto unsigned_value = selected(test_fold(unsigned_success));
+  auto signed_value = selected(test_fold(signed_difference));
+  auto upper_value = selected(test_fold(upper_endpoint));
+  auto lower_value = selected(test_fold(lower_endpoint));
+  auto unsigned_error = test_fold(unsigned_underflow);
+  auto overflow_error = test_fold(signed_overflow);
+  auto underflow_error = test_fold(signed_underflow);
   auto unsigned_number =
       unsigned_value ? get_unsigned(*unsigned_value) : Option<U64>();
   auto signed_number = signed_value ? get_signed(*signed_value) : Option<S64>();
@@ -262,15 +249,9 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, integer_widths) {
   EXPECT(signed_number && *signed_number == -2);
   EXPECT(upper_number && *upper_number == 127);
   EXPECT(lower_number && *lower_number == -128);
-  EXPECT(reports(
-      unsigned_error, Expression::Error::Type::ArithmeticOverflow,
-      unsigned_underflow));
-  EXPECT(reports(
-      overflow_error, Expression::Error::Type::ArithmeticOverflow,
-      signed_overflow));
-  EXPECT(reports(
-      underflow_error, Expression::Error::Type::ArithmeticOverflow,
-      signed_underflow));
+  EXPECT(concept_is_nonfoldable(unsigned_error));
+  EXPECT(concept_is_nonfoldable(overflow_error));
+  EXPECT(concept_is_nonfoldable(underflow_error));
 }
 
 PERIMORTEM_UNIT_TEST(LibrarySubtract, ieee_real_domains) {
@@ -303,10 +284,10 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, ieee_real_domains) {
   EXPECT(link_operation(infinite, source));
   EXPECT(link_operation(unordered, source));
 
-  auto narrow_value = selected(narrow.fold());
-  auto wide_value = selected(wide.fold());
-  auto infinite_value = selected(infinite.fold());
-  auto unordered_value = selected(unordered.fold());
+  auto narrow_value = selected(test_fold(narrow));
+  auto wide_value = selected(test_fold(wide));
+  auto infinite_value = selected(test_fold(infinite));
+  auto unordered_value = selected(test_fold(unordered));
   auto narrow_number = narrow_value ? get_real(*narrow_value) : Option<R64>();
   auto wide_number = wide_value ? get_real(*wide_value) : Option<R64>();
   auto infinite_number =
@@ -339,9 +320,9 @@ PERIMORTEM_UNIT_TEST(LibrarySubtract, stable_folding) {
   EXPECT(link_operation(subtract, source));
   EXPECT(&subtract.get_type() == &selected_type);
 
-  auto first = selected(subtract.fold());
-  auto second = selected(subtract.fold());
-  auto child_result = selected(child.fold());
+  auto first = selected(test_fold(subtract));
+  auto second = selected(test_fold(subtract));
+  auto child_result = selected(test_fold(child));
   auto value = first ? get_unsigned(*first) : Option<U64>();
 
   ASSERT(first && second && child_result);

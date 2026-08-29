@@ -8,10 +8,9 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/render/language/declarations.hpp"
-#include "ttx/concept/layout.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/concept/layout.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 namespace Tetrodotoxin::Render::Language {
 
@@ -49,8 +48,8 @@ class Structure : public Ttx::Model::Type {
   auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   auto resolve_local_context(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract&;
@@ -113,9 +112,7 @@ class Structure : public Ttx::Model::Type {
 
   Tetrodotoxin::Language::Definition& definition;
   Declarations declarations;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Model::Addressable>>
-      instances;
+  Perimortem::Memory::Managed::Vector<Ttx::Model::Addressable*> instances;
   InstanceLayout layout;
 };
 

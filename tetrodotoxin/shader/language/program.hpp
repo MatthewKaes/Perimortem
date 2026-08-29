@@ -17,7 +17,6 @@
 #include "tetrodotoxin/render/language/stage.hpp"
 #include "tetrodotoxin/render/language/structure.hpp"
 #include "tetrodotoxin/shader/language/binding.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Shader::Language {
@@ -85,11 +84,10 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
                  const Tetrodotoxin::Render::Language::Monograph&> {
           return {};
         },
-        [](const Ttx::Concept::Reference<
-            const Tetrodotoxin::Render::Language::Monograph>& selected)
+        [](const Tetrodotoxin::Render::Language::Monograph* selected)
             -> Perimortem::Core::Option<
                 const Tetrodotoxin::Render::Language::Monograph&> {
-          return selected.get();
+          return *selected;
         });
   }
 
@@ -99,42 +97,42 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
   }
 
   constexpr auto get_uniforms() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<Tetrodotoxin::Library::Language::Field>> {
+      Tetrodotoxin::Library::Language::Field*> {
     return uniforms;
   }
 
   constexpr auto edit_parameters()
       -> Tetrodotoxin::Library::Language::Types::Structure& {
-    return parameters->get();
+    return **parameters;
   }
 
   constexpr auto get_parameters() const
       -> const Tetrodotoxin::Library::Language::Types::Structure& {
-    return parameters->get();
+    return **parameters;
   }
 
   constexpr auto get_instance() const
       -> const Tetrodotoxin::Library::Language::Types::Object& {
-    return instance->get();
+    return **instance;
   }
 
   constexpr auto get_parameters_field() const
       -> const Tetrodotoxin::Library::Language::Field& {
-    return parameters_field->get();
+    return **parameters_field;
   }
 
   constexpr auto get_instance_parameters_field() const
       -> const Tetrodotoxin::Library::Language::Field& {
-    return instance_parameters_field->get();
+    return **instance_parameters_field;
   }
 
  private:
   class StageBody {
    public:
     constexpr StageBody(Tetrodotoxin::Library::Language::Function& function)
-        : function(function) {}
+        : function(&function) {}
 
-    Ttx::Concept::Reference<Tetrodotoxin::Library::Language::Function> function;
+    Tetrodotoxin::Library::Language::Function* function;
   };
 
   class InheritedType {
@@ -142,12 +140,10 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
     constexpr InheritedType(
         const Tetrodotoxin::Render::Language::Structure& requirement,
         Tetrodotoxin::Library::Language::Types::Structure& implementation)
-        : requirement(requirement), implementation(implementation) {}
+        : requirement(&requirement), implementation(&implementation) {}
 
-    Ttx::Concept::Reference<const Tetrodotoxin::Render::Language::Structure>
-        requirement;
-    Ttx::Concept::Reference<Tetrodotoxin::Library::Language::Types::Structure>
-        implementation;
+    const Tetrodotoxin::Render::Language::Structure* requirement;
+    Tetrodotoxin::Library::Language::Types::Structure* implementation;
   };
 
   Program(
@@ -190,25 +186,19 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
   Tetrodotoxin::Language::TypeReference contract;
   Ttx::Concept::Abstract& context;
   Perimortem::Memory::Managed::Vector<Binding> bindings;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Tetrodotoxin::Library::Language::Field>>
+  Perimortem::Memory::Managed::Vector<Tetrodotoxin::Library::Language::Field*>
       uniforms;
   Perimortem::Memory::Managed::Vector<StageBody> stages;
   Perimortem::Memory::Managed::Vector<InheritedType> inherited_types;
-  Perimortem::Core::Option<Ttx::Concept::Reference<
-      Tetrodotoxin::Library::Language::Types::Structure>>
+  Perimortem::Core::Option<Tetrodotoxin::Library::Language::Types::Structure*>
       parameters;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<Tetrodotoxin::Library::Language::Types::Object>>
+  Perimortem::Core::Option<Tetrodotoxin::Library::Language::Types::Object*>
       instance;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<Tetrodotoxin::Library::Language::Field>>
+  Perimortem::Core::Option<Tetrodotoxin::Library::Language::Field*>
       parameters_field;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<Tetrodotoxin::Library::Language::Field>>
+  Perimortem::Core::Option<Tetrodotoxin::Library::Language::Field*>
       instance_parameters_field;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Tetrodotoxin::Render::Language::Monograph>>
+  Perimortem::Core::Option<const Tetrodotoxin::Render::Language::Monograph*>
       contract_type;
   Bool composed = False;
 };

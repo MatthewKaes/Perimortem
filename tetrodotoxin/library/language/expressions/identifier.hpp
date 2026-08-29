@@ -8,7 +8,6 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/token.hpp"
 
 namespace Tetrodotoxin::Library::Language::Expressions {
@@ -63,6 +62,10 @@ class Identifier : public Expression {
   auto get_type() const -> const Ttx::Concept::Abstract& override;
 
   auto get_result() const -> const Ttx::Concept::Abstract& override;
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   // A malformed following operator may keep this Identifier outside a
   // retained Statement. Its authored context can still answer the strongest
@@ -80,14 +83,12 @@ class Identifier : public Expression {
       : Expression(anchor),
         token(token),
         name(name),
-        lexical_context(lexical_context) {}
+        lexical_context(&lexical_context) {}
 
   Ttx::Lexical::Token token;
   Perimortem::Core::View::Bytes name;
-  Ttx::Concept::Reference<const Ttx::Concept::Abstract> lexical_context;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-      result;
+  const Ttx::Concept::Abstract* lexical_context;
+  Perimortem::Core::Option<const Ttx::Concept::Abstract*> result;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Expressions

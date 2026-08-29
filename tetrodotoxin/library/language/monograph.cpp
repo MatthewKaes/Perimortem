@@ -24,8 +24,8 @@
 #include "tetrodotoxin/library/language/types/u32.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -147,9 +147,9 @@ auto Library::Language::Monograph::resolve_concept(View::Bytes route) const
              : local;
 }
 
-auto Library::Language::Monograph::get_concepts(Context& context) const
-    -> const Pack& {
-  return source.get_concepts(context);
+auto Library::Language::Monograph::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  source.visit_concepts(visitor);
 }
 
 auto Library::Language::Monograph::resolve_local_context(

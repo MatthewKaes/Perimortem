@@ -18,7 +18,7 @@
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -49,7 +49,7 @@ static auto find_function(
     View::Bytes name) -> Option<const Language::Function&> {
   for (auto binding = composite.get_callables().begin();
        binding != composite.get_callables().end(); ++binding) {
-    const Abstract& candidate = (*binding).get();
+    const Abstract& candidate = **binding;
     if (candidate.get_name() == name && candidate.is<Language::Function>()) {
       return static_cast<const Language::Function&>(candidate);
     }
@@ -148,9 +148,9 @@ PERIMORTEM_UNIT_TEST(LocalTests, local_completion) {
   EXPECT(created_local.get_writability() == Language::Writability::Full);
   EXPECT(positional_local.get_writability() == Language::Writability::Full);
   EXPECT(named_local.get_writability() == Language::Writability::Full);
-  ASSERT(fixed_local.get_constant());
-  ASSERT(inferred_local.get_constant());
-  EXPECT(&*fixed_local.get_constant() == &*inferred_local.get_constant());
+  ASSERT(folded_pack(fixed_local));
+  ASSERT(folded_pack(inferred_local));
+  EXPECT(&*folded_pack(fixed_local) == &*folded_pack(inferred_local));
 
   EXPECT(
       explicit_local.get_anchor().get_span().caculate_text(source) ==
@@ -206,7 +206,7 @@ PERIMORTEM_UNIT_TEST(LocalTests, folded_const) {
   EXPECT(dense.get_writability() == Language::Writability::Constant);
   EXPECT(extracted.get_writability() == Language::Writability::Constant);
 
-  auto folded = dense.get_constant();
+  auto folded = folded_pack(dense);
   ASSERT(folded);
   ASSERT_EQ(folded->get_layout().get_size(), Count(4));
   for (Count index = 0; index < Count(4); index++) {
@@ -216,7 +216,7 @@ PERIMORTEM_UNIT_TEST(LocalTests, folded_const) {
     ASSERT(value);
     EXPECT_EQ(value->get_value(), U64(index + 5));
   }
-  auto extracted_value = extracted.get_constant();
+  auto extracted_value = folded_pack(extracted);
   ASSERT(extracted_value);
   auto value =
       extracted_value->select_identity<Language::Constants::Unsigned>();

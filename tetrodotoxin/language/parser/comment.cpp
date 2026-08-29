@@ -5,9 +5,9 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "ttx/bootstrap/model/documentations/block.hpp"
 #include "ttx/lexical/lexicon.hpp"
 #include "ttx/lexical/token.hpp"
-#include "ttx/model/documentations/block.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

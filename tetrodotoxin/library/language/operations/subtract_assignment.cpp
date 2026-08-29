@@ -6,7 +6,7 @@
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "ttx/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;

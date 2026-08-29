@@ -33,7 +33,7 @@
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -120,10 +120,7 @@ class ValueFoldOperation : public Operation {
       Tetrodotoxin::Library::Language::Constant& result,
       const Model::Type& type,
       Bool fails = False)
-      : Operation(
-            domain,
-            Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1>{{input}},
-            {}),
+      : Operation(domain, Static::Vector<Model::Pack*, 1>{{&input}}, {}),
         result(result),
         type(type),
         fails(fails) {}
@@ -155,15 +152,6 @@ class ValueFoldOperation : public Operation {
   Bool fails;
 };
 
-static auto is_dynamic(
-    const Result<Option<Model::Pack&>, Expression::Error>& result) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>& selected) {
-        return !selected ? True : False;
-      },
-      [](const Expression::Error&) { return False; });
-}
-
 static auto selected(
     const Result<Option<Model::Pack&>, Expression::Error>& result)
     -> Option<Tetrodotoxin::Library::Language::Constant&> {
@@ -190,19 +178,6 @@ static auto selected_pack(
   return result.visit(
       [](const Option<Model::Pack&>& folded) { return folded; },
       [](const Expression::Error&) -> Option<Model::Pack&> { return {}; });
-}
-
-static auto reports(
-    const Result<Option<Model::Pack&>, Expression::Error>& result,
-    Expression::Error::Type expected,
-    const Abstract& origin) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>&) { return False; },
-      [&](const Expression::Error& error) {
-        return error.get_type() == expected && &error.get_subject() == &origin
-                   ? True
-                   : False;
-      });
 }
 
 static auto get_unsigned(
@@ -277,9 +252,9 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, receiver_type) {
   EXPECT(&fixed_index.get_type() == &element);
   EXPECT(&view_index.get_type() == &element);
   EXPECT(&access_index.get_type() == &element);
-  EXPECT(is_dynamic(fixed_index.fold()));
-  EXPECT(is_dynamic(view_index.fold()));
-  EXPECT(is_dynamic(access_index.fold()));
+  EXPECT(concept_is_nonfoldable(test_fold(fixed_index)));
+  EXPECT(concept_is_nonfoldable(test_fold(view_index)));
+  EXPECT(concept_is_nonfoldable(test_fold(access_index)));
 }
 
 PERIMORTEM_UNIT_TEST(LibrarySlice, range_pack_shape) {
@@ -329,7 +304,7 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, range_pack_shape) {
   EXPECT(link_expression(domain, single_size, source));
   EXPECT(link_expression(domain, empty, source));
 
-  auto folded_result = folded_size.fold();
+  auto folded_result = test_fold(folded_size);
 
   EXPECT(constant_size.get_type().is<Unknown>());
   EXPECT(folded_size.get_type().is<Unknown>());
@@ -337,7 +312,7 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, range_pack_shape) {
   EXPECT(access_size.get_type().is<Unknown>());
   EXPECT(&single_size.get_type() == &element);
   EXPECT(empty.get_type().is<Unknown>());
-  EXPECT(is_dynamic(folded_result));
+  EXPECT(concept_is_nonfoldable(folded_result));
   EXPECT(supplies_self(constant_size, 4));
   EXPECT(supplies_self(folded_size, 4));
   EXPECT(supplies_self(view_size, 4));
@@ -376,11 +351,11 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, folded_selection) {
   EXPECT(link_expression(domain, empty, source));
   EXPECT(link_expression(domain, terminal_empty, source));
 
-  auto indexed = selected(index.fold());
-  auto full_value = selected_pack(full.fold());
-  auto interior_value = selected_pack(interior.fold());
-  auto empty_value = selected_pack(empty.fold());
-  auto terminal_value = selected_pack(terminal_empty.fold());
+  auto indexed = selected(test_fold(index));
+  auto full_value = selected_pack(test_fold(full));
+  auto interior_value = selected_pack(test_fold(interior));
+  auto empty_value = selected_pack(test_fold(empty));
+  auto terminal_value = selected_pack(test_fold(terminal_empty));
   auto indexed_byte = indexed ? get_unsigned(*indexed) : Option<U64>();
 
   ASSERT(indexed);
@@ -435,9 +410,9 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, partial_folding) {
   EXPECT(link_expression(domain, start_partial, source));
   EXPECT(!link_expression(domain, size_partial, source));
 
-  EXPECT(is_dynamic(receiver_partial.fold()));
-  EXPECT(is_dynamic(index_partial.fold()));
-  EXPECT(is_dynamic(start_partial.fold()));
+  EXPECT(concept_is_nonfoldable(test_fold(receiver_partial)));
+  EXPECT(concept_is_nonfoldable(test_fold(index_partial)));
+  EXPECT(concept_is_nonfoldable(test_fold(start_partial)));
   EXPECT(&receiver_partial.get_type() == &element);
   EXPECT(&index_partial.get_type() == &element);
   EXPECT(start_partial.get_type().is<Unknown>());
@@ -492,13 +467,13 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, safe_bounds) {
   EXPECT(link_expression(domain, start_bounds, source));
   EXPECT(link_expression(domain, size_bounds, source));
 
-  EXPECT(is_dynamic(invalid_receiver.fold()));
-  EXPECT(is_dynamic(invalid_operand.fold()));
-  EXPECT(is_dynamic(invalid_count.fold()));
-  auto negative_index_value = selected(negative_index.fold());
-  auto maximum_index_value = selected(maximum_index.fold());
-  auto index_bounds_value = selected(index_bounds.fold());
-  auto nested_index_value = selected(nested_index_bounds.fold());
+  EXPECT(concept_is_nonfoldable(test_fold(invalid_receiver)));
+  EXPECT(concept_is_nonfoldable(test_fold(invalid_operand)));
+  EXPECT(concept_is_nonfoldable(test_fold(invalid_count)));
+  auto negative_index_value = selected(test_fold(negative_index));
+  auto maximum_index_value = selected(test_fold(maximum_index));
+  auto index_bounds_value = selected(test_fold(index_bounds));
+  auto nested_index_value = selected(test_fold(nested_index_bounds));
   auto negative_index_default = negative_index_value
                                     ? get_unsigned(*negative_index_value)
                                     : Option<U64>();
@@ -519,10 +494,10 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, safe_bounds) {
   EXPECT(&maximum_index_value->get_type() == &element);
   EXPECT(&index_bounds_value->get_type() == &element);
   EXPECT(&nested_index_value->get_type() == &element);
-  auto negative_range = selected_pack(negative_start.fold());
-  EXPECT(is_dynamic(maximum_range.fold()));
-  auto empty_range = selected_pack(start_bounds.fold());
-  auto partial_range = selected_pack(size_bounds.fold());
+  auto negative_range = selected_pack(test_fold(negative_start));
+  EXPECT(concept_is_nonfoldable(test_fold(maximum_range)));
+  auto empty_range = selected_pack(test_fold(start_bounds));
+  auto partial_range = selected_pack(test_fold(size_bounds));
   ASSERT(negative_range && empty_range && partial_range);
   EXPECT_EQ(negative_range->get_layout().get_size(), Count(2));
   EXPECT_EQ(empty_range->get_layout().get_size(), Count(0));
@@ -566,9 +541,9 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, scalar_defaults) {
   EXPECT(link_expression(domain, signed_default, source));
   EXPECT(link_expression(domain, real_default, source));
 
-  auto boolean_value = selected(boolean_default.fold());
-  auto signed_value = selected(signed_default.fold());
-  auto real_value = selected(real_default.fold());
+  auto boolean_value = selected(test_fold(boolean_default));
+  auto signed_value = selected(test_fold(signed_default));
+  auto real_value = selected(test_fold(real_default));
   auto signed_payload =
       signed_value ? get_signed(*signed_value) : Option<S64>();
   auto real_payload = real_value ? get_real(*real_value) : Option<R64>();
@@ -606,13 +581,13 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, unsupported_defaults) {
   EXPECT(link_expression(domain, unsupported, source));
   EXPECT(link_expression(domain, safe_range, source));
 
-  auto missing_value = selected(missing.fold());
+  auto missing_value = selected(test_fold(missing));
   ASSERT(missing_value);
   EXPECT(missing_value->is_identity<Constants::Unsigned>());
   EXPECT(get_unsigned(*missing_value) == Option<U64>(0));
   EXPECT(&missing_value->get_type() == &unsupported_element);
-  EXPECT(is_dynamic(unsupported.fold()));
-  EXPECT(is_dynamic(safe_range.fold()));
+  EXPECT(concept_is_nonfoldable(test_fold(unsupported)));
+  EXPECT(concept_is_nonfoldable(test_fold(safe_range)));
   EXPECT(supplies_self(safe_range, 1));
   EXPECT(&safe_range.get_type() == &unsupported_element);
   EXPECT(&missing.get_type() == &unsupported_element);
@@ -634,12 +609,11 @@ PERIMORTEM_UNIT_TEST(LibrarySlice, child_failure) {
 
   EXPECT(link_expression(domain, access, source));
 
-  auto direct = failing.fold();
-  auto propagated = access.fold();
-  auto repeated = access.fold();
+  auto direct = test_fold(failing);
+  auto propagated = test_fold(access);
+  auto repeated = test_fold(access);
 
-  EXPECT(reports(direct, Expression::Error::Type::InvalidConstant, failing));
-  EXPECT(
-      reports(propagated, Expression::Error::Type::InvalidConstant, failing));
-  EXPECT(reports(repeated, Expression::Error::Type::InvalidConstant, failing));
+  EXPECT(concept_is_nonfoldable(direct));
+  EXPECT(concept_is_nonfoldable(propagated));
+  EXPECT(concept_is_nonfoldable(repeated));
 }

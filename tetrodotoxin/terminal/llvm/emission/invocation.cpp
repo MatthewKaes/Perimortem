@@ -69,7 +69,7 @@ static auto call_select_result_type(
 
 static auto call_select_input_values(
     const Llvm::Module::Body& body,
-    const Ttx::Model::Pack& source,
+    const Tetrodotoxin::Library::Language::Model::Pack& source,
     Count offset,
     Count size) -> Core::Option<Core::View::Vector<LLVMValueRef>> {
   auto values = body.find_values(source);
@@ -120,14 +120,14 @@ static auto call_release_owned(
 
 static auto call_publish_empty(
     Llvm::Module::Body& body,
-    const Ttx::Model::Pack& result) -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& result) -> Bool {
   return body.publish_values(result, Core::View::Vector<LLVMValueRef>());
 }
 
 static auto call_publish_results(
     Llvm::Module::Body& body,
     const Llvm::Module::Carriers& carriers,
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Concept::Layout& signature,
     Core::Option<LLVMOpaqueValue&> returned) -> Bool {
   if (result.get_layout().get_size() != signature.get_size()) {
@@ -203,7 +203,8 @@ auto Llvm::Emission::Invocation::invoke(
     const Library::Language::Model::Pack& result,
     const Ttx::Model::Callable& callable,
     Core::View::Vector<LLVMValueRef> inputs,
-    Core::Option<const Ttx::Model::Pack&> receiver_source) const -> Bool {
+    Core::Option<const Tetrodotoxin::Library::Language::Model::Pack&>
+        receiver_source) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = call_select_carriers(body);
   auto functions = call_select_functions(body);
@@ -425,7 +426,7 @@ auto Llvm::Emission::Invocation::invoke(
 }
 
 auto Llvm::Emission::Invocation::get_size(
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     const Ttx::Model::Type& receiver_type,
     LLVMValueRef receiver) const -> Bool {
@@ -457,7 +458,7 @@ auto Llvm::Emission::Invocation::get_size(
 }
 
 auto Llvm::Emission::Invocation::contiguous_is_empty(
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     const Ttx::Model::Type& receiver_type,
     LLVMValueRef receiver) const -> Bool {
@@ -537,7 +538,7 @@ static auto object_capacity_value(
 }
 
 auto Llvm::Emission::Invocation::object_capacity(
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     const Ttx::Model::Type& receiver_type,
     LLVMValueRef receiver) const -> Bool {
@@ -560,10 +561,10 @@ auto Llvm::Emission::Invocation::object_capacity(
 }
 
 auto Llvm::Emission::Invocation::object_is_shared(
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     const Ttx::Model::Type& receiver_type,
-    const Ttx::Model::Pack& receiver_source,
+    const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver) const -> Bool {
   auto carriers = call_select_carriers(body);
   auto native_result =
@@ -610,9 +611,9 @@ auto Llvm::Emission::Invocation::object_is_shared(
 }
 
 auto Llvm::Emission::Invocation::object_clone(
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& receiver_type,
-    const Ttx::Model::Pack& receiver_source,
+    const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver) const -> Bool {
   auto carriers = call_select_carriers(body);
   auto target = body.find_target_address(receiver_source);
@@ -655,7 +656,7 @@ auto Llvm::Emission::Invocation::object_clone(
 }
 
 auto Llvm::Emission::Invocation::object_view(
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     const Ttx::Model::Type& receiver_type,
     LLVMValueRef receiver) const -> Bool {
@@ -685,7 +686,7 @@ static auto reserve_object(
     Llvm::Module::Body& body,
     const Llvm::Module::Carriers& carriers,
     const Ttx::Model::Type& receiver_type,
-    const Ttx::Model::Pack& receiver_source,
+    const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver,
     LLVMValueRef count,
     const Tetrodotoxin::Library::Language::Model::Pack& element_default)
@@ -743,7 +744,7 @@ static auto reserve_object(
 static auto publish_object_access(
     Llvm::Module::Body& body,
     const Llvm::Module::Carriers& carriers,
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     const Ttx::Model::Type& receiver_type,
     LLVMValueRef data) -> Bool {
@@ -765,10 +766,10 @@ static auto publish_object_access(
 }
 
 auto Llvm::Emission::Invocation::object_access(
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     const Ttx::Model::Type& receiver_type,
-    const Ttx::Model::Pack& receiver_source,
+    const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver,
     const Library::Language::Model::Pack& element_default) const -> Bool {
   auto carriers = call_select_carriers(body);
@@ -786,10 +787,10 @@ auto Llvm::Emission::Invocation::object_access(
 }
 
 auto Llvm::Emission::Invocation::object_reserve(
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     const Ttx::Model::Type& receiver_type,
-    const Ttx::Model::Pack& receiver_source,
+    const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver,
     LLVMValueRef count,
     const Library::Language::Model::Pack& element_default) const -> Bool {
@@ -809,10 +810,10 @@ auto Llvm::Emission::Invocation::object_reserve(
 // slot so the borrowed pointer remains valid through enclosing scope cleanup.
 static auto create_fixed_borrow(
     Llvm::Module::Body& body,
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     const Ttx::Model::Type& receiver_type,
-    const Ttx::Model::Pack& receiver_source,
+    const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver) -> Bool {
   auto& native_body = body;
   auto carriers = call_select_carriers(body);
@@ -888,17 +889,17 @@ static auto create_fixed_borrow(
 }
 
 auto Llvm::Emission::Invocation::borrow_fixed(
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     const Ttx::Model::Type& receiver_type,
-    const Ttx::Model::Pack& receiver_source,
+    const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver) const -> Bool {
   return create_fixed_borrow(
       body, result, result_type, receiver_type, receiver_source, receiver);
 }
 
 auto Llvm::Emission::Invocation::slice_view(
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     const Ttx::Model::Type& receiver_type,
     LLVMValueRef receiver,
@@ -1003,8 +1004,8 @@ auto Llvm::Emission::Invocation::construct_provider(
     const Library::Language::Model::Pack& result,
     const Ttx::Model::Type& type,
     const Library::Language::Model::Pack& arguments,
-    Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Addressable>>
-        parameters) const -> Bool {
+    Core::View::Vector<const Ttx::Model::Addressable*> parameters) const
+    -> Bool {
   auto& program = body.get_program();
   const auto& functions = program.get_functions();
   return functions.reserve_construction(program, type, False, parameters) &&

@@ -47,8 +47,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   // Resolves only this source's authored, intrinsic, using, and common Import
   // surface. An outer Dialect can expose that surface without re-entering its

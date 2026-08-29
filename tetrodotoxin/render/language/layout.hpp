@@ -14,8 +14,7 @@
 #include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/language/type_reference.hpp"
 #include "tetrodotoxin/render/language/binding.hpp"
-#include "ttx/concept/layout.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/layout.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -63,10 +62,9 @@ class Layout : public Ttx::Concept::Layout {
           []() -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> {
             return {};
           },
-          [](const Ttx::Concept::Reference<const Ttx::Concept::Abstract>&
-                 selected)
+          [](const Ttx::Concept::Abstract* selected)
               -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> {
-            return selected.get();
+            return *selected;
           });
     }
 
@@ -74,7 +72,7 @@ class Layout : public Ttx::Concept::Layout {
       if (edge) {
         return False;
       }
-      edge = Ttx::Concept::Reference<const Ttx::Concept::Abstract>(selected);
+      edge = &selected;
       return True;
     }
 
@@ -84,9 +82,7 @@ class Layout : public Ttx::Concept::Layout {
     Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>
         attributes;
     Ttx::Lexical::Anchor anchor;
-    Perimortem::Core::Option<
-        Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-        edge;
+    Perimortem::Core::Option<const Ttx::Concept::Abstract*> edge;
   };
 
   static auto create(

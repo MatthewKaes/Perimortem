@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model::Types {
 

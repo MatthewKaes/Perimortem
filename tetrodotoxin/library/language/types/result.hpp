@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "ttx/model/documentations/comment.hpp"
+#include "ttx/bootstrap/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -43,9 +43,6 @@ class Result : public Model::Type {
       -> Perimortem::Core::Option<const Model::Type&> override {
     return error;
   }
-
-  auto fold_propagation(Model::Pack& source) const -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Model::Pack&>, Bool> override;
 
   auto accepts(const Model::Pack& source) const -> Bool override;
 

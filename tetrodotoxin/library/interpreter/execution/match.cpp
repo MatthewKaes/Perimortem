@@ -43,10 +43,10 @@ auto Interpreter::Execution::Match::parse(
   Language::Flow::Match& result = Language::Flow::Match::create_authored(
       cursor.get_arena(), *input_pack,
       Anchor::create(opening, Span(opening, scope_opening)));
-  Option<Reference<const Abstract>> enclosing_loop;
+  Option<const Abstract*> enclosing_loop;
   auto inherited = lexical_context.get_enclosing_loop();
   if (inherited) {
-    enclosing_loop = Reference<const Abstract>(*inherited);
+    enclosing_loop = &*inherited;
   }
 
   Tetrodotoxin::Language::Parser::Comment::parse(cursor);

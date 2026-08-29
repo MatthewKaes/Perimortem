@@ -7,7 +7,6 @@
 
 #include "tetrodotoxin/library/archive/declaration.hpp"
 #include "tetrodotoxin/library/archive/reference.hpp"
-#include "ttx/concept/reference.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -85,13 +84,13 @@ auto Archive::write(Writer& writer, const Language::Foreign& foreign) -> Bool {
       !writer.write(*abi) || declarations.get_size() > U32(-1));
 
   writer.write(U32(declarations.get_size()));
-  for (const Reference<Abstract>& declaration : declarations) {
-    auto state = declaration.get().select<Language::Foreign::State>();
+  for (const Abstract* declaration : declarations) {
+    auto state = declaration->select<Language::Foreign::State>();
     if (state) {
       BAIL_IF(!Archive::write(writer, *state));
       continue;
     }
-    auto function = declaration.get().select<Language::Foreign::Function>();
+    auto function = declaration->select<Language::Foreign::Function>();
     BAIL_IF(!function || !Archive::write(writer, *function));
   }
   return writer.finish(record);
@@ -114,9 +113,9 @@ auto Archive::read_foreign(
       !documentation || !abi || abi->is_empty() || !count ||
       Count(*count) > record->get_payload().get_size());
 
-  Managed::Vector<Reference<Language::Foreign::State>> states(arena);
-  Managed::Vector<Reference<Language::Foreign::Function>> functions(arena);
-  Managed::Vector<Reference<Abstract>> declarations(arena);
+  Managed::Vector<Language::Foreign::State*> states(arena);
+  Managed::Vector<Language::Foreign::Function*> functions(arena);
+  Managed::Vector<Abstract*> declarations(arena);
   for (Count index = 0; index < *count; index++) {
     Reader probe = contents;
     auto declaration = probe.read_record();
@@ -126,15 +125,15 @@ auto Archive::read_foreign(
     case Tag::ForeignState: {
       auto state = read_foreign_state(contents, arena, foreign);
       BAIL_IF(!state || state->get_abi() != *abi);
-      states.insert(*state);
-      declarations.insert(*state);
+      states.insert(&*state);
+      declarations.insert(&*state);
       break;
     }
     case Tag::ForeignFunction: {
       auto function = read_foreign_function(contents, arena, foreign);
       BAIL_IF(!function || function->get_abi() != *abi);
-      functions.insert(*function);
-      declarations.insert(*function);
+      functions.insert(&*function);
+      declarations.insert(&*function);
       break;
     }
     default:

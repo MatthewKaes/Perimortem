@@ -4,8 +4,8 @@
 #include "tetrodotoxin/scene/language/monograph.hpp"
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -33,20 +33,20 @@ auto Scene::Language::Monograph::retain_signal(Signal& signal, Cursor& cursor)
         signal.get_anchor(), "Scene Signal name is already occupied."_view);
     return False;
   }
-  signals.insert(signal);
+  signals.insert(&signal);
   return True;
 }
 
 auto Scene::Language::Monograph::retain_restored_signal(Signal& signal)
     -> Bool {
   BAIL_IF(find_signal(signal.get_name()));
-  signals.insert(signal);
+  signals.insert(&signal);
   return True;
 }
 
 auto Scene::Language::Monograph::retain_emission(Emission& emission) -> Bool {
   BAIL_IF(stage != Stage::Authored);
-  emissions.insert(emission);
+  emissions.insert(&emission);
   return True;
 }
 
@@ -78,9 +78,9 @@ auto Scene::Language::Monograph::retain_restored_lifecycle(
 
 auto Scene::Language::Monograph::find_signal(View::Bytes name) const
     -> Option<const Signal&> {
-  for (const Reference<Signal>& signal : signals.get_view()) {
-    if (signal.get().get_name() == name) {
-      return signal.get();
+  for (const Signal* signal : signals.get_view()) {
+    if (signal->get_name() == name) {
+      return *signal;
     }
   }
   return {};
@@ -113,12 +113,12 @@ auto Scene::Language::Monograph::link(Cursor& cursor) -> Bool {
   }
 
   Bool valid = library.link(cursor);
-  for (const Reference<Signal>& signal : signals.get_view()) {
-    valid &= signal.get().link(cursor, library);
+  for (Signal* signal : signals.get_view()) {
+    valid &= signal->link(cursor, library);
   }
   if (valid) {
-    for (const Reference<Emission>& emission : emissions.get_view()) {
-      valid &= emission.get().validate(cursor);
+    for (Emission* emission : emissions.get_view()) {
+      valid &= emission->validate(cursor);
     }
     valid &= validate_lifecycle(cursor);
   }
@@ -139,8 +139,8 @@ auto Scene::Language::Monograph::finalize(Cursor& cursor) -> Bool {
 
 auto Scene::Language::Monograph::link_restored() -> Bool {
   Bool valid = library.link_restored();
-  for (const Reference<Signal>& signal : signals.get_view()) {
-    valid &= signal.get().link_restored(library);
+  for (Signal* signal : signals.get_view()) {
+    valid &= signal->link_restored(library);
   }
   valid &= emissions.is_empty() && validate_lifecycle_restored();
   if (valid) {

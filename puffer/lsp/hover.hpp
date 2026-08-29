@@ -7,7 +7,7 @@
 
 #include "perimortem/serialization/json/node.hpp"
 
-#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/abstract.h"
 
 namespace Puffer::Lsp {
 
@@ -15,7 +15,6 @@ namespace Puffer::Lsp {
 // Arena owns only JSON and Markdown bytes, never another semantic model.
 auto semantic_hover(
     Perimortem::Memory::Allocator::Arena& arena,
-    const Ttx::Concept::Abstract& semantic)
-    -> Perimortem::Serialization::Json::Node;
+    const ttx_abstract* semantic) -> Perimortem::Serialization::Json::Node;
 
 }  // namespace Puffer::Lsp

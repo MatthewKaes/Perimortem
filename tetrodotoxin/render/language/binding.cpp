@@ -19,7 +19,7 @@ auto Language::Binding::create_authored(
   return domain.construct_from<Binding>([&]() {
     return Binding(
         definition.get_name(), definition, kind, access, type,
-        Option<Reference<const Ttx::Model::Type>>());
+        Option<const Ttx::Model::Type*>());
   });
 }
 
@@ -28,9 +28,7 @@ auto Language::Binding::create_slot(
     View::Bytes name,
     const Ttx::Model::Type& type) -> Binding& {
   return domain.construct_from<Binding>([&]() {
-    return Binding(
-        name, {}, Kind::Parameter, Access::None, {},
-        Reference<const Ttx::Model::Type>(type));
+    return Binding(name, {}, Kind::Parameter, Access::None, {}, &type);
   });
 }
 
@@ -41,7 +39,7 @@ auto Language::Binding::create_restored_slot(
   return domain.construct_from<Binding>([&]() {
     return Binding(
         name, {}, Kind::Value, Access::None, type,
-        Option<Reference<const Ttx::Model::Type>>());
+        Option<const Ttx::Model::Type*>());
   });
 }
 
@@ -54,7 +52,7 @@ auto Language::Binding::link(Cursor& cursor, const Abstract& context) -> Bool {
       context, type_reference->get_root());
   auto selected = type_reference->resolve_selected(cursor, root);
   BAIL_IF(!selected || selected->get_layout().is_empty());
-  type = Reference<const Ttx::Model::Type>(*selected);
+  type = &*selected;
   return True;
 }
 
@@ -67,7 +65,7 @@ auto Language::Binding::link_restored(const Abstract& context) -> Bool {
       context, type_reference->get_root());
   auto selected = type_reference->resolve_restored_selected(root);
   BAIL_IF(!selected || selected->get_layout().is_empty());
-  type = Reference<const Ttx::Model::Type>(*selected);
+  type = &*selected;
   return True;
 }
 
@@ -80,7 +78,7 @@ auto Language::Binding::get_documentation() const -> const Documentation& {
 
 auto Language::Binding::get_type() const -> const Abstract& {
   if (type) {
-    return type->get();
+    return **type;
   }
   if (!type_reference || !definition) {
     return Unknown::get_unknown();

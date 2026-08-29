@@ -13,8 +13,8 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/generics/range.hpp"
 #include "tetrodotoxin/library/language/types/s16.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -40,7 +40,7 @@ PERIMORTEM_UNIT_TEST(LibraryRange, direct_contract) {
   ASSERT_EQ(range.get_layout().get_size(), Count(1));
   EXPECT(&*range.get_layout().get_abstract(0) == &range);
   EXPECT_NOT(range.get_documentation().is_empty());
-  EXPECT(&range.resolve_concept("member"_view) == &None::get_none());
+  EXPECT(&range.resolve_concept("member"_view) == &Unknown::get_unknown());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryRange, formula_legality) {

@@ -8,8 +8,8 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/app/language/monograph.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/documentation.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/documentation.hpp"
 
 namespace Tetrodotoxin::App::Archive {
 

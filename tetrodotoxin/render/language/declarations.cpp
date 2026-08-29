@@ -12,10 +12,10 @@
 #include "tetrodotoxin/render/language/monograph.hpp"
 #include "tetrodotoxin/render/language/stage.hpp"
 #include "tetrodotoxin/render/language/structure.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -24,13 +24,13 @@ using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Render;
 
 auto Language::Declarations::retain(
-    Managed::Vector<Reference<Abstract>>& declarations,
+    Managed::Vector<Abstract*>& declarations,
     Abstract& declaration,
     Tetrodotoxin::Language::Visibility visibility) -> Bool {
   BAIL_IF(linked);
-  auto occupied = [&](View::Vector<Reference<Abstract>> owned) -> Bool {
-    for (const Reference<Abstract>& retained : owned) {
-      if (retained.get().get_name() == declaration.get_name()) {
+  auto occupied = [&](View::Vector<Abstract*> owned) -> Bool {
+    for (const Abstract* retained : owned) {
+      if (retained->get_name() == declaration.get_name()) {
         return True;
       }
     }
@@ -40,7 +40,7 @@ auto Language::Declarations::retain(
       occupied(addressables.get_view()) || occupied(callables.get_view()) ||
       occupied(types.get_view()));
 
-  declarations.insert(declaration);
+  declarations.insert(&declaration);
   published.insert(
       &declaration, visibility != Tetrodotoxin::Language::Visibility::Private);
   return True;
@@ -62,38 +62,24 @@ auto Language::Declarations::Authority::resolve_concept(View::Bytes name) const
       name, Tetrodotoxin::Language::Visibility::Public);
 }
 
-auto Language::Declarations::Authority::get_concepts(Context& context) const
-    -> const Pack& {
-  Dynamic::Vector<Reference<const Abstract>> values;
-  Dynamic::Vector<View::Bytes> names;
-  auto retain = [&](View::Vector<Reference<Abstract>> declarations) {
-    for (const Reference<Abstract>& declaration : declarations) {
-      auto publication = owner.published.find(&declaration.get());
+auto Language::Declarations::Authority::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  auto retain = [&](View::Vector<Abstract*> declarations) {
+    for (const Abstract* declaration : declarations) {
+      auto publication = owner.published.find(declaration);
       if (publication && publication->value) {
-        values.insert(declaration.get());
-        names.insert(declaration.get().get_name());
+        visit_concept(visitor, declaration->get_name(), *declaration);
       }
     }
   };
   retain(owner.types.get_view());
   retain(owner.addressables.get_view());
   retain(owner.callables.get_view());
-  Ttx::Model::Layouts::Fluid layout(values.get_view());
-  Ttx::Model::Layouts::Named named(layout, names.get_view());
-  return context.pack(named);
 }
 
-auto Language::Declarations::get_concepts(Context& context) const
-    -> const Pack& {
-  const Static::Vector<Reference<const Abstract>, 1> values = {{
-    authority,
-  }};
-  const Static::Vector<View::Bytes, 1> names = {{
-    "static"_view,
-  }};
-  Ttx::Model::Layouts::Fluid layout(values);
-  Ttx::Model::Layouts::Named named(layout, names);
-  return context.pack(named);
+auto Language::Declarations::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Ttx::Concept::Abstract::visit_concept(visitor, "static"_view, authority);
 }
 
 auto Language::Declarations::retain_addressable(
@@ -120,8 +106,8 @@ auto Language::Declarations::link(Cursor& cursor, Abstract& context) -> Bool {
   }
 
   Bool valid = True;
-  for (const Reference<Abstract>& entry : types.get_view()) {
-    Abstract& declaration = entry.get();
+  for (Abstract* entry : types.get_view()) {
+    Abstract& declaration = *entry;
     auto alias = declaration.select<Alias>();
     auto structure = declaration.select<Structure>();
     if (alias) {
@@ -130,12 +116,12 @@ auto Language::Declarations::link(Cursor& cursor, Abstract& context) -> Bool {
       valid &= structure->link(cursor);
     }
   }
-  for (const Reference<Abstract>& entry : addressables.get_view()) {
-    auto binding = entry.get().select<Binding>();
+  for (Abstract* entry : addressables.get_view()) {
+    auto binding = entry->select<Binding>();
     valid &= binding && binding->link(cursor, context);
   }
-  for (const Reference<Abstract>& entry : callables.get_view()) {
-    auto stage = entry.get().select<Stage>();
+  for (Abstract* entry : callables.get_view()) {
+    auto stage = entry->select<Stage>();
     valid &= stage && stage->link(cursor);
   }
 
@@ -148,20 +134,20 @@ auto Language::Declarations::link_restored(Abstract& context) -> Bool {
     return True;
   }
 
-  for (const Reference<Abstract>& entry : types.get_view()) {
-    Abstract& declaration = entry.get();
+  for (Abstract* entry : types.get_view()) {
+    Abstract& declaration = *entry;
     auto alias = declaration.select<Alias>();
     auto structure = declaration.select<Structure>();
     BAIL_IF(
         (!alias && !structure) || (alias && !alias->link_restored(context)) ||
         (structure && !structure->link_restored()));
   }
-  for (const Reference<Abstract>& entry : addressables.get_view()) {
-    auto binding = entry.get().select<Binding>();
+  for (Abstract* entry : addressables.get_view()) {
+    auto binding = entry->select<Binding>();
     BAIL_IF(!binding || !binding->link_restored(context));
   }
-  for (const Reference<Abstract>& entry : callables.get_view()) {
-    auto stage = entry.get().select<Stage>();
+  for (Abstract* entry : callables.get_view()) {
+    auto stage = entry->select<Stage>();
     BAIL_IF(!stage || !stage->link_restored());
   }
 
@@ -190,17 +176,17 @@ auto Language::Declarations::resolve_lexical_context(
 }
 
 auto Language::Declarations::resolve(
-    View::Vector<Reference<Abstract>> declarations,
+    View::Vector<Abstract*> declarations,
     View::Bytes name,
     Tetrodotoxin::Language::Visibility visibility) const -> const Abstract& {
-  for (const Reference<Abstract>& declaration : declarations) {
-    if (declaration.get().get_name() != name) {
+  for (const Abstract* declaration : declarations) {
+    if (declaration->get_name() != name) {
       continue;
     }
-    auto publication = published.find(&declaration.get());
+    auto publication = published.find(declaration);
     if (visibility == Tetrodotoxin::Language::Visibility::Private ||
         (publication && publication->value)) {
-      return declaration.get();
+      return *declaration;
     }
   }
   return linked ? static_cast<const Abstract&>(None::get_none())

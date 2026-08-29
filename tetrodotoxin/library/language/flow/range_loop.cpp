@@ -4,8 +4,8 @@
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -25,7 +25,7 @@ Language::Flow::RangeLoop::RangeLoop(
       authored_bindings(domain),
       bindings(domain),
       binding_entries(domain),
-      input(input),
+      input(&input),
       anchor(anchor) {
   authored_bindings.reset(source_bindings.get_size());
   bindings.reset(source_bindings.get_size());
@@ -50,9 +50,9 @@ auto Language::Flow::RangeLoop::complete_body(
     Block& selected,
     Anchor selected_anchor) -> Bool {
   if (body) {
-    return &body->get() == &selected;
+    return *body == &selected;
   }
-  body = Reference<Block>(selected);
+  body = &selected;
   anchor = selected_anchor;
   return True;
 }
@@ -65,8 +65,7 @@ auto Language::Flow::RangeLoop::link(
   }
   BAIL_IF(!body);
 
-  Managed::Vector<Reference<const Language::Model::Type>> selected_types(
-      domain);
+  Managed::Vector<const Language::Model::Type*> selected_types(domain);
   selected_types.reset(authored_bindings.get_size());
   for (const AuthoredBinding& binding : authored_bindings.get_view()) {
     const Abstract& shadowed = lexical_context.resolve_concept(binding.name);
@@ -104,17 +103,17 @@ auto Language::Flow::RangeLoop::link(
       return False;
     }
 
-    selected_types.insert(*selected_type);
+    selected_types.insert(&*selected_type);
   }
 
   if (!binding_layout) {
     for (Count index = 0; index < authored_bindings.get_size(); index++) {
       const AuthoredBinding& source = authored_bindings[index];
       auto binding = Ttx::Model::Layouts::Addressable::create_authored(
-          domain, source.name, selected_types[index].get());
+          domain, source.name, *selected_types[index]);
       BAIL_IF(!binding);
-      bindings.insert(*binding);
-      binding_entries.insert(*binding);
+      bindings.insert(&*binding);
+      binding_entries.insert(&*binding);
       cursor.get_associations().create(
           Anchor::create(Span(source.name_token)), *binding);
     }
@@ -122,12 +121,11 @@ auto Language::Flow::RangeLoop::link(
   } else {
     BAIL_IF(bindings.get_size() != selected_types.get_size());
     for (Count index = 0; index < bindings.get_size(); index++) {
-      BAIL_IF(
-          &bindings[index].get().get_type() != &selected_types[index].get());
+      BAIL_IF(&bindings[index]->get_type() != selected_types[index]);
     }
   }
 
-  Language::Model::Pack& retained_input = input.get();
+  Language::Model::Pack& retained_input = *input;
   BAIL_IF(!retained_input.link(cursor, lexical_context, access_scope));
 
   Option<const Language::Model::Type&> selected_input;
@@ -151,7 +149,7 @@ auto Language::Flow::RangeLoop::link(
     return False;
   }
 
-  if (input_type && &input_type->get() != &*selected_input) {
+  if (input_type && *input_type != &*selected_input) {
     cursor.create_expression_error(
         anchor,
         "For loop input selected a different iterable Type identity."_view,
@@ -159,26 +157,23 @@ auto Language::Flow::RangeLoop::link(
     return False;
   }
 
-  input_type = Reference<const Language::Model::Type>(*selected_input);
-  BAIL_IF(!body->get().link(cursor));
+  input_type = &*selected_input;
+  BAIL_IF(!(*body)->link(cursor));
 
   linked = True;
   return True;
 }
 
 auto Language::Flow::RangeLoop::finalize(Cursor& cursor) -> void {
-  input.get().finalize(cursor);
-  body.visit(
-      []() {},
-      [&](Reference<Block>& selected) { selected.get().finalize(cursor); });
+  input->finalize(cursor);
+  body.visit([]() {}, [&](Block* selected) { selected->finalize(cursor); });
 }
 
 auto Language::Flow::RangeLoop::resolve_concept(View::Bytes route) const
     -> const Abstract& {
-  for (const Reference<Ttx::Model::Layouts::Addressable>& binding :
-       bindings.get_view()) {
-    if (binding.get().get_name() == route) {
-      return binding.get();
+  for (const Ttx::Model::Layouts::Addressable* binding : bindings.get_view()) {
+    if (binding->get_name() == route) {
+      return *binding;
     }
   }
 
@@ -188,10 +183,9 @@ auto Language::Flow::RangeLoop::resolve_concept(View::Bytes route) const
 auto Language::Flow::RangeLoop::resolve_authored_context(
     View::Bytes route,
     Count offset) const -> const Abstract& {
-  for (const Reference<Ttx::Model::Layouts::Addressable>& binding :
-       bindings.get_view()) {
-    if (binding.get().get_name() == route) {
-      return binding.get();
+  for (const Ttx::Model::Layouts::Addressable* binding : bindings.get_view()) {
+    if (binding->get_name() == route) {
+      return *binding;
     }
   }
 

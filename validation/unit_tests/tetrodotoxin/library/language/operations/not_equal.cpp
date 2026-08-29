@@ -23,7 +23,7 @@
 #include "tetrodotoxin/library/language/types/s8.hpp"
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -88,10 +88,7 @@ class NotEqualFoldInput : public Operation {
       Tetrodotoxin::Library::Language::Constant& result,
       const Model::Type& type,
       Bool fails = False)
-      : Operation(
-            domain,
-            Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1>{{input}},
-            {}),
+      : Operation(domain, Static::Vector<Model::Pack*, 1>{{&input}}, {}),
         result(result),
         type(type),
         fails(fails) {}
@@ -144,19 +141,6 @@ static auto selected(
       },
       [](const Expression::Error&)
           -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
-}
-
-static auto reports(
-    const Result<Option<Model::Pack&>, Expression::Error>& result,
-    Expression::Error::Type expected,
-    const Abstract& origin) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>&) { return False; },
-      [&](const Expression::Error& error) {
-        return error.get_type() == expected && &error.get_subject() == &origin
-                   ? True
-                   : False;
-      });
 }
 
 PERIMORTEM_UNIT_TEST(LibraryNotEqual, type_selection) {
@@ -225,7 +209,7 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, type_selection) {
   EXPECT(!link_operation(incomplete_bytes, source));
   EXPECT(!link_operation(byte_mismatch, source));
 
-  auto retained = selected(unsigned_exact.fold());
+  auto retained = selected(test_fold(unsigned_exact));
 
   EXPECT(&signed_exact.get_type() == &resolve_library_flag(source));
   EXPECT(&unsigned_exact.get_type() == &resolve_library_flag(source));
@@ -307,16 +291,16 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, constant_domains) {
   EXPECT(link_operation(bytes_same, source));
   EXPECT(link_operation(bytes_different, source));
 
-  auto signed_no = selected(signed_same.fold());
-  auto signed_yes = selected(signed_different.fold());
-  auto unsigned_no = selected(unsigned_same.fold());
-  auto unsigned_yes = selected(unsigned_different.fold());
-  auto real_no = selected(real_same.fold());
-  auto real_yes = selected(real_different.fold());
-  auto flag_no = selected(flag_same.fold());
-  auto flag_yes = selected(flag_different.fold());
-  auto bytes_no = selected(bytes_same.fold());
-  auto bytes_yes = selected(bytes_different.fold());
+  auto signed_no = selected(test_fold(signed_same));
+  auto signed_yes = selected(test_fold(signed_different));
+  auto unsigned_no = selected(test_fold(unsigned_same));
+  auto unsigned_yes = selected(test_fold(unsigned_different));
+  auto real_no = selected(test_fold(real_same));
+  auto real_yes = selected(test_fold(real_different));
+  auto flag_no = selected(test_fold(flag_same));
+  auto flag_yes = selected(test_fold(flag_different));
+  auto bytes_no = selected(test_fold(bytes_same));
+  auto bytes_yes = selected(test_fold(bytes_different));
 
   ASSERT(
       signed_no && signed_yes && unsigned_no && unsigned_yes && real_no &&
@@ -359,9 +343,9 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, real_inverse) {
   EXPECT(link_operation(nan_finite, source));
   EXPECT(link_operation(signed_zero, source));
 
-  auto nan_same = selected(nan_pair.fold());
-  auto nan_other = selected(nan_finite.fold());
-  auto zeros = selected(signed_zero.fold());
+  auto nan_same = selected(test_fold(nan_pair));
+  auto nan_other = selected(test_fold(nan_finite));
+  auto zeros = selected(test_fold(signed_zero));
 
   ASSERT(nan_same && nan_other && zeros);
   EXPECT(nan_same->is_identity<Constants::False>());
@@ -396,18 +380,15 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, atomic_provenance) {
   EXPECT(link_operation(failure, source));
   EXPECT(link_operation(invalid_constant, source));
 
-  auto first = selected(not_equal.fold());
-  auto second = selected(not_equal.fold());
+  auto first = selected(test_fold(not_equal));
+  auto second = selected(test_fold(not_equal));
 
   ASSERT(first && second);
   EXPECT(&*first == &*second);
   EXPECT(first->is_identity<Constants::True>());
   EXPECT(child.get_evaluations() == 1);
-  EXPECT(reports(
-      failure.fold(), Expression::Error::Type::InvalidConstant, failing));
-  EXPECT(reports(
-      invalid_constant.fold(), Expression::Error::Type::InvalidConstant,
-      invalid_child));
+  EXPECT(concept_is_nonfoldable(test_fold(failure)));
+  EXPECT(concept_is_nonfoldable(test_fold(invalid_constant)));
 
   const auto& parser_type = resolve_library_unsigned(source, "U64"_view);
   Errors success_errors;
@@ -443,7 +424,7 @@ PERIMORTEM_UNIT_TEST(LibraryNotEqual, atomic_provenance) {
   EXPECT(parsed->link(success_cursor, source));
 
   auto parsed_fold = parsed->visit<Operation>(
-      [&](Operation& operation) { return selected(operation.fold()); },
+      [&](Operation& operation) { return selected(test_fold(operation)); },
       [](Abstract&) -> Option<Tetrodotoxin::Library::Language::Constant&> {
         return {};
       });

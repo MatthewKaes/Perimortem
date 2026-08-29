@@ -138,9 +138,9 @@ auto Package::Archive::Writer::write(
   }
 
   Managed::Vector<Package::Archive::Resource> resources(arena);
-  for (const Ttx::Concept::Reference<Package::Resource>& retained :
+  for (const Package::Resource* retained :
        package.get_resources().get_values()) {
-    const Package::Resource& resource = retained.get();
+    const Package::Resource& resource = *retained;
     resources.insert(
         Package::Archive::Resource(resource.get_route(), resource.get_value()));
   }

@@ -17,6 +17,7 @@
 #include "tetrodotoxin/environment/toolchain.hpp"
 #include "tetrodotoxin/package/archive/archive.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
+#include "tetrodotoxin/package/repository/repository.hpp"
 #include "tetrodotoxin/package/resource.hpp"
 #include "tetrodotoxin/package/snapshots.hpp"
 #include "ttx/lexical/associations.hpp"
@@ -104,7 +105,8 @@ class Workspace : public Ttx::Concept::Abstract {
       Toolchain& toolchain,
       Perimortem::Core::Option<
           Perimortem::Memory::Dynamic::Record<Package::Snapshots>> snapshots =
-          {});
+          {},
+      Package::Repository::Repository* repository = nullptr);
   ~Workspace() override;
 
   // A direct source retains its transaction once its Dialect creates a
@@ -172,15 +174,6 @@ class Workspace : public Ttx::Concept::Abstract {
       const Package::Language::Monograph& package,
       Count index) const -> Perimortem::Core::Option<PackageSource>;
 
-  // Package imports terminate the local source walk. A terminal that can
-  // acquire Packages may inspect these unresolved exact requests, load those
-  // products, and rebuild the Workspace without duplicating source parsing.
-  constexpr auto get_pending_package_imports() const
-      -> Perimortem::Core::View::Vector<
-          Ttx::Concept::Reference<Language::Import>> {
-    return pending_package_imports;
-  }
-
   // Keeping the original Token stream beside a retained source lets tooling
   // borrow the same lexical facts that built its semantic graph. That shared
   // view saves another tokenization pass and keeps source coordinates aligned.
@@ -210,8 +203,8 @@ class Workspace : public Ttx::Concept::Abstract {
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
  private:
   struct ImportedPackage {
@@ -225,6 +218,11 @@ class Workspace : public Ttx::Concept::Abstract {
     Perimortem::Core::View::Bytes name;
     Perimortem::Core::View::Bytes logical_route;
     const Language::Monograph* monograph;
+  };
+
+  struct ActivePackage {
+    Perimortem::Core::View::Bytes identity;
+    Perimortem::System::Version version;
   };
 
   // One retained source keeps its text, Tokens, authored index, semantic root,
@@ -249,10 +247,15 @@ class Workspace : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes logical_route) const
       -> const RetainedSource*;
 
+  auto restore_coordinate(
+      Perimortem::Core::View::Bytes identity,
+      Perimortem::System::Version version) -> Bool;
+
   // Workspace borrows one Toolchain for its full lifetime. Monographs can then
   // keep the exact installed Dialect identities without owning another
   // registry.
   Toolchain& toolchain;
+  Package::Repository::Repository* repository;
   Perimortem::Core::Option<
       Perimortem::Memory::Dynamic::Record<Package::Snapshots>>
       snapshots;
@@ -262,13 +265,11 @@ class Workspace : public Ttx::Concept::Abstract {
   Perimortem::Memory::Dynamic::Vector<
       Perimortem::Memory::Dynamic::Record<Perimortem::Memory::Allocator::Arena>>
       restored_transactions;
-  Perimortem::Memory::Dynamic::Map<
-      Perimortem::Core::View::Bytes,
-      Ttx::Concept::Reference<Language::Monograph>>
-      retained_monographs;
+  Perimortem::Memory::Dynamic::
+      Map<Perimortem::Core::View::Bytes, Language::Monograph*>
+          retained_monographs;
   Perimortem::Memory::Managed::Vector<ImportedPackage> packages;
-  Perimortem::Memory::Dynamic::Vector<Ttx::Concept::Reference<Language::Import>>
-      pending_package_imports;
+  Perimortem::Memory::Dynamic::Vector<ActivePackage> active_packages;
 };
 
 }  // namespace Tetrodotoxin::Environment

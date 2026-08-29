@@ -5,7 +5,10 @@
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
+#include "ttx/bootstrap/concept/constant.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -41,9 +44,7 @@ auto Language::Field::create_generated(
     Writability writability,
     const Model::Type& type) -> Field& {
   return domain.construct_from<Field>([&]() -> Field {
-    return Field(
-        domain, definition, writability, {}, {},
-        Reference<const Model::Type>(type), True);
+    return Field(domain, definition, writability, {}, {}, &type, True);
   });
 }
 
@@ -62,9 +63,9 @@ auto Language::Field::retain_generated_type(const Model::Type& selected)
   BAIL_IF(type_reference || selected.get_layout().is_empty());
   generated = True;
   if (type) {
-    return &type->get() == &selected;
+    return *type == &selected;
   }
-  type = Reference<const Model::Type>(selected);
+  type = &selected;
   return True;
 }
 
@@ -78,14 +79,16 @@ auto Language::Field::retain_generated_initializer(const Field& requirement)
 
   initializer = const_cast<Model::Pack&>(*selected);
   if (writability == Writability::Constant) {
-    return cache_constant();
+    const Abstract& answer = resolve_fold();
+    return &answer != &None::get_none() &&
+           Bool(Ttx::Concept::Constant::prove(answer));
   }
   return True;
 }
 
 auto Language::Field::get_type() const -> const Abstract& {
   if (type) {
-    return type->get();
+    return **type;
   }
   if (!type_reference) {
     return Unknown::get_unknown();
@@ -126,7 +129,7 @@ auto Language::Field::link_declaration_type(Cursor& cursor) -> Bool {
   }
 
   if (type) {
-    if (&type->get() == &*selected_type) {
+    if (*type == &*selected_type) {
       return True;
     }
 
@@ -137,7 +140,7 @@ auto Language::Field::link_declaration_type(Cursor& cursor) -> Bool {
     return False;
   }
 
-  type = Reference<const Language::Model::Type>(*selected_type);
+  type = &*selected_type;
   return True;
 }
 
@@ -153,7 +156,7 @@ auto Language::Field::link_restored_declaration_type() -> Bool {
       },
       [](const TypeReference::Failure&) {});
   BAIL_IF(!selected_type || selected_type->get_layout().is_empty());
-  type = Reference<const Model::Type>(*selected_type);
+  type = &*selected_type;
   return True;
 }
 
@@ -176,13 +179,16 @@ auto Language::Field::link_restored_declaration_initializer() -> Bool {
         output.is<Model::Type>() ? output : output.resolve();
     auto inferred = resolved.select<Model::Type>();
     BAIL_IF(!inferred || inferred->get_layout().is_empty());
-    type = Reference<const Model::Type>(*inferred);
+    type = &*inferred;
   } else {
-    BAIL_IF(!selected_initializer->fits_into(type->get()));
+    BAIL_IF(!selected_initializer->fits_into(**type));
   }
 
   initializer_linked = True;
-  return writability != Writability::Constant || cache_constant();
+  const Abstract& answer = resolve_fold();
+  return writability != Writability::Constant ||
+         (&answer != &None::get_none() &&
+          Bool(Ttx::Concept::Constant::prove(answer)));
 }
 
 auto Language::Field::link_inferred_declaration_type(Cursor& cursor) -> Bool {
@@ -261,19 +267,19 @@ auto Language::Field::link_declaration_initializer(Cursor& cursor) -> Bool {
       return False;
     }
 
-    type = Reference<const Language::Model::Type>(*initializer_type);
+    type = &*initializer_type;
     initializer_linked = True;
     return True;
   }
 
-  if (!selected_initializer->fits_into(type->get())) {
+  if (!selected_initializer->fits_into(**type)) {
     auto report = cursor.create_report(get_anchor());
     report << "Initializer for Field '"_view << get_name()
-           << "' does not fit declared Type '"_view << type->get().get_name()
+           << "' does not fit declared Type '"_view << (**type).get_name()
            << "'.\nSource produces: "_view;
     Language::Diagnostics::write_pack(report, *selected_initializer);
     report << "\nTarget accepts: "_view;
-    Language::Diagnostics::write_layout(report, type->get().get_layout());
+    Language::Diagnostics::write_layout(report, (**type).get_layout());
     report.get_hint()
         << "Change the initializer or declare the exact Type it produces."_view;
     return False;
@@ -285,11 +291,22 @@ auto Language::Field::link_declaration_initializer(Cursor& cursor) -> Bool {
 
 auto Language::Field::resolve_concept(View::Bytes route) const
     -> const Abstract& {
+  if (route == "fold"_view) {
+    return resolve_fold();
+  }
   return get_host().resolve_lexical_context(route);
 }
 
+auto Language::Field::visit_concepts(ttx_named_abstract_callable* visitor) const
+    -> void {
+  Model::Addressable::visit_concepts(visitor);
+  visit_concept(visitor, "fold"_view, resolve_fold());
+}
+
 auto Language::Field::link_declaration_constant(Cursor& cursor) const -> Bool {
-  if (writability != Writability::Constant || cache_constant()) {
+  const Abstract& answer = resolve_fold();
+  if (writability != Writability::Constant ||
+      (&answer != &None::get_none() && Ttx::Concept::Constant::prove(answer))) {
     return True;
   }
 
@@ -357,68 +374,41 @@ auto Language::Field::get_initializer() const -> Option<const Model::Pack&> {
       });
 }
 
-auto Language::Field::get_constant() const -> Option<Model::Pack&> {
-  if (writability != Writability::Constant || !cache_constant()) {
-    return {};
+auto Language::Field::resolve_fold() const -> const Abstract& {
+  if (writability != Writability::Constant) {
+    return None::get_none();
   }
-
-  return constant.visit(
-      []() -> Option<Model::Pack&> { return {}; },
-      [](const Ttx::Model::PackReference<Model::Pack>& selected)
-          -> Option<Model::Pack&> { return selected.get(); });
-}
-
-auto Language::Field::cache_constant() const -> Bool {
-  // Folding is reentrant through const references. The explicit state keeps a
-  // cycle distinct from a dynamic value that may settle after another owner.
-  if (constant_state == ConstantState::Folded) {
-    return True;
-  }
-
-  if (constant_state == ConstantState::Folding ||
-      constant_state == ConstantState::Failed) {
-    return False;
-  }
-
-  constant_state = ConstantState::Folding;
-  auto field_type = get_type().select<Model::Type>();
-  BAIL_IF(!field_type);
-  // The receiving Type gets first refusal because fitting may construct a new
-  // semantic value such as an absent or present Option. Ordinary Types decline
-  // that path and leave constant evaluation to the real source Expression.
-  auto fitted = initializer.visit(
-      []() -> Option<Model::Pack&> { return {}; },
-      [&](Model::Pack& source) {
-        return field_type->create_fitted(domain, source);
-      });
-  if (fitted) {
-    constant = Ttx::Model::PackReference<Model::Pack>(*fitted);
-    constant_state = ConstantState::Folded;
-    return True;
-  }
-
   auto source = initializer.visit(
-      []() -> Option<Model::Pack&> { return {}; },
-      [](Model::Pack& selected) -> Option<Model::Pack&> { return selected; });
-  if (!source) {
-    constant_state = ConstantState::Failed;
-    return False;
-  }
-
-  Expression::fold(*source).visit(
-      [&](const Option<Model::Pack&>& folded) {
-        // Absence is not permanent failure. Another const dependency can finish
-        // during this closure, after which the same Field may be attempted
-        // again.
-        if (!folded) {
-          constant_state = ConstantState::Unresolved;
-          return;
-        }
-        constant = Ttx::Model::PackReference<Model::Pack>(*folded);
-        constant_state = ConstantState::Folded;
-      },
-      [&](const Expression::Error&) {
-        constant_state = ConstantState::Failed;
+      []() -> Option<const Model::Pack&> { return {}; },
+      [](const Model::Pack& selected) -> Option<const Model::Pack&> {
+        return selected;
       });
-  return constant_state == ConstantState::Folded;
+  if (!source) {
+    return Unknown::get_unknown();
+  }
+  if (source->get_layout().is_empty() && folded_input && folded_result) {
+    return Abstract::from_abi(folded_result);
+  }
+  auto input_pack =
+      query_folded_pack(domain, const_cast<Model::Pack&>(*source));
+  if (!input_pack) {
+    return query_fold(*source);
+  }
+  const Abstract& input = *input_pack->get_identity();
+  if (folded_input == input.get_abi() && folded_result) {
+    return Abstract::from_abi(folded_result);
+  }
+  auto field_type = get_type().select<Model::Type>();
+  if (!field_type) {
+    return None::get_none();
+  }
+  auto fitted = field_type->create_fitted(domain, *input_pack);
+  const Abstract& result =
+      fitted ? fold_answer(Option<Model::Pack&>(*fitted)) : input;
+  if (!Ttx::Concept::Constant::prove(result)) {
+    return None::get_none();
+  }
+  folded_input = input.get_abi();
+  folded_result = result.get_abi();
+  return result;
 }

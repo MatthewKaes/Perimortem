@@ -20,7 +20,7 @@
 #include "tetrodotoxin/library/language/types/s64.hpp"
 #include "tetrodotoxin/library/language/types/s8.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -81,19 +81,6 @@ static auto selected(
           -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
 }
 
-static auto reports(
-    const Result<Option<Model::Pack&>, Expression::Error>& result,
-    Expression::Error::Type expected,
-    const Abstract& origin) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>&) { return False; },
-      [&](const Expression::Error& error) {
-        return error.get_type() == expected && &error.get_subject() == &origin
-                   ? True
-                   : False;
-      });
-}
-
 static auto get_signed(
     const Tetrodotoxin::Library::Language::Constant& expression)
     -> Option<S64> {
@@ -150,8 +137,8 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, type_selection) {
   EXPECT(!link_operation(bytes_negate, source));
   EXPECT(!link_operation(invalid_negate, source));
 
-  auto signed_result = selected(signed_negate.fold());
-  auto real_result = selected(real_negate.fold());
+  auto signed_result = selected(test_fold(signed_negate));
+  auto real_result = selected(test_fold(real_negate));
 
   EXPECT_NOT(signed_result);
   EXPECT_NOT(real_result);
@@ -191,11 +178,11 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, signed_widths) {
   EXPECT(link_operation(minimum_negate, source));
   EXPECT(link_operation(wide_minimum_negate, source));
 
-  auto positive_result = selected(positive_negate.fold());
-  auto negative_result = selected(negative_negate.fold());
-  auto zero_result = selected(zero_negate.fold());
-  auto minimum_result = minimum_negate.fold();
-  auto wide_minimum_result = wide_minimum_negate.fold();
+  auto positive_result = selected(test_fold(positive_negate));
+  auto negative_result = selected(test_fold(negative_negate));
+  auto zero_result = selected(test_fold(zero_negate));
+  auto minimum_result = test_fold(minimum_negate);
+  auto wide_minimum_result = test_fold(wide_minimum_negate);
   auto positive_value =
       positive_result ? get_signed(*positive_result) : Option<S64>();
   auto negative_value =
@@ -207,12 +194,8 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, signed_widths) {
   EXPECT(negative_value && *negative_value == 127);
   EXPECT(zero_value && *zero_value == 0);
   EXPECT(&positive_result->get_type() == &s8);
-  EXPECT(reports(
-      minimum_result, Expression::Error::Type::ArithmeticOverflow,
-      minimum_negate));
-  EXPECT(reports(
-      wide_minimum_result, Expression::Error::Type::ArithmeticOverflow,
-      wide_minimum_negate));
+  EXPECT(concept_is_nonfoldable(minimum_result));
+  EXPECT(concept_is_nonfoldable(wide_minimum_result));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryNegate, ieee_real_domains) {
@@ -248,12 +231,12 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, ieee_real_domains) {
   EXPECT(link_operation(positive_zero_negate, source));
   EXPECT(link_operation(negative_zero_negate, source));
 
-  auto finite_32_result = selected(finite_32_negate.fold());
-  auto finite_64_result = selected(finite_64_negate.fold());
-  auto infinity_result = selected(infinity_negate.fold());
-  auto nan_result = selected(nan_negate.fold());
-  auto positive_zero_result = selected(positive_zero_negate.fold());
-  auto negative_zero_result = selected(negative_zero_negate.fold());
+  auto finite_32_result = selected(test_fold(finite_32_negate));
+  auto finite_64_result = selected(test_fold(finite_64_negate));
+  auto infinity_result = selected(test_fold(infinity_negate));
+  auto nan_result = selected(test_fold(nan_negate));
+  auto positive_zero_result = selected(test_fold(positive_zero_negate));
+  auto negative_zero_result = selected(test_fold(negative_zero_negate));
   auto finite_32_value =
       finite_32_result ? get_real(*finite_32_result) : Option<R64>();
   auto finite_64_value =
@@ -298,16 +281,14 @@ PERIMORTEM_UNIT_TEST(LibraryNegate, recursive_folding) {
   EXPECT(link_operation(parent, source));
   EXPECT(link_operation(failing_parent, source));
 
-  auto parent_result = selected(parent.fold());
-  auto repeated_result = selected(parent.fold());
-  auto failing_result = failing_parent.fold();
+  auto parent_result = selected(test_fold(parent));
+  auto repeated_result = selected(test_fold(parent));
+  auto failing_result = test_fold(failing_parent);
   auto parent_value =
       parent_result ? get_signed(*parent_result) : Option<S64>();
 
   ASSERT(parent_result && repeated_result && parent_value);
   EXPECT(*parent_value == 1);
   EXPECT(&*parent_result == &*repeated_result);
-  EXPECT(reports(
-      failing_result, Expression::Error::Type::ArithmeticOverflow,
-      failing_child));
+  EXPECT(concept_is_nonfoldable(failing_result));
 }

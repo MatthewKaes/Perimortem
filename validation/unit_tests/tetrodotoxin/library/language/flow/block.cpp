@@ -14,7 +14,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -45,7 +45,7 @@ static auto find_function(
     View::Bytes name) -> Option<const Language::Function&> {
   for (auto binding = composite.get_callables().begin();
        binding != composite.get_callables().end(); ++binding) {
-    const Abstract& candidate = (*binding).get();
+    const Abstract& candidate = **binding;
     if (candidate.get_name() == name && candidate.is<Language::Function>()) {
       return static_cast<const Language::Function&>(candidate);
     }
@@ -111,7 +111,7 @@ PERIMORTEM_UNIT_TEST(BlockTests, scope_order) {
   const auto& invoked = static_cast<const Language::Access::Call&>(first);
   const auto& returned = static_cast<const Language::Flow::Return&>(second);
   EXPECT(invoked.get_callable());
-  EXPECT_NOT(invoked.get_folded());
+  EXPECT_NOT(folded_pack(invoked));
   EXPECT_TEXT(
       returned.get_anchor().get_span().caculate_text(source),
       "return input;"_view);

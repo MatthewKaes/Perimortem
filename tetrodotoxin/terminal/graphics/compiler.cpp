@@ -13,12 +13,11 @@ using namespace Perimortem;
 using namespace Tetrodotoxin;
 
 static auto find_configured_type(
-    Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>>
-        configured,
+    Core::View::Vector<const Ttx::Model::Type*> configured,
     const Ttx::Model::Type& candidate) -> Core::Option<Count> {
   Core::Option<Count> selected;
   for (Count index = 0; index < configured.get_size(); index++) {
-    if (&configured.get_data()[index].get().resolve() == &candidate.resolve()) {
+    if (&configured.get_data()[index]->resolve() == &candidate.resolve()) {
       BAIL_IF(selected);
       selected = index;
     }
@@ -31,8 +30,7 @@ static auto retain_hosted(
     const Library::Language::Field& field,
     const Library::Language::Types::Object& object,
     const Ttx::Model::Type& requirement,
-    Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>>
-        configured,
+    Core::View::Vector<const Ttx::Model::Type*> configured,
     Core::Option<Count> element_index = {}) -> Bool {
   if (!object.satisfies(requirement)) {
     return True;
@@ -41,8 +39,7 @@ static auto retain_hosted(
   auto type_index = find_configured_type(configured, object);
   BAIL_IF(!type_index);
   hosted.insert(
-      Terminal::Graphics::Products::Hosted(
-          field, *type_index, element_index));
+      Terminal::Graphics::Products::Hosted(field, *type_index, element_index));
   return True;
 }
 
@@ -50,14 +47,14 @@ auto Terminal::Graphics::Compiler::compile(
     Memory::Allocator::Arena& arena,
     const Scene::Language::Monograph& scene,
     const Ttx::Model::Type& requirement,
-    Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Type>>
-        configured) const -> Core::Option<Products> {
+    Core::View::Vector<const Ttx::Model::Type*> configured) const
+    -> Core::Option<Products> {
   BAIL_IF(!scene.is_finalized() || configured.is_empty());
 
   Memory::Managed::Vector<Products::Hosted> hosted(arena);
-  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
+  for (const Ttx::Concept::Abstract* declaration :
        scene.get_instance().get_addressables()) {
-    auto field = declaration.get().select<Library::Language::Field>();
+    auto field = declaration->select<Library::Language::Field>();
     if (!field ||
         field->get_definition().get_visibility() !=
             Language::Visibility::Private ||
@@ -67,8 +64,7 @@ auto Terminal::Graphics::Compiler::compile(
 
     auto object = field->get_type().select<Library::Language::Types::Object>();
     if (object) {
-      BAIL_IF(!retain_hosted(
-          hosted, *field, *object, requirement, configured));
+      BAIL_IF(!retain_hosted(hosted, *field, *object, requirement, configured));
       continue;
     }
 

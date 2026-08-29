@@ -8,7 +8,7 @@
 
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/terminal/llvm/lowering/execution.hpp"
-#include "ttx/model/callable.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Lowering {
 

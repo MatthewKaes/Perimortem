@@ -4,21 +4,19 @@
 #include "tetrodotoxin/library/language/operation.hpp"
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
 
 static auto retain_inputs(
     Memory::Allocator::Arena& domain,
-    Core::View::Vector<Ttx::Model::PackReference<Language::Model::Pack>>
-        expressions)
-    -> Memory::Managed::Vector<
-        Ttx::Model::PackReference<Language::Model::Pack>> {
+    Core::View::Vector<Language::Model::Pack*> expressions)
+    -> Memory::Managed::Vector<Language::Model::Pack*> {
   // Operation owns the mutable traversal inventory. Packs borrow the
   // completed view below. No operand edge is copied into another graph.
-  Memory::Managed::Vector<Ttx::Model::PackReference<Language::Model::Pack>>
-      retained(domain);
+  Memory::Managed::Vector<Language::Model::Pack*> retained(domain);
   retained.reset(expressions.get_size());
   for (const auto& expression : expressions) {
     retained.insert(expression);
@@ -28,19 +26,48 @@ static auto retain_inputs(
 
 Language::Operation::Operation(
     Memory::Allocator::Arena& domain,
-    Core::View::Vector<Ttx::Model::PackReference<Model::Pack>> expressions,
+    Core::View::Vector<Model::Pack*> expressions,
     Core::Option<Ttx::Lexical::Anchor> anchor)
     : Expression(anchor),
       domain(domain),
-      inputs(retain_inputs(domain, expressions)) {}
+      inputs(retain_inputs(domain, expressions)),
+      folded_inputs(domain) {}
 
 auto Language::Operation::get_type() const -> const Ttx::Concept::Abstract& {
   return result_type.visit(
       []() -> const Ttx::Concept::Abstract& {
         return Ttx::Concept::Unknown::get_unknown();
       },
-      [](const Ttx::Concept::Reference<const Language::Model::Type>& selected)
-          -> const Ttx::Concept::Abstract& { return selected.get(); });
+      [](const Language::Model::Type* selected)
+          -> const Ttx::Concept::Abstract& { return *selected; });
+}
+
+auto Language::Operation::resolve_concept(Core::View::Bytes name) const
+    -> const Abstract& {
+  if (name != "fold"_view) {
+    return Expression::resolve_concept(name);
+  }
+  auto result = const_cast<Operation&>(*this).evaluate_fold();
+  return result.visit(
+      [](const Core::Option<Model::Pack&>& folded) -> const Abstract& {
+        if (!folded) {
+          return Ttx::Concept::None::get_none();
+        }
+        auto identity = folded->get_identity();
+        return identity && Ttx::Concept::Constant::prove(*identity)
+                   ? *identity
+                   : static_cast<const Abstract&>(
+                         Ttx::Concept::None::get_none());
+      },
+      [](const Expression::Error&) -> const Abstract& {
+        return Ttx::Concept::None::get_none();
+      });
+}
+
+auto Language::Operation::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Expression::visit_concepts(visitor);
+  visit_concept(visitor, "fold"_view, resolve_concept("fold"_view));
 }
 
 auto Language::Operation::link(
@@ -54,7 +81,7 @@ auto Language::Operation::link(
   // so diagnostics retain that same order without making later graph edges
   // disappear from the source model.
   for (Count i = 0; i < inputs.get_size(); i++) {
-    Model::Pack& input = inputs[i].get();
+    Model::Pack& input = *inputs[i];
 
     // Operations preserve their caller's two contexts unchanged. Operand
     // nesting changes evaluation order, not lexical shadowing or host access.
@@ -72,8 +99,7 @@ auto Language::Operation::link(
       if (index != 0) {
         report << ", "_view;
       }
-      Language::Diagnostics::write_type(
-          report, inputs.at(index).get().get_type());
+      Language::Diagnostics::write_type(report, inputs.at(index)->get_type());
     }
     report << "]."_view;
     report.get_hint()
@@ -83,21 +109,20 @@ auto Language::Operation::link(
   }
 
   if (result_type) {
-    if (&result_type->get() == &*selected) {
+    if (*result_type == &*selected) {
       return True;
     }
 
     auto report = cursor.create_report(source_anchor);
     report << "Internal semantic error: Operation '"_view << get_name()
-           << "' changed result Type from '"_view
-           << result_type->get().get_name() << "' to '"_view
-           << selected->get_name() << "'."_view;
+           << "' changed result Type from '"_view << (**result_type).get_name()
+           << "' to '"_view << selected->get_name() << "'."_view;
     report.get_hint()
         << "The source is valid; report this unstable linking result."_view;
     return False;
   }
 
-  result_type = Ttx::Concept::Reference<const Language::Model::Type>(*selected);
+  result_type = &*selected;
   return True;
 }
 
@@ -105,14 +130,20 @@ auto Language::Operation::finalize(Ttx::Lexical::Cursor& cursor) -> void {
   // Operands are the canonical authored evaluation inventory. Finalize each
   // real producer in source order before asking this operation to cache its
   // own optional folded result.
-  for (Ttx::Model::PackReference<Model::Pack> input : inputs.get_view()) {
-    input.get().finalize(cursor);
+  for (Model::Pack* input : inputs.get_view()) {
+    input->finalize(cursor);
   }
   Expression::finalize(cursor);
 }
 
-auto Language::Operation::evaluate()
+auto Language::Operation::evaluate_fold()
     -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
+  if (!result_type) {
+    return Core::Option<Model::Pack&>{};
+  }
+
+  Memory::Managed::Vector<const ttx_abstract*> reached(domain);
+  reached.reset(inputs.get_size());
   Bool all_reached_folded = True;
   for (Count i = 0; i < inputs.get_size(); i++) {
     auto child_result = fold_input(i);
@@ -126,6 +157,9 @@ auto Language::Operation::evaluate()
     }
 
     all_reached_folded &= bool(child_fold);
+    if (child_fold) {
+      reached.insert(static_cast<const Abstract&>(*child_fold).get_abi());
+    }
     if (i + 1 < inputs.get_size() && child_fold &&
         !reaches_next_input(i, *child_fold)) {
       break;
@@ -136,14 +170,35 @@ auto Language::Operation::evaluate()
     return Core::Option<Model::Pack&>{};
   }
 
+  Bool same_inputs =
+      folded_result && folded_inputs.get_size() == reached.get_size();
+  for (Count index = 0; same_inputs && index < reached.get_size(); index++) {
+    same_inputs &= folded_inputs.at(index) == reached.at(index);
+  }
+  if (same_inputs) {
+    auto cached = Model::Pack::from(
+        const_cast<Abstract&>(Abstract::from_abi(folded_result)));
+    return cached ? Core::Option<Model::Pack&>(*cached)
+                  : Core::Option<Model::Pack&>();
+  }
+
   return evaluate_constants(domain).visit(
-      [](const Core::Option<Tetrodotoxin::Library::Language::Constant&>&
-             constant)
+      [&](const Core::Option<Tetrodotoxin::Library::Language::Constant&>&
+              constant)
           -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
-        return constant.visit(
-            []() -> Core::Option<Model::Pack&> { return {}; },
-            [](Tetrodotoxin::Library::Language::Constant& selected)
-                -> Core::Option<Model::Pack&> { return selected; });
+        if (!constant) {
+          return Core::Option<Model::Pack&>{};
+        }
+        if (&constant->get_type().resolve() != &(**result_type).resolve()) {
+          return Expression::Error(
+              Expression::Error::Type::ResultTypeMismatch, *this);
+        }
+        folded_inputs.reset(reached.get_size());
+        for (const ttx_abstract* input : reached.get_view()) {
+          folded_inputs.insert(input);
+        }
+        folded_result = static_cast<const Abstract&>(*constant).get_abi();
+        return Core::Option<Model::Pack&>(*constant);
       },
       [](const Expression::Error& error)
           -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
@@ -162,7 +217,7 @@ auto Language::Operation::fold_input(Count index)
     return Expression::Error(Expression::Error::Type::InvalidInput, *this);
   }
 
-  Model::Pack& input = inputs[index].get();
+  Model::Pack& input = *inputs[index];
   auto constant = input.select_identity<Constant>();
   if (constant) {
     return *constant;
@@ -173,40 +228,25 @@ auto Language::Operation::fold_input(Count index)
     return Expression::Error::from_pack(
         Expression::Error::Type::InvalidInput, input);
   }
-
-  return expression->fold().visit(
-      [](const Core::Option<Model::Pack&>& folded)
-          -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-        return folded.visit(
-            []()
-                -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-              return Core::Option<Constant&>{};
-            },
-            [](Model::Pack& selected)
-                -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-              auto constant = selected.select_identity<Constant>();
-              return constant ? Core::Option<Constant&>(*constant)
-                              : Core::Option<Constant&>{};
-            });
-      },
-      [](const Expression::Error& error)
-          -> Utility::Result<Core::Option<Constant&>, Expression::Error> {
-        return error;
-      });
+  const Abstract& folded = expression->resolve_concept("fold"_view);
+  auto selected = const_cast<Abstract&>(folded).select<Constant>();
+  return selected ? Core::Option<Constant&>(*selected)
+                  : Core::Option<Constant&>();
 }
 
 auto Language::Operation::get_folded_input(Count index)
     -> Core::Option<Constant&> {
   BAIL_IF(index >= inputs.get_size());
 
-  Model::Pack& input = inputs[index].get();
+  Model::Pack& input = *inputs[index];
   auto constant = input.select_identity<Constant>();
   if (constant) {
     return *constant;
   }
   auto expression = input.select_identity<Expression>();
   BAIL_IF(!expression);
-  auto folded = expression->get_folded();
-  BAIL_IF(!folded);
-  return folded->select_identity<Constant>();
+  const Abstract& folded = expression->resolve_concept("fold"_view);
+  auto selected = const_cast<Abstract&>(folded).select<Constant>();
+  return selected ? Core::Option<Constant&>(*selected)
+                  : Core::Option<Constant&>();
 }

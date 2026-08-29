@@ -31,9 +31,8 @@ auto Scene::Archive::Writer::encode(const Scene::Language::Monograph& monograph)
       !writer.write(child->get_view()) ||
       monograph.get_signals().get_size() > U32(-1));
   writer.write(U32(monograph.get_signals().get_size()));
-  for (const Reference<Scene::Language::Signal>& retained :
-       monograph.get_signals()) {
-    const Scene::Language::Signal& signal = retained.get();
+  for (const Scene::Language::Signal* retained : monograph.get_signals()) {
+    const Scene::Language::Signal& signal = *retained;
     BAIL_IF(
         !writer.write(signal.get_documentation()) ||
         !writer.write(signal.get_name()));

@@ -139,16 +139,11 @@ auto Puffer::Command::run() const -> S32 {
     return 2;
   }
 
-  auto terminal_repository =
-      Tetrodotoxin::Package::Repository::Repository::create(
-          arena, terminal_path);
-  auto package_repository =
-      package_path.is_empty()
-          ? Core::Option<Tetrodotoxin::Package::Repository::Repository>()
-          : Tetrodotoxin::Package::Repository::Repository::create(
-                arena, package_path);
-  if (!terminal_repository ||
-      (!package_path.is_empty() && !package_repository)) {
+  auto repository = Tetrodotoxin::Package::Repository::Repository::create(
+      arena, terminal_path,
+      package_path.is_empty() ? Core::Option<Core::View::Bytes>()
+                              : Core::Option<Core::View::Bytes>(package_path));
+  if (!repository) {
     write_error("puffer: repository could not be opened"_view);
     return 2;
   }
@@ -156,20 +151,12 @@ auto Puffer::Command::run() const -> S32 {
   if (!lsp.is_empty()) {
     Core::Diagnostics::Log::set_sink(Core::Diagnostics::Log::console_sink);
     Core::Diagnostics::Log::set_disable_header(True);
-    auto& repository =
-        package_repository ? *package_repository : *terminal_repository;
-    Puffer::Lsp::Executor executor(repository);
+    Puffer::Lsp::Executor executor(*repository);
     executor.execute(lsp);
     return 0;
   }
 
   return Puffer::Source(
-             source, terminal_path, *terminal_repository,
-             package_repository
-                 ? Core::Option<Tetrodotoxin::Package::Repository::Repository&>(
-                       *package_repository)
-                 : Core::Option<
-                       Tetrodotoxin::Package::Repository::Repository&>(),
-             dump_graph, generate_cxx)
+             source, terminal_path, *repository, dump_graph, generate_cxx)
       .run();
 }

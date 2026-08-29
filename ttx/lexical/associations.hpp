@@ -9,7 +9,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 namespace Ttx::Lexical {
@@ -23,17 +23,17 @@ class Associations {
   class Entry {
    public:
     constexpr Entry(Anchor anchor, const Ttx::Concept::Abstract& semantic)
-        : anchor(anchor), semantic(semantic) {}
+        : anchor(anchor), semantic(&semantic) {}
 
     constexpr auto get_anchor() const -> Anchor { return anchor; }
 
     constexpr auto get_semantic() const -> const Ttx::Concept::Abstract& {
-      return semantic.get();
+      return *semantic;
     }
 
    private:
     Anchor anchor;
-    Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic;
+    const Ttx::Concept::Abstract* semantic;
   };
 
   constexpr Associations(Perimortem::Memory::Allocator::Arena& arena)

@@ -16,7 +16,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -77,24 +77,22 @@ PERIMORTEM_UNIT_TEST(ObjectTests, field_writability) {
   // than creating another mutable binding.
   auto field = fields.begin();
   ASSERT(field != fields.end());
-  const auto& open = static_cast<const Language::Field&>((*field).get());
+  const auto& open = static_cast<const Language::Field&>(**field);
   ++field;
   ASSERT(field != fields.end());
-  const auto& closed = static_cast<const Language::Field&>((*field).get());
+  const auto& closed = static_cast<const Language::Field&>(**field);
   ++field;
   ASSERT(field != fields.end());
-  const auto& observed = static_cast<const Language::Field&>((*field).get());
+  const auto& observed = static_cast<const Language::Field&>(**field);
   ++field;
   ASSERT(field != fields.end());
-  const auto& hidden_state =
-      static_cast<const Language::Field&>((*field).get());
+  const auto& hidden_state = static_cast<const Language::Field&>(**field);
   ++field;
   ASSERT(field != fields.end());
-  const auto& fixed = static_cast<const Language::Field&>((*field).get());
+  const auto& fixed = static_cast<const Language::Field&>(**field);
   ++field;
   ASSERT(field != fields.end());
-  const auto& hidden_const =
-      static_cast<const Language::Field&>((*field).get());
+  const auto& hidden_const = static_cast<const Language::Field&>(**field);
   EXPECT(open.get_writability() == Language::Writability::Internal);
   EXPECT(closed.get_writability() == Language::Writability::Full);
   EXPECT(observed.get_writability() == Language::Writability::Internal);
@@ -191,12 +189,11 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface) {
   auto types = source_type.get_types();
   auto source_callables = source_type.get_callables();
   ASSERT(types != types.end());
-  ASSERT((*types).get().is<Language::Types::Object>());
-  const Abstract& hidden = (*types).get();
+  ASSERT((**types).is<Language::Types::Object>());
+  const Abstract& hidden = **types;
   ASSERT(source_callables != source_callables.end());
-  ASSERT((*source_callables).get().is<Language::Function>());
-  const auto& root =
-      static_cast<const Language::Function&>((*source_callables).get());
+  ASSERT((**source_callables).is<Language::Function>());
+  const auto& root = static_cast<const Language::Function&>(**source_callables);
   const Abstract& holder = monograph->resolve_concept("Holder"_view);
   EXPECT(hidden.is<Language::Types::Object>());
   ASSERT(holder.is<Language::Types::Object>());
@@ -210,9 +207,8 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface) {
   auto callables = holder_object.get_callables();
   ASSERT(fields != fields.end());
   ASSERT(callables != callables.end());
-  ASSERT((*callables).get().is<Language::Function>());
-  const auto& reveal =
-      static_cast<const Language::Function&>((*callables).get());
+  ASSERT((**callables).is<Language::Function>());
+  const auto& reveal = static_cast<const Language::Function&>(**callables);
   EXPECT(&reveal.resolve_concept("hidden"_view) == &Unknown::get_unknown());
   EXPECT(&reveal.resolve_concept("Hidden"_view) == &hidden);
   EXPECT(&root.resolve_concept("Hidden"_view) == &hidden);
@@ -262,11 +258,10 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inferred_identity) {
 
   auto fields = holder.get_addressables();
   ASSERT(fields != fields.end());
-  const auto& child_field =
-      static_cast<const Language::Field&>((*fields).get());
+  const auto& child_field = static_cast<const Language::Field&>(**fields);
   ++fields;
   ASSERT(fields != fields.end());
-  const auto& copy_field = static_cast<const Language::Field&>((*fields).get());
+  const auto& copy_field = static_cast<const Language::Field&>(**fields);
   EXPECT(&child_field.get_type() == &child);
   EXPECT(&copy_field.get_type() == &child);
   ASSERT(copy_field.get_initializer());

@@ -31,6 +31,7 @@
 #include "tetrodotoxin/library/language/flow/match.hpp"
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/library/language/foreign.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/generics/view.hpp"
@@ -49,11 +50,11 @@
 #include "tetrodotoxin/library/language/types/u8.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "tetrodotoxin/terminal/llvm/compiler.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -358,7 +359,7 @@ static auto find_field(
     View::Bytes name) -> Option<const Language::Field&> {
   auto fields = composite.get_addressables();
   for (auto field = fields.begin(); field != fields.end(); ++field) {
-    const Abstract& candidate = (*field).get();
+    const Abstract& candidate = **field;
     if (candidate.get_name() == name && candidate.is<Language::Field>()) {
       return static_cast<const Language::Field&>(candidate);
     }
@@ -373,7 +374,7 @@ static auto find_function(
   auto functions = composite.get_callables();
   for (auto function = functions.begin(); function != functions.end();
        ++function) {
-    const Abstract& candidate = (*function).get();
+    const Abstract& candidate = **function;
     if (candidate.get_name() == name && candidate.is<Language::Function>()) {
       return static_cast<const Language::Function&>(candidate);
     }
@@ -506,13 +507,13 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_aliases) {
   auto types = source_type.get_types();
   auto type = types.begin();
   ASSERT(type != types.end());
-  const Abstract& hidden = (*type).get();
+  const Abstract& hidden = **type;
   ++type;
   ASSERT(type != types.end());
-  const Abstract& public_identity = (*type).get();
+  const Abstract& public_identity = **type;
   ++type;
   ASSERT(type != types.end());
-  const Abstract& private_identity = (*type).get();
+  const Abstract& private_identity = **type;
   ++type;
   EXPECT(type == types.end());
   ASSERT(hidden.is<Language::Model::Type>());
@@ -817,9 +818,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   auto callables = source_type.get_callables();
   auto callable = callables.begin();
   ASSERT(callable != callables.end());
-  ASSERT((*callable).get().is<Language::Function>());
-  const auto& exported =
-      static_cast<const Language::Function&>((*callable).get());
+  ASSERT((**callable).is<Language::Function>());
+  const auto& exported = static_cast<const Language::Function&>(**callable);
   ++callable;
   EXPECT(callable == callables.end());
   EXPECT(&count_alias.resolve() == &monograph.resolve_concept("U64"_view));
@@ -830,8 +830,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
 
   auto cases = mode.get_cases();
   ASSERT_EQ(cases.get_size(), Count(2));
-  EXPECT_TEXT(cases.get_data()[0].get().get_name(), "idle"_view);
-  EXPECT_TEXT(cases.get_data()[1].get().get_name(), "ready"_view);
+  EXPECT_TEXT(cases.get_data()[0]->get_name(), "idle"_view);
+  EXPECT_TEXT(cases.get_data()[1]->get_name(), "ready"_view);
 
   const Abstract& nested = packet.resolve_concept("Nested"_view);
   ASSERT(nested.is<Language::Types::Structure>());
@@ -939,7 +939,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   ASSERT(sum->get_initializer()->is_identity<Language::Operations::Add>());
   const auto& sum_expression =
       static_cast<const Language::Expression&>(*sum->get_initializer());
-  auto folded_sum = sum_expression.get_folded();
+  auto folded_sum = Language::query_folded_pack(sum_expression);
   ASSERT(
       folded_sum && folded_sum->is_identity<Language::Constants::Unsigned>());
   EXPECT_EQ(
@@ -952,7 +952,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   const auto& constant_offset_expression =
       static_cast<const Language::Expression&>(
           *constant_offset->get_initializer());
-  auto folded_offset = constant_offset_expression.get_folded();
+  auto folded_offset = Language::query_folded_pack(constant_offset_expression);
   ASSERT(
       folded_offset &&
       folded_offset->is_identity<Language::Constants::Unsigned>());
@@ -984,7 +984,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
       missing_byte->get_initializer()->is_identity<Language::Access::Slice>());
   const auto& default_expression = static_cast<const Language::Expression&>(
       *missing_byte->get_initializer());
-  auto folded_default = default_expression.get_folded();
+  auto folded_default = Language::query_folded_pack(default_expression);
   ASSERT(
       folded_default &&
       folded_default->is_identity<Language::Constants::Unsigned>());
@@ -1003,7 +1003,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   const auto& constant_slice_expression =
       static_cast<const Language::Expression&>(
           *constant_slice->get_initializer());
-  auto folded_constant_slice = constant_slice_expression.get_folded();
+  auto folded_constant_slice =
+      Language::query_folded_pack(constant_slice_expression);
   ASSERT(folded_constant_slice);
   ASSERT_EQ(folded_constant_slice->get_layout().get_size(), Count(2));
   auto constant_slice_first =
@@ -1124,11 +1125,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_source) {
   auto restored_present =
       find_field(restored_library->get_source(), "present"_view);
   ASSERT(restored_present);
-  auto restored_constant = restored_present->get_constant();
+  auto restored_constant = Language::Model::Pack::from(
+      restored_present->resolve_concept("fold"_view));
   auto restored_option =
       restored_constant
           ? restored_constant->select_identity<Language::Constants::Option>()
-          : Option<Language::Constants::Option&>();
+          : Option<const Language::Constants::Option&>();
   ASSERT(restored_option);
   auto restored_payload = restored_option->get_payload();
   auto restored_value =
@@ -1170,7 +1172,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_source) {
       statements.get_data()[2].get_root());
   ASSERT(call.get_callable());
   EXPECT_TEXT(call.get_callable()->get_name(), "tick"_view);
-  EXPECT_NOT(call.get_folded());
+  EXPECT_NOT(Language::query_folded_pack(call));
 
   const auto& conditional = static_cast<const Language::Flow::Branch&>(
       statements.get_data()[3].get_root());
@@ -1297,7 +1299,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, resource_slice) {
   ASSERT(folded && folded->get_initializer());
   const auto& slice =
       static_cast<const Language::Expression&>(*folded->get_initializer());
-  auto constants = slice.get_folded();
+  auto constants = Language::query_folded_pack(slice);
   ASSERT(constants);
   ASSERT_EQ(constants->get_layout().get_size(), Count(2));
   auto first = constants->get_layout().get_abstract(0);
@@ -1318,7 +1320,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, resource_slice) {
   auto hello =
       statements.get_data()[1].get_root().select<Language::Flow::Local>();
   ASSERT(hello);
-  auto hello_value = hello->get_constant();
+  auto hello_value =
+      Language::Model::Pack::from(hello->resolve_concept("fold"_view));
   ASSERT(hello_value);
   auto hello_bytes = hello_value->select_identity<Language::Constants::Bytes>();
   ASSERT(hello_bytes);
@@ -1358,7 +1361,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, const_field_access) {
   EXPECT_TEXT(instance_entry->get_name(), "value"_view);
   auto offset = find_field(packet, "offset"_view);
   ASSERT(offset);
-  auto linked_constant = offset->get_constant();
+  auto linked_constant =
+      Language::Model::Pack::from(offset->resolve_concept("fold"_view));
   ASSERT(linked_constant);
   ASSERT(linked_constant->is_identity<Language::Constants::Unsigned>());
   EXPECT_EQ(
@@ -1373,7 +1377,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, const_field_access) {
   auto type_expression =
       from_type->get_initializer()->select_identity<Language::Expression>();
   ASSERT(type_expression);
-  auto type_constant = type_expression->get_folded();
+  auto type_constant = Language::query_folded_pack(*type_expression);
   ASSERT(
       type_constant &&
       type_constant->is_identity<Language::Constants::Unsigned>());

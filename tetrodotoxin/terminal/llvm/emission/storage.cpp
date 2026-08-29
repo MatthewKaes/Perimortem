@@ -584,10 +584,9 @@ auto Llvm::Emission::Storage::compose(
     const Tetrodotoxin::Library::Language::Model::Pack& result) const -> Bool {
   Llvm::Module::Body& native_body = body;
   Memory::Dynamic::Vector<LLVMValueRef> composed;
-  for (const Ttx::Model::PackReference<
-           Tetrodotoxin::Library::Language::Model::Pack>& entry :
+  for (const Tetrodotoxin::Library::Language::Model::Pack* entry :
        result.get_entries()) {
-    auto source = native_body.find_values(entry.get());
+    auto source = native_body.find_values(*entry);
     if (!source) {
       return False;
     }

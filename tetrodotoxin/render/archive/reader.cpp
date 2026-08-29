@@ -12,8 +12,8 @@
 #include "tetrodotoxin/render/language/binding.hpp"
 #include "tetrodotoxin/render/language/stage.hpp"
 #include "tetrodotoxin/render/language/structure.hpp"
+#include "ttx/bootstrap/model/documentations/block.hpp"
 #include "ttx/lexical/anchor.hpp"
-#include "ttx/model/documentations/block.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

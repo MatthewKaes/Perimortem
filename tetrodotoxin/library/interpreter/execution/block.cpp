@@ -131,9 +131,9 @@ static auto parse_statement(
     auto nested = Interpreter::Execution::Block::parse(
         cursor, block, function, access_scope,
         block.get_enclosing_loop().visit(
-            []() -> Option<Reference<const Abstract>> { return {}; },
-            [](const Abstract& loop) -> Option<Reference<const Abstract>> {
-              return Reference<const Abstract>(loop);
+            []() -> Option<const Abstract*> { return {}; },
+            [](const Abstract& loop) -> Option<const Abstract*> {
+              return &loop;
             }),
         extension);
     BAIL_IF(!nested);
@@ -181,7 +181,7 @@ auto Interpreter::Execution::Block::parse(
     const Abstract& lexical_context,
     Language::Model::Callable& function,
     const Language::Model::Type& access_scope,
-    Option<Reference<const Abstract>> enclosing_loop,
+    Option<const Abstract*> enclosing_loop,
     Option<const StatementParser&> extension)
     -> Option<Language::Flow::Block&> {
   Code::Type opening_code = cursor.get_code().get_type();

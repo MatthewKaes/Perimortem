@@ -4,11 +4,11 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/documentations/comment.hpp"
-#include "ttx/model/layouts/addressable.hpp"
-#include "ttx/model/layouts/named.hpp"
-#include "ttx/model/layouts/ranged.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/bootstrap/model/layouts/addressable.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/bootstrap/model/layouts/ranged.hpp"
 
 namespace Tetrodotoxin::Library::Builtin::Object {
 

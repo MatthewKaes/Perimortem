@@ -3,8 +3,8 @@
 
 #include "tetrodotoxin/render/language/monograph.hpp"
 
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Perimortem::Core;
@@ -51,10 +51,6 @@ auto Language::Monograph::retain_import(
       description, associations);
 }
 
-auto Language::Monograph::compose(Cursor& cursor) -> Bool {
-  return declarations.link(cursor, *this);
-}
-
 auto Language::Monograph::link(Cursor& cursor) -> Bool {
   return declarations.link(cursor, *this);
 }
@@ -65,10 +61,6 @@ auto Language::Monograph::finalize(Cursor&) -> Bool {
 }
 
 auto Language::Monograph::link_restored() -> Bool {
-  return declarations.link_restored(*this);
-}
-
-auto Language::Monograph::compose_restored() -> Bool {
   return declarations.link_restored(*this);
 }
 
@@ -92,8 +84,9 @@ auto Language::Monograph::resolve_concept(View::Bytes name) const
              : local;
 }
 
-auto Language::Monograph::get_concepts(Context& context) const -> const Pack& {
-  return declarations.get_concepts(context);
+auto Language::Monograph::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  declarations.visit_concepts(visitor);
 }
 
 auto Language::Monograph::resolve_lexical_context(View::Bytes name) const

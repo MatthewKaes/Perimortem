@@ -17,9 +17,9 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/terminal/abi/representation/type_name.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 using namespace Perimortem;
 using namespace Perimortem::Serialization;
@@ -712,9 +712,8 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
     const Tetrodotoxin::Library::Language::Monograph& monograph,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
     Core::View::Vector<Tetrodotoxin::Terminal::Abi::Export> exports,
-    Core::View::Vector<Ttx::Concept::Reference<
-        const Tetrodotoxin::Library::Language::Model::Type>> roots)
-    -> Core::Option<Tetrodotoxin::Terminal::Abi::C::Header> {
+    Core::View::Vector<const Tetrodotoxin::Library::Language::Model::Type*>
+        roots) -> Core::Option<Tetrodotoxin::Terminal::Abi::C::Header> {
   Memory::Managed::Vector<const Ttx::Model::Type*> ordered(arena);
   Memory::Managed::Map<const Ttx::Model::Type*, Bool> collected(arena);
   Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Representation::TypeName>
@@ -730,19 +729,17 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
                HeaderOrigin(unit.get_package(), unit.get_member()));
   };
   if (roots.is_empty()) {
-    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
+    for (const Ttx::Concept::Abstract* declaration :
          monograph.get_source().get_types(
              Tetrodotoxin::Language::Visibility::Public)) {
-      auto type = declaration.get().select<Ttx::Model::Type>();
+      auto type = declaration->select<Ttx::Model::Type>();
       if (type && !collect_root(*type)) {
         return {};
       }
     }
   } else {
-    for (const Ttx::Concept::Reference<
-             const Tetrodotoxin::Library::Language::Model::Type>& root :
-         roots) {
-      if (!collect_root(root.get())) {
+    for (const Tetrodotoxin::Library::Language::Model::Type* root : roots) {
+      if (!collect_root(*root)) {
         return {};
       }
     }
@@ -758,10 +755,9 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
 
   const Tetrodotoxin::Library::Language::Foreign& foreign =
       monograph.get_source().get_foreign();
-  for (const Ttx::Concept::Reference<
-           Tetrodotoxin::Library::Language::Foreign::State>& retained :
+  for (const Tetrodotoxin::Library::Language::Foreign::State* retained :
        foreign.get_states()) {
-    const Ttx::Model::Addressable& addressable = retained.get();
+    const Ttx::Model::Addressable& addressable = *retained;
     auto type = require_addressable_type(addressable);
     if (!type || !collect_type(
                      arena, ordered, collected, names, types, unit, *type,
@@ -770,10 +766,9 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
     }
   }
 
-  for (const Ttx::Concept::Reference<
-           Tetrodotoxin::Library::Language::Foreign::Function>& retained :
+  for (const Tetrodotoxin::Library::Language::Foreign::Function* retained :
        foreign.get_functions()) {
-    const Ttx::Model::Callable& callable = retained.get();
+    const Ttx::Model::Callable& callable = *retained;
     if (!collect_callable(
             arena, ordered, collected, names, types, unit, callable)) {
       return {};
@@ -806,11 +801,10 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
     }
   }
 
-  for (const Ttx::Concept::Reference<
-           Tetrodotoxin::Library::Language::Foreign::Function>& retained :
+  for (const Tetrodotoxin::Library::Language::Foreign::Function* retained :
        foreign.get_functions()) {
     const Tetrodotoxin::Library::Language::Foreign::Function& callable =
-        retained.get();
+        *retained;
     if (!write_result_definition(
             output, types, names, callable, callable.get_symbol())) {
       return {};
@@ -833,11 +827,10 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
     }
   }
 
-  for (const Ttx::Concept::Reference<
-           Tetrodotoxin::Library::Language::Foreign::State>& retained :
+  for (const Tetrodotoxin::Library::Language::Foreign::State* retained :
        foreign.get_states()) {
     const Tetrodotoxin::Library::Language::Foreign::State& addressable =
-        retained.get();
+        *retained;
 
     output << "extern "_view;
     if (addressable.get_definition().get_visibility() !=
@@ -853,11 +846,10 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
     output << " "_view << addressable.get_name() << ";\n"_view;
   }
 
-  for (const Ttx::Concept::Reference<
-           Tetrodotoxin::Library::Language::Foreign::Function>& retained :
+  for (const Tetrodotoxin::Library::Language::Foreign::Function* retained :
        foreign.get_functions()) {
     const Tetrodotoxin::Library::Language::Foreign::Function& callable =
-        retained.get();
+        *retained;
     if (!write_signature(
             output, types, names, callable, callable.get_symbol())) {
       return {};

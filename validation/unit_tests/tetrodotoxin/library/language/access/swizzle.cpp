@@ -22,7 +22,7 @@
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -78,7 +78,7 @@ static auto find_field(
     View::Bytes name) -> Option<const Language::Field&> {
   auto fields = composite.get_addressables();
   for (auto field = fields.begin(); field != fields.end(); ++field) {
-    const Abstract& candidate = (*field).get();
+    const Abstract& candidate = **field;
     if (candidate.get_name() == name && candidate.is<Language::Field>()) {
       return static_cast<const Language::Field&>(candidate);
     }
@@ -99,7 +99,7 @@ static auto find_function(
   auto functions = composite.get_callables();
   for (auto function = functions.begin(); function != functions.end();
        ++function) {
-    const Abstract& candidate = (*function).get();
+    const Abstract& candidate = **function;
     if (candidate.get_name() == name && candidate.is<Language::Function>()) {
       return static_cast<const Language::Function&>(candidate);
     }

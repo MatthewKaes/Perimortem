@@ -53,22 +53,22 @@ auto Language::Interfaces::Structure::select_field(
 
 auto Language::Interfaces::Structure::negotiate(
     const Abstract& requirement,
-    const Abstract& candidate) const -> Relation {
+    const Abstract& candidate) const -> ttx_interface_relation {
   auto required = requirement.resolve().select<Language::Types::Structure>();
   auto supplied = candidate.resolve().select<Language::Types::Object>();
   if (!required || !supplied || !required->is_linked() ||
       !supplied->is_linked()) {
-    return Relation::Rejected;
+    return TTX_INTERFACE_REJECTED;
   }
 
-  for (const Reference<Abstract>& retained :
+  for (const Abstract* retained :
        required->get_addressables(Tetrodotoxin::Language::Visibility::Public)) {
-    auto field = retained.get().select<Language::Field>();
+    auto field = retained->select<Language::Field>();
     if (!field || field->get_writability() != Language::Writability::Internal ||
         !select_field(*field, *supplied)) {
-      return Relation::Rejected;
+      return TTX_INTERFACE_REJECTED;
     }
   }
 
-  return Relation::Satisfied;
+  return TTX_INTERFACE_SATISFIED;
 }

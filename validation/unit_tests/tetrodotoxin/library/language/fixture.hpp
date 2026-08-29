@@ -4,17 +4,53 @@
 #pragma once
 
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/expression.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/span.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
 namespace Validation {
+
+inline auto test_fold(
+    const Tetrodotoxin::Library::Language::Model::Pack& source)
+    -> Perimortem::Utility::Result<
+        Perimortem::Core::Option<Tetrodotoxin::Library::Language::Model::Pack&>,
+        Tetrodotoxin::Library::Language::Expression::Error> {
+  const Ttx::Concept::Abstract& answer =
+      Tetrodotoxin::Library::Language::query_fold(source);
+  if (!Ttx::Concept::Constant::prove(answer)) {
+    return Perimortem::Core::Option<
+        Tetrodotoxin::Library::Language::Model::Pack&>();
+  }
+  auto pack = Tetrodotoxin::Library::Language::Model::Pack::from(
+      const_cast<Ttx::Concept::Abstract&>(answer));
+  return pack ? Perimortem::Core::Option<
+                    Tetrodotoxin::Library::Language::Model::Pack&>(*pack)
+              : Perimortem::Core::Option<
+                    Tetrodotoxin::Library::Language::Model::Pack&>();
+}
+
+inline auto concept_is_nonfoldable(
+    const Perimortem::Utility::Result<
+        Perimortem::Core::Option<Tetrodotoxin::Library::Language::Model::Pack&>,
+        Tetrodotoxin::Library::Language::Expression::Error>& result) -> Bool {
+  return result.visit(
+      [](const Perimortem::Core::Option<
+          Tetrodotoxin::Library::Language::Model::Pack&>& selected) {
+        return selected ? False : True;
+      },
+      [](const Tetrodotoxin::Library::Language::Expression::Error&) {
+        return False;
+      });
+}
 
 // Direct semantic unit tests still use a real Library root. The temporary
 // Cursor only opens that root in the supplied Arena. Every resulting identity

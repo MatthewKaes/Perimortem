@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/concept/layout.hpp"
+#include "ttx/bootstrap/concept/layout.hpp"
 #include "ttx/lexical/errors.hpp"
 
 namespace Tetrodotoxin::Library::Language {

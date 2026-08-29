@@ -23,7 +23,7 @@
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -71,10 +71,7 @@ class MultiplyFoldInput : public Operation {
       Model::Pack& input,
       Tetrodotoxin::Library::Language::Constant& result,
       const Model::Type& type)
-      : Operation(
-            domain,
-            Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1>{{input}},
-            {}),
+      : Operation(domain, Static::Vector<Model::Pack*, 1>{{&input}}, {}),
         result(result),
         type(type) {}
 
@@ -121,19 +118,6 @@ static auto selected(
       },
       [](const Expression::Error&)
           -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
-}
-
-static auto reports(
-    const Result<Option<Model::Pack&>, Expression::Error>& result,
-    Expression::Error::Type expected,
-    const Abstract& origin) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>&) { return False; },
-      [&](const Expression::Error& error) {
-        return error.get_type() == expected && &error.get_subject() == &origin
-                   ? True
-                   : False;
-      });
 }
 
 static auto get_unsigned(
@@ -207,7 +191,7 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, type_selection) {
   EXPECT(!link_operation(byte_values, source));
   EXPECT(!link_operation(invalid, source));
 
-  auto exact_result = selected(exact.fold());
+  auto exact_result = selected(test_fold(exact));
 
   EXPECT(&exact.get_type() == &u8);
   EXPECT(mixed_left.get_type().resolve().is<Unknown>());
@@ -261,10 +245,10 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, integer_widths) {
   EXPECT(link_operation(endpoint, source));
   EXPECT(link_operation(signed_overflow, source));
 
-  auto unsigned_value = selected(unsigned_success.fold());
-  auto zero_value = selected(zero_product.fold());
-  auto signed_value = selected(signed_success.fold());
-  auto endpoint_value = selected(endpoint.fold());
+  auto unsigned_value = selected(test_fold(unsigned_success));
+  auto zero_value = selected(test_fold(zero_product));
+  auto signed_value = selected(test_fold(signed_success));
+  auto endpoint_value = selected(test_fold(endpoint));
   auto unsigned_number =
       unsigned_value ? get_unsigned(*unsigned_value) : Option<U64>();
   auto zero_number = zero_value ? get_unsigned(*zero_value) : Option<U64>();
@@ -279,12 +263,8 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, integer_widths) {
   EXPECT(&signed_value->get_type() == &signed_type);
   EXPECT(signed_number && *signed_number == 120);
   EXPECT(endpoint_number && *endpoint_number == -128);
-  EXPECT(reports(
-      unsigned_overflow.fold(), Expression::Error::Type::ArithmeticOverflow,
-      unsigned_overflow));
-  EXPECT(reports(
-      signed_overflow.fold(), Expression::Error::Type::ArithmeticOverflow,
-      signed_overflow));
+  EXPECT(concept_is_nonfoldable(test_fold(unsigned_overflow)));
+  EXPECT(concept_is_nonfoldable(test_fold(signed_overflow)));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryMultiply, ieee_real_domains) {
@@ -315,10 +295,10 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, ieee_real_domains) {
   EXPECT(link_operation(infinite, source));
   EXPECT(link_operation(unordered, source));
 
-  auto narrow_value = selected(narrow.fold());
-  auto wide_value = selected(wide.fold());
-  auto infinite_value = selected(infinite.fold());
-  auto unordered_value = selected(unordered.fold());
+  auto narrow_value = selected(test_fold(narrow));
+  auto wide_value = selected(test_fold(wide));
+  auto infinite_value = selected(test_fold(infinite));
+  auto unordered_value = selected(test_fold(unordered));
   auto narrow_number = narrow_value ? get_real(*narrow_value) : Option<R64>();
   auto wide_number = wide_value ? get_real(*wide_value) : Option<R64>();
   auto infinite_number =
@@ -354,8 +334,8 @@ PERIMORTEM_UNIT_TEST(LibraryMultiply, stable_folding) {
   EXPECT(link_operation(multiply, source));
   EXPECT(&multiply.get_type() == &selected_type);
 
-  auto first = selected(multiply.fold());
-  auto second = selected(multiply.fold());
+  auto first = selected(test_fold(multiply));
+  auto second = selected(test_fold(multiply));
   auto value = first ? get_unsigned(*first) : Option<U64>();
 
   ASSERT(first && second);

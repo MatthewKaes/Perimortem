@@ -12,6 +12,7 @@
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/flow/local.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
@@ -49,7 +50,7 @@ static auto anchor_of(const Abstract& semantic) -> Ttx::Lexical::Anchor {
 static auto constant_conversion(
     const Library::Language::Expressions::Conversion& conversion)
     -> Core::Option<const Library::Language::Model::Pack&> {
-  auto folded = conversion.get_folded();
+  auto folded = Tetrodotoxin::Library::Language::query_folded_pack(conversion);
   auto producer = folded && folded->get_layout().get_size() == 1
                       ? folded->get_layout().get_abstract(0)
                       : Core::Option<const Abstract&>();
@@ -69,11 +70,10 @@ static auto select_scalar_pack(
   }
 
   Count offset = 0;
-  for (const Ttx::Model::PackReference<Library::Language::Model::Pack>& entry :
-       pack.get_entries()) {
-    Count size = entry.get().get_layout().get_size();
+  for (const Library::Language::Model::Pack* entry : pack.get_entries()) {
+    Count size = entry->get_layout().get_size();
     if (index < offset + size) {
-      return select_scalar_pack(entry.get(), index - offset);
+      return select_scalar_pack(*entry, index - offset);
     }
     offset += size;
   }
@@ -113,7 +113,7 @@ auto Module::Body::prepare(const Interface::Stage& stage) -> Bool {
   // Preparation proves the complete supported graph before section ordered
   // emission begins. Types and Constants can then appear before Function words
   // without retaining a second executable model.
-  const auto body = stage.function.get().get_body();
+  const auto body = stage.function->get_body();
   BAIL_IF(!body);
   for (const Library::Language::Statement& statement : body->get_statements()) {
     const Abstract& root = statement.get_root();
@@ -152,9 +152,8 @@ auto Module::Body::prepare_pack(const Library::Language::Model::Pack& pack)
   if (expression) {
     return prepare_expression(*expression);
   }
-  for (const Ttx::Model::PackReference<Library::Language::Model::Pack>& entry :
-       pack.get_entries()) {
-    BAIL_IF(!prepare_pack(entry.get()));
+  for (const Library::Language::Model::Pack* entry : pack.get_entries()) {
+    BAIL_IF(!prepare_pack(*entry));
   }
   return True;
 }
@@ -216,9 +215,9 @@ auto Module::Body::prepare_expression(
           expression,
           "This arithmetic operation has no floating point SPIR V form."_view);
     }
-    for (const Ttx::Model::PackReference<Library::Language::Model::Pack>&
-             input : operation->get_inputs()) {
-      BAIL_IF(!prepare_pack(input.get()));
+    for (const Library::Language::Model::Pack* input :
+         operation->get_inputs()) {
+      BAIL_IF(!prepare_pack(*input));
     }
     return True;
   }
@@ -236,7 +235,7 @@ auto Module::Body::prepare_expression(
 auto Module::Body::find_value(const Abstract& semantic) const
     -> Core::Option<Value> {
   for (const Value& value : values.get_view()) {
-    if (&value.semantic.get() == &semantic) {
+    if (value.semantic == &semantic) {
       return value;
     }
   }
@@ -244,10 +243,9 @@ auto Module::Body::find_value(const Abstract& semantic) const
 }
 
 auto Module::Body::retain_value(Value value) -> Bool {
-  auto retained = find_value(value.semantic.get());
+  auto retained = find_value(*value.semantic);
   BAIL_IF(
-      retained &&
-      (retained->id != value.id || &retained->type.get() != &value.type.get()));
+      retained && (retained->id != value.id || retained->type != value.type));
   if (!retained) {
     values.insert(value);
   }
@@ -301,7 +299,7 @@ auto Module::Body::lower_pack(
   if (expression) {
     auto lowered = lower_expression(*expression, assembler);
     auto source_id =
-        lowered ? types.get_id(lowered->type.get()) : Core::Option<U32>();
+        lowered ? types.get_id(*lowered->type) : Core::Option<U32>();
     auto expected_id = types.get_id(expected);
     BAIL_IF(
         !lowered || !source_id || !expected_id || *source_id != *expected_id);
@@ -364,7 +362,7 @@ auto Module::Body::lower_expression(
       expression.select<Library::Language::Expressions::Identifier>();
   if (identifier) {
     auto selected = find_value(identifier->get_result());
-    BAIL_IF(!selected || &selected->type.get() != &*type);
+    BAIL_IF(!selected || selected->type != &*type);
     Value value(expression, *type, selected->id);
     BAIL_IF(!retain_value(value));
     return value;
@@ -450,7 +448,7 @@ auto Module::Body::lower_expression(
             ? lower_pack(address->get_receiver(), *receiver_type, assembler)
             : Core::Option<Value>();
     BAIL_IF(!receiver);
-    const Ttx::Concept::Layout& layout = receiver->type.get().get_layout();
+    const Ttx::Concept::Layout& layout = receiver->type->get_layout();
     Core::Option<Count> member;
     for (Count index = 0; index < layout.get_size(); index++) {
       auto semantic = layout.get_abstract(index);
@@ -474,8 +472,8 @@ auto Module::Body::lower_expression(
     BAIL_IF(!type->is<Library::Language::Model::Types::Real>());
     auto inputs = operation->get_inputs();
     BAIL_IF(inputs.get_size() != 2);
-    auto left = lower_pack(inputs.get_data()[0].get(), *type, assembler);
-    auto right = lower_pack(inputs.get_data()[1].get(), *type, assembler);
+    auto left = lower_pack(*inputs.get_data()[0], *type, assembler);
+    auto right = lower_pack(*inputs.get_data()[1], *type, assembler);
     auto type_id = types.get_id(*type);
     BAIL_IF(!left || !right || !type_id);
     U32 id = ids.take();
@@ -520,7 +518,7 @@ auto Module::Body::lower_return(
     const Library::Language::Model::Pack& pack,
     const Interface::Stage& stage,
     Assembler::SpirV& assembler) -> Bool {
-  const auto& results = stage.function.get().get_signature().get_results();
+  const auto& results = stage.function->get_signature().get_results();
   BAIL_IF(results.get_size() != stage.outputs.get_size());
   for (Count index = 0; index < results.get_size(); index++) {
     auto semantic = results.get_abstract(index);
@@ -564,25 +562,24 @@ auto Module::Body::emit(
   assembler.label(ids.take());
 
   for (const Interface::Variable& input : stage.inputs.get_view()) {
-    auto type_id = types.get_id(input.type.get());
+    auto type_id = types.get_id(*input.type);
     BAIL_IF(!type_id);
     U32 id = ids.take();
     assembler.load(*type_id, id, input.id);
-    BAIL_IF(!retain_value(Value(input.semantic.get(), input.type.get(), id)));
+    BAIL_IF(!retain_value(Value(*input.semantic, *input.type, id)));
   }
 
   for (const Interface::Variable& binding : interface.get_bindings()) {
-    auto type_id = types.get_id(binding.type.get());
+    auto type_id = types.get_id(*binding.type);
     auto pointer = interface.get_binding_pointer(binding, assembler);
     BAIL_IF(!type_id || !pointer);
     U32 id = ids.take();
     assembler.load(*type_id, id, *pointer);
-    BAIL_IF(
-        !retain_value(Value(binding.semantic.get(), binding.type.get(), id)));
+    BAIL_IF(!retain_value(Value(*binding.semantic, *binding.type, id)));
   }
 
   Bool returned = False;
-  auto body = stage.function.get().get_body();
+  auto body = stage.function->get_body();
   BAIL_IF(!body);
   for (const Library::Language::Statement& statement : body->get_statements()) {
     const Abstract& root = statement.get_root();
@@ -612,7 +609,7 @@ auto Module::Body::emit(
             report, return_statement->get_pack());
         report << "\nStage accepts: "_view;
         Library::Language::Diagnostics::write_layout(
-            report, stage.function.get().get_signature().get_results());
+            report, stage.function->get_signature().get_results());
         report.get_hint()
             << "The Library return is valid; this is a missing target "
                "lowering."_view;

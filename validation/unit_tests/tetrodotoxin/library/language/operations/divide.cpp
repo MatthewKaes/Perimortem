@@ -24,7 +24,7 @@
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -89,10 +89,7 @@ class DivideFoldInput : public Operation {
       Tetrodotoxin::Library::Language::Constant& result,
       const Model::Type& type,
       Bool fails = False)
-      : Operation(
-            domain,
-            Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1>{{input}},
-            {}),
+      : Operation(domain, Static::Vector<Model::Pack*, 1>{{&input}}, {}),
         result(result),
         type(type),
         fails(fails) {}
@@ -145,19 +142,6 @@ static auto selected(
       },
       [](const Expression::Error&)
           -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
-}
-
-static auto reports(
-    const Result<Option<Model::Pack&>, Expression::Error>& result,
-    Expression::Error::Type expected,
-    const Abstract& origin) -> Bool {
-  return result.visit(
-      [](const Option<Model::Pack&>&) { return False; },
-      [&](const Expression::Error& error) {
-        return error.get_type() == expected && &error.get_subject() == &origin
-                   ? True
-                   : False;
-      });
 }
 
 template <typename constant_type, typename value_type>
@@ -230,7 +214,7 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, type_selection) {
   EXPECT(!link_operation(flags, source));
   EXPECT(!link_operation(byte_values, source));
 
-  auto retained = selected(unsigned_exact.fold());
+  auto retained = selected(test_fold(unsigned_exact));
 
   EXPECT(&signed_exact.get_type() == &s8);
   EXPECT(&unsigned_exact.get_type() == &u8);
@@ -317,14 +301,14 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, integer_quotients) {
   EXPECT(link_operation(unsigned_zero_divisor, source));
   EXPECT(link_operation(unsigned_width, source));
 
-  auto positive_fold = selected(positive_result.fold());
-  auto negative_fold = selected(negative_result.fold());
-  auto opposite_fold = selected(opposite_sign.fold());
-  auto signed_zero_fold = selected(signed_zero_result.fold());
-  auto minimum_fold = selected(minimum_result.fold());
-  auto unsigned_fold = selected(unsigned_result.fold());
-  auto unsigned_zero_fold = selected(unsigned_zero_result.fold());
-  auto unsigned_endpoint_fold = selected(unsigned_endpoint.fold());
+  auto positive_fold = selected(test_fold(positive_result));
+  auto negative_fold = selected(test_fold(negative_result));
+  auto opposite_fold = selected(test_fold(opposite_sign));
+  auto signed_zero_fold = selected(test_fold(signed_zero_result));
+  auto minimum_fold = selected(test_fold(minimum_result));
+  auto unsigned_fold = selected(test_fold(unsigned_result));
+  auto unsigned_zero_fold = selected(test_fold(unsigned_zero_result));
+  auto unsigned_endpoint_fold = selected(test_fold(unsigned_endpoint));
 
   ASSERT(
       positive_fold && negative_fold && opposite_fold && signed_zero_fold &&
@@ -340,21 +324,11 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, integer_quotients) {
   EXPECT(value_is<Constants::Unsigned>(*unsigned_endpoint_fold, U64(255)));
   EXPECT(&positive_fold->get_type() == &signed_type);
   EXPECT(&unsigned_endpoint_fold->get_type() == &unsigned_type);
-  EXPECT(reports(
-      signed_zero_divisor.fold(), Expression::Error::Type::DivisionByZero,
-      signed_zero_divisor));
-  EXPECT(reports(
-      unsigned_zero_divisor.fold(), Expression::Error::Type::DivisionByZero,
-      unsigned_zero_divisor));
-  EXPECT(reports(
-      endpoint_overflow.fold(), Expression::Error::Type::ArithmeticOverflow,
-      endpoint_overflow));
-  EXPECT(reports(
-      signed_width.fold(), Expression::Error::Type::ArithmeticOverflow,
-      signed_width));
-  EXPECT(reports(
-      unsigned_width.fold(), Expression::Error::Type::ArithmeticOverflow,
-      unsigned_width));
+  EXPECT(concept_is_nonfoldable(test_fold(signed_zero_divisor)));
+  EXPECT(concept_is_nonfoldable(test_fold(unsigned_zero_divisor)));
+  EXPECT(concept_is_nonfoldable(test_fold(endpoint_overflow)));
+  EXPECT(concept_is_nonfoldable(test_fold(signed_width)));
+  EXPECT(concept_is_nonfoldable(test_fold(unsigned_width)));
 }
 
 PERIMORTEM_UNIT_TEST(LibraryDivide, ieee_domains) {
@@ -400,14 +374,14 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, ieee_domains) {
   EXPECT(link_operation(wide_infinity, source));
   EXPECT(link_operation(wide_nan, source));
 
-  auto narrow_value = selected(narrow_finite.fold());
-  auto narrow_zero_value = selected(narrow_signed_zero.fold());
-  auto narrow_infinite_value = selected(narrow_infinity.fold());
-  auto narrow_nan_value = selected(narrow_nan.fold());
-  auto wide_value = selected(wide_finite.fold());
-  auto wide_zero_value = selected(wide_signed_zero.fold());
-  auto wide_infinite_value = selected(wide_infinity.fold());
-  auto wide_nan_value = selected(wide_nan.fold());
+  auto narrow_value = selected(test_fold(narrow_finite));
+  auto narrow_zero_value = selected(test_fold(narrow_signed_zero));
+  auto narrow_infinite_value = selected(test_fold(narrow_infinity));
+  auto narrow_nan_value = selected(test_fold(narrow_nan));
+  auto wide_value = selected(test_fold(wide_finite));
+  auto wide_zero_value = selected(test_fold(wide_signed_zero));
+  auto wide_infinite_value = selected(test_fold(wide_infinity));
+  auto wide_nan_value = selected(test_fold(wide_nan));
 
   ASSERT(
       narrow_value && narrow_zero_value && narrow_infinite_value &&
@@ -460,15 +434,14 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   EXPECT(link_operation(divide, source));
   EXPECT(link_operation(failure, source));
 
-  auto first = selected(divide.fold());
-  auto second = selected(divide.fold());
+  auto first = selected(test_fold(divide));
+  auto second = selected(test_fold(divide));
 
   ASSERT(first && second);
   EXPECT(&*first == &*second);
   EXPECT(value_is<Constants::Unsigned>(*first, U64(4)));
   EXPECT(child.get_evaluations() == 1);
-  EXPECT(reports(
-      failure.fold(), Expression::Error::Type::InvalidConstant, failing));
+  EXPECT(concept_is_nonfoldable(test_fold(failure)));
 
   const auto& parser_type = resolve_library_unsigned(source, "U64"_view);
   Errors success_errors;
@@ -504,7 +477,7 @@ PERIMORTEM_UNIT_TEST(LibraryDivide, recursive_and_atomic) {
   EXPECT(parsed->link(success_cursor, source));
 
   auto parsed_fold = parsed->visit<Operation>(
-      [&](Operation& operation) { return selected(operation.fold()); },
+      [&](Operation& operation) { return selected(test_fold(operation)); },
       [](Abstract&) -> Option<Tetrodotoxin::Library::Language::Constant&> {
         return {};
       });

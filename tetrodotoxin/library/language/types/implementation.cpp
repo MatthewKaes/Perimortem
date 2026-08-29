@@ -21,13 +21,13 @@ auto Types::Implementation::accepts(const Model::Pack& source) const -> Bool {
   const Abstract& candidate = source.get_value_type(0).resolve();
   auto object = candidate.select<Types::Object>();
   return object &&
-         (object->satisfies(requirement.get()) ||
-          object->get_definition().get_host().satisfies(requirement.get()));
+         (object->satisfies(*requirement) ||
+          object->get_definition().get_host().satisfies(*requirement));
 }
 
 auto Types::Implementation::validate_layout(Ttx::Lexical::Cursor& cursor) const
     -> Bool {
-  if (&requirement.get().resolve() == &requirement.get()) {
+  if (&requirement->resolve() == requirement) {
     return True;
   }
 
@@ -43,7 +43,7 @@ auto Types::Implementation::resolve_concept(View::Bytes route) const
     return Model::Type::resolve_concept(route);
   }
 
-  auto interface = requirement.get().resolve().select<Types::Interface>();
+  auto interface = requirement->resolve().select<Types::Interface>();
   return interface ? interface->resolve_concept("instance"_view)
                    : static_cast<const Abstract&>(Unknown::get_unknown());
 }

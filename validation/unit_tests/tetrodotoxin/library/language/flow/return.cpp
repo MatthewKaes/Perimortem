@@ -14,7 +14,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -57,7 +57,7 @@ static auto find_function(
     View::Bytes name) -> Option<const Language::Function&> {
   for (auto binding = composite.get_callables().begin();
        binding != composite.get_callables().end(); ++binding) {
-    const Abstract& candidate = (*binding).get();
+    const Abstract& candidate = **binding;
     if (candidate.get_name() == name && candidate.is<Language::Function>()) {
       return static_cast<const Language::Function&>(candidate);
     }

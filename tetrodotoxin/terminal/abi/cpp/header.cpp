@@ -14,7 +14,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/terminal/abi/publication.hpp"
 #include "tetrodotoxin/terminal/abi/representation/type_name.hpp"
-#include "ttx/model/addressable.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
 
 using namespace Perimortem;
 using namespace Perimortem::Serialization;

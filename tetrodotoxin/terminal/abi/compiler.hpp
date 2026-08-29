@@ -37,10 +37,10 @@ class Compiler {
       Ttx::Lexical::Errors& errors,
       Perimortem::Core::View::Bytes source_path,
       Perimortem::Core::View::Bytes source_text,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<
-          const Tetrodotoxin::Library::Language::Model::Type>> roots = {},
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<
-          const Tetrodotoxin::Library::Language::Model::Callable>> excluded =
+      Perimortem::Core::View::Vector<
+          const Tetrodotoxin::Library::Language::Model::Type*> roots = {},
+      Perimortem::Core::View::Vector<
+          const Tetrodotoxin::Library::Language::Model::Callable*> excluded =
           {},
       Perimortem::Core::View::Vector<Abi::Projection> projections = {}) const
       -> Perimortem::Core::Option<Products>;

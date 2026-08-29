@@ -20,9 +20,8 @@
 #include "tetrodotoxin/terminal/abi/cpp/header.hpp"
 #include "tetrodotoxin/terminal/abi/representation/type.hpp"
 #include "tetrodotoxin/terminal/abi/symbol.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/context.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library::Language;
@@ -33,9 +32,9 @@ class AbiGraphNode {
       const Ttx::Concept::Abstract& semantic,
       Core::View::Bytes route,
       Count depth)
-      : semantic(semantic), route(route), depth(depth) {}
+      : semantic(&semantic), route(route), depth(depth) {}
 
-  Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic;
+  const Ttx::Concept::Abstract* semantic;
   Core::View::Bytes route;
   Count depth;
 };
@@ -68,6 +67,75 @@ static auto append_route(
   appended.concat(name);
   return appended.get_view();
 }
+
+class AbiGraphTraversal {
+ public:
+  AbiGraphTraversal(
+      Memory::Allocator::Arena& arena,
+      Memory::Dynamic::Vector<AbiGraphNode>& nodes,
+      Memory::Dynamic::Vector<Count>& pending)
+      : callable{&operations},
+        operations{.call = visit},
+        arena(arena),
+        nodes(nodes),
+        pending(pending) {}
+
+  auto retain(
+      const Ttx::Concept::Abstract& semantic,
+      Core::View::Bytes route,
+      Count depth) -> void {
+    for (Count index = 0; index < nodes.get_size(); ++index) {
+      AbiGraphNode& selected = nodes.get_access().get_data()[index];
+      if (selected.semantic != &semantic) {
+        continue;
+      }
+      Bool better =
+          depth < selected.depth ||
+          (depth == selected.depth && compare_bytes(route, selected.route) < 0);
+      if (better) {
+        selected.route = arena.proxy(route);
+        selected.depth = depth;
+        pending.emplace(Count(index));
+      }
+      return;
+    }
+    Count index = nodes.get_size();
+    nodes.emplace(AbiGraphNode(semantic, arena.proxy(route), depth));
+    pending.emplace(Count(index));
+  }
+
+  auto visit_concepts(
+      const Ttx::Concept::Abstract& semantic,
+      Core::View::Bytes route,
+      Count depth) -> void {
+    current_route = route;
+    current_depth = depth;
+    ttx_abstract_visit_concepts(semantic.get_abi(), &callable);
+  }
+
+ private:
+  static auto visit(
+      ttx_named_abstract_callable* callable,
+      perimortem_bytes name,
+      const ttx_abstract* selected) -> void {
+    auto& self = *reinterpret_cast<AbiGraphTraversal*>(callable);
+    Core::View::Bytes concept_name(name.data, name.size);
+    Bool authority =
+        concept_name == "static"_view || concept_name == "instance"_view;
+    self.retain(
+        Ttx::Concept::Abstract::from_abi(selected),
+        append_route(self.arena, self.current_route, concept_name),
+        self.current_depth + (authority ? 0 : 1));
+  }
+
+  ttx_named_abstract_callable callable;
+  ttx_named_abstract_callable_operations operations;
+  Memory::Allocator::Arena& arena;
+  Memory::Dynamic::Vector<AbiGraphNode>& nodes;
+  Memory::Dynamic::Vector<Count>& pending;
+  Core::View::Bytes current_route;
+  Count current_depth = 0;
+};
 
 static auto fail_interface(
     Ttx::Lexical::Errors& errors,
@@ -177,24 +245,22 @@ static auto collect_type(
     Ttx::Lexical::Errors& errors,
     Core::View::Bytes source_path,
     Core::View::Bytes source_text,
-    Core::View::Vector<Ttx::Concept::Reference<const Model::Callable>> excluded)
-    -> Bool {
+    Core::View::Vector<const Model::Callable*> excluded) -> Bool {
   auto composite = type.select<Types::Composite>();
   if (composite) {
-    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
+    for (const Ttx::Concept::Abstract* declaration :
          composite->get_declarations()) {
-      auto nested = declaration.get().select<Model::Type>();
+      auto nested = declaration->select<Model::Type>();
       if (nested && !collect_type(
                         arena, unit, *nested, exports, publications, errors,
                         source_path, source_text, excluded)) {
         return False;
       }
 
-      auto function = declaration.get().select<Function>();
+      auto function = declaration->select<Function>();
       Bool omitted = False;
-      for (const Ttx::Concept::Reference<const Model::Callable>& candidate :
-           excluded) {
-        omitted |= &candidate.get() == &declaration.get();
+      for (const Model::Callable* candidate : excluded) {
+        omitted |= candidate == declaration;
       }
       if (function && !omitted &&
           (Tetrodotoxin::Terminal::Abi::is_publicly_reachable(
@@ -212,7 +278,7 @@ static auto collect_type(
         }
       }
 
-      auto field = declaration.get().select<Field>();
+      auto field = declaration->select<Field>();
       if (field && unit.is_package_member() &&
           field->get_writability() == Writability::Full &&
           Tetrodotoxin::Terminal::Abi::is_publicly_reachable(
@@ -253,79 +319,37 @@ auto Tetrodotoxin::Terminal::Abi::Compiler::compile_graph(
     -> Core::Option<Tetrodotoxin::Terminal::Abi::Products> {
   Memory::Dynamic::Vector<AbiGraphNode> nodes;
   Memory::Dynamic::Vector<Count> pending;
-  auto retain = [&](const Ttx::Concept::Abstract& semantic,
-                    Core::View::Bytes route, Count depth) {
-    for (Count index = 0; index < nodes.get_size(); index++) {
-      AbiGraphNode& selected = nodes.get_access().get_data()[index];
-      if (&selected.semantic.get() != &semantic) {
-        continue;
-      }
-      Bool better =
-          depth < selected.depth ||
-          (depth == selected.depth && compare_bytes(route, selected.route) < 0);
-      if (better) {
-        selected.route = arena.proxy(route);
-        selected.depth = depth;
-        pending.emplace(Count(index));
-      }
-      return;
-    }
-    Count index = nodes.get_size();
-    nodes.emplace(AbiGraphNode(semantic, arena.proxy(route), depth));
-    pending.emplace(Count(index));
-  };
+  AbiGraphTraversal graph(arena, nodes, pending);
 
-  retain(root, {}, 0);
-  Ttx::Model::Context context(arena);
+  graph.retain(root, {}, 0);
   Count next = 0;
   while (next < pending.get_size()) {
     Count index = pending.get_view().get_data()[next++];
     const AbiGraphNode& node = nodes.get_view().get_data()[index];
-    Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic_reference =
-        node.semantic;
+    const Ttx::Concept::Abstract* semantic_reference = node.semantic;
     Core::View::Bytes route = node.route;
     Count depth = node.depth;
-    const Ttx::Concept::Abstract& semantic = semantic_reference.get();
+    const Ttx::Concept::Abstract& semantic = *semantic_reference;
     const Ttx::Concept::Abstract& resolved = semantic.resolve();
     if (!resolved.is<Ttx::Concept::Unknown>() &&
         !resolved.is<Ttx::Concept::None>()) {
-      retain(resolved, route, depth);
+      graph.retain(resolved, route, depth);
     }
-
-    const Ttx::Concept::Layout& concepts =
-        semantic.get_concepts(context).get_layout();
-    for (Count concept_index = 0; concept_index < concepts.get_size();
-         concept_index++) {
-      auto selected = concepts.get_abstract(concept_index);
-      if (!selected) {
-        continue;
-      }
-      Core::View::Bytes name =
-          concepts.get_name(concept_index)
-              .visit(
-                  [&]() { return selected->get_name(); },
-                  [](Core::View::Bytes retained) { return retained; });
-      Bool authority = name == "static"_view || name == "instance"_view;
-      retain(
-          *selected, append_route(arena, route, name),
-          depth + (authority ? 0 : 1));
-    }
+    graph.visit_concepts(semantic, route, depth);
   }
 
-  Memory::Managed::Vector<
-      Ttx::Concept::Reference<const Library::Language::Model::Type>>
-      roots(arena);
+  Memory::Managed::Vector<const Library::Language::Model::Type*> roots(arena);
   Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Unit::TypeBinding>
       bindings(arena);
   for (const AbiGraphNode& node : nodes.get_view()) {
     auto type =
-        node.semantic.get().resolve().select<Library::Language::Model::Type>();
+        node.semantic->resolve().select<Library::Language::Model::Type>();
     if (!type || roots.get_view().contains([&](const auto& selected) {
-          return &selected.get() == &*type;
+          return selected == &*type;
         })) {
       continue;
     }
-    roots.insert(*type);
+    roots.insert(&*type);
     if (!node.route.is_empty()) {
       bindings.insert(
           Tetrodotoxin::Terminal::Abi::Unit::TypeBinding(
@@ -347,11 +371,8 @@ auto Tetrodotoxin::Terminal::Abi::Compiler::compile(
     Ttx::Lexical::Errors& errors,
     Core::View::Bytes source_path,
     Core::View::Bytes source_text,
-    Core::View::Vector<
-        Ttx::Concept::Reference<const Library::Language::Model::Type>> roots,
-    Core::View::Vector<
-        Ttx::Concept::Reference<const Library::Language::Model::Callable>>
-        excluded,
+    Core::View::Vector<const Library::Language::Model::Type*> roots,
+    Core::View::Vector<const Library::Language::Model::Callable*> excluded,
     Core::View::Vector<Tetrodotoxin::Terminal::Abi::Projection> projections)
     const -> Core::Option<Tetrodotoxin::Terminal::Abi::Products> {
   Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Export> exports(arena);
@@ -364,11 +385,10 @@ auto Tetrodotoxin::Terminal::Abi::Compiler::compile(
       return {};
     }
   } else {
-    for (const Ttx::Concept::Reference<const Library::Language::Model::Type>&
-             root : roots) {
+    for (const Library::Language::Model::Type* root : roots) {
       if (!collect_type(
-              arena, unit, root.get(), exports, publications, errors,
-              source_path, source_text, excluded)) {
+              arena, unit, *root, exports, publications, errors, source_path,
+              source_text, excluded)) {
         return {};
       }
     }

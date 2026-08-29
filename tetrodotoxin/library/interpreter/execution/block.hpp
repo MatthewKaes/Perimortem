@@ -7,8 +7,7 @@
 
 #include "tetrodotoxin/library/interpreter/execution/statement_parser.hpp"
 #include "tetrodotoxin/library/language/flow/block.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Interpreter::Execution {
@@ -25,8 +24,8 @@ class Block {
       const Ttx::Concept::Abstract& lexical_context,
       Language::Model::Callable& function,
       const Language::Model::Type& access_scope,
-      Perimortem::Core::Option<Ttx::Concept::Reference<
-          const Ttx::Concept::Abstract>> enclosing_loop = {},
+      Perimortem::Core::Option<const Ttx::Concept::Abstract*> enclosing_loop =
+          {},
       Perimortem::Core::Option<const StatementParser&> extension = {})
       -> Perimortem::Core::Option<Language::Flow::Block&>;
 };

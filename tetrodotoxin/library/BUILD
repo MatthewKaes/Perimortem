@@ -12,19 +12,21 @@ package(default_visibility = ["//visibility:public"])
 cc_library(
     name = "language",
     srcs = glob([
+        "language/**/*.c",
         "builtin/**/*.cpp",
         "language/**/*.cpp",
     ]),
     hdrs = glob([
+        "language/**/*.h",
         "builtin/**/*.hpp",
         "language/**/*.hpp",
     ]),
     deps = [
         "//perimortem:headless",
         "//tetrodotoxin/language",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
-        "//ttx:model",
+        "//ttx:bootstrap_model",
     ],
 )
 
@@ -40,9 +42,9 @@ cc_library(
         ":language",
         "//perimortem:headless",
         "//tetrodotoxin/language",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
-        "//ttx:model",
+        "//ttx:bootstrap_model",
     ],
 )
 
@@ -58,9 +60,9 @@ cc_library(
         ":language",
         "//perimortem:headless",
         "//tetrodotoxin/language",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
-        "//ttx:model",
+        "//ttx:bootstrap_model",
     ],
 )
 
@@ -74,8 +76,8 @@ cc_library(
         ":language",
         "//perimortem:headless",
         "//tetrodotoxin/language",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
-        "//ttx:model",
+        "//ttx:bootstrap_model",
     ],
 )

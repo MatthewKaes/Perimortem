@@ -4,9 +4,8 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/model/documentations/comment.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -21,7 +20,7 @@ class Implementation : public Model::Type {
   constexpr Implementation(
       Perimortem::Core::View::Bytes name,
       const Ttx::Model::Type& requirement)
-      : name(name), requirement(requirement) {}
+      : name(name), requirement(&requirement) {}
 
   TTX_NAME(name);
   TTX_DOCUMENTATION(documentation);
@@ -37,12 +36,12 @@ class Implementation : public Model::Type {
       -> const Ttx::Concept::Abstract& override;
 
   constexpr auto get_requirement() const -> const Ttx::Model::Type& {
-    return requirement.get();
+    return *requirement;
   }
 
  private:
   Perimortem::Core::View::Bytes name;
-  Ttx::Concept::Reference<const Ttx::Model::Type> requirement;
+  const Ttx::Model::Type* requirement;
   static constexpr Ttx::Model::Documentations::Comment documentation{
     "Carries one accepted Object with its target Projection."_view,
   };

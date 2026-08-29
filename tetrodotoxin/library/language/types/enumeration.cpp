@@ -16,7 +16,7 @@
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Perimortem::Core;
@@ -169,7 +169,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::retain_restored_case(
   const Abstract& constant =
       Constants::Enumeration::create_synthetic(domain, *this, value);
   cases.insert(
-      domain.construct<Ttx::Model::Alias>(name, constant, documentation));
+      &domain.construct<Ttx::Model::Alias>(name, constant, documentation));
   return True;
 }
 
@@ -209,10 +209,9 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::link_types(
       domain, Builtin::Enum::Name::create(domain, *this, *name_type), True);
   auto& size = Builtin::Enum::Size::create(
       domain, *unsigned_count, source_cases.get_size());
-  generated_size = Option<Reference<const Model::Addressable>>(
-      Reference<const Model::Addressable>(size));
+  generated_size = Option<const Model::Addressable*>(&size);
 
-  storage_type = Reference<const Model::Type>(*selected_type);
+  storage_type = &*selected_type;
   stage = Stage::StorageLinked;
   // Cases are immutable Type members whose literal storage is already known at
   // this barrier. Publishing them here lets Function bodies use the exact Alias
@@ -243,8 +242,8 @@ auto Types::Enumeration::link_restored_types() -> Bool {
       domain, Builtin::Enum::Name::create(domain, *this, *name_type), True);
   auto& size = Builtin::Enum::Size::create(
       domain, *unsigned_count, source_cases.get_size());
-  generated_size = Reference<const Model::Addressable>(size);
-  storage_type = Reference<const Model::Type>(*selected_type);
+  generated_size = &size;
+  storage_type = &*selected_type;
   stage = Stage::Finalized;
   return True;
 }
@@ -268,7 +267,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize(
     return False;
   }
 
-  const Model::Type& type = storage_type->get();
+  const Model::Type& type = **storage_type;
   Count storage_size =
       type.visit<Tetrodotoxin::Library::Language::Model::Types::Signed>(
           [](const Tetrodotoxin::Library::Language::Model::Types::Signed&
@@ -362,7 +361,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize(
         domain, *this, representation, source_case.value_anchor);
     const Ttx::Model::Alias& alias = domain.construct<Ttx::Model::Alias>(
         source_case.name, constant, source_case.documentation);
-    cases.insert(alias);
+    cases.insert(&alias);
   }
 
   stage = Stage::Finalized;
@@ -393,14 +392,14 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::resolve_concept(
 
   auto case_view = cases.get_view();
   for (Count i = 0; i < cases.get_size(); i++) {
-    const Ttx::Model::Alias& alias = case_view.get_data()[i].get();
+    const Ttx::Model::Alias& alias = *case_view.get_data()[i];
     if (alias.get_name() == route) {
       return alias;
     }
   }
 
-  if (generated_size && generated_size->get().get_name() == route) {
-    return generated_size->get();
+  if (generated_size && (*generated_size)->get_name() == route) {
+    return **generated_size;
   }
 
   return None::get_none();
@@ -416,12 +415,13 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::get_storage_type()
     const -> Option<const Model::Type&> {
   return storage_type.visit(
       []() -> Option<const Model::Type&> { return {}; },
-      [](const Reference<const Model::Type>& selected)
-          -> Option<const Model::Type&> { return selected.get(); });
+      [](const Model::Type* selected) -> Option<const Model::Type&> {
+        return *selected;
+      });
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_cases() const
-    -> Core::View::Vector<Reference<const Ttx::Model::Alias>> {
+    -> Core::View::Vector<const Ttx::Model::Alias*> {
   return cases;
 }
 
@@ -433,8 +433,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_value(
 
   auto value = cases.get_view()
                    .get_data()[index]
-                   .get()
-                   .resolve()
+                   ->resolve()
                    .select<Constants::Enumeration>();
   return value ? Option<U64>(value->get_value()) : Option<U64>();
 }
@@ -442,7 +441,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_value(
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_case_name(
     Count index) const -> Core::View::Bytes {
   return index < cases.get_size()
-             ? cases.get_view().get_data()[index].get().get_name()
+             ? cases.get_view().get_data()[index]->get_name()
              : Core::View::Bytes();
 }
 
@@ -473,7 +472,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::accepts_iteration(
   }
 
   if (bindings.get_size() != 2 || !storage_type ||
-      &value->get_type().resolve() != &storage_type->get().resolve()) {
+      &value->get_type().resolve() != &(**storage_type).resolve()) {
     return False;
   }
 

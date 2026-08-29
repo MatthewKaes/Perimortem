@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "perimortem/core/static/union.hpp"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
@@ -13,12 +12,12 @@
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/layout.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/layout.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/ranged.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/anchor.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/ranged.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
@@ -70,14 +69,14 @@ class Expression : public Ttx::Concept::Abstract, public Model::Pack {
 
   TTX_CONTRACT(Expression, Ttx::Concept::Abstract);
 
-  // Authored meaning and immutable evaluation are separate concepts. Access
-  // operators still own receiver traversal and never use this as an implicit
-  // member lookup path.
+  // Authored meaning is the only concept shared by every Expression. A
+  // concrete computational owner may independently answer the ordinary
+  // "fold" question; Expression does not define or cache that protocol.
   auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   // The result is the exact semantic object produced by this node. Ordinary
   // value Expressions produce themselves. Access nodes override this only
@@ -120,9 +119,8 @@ class Expression : public Ttx::Concept::Abstract, public Model::Pack {
 
   auto is_complete() const -> Bool override { return &resolve() == this; }
 
-  // Expression finalization preserves this exact node and only computes its
-  // optional Constant representation. Grouped Packs override the same Library
-  // lifecycle by visiting their real child producers in source order.
+  // Expression finalization preserves this exact node. Graph questions remain
+  // live and are never converted into finalization state.
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
   // Write target lowering evaluates only the receiver and selector facts needed
@@ -142,18 +140,6 @@ class Expression : public Ttx::Concept::Abstract, public Model::Pack {
       const Ttx::Concept::Abstract& lexical_context,
       Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope = {})
       -> Bool override;
-
-  // Folding is a cached result of this exact Expression. The source node
-  // and every authored edge remain available regardless of the selected
-  // constant Pack, dynamic result, or failure.
-  auto fold() -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Model::Pack&>, Error>;
-
-  static auto fold(Model::Pack& pack) -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Model::Pack&>, Error>;
-
-  auto get_folded() -> Perimortem::Core::Option<Model::Pack&>;
-  auto get_folded() const -> Perimortem::Core::Option<const Model::Pack&>;
 
   constexpr auto get_anchor() const
       -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
@@ -205,10 +191,6 @@ class Expression : public Ttx::Concept::Abstract, public Model::Pack {
       Model::Pack& source) -> Bool;
 
  protected:
-  // A completed fold lowers its retained Pack once and aliases this authored
-  // Expression to the resulting target values. Absence keeps lowering on the
-  // concrete Expression owner.
-
   // Concrete owners supply the builder because only their factory may use the
   // private constructor. The optional Anchor records whether source authored
   // the node while Arena begins its lifetime once at the final address.
@@ -244,13 +226,6 @@ class Expression : public Ttx::Concept::Abstract, public Model::Pack {
   auto operator=(const Expression&) -> Expression& = delete;
   auto operator=(Expression&&) -> Expression& = delete;
 
-  // Evaluation attempts to expose one immutable Pack. Absence means the value
-  // remains dynamic, while Error records a semantic failure. The default
-  // follows a selected const declaration and computational owners override
-  // their fold.
-  virtual auto evaluate() -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Model::Pack&>, Error>;
-
   // Ordinary writable Expressions link through their value path. A
   // reference only owner such as Index overrides this hook to establish its
   // target facts without admitting an ordinary read.
@@ -273,7 +248,6 @@ class Expression : public Ttx::Concept::Abstract, public Model::Pack {
  private:
   Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor;
   Ttx::Model::Layouts::Ranged output_layout;
-  Perimortem::Core::Static::Union<Model::Pack&, Error> folded;
 };
 
 static_assert(__is_trivially_destructible(Expression::Error));

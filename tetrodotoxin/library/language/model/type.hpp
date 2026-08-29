@@ -15,10 +15,9 @@
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/types/instance.hpp"
 #include "tetrodotoxin/library/language/types/static.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model {
 
@@ -28,8 +27,8 @@ namespace Tetrodotoxin::Library::Language::Model {
 // Abstract.
 class Type : public Ttx::Model::Type {
  public:
-  using CallableBindings = Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>;
+  using CallableBindings =
+      Perimortem::Core::View::Vector<Ttx::Concept::Abstract*>;
   using Callables = Perimortem::Core::View::Selection<CallableBindings>;
 
   TTX_CONTRACT(Type, Ttx::Model::Type);
@@ -37,8 +36,8 @@ class Type : public Ttx::Model::Type {
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   // Every completed nonempty Library Type owns one total semantic default.
   // The Arena is only the destination for the resulting Pack. Representation
@@ -58,14 +57,6 @@ class Type : public Ttx::Model::Type {
   virtual constexpr auto get_propagated_error_type() const
       -> Perimortem::Core::Option<const Type&> {
     return {};
-  }
-
-  // Folding preserves the same split. A selected Pack continues locally,
-  // absence takes the escape edge, and failure reports an incompatible Constant
-  // representation to the owning Expression.
-  virtual auto fold_propagation(Pack&) const
-      -> Perimortem::Utility::Result<Perimortem::Core::Option<Pack&>, Bool> {
-    return False;
   }
 
   // A value edge requires only the physical carrier closure. Declaration
@@ -228,15 +219,13 @@ class Type : public Ttx::Model::Type {
   auto initialize_authorities(Perimortem::Memory::Allocator::Arena& domain)
       -> void;
 
-  Perimortem::Core::Option<Ttx::Concept::Reference<Types::Static>>
-      static_authority;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Types::Instance>>
-      instance_authority;
-  Perimortem::Core::Option<Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>>
+  Perimortem::Core::Option<Types::Static*> static_authority;
+  Perimortem::Core::Option<Types::Instance*> instance_authority;
+  Perimortem::Core::Option<
+      Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*>>
       callables;
-  Perimortem::Core::Option<Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<Ttx::Concept::Abstract>>>
+  Perimortem::Core::Option<
+      Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*>>
       published_callables;
 };
 

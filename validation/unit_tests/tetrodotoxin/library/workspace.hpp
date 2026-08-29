@@ -8,6 +8,7 @@
 #include "tetrodotoxin/environment/toolchain.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 
 namespace Validation {
@@ -33,6 +34,13 @@ inline auto retains_library_source(
     Perimortem::Core::View::Bytes semantic_name) -> Bool {
   return workspace.resolve_concept(semantic_name)
       .is<Tetrodotoxin::Library::Language::Monograph>();
+}
+
+inline auto folded_pack(const Ttx::Concept::Abstract& source)
+    -> Perimortem::Core::Option<Tetrodotoxin::Library::Language::Model::Pack&> {
+  const Ttx::Concept::Abstract& answer = source.resolve_concept("fold"_view);
+  return Tetrodotoxin::Library::Language::Model::Pack::from(
+      const_cast<Ttx::Concept::Abstract&>(answer));
 }
 
 }  // namespace Validation

@@ -10,9 +10,9 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/documentation.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/documentation.hpp"
+#include "ttx/concept/pack.h"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -42,16 +42,14 @@ class Dialect : public Ttx::Concept::Abstract {
       -> Perimortem::Core::Option<Monograph&> = 0;
 
   static auto find_installed(
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Dialect>>
-          installed,
+      Perimortem::Core::View::Vector<Dialect*> installed,
       Perimortem::Core::View::Bytes name) -> Perimortem::Core::Option<Dialect&>;
 
   // Every Tetrodotoxin source begins with the same documentation and Dialect
   // envelope. Reading it here gives the selected language one consistent entry
   // point and one Monograph result.
   static auto interpret_source(
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Dialect>>
-          installed,
+      Perimortem::Core::View::Vector<Dialect*> installed,
       Ttx::Lexical::Cursor& cursor,
       Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
 
@@ -75,8 +73,7 @@ class Dialect : public Ttx::Concept::Abstract {
   virtual auto produce(
       Perimortem::Memory::Allocator::Arena& arena,
       const Ttx::Concept::Abstract& graph,
-      const Monograph& monograph) const
-      -> Perimortem::Core::Option<const Ttx::Concept::Pack&>;
+      const Monograph& monograph) const -> const ttx_pack*;
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return name;

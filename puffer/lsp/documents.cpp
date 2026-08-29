@@ -10,7 +10,6 @@
 #include "perimortem/system/path.hpp"
 #include "perimortem/system/version.hpp"
 
-#include "puffer/dependencies.hpp"
 #include "tetrodotoxin/app/dialect.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/language/dialect.hpp"
@@ -22,8 +21,8 @@
 #include "tetrodotoxin/render/dialect.hpp"
 #include "tetrodotoxin/scene/dialect.hpp"
 #include "tetrodotoxin/shader/dialect.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/errors.hpp"
@@ -343,16 +342,9 @@ auto Lsp::Documents::create_workspace(Document& document)
 
   auto session = select_session(document);
   if (session) {
-    Allocator::Arena discovery;
-    Dependencies dependencies(discovery, repository, {});
-    dependencies.discover(
-        toolchain, document.package_root.get_view(), "puffer.package"_view,
-        "package.ttx"_view, snapshots);
-
     session->errors = Dynamic::Record<Ttx::Lexical::Errors>();
-    session->workspace =
-        Dynamic::Record<Environment::Workspace>(toolchain, snapshots);
-    dependencies.restore(**session->workspace);
+    session->workspace = Dynamic::Record<Environment::Workspace>(
+        toolchain, snapshots, &repository);
     (*session->workspace)
         ->import_package(
             **session->errors, document.package_root.get_view(),
@@ -558,8 +550,10 @@ auto Lsp::Documents::find_acquired_definition(
   const Ttx::Concept::Abstract* acquired = &semantic;
   const Ttx::Concept::Abstract& resource =
       semantic.resolve_concept("resource"_view);
-  if (!resource.is<Ttx::Concept::None>() &&
-      !resource.is<Ttx::Concept::Unknown>()) {
+  ttx_none_view none;
+  ttx_unknown_view unknown;
+  if (!ttx_none_prove(resource.get_abi(), &none) &&
+      !ttx_unknown_prove(resource.get_abi(), &unknown)) {
     acquired = &resource;
   }
 

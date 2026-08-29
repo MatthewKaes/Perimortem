@@ -5,11 +5,10 @@
 
 #include "perimortem/core/option.hpp"
 
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/callable.hpp"
 
 namespace Tetrodotoxin::App::Language {
 
@@ -52,9 +51,9 @@ class Program : public Ttx::Concept::Abstract {
 
   constexpr auto get_entry() const
       -> Perimortem::Core::Option<const Ttx::Model::Callable&> {
-    return entry ? Perimortem::Core::Option<const Ttx::Model::Callable&>(
-                       entry->get())
-                 : Perimortem::Core::Option<const Ttx::Model::Callable&>();
+    return entry
+               ? Perimortem::Core::Option<const Ttx::Model::Callable&>(**entry)
+               : Perimortem::Core::Option<const Ttx::Model::Callable&>();
   }
 
   auto resolve_concept(Perimortem::Core::View::Bytes) const
@@ -78,8 +77,7 @@ class Program : public Ttx::Concept::Abstract {
   Perimortem::Core::View::Bytes callable_name;
   Ttx::Lexical::Anchor anchor;
   Ttx::Lexical::Anchor selection_anchor;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Callable>>
-      entry;
+  Perimortem::Core::Option<const Ttx::Model::Callable*> entry;
 };
 
 }  // namespace Tetrodotoxin::App::Language

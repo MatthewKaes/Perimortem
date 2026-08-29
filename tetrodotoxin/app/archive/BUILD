@@ -16,6 +16,6 @@ cc_library(
         "//tetrodotoxin/app/language",
         "//tetrodotoxin/language",
         "//tetrodotoxin/scene/language",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
     ],
 )

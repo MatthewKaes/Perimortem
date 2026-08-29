@@ -14,9 +14,9 @@
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/termination.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/termination.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -30,15 +30,14 @@ using Tetrodotoxin::Language::Visibility;
 static constexpr Ttx::Model::Layouts::Named empty_layout;
 
 template <typename selected_type, typename visitor_type>
-static auto visit_each(
-    View::Vector<Reference<Abstract>> bindings,
-    visitor_type visitor) -> Bool {
+static auto visit_each(View::Vector<Abstract*> bindings, visitor_type visitor)
+    -> Bool {
   // A category may retain an opaque Alias before its target closes. Only an
   // exact local contract receives this lifecycle step because the target owner
   // remains responsible for completing its own graph.
   Bool failed = False;
-  for (const Reference<Abstract>& binding : bindings) {
-    auto selected = binding.get().select<selected_type>();
+  for (Abstract* binding : bindings) {
+    auto selected = binding->select<selected_type>();
     if (selected) {
       failed |= !visitor(*selected);
     }
@@ -48,11 +47,10 @@ static auto visit_each(
 }
 
 template <typename selected_type>
-static auto select_next(
-    View::Vector<Reference<Abstract>> bindings,
-    Count& index) -> Option<const selected_type&> {
+static auto select_next(View::Vector<Abstract*> bindings, Count& index)
+    -> Option<const selected_type&> {
   while (index < bindings.get_size()) {
-    auto selected = bindings.get_data()[index].get().select<selected_type>();
+    auto selected = bindings.get_data()[index]->select<selected_type>();
     if (selected) {
       return *selected;
     }
@@ -205,18 +203,18 @@ auto Types::Composite::publish_binding(
   switch (category) {
   case Category::Addressable:
     if (prepend) {
-      addressables.prepend(binding);
+      addressables.prepend(&binding);
     } else {
-      addressables.insert(binding);
+      addressables.insert(&binding);
     }
     if (persistent) {
-      declarations.insert(binding);
+      declarations.insert(&binding);
     }
     if (published) {
       if (prepend) {
-        published_addressables.prepend(binding);
+        published_addressables.prepend(&binding);
       } else {
-        published_addressables.insert(binding);
+        published_addressables.insert(&binding);
       }
     }
     return True;
@@ -224,17 +222,17 @@ auto Types::Composite::publish_binding(
     BAIL_IF(prepend);
     publish_callable(domain, binding, published);
     if (persistent) {
-      declarations.insert(binding);
+      declarations.insert(&binding);
     }
     return True;
   case Category::Type:
     BAIL_IF(prepend);
-    types.insert(binding);
+    types.insert(&binding);
     if (persistent) {
-      declarations.insert(binding);
+      declarations.insert(&binding);
     }
     if (published) {
-      published_types.insert(binding);
+      published_types.insert(&binding);
     }
     return True;
   }
@@ -249,13 +247,13 @@ auto Types::Composite::is_published(const Abstract& declaration) const -> Bool {
 
 auto Types::Composite::link_aliases() -> Count {
   Count linked = 0;
-  for (const Reference<Abstract>& binding : types.get_view()) {
-    auto alias = binding.get().select<Alias>();
+  for (Abstract* binding : types.get_view()) {
+    auto alias = binding->select<Alias>();
     if (alias && !alias->is_linked() && alias->link()) {
       linked++;
     }
 
-    auto type = binding.get().select<Model::Type>();
+    auto type = binding->select<Model::Type>();
     if (type) {
       linked += type->link_aliases();
     }
@@ -265,14 +263,14 @@ auto Types::Composite::link_aliases() -> Count {
 
 auto Types::Composite::validate_aliases(Cursor& cursor) const -> Bool {
   Bool valid = True;
-  for (const Reference<Abstract>& binding : types.get_view()) {
-    auto alias = binding.get().select<Alias>();
+  for (Abstract* binding : types.get_view()) {
+    auto alias = binding->select<Alias>();
     if (alias && !alias->is_linked()) {
       alias->report_unresolved(cursor);
       valid = False;
     }
 
-    auto type = binding.get().select<Model::Type>();
+    auto type = binding->select<Model::Type>();
     if (type && !type->validate_aliases(cursor)) {
       valid = False;
     }
@@ -345,8 +343,8 @@ auto Types::Composite::link_fields(Cursor& cursor) -> Bool {
 
 auto Types::Composite::validate_layout(Cursor& cursor) const -> Bool {
   Bool valid = True;
-  for (const Reference<Abstract>& binding : types.get_view()) {
-    auto type = binding.get().select<Model::Type>();
+  for (Abstract* binding : types.get_view()) {
+    auto type = binding->select<Model::Type>();
     if (type && !type->validate_layout(cursor)) {
       valid = False;
     }
@@ -368,8 +366,8 @@ auto Types::Composite::validate_layout(Cursor& cursor) const -> Bool {
 }
 
 auto Types::Composite::validate_layout_restored() const -> Bool {
-  for (const Reference<Abstract>& binding : types.get_view()) {
-    auto composite = binding.get().select<Composite>();
+  for (Abstract* binding : types.get_view()) {
+    auto composite = binding->select<Composite>();
     BAIL_IF(composite && !composite->validate_layout_restored());
   }
 
@@ -379,12 +377,12 @@ auto Types::Composite::validate_layout_restored() const -> Bool {
 }
 
 auto Types::Composite::complete_field_layout() -> void {
-  Managed::Vector<Reference<const Abstract>> fields(domain);
+  Managed::Vector<const Abstract*> fields(domain);
   fields.reset(addressables.get_size());
-  for (const Reference<Abstract>& binding : addressables.get_view()) {
-    auto addressable = binding.get().select<Model::Addressable>();
+  for (Abstract* binding : addressables.get_view()) {
+    auto addressable = binding->select<Model::Addressable>();
     if (addressable && addressable->contributes_to_instance_layout()) {
-      fields.insert(*addressable);
+      fields.insert(&*addressable);
     }
   }
   layout = domain.construct<Ttx::Model::Layouts::Named>(fields.get_view());
@@ -524,8 +522,8 @@ auto Types::Composite::link_restored_types() -> Bool {
 
   while (link_aliases() != 0) {
   }
-  for (const Reference<Abstract>& binding : types.get_view()) {
-    auto alias = binding.get().select<Language::Alias>();
+  for (Abstract* binding : types.get_view()) {
+    auto alias = binding->select<Language::Alias>();
     BAIL_IF(alias && !alias->is_linked());
   }
   BAIL_IF(!visit_each<Model::Type>(types.get_view(), [](Model::Type& type) {
@@ -579,8 +577,8 @@ auto Types::Composite::link_restored_initializers() -> Bool {
   }
   BAIL_IF(stage != Stage::FieldsLinked);
 
-  for (const Reference<Abstract>& binding : types.get_view()) {
-    auto type = binding.get().select<Model::Type>();
+  for (Abstract* binding : types.get_view()) {
+    auto type = binding->select<Model::Type>();
     if (type && !type->link_restored_initializers()) {
       Diagnostics::Log::Message<256> message(Diagnostics::Log::Level::Error);
       message << "Restored Type initializer closure failed for '"_view
@@ -589,8 +587,8 @@ auto Types::Composite::link_restored_initializers() -> Bool {
     }
   }
 
-  for (const Reference<Abstract>& binding : addressables.get_view()) {
-    auto addressable = binding.get().select<Model::Addressable>();
+  for (Abstract* binding : addressables.get_view()) {
+    auto addressable = binding->select<Model::Addressable>();
     if (addressable && !addressable->link_restored_declaration_initializer()) {
       Diagnostics::Log::Message<256> message(Diagnostics::Log::Level::Error);
       message << "Restored Addressable initializer failed for '"_view
@@ -666,19 +664,10 @@ auto Types::Composite::resolve_concept(View::Bytes route) const
              : get_host().resolve_concept(route);
 }
 
-auto Types::Composite::get_concepts(Context& context) const -> const Pack& {
-  const Perimortem::Core::Static::Vector<Reference<const Abstract>, 2>
-      concepts = {{
-        static_authority,
-        instance_authority,
-      }};
-  const Perimortem::Core::Static::Vector<View::Bytes, 2> names = {{
-    "static"_view,
-    "instance"_view,
-  }};
-  Ttx::Model::Layouts::Fluid values(concepts);
-  Ttx::Model::Layouts::Named named(values, names);
-  return context.pack(named);
+auto Types::Composite::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  visit_concept(visitor, "static"_view, static_authority);
+  visit_concept(visitor, "instance"_view, instance_authority);
 }
 
 auto Types::Composite::resolve_public_context(View::Bytes route) const

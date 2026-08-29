@@ -63,6 +63,13 @@ available later, once a concrete product has chosen a representation domain.
 > **Pull upward every fact that is target neutral and genuinely shared, while
 > leaving richer meaning with its concrete owner.**
 
+The shared boundary is deliberately implementable in C. This is more than an
+ABI convenience: a contract that needs C++ inheritance, templates, RTTI, or an
+erased context pointer is probably carrying host implementation policy instead
+of shared meaning. Typed handles, immutable operation tables, and synchronous
+Callable visitation keep TTX available to self hosted Dialects without building
+a second object system beside the graph.
+
 ## Identity is the integration boundary
 
 Consider a Library Type reached through a Package Alias. Navigation needs its
@@ -181,7 +188,7 @@ none replaces it as the source of meaning.
 Most language platforms specialize in one direction. One language may target
 many machines, or many frontends may normalize into one compiler IR.
 Tetrodotoxin is interested in the larger product around them: several semantic
-domains, several purpose-built languages, one linked understanding, and many
+domains, several purpose-built languages, one shared understanding, and many
 independent outputs.
 
 That shape makes a new DSL more than a parser attached to the edge of an

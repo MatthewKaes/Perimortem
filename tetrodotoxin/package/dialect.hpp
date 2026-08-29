@@ -33,7 +33,7 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
       Perimortem::Memory::Allocator::Arena& arena,
       const Ttx::Concept::Abstract& graph,
       const Tetrodotoxin::Language::Monograph& monograph) const
-      -> Perimortem::Core::Option<const Ttx::Concept::Pack&> override;
+      -> const ttx_pack* override;
 
   constexpr auto get_library() const -> Tetrodotoxin::Library::Dialect& {
     return library;

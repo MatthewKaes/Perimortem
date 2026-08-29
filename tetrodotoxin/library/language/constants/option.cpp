@@ -4,6 +4,8 @@
 #include "tetrodotoxin/library/language/constants/option.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -34,7 +36,7 @@ Constants::Option::Option(
     Memory::Allocator::Arena& domain,
     const Types::Option& type,
     Types::Option::Kind kind,
-    Core::Option<Ttx::Model::PackReference<Model::Pack>> payload,
+    Core::Option<Model::Pack*> payload,
     Core::Option<Ttx::Lexical::Anchor> anchor)
     : Constant(anchor),
       type(type),
@@ -44,7 +46,7 @@ Constants::Option::Option(
           domain,
           kind == Types::Option::Kind::Absent ? "none"_view : "some"_view) {
   if (kind == Types::Option::Kind::Present) {
-    append_pack(name, payload->get());
+    append_pack(name, **payload);
   }
 }
 
@@ -68,9 +70,7 @@ auto Constants::Option::create_present(
   }
 
   return Constant::create_synthetic<Option>(domain, [&](auto source) -> Option {
-    return Option(
-        domain, type, Types::Option::Kind::Present,
-        Ttx::Model::PackReference<Model::Pack>(payload), source);
+    return Option(domain, type, Types::Option::Kind::Present, &payload, source);
   });
 }
 
@@ -88,10 +88,7 @@ auto Constants::Option::create_fitted(
 
   Model::Pack* payload = &source;
   if (!source.select_identity<Constant>()) {
-    Core::Option<Model::Pack&> folded;
-    Expression::fold(source).visit(
-        [&](const Core::Option<Model::Pack&>& selected) { folded = selected; },
-        [](const Expression::Error&) {});
+    auto folded = query_folded_pack(source);
     BAIL_IF(!folded);
     payload = &*folded;
   }
@@ -108,8 +105,26 @@ auto Constants::Option::get_payload() const
     -> Core::Option<const Model::Pack&> {
   return payload.visit(
       []() -> Core::Option<const Model::Pack&> { return {}; },
-      [](const Ttx::Model::PackReference<Model::Pack>& selected)
-          -> Core::Option<const Model::Pack&> { return selected.get(); });
+      [](Model::Pack* selected) -> Core::Option<const Model::Pack&> {
+        return *selected;
+      });
+}
+
+auto Constants::Option::resolve_concept(Core::View::Bytes name) const
+    -> const Ttx::Concept::Abstract& {
+  if (name != "propagate"_view) {
+    return Constant::resolve_concept(name);
+  }
+  auto selected = get_payload();
+  return selected ? query_fold(*selected)
+                  : static_cast<const Ttx::Concept::Abstract&>(
+                        Ttx::Concept::None::get_none());
+}
+
+auto Constants::Option::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Constant::visit_concepts(visitor);
+  visit_concept(visitor, "propagate"_view, resolve_concept("propagate"_view));
 }
 
 auto Constants::Option::equals(const Constant& rhs) const -> Bool {

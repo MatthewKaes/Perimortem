@@ -9,12 +9,11 @@
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
-#include "ttx/concept/layout.hpp"
+#include "ttx/bootstrap/concept/layout.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/anchor.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/pack.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Emission {
 
@@ -61,10 +60,10 @@ class Storage {
         LLVMValueRef data,
         LLVMValueRef length,
         LLVMValueRef first)
-        : element(element), data(data), length(length), first(first) {}
+        : element(&element), data(data), length(length), first(first) {}
 
     constexpr auto get_element() const -> const Ttx::Model::Type& {
-      return element.get();
+      return *element;
     }
 
     constexpr auto get_data() const -> LLVMValueRef { return data; }
@@ -74,7 +73,7 @@ class Storage {
     constexpr auto get_first() const -> LLVMValueRef { return first; }
 
    private:
-    Ttx::Concept::Reference<const Ttx::Model::Type> element;
+    const Ttx::Model::Type* element;
     LLVMValueRef data;
     LLVMValueRef length;
     LLVMValueRef first;

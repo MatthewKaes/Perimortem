@@ -13,11 +13,9 @@
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/emission.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/pack.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Module {
 
@@ -31,14 +29,14 @@ class Functions {
         Perimortem::Core::Option<LLVMValueRef> sret,
         Perimortem::Core::Option<LLVMTypeRef> sret_type)
         : function(function),
-          callable(callable),
+          callable(&callable),
           sret(sret),
           sret_type(sret_type) {}
 
     constexpr auto get_function() const -> LLVMValueRef { return function; }
 
     constexpr auto get_callable() const -> const Ttx::Model::Callable& {
-      return callable.get();
+      return *callable;
     }
 
     constexpr auto get_sret() const -> Perimortem::Core::Option<LLVMValueRef> {
@@ -52,7 +50,7 @@ class Functions {
 
    private:
     LLVMValueRef function;
-    Ttx::Concept::Reference<const Ttx::Model::Callable> callable;
+    const Ttx::Model::Callable* callable;
     Perimortem::Core::Option<LLVMValueRef> sret;
     Perimortem::Core::Option<LLVMTypeRef> sret_type;
   };
@@ -67,24 +65,22 @@ class Functions {
         const Ttx::Model::Addressable& field,
         const Tetrodotoxin::Library::Language::Model::Pack& fallback,
         Bool parameter)
-        : field(field), fallback(fallback), parameter(parameter) {}
+        : field(&field), fallback(&fallback), parameter(parameter) {}
 
     constexpr auto get_field() const -> const Ttx::Model::Addressable& {
-      return field.get();
+      return *field;
     }
 
     constexpr auto get_fallback() const
         -> const Tetrodotoxin::Library::Language::Model::Pack& {
-      return fallback.get();
+      return *fallback;
     }
 
     constexpr auto is_parameter() const -> Bool { return parameter; }
 
    private:
-    Ttx::Concept::Reference<const Ttx::Model::Addressable> field;
-    Ttx::Model::PackReference<
-        const Tetrodotoxin::Library::Language::Model::Pack>
-        fallback;
+    const Ttx::Model::Addressable* field;
+    const Tetrodotoxin::Library::Language::Model::Pack* fallback;
     Bool parameter;
   };
 
@@ -105,8 +101,7 @@ class Functions {
       Emission& program,
       const Ttx::Model::Type& owner,
       Bool provider,
-      Perimortem::Core::View::Vector<
-          Ttx::Concept::Reference<const Ttx::Model::Addressable>> parameters)
+      Perimortem::Core::View::Vector<const Ttx::Model::Addressable*> parameters)
       const -> Bool;
 
   auto complete_construction(Emission& program, const Ttx::Model::Type& owner)
@@ -166,8 +161,8 @@ class Functions {
   auto get_indirect_parameters(const Ttx::Model::Callable& callable) const
       -> Perimortem::Core::View::Vector<Bool>;
 
-  auto get_foreign_callables() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Callable>>;
+  auto get_foreign_callables() const
+      -> Perimortem::Core::View::Vector<const Ttx::Model::Callable*>;
 
  private:
   enum class Kind : U8 {
@@ -210,8 +205,7 @@ class Functions {
     Perimortem::Core::View::Bytes symbol;
     Perimortem::Core::Option<LLVMValueRef> function;
     Perimortem::Core::Option<LLVMTypeRef> sret_type;
-    Perimortem::Memory::Dynamic::Vector<
-        Ttx::Concept::Reference<const Ttx::Model::Addressable>>
+    Perimortem::Memory::Dynamic::Vector<const Ttx::Model::Addressable*>
         parameters;
     Perimortem::Memory::Dynamic::Vector<Bool> indirect_parameters;
   };
@@ -226,8 +220,7 @@ class Functions {
   mutable Perimortem::Memory::Dynamic::
       Map<const Ttx::Model::Type*, ConstructionRecord>
           constructions;
-  mutable Perimortem::Memory::Dynamic::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Callable>>
+  mutable Perimortem::Memory::Dynamic::Vector<const Ttx::Model::Callable*>
       foreign_callables;
 };
 

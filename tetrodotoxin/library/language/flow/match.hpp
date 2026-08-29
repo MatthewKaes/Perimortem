@@ -12,8 +12,7 @@
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -37,30 +36,29 @@ class Match : public Ttx::Concept::Abstract {
     constexpr Pattern(
         Ttx::Concept::Abstract& context,
         Model::Addressable& payload)
-        : context(context), payload(payload) {}
+        : context(&context), payload(&payload) {}
 
     constexpr auto get_context() const -> Ttx::Concept::Abstract& {
-      return context.get();
+      return *context;
     }
 
     constexpr auto get_payload() const -> Model::Addressable& {
-      return payload.get();
+      return *payload;
     }
 
    private:
-    Ttx::Concept::Reference<Ttx::Concept::Abstract> context;
-    Ttx::Concept::Reference<Model::Addressable> payload;
+    Ttx::Concept::Abstract* context;
+    Model::Addressable* payload;
   };
 
  private:
   struct Case {
     CaseKind kind;
-    Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>> value;
-    Ttx::Concept::Reference<Block> body;
-    Perimortem::Core::Option<Ttx::Concept::Reference<Model::Addressable>>
-        payload;
+    Perimortem::Core::Option<Model::Pack*> value;
+    Block* body;
+    Perimortem::Core::Option<Model::Addressable*> payload;
     Ttx::Lexical::Anchor anchor;
-    Perimortem::Core::Option<Ttx::Concept::Reference<const Constant>> constant;
+    Perimortem::Core::Option<const Constant*> constant;
   };
 
  public:
@@ -108,7 +106,7 @@ class Match : public Ttx::Concept::Abstract {
   TTX_NAME("Match"_view);
   TTX_EMPTY_DOCUMENTATION();
 
-  constexpr auto get_input() const -> const Model::Pack& { return input.get(); }
+  constexpr auto get_input() const -> const Model::Pack& { return *input; }
 
   constexpr auto get_case_count() const -> Count { return cases.get_size(); }
 
@@ -129,9 +127,8 @@ class Match : public Ttx::Concept::Abstract {
   constexpr auto get_default() const -> Perimortem::Core::Option<const Block&> {
     return default_body.visit(
         []() -> Perimortem::Core::Option<const Block&> { return {}; },
-        [](const Ttx::Concept::Reference<Block>& selected)
-            -> Perimortem::Core::Option<const Block&> {
-          return selected.get();
+        [](const Block* selected) -> Perimortem::Core::Option<const Block&> {
+          return *selected;
         });
   }
 
@@ -146,11 +143,11 @@ class Match : public Ttx::Concept::Abstract {
       Perimortem::Memory::Allocator::Arena& domain,
       Model::Pack& input,
       Ttx::Lexical::Anchor anchor)
-      : input(input), cases(domain), anchor(anchor) {}
+      : input(&input), cases(domain), anchor(anchor) {}
 
-  Ttx::Model::PackReference<Model::Pack> input;
+  Model::Pack* input;
   Perimortem::Memory::Managed::Vector<Case> cases;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Block>> default_body;
+  Perimortem::Core::Option<Block*> default_body;
   Ttx::Lexical::Anchor anchor;
   Bool complete_coverage = False;
   Bool linked = False;

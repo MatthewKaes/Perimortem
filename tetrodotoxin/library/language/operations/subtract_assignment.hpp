@@ -6,7 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Operations {

@@ -10,9 +10,8 @@
 #include "tetrodotoxin/app/language/route.hpp"
 #include "tetrodotoxin/scene/language/monograph.hpp"
 #include "tetrodotoxin/scene/language/signal.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/documentation.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/documentation.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -71,11 +70,10 @@ class Transition : public Ttx::Concept::Abstract {
                  const Tetrodotoxin::Scene::Language::Monograph&> {
           return {};
         },
-        [](const Ttx::Concept::Reference<
-            const Tetrodotoxin::Scene::Language::Monograph>& selected)
+        [](const Tetrodotoxin::Scene::Language::Monograph* selected)
             -> Perimortem::Core::Option<
                 const Tetrodotoxin::Scene::Language::Monograph&> {
-          return selected.get();
+          return *selected;
         });
   }
   constexpr auto get_signal() const -> Perimortem::Core::Option<
@@ -83,11 +81,10 @@ class Transition : public Ttx::Concept::Abstract {
     return signal.visit(
         []() -> Perimortem::Core::Option<
                  const Tetrodotoxin::Scene::Language::Signal&> { return {}; },
-        [](const Ttx::Concept::Reference<
-            const Tetrodotoxin::Scene::Language::Signal>& selected)
+        [](const Tetrodotoxin::Scene::Language::Signal* selected)
             -> Perimortem::Core::Option<
                 const Tetrodotoxin::Scene::Language::Signal&> {
-          return selected.get();
+          return *selected;
         });
   }
   constexpr auto get_destination_scene() const -> Perimortem::Core::Option<
@@ -97,11 +94,10 @@ class Transition : public Ttx::Concept::Abstract {
                  const Tetrodotoxin::Scene::Language::Monograph&> {
           return {};
         },
-        [](const Ttx::Concept::Reference<
-            const Tetrodotoxin::Scene::Language::Monograph>& selected)
+        [](const Tetrodotoxin::Scene::Language::Monograph* selected)
             -> Perimortem::Core::Option<
                 const Tetrodotoxin::Scene::Language::Monograph&> {
-          return selected.get();
+          return *selected;
         });
   }
 
@@ -135,14 +131,10 @@ class Transition : public Ttx::Concept::Abstract {
   Action action;
   Perimortem::Core::Option<Route> destination;
   Ttx::Lexical::Anchor anchor;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Tetrodotoxin::Scene::Language::Monograph>>
+  Perimortem::Core::Option<const Tetrodotoxin::Scene::Language::Monograph*>
       source_scene;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Tetrodotoxin::Scene::Language::Signal>>
-      signal;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Tetrodotoxin::Scene::Language::Monograph>>
+  Perimortem::Core::Option<const Tetrodotoxin::Scene::Language::Signal*> signal;
+  Perimortem::Core::Option<const Tetrodotoxin::Scene::Language::Monograph*>
       destination_scene;
 };
 

@@ -12,7 +12,6 @@
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/token.hpp"
 
@@ -80,8 +79,7 @@ class Swizzle : public Expression {
   Perimortem::Core::View::Vector<Ttx::Lexical::Token> name_tokens;
   Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names;
   Perimortem::Memory::Managed::Vector<Count> selections;
-  Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
+  Perimortem::Memory::Managed::Vector<const Ttx::Concept::Abstract*>
       projections;
   Perimortem::Core::Option<const Ttx::Concept::Layout&> output;
 };

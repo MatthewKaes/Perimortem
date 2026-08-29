@@ -32,7 +32,7 @@
 #include "tetrodotoxin/terminal/llvm/module/carriers.hpp"
 #include "tetrodotoxin/terminal/llvm/module/functions.hpp"
 #include "tetrodotoxin/terminal/llvm/module/program.hpp"
-#include "ttx/model/addressable.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Terminal;
@@ -60,19 +60,17 @@ static auto select_program(Llvm::Module::Emission& program)
 static auto is_local_definition(
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
     const Tetrodotoxin::Language::Definition& definition) -> Bool {
-  Ttx::Concept::Reference<const Ttx::Concept::Abstract> current(
-      definition.get_host());
+  const Ttx::Concept::Abstract* current = &definition.get_host();
   while (true) {
     auto source =
-        current.get().select<Tetrodotoxin::Library::Language::Types::Source>();
+        current->select<Tetrodotoxin::Library::Language::Types::Source>();
     if (source) {
       return unit.owns(source->get_host());
     }
     auto composite =
-        current.get()
-            .select<Tetrodotoxin::Library::Language::Types::Composite>();
+        current->select<Tetrodotoxin::Library::Language::Types::Composite>();
     BAIL_IF(!composite);
-    current = composite->get_definition().get_host();
+    current = &composite->get_definition().get_host();
   }
 }
 
@@ -330,7 +328,7 @@ auto Llvm::Module::Functions::reserve_foreign(
   auto reserved =
       reserve(program, callable, Record(Kind::Foreign, abi, symbol));
   if (reserved && *reserved) {
-    foreign_callables.insert(callable);
+    foreign_callables.insert(&callable);
     if (!target->add_import(
             Tetrodotoxin::Linker::Import(
                 Tetrodotoxin::Linker::Import::Kind::Function, abi, symbol))) {
@@ -345,8 +343,8 @@ auto Llvm::Module::Functions::reserve_construction(
     Llvm::Module::Emission& program,
     const Ttx::Model::Type& owner,
     Bool provider,
-    Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Addressable>>
-        parameters) const -> Bool {
+    Core::View::Vector<const Ttx::Model::Addressable*> parameters) const
+    -> Bool {
   auto target = select_program(program);
   BAIL_IF(!target);
 
@@ -359,8 +357,7 @@ auto Llvm::Module::Functions::reserve_construction(
           "LLVM Type construction changed its reserved target facts."_view);
     }
     for (Count index = 0; index < parameters.get_size(); index++) {
-      if (&found->value.parameters[index].get() !=
-          &parameters.get_data()[index].get()) {
+      if (found->value.parameters[index] != parameters.get_data()[index]) {
         return fail_toolchain(
             program,
             "LLVM Type construction changed its reserved target facts."_view);
@@ -386,8 +383,7 @@ auto Llvm::Module::Functions::reserve_construction(
                              : publication ? publication->get_symbol()
                                            : generated.get_view();
   ConstructionRecord record(provider, symbol);
-  for (const Ttx::Concept::Reference<const Ttx::Model::Addressable>& parameter :
-       parameters) {
+  for (const Ttx::Model::Addressable* parameter : parameters) {
     record.parameters.insert(parameter);
   }
   constructions.insert(&owner, static_cast<ConstructionRecord&&>(record));
@@ -428,9 +424,8 @@ auto Llvm::Module::Functions::complete_construction(
   }
 
   record.indirect_parameters.clear();
-  for (const Ttx::Concept::Reference<const Ttx::Model::Addressable>& retained :
-       record.parameters.get_view()) {
-    auto type = select_type(retained.get().get_type());
+  for (const Ttx::Model::Addressable* retained : record.parameters.get_view()) {
+    auto type = select_type(retained->get_type());
     auto native =
         type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
     if (!type || !native) {
@@ -479,7 +474,7 @@ auto Llvm::Module::Functions::complete_construction(
                module.getDataLayout().getABITypeAlign(llvm::unwrap(*result))));
   }
   for (Count index = 0; index < record.parameters.get_size(); index++) {
-    auto type = select_type(record.parameters[index].get().get_type());
+    auto type = select_type(record.parameters[index]->get_type());
     auto native =
         type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
     BAIL_IF(!type || !native);
@@ -557,9 +552,8 @@ auto Llvm::Module::Functions::lower_construction(
   // construction cannot invalidate the active record.
   LLVMValueRef retained_function = *record.function;
   Core::Option<LLVMTypeRef> retained_sret_type = record.sret_type;
-  Memory::Dynamic::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Addressable>>
-      retained_parameters = record.parameters;
+  Memory::Dynamic::Vector<const Ttx::Model::Addressable*> retained_parameters =
+      record.parameters;
   Memory::Dynamic::Vector<Bool> retained_indirect_parameters =
       record.indirect_parameters;
 
@@ -594,7 +588,7 @@ auto Llvm::Module::Functions::lower_construction(
     if (input.is_parameter()) {
       BAIL_IF(
           parameter_index >= retained_parameters.get_size() ||
-          &retained_parameters[parameter_index].get() != &field ||
+          retained_parameters[parameter_index] != &field ||
           argument == function.arg_end());
       llvm::Value& native_value = *argument;
       argument++;
@@ -715,9 +709,8 @@ auto Llvm::Module::Functions::call_construction(
   ConstructionRecord& record = found->value;
   LLVMValueRef retained_function = *record.function;
   Core::Option<LLVMTypeRef> retained_sret_type = record.sret_type;
-  Memory::Dynamic::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Addressable>>
-      retained_parameters = record.parameters;
+  Memory::Dynamic::Vector<const Ttx::Model::Addressable*> retained_parameters =
+      record.parameters;
   Memory::Dynamic::Vector<Bool> retained_indirect_parameters =
       record.indirect_parameters;
   const Carriers& carriers = native_body->get_program().get_carriers();
@@ -731,7 +724,7 @@ auto Llvm::Module::Functions::call_construction(
   }
 
   for (Count index = 0; index < retained_parameters.get_size(); index++) {
-    const Ttx::Model::Addressable& field = retained_parameters[index].get();
+    const Ttx::Model::Addressable& field = *retained_parameters[index];
     auto field_type = select_type(field.get_type());
     BAIL_IF(!field_type);
     auto selected = select_construction_argument(arguments, field.get_name());
@@ -1352,6 +1345,6 @@ auto Llvm::Module::Functions::get_indirect_parameters(
 }
 
 auto Llvm::Module::Functions::get_foreign_callables() const
-    -> Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Callable>> {
+    -> Core::View::Vector<const Ttx::Model::Callable*> {
   return foreign_callables.get_view();
 }

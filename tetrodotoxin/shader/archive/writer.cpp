@@ -38,13 +38,11 @@ auto Shader::Archive::Writer::encode(
   Writer writer;
   auto record = writer.begin(Tag::Monograph);
   BAIL_IF(!writer.write(monograph.get_documentation()));
-  for (const Reference<Shader::Language::Program>& retained :
-       monograph.get_programs()) {
-    BAIL_IF(!writer.write(retained.get()));
+  for (const Shader::Language::Program* retained : monograph.get_programs()) {
+    BAIL_IF(!writer.write(*retained));
   }
-  for (const Reference<Shader::Language::Bridge>& retained :
-       monograph.get_bridges()) {
-    BAIL_IF(!writer.write(retained.get()));
+  for (const Shader::Language::Bridge* retained : monograph.get_bridges()) {
+    BAIL_IF(!writer.write(*retained));
   }
   BAIL_IF(!writer.finish(record));
   return Data::take(writer.bytes);
@@ -181,9 +179,9 @@ auto Shader::Archive::Writer::write(const Shader::Language::Program& program)
   auto uniforms = program.get_uniforms();
   BAIL_IF(uniforms.get_size() > U32(-1));
   write(U32(uniforms.get_size()));
-  for (const Reference<Library::Language::Field>& uniform : uniforms) {
+  for (const Library::Language::Field* uniform : uniforms) {
     auto uniform_record = begin(Tag::Uniform);
-    BAIL_IF(!write(uniform.get().get_name()) || !finish(uniform_record));
+    BAIL_IF(!write(uniform->get_name()) || !finish(uniform_record));
   }
   return finish(record);
 }

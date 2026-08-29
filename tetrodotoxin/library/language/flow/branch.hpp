@@ -10,9 +10,8 @@
 #include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/statement.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -62,10 +61,10 @@ class Branch : public Ttx::Concept::Abstract {
   constexpr auto get_kind() const -> Kind { return kind; }
 
   constexpr auto get_condition() const -> const Model::Pack& {
-    return condition.get();
+    return *condition;
   }
 
-  constexpr auto get_body() const -> const Block& { return body->get(); }
+  constexpr auto get_body() const -> const Block& { return **body; }
 
   constexpr auto get_alternate() const
       -> Perimortem::Core::Option<const Statement&> {
@@ -82,11 +81,11 @@ class Branch : public Ttx::Concept::Abstract {
       Kind kind,
       Model::Pack& condition,
       Ttx::Lexical::Anchor anchor)
-      : kind(kind), condition(condition), anchor(anchor) {}
+      : kind(kind), condition(&condition), anchor(anchor) {}
 
   Kind kind;
-  Ttx::Model::PackReference<Model::Pack> condition;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Block>> body;
+  Model::Pack* condition;
+  Perimortem::Core::Option<Block*> body;
   Perimortem::Core::Option<Statement> alternate;
   Ttx::Lexical::Anchor anchor;
   Bool linked = False;

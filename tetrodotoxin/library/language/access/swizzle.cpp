@@ -5,10 +5,10 @@
 
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
-#include "ttx/model/layouts/value.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/bootstrap/model/layouts/value.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -164,7 +164,7 @@ auto Language::Access::Swizzle::link(
   Bool direct_selection = names.is_empty() || is_named(receiver_layout);
   auto receiver_expression = receiver.select_identity<Expression>();
   Memory::Managed::Vector<Count> selected_indices(domain);
-  Memory::Managed::Vector<Reference<const Abstract>> candidates(domain);
+  Memory::Managed::Vector<const Abstract*> candidates(domain);
 
   if (direct_selection) {
     // A named Pack's Layout carries its authored slot names independently from
@@ -209,7 +209,7 @@ auto Language::Access::Swizzle::link(
         return False;
       }
 
-      candidates.insert(Reference<const Abstract>(*candidate));
+      candidates.insert(&*candidate);
     }
   }
 
@@ -225,8 +225,8 @@ auto Language::Access::Swizzle::link(
       changed |= projections.get_size() != candidates.get_size();
       for (Count index = 0; !changed && index < projections.get_size();
            index++) {
-        const Abstract& projection = projections.at(index).get();
-        const Abstract& candidate = candidates.at(index).get();
+        const Abstract& projection = *projections.at(index);
+        const Abstract& candidate = *candidates.at(index);
         auto expression = projection.select<Expression>();
         changed = !expression || &expression->get_result() != &candidate;
       }
@@ -244,7 +244,7 @@ auto Language::Access::Swizzle::link(
     return True;
   }
 
-  Memory::Managed::Vector<Reference<const Abstract>> created(domain);
+  Memory::Managed::Vector<const Abstract*> created(domain);
   created.reset(candidates.get_size());
   if (direct_selection) {
     selections.reset(selected_indices.get_size());
@@ -257,17 +257,17 @@ auto Language::Access::Swizzle::link(
     // receiver. These Address Expressions are the selected value producers,
     // not copied Field identities or an aggregate result carrier.
     Expression& selected_receiver = *receiver_expression;
-    for (const Reference<const Abstract>& candidate : candidates.get_view()) {
+    for (const Abstract* candidate : candidates.get_view()) {
       const Language::Model::Addressable& addressable =
-          static_cast<const Language::Model::Addressable&>(candidate.get());
+          static_cast<const Language::Model::Addressable&>(*candidate);
       Address& projection =
           Address::create_synthetic(domain, selected_receiver, addressable);
       BAIL_IF(!projection.link(cursor, lexical_context, access_scope));
-      created.insert(projection);
+      created.insert(&projection);
     }
 
     projections.reset(created.get_size());
-    for (Reference<const Abstract> projection : created.get_view()) {
+    for (const Abstract* projection : created.get_view()) {
       projections.insert(projection);
     }
     output =
@@ -296,7 +296,7 @@ auto Language::Access::Swizzle::get_value_type(Count index) const
   }
 
   if (!projections.is_empty()) {
-    auto producer = Language::Model::Pack::from(projections.at(index).get());
+    auto producer = Language::Model::Pack::from(*projections.at(index));
     return producer ? producer->get_value_type(0)
                     : static_cast<const Abstract&>(Unknown::get_unknown());
   }

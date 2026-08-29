@@ -80,9 +80,8 @@ auto Interpreter::Execution::RangeLoop::parse(
   Language::Flow::RangeLoop& loop = Language::Flow::RangeLoop::create_authored(
       cursor.get_arena(), lexical_context, bindings.get_view(), *input,
       Anchor::create(opening, Span(opening, cursor.peek(-1))));
-  auto body = Block::parse(
-      cursor, loop, function, access_scope, Reference<const Abstract>(loop),
-      extension);
+  auto body =
+      Block::parse(cursor, loop, function, access_scope, &loop, extension);
   BAIL_IF(!body);
   BAIL_IF(!loop.complete_body(
       *body, Anchor::create(opening, Span(opening, cursor.peek(-1)))));

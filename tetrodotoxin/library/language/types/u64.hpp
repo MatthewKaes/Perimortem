@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "ttx/model/documentations/comment.hpp"
+#include "ttx/bootstrap/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 

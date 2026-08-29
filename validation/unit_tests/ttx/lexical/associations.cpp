@@ -7,9 +7,9 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

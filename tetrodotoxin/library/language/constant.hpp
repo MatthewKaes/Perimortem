@@ -7,9 +7,9 @@
 
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/constant.hpp"
+#include "ttx/bootstrap/concept/constant.hpp"
+#include "ttx/bootstrap/model/layouts/ranged.hpp"
 #include "ttx/lexical/anchor.hpp"
-#include "ttx/model/layouts/ranged.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 

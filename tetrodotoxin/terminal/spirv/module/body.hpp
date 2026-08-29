@@ -15,7 +15,6 @@
 #include "tetrodotoxin/terminal/spirv/module/interface.hpp"
 #include "tetrodotoxin/terminal/spirv/module/types.hpp"
 #include "tetrodotoxin/terminal/spirv/request.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Terminal::Spirv::Module {
 
@@ -46,11 +45,10 @@ class Body {
         const Ttx::Concept::Abstract& semantic,
         const Tetrodotoxin::Library::Language::Model::Type& type,
         U32 id)
-        : semantic(semantic), type(type), id(id) {}
+        : semantic(&semantic), type(&type), id(id) {}
 
-    Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic;
-    Ttx::Concept::Reference<const Tetrodotoxin::Library::Language::Model::Type>
-        type;
+    const Ttx::Concept::Abstract* semantic;
+    const Tetrodotoxin::Library::Language::Model::Type* type;
     U32 id;
   };
 

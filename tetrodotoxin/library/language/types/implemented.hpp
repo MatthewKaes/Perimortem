@@ -9,7 +9,6 @@
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/types/interface.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
-#include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -61,9 +60,9 @@ class Implemented : public Object {
       -> Perimortem::Core::Option<const Interface&> {
     return requirement.visit(
         []() -> Perimortem::Core::Option<const Interface&> { return {}; },
-        [](const Ttx::Concept::Reference<const Interface>& selected)
+        [](const Interface* selected)
             -> Perimortem::Core::Option<const Interface&> {
-          return selected.get();
+          return *selected;
         });
   }
 
@@ -71,10 +70,10 @@ class Implemented : public Object {
   class GeneratedField {
    public:
     constexpr GeneratedField(const Field& requirement, Field& implementation)
-        : requirement(requirement), implementation(implementation) {}
+        : requirement(&requirement), implementation(&implementation) {}
 
-    Ttx::Concept::Reference<const Field> requirement;
-    Ttx::Concept::Reference<Field> implementation;
+    const Field* requirement;
+    Field* implementation;
   };
 
   Implemented(
@@ -90,8 +89,7 @@ class Implemented : public Object {
   auto materialize_fields() -> Bool;
 
   Tetrodotoxin::Library::Language::TypeReference requirement_reference;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Interface>>
-      requirement;
+  Perimortem::Core::Option<const Interface*> requirement;
   Perimortem::Memory::Managed::Vector<GeneratedField> generated_fields;
   Bool body_complete = False;
   Bool fields_materialized = False;

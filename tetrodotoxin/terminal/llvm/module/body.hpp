@@ -10,13 +10,12 @@
 #include "perimortem/memory/dynamic/vector.hpp"
 
 #include "llvm-c/Types.h"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/emission.hpp"
 #include "tetrodotoxin/terminal/llvm/module/program.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/model/addressable.hpp"
-#include "ttx/model/callable.hpp"
-#include "ttx/model/pack.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Module {
 
@@ -30,16 +29,14 @@ class Body : public Emission {
   class TargetAddress {
    public:
     constexpr TargetAddress(const Ttx::Model::Type& type, LLVMValueRef address)
-        : type(type), address(address) {}
+        : type(&type), address(address) {}
 
-    constexpr auto get_type() const -> const Ttx::Model::Type& {
-      return type.get();
-    }
+    constexpr auto get_type() const -> const Ttx::Model::Type& { return *type; }
 
     constexpr auto get_address() const -> LLVMValueRef { return address; }
 
    private:
-    Ttx::Concept::Reference<const Ttx::Model::Type> type;
+    const Ttx::Model::Type* type;
     LLVMValueRef address;
   };
 
@@ -52,16 +49,14 @@ class Body : public Emission {
         LLVMValueRef length,
         LLVMValueRef first,
         Perimortem::Core::Option<Count> range_size)
-        : type(type),
+        : type(&type),
           native_type(native_type),
           data(data),
           length(length),
           first(first),
           range_size(range_size) {}
 
-    constexpr auto get_type() const -> const Ttx::Model::Type& {
-      return type.get();
-    }
+    constexpr auto get_type() const -> const Ttx::Model::Type& { return *type; }
 
     constexpr auto get_native_type() const -> LLVMTypeRef {
       return native_type;
@@ -78,7 +73,7 @@ class Body : public Emission {
     }
 
    private:
-    Ttx::Concept::Reference<const Ttx::Model::Type> type;
+    const Ttx::Model::Type* type;
     LLVMTypeRef native_type;
     LLVMValueRef data;
     LLVMValueRef length;
@@ -91,16 +86,16 @@ class Body : public Emission {
     constexpr BlockScope(
         const Ttx::Concept::Abstract& owner,
         Count storage_depth)
-        : owner(owner), storage_depth(storage_depth) {}
+        : owner(&owner), storage_depth(storage_depth) {}
 
     constexpr auto get_owner() const -> const Ttx::Concept::Abstract& {
-      return owner.get();
+      return *owner;
     }
 
     constexpr auto get_storage_depth() const -> Count { return storage_depth; }
 
    private:
-    Ttx::Concept::Reference<const Ttx::Concept::Abstract> owner;
+    const Ttx::Concept::Abstract* owner;
     Count storage_depth;
   };
 
@@ -112,14 +107,14 @@ class Body : public Emission {
         LLVMBasicBlockRef continue_target,
         Count storage_depth,
         Count lifetime_depth)
-        : owner(owner),
+        : owner(&owner),
           break_target(break_target),
           continue_target(continue_target),
           storage_depth(storage_depth),
           lifetime_depth(lifetime_depth) {}
 
     constexpr auto get_owner() const -> const Ttx::Concept::Abstract& {
-      return owner.get();
+      return *owner;
     }
 
     constexpr auto get_break_target() const -> LLVMBasicBlockRef {
@@ -139,7 +134,7 @@ class Body : public Emission {
     }
 
    private:
-    Ttx::Concept::Reference<const Ttx::Concept::Abstract> owner;
+    const Ttx::Concept::Abstract* owner;
     LLVMBasicBlockRef break_target;
     LLVMBasicBlockRef continue_target;
     Count storage_depth;
@@ -159,7 +154,7 @@ class Body : public Emission {
   constexpr auto get_program() const -> Program& { return program; }
 
   constexpr auto get_owner() const -> const Ttx::Concept::Abstract& {
-    return owner.get();
+    return *owner;
   }
 
   auto get_builder() const -> LLVMBuilderRef;
@@ -173,14 +168,14 @@ class Body : public Emission {
 
   auto get_sret_type() const -> Perimortem::Core::Option<LLVMTypeRef>;
 
-  auto find_values(const Ttx::Model::Pack& pack) const
-      -> Perimortem::Core::Option<const NativeValues&>;
+  auto find_values(const Tetrodotoxin::Library::Language::Model::Pack& pack)
+      const -> Perimortem::Core::Option<const NativeValues&>;
 
-  auto find_value(const Ttx::Model::Pack& pack) const
-      -> Perimortem::Core::Option<LLVMValueRef>;
+  auto find_value(const Tetrodotoxin::Library::Language::Model::Pack& pack)
+      const -> Perimortem::Core::Option<LLVMValueRef>;
 
   auto publish_values(
-      const Ttx::Model::Pack& pack,
+      const Tetrodotoxin::Library::Language::Model::Pack& pack,
       Perimortem::Core::View::Vector<LLVMValueRef> native) -> Bool;
 
   auto find_address(const Ttx::Model::Addressable& addressable) const
@@ -190,19 +185,21 @@ class Body : public Emission {
       const Ttx::Model::Addressable& addressable,
       LLVMValueRef value) -> Bool;
 
-  auto find_target_address(const Ttx::Model::Pack& pack) const
+  auto find_target_address(
+      const Tetrodotoxin::Library::Language::Model::Pack& pack) const
       -> Perimortem::Core::Option<const TargetAddress&>;
 
   auto publish_target_address(
-      const Ttx::Model::Pack& pack,
+      const Tetrodotoxin::Library::Language::Model::Pack& pack,
       const Ttx::Model::Type& type,
       LLVMValueRef address) -> Bool;
 
-  auto find_indexed_target(const Ttx::Model::Pack& pack) const
+  auto find_indexed_target(
+      const Tetrodotoxin::Library::Language::Model::Pack& pack) const
       -> Perimortem::Core::Option<const IndexedTarget&>;
 
   auto publish_indexed_target(
-      const Ttx::Model::Pack& pack,
+      const Tetrodotoxin::Library::Language::Model::Pack& pack,
       const Ttx::Model::Type& type,
       LLVMTypeRef native_type,
       LLVMValueRef data,
@@ -210,11 +207,12 @@ class Body : public Emission {
       LLVMValueRef first,
       Perimortem::Core::Option<Count> range_size) -> Bool;
 
-  auto find_selection(const Ttx::Model::Pack& pack) const
-      -> Perimortem::Core::Option<LLVMValueRef>;
+  auto find_selection(const Tetrodotoxin::Library::Language::Model::Pack& pack)
+      const -> Perimortem::Core::Option<LLVMValueRef>;
 
-  auto publish_selection(const Ttx::Model::Pack& pack, LLVMValueRef value)
-      -> Bool;
+  auto publish_selection(
+      const Tetrodotoxin::Library::Language::Model::Pack& pack,
+      LLVMValueRef value) -> Bool;
 
   auto get_storage_depth() const -> Count;
 
@@ -266,30 +264,34 @@ class Body : public Emission {
 
  private:
   Program& program;
-  Ttx::Concept::Reference<const Ttx::Concept::Abstract> owner;
+  const Ttx::Concept::Abstract* owner;
   LLVMValueRef function;
   Perimortem::Core::Option<const Ttx::Model::Callable&> callable;
   Perimortem::Core::Option<LLVMValueRef> sret;
   Perimortem::Core::Option<LLVMTypeRef> sret_type;
   LLVMBuilderRef builder;
-  Perimortem::Memory::Dynamic::Map<const Ttx::Model::Pack*, NativeValues>
-      values;
+  Perimortem::Memory::Dynamic::
+      Map<const Tetrodotoxin::Library::Language::Model::Pack*, NativeValues>
+          values;
   Perimortem::Memory::Dynamic::Map<const Ttx::Model::Addressable*, LLVMValueRef>
       addresses;
-  Perimortem::Memory::Dynamic::Map<const Ttx::Model::Pack*, TargetAddress>
-      target_addresses;
-  Perimortem::Memory::Dynamic::Map<const Ttx::Model::Pack*, IndexedTarget>
-      indexed_targets;
-  Perimortem::Memory::Dynamic::Map<const Ttx::Model::Pack*, LLVMValueRef>
-      selections;
+  Perimortem::Memory::Dynamic::
+      Map<const Tetrodotoxin::Library::Language::Model::Pack*, TargetAddress>
+          target_addresses;
+  Perimortem::Memory::Dynamic::
+      Map<const Tetrodotoxin::Library::Language::Model::Pack*, IndexedTarget>
+          indexed_targets;
+  Perimortem::Memory::Dynamic::
+      Map<const Tetrodotoxin::Library::Language::Model::Pack*, LLVMValueRef>
+          selections;
   Perimortem::Memory::Dynamic::Vector<BlockScope> block_scopes;
   Perimortem::Memory::Dynamic::Vector<LoopTargets> loops;
   struct OwnedStorage {
-    Ttx::Concept::Reference<const Ttx::Model::Type> type;
+    const Ttx::Model::Type* type;
     LLVMValueRef address;
   };
   struct OwnedValue {
-    Ttx::Concept::Reference<const Ttx::Model::Type> type;
+    const Ttx::Model::Type* type;
     LLVMValueRef value;
   };
   Perimortem::Memory::Dynamic::Vector<OwnedStorage> owned_storages;

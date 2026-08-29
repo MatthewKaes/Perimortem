@@ -23,8 +23,8 @@ cc_library(
         "//tetrodotoxin/library:interpreter",
         "//tetrodotoxin/library:language",
         "//tetrodotoxin/scene/language",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
-        "//ttx:model",
+        "//ttx:bootstrap_model",
     ],
 )

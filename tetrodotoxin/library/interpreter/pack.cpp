@@ -6,7 +6,6 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/interpreter/expression.hpp"
-#include "ttx/concept/reference.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -33,8 +32,7 @@ auto Interpreter::Pack::parse(
   }
 
   Token opening = cursor.consume();
-  Memory::Managed::Vector<Ttx::Model::PackReference<Language::Model::Pack>>
-      entries(domain);
+  Memory::Managed::Vector<Language::Model::Pack*> entries(domain);
   Memory::Managed::Vector<Core::View::Bytes> names(domain);
   Core::Option<Bool> named;
 
@@ -84,7 +82,7 @@ auto Interpreter::Pack::parse(
     // inner Pack before this separator is considered.
     auto entry = Interpreter::Expression::parse(context, cursor);
     BAIL_IF(!entry);
-    entries.insert(*entry);
+    entries.insert(&*entry);
 
     if (cursor.matches(Code::Type::PackingEnd)) {
       break;
@@ -103,7 +101,7 @@ auto Interpreter::Pack::parse(
   BAIL_IF(!closing);
 
   if (entries.get_size() == 1 && (!named || !*named)) {
-    Language::Model::Pack& selected = entries.at(0).get();
+    Language::Model::Pack& selected = *entries.at(0);
     return selected;
   }
 

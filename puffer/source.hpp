@@ -17,15 +17,12 @@ class Source {
   constexpr Source(
       Perimortem::Core::View::Bytes source,
       Perimortem::Core::View::Bytes terminal_root,
-      Tetrodotoxin::Package::Repository::Repository& terminal_repository,
-      Perimortem::Core::Option<Tetrodotoxin::Package::Repository::Repository&>
-          package_repository,
+      Tetrodotoxin::Package::Repository::Repository& repository,
       Bool dump_graph,
       Bool generate_cxx)
       : source(source),
         terminal_root(terminal_root),
-        terminal_repository(terminal_repository),
-        package_repository(package_repository),
+        repository(repository),
         dump_graph(dump_graph),
         generate_cxx(generate_cxx) {}
 
@@ -34,9 +31,7 @@ class Source {
  private:
   Perimortem::Core::View::Bytes source;
   Perimortem::Core::View::Bytes terminal_root;
-  Tetrodotoxin::Package::Repository::Repository& terminal_repository;
-  Perimortem::Core::Option<Tetrodotoxin::Package::Repository::Repository&>
-      package_repository;
+  Tetrodotoxin::Package::Repository::Repository& repository;
   Bool dump_graph;
   Bool generate_cxx;
 };

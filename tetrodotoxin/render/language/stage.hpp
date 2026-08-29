@@ -7,7 +7,7 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/render/language/layout.hpp"
-#include "ttx/model/callable.hpp"
+#include "ttx/bootstrap/model/callable.hpp"
 
 namespace Tetrodotoxin::Render::Language {
 

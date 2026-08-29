@@ -56,14 +56,12 @@ auto Module::Interface::prepare(const Shader::Language::Program& program)
   // merely because it shares the Program context.
   auto contract = program.get_contract();
   BAIL_IF(!contract);
-  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& requirement :
-       contract->get_callables()) {
-    auto render_stage = requirement.get().select<Render::Language::Stage>();
+  for (const Ttx::Concept::Abstract* requirement : contract->get_callables()) {
+    auto render_stage = requirement->select<Render::Language::Stage>();
     BAIL_IF(!render_stage);
     Core::Option<const Library::Language::Function&> function;
-    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
-         program.get_callables()) {
-      auto selected = candidate.get().select<Library::Language::Function>();
+    for (const Ttx::Concept::Abstract* candidate : program.get_callables()) {
+      auto selected = candidate->select<Library::Language::Function>();
       if (selected && selected->get_name() == render_stage->get_name()) {
         BAIL_IF(function);
         function = *selected;
@@ -132,7 +130,7 @@ auto Module::Interface::prepare_bindings(
 auto Module::Interface::is_resource(
     const Ttx::Concept::Abstract& semantic) const -> Bool {
   for (const Variable& binding : bindings.get_view()) {
-    if (&binding.semantic.get() == &semantic &&
+    if (binding.semantic == &semantic &&
         binding.storage == Assembler::SpirV::StorageClass::UniformConstant) {
       return True;
     }
@@ -183,7 +181,7 @@ auto Module::Interface::emit_entry_points(Assembler::SpirV& assembler) const
       variables.insert(output.id);
     }
     assembler.entry_point(
-        stage->model, stage->id, stage->function.get().get_name(),
+        stage->model, stage->id, stage->function->get_name(),
         variables.get_view());
     if (stage->model == Assembler::SpirV::ExecutionModel::Fragment) {
       assembler.execution_mode(
@@ -205,7 +203,7 @@ auto Module::Interface::emit_debug(Assembler::SpirV& assembler) const -> void {
     assembler.name(push_variable_id, "push"_view);
   }
   for (Stage* stage : stages.get_view()) {
-    assembler.name(stage->id, stage->function.get().get_name());
+    assembler.name(stage->id, stage->function->get_name());
     for (const Variable& input : stage->inputs.get_view()) {
       assembler.name(input.id, input.name);
     }
@@ -247,11 +245,11 @@ auto Module::Interface::emit_annotations(Assembler::SpirV& assembler) const
       decorated_push_types;
   for (const Variable& binding : bindings.get_view()) {
     if (binding.storage == Assembler::SpirV::StorageClass::PushConstant) {
-      auto layout = Terminal::Spirv::Layout::measure(binding.type.get());
+      auto layout = Terminal::Spirv::Layout::measure(*binding.type);
       BAIL_IF(!layout || binding.push_index > U32(-1));
-      if (!decorated_push_types.contains(&binding.type.get())) {
-        BAIL_IF(!types.decorate_push(assembler, binding.type.get()));
-        decorated_push_types.insert(&binding.type.get());
+      if (!decorated_push_types.contains(binding.type)) {
+        BAIL_IF(!types.decorate_push(assembler, *binding.type));
+        decorated_push_types.insert(binding.type);
       }
       Count alignment = layout->get_alignment();
       push_offset = (push_offset + alignment - 1) / alignment * alignment;
@@ -294,7 +292,7 @@ auto Module::Interface::emit_types(Assembler::SpirV& assembler) const -> Bool {
     if (binding.storage != Assembler::SpirV::StorageClass::PushConstant) {
       continue;
     }
-    auto type_id = types.get_id(binding.type.get());
+    auto type_id = types.get_id(*binding.type);
     BAIL_IF(!type_id);
     members.insert(*type_id);
   }
@@ -320,7 +318,7 @@ auto Module::Interface::emit_globals(Assembler::SpirV& assembler) const
     -> Bool {
   for (const Variable& binding : bindings.get_view()) {
     if (binding.storage == Assembler::SpirV::StorageClass::UniformConstant) {
-      auto pointer = types.get_resource_pointer_id(binding.type.get());
+      auto pointer = types.get_resource_pointer_id(*binding.type);
       BAIL_IF(!pointer);
       assembler.variable(*pointer, binding.id, binding.storage);
     } else if (
@@ -335,12 +333,12 @@ auto Module::Interface::emit_globals(Assembler::SpirV& assembler) const
   }
   for (Stage* stage : stages.get_view()) {
     for (const Variable& input : stage->inputs.get_view()) {
-      auto pointer = types.get_pointer_id(input.type.get(), input.storage);
+      auto pointer = types.get_pointer_id(*input.type, input.storage);
       BAIL_IF(!pointer);
       assembler.variable(*pointer, input.id, input.storage);
     }
     for (const Variable& output : stage->outputs.get_view()) {
-      auto pointer = types.get_pointer_id(output.type.get(), output.storage);
+      auto pointer = types.get_pointer_id(*output.type, output.storage);
       BAIL_IF(!pointer);
       assembler.variable(*pointer, output.id, output.storage);
     }
@@ -355,7 +353,7 @@ auto Module::Interface::get_binding_pointer(
     return binding.id;
   }
 
-  auto pointer = types.get_pointer_id(binding.type.get(), binding.storage);
+  auto pointer = types.get_pointer_id(*binding.type, binding.storage);
   BAIL_IF(!pointer || binding.push_index_id == 0 || push_variable_id == 0);
   U32 id = ids.take();
   assembler.access_chain(

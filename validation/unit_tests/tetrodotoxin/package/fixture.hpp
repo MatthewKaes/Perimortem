@@ -7,7 +7,6 @@
 
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -29,8 +28,7 @@ inline auto interpret_package(
   Ttx::Lexical::Tokenizer tokenizer(arena, retained_source, retained_path);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
-  Perimortem::Core::Static::Vector<
-      Ttx::Concept::Reference<Tetrodotoxin::Language::Dialect>, 1>
+  Perimortem::Core::Static::Vector<Tetrodotoxin::Language::Dialect*, 1>
       installed = {{dialect}};
 
   Count error_count = errors.get_size();
@@ -41,8 +39,7 @@ inline auto interpret_package(
     return {};
   }
 
-  return static_cast<Tetrodotoxin::Package::Language::Monograph&>(
-      *interpreted);
+  return static_cast<Tetrodotoxin::Package::Language::Monograph&>(*interpreted);
 }
 
 }  // namespace Validation

@@ -9,12 +9,12 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "language",
-    srcs = glob(["**/*.cpp"]),
-    hdrs = glob(["**/*.hpp"]),
+    srcs = glob(["**/*.c", "**/*.cpp"]),
+    hdrs = glob(["**/*.h", "**/*.hpp"]),
     deps = [
         "//perimortem:headless",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
-        "//ttx:model",
+        "//ttx:bootstrap_model",
     ],
 )

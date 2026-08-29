@@ -5,8 +5,8 @@
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/documentations/comment.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Builtin::Enum {
 
@@ -34,9 +34,17 @@ class Size : public Language::Model::Addressable {
     return *this;
   }
 
-  constexpr auto get_constant() const
-      -> Perimortem::Core::Option<Language::Model::Pack&> override {
-    return constant;
+  auto resolve_concept(Perimortem::Core::View::Bytes query) const
+      -> const Ttx::Concept::Abstract& override {
+    return query == "fold"_view
+               ? *constant.get_identity()
+               : Language::Model::Addressable::resolve_concept(query);
+  }
+
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override {
+    Language::Model::Addressable::visit_concepts(visitor);
+    visit_concept(visitor, "fold"_view, resolve_concept("fold"_view));
   }
 
  private:

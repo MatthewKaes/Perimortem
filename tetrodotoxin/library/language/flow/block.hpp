@@ -12,7 +12,6 @@
 #include "tetrodotoxin/library/language/flow/scope.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/statement.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -35,8 +34,8 @@ class Block : public Scope {
       const Ttx::Concept::Abstract& lexical_context,
       Model::Callable& function,
       const Model::Type& access_scope,
-      Perimortem::Core::Option<Ttx::Concept::Reference<
-          const Ttx::Concept::Abstract>> enclosing_loop = {}) -> Block&;
+      Perimortem::Core::Option<const Ttx::Concept::Abstract*> enclosing_loop =
+          {}) -> Block&;
 
   auto retain_authored_statement(Statement statement) -> void;
 
@@ -80,9 +79,9 @@ class Block : public Scope {
         []() -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> {
           return {};
         },
-        [](const Ttx::Concept::Reference<const Ttx::Concept::Abstract>& loop)
+        [](const Ttx::Concept::Abstract* loop)
             -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> {
-          return loop.get();
+          return *loop;
         });
   }
 
@@ -101,8 +100,7 @@ class Block : public Scope {
       const Ttx::Concept::Abstract& lexical_context,
       Model::Callable& function,
       const Model::Type& access_scope,
-      Perimortem::Core::Option<
-          Ttx::Concept::Reference<const Ttx::Concept::Abstract>> enclosing_loop)
+      Perimortem::Core::Option<const Ttx::Concept::Abstract*> enclosing_loop)
       : lexical_context(lexical_context),
         function(function),
         access_scope(access_scope),
@@ -113,9 +111,7 @@ class Block : public Scope {
   Model::Callable& function;
   const Model::Type& access_scope;
   Perimortem::Memory::Managed::Vector<Statement> statements;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-      enclosing_loop;
+  Perimortem::Core::Option<const Ttx::Concept::Abstract*> enclosing_loop;
   // Linking advances this prefix before each Statement so name lookup observes
   // only declarations whose source position precedes the active entry. It is
   // transient phase state, not another declaration inventory.

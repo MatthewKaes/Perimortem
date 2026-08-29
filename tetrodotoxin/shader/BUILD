@@ -19,7 +19,7 @@ cc_library(
         "//tetrodotoxin/shader/archive",
         "//tetrodotoxin/shader/interpreter",
         "//tetrodotoxin/shader/language",
-        "//ttx:concept",
+        "//ttx:bootstrap_concept",
         "//ttx:lexical",
     ],
 )

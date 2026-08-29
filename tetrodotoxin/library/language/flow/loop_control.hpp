@@ -8,8 +8,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/flow/block.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -44,7 +43,7 @@ class LoopControl : public Ttx::Concept::Abstract {
   constexpr auto get_kind() const -> Kind { return kind; }
 
   constexpr auto get_target() const -> const Ttx::Concept::Abstract& {
-    return target.get();
+    return *target;
   }
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
@@ -54,10 +53,10 @@ class LoopControl : public Ttx::Concept::Abstract {
       Kind kind,
       const Ttx::Concept::Abstract& target,
       Ttx::Lexical::Anchor anchor)
-      : kind(kind), target(target), anchor(anchor) {}
+      : kind(kind), target(&target), anchor(anchor) {}
 
   Kind kind;
-  Ttx::Concept::Reference<const Ttx::Concept::Abstract> target;
+  const Ttx::Concept::Abstract* target;
   Ttx::Lexical::Anchor anchor;
 };
 

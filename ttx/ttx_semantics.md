@@ -124,7 +124,7 @@ The closed identity categories are:
   `Unknown` while incomplete and one exact Type once established.
 * `Callable` provides complete parameter and result Layouts.
 
-`Documentation`, `Layout`, `Pack`, `Context`, `Interface`, and `Reference` are
+`Documentation`, `Layout`, `Pack`, `Context`, and `Interface` are
 supporting contracts and values that carry no semantic identity. Pack carries
 named semantic flow over the exact Abstracts identified by its Layout.
 
@@ -148,21 +148,22 @@ according to its own domain. Concrete operators split qualified syntax and ask
 the identity selected by each preceding name. They never flatten a qualified
 route into one lookup key or encode access and invocation as shared route modes.
 
-`get_concepts(context)` returns one fresh, factual, unordered snapshot. Context
-is only the caller-owned lifetime domain for those results. Its sole
-construction authority is `pack(layout)`, which copies snapshot names and
-shape, borrows the real Abstract identities, and retains the Pack for the
-Context lifetime. A snapshot may omit an incomplete question or retain an
-explicit Unknown answer. Consumers infer no semantic order from its Layout.
+`visit_concepts(callable)` synchronously invokes one caller-supplied Callable
+for each name and exact Abstract that the receiver currently advertises. The
+visit is factual, unordered, and unchained. It may omit an incomplete question
+or visit an explicit Unknown answer. The receiver retains no visitor and
+creates no Pack, Layout, or enumeration snapshot.
 
-An incomplete answer returns `Unknown`, never a null graph edge. A completed
-unsupported question returns `None`. Later construction may replace an Unknown
-answer, but a Constant answer is axiomatic and may be cached permanently.
+An Abstract returns Unknown for a concept it does not recognize. Returning None
+means that the concrete owner recognized that exact question and proved
+completed absence. Later graph observation may return another answer after a
+live source authority changes.
 
-Category proof establishes the semantic contract of the original object. A
-proof never creates a wrapper, clone, registry entry, or substitute identity.
-The consumer states the category it needs and either receives that same object
-under the proven contract or retains the original Abstract.
+Category proof negotiates a real category requirement Abstract against the
+candidate through Interface. A successful proof returns an identity-free view
+of the same candidate and that category's operations. It never creates a
+wrapper identity, clone, registry entry, native type identifier, or substitute
+semantic object.
 
 Source provenance, declaration structure, visibility, and publication remain
 facts of the concrete language owner. Abstract exposes no generic declaration
@@ -176,10 +177,11 @@ Documentation is empty, and its Type and concept answers remain Unknown. It
 stores no failed route, source range, diagnostic, or recovery choice. A query
 that answers Unknown may later answer a real identity or None.
 
-Constant proves one complete immutable terminal graph fact. Once any route or
-concept resolves to a Constant, that morphism is pure and has one result for the
-graph lifetime. A consumer may cache the Constant and return it without
-reevaluating the route.
+Constant proves one complete immutable terminal graph fact. The fact itself
+never changes. Constant says nothing about whether the route that selected it
+will select the same identity during a later observation. A consumer re-queries
+a live route and may reuse a derived result only after proving that its current
+Constant inputs are the same exact identities.
 
 None is the shared Constant for proven absence. Its name is `None`, its Type is
 itself, and unsupported concept queries return itself. None never means that a
@@ -303,44 +305,35 @@ calling convention, machine address, or target ABI policy.
 ## Layout
 
 Layout carries no semantic identity. It describes one promised value shape and
-provides ordered observation and directional fitting over exact Abstract
-identities. Types and Callables expose required Layouts. Packs carry the Layout
-of the values they supply. A consumer may test a complete fit, test a fit
-at an offset, and recover the original source edge that supplies a target
-position.
-
-The closed fitting errors are `IndexOutOfBounds`, `SizeMismatch`, and
-`IncompatibleFit`. A failed fit does not add Unknown to the semantic graph.
+provides synchronous entry visitation plus directional `fits(source, target)`
+over exact Abstract identities. Types and Callables expose required Layouts.
+Packs carry the Layout of the values they supply. A failed fit does not add
+Unknown to the semantic graph.
 
 TTX defines five common Layout forms:
 
 * `Value` contains one exact atomic Type as the terminal Layout leaf.
 * `Fluid` describes ordered positional entries and fits them by represented
   identity. An Addressable target participates through its Type.
-* `Named` describes nonempty unique slot names, matches them by name, then
-  preserves the fitting rule of the source Layout for each matched entry. A
-  slot may borrow its name independently from the source Abstract without
-  renaming or wrapping that Abstract.
+* `Named` wraps one complete Layout, owns nonempty unique slot names, exposes
+  name-aware visitation through its own Interface, and matches names inside its
+  fitting operation. Optional names never enter the base Layout contract.
 * `Ranged` describes one exact entry repeated over a fixed interval and applies
   Fluid fitting.
 * `Composite` describes two complete Layouts as one shape without flattening
   them.
 
-Fitting is directional: the source supplies the target. Complete fitting
-requires equal sizes. Segmented fitting places a source in one target interval.
-Successful fitted queries return the original source edge that supplies the
-target position. A Layout that decorates or combines another Layout delegates
-entry fitting to the source owner rather than replacing its fitting rules.
-
-A consumer may select one exact Layout entry and prove the category required by
-its own operation. `Named` provides name based fitting without defining a
-universal lookup or member interface.
+Fitting is directional: the source supplies the target. A Layout that decorates
+or combines another Layout owns that composition and delegates to its real
+children without exposing indices or fitted maps to generic callers. Consumers
+enumerate entries through Callables. `Named` provides name-aware visitation and
+fitting without defining a universal lookup or member interface.
 
 Layout retains no copied semantic record, target offset, storage class, ABI
 rule, or anonymous Type identity. Structural coincidence does not create Type
 identity.
 
-An empty Layout has size zero. It fits another empty Layout and describes no
+An empty Layout visits no entries. It fits another empty Layout and describes no
 stable value or address, regardless of which concrete Type or Pack exposes it.
 
 ## Interface
@@ -392,21 +385,34 @@ payload begins with `/`, the resulting `///` form is a raw comment instead.
 Raw comments remain in the lexical source and editor token stream, but they do
 not contribute Documentation. Formatting preserves their authored content.
 
-## Reference
+## Host ABI
 
-Reference is a nonnull borrowed semantic edge. It preserves the exact object
-and exposes no absent state.
+The TTX concept and model contracts are expressible as C handles and immutable
+operation tables. A handle address is the live semantic identity. Category
+views, Layouts, Packs, Contexts, Interfaces, and stateful Callable handles carry
+no second semantic identity.
 
-Reference does not call `resolve()`, follow Alias targets, prove another
-category, or canonicalize structurally equal Types. The consumer performs the
-operation required by its own contract. This lets a Layout retain the exact
-Addressable selected by its owner while a Generic materialization retains the
-exact Type selected for one argument.
+The ABI uses no C++ template proof, inheritance, RTTI, native type address,
+`void*` callback context, or container contract. A concrete owner retains any
+state behind its typed handle. Every borrowed identity remains valid only for
+the operation and graph lifetime established by that owner.
 
-The graph owner guarantees that the borrowed identity outlives the Reference.
-A process address may identify that object while the owner keeps it stable, but
-the address is not a durable semantic name. A Reference cannot be serialized or
-carried across a Terminal boundary.
+Every public TTX header is a self contained C17 header. Abstract, Layout, Pack,
+Context, Interface, and each category expose typed handles whose first field is
+their immutable operation table. A concrete owner composes the operation tables
+for the categories it proves. It does not acquire category meaning from a C++
+base class or a registry.
+
+Stateful visitation uses a typed Callable handle. The Callable operation
+receives that same handle as its self value, so its concrete owner can recover
+retained state without an erased context pointer. Concept and Layout visits are
+synchronous and the receiver retains no Callable after returning.
+
+Context is a caller owned result domain. Its sole authority is `pack(layout)`.
+It copies the visited shape and every presented name into caller supplied
+storage, borrows the real Abstract identities, and retains the resulting Packs
+for the Context lifetime. Concept visitation does not allocate a Context or a
+Pack.
 
 ## Consumers and Terminal products
 
@@ -443,7 +449,7 @@ or common byte container.
 Each Terminal format belongs to its concrete producer. The format may retain
 source presentation, target representation, or reconstruction facts defined by
 semantic owners according to that producer's purpose. The Terminal itself is
-never an Abstract, Type, Pack, Layout, Addressable, Callable, or Reference.
+never an Abstract, Type, Pack, Layout, Addressable, or Callable.
 
 A target Terminal such as LLVM IR or an object module does not become a
 semantic source of truth. Target Types, offsets, registers, address spaces,
@@ -463,7 +469,7 @@ Reconstruction is equivalent when the fresh graph reproduces every public
 observation promised by the format. These observations may include names,
 categories, represented identity relations, semantic edges, order, Layout
 behavior, completion, and concrete owner facts. Equivalence does not require
-the same internal graph shape, process addresses, or References.
+the same internal graph shape, process addresses, or old handle values.
 
 The Terminal producer defines that observation set. It may retain only the
 Types, Addressables, Callables, constant Pack flow, and owner facts that later
@@ -496,9 +502,9 @@ offsets, or treat a Terminal Type as the original semantic Type.
     producers directly.
 11. Type, Addressable, Callable, Pack, Layout, and Interface remain independent
     contracts. TTX defines no universal member model over them.
-12. Layout owns promised shape, order, and directional fitting, not produced
-    value identity or copied semantic or physical
-    records.
+12. Layout owns promised shape and directional fitting, not produced value
+    identity or copied semantic or physical records. Visitation order is
+    semantic only when that concrete Layout owner explicitly promises order.
 13. Interface negotiates a semantic relation over real Abstracts without
     creating identity, copying either graph, or making equal Layouts imply
     equal meaning.
@@ -507,9 +513,9 @@ offsets, or treat a Terminal Type as the original semantic Type.
     nor makes it a shared identity or Type query.
 15. Concrete language, package, target, runtime, and diagnostic policy remain
     outside TTX.
-16. Reference preserves one exact borrowed object and never resolves or
+16. A borrowed handle preserves one exact object and never resolves or
     canonicalizes it implicitly.
-17. A Reference is valid only within the lifetime guaranteed by its graph
+17. A borrowed handle is valid only within the lifetime guaranteed by its graph
     owner and never crosses a Terminal boundary.
 18. A Terminal product is outside the semantic graph and belongs to no TTX
     identity category.

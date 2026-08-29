@@ -15,6 +15,7 @@
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
+#include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/operations/add.hpp"
 #include "tetrodotoxin/library/language/operations/and.hpp"
@@ -32,7 +33,7 @@
 #include "tetrodotoxin/library/language/operations/or.hpp"
 #include "tetrodotoxin/library/language/operations/range.hpp"
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -393,7 +394,7 @@ PERIMORTEM_UNIT_TEST(ExpressionParserTests, nested_precedence) {
   EXPECT(matches_anchor(*equal, source, "=="_view, source));
   ASSERT(link_one(domain, *monograph, *parsed, source, errors));
   finalize_one(domain, *parsed, source, errors);
-  auto folded = equal->get_folded();
+  auto folded = Tetrodotoxin::Library::Language::query_folded_pack(*equal);
   ASSERT(folded);
   EXPECT(folded->is_identity<Library::Language::Constants::True>());
   EXPECT(errors.is_empty());

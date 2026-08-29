@@ -6,8 +6,8 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/layout.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/concept/layout.hpp"
 
 namespace Tetrodotoxin::Library::Language::Flow {
 

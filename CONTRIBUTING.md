@@ -57,6 +57,9 @@ ownership mistakes:
 * Target configuration inside a Dialect may mean that lowering has crossed the
   Terminal boundary.
 * Platform headers in a public API may mean that the native boundary is leaking.
+* A TTX contract that cannot be expressed as a typed C handle and immutable
+  operation table may be importing C++ implementation policy into the shared
+  semantic vocabulary.
 * An adapter between two new APIs may be preserving a bad abstraction instead
   of correcting it.
 

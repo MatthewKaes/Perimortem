@@ -8,7 +8,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/concept/constant.hpp"
+#include "ttx/bootstrap/concept/constant.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
@@ -21,8 +21,7 @@ class Aggregate final : public Ttx::Concept::Constant, public Model::Pack {
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Vector<Ttx::Model::PackReference<Model::Pack>>
-          values,
+      Perimortem::Core::View::Vector<Model::Pack*> values,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names = {})
       -> Perimortem::Core::Option<Aggregate&>;
 
@@ -75,12 +74,10 @@ class Aggregate final : public Ttx::Concept::Constant, public Model::Pack {
 
   Aggregate(
       Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Vector<Ttx::Model::PackReference<Model::Pack>>
-          values,
+      Perimortem::Core::View::Vector<Model::Pack*> values,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names);
 
-  Perimortem::Memory::Managed::Vector<Ttx::Model::PackReference<Model::Pack>>
-      values;
+  Perimortem::Memory::Managed::Vector<Model::Pack*> values;
   Perimortem::Memory::Managed::Vector<Perimortem::Core::View::Bytes> names;
   Perimortem::Memory::Managed::Bytes name;
   Layout layout;

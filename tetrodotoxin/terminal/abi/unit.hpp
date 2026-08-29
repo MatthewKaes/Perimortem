@@ -7,9 +7,8 @@
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/option.hpp"
 
-#include "ttx/concept/abstract.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/model/type.hpp"
+#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 
 namespace Tetrodotoxin::Terminal::Abi {
 
@@ -23,10 +22,10 @@ class Unit {
     constexpr Binding(
         const Ttx::Concept::Abstract& semantic,
         Perimortem::Core::View::Bytes symbol)
-        : semantic(semantic), symbol(symbol) {}
+        : semantic(&semantic), symbol(symbol) {}
 
     constexpr auto get_semantic() const -> const Ttx::Concept::Abstract& {
-      return semantic.get();
+      return *semantic;
     }
 
     constexpr auto get_symbol() const -> Perimortem::Core::View::Bytes {
@@ -34,7 +33,7 @@ class Unit {
     }
 
    private:
-    Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic;
+    const Ttx::Concept::Abstract* semantic;
     Perimortem::Core::View::Bytes symbol;
   };
 
@@ -48,10 +47,10 @@ class Unit {
         Perimortem::Core::View::Bytes package,
         Perimortem::Core::View::Bytes member,
         Perimortem::Core::View::Bytes route)
-        : semantic(semantic), package(package), member(member), route(route) {}
+        : semantic(&semantic), package(package), member(member), route(route) {}
 
     constexpr auto get_semantic() const -> const Ttx::Model::Type& {
-      return semantic.get();
+      return *semantic;
     }
 
     constexpr auto get_package() const -> Perimortem::Core::View::Bytes {
@@ -67,7 +66,7 @@ class Unit {
     }
 
    private:
-    Ttx::Concept::Reference<const Ttx::Model::Type> semantic;
+    const Ttx::Model::Type* semantic;
     Perimortem::Core::View::Bytes package;
     Perimortem::Core::View::Bytes member;
     Perimortem::Core::View::Bytes route;
@@ -81,8 +80,7 @@ class Unit {
       Perimortem::Core::View::Vector<TypeBinding> types = {},
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> headers =
           {},
-      Perimortem::Core::Option<
-          Ttx::Concept::Reference<const Ttx::Concept::Abstract>> local = {},
+      Perimortem::Core::Option<const Ttx::Concept::Abstract*> local = {},
       Perimortem::Core::View::Bytes c_header = {},
       Perimortem::Core::View::Bytes cpp_header = {})
       : package(package),
@@ -97,8 +95,7 @@ class Unit {
 
   constexpr auto bind(const Ttx::Concept::Abstract& semantic) const -> Unit {
     return Unit(
-        package, member, artifact, external, types, headers,
-        Ttx::Concept::Reference<const Ttx::Concept::Abstract>(semantic),
+        package, member, artifact, external, types, headers, &semantic,
         c_header, cpp_header);
   }
 
@@ -110,7 +107,7 @@ class Unit {
   }
 
   constexpr auto owns(const Ttx::Concept::Abstract& semantic) const -> Bool {
-    return local && &local->get() == &semantic;
+    return local && *local == &semantic;
   }
 
   constexpr auto get_package() const -> Perimortem::Core::View::Bytes {
@@ -179,9 +176,7 @@ class Unit {
   Perimortem::Core::View::Vector<Binding> external;
   Perimortem::Core::View::Vector<TypeBinding> types;
   Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> headers;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-      local;
+  Perimortem::Core::Option<const Ttx::Concept::Abstract*> local;
   Perimortem::Core::View::Bytes c_header;
   Perimortem::Core::View::Bytes cpp_header;
 };

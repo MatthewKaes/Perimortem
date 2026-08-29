@@ -7,12 +7,12 @@
 
 #include "perimortem/system/version.hpp"
 
+#include "tetrodotoxin/language/reference.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
-#include "ttx/concept/reference.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
+#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/alias.hpp"
-#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Language {
 
@@ -142,13 +142,10 @@ class Import : public Ttx::Model::Alias {
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
  private:
-  auto select_target(Perimortem::Core::Option<Ttx::Lexical::Cursor&> cursor)
-      const -> const Ttx::Concept::Abstract&;
+  auto select_target() const -> const Ttx::Concept::Abstract&;
 
   Perimortem::Memory::Allocator::Arena& domain;
   const Ttx::Concept::Documentation& local_documentation;
-  Perimortem::Core::Option<const Ttx::Concept::Documentation&>
-      visible_documentation;
   Visibility visibility;
   Kind kind;
   Perimortem::Core::View::Bytes locator;
@@ -157,8 +154,8 @@ class Import : public Ttx::Model::Alias {
   Ttx::Lexical::Anchor declaration_anchor;
   Ttx::Lexical::Anchor expression_anchor;
   Ttx::Lexical::Anchor route_anchor;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
-      acquired;
+  const Ttx::Model::Type* acquired = nullptr;
+  const Ttx::Concept::Abstract* target = nullptr;
 };
 
 }  // namespace Tetrodotoxin::Language

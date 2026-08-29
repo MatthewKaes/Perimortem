@@ -9,7 +9,6 @@
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
@@ -46,8 +45,8 @@ class Type : public Expression {
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   // A following incomplete postfix may leave this access outside a retained
   // Statement. The receiver still owns enough authored context to answer the
@@ -70,9 +69,7 @@ class Type : public Expression {
   Model::Pack& receiver;
   Ttx::Lexical::Token token;
   Perimortem::Core::View::Bytes name;
-  Perimortem::Core::Option<
-      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-      selected;
+  Perimortem::Core::Option<const Ttx::Concept::Abstract*> selected;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

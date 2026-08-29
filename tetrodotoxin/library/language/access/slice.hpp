@@ -7,7 +7,6 @@
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Access {
@@ -48,6 +47,10 @@ class Slice : public Expression {
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto fits(const Ttx::Model::Type& target) const -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
 
   constexpr auto get_receiver() const -> const Model::Pack& { return receiver; }
 
@@ -58,9 +61,9 @@ class Slice : public Expression {
       -> Perimortem::Core::Option<const Model::Pack&> {
     return count.visit(
         []() -> Perimortem::Core::Option<const Model::Pack&> { return {}; },
-        [](const Ttx::Model::PackReference<Model::Pack>& selected)
+        [](Model::Pack* selected)
             -> Perimortem::Core::Option<const Model::Pack&> {
-          return selected.get();
+          return *selected;
         });
   }
 
@@ -68,9 +71,9 @@ class Slice : public Expression {
       -> Perimortem::Core::Option<const Model::Type&> {
     return element_type.visit(
         []() -> Perimortem::Core::Option<const Model::Type&> { return {}; },
-        [](const Ttx::Concept::Reference<const Model::Type>& selected)
+        [](const Model::Type* selected)
             -> Perimortem::Core::Option<const Model::Type&> {
-          return selected.get();
+          return *selected;
         });
   }
 
@@ -78,9 +81,9 @@ class Slice : public Expression {
       -> Perimortem::Core::Option<const Model::Pack&> {
     return fallback.visit(
         []() -> Perimortem::Core::Option<const Model::Pack&> { return {}; },
-        [](const Ttx::Model::PackReference<Model::Pack>& selected)
+        [](Model::Pack* selected)
             -> Perimortem::Core::Option<const Model::Pack&> {
-          return selected.get();
+          return *selected;
         });
   }
 
@@ -88,12 +91,9 @@ class Slice : public Expression {
     return range_count;
   }
 
- protected:
-  auto evaluate() -> Perimortem::Utility::Result<
-      Perimortem::Core::Option<Model::Pack&>,
-      Expression::Error> override;
-
  private:
+  auto evaluate_fold() -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Model::Pack&>, Expression::Error>;
   Slice(
       Perimortem::Memory::Allocator::Arena& domain,
       Model::Pack& receiver,
@@ -109,10 +109,9 @@ class Slice : public Expression {
   Perimortem::Memory::Allocator::Arena& domain;
   Model::Pack& receiver;
   Model::Pack& first;
-  Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>> count;
-  Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
-      element_type;
-  Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>> fallback;
+  Perimortem::Core::Option<Model::Pack*> count;
+  Perimortem::Core::Option<const Model::Type*> element_type;
+  Perimortem::Core::Option<Model::Pack*> fallback;
   Perimortem::Core::Option<Count> range_count;
   Perimortem::Core::Option<const Ttx::Concept::Layout&> range_layout;
 };

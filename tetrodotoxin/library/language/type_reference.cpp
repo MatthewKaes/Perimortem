@@ -20,11 +20,10 @@
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/reference.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/model/alias.hpp"
-#include "ttx/model/layouts/fluid.hpp"
+#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/alias.hpp"
+#include "ttx/bootstrap/model/layouts/fluid.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -236,8 +235,7 @@ auto Language::TypeReference::resolve_with_root(
   // Resolution assembles one temporary Layout from the real argument
   // identities. Generic copies its normalized key into its own Arena before
   // this storage leaves, and nested routes follow the same root access policy.
-  Memory::Dynamic::Vector<Reference<const Abstract>> linked(
-      arguments->get_size());
+  Memory::Dynamic::Vector<const Abstract*> linked(arguments->get_size());
   const auto* argument_data = arguments->get_data();
   for (Count i = 0; i < arguments->get_size(); i++) {
     const Argument& argument = argument_data[i];
@@ -257,7 +255,7 @@ auto Language::TypeReference::resolve_with_root(
       if (!nested || !nested->is<Ttx::Model::Type>()) {
         return Failure(Failure::Type::Argument, anchor, i);
       }
-      linked.insert(*nested);
+      linked.insert(&*nested);
       continue;
     }
 
@@ -265,7 +263,7 @@ auto Language::TypeReference::resolve_with_root(
     if (!literal) {
       return Failure(Failure::Type::Argument, anchor, i);
     }
-    linked.insert(*literal);
+    linked.insert(&*literal);
   }
 
   Ttx::Model::Layouts::Fluid layout(linked.get_view());

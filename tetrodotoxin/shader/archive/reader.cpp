@@ -10,9 +10,9 @@
 #include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/render/language/attributes.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/documentations/block.hpp"
 #include "ttx/lexical/anchor.hpp"
-#include "ttx/model/documentations/block.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -355,8 +355,8 @@ auto Shader::Archive::Reader::read_program(
             (*access != U8(Render::Language::Binding::Access::None)) ||
         !binding_contents.is_complete());
     Option<Library::Language::Field&> field;
-    for (const Reference<Abstract>& declaration : program.get_declarations()) {
-      auto candidate = declaration.get().select<Library::Language::Field>();
+    for (Abstract* declaration : program.get_declarations()) {
+      auto candidate = declaration->select<Library::Language::Field>();
       if (candidate && candidate->get_name() == *name) {
         BAIL_IF(field);
         field = *candidate;
@@ -378,9 +378,8 @@ auto Shader::Archive::Reader::read_program(
     BAIL_IF(!name || name->is_empty() || !uniform_contents.is_complete());
 
     Option<Library::Language::Field&> field;
-    for (const Reference<Abstract>& declaration :
-         program.get_parameters().get_declarations()) {
-      auto candidate = declaration.get().select<Library::Language::Field>();
+    for (Abstract* declaration : program.get_parameters().get_declarations()) {
+      auto candidate = declaration->select<Library::Language::Field>();
       if (candidate && candidate->get_name() == *name) {
         BAIL_IF(field);
         field = *candidate;
@@ -405,11 +404,10 @@ auto Shader::Archive::Reader::read_bridge(
   auto host_name = contents.read_bytes();
   BAIL_IF(!host_name || host_name->is_empty());
   Option<Shader::Language::Program&> host;
-  for (const Reference<Shader::Language::Program>& program :
-       monograph.get_programs()) {
-    if (program.get().get_name() == *host_name) {
+  for (Shader::Language::Program* program : monograph.get_programs()) {
+    if (program->get_name() == *host_name) {
       BAIL_IF(host);
-      host = program.get();
+      host = *program;
     }
   }
   BAIL_IF(!host);

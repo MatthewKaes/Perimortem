@@ -13,9 +13,9 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/bootstrap/model/layouts/addressable.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/layouts/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -43,10 +43,9 @@ static auto interpret(
 static auto find_function(
     const Language::Types::Composite& composite,
     View::Bytes name) -> Option<const Language::Function&> {
-  for (Reference<Abstract> candidate : composite.get_callables()) {
-    if (candidate.get().get_name() == name &&
-        candidate.get().is<Language::Function>()) {
-      return static_cast<const Language::Function&>(candidate.get());
+  for (Abstract* candidate : composite.get_callables()) {
+    if (candidate->get_name() == name && candidate->is<Language::Function>()) {
+      return static_cast<const Language::Function&>(*candidate);
     }
   }
 

@@ -4,7 +4,7 @@
 #include "tetrodotoxin/library/language/types/range.hpp"
 
 #include "tetrodotoxin/library/language/constants/range.hpp"
-#include "ttx/model/addressable.hpp"
+#include "ttx/bootstrap/model/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library::Language;
